@@ -19,7 +19,8 @@ const DEGRADATION_DIAGNOSTIC_TYPES = new Set([
   'parser_crash',
   'artifact_tail_stall',
   'queue_delay_hotspot',
-  'scm_timeout'
+  'scm_timeout',
+  'repo_partial_checkout'
 ]);
 const PRODUCTION_CLEAN_SIGNAL_TYPES = Object.freeze({
   fallbackRepos: 'fallback_used',
@@ -130,6 +131,7 @@ const evaluateProductionCleanGate = ({
     maxPreflightBlockedRepos: 0,
     maxArtifactStallRepos: 0,
     maxQualityBudgetLossRepos: 0,
+    maxPartialCheckoutRepos: 0,
     ...(methodology?.productionCleanGate?.thresholds || {})
   };
   const metrics = {
@@ -146,7 +148,8 @@ const evaluateProductionCleanGate = ({
     providerDegradationRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.providerDegradationRepos),
     preflightBlockedRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.preflightBlockedRepos),
     artifactStallRepos: countTasksWithDiagnosticType(tasks, PRODUCTION_CLEAN_SIGNAL_TYPES.artifactStallRepos),
-    qualityBudgetLossRepos: countQualityBudgetLossRepos(tasks)
+    qualityBudgetLossRepos: countQualityBudgetLossRepos(tasks),
+    partialCheckoutRepos: countTasksWithDiagnosticType(tasks, 'repo_partial_checkout')
   };
   const thresholdMetricMap = {
     maxUnwaivedIssues: 'unwaivedIssues',
@@ -158,7 +161,8 @@ const evaluateProductionCleanGate = ({
     maxProviderDegradationRepos: 'providerDegradationRepos',
     maxPreflightBlockedRepos: 'preflightBlockedRepos',
     maxArtifactStallRepos: 'artifactStallRepos',
-    maxQualityBudgetLossRepos: 'qualityBudgetLossRepos'
+    maxQualityBudgetLossRepos: 'qualityBudgetLossRepos',
+    maxPartialCheckoutRepos: 'partialCheckoutRepos'
   };
   const thresholdFailures = Object.entries(thresholds)
     .map(([key, limit]) => {

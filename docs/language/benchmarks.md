@@ -31,7 +31,7 @@ The matrix runner is `node tools/bench/language-matrix.js`.
 - Summary output is printed to stdout; use `--json` and/or `--out` for a machine-readable aggregate.
 - Progress/logging renders to stderr via the unified CLI display. Use `--progress=auto|off|jsonl` (default `auto`).
 - TTY runs show the interactive progress UI with a log window; non-TTY runs emit periodic single-line progress summaries. Use `--log-lines <n>` (3-50, default 20) to change the log window height.
-- Use `--verbose` for per-file/line progress and shard detail; `--quiet` suppresses non-error logs while still printing the final summary.
+- Use `--verbose` for per-file/line progress and shard detail; `--quiet` suppresses routine non-error logs while retaining checkout coverage warnings and the final summary.
 - Logs are written under `benchmarks/results/logs/bench-language/` by default:
   - `run-<YYYYMMDD>-<HHMMSS>-all.log`: the full run log across all repos.
   - `run-<YYYYMMDD>-<HHMMSS>-<repo>.log`: per-repo logs (repo name slug; disambiguates collisions by expanding the slug).
@@ -47,6 +47,7 @@ The matrix runner is `node tools/bench/language-matrix.js`.
 - `--cache-root <path>`: cache root for all benchmark runs (default `<shared-cache-root>/bench-language`, where shared cache root resolves via `PAIROFCLEATS_CACHE_ROOT`/`LOCALAPPDATA`).
 - `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
 - `--keep-cache`: preserve per-repo caches after each run (default: cleanup after each repo).
+- `--strict-submodules`: require the repository contract's required submodules to be available. By default, unavailable submodules warn and the runner continues with available files; optional modules retain their existing contract policy.
 - `--dry-run`: print the per-repo command plan without executing.
 - `--results <path>`: override the results root (default `benchmarks/results`).
 - `--build`, `--build-index`, `--build-sqlite`: build indexes before search. `--build-sqlite` uses incremental bundles when available; otherwise it will auto-enable `--build-index` to create file-backed indexes.
@@ -64,6 +65,8 @@ The matrix runner is `node tools/bench/language-matrix.js`.
 - `--out <file>`: write aggregate JSON summary.
 
 ## Notes
+- Submodule preparation works through independent modules and their available nested checkouts. A missing repository, authentication failure, or incomplete checkout does not prevent a healthy sibling or the main repository from being benchmarked. Warnings name the unavailable path and reason, including in quiet mode. No unavailable source is counted as indexed. Aggregate reports and the run ledger retain checkout coverage under `diagnostics.checkout`; incomplete coverage produces `repo_partial_checkout` and a `passed_with_degradation` verdict, and fails the production-clean gate by default. A failed main clone, invalid repository root, unsafe path, or interrupted preparation remains a failure. Existing checkout revisions are preserved rather than forcibly overwritten. Git authentication and transport checks remain in effect.
+- Submodule preparation shares a bounded timeout across discovery and individual initialization commands, and uses one Git initialization job at a time. [Git submodule documentation](https://git-scm.com/docs/git-submodule) describes the explicit checkout operation; [Git configuration documentation](https://git-scm.com/docs/git-config) describes the bounded metadata snapshot's NUL-delimited parsing without includes.
 - Queries are plain text, one query per line; lines starting with `#` are ignored.
 - The runner uses `execa` for child processes and terminates trees via `taskkill` on Windows and `SIGTERM` elsewhere; we avoid `tree-kill` due to past Windows command-injection advisories and only pass trusted PIDs.
 - Use `--verbose` to emit shard plan diagnostics (top shard sizes and split summaries) during builds.

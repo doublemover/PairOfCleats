@@ -95,6 +95,22 @@ const normalizeTaskEntry = (entry) => {
       }
       : null,
     diagnostics: {
+      checkout: entry?.diagnostics?.checkout && typeof entry.diagnostics.checkout === 'object'
+        ? {
+          state: toText(entry.diagnostics.checkout.state),
+          policy: toText(entry.diagnostics.checkout.policy),
+          partialReady: entry.diagnostics.checkout.partialReady === true,
+          discoveryComplete: entry.diagnostics.checkout.discoveryComplete !== false,
+          detected: toFiniteNumber(entry.diagnostics.checkout.detected),
+          missingPaths: (Array.isArray(entry.diagnostics.checkout.missingPaths) ? entry.diagnostics.checkout.missingPaths : []).slice(0, 4096).map(toText).filter(Boolean),
+          dirtyPaths: (Array.isArray(entry.diagnostics.checkout.dirtyPaths) ? entry.diagnostics.checkout.dirtyPaths : []).slice(0, 4096).map(toText).filter(Boolean),
+          warnings: (Array.isArray(entry.diagnostics.checkout.warnings) ? entry.diagnostics.checkout.warnings : []).slice(0, 8192).map((warning) => ({
+            path: toText(warning.path), reason: toText(warning.reason),
+            code: warning.code == null ? null : toFiniteNumber(warning.code, null),
+            detail: toText(warning.detail)?.slice(0, 1024) || null
+          }))
+        }
+        : null,
       process: entry?.diagnostics?.process && typeof entry.diagnostics.process === 'object'
         ? {
           countsByType: normalizeCountsByType(entry.diagnostics.process.countsByType),

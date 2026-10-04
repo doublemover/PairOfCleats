@@ -16,6 +16,7 @@ import {
   resolveBenchRuntimeAdaptationPlan
 } from '../language/timeout.js';
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
+import { summarizeRepoCheckout } from '../language/submodule-recovery.js';
 
 const BENCH_CRASH_QUARANTINE_SCHEMA_VERSION = 1;
 const OPENMOONRAY_WORKER_POOL_QUARANTINE_ID = 'openmoonray-worker-pool-off';
@@ -651,6 +652,11 @@ export const runBenchExecutionLoop = async ({
       }
 
       const preflightState = await lifecycle.prepareRepoWorkspace({ repoPath });
+      const checkout = summarizeRepoCheckout(preflightState.checkout);
+      const checkoutDiagnostics = {
+        checkout,
+        ...(checkout?.partialReady ? { countsByType: { repo_partial_checkout: 1 } } : {})
+      };
       if (!preflightState?.ok) {
         appendLog(`[error] preflight failed for ${repoLabel}; continuing.`, 'error');
         const crashRetention = await lifecycle.attachCrashRetention({
@@ -673,9 +679,7 @@ export const runBenchExecutionLoop = async ({
           failed: true,
           failureReason: preflightState.failureReason || 'preflight',
           failureCode: preflightState.failureCode ?? null,
-          ...(crashRetention
-            ? { diagnostics: { crashRetention } }
-            : {})
+          diagnostics: { ...checkoutDiagnostics, ...(crashRetention ? { crashRetention } : {}) }
         };
         results.push(result);
         runLedger?.recordRepoCompleted?.(result);
@@ -936,6 +940,7 @@ export const runBenchExecutionLoop = async ({
               ...(crashRetention
                 ? {
                   diagnostics: {
+                    ...checkoutDiagnostics,
                     process: benchResult.diagnostics || null,
                     progressConfidence: benchResult.progressConfidence || null,
                     crashRetention
@@ -943,6 +948,7 @@ export const runBenchExecutionLoop = async ({
                 }
                 : {
                   diagnostics: {
+                    ...checkoutDiagnostics,
                     process: benchResult.diagnostics || null,
                     progressConfidence: benchResult.progressConfidence || null
                   }
@@ -1000,6 +1006,7 @@ export const runBenchExecutionLoop = async ({
             failureReason: 'report',
             failureCode: null,
             diagnostics: {
+              ...checkoutDiagnostics,
               process: benchResult.diagnostics || null,
               progressConfidence: benchResult.progressConfidence || null,
               ...(crashRetention ? { crashRetention } : {})
@@ -1028,13 +1035,14 @@ export const runBenchExecutionLoop = async ({
         repoPath,
         outFile,
         summary,
-        diagnostics: benchResult
-          ? {
+        diagnostics: {
+          ...checkoutDiagnostics,
+          ...(benchResult ? {
             process: benchResult.diagnostics || null,
             progressConfidence: benchResult.progressConfidence || null,
             ...(crashQuarantineRecovery ? { crashQuarantineRecovery } : {})
-          }
-          : {}
+          } : {})
+        }
       };
       const repoSummaryLines = buildBenchRepoCloseoutSummaryLines({
         repoLabel,

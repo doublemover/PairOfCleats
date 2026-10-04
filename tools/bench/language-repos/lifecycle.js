@@ -55,6 +55,7 @@ export const ensureBenchConfig = async (repoPath, cacheRoot) => {
  *   cloneEnabled:boolean,
  *   dryRun:boolean,
  *   keepCache:boolean,
+ *   strictSubmodules?:boolean,
  *   cloneTool:object|null,
  *   cloneCommandEnv:object,
  *   mirrorCacheRoot:string,
@@ -74,6 +75,7 @@ export const createRepoLifecycle = ({
   cloneEnabled,
   dryRun,
   keepCache,
+  strictSubmodules = false,
   cloneTool,
   cloneCommandEnv,
   mirrorCacheRoot,
@@ -221,13 +223,15 @@ export const createRepoLifecycle = ({
    * Run repo-local preflight and ensure repo-scoped bench config once.
    *
    * @param {{repoPath:string}} input
-   * @returns {Promise<{ok:boolean,failureReason?:string,failureCode?:number|null}>}
+   * @returns {Promise<{ok:boolean,checkout:object|null,failureReason?:string,failureCode?:number|null}>}
    */
   const prepareRepoWorkspace = async ({ repoPath }) => {
+    let preflightSummary = null;
     if (!dryRun) {
-      const preflightSummary = ensureRepoBenchmarkReady({
+      preflightSummary = ensureRepoBenchmarkReady({
         repoPath,
-        onLog: appendLog
+        onLog: (message, level) => appendLog(message, level, { forceOutput: level === 'warn' }),
+        strictSubmodules
       });
       if (preflightSummary?.ok === false) {
         const repoName = path.basename(repoPath);
@@ -237,7 +241,8 @@ export const createRepoLifecycle = ({
           ok: false,
           failureReason: preflightSummary.failureReason || 'preflight',
           failureCode: preflightSummary.failureCode ?? null,
-          failureDetail: preflightSummary.failureDetail || null
+          failureDetail: preflightSummary.failureDetail || null,
+          checkout: preflightSummary
         };
       }
     }
@@ -245,7 +250,7 @@ export const createRepoLifecycle = ({
       await ensureBenchConfig(repoPath, cacheRoot);
       ensuredBenchConfig.add(repoPath);
     }
-    return { ok: true };
+    return { ok: true, checkout: preflightSummary };
   };
 
   /**

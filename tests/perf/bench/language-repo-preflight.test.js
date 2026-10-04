@@ -46,7 +46,7 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 const missingRepo = path.join(tempRoot, 'missing-repo');
 
-const summary = ensureRepoBenchmarkReady({ repoPath: missingRepo });
+const summary = ensureRepoBenchmarkReady({ strictSubmodules: true, repoPath: missingRepo });
 assert.equal(summary.gitRepo, false, 'expected non-git dirs to skip preflight without throwing');
 assert.equal(summary.submodules.detected, 0, 'unexpected submodule detection for non-git dir');
 assert.equal(summary.lfs.pulled, false, 'unexpected lfs pull for non-git dir');
@@ -105,6 +105,7 @@ const withMockGitRunner = (runner, action) => {
   }
 };
 
+// These historical fail-fast expectations now belong to the explicit strict policy.
 const sshRepoPath = await setupMockRepo(
   'ssh-rewrite',
   [
@@ -154,7 +155,7 @@ const sshSummary = withMockGitRunner((cmd, args) => {
     };
   }
   throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
-}, () => ensureRepoBenchmarkReady({
+}, () => ensureRepoBenchmarkReady({ strictSubmodules: true,
   repoPath: sshRepoPath,
   onLog: (message) => sshLogs.push(String(message || ''))
 }));
@@ -217,8 +218,8 @@ const cacheRunner = (cmd, args) => {
   throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
 };
 __setGitCommandRunnerForTests(cacheRunner);
-const cacheSummaryFirst = ensureRepoBenchmarkReady({ repoPath: cacheRepoPath });
-const cacheSummarySecond = ensureRepoBenchmarkReady({ repoPath: cacheRepoPath });
+const cacheSummaryFirst = ensureRepoBenchmarkReady({ strictSubmodules: true, repoPath: cacheRepoPath });
+const cacheSummarySecond = ensureRepoBenchmarkReady({ strictSubmodules: true, repoPath: cacheRepoPath });
 __setGitCommandRunnerForTests(null);
 __resetRepoPreflightFailureCacheForTests();
 assert.equal(cacheSummaryFirst.ok, false, 'expected first cache test attempt to fail');
@@ -262,7 +263,7 @@ const verifySummary = withMockGitRunner((cmd, args) => {
     return { ok: true, status: 0, stdout: '', stderr: '' };
   }
   throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
-}, () => ensureRepoBenchmarkReady({ repoPath: verifyRepoPath }));
+}, () => ensureRepoBenchmarkReady({ strictSubmodules: true, repoPath: verifyRepoPath }));
 
 assert.equal(verifySummary.ok, false, 'expected unresolved submodules to fail preflight');
 assert.equal(
@@ -309,7 +310,7 @@ const successSummary = withMockGitRunner((cmd, args) => {
     return { ok: true, status: 0, stdout: '', stderr: '' };
   }
   throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
-}, () => ensureRepoBenchmarkReady({
+}, () => ensureRepoBenchmarkReady({ strictSubmodules: true,
   repoPath: successRepoPath,
   onLog: (message) => successLogs.push(String(message || ''))
 }));
@@ -355,7 +356,7 @@ const optionalSummary = withMockGitRunner((cmd, args) => {
     return { ok: true, status: 0, stdout: '', stderr: '' };
   }
   throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
-}, () => ensureRepoBenchmarkReady({
+}, () => ensureRepoBenchmarkReady({ strictSubmodules: true,
   repoPath: optionalRepoPath,
   repoContract: {
     key: 'optional-only',
@@ -396,7 +397,7 @@ const timeoutSummary = withMockGitRunner((cmd, args) => {
     return { ok: false, status: null, stdout: '', stderr: 'timed out after 120000ms', timedOut: true };
   }
   throw new Error(`unexpected git invocation: ${JSON.stringify(args)}`);
-}, () => ensureRepoBenchmarkReady({ repoPath: timeoutRepoPath }));
+}, () => ensureRepoBenchmarkReady({ strictSubmodules: true, repoPath: timeoutRepoPath }));
 
 assert.equal(timeoutSummary.ok, false, 'expected timeout case to fail');
 assert.equal(timeoutSummary.preflight.state, 'blocked_timeout', 'expected timeout classification');
@@ -441,12 +442,12 @@ const blockedClone = await lifecycle.ensureRepoPresent({
   repoPath: path.join(tempRoot, 'repos', 'groovy', 'easzlab__kubeasz'),
   repoLabel: 'groovy easzlab/kubeasz'
 });
-assert.equal(cloneInvoked, false, 'expected known Windows-incompatible repo to skip clone invocation');
+assert.equal(cloneInvoked, process.platform !== 'win32', 'only Windows skips the known incompatible checkout before cloning');
 assert.equal(blockedClone.ok, false, 'expected blocked clone state');
 assert.equal(
   blockedClone.failureReason,
-  'platform_incompatible_checkout',
-  'expected lifecycle clone result to preserve platform incompatibility reason'
+  process.platform === 'win32' ? 'platform_incompatible_checkout' : 'clone',
+  'platform rejection and actual top-level clone failure keep their distinct reasons'
 );
 
 console.log('bench-language repo preflight parser test passed.');
