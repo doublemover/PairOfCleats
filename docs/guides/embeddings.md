@@ -81,6 +81,13 @@ embeddings: {
 
 ## 4) Quantization invariants
 
+Stage 3 synchronizes produced vectors into every manifest bundle, including late
+and sharded files. It does not repeat stage 1's extraction-yield admission test.
+Coverage metadata counts examined, unexamined and invalid bundles separately;
+missing or unknown coverage remains incomplete, preserving the existing SQLite
+artifact fallback. Eligible/covered counts describe observed nonempty bundles,
+so a zero denominator alone cannot certify the entire manifest.
+
 For uint8 embeddings:
 - `levels` MUST be clamped to `[2, 256]`
 - emitted vectors MUST only contain values in `[0, 255]` (no wrap)
