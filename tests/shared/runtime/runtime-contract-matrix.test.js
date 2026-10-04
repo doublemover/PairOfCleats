@@ -13,6 +13,7 @@ import { resolveThreadLimits } from '../../../src/shared/threads.js';
 import { runNode } from '../../helpers/run-node.js';
 import { repoRoot } from '../../helpers/root.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { resolveRuntimeEnv } from '../../../tools/shared/dict-utils.js';
 
@@ -155,29 +156,34 @@ const cases = [
         }
       }, null, 2));
 
-      const baseEnv = { ...process.env };
-      delete baseEnv.NODE_OPTIONS;
-      delete baseEnv.UV_THREADPOOL_SIZE;
-      delete baseEnv.PAIROFCLEATS_NODE_OPTIONS;
-      delete baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
-      delete baseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
+      const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+      try {
+        const baseEnv = { ...process.env };
+        delete baseEnv.NODE_OPTIONS;
+        delete baseEnv.UV_THREADPOOL_SIZE;
+        delete baseEnv.PAIROFCLEATS_NODE_OPTIONS;
+        delete baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
+        delete baseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
 
-      const heavyEnv = await resolveDispatchRuntimeEnv({
-        root: tempRoot,
-        scriptPath: 'tools/reports/throughput.js',
-        baseEnv
-      });
-      assert.equal(heavyEnv.UV_THREADPOOL_SIZE, '9');
-      assert.match(String(heavyEnv.NODE_OPTIONS || ''), /--trace-warnings/);
-      assert.match(String(heavyEnv.NODE_OPTIONS || ''), /--max-old-space-size=1536/);
+        const heavyEnv = await resolveDispatchRuntimeEnv({
+          root: tempRoot,
+          scriptPath: 'tools/reports/throughput.js',
+          baseEnv
+        });
+        assert.equal(heavyEnv.UV_THREADPOOL_SIZE, '9');
+        assert.match(String(heavyEnv.NODE_OPTIONS || ''), /--trace-warnings/);
+        assert.match(String(heavyEnv.NODE_OPTIONS || ''), /--max-old-space-size=1536/);
 
-      const skippedEnv = await resolveDispatchRuntimeEnv({
-        root: tempRoot,
-        scriptPath: 'tools/index/cli-entry.js',
-        baseEnv
-      });
-      assert.equal(skippedEnv.UV_THREADPOOL_SIZE, '9');
-      assert.match(String(skippedEnv.NODE_OPTIONS || ''), /--max-old-space-size=1536/);
+        const skippedEnv = await resolveDispatchRuntimeEnv({
+          root: tempRoot,
+          scriptPath: 'tools/index/cli-entry.js',
+          baseEnv
+        });
+        assert.equal(skippedEnv.UV_THREADPOOL_SIZE, '9');
+        assert.match(String(skippedEnv.NODE_OPTIONS || ''), /--max-old-space-size=1536/);
+      } finally {
+        restoreExecution();
+      }
     }
   },
   {
@@ -195,43 +201,48 @@ const cases = [
         }
       }, null, 2));
 
-      const baseEnv = { ...process.env };
-      delete baseEnv.NODE_OPTIONS;
-      delete baseEnv.UV_THREADPOOL_SIZE;
-      delete baseEnv.PAIROFCLEATS_NODE_OPTIONS;
-      delete baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
-      delete baseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
+      const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+      try {
+        const baseEnv = { ...process.env };
+        delete baseEnv.NODE_OPTIONS;
+        delete baseEnv.UV_THREADPOOL_SIZE;
+        delete baseEnv.PAIROFCLEATS_NODE_OPTIONS;
+        delete baseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
+        delete baseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
 
-      const env = await resolveTuiWrapperEnv({
-        runtimeRoot: tempRoot,
-        tuiEnvConfig: {
-          runId: 'configured-run',
-          installRoot: path.join(tempRoot, 'configured-install'),
-          eventLogDir: path.join(tempRoot, 'configured-logs')
-        },
-        installRoot: path.join(tempRoot, 'fallback-install'),
-        eventLogDir: path.join(tempRoot, 'fallback-logs'),
-        baseEnv,
-        runId: 'fallback-run'
-      });
-      assert.equal(env.UV_THREADPOOL_SIZE, '10');
-      assert.match(String(env.NODE_OPTIONS || ''), /--trace-warnings/);
-      assert.match(String(env.NODE_OPTIONS || ''), /--max-old-space-size=1408/);
-      assert.equal(env.PAIROFCLEATS_TUI_RUN_ID, 'configured-run');
-      assert.equal(env.PAIROFCLEATS_TUI_INSTALL_ROOT, path.join(tempRoot, 'configured-install'));
-      assert.equal(env.PAIROFCLEATS_TUI_EVENT_LOG_DIR, path.join(tempRoot, 'configured-logs'));
+        const env = await resolveTuiWrapperEnv({
+          runtimeRoot: tempRoot,
+          tuiEnvConfig: {
+            runId: 'configured-run',
+            installRoot: path.join(tempRoot, 'configured-install'),
+            eventLogDir: path.join(tempRoot, 'configured-logs')
+          },
+          installRoot: path.join(tempRoot, 'fallback-install'),
+          eventLogDir: path.join(tempRoot, 'fallback-logs'),
+          baseEnv,
+          runId: 'fallback-run'
+        });
+        assert.equal(env.UV_THREADPOOL_SIZE, '10');
+        assert.match(String(env.NODE_OPTIONS || ''), /--trace-warnings/);
+        assert.match(String(env.NODE_OPTIONS || ''), /--max-old-space-size=1408/);
+        assert.equal(env.PAIROFCLEATS_TUI_RUN_ID, 'configured-run');
+        assert.equal(env.PAIROFCLEATS_TUI_INSTALL_ROOT, path.join(tempRoot, 'configured-install'));
+        assert.equal(env.PAIROFCLEATS_TUI_EVENT_LOG_DIR, path.join(tempRoot, 'configured-logs'));
 
-      const fallbackEnv = await resolveTuiWrapperEnv({
-        runtimeRoot: tempRoot,
-        tuiEnvConfig: {},
-        installRoot: path.join(tempRoot, 'fallback-install'),
-        eventLogDir: path.join(tempRoot, 'fallback-logs'),
-        baseEnv,
-        runId: 'fallback-run'
-      });
-      assert.equal(fallbackEnv.PAIROFCLEATS_TUI_RUN_ID, 'fallback-run');
-      assert.equal(fallbackEnv.PAIROFCLEATS_TUI_INSTALL_ROOT, path.join(tempRoot, 'fallback-install'));
-      assert.equal(fallbackEnv.PAIROFCLEATS_TUI_EVENT_LOG_DIR, path.join(tempRoot, 'fallback-logs'));
+        const fallbackEnv = await resolveTuiWrapperEnv({
+          runtimeRoot: tempRoot,
+          tuiEnvConfig: {},
+          installRoot: path.join(tempRoot, 'fallback-install'),
+          eventLogDir: path.join(tempRoot, 'fallback-logs'),
+          baseEnv,
+          runId: 'fallback-run'
+        });
+        assert.equal(fallbackEnv.PAIROFCLEATS_TUI_RUN_ID, 'fallback-run');
+        assert.equal(fallbackEnv.PAIROFCLEATS_TUI_INSTALL_ROOT, path.join(tempRoot, 'fallback-install'));
+        assert.equal(fallbackEnv.PAIROFCLEATS_TUI_EVENT_LOG_DIR, path.join(tempRoot, 'fallback-logs'));
+      } finally {
+        restoreExecution();
+      }
     }
   },
   {
