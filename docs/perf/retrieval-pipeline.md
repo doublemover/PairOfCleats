@@ -33,6 +33,18 @@ Vector ANN backends are queried only when vectors are present and an embedding h
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
 
+## Sampled MinHash
+
+Sampled signatures are compared using the same recorded stride and component
+indices for the query, with similarity divided by the sampled width. JSON,
+packed artifacts and streamed rows retain that descriptor. SQLite stores it in
+an optional per-mode metadata table, while full-width legacy schema-12 stores
+remain readable. The LMDB producer accepts packed-only artifacts and preserves
+numeric values through its existing codec. Unknown sampling plans and shortened
+rows without metadata are unavailable rather than guessed. Older sampled SQLite
+stores and packed-only LMDB stores need a backend rebuild to restore those data;
+there is no automatic store migration.
+
 ## Graph/Context Pack Caches
 
 When graph-backed expansion (impact/context-pack) is enabled, `GraphStore` maintains small bounded LRU caches

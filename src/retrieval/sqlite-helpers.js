@@ -7,6 +7,7 @@ import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
 import { normalizeMetaV2ForRead } from '../index/metadata/meta-v2.js';
+import { normalizeMinhashSampling } from '../index/minhash.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
@@ -264,6 +265,16 @@ export function createSqliteHelpers(options) {
         signatures[row.doc_id] = unpackUint32(row.sig);
       }
       minhash = signatures.length ? { signatures } : null;
+      if (minhash) {
+        try {
+          const row = getCachedStatement(db, 'minhash-sampling', 'SELECT sampling FROM minhash_meta WHERE mode = ?').get(mode);
+          const sampling = normalizeMinhashSampling(parseJson(row?.sampling, null));
+          if (sampling) minhash.sampling = sampling;
+        } catch (error) {
+          // Existing schema-12 stores may have no optional metadata table.
+          if (error?.code !== 'SQLITE_ERROR' || !/no such table: minhash_meta/i.test(error.message)) throw error;
+        }
+      }
     }
 
     let denseVec = null;

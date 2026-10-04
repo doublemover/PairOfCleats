@@ -146,3 +146,20 @@ export const minifyMinhashSignature = (signature, plan = null) => {
   }
   return out;
 };
+
+/** Validate the indices represented by a sampled signature without guessing from its width. */
+export const normalizeMinhashSampling = (input, expectedSignatureLength = null) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input) || input.mode !== 'sampled-minified') return null;
+  const { signatureLength, sampledSignatureLength, hashStride } = input;
+  if (!Number.isSafeInteger(signatureLength) || signatureLength <= 0
+    || !Number.isSafeInteger(sampledSignatureLength) || sampledSignatureLength <= 0
+    || !Number.isSafeInteger(hashStride) || hashStride <= 0) return null;
+  if (hashStride > signatureLength || sampledSignatureLength !== Math.ceil(signatureLength / hashStride)) return null;
+  if (expectedSignatureLength != null && signatureLength !== expectedSignatureLength) return null;
+  const out = { mode: input.mode, signatureLength, sampledSignatureLength, hashStride };
+  for (const field of ['maxDocs', 'totalDocs']) {
+    if (Number.isSafeInteger(input[field]) && input[field] >= 0) out[field] = input[field];
+  }
+  if (Number.isFinite(input.density) && input.density > 0 && input.density <= 1) out.density = input.density;
+  return out;
+};

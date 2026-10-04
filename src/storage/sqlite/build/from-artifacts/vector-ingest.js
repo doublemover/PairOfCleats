@@ -1,4 +1,6 @@
 import { performance } from 'node:perf_hooks';
+import { normalizeMinhashSampling } from '../../../../index/minhash.js';
+import { CREATE_MINHASH_META_SQL } from '../../schema.js';
 import {
   packUint32,
   packUint8,
@@ -37,6 +39,20 @@ export const createVectorIngestor = (ctx) => {
 
   const ingestMinhash = async (minhashSource, targetMode) => {
     if (!minhashSource) return;
+    let sampling = null;
+    const acceptSampling = (input) => {
+      if (input == null) return;
+      if (sampling) {
+        if (input.mode !== sampling.mode || input.signatureLength !== sampling.signatureLength
+          || input.sampledSignatureLength !== sampling.sampledSignatureLength || input.hashStride !== sampling.hashStride) {
+          throw new Error('[sqlite] Conflicting minhash sampling metadata.');
+        }
+        return;
+      }
+      sampling = normalizeMinhashSampling(input);
+      if (!sampling) throw new Error('[sqlite] Invalid minhash sampling metadata.');
+    };
+    acceptSampling(minhashSource.sampling);
     const start = performance.now();
     const rows = [];
     let minhashRows = 0;
@@ -67,6 +83,7 @@ export const createVectorIngestor = (ctx) => {
     } else if (typeof minhashSource?.[Symbol.asyncIterator] === 'function') {
       for await (const entry of minhashSource) {
         if (entry && typeof entry === 'object') {
+          acceptSampling(entry.sampling);
           handleEntry(entry.docId ?? entry.id, entry.sig ?? entry.signature);
         } else {
           handleEntry(entry?.docId, entry?.sig);
@@ -74,6 +91,11 @@ export const createVectorIngestor = (ctx) => {
       }
     }
     flush();
+    db.exec(CREATE_MINHASH_META_SQL);
+    db.prepare('DELETE FROM minhash_meta WHERE mode = ?').run(targetMode);
+    if (sampling) {
+      db.prepare('INSERT INTO minhash_meta (mode, sampling) VALUES (?, ?)').run(targetMode, JSON.stringify(sampling));
+    }
     recordTable('minhash_signatures', minhashRows, performance.now() - start);
   };
 
