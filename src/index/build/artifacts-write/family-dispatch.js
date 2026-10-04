@@ -812,6 +812,11 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
           },
           atomic: true
         });
+        return {
+          bytes: packedMinhash.buffer.byteLength,
+          checksum: packedChecksum.value,
+          checksumAlgo: packedChecksum.algo
+        };
       },
       {
         publishedPieces: [

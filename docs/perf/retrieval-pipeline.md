@@ -88,6 +88,14 @@ retains materialized rows. This removes the additional document-count-sized JS
 row collection; the existing full chunk signatures and complete packed buffer
 are still retained. No whole-index peak-memory or throughput gain is measured.
 
+After the packed binary and its metadata are successfully written, publication
+reuses the SHA-1 checksum already computed for those exact binary bytes. The
+pieces manifest still checks that the file exists; it avoids an additional full
+read/hash of that packed file. JSON metadata and other artifacts retain their
+existing checksum paths. A tiny actual-writer fixture verifies the digest
+independently and counts the avoided reread. This does not change packed bytes,
+checksum validation or atomic write/failure boundaries.
+
 ## Graph/Context Pack Caches
 
 When graph-backed expansion (impact/context-pack) is enabled, `GraphStore` maintains small bounded LRU caches

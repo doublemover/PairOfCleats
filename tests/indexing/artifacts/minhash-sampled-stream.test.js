@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -60,6 +62,13 @@ for (const hashStride of [1, 2, 3, 5, 8]) {
 assert.throws(() => packMinhashSignatures({ chunks, sampling: { ...sampled, hashStride: 1.5 } }), /Invalid minhash/);
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-minhash-stream-'));
+const originalReadStream = fsSync.createReadStream;
+const packedPath = path.join(root, 'out', 'minhash_signatures.packed.bin');
+let checksumRereads = 0;
+fsSync.createReadStream = function (input, ...options) {
+  if (input === packedPath) checksumRereads += 1;
+  return originalReadStream.call(this, input, ...options);
+};
 try {
   const outDir = path.join(root, 'out');
   await fs.mkdir(outDir);
@@ -86,7 +95,12 @@ try {
     indexState: { generatedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), counts: { files: 0, chunks: chunks.length }, mode: 'code' },
     graphRelations: null, stageCheckpoints: null
   });
-  assert.deepEqual(await fs.readFile(path.join(outDir, 'minhash_signatures.packed.bin')), packedLegacy.buffer);
+  assert.deepEqual(await fs.readFile(packedPath), packedLegacy.buffer);
+  assert.equal(checksumRereads, 0, 'publication should reuse the checksum already computed for packed bytes');
+  const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'pieces', 'manifest.json'), 'utf8'));
+  const packedPiece = manifest.pieces.find((entry) => entry.path === 'minhash_signatures.packed.bin');
+  assert.equal(packedPiece.bytes, packedLegacy.buffer.length);
+  assert.equal(packedPiece.checksum, `sha1:${crypto.createHash('sha1').update(packedLegacy.buffer).digest('hex')}`);
   const json = JSON.parse(await fs.readFile(path.join(outDir, 'minhash_signatures.json'), 'utf8'));
   assert.deepEqual(json.signatures, legacyRows);
   assert.equal(json.sampling.hashStride, sampled.hashStride);
@@ -97,5 +111,6 @@ try {
   assert.deepEqual(postings.minhashSigs, [], 'artifact writing must not retain transformed sampled rows in postings');
   console.log('sampled minhash streaming passed: lazy planning, direct packed parity, repeatable JSON rows, actual writer/loader/ranker');
 } finally {
+  fsSync.createReadStream = originalReadStream;
   await fs.rm(root, { recursive: true, force: true });
 }
