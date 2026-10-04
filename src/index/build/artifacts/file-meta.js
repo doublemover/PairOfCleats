@@ -1,13 +1,19 @@
+import { createHash } from 'node:crypto';
+import { types } from 'node:util';
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { fileExt } from '../../../shared/file-paths.js';
 
 const REQUIRED_FILE_META_COLUMNS = new Set(['id', 'file', 'ext']);
+const ARRAY_MAP = Array.prototype.map;
 
 const shouldKeepFileMetaColumn = (column, values) => {
   if (REQUIRED_FILE_META_COLUMNS.has(column)) return true;
   return Array.isArray(values) && values.some((value) => value !== null && value !== undefined);
 };
+
+const isFingerprintPrimitive = (value) => value == null
+  || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 
 export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
   const list = files.map((file) => {
@@ -19,7 +25,30 @@ export const computeFileMetaFingerprint = ({ files, fileInfoByPath }) => {
       hashAlgo: info?.hashAlgo || null
     };
   });
-  return sha1(stableStringifyForSignature(list));
+  // Finish all source reads before serialization, as in the materialized route.
+  // Complex values can observe canonicalization/toJSON ordering across rows.
+  const canStream = Array.isArray(files)
+    && !types.isProxy(files)
+    && Object.getPrototypeOf(files) === Array.prototype
+    && !Object.hasOwn(files, 'map') && !Object.hasOwn(files, 'constructor')
+    && Object.getOwnPropertyDescriptor(Array.prototype, 'map')?.value === ARRAY_MAP
+    && Object.getPrototypeOf(list) === Array.prototype
+    && !('toJSON' in list)
+    && list.every((row) => row && isFingerprintPrimitive(row.file)
+      && isFingerprintPrimitive(row.size) && isFingerprintPrimitive(row.hash)
+      && isFingerprintPrimitive(row.hashAlgo));
+  if (!canStream) return sha1(stableStringifyForSignature(list));
+
+  const digest = createHash('sha1');
+  digest.update('[');
+  for (let i = 0; i < list.length; i += 1) {
+    if (i) digest.update(',');
+    // Array holes are JSON nulls. Each ordinary row has the same canonical
+    // bytes as it did inside the old whole-array canonicalization.
+    digest.update(list[i] ? stableStringifyForSignature(list[i]) : 'null');
+  }
+  digest.update(']');
+  return digest.digest('hex');
 };
 
 export const buildFileMetaColumnar = (fileMeta) => {
