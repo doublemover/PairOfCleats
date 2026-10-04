@@ -50,6 +50,8 @@ The default-enable policy and provider delta manifest are expected to stay align
 
 The configured `tooling.logDir/tooling.log` now retains timestamped `[tooling-diagnostic]` JSON records with concrete check messages, provider contract versions, preflight/fidelity summaries, and live request counters when available. Records identify live or cached evidence and declare truncation. Cached runtime counters are omitted, and cached check messages are retained without creating fresh request warnings. Operator output shows up to eight live warning/error checks per provider; a diagnostic-file write failure is reported once while valid provider output remains usable. These are bounded diagnostic excerpts, not complete stderr or per-chunk source dumps.
 
+Language benchmarks select a per-checkout `tooling-logs` directory beside the prerequisite receipt by default, so diagnostic files survive cleanup of the isolated index cache. Results record the selected directory and whether it came from the benchmark default, configuration, or `PAIROFCLEATS_TOOLING_LOG_DIR`; explicit selections take precedence. Ordinary indexing keeps its existing empty log-directory default.
+
 When an LSP regression appears:
 
 1. Inspect the doctor gate payload and confirm whether the provider failure is availability, handshake, workspace, or bootstrap related.

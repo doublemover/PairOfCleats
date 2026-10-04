@@ -92,7 +92,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const timeoutMs = Number(tooling.timeoutMs);
   const maxRetries = Number(tooling.maxRetries);
   const breakerThreshold = Number(tooling.circuitBreakerThreshold);
-  const logDir = typeof tooling.logDir === 'string' ? tooling.logDir : '';
+  const logDir = getEnvConfig().toolingLogDir || (typeof tooling.logDir === 'string' ? tooling.logDir : '');
   const installScope = (tooling.installScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);

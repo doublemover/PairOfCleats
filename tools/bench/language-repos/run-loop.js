@@ -18,6 +18,7 @@ import {
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
 import { summarizeRepoCheckout } from '../language/submodule-recovery.js';
 import { isPreparedBenchmarkRootCurrent } from '../language/prerequisites.js';
+import { resolveBenchmarkToolingLogs } from '../language/tooling-logs.js';
 
 const BENCH_CRASH_QUARANTINE_SCHEMA_VERSION = 1;
 const OPENMOONRAY_WORKER_POOL_QUARANTINE_ID = 'openmoonray-worker-pool-off';
@@ -865,7 +866,10 @@ export const runBenchExecutionLoop = async ({
       if (dryRun) {
         appendLog(`[dry-run] node ${benchArgs.join(' ')}`);
       } else {
-        const benchProcessEnv = applyToolchainDaemonPolicyEnv(repoEnvBase);
+        const toolingLogs = resolveBenchmarkToolingLogs({ env: repoEnvBase, userConfig: repoUserConfig,
+          receiptPath: prerequisite?.receiptPath, outFile });
+        checkoutDiagnostics.toolingLogs = { dir: toolingLogs.dir, source: toolingLogs.source };
+        const benchProcessEnv = applyToolchainDaemonPolicyEnv(toolingLogs.env);
         if (!Object.prototype.hasOwnProperty.call(benchProcessEnv, 'PAIROFCLEATS_CRASH_LOG_ANNOUNCE')) {
           benchProcessEnv.PAIROFCLEATS_CRASH_LOG_ANNOUNCE = '0';
         }

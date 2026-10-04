@@ -5,6 +5,9 @@ import path from 'node:path';
 import { runToolingPass } from '../../../src/index/type-inference-crossfile/tooling.js';
 import { registerToolingProvider, TOOLING_PROVIDERS } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { resolveBenchmarkToolingLogs } from '../../../tools/bench/language/tooling-logs.js';
+import { getToolingConfig } from '../../../tools/shared/dict-utils.js';
+import { withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `tooling-diagnostic-retention-${process.pid}-${Date.now()}`);
@@ -31,7 +34,10 @@ const run = (toolingLogDir, log, cacheEnabled = false) => runToolingPass({ rootD
   toolingBreaker: 1, toolingLogDir,
   fileTextByFile: new Map([['src/sample.js', 'function sum(a, b) { return a + b; }\n']]) });
 try {
-  const logDir = path.join(tempRoot, 'logs');
+  const disposableCache = path.join(tempRoot, 'isolated-cache');
+  await fs.mkdir(disposableCache);
+  const benchmarkLogs = resolveBenchmarkToolingLogs({ receiptPath: path.join(tempRoot, 'results', 'checkout', 'receipt.json') });
+  const logDir = await withTemporaryEnv({ PAIROFCLEATS_TOOLING_LOG_DIR: benchmarkLogs.dir }, () => getToolingConfig(tempRoot, {}).logDir);
   const result = await run(logDir, (line) => logs.push(line));
   assert.ok(result.toolingProvidersExecuted > 0);
   assert.ok(logs.some((line) => line.includes('fixture_workspace_model: Fixture workspace has no module marker.')));
@@ -44,6 +50,8 @@ try {
   assert.equal(record.providerContractVersion, '1.0.0');
   assert.equal(record.diagnosticsSource, 'live');
   assert.equal(record.runtime.requests.byMethod['textDocument/hover'].timedOut, 1);
+  await fs.rm(disposableCache, { recursive: true });
+  assert.ok((await fs.stat(path.join(logDir, 'tooling.log'))).isFile(), 'benchmark diagnostic evidence survives isolated-cache cleanup');
   await run(logDir, () => {}, true);
   const cachedLogs = [];
   await run(logDir, (line) => cachedLogs.push(line), true);

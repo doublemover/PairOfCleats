@@ -56,6 +56,7 @@ and compatibility changes.
 - `PAIROFCLEATS_MCP_TRANSPORT`
 - `PAIROFCLEATS_MODELS_DIR`
 - `PAIROFCLEATS_TOOLING_DIR` (launch-selected managed tooling directory; takes precedence over `tooling.dir`)
+- `PAIROFCLEATS_TOOLING_LOG_DIR` (diagnostic file directory; takes precedence over `tooling.logDir`)
 - `PAIROFCLEATS_DICT_DIR`
 - `PAIROFCLEATS_EXTENSIONS_DIR`
 - `PAIROFCLEATS_MCP_QUEUE_MAX`
