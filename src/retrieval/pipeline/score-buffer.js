@@ -43,6 +43,14 @@ class ScoreBuffer {
   }
 
   reset() {
+    // Retire query-owned payloads while retaining entry shapes and numeric storage.
+    // Only active rows hold live references; unused capacity needs no scan.
+    for (let i = 0; i < this.count; i += 1) {
+      const entry = this.entries[i];
+      for (const field of this.fields) {
+        if (!this.numericFieldSet.has(field)) entry[field] = null;
+      }
+    }
     this.count = 0;
     return this;
   }

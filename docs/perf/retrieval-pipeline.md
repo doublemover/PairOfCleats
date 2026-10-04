@@ -27,6 +27,14 @@ compose results (fusion + ranking). The `slack` is bounded to keep memory usage 
 Candidate sets and score buffers use small pools to avoid repeated allocations inside a single query.
 Pools are capped and drop oversized buffers to avoid unbounded growth.
 
+Resetting a score buffer retires nonnumeric values in its active rows, including
+the transient blend/RRF explanations created during fusion. Entry objects and
+numeric arrays remain reusable; unused capacity is not scanned. Ranking returns
+independent result objects before the pipeline releases the buffer, so previously
+returned results survive later reuse. Borrowed buffer entries are valid only until
+reset or release. This is a reference-lifetime improvement; no throughput or RSS
+reduction has been measured.
+
 ## ANN Fallbacks
 
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
