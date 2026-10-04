@@ -1015,7 +1015,7 @@ fn frame_signature(model: &AppModel) -> String {
     )
 }
 
-fn current_search<'a>(model: &'a AppModel, panel: FocusPanel) -> &'a str {
+fn current_search(model: &AppModel, panel: FocusPanel) -> &str {
     match panel {
         FocusPanel::Jobs => &model.search_jobs,
         FocusPanel::Tasks => &model.search_tasks,
@@ -1023,7 +1023,7 @@ fn current_search<'a>(model: &'a AppModel, panel: FocusPanel) -> &'a str {
     }
 }
 
-fn current_search_mut<'a>(model: &'a mut AppModel, panel: FocusPanel) -> &'a mut String {
+fn current_search_mut(model: &mut AppModel, panel: FocusPanel) -> &mut String {
     match panel {
         FocusPanel::Jobs => &mut model.search_jobs,
         FocusPanel::Tasks => &mut model.search_tasks,
@@ -1498,7 +1498,7 @@ fn workload_summary_text(model: &AppModel, width: usize) -> String {
                 ));
             }
             if let Some(value) = model.indexing_summary.heartbeat_age_ms {
-                parts.push(format!("heartbeat {}ms", value));
+                parts.push(format!("heartbeat {value}ms"));
             }
             if !model.indexing_summary.artifact_write_progress.is_empty() {
                 parts.push(format!(
@@ -1512,13 +1512,13 @@ fn workload_summary_text(model: &AppModel, width: usize) -> String {
                 parts.push(format!("service {}", model.service_summary.service));
             }
             if let Some(value) = model.service_summary.active_workers {
-                parts.push(format!("workers {}", value));
+                parts.push(format!("workers {value}"));
             }
             if let Some(value) = model.service_summary.active_jobs {
-                parts.push(format!("jobs {}", value));
+                parts.push(format!("jobs {value}"));
             }
             if let Some(value) = model.service_summary.queue_depth {
-                parts.push(format!("queue {}", value));
+                parts.push(format!("queue {value}"));
             }
             if model.service_summary.retry_count > 0 {
                 parts.push(format!("retries {}", model.service_summary.retry_count));
@@ -1570,7 +1570,7 @@ fn operator_summary_text(model: &AppModel, width: usize) -> String {
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     let (running_jobs, failed_jobs, done_jobs) = job_status_counts(model);
     let (active_tasks, failed_tasks) = task_status_counts(model);
-    let parts = vec![
+    let parts = [
         format!("jobs {running_jobs}r/{failed_jobs}f/{done_jobs}d"),
         format!("tasks {active_tasks}a/{failed_tasks}f"),
         format!("queue {:.0}", model.telemetry.queue_depth_ewma),
@@ -1923,7 +1923,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                     if query.is_empty() {
                         String::new()
                     } else {
-                        format!("search {}", query)
+                        format!("search {query}")
                     }
                 }],
             ),
@@ -1940,7 +1940,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                     if query.is_empty() {
                         String::new()
                     } else {
-                        format!("search {}", query)
+                        format!("search {query}")
                     }
                 }],
             ),
@@ -1974,7 +1974,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                         if query.is_empty() {
                             String::new()
                         } else {
-                            format!("search {}", query)
+                            format!("search {query}")
                         }
                     },
                 ],
@@ -2006,7 +2006,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                     if query.is_empty() {
                         String::new()
                     } else {
-                        format!("search {}", query)
+                        format!("search {query}")
                     }
                 }],
             ),
@@ -2024,7 +2024,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                     if query.is_empty() {
                         String::new()
                     } else {
-                        format!("search {}", query)
+                        format!("search {query}")
                     }
                 }],
             ),
@@ -2059,7 +2059,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                         if query.is_empty() {
                             String::new()
                         } else {
-                            format!("search {}", query)
+                            format!("search {query}")
                         }
                     },
                 ],
@@ -2691,7 +2691,6 @@ fn apply_workload_fallbacks(
             if let Some(message) = log_message {
                 if let Some((_, provider)) = message.split_once("provider degraded:") {
                     let normalized = provider
-                        .trim()
                         .split_whitespace()
                         .next()
                         .unwrap_or("")
@@ -3220,8 +3219,7 @@ fn main() -> anyhow::Result<()> {
                     RuntimeTelemetry::update_ewma(model.telemetry.render_ms_ewma, render_ms as f64);
                 if render_ms > FRAME_BUDGET_MS {
                     model.push_log(format!(
-                        "frame budget warning: render={}ms budget={}ms",
-                        render_ms, FRAME_BUDGET_MS
+                        "frame budget warning: render={render_ms}ms budget={FRAME_BUDGET_MS}ms"
                     ));
                 }
                 model.last_render_signature = signature;
