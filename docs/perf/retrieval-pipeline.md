@@ -41,6 +41,15 @@ returned results survive later reuse. Borrowed buffer entries are valid only unt
 reset or release. This is a reference-lifetime improvement; no throughput or RSS
 reduction has been measured.
 
+Output file-text and body-summary caches honor their configured byte budgets
+when no entry-count environment override is supplied. A missing override is
+distinct from an explicit zero, which disables the cache; explicit positive
+entry limits retain their existing precedence. Repeated summaries and different
+chunks from the same file reuse the admitted text within the configured search
+session. A tiny fixture counts actual reads rather than claiming a throughput
+improvement. This correction does not change the shared LRU policy or introduce
+a combined entry/byte budget.
+
 ## MinHash Signature Work
 
 For ordinary string tokens and unsigned integer seeds, MinHash factors its
