@@ -20,6 +20,7 @@ import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-me
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
+import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
 import { createIndexBuildToolCli } from './index-tool-cli.js';
@@ -319,7 +320,7 @@ const loadArtifactsForMode = async (indexDir, mode) => {
   const fieldTokens = readJsonOptional(path.join(indexDir, 'field_tokens.json'));
   const phraseNgrams = readJsonOptional(path.join(indexDir, 'phrase_ngrams.json'));
   const chargramPostings = readJsonOptional(path.join(indexDir, 'chargram_postings.json'));
-  const minhashSignatures = readJsonOptional(path.join(indexDir, 'minhash_signatures.json'));
+  const minhashSignatures = await loadLmdbMinhashArtifact(indexDir);
   const [denseVectors, denseVectorsDoc, denseVectorsCode] = await Promise.all([
     loadDenseVectorArtifact('dense_vectors'),
     loadDenseVectorArtifact('dense_vectors_doc'),

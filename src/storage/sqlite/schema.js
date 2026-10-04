@@ -1,5 +1,13 @@
 export const SCHEMA_VERSION = 12;
 
+// Optional metadata for sampled signatures; legacy schema-12 stores remain readable.
+export const CREATE_MINHASH_META_SQL = `
+  CREATE TABLE IF NOT EXISTS minhash_meta (
+    mode TEXT PRIMARY KEY,
+    sampling TEXT NOT NULL
+  );
+`;
+
 export const REQUIRED_TABLES = [
   'chunks',
   'chunks_fts',
@@ -29,6 +37,7 @@ export const CREATE_TABLES_BASE_SQL = `
   DROP TABLE IF EXISTS chargram_postings;
   DROP TABLE IF EXISTS chargram_vocab;
   DROP TABLE IF EXISTS minhash_signatures;
+  DROP TABLE IF EXISTS minhash_meta;
   DROP TABLE IF EXISTS dense_vectors;
   DROP TABLE IF EXISTS dense_meta;
   DROP TABLE IF EXISTS file_manifest;
@@ -135,6 +144,7 @@ export const CREATE_TABLES_BASE_SQL = `
     sig BLOB NOT NULL,
     PRIMARY KEY (mode, doc_id)
   ) WITHOUT ROWID;
+  ${CREATE_MINHASH_META_SQL}
   CREATE TABLE dense_vectors (
     mode TEXT NOT NULL,
     doc_id INTEGER NOT NULL,

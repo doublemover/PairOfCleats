@@ -1,4 +1,4 @@
-import { SimpleMinHash } from '../index/minhash.js';
+import { SimpleMinHash, minifyMinhashSignature, normalizeMinhashSampling } from '../index/minhash.js';
 import { createTopKReducer } from './pipeline/topk.js';
 import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
@@ -265,6 +265,8 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   if (!idx.minhash?.signatures?.length) return [];
   if (!Array.isArray(tokens) || !tokens.length) return [];
   const qSig = minhashSigForTokens(tokens);
+  const sampling = normalizeMinhashSampling(idx.minhash.sampling, qSig.length);
+  const sampledQuery = sampling ? minifyMinhashSignature(qSig, sampling) : null;
   const ids = candidateSet ? bitmapToArray(candidateSet) : idx.minhash.signatures.map((_, i) => i);
   const reducer = createTopKReducer({
     k: topN,
@@ -274,7 +276,11 @@ export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   for (const id of ids) {
     const sig = idx.minhash.signatures[id];
     if (!sig) continue;
-    reducer.pushRaw(jaccard(qSig, sig), id, order);
+    const querySig = sig.length === qSig.length
+      ? qSig
+      : (sampledQuery && sig.length === sampledQuery.length ? sampledQuery : null);
+    if (!querySig) continue;
+    reducer.pushRaw(jaccard(querySig, sig), id, order);
     order += 1;
   }
   return reducer.finish({ limit: topN });
