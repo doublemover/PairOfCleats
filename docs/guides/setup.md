@@ -32,6 +32,7 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
   - `--validate-config`: Validate `.pairofcleats.json` before running setup.
   - `--skip-validate`: Skip config validation prompts.
   - `--tooling-scope cache|global`: Override tooling install scope.
+  - `--require-steps <csv>`: Treat the named checks as prerequisites, for example `dictionaries,tooling`. Missing, skipped, declined or failed prerequisites produce a nonzero exit; this does not enable a skipped operation.
   - `--skip-install`: Skip `npm install`.
   - `--skip-dicts`: Skip dictionary download.
   - `--skip-models`: Skip model download.
@@ -42,6 +43,9 @@ The unified setup script (`pairofcleats setup`) guides you through installing op
   - `--skip-sqlite`: Skip SQLite index build.
 
 ## Notes
+
+- The JSON summary includes a readiness receipt for the selected checks: `ready`, `degraded` for optional omissions, or `blocked` for required failures. Failed requested dependency/config/index/SQLite steps block completion. Optional download/tooling failures remain visible and no longer print an unconditional success message.
+- Tool installation rechecks executable resolution, the command probe and package layout after the installer exits. A successful installer process without a working executable is a failure; manual-only tools remain explicit prerequisites requiring action. The receipt identifies this verification level. It does not claim an LSP initialize/workspace check, complete model validation or native-extension loading from a presence/probe check alone; those capabilities require their own admission checks.
 
 - Defaults follow `.pairofcleats.json` where applicable.
 - Tree-sitter grammars load via native `tree-sitter` language modules.

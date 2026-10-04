@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { buildToolInstallReadiness } from '../setup/readiness.js';
+import { invalidateToolingCommandProbeCache } from '../../src/index/tooling/command-resolver.js';
+import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -22,7 +27,7 @@ const stdoutGuard = createStdoutGuard({
   label: 'tooling-install stdout'
 });
 const languageOverride = normalizeLanguageList(argv.languages);
-const toolOverride = normalizeLanguageList(argv.tools);
+const toolOverride = [...new Set(normalizeLanguageList(argv.tools))];
 
 const resolveRequirementCheckArgCandidates = (commandName) => {
   const normalized = String(commandName || '').trim().toLowerCase();
@@ -62,14 +67,28 @@ const tools = toolOverride.length
 
 const actions = [];
 const results = [];
+for (const id of toolOverride) {
+  if (!tools.some((tool) => tool.id === id)) results.push({
+    id, status: 'unavailable', error: 'Requested tool is unknown or disabled by configuration.'
+  });
+}
+
+const resolveVerifiedPath = (status) => {
+  if (!status?.found || status.probe?.ok !== true || !status.path) return null;
+  const candidate = path.isAbsolute(status.path) ? status.path : findBinaryOnPath(status.path);
+  if (!candidate) return null;
+  try { return fs.realpathSync(candidate); }
+  catch { return null; }
+};
 
 for (const tool of tools) {
   const status = detectTool(tool);
-  if (status.found) {
+  const verifiedPath = resolveVerifiedPath(status);
+  if (verifiedPath) {
     results.push({
       id: tool.id,
       status: 'already-installed',
-      path: status.path,
+      path: verifiedPath,
       probe: status.probe || null
     });
     continue;
@@ -123,9 +142,11 @@ for (const tool of tools) {
 }
 
 if (argv['dry-run']) {
-  const payload = { root, scope, allowFallback, actions, results };
+  const readiness = buildToolInstallReadiness([...results, ...actions.map((action) => ({ id: action.id, status: 'planned' }))], { dryRun: true });
+  const payload = { root, scope, allowFallback, actions, results, readiness };
   if (argv.json) {
     stdoutGuard.writeJson(payload);
+    await new Promise((resolve) => process.stdout.write('', resolve));
   } else {
     console.error('[tooling-install] Dry run. Planned actions:');
     for (const action of actions) {
@@ -165,20 +186,28 @@ for (const action of actions) {
     });
     continue;
   }
-  results.push({ id: action.id, status: 'installed' });
+  // An installer can exit successfully while leaving a missing executable or
+  // broken package layout. Re-check from the future runtime environment.
+  invalidateToolingCommandProbeCache({ providerId: action.id });
+  const tool = tools.find((entry) => entry.id === action.id);
+  const verified = detectTool(tool);
+  const verifiedPath = resolveVerifiedPath(verified);
+  results.push(verifiedPath
+    ? { id: action.id, status: 'installed', path: verifiedPath, source: verified.source, probe: verified.probe }
+    : { id: action.id, status: 'verification-failed', path: verified.path, probe: verified.probe,
+      error: 'Installer exited successfully, but the executable probe or package layout check failed.', docs: action.docs });
 }
 
-const payload = { root, scope, allowFallback, actions, results };
-const hasFailedInstalls = results.some((entry) => (
-  entry?.status === 'failed' || entry?.status === 'missing-requirement'
-));
+const readiness = buildToolInstallReadiness(results);
+const payload = { root, scope, allowFallback, actions, results, readiness };
+const hasFailedInstalls = readiness.state === 'blocked';
 if (argv.json) {
   stdoutGuard.writeJson(payload);
 } else {
   if (hasFailedInstalls) {
-    console.error('[tooling-install] Some installs failed.');
+    console.error(`[tooling-install] Required tools are not ready: ${readiness.blockedIds.join(', ')}.`);
   } else {
     console.error('[tooling-install] Completed.');
   }
 }
-process.exit(hasFailedInstalls ? 1 : 0);
+process.exitCode = hasFailedInstalls ? 1 : 0;
