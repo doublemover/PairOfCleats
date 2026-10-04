@@ -119,8 +119,18 @@ ordering. Import normalization and legacy adjacency retain their existing
 materialized sorting paths; the default direct resolver API still returns arrays.
 The synchronous traversal borrows the immutable graph index for the iterator's
 lifetime. Tiny fixtures verify output/path/cap parity and prefix-only CSR reads.
-The traversal still builds its capped edge batches and visited/witness state;
+The traversal still retains admitted candidates and visited/witness state;
 total allocation, peak RSS and latency changes remain unmeasured.
+
+When a fanout cap is present, candidate objects and call-site evidence are built
+only for that existing ordered prefix. Traversal still counts all eligible
+neighbors to preserve exact observed/omitted metadata and bucket priority, and
+records symbol-candidate notices even when fanout discards their edges. The
+uncapped route retains its prior full output. A tiny 64-call-neighbor fixture
+with a cap of three performs three evidence lookups instead of 64 and matches
+the previous nodes, edges, paths, counts and truncation metadata. This bounds
+candidate retention by the selected cap; it does not eliminate the scan required
+for complete omission counts or claim whole-query peak-memory/latency gains.
 
 Some traversal results may be cached per graphIndex, keyed by the traversal query signature (seeds, filters, depth/direction, caps, includePaths)
 and `indexSignature`. Cache hits must preserve deterministic ordering.
