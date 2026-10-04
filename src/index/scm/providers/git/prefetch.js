@@ -4,6 +4,7 @@ import {
   normalizeFileMeta
 } from '../../file-meta.js';
 import { toUniqueRepoPosixFiles } from '../../paths.js';
+import { toPosix } from '../../../../shared/file-paths.js';
 
 export { createUnavailableFileMeta, normalizeFileMeta } from '../../file-meta.js';
 
