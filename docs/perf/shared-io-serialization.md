@@ -11,6 +11,14 @@ This document captures the shared JSON streaming and artifact IO performance wor
 - `highWaterMark` is applied to the byte counter transform.
 - The value is clamped to a safe range (16 KB to 8 MB) to prevent unbounded buffers.
 
+Plain `writeChunk` calls honor the same drain/error/timeout handling without
+collecting per-write timings that their callers discard. Writers that consume
+`writeChunkWithTiming` still receive its flush and backpressure measurements.
+A tiny real-encoder fixture preserves exact JSON bytes on both accepted and
+backpressured streams while removing 140 unused clock reads; controlled failures
+retain listener cleanup and the same errors. This removes observer work without
+claiming whole-artifact throughput or memory gains.
+
 ## Zstd Chunk Boundaries
 - Zstd compression chunk sizes are clamped to 64 KB to 4 MB.
 - This reduces repeated buffer concatenations and keeps compression buffers bounded.
