@@ -85,7 +85,8 @@ export const createConfiguredLspProvider = (server) => {
       supportsSymbolRef: false
     },
     requires: {
-      cmd: server.cmd
+      cmd: server.cmd,
+      args: Array.isArray(server.args) ? server.args.slice() : []
     },
     getConfigHash(ctx) {
       return buildConfiguredProviderConfigHash({ server, ctx });

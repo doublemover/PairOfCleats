@@ -24,7 +24,7 @@ import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
 const LANGUAGE_EXTENSIONS = {
-  javascript: ['.js', '.mjs', '.cjs'],
+  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
   typescript: ['.ts', '.tsx', '.mts', '.cts'],
   python: ['.py', '.pyi'],
   c: ['.c', '.h'],
@@ -624,17 +624,22 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot }));
 }
 
+export const getToolProviderAliases = (toolId) => {
+  const dedicated = { tsserver: 'typescript', 'typescript-language-server': 'typescript', 'sourcekit-lsp': 'sourcekit' };
+  return [toolId, `lsp-${toolId}`, ...(dedicated[toolId] ? [dedicated[toolId]] : [])];
+};
+
 function filterToolsByConfig(tools, toolingConfig) {
   const enabled = Array.isArray(toolingConfig?.enabledTools) ? toolingConfig.enabledTools : [];
   const disabled = Array.isArray(toolingConfig?.disabledTools) ? toolingConfig.disabledTools : [];
   let filtered = tools;
   if (enabled.length) {
     const enabledSet = new Set(enabled);
-    filtered = filtered.filter((tool) => enabledSet.has(tool.id));
+    filtered = filtered.filter((tool) => getToolProviderAliases(tool.id).some((id) => enabledSet.has(id)));
   }
   if (disabled.length) {
     const disabledSet = new Set(disabled);
-    filtered = filtered.filter((tool) => !disabledSet.has(tool.id));
+    filtered = filtered.filter((tool) => !getToolProviderAliases(tool.id).some((id) => disabledSet.has(id)));
   }
   return filtered;
 }

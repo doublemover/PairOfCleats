@@ -58,6 +58,8 @@ export const parseBenchLanguageArgs = (rawArgs = process.argv.slice(2)) => {
       'cache-run': { type: 'boolean', default: false },
       'keep-cache': { type: 'boolean', default: false },
       'strict-submodules': { type: 'boolean', default: false },
+      provision: { type: 'boolean', default: true },
+      'strict-prerequisites': { type: 'boolean', default: false },
       'resource-root': { type: 'string' },
       random: { type: 'boolean', default: false },
       config: { type: 'string' },

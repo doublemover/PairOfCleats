@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { getBenchMirrorRefreshMs } from '../../src/shared/env/bench.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
@@ -38,6 +39,8 @@ import {
 } from './language-repos/run-ledger.js';
 import { createBenchProgressRuntime, runBenchExecutionLoop } from './language-repos/run-loop.js';
 import { applyBenchmarkResourceRoots, resolveBenchmarkResourceRoots } from './language/resource-roots.js';
+import { prepareBenchmarkPrerequisites } from './language/prerequisites.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 
 const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
   {
@@ -584,7 +587,6 @@ if (cloneEnabled && !dryRun && cloneTool?.supportsMirrorClone) {
   appendLog(`[clone] mirror cache=${mirrorCacheRoot} refresh-ms=${mirrorRefreshMs}`);
 }
 
-const usrGuardrailBenchmarks = await runUsrGuardrailBenchmarks();
 const { executionPlans, precreateDirs } = buildExecutionPlans({
   tasks,
   reposRoot,
@@ -641,6 +643,39 @@ const lifecycle = createRepoLifecycle({
   logHistory
 });
 
+const prerequisites = await prepareBenchmarkPrerequisites({
+  executionPlans, lifecycle, dryRun, autoInstall: argv.provision !== false,
+  strict: argv['strict-prerequisites'] === true, onLog: appendLog,
+  checkPrerequisites: async ({ plan, autoInstall, strict }) => {
+    const receiptPath = path.join(runDiagnosticsRoot, 'prerequisites', `${plan.fallbackLogSlug}-${randomUUID()}`, 'receipt.json');
+    await fsPromises.mkdir(path.dirname(receiptPath), { recursive: true });
+    const args = [path.join(scriptRoot, 'tools/bench/language/prerequisite-check.js'),
+      '--repo', plan.repoPath, '--out', receiptPath, '--timeout-ms', String(benchTimeoutMs)];
+    if (!autoInstall) args.push('--no-install');
+    if (strict) args.push('--strict');
+    if (argv['stub-embeddings']) args.push('--stub-embeddings');
+    if (wantsSqlite) args.push('--sqlite');
+    const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(plan.repoPath, loadUserConfig(plan.repoPath)), baseEnv);
+    const result = await processRunner.runProcess(`prerequisites ${plan.repoLabel}`, process.execPath, args,
+      { cwd: scriptRoot, env: runtimeEnv, timeoutMs: benchTimeoutMs, continueOnError: true });
+    try {
+      const receipt = JSON.parse(await fsPromises.readFile(receiptPath, 'utf8'));
+      if (receipt.repoRoot !== path.resolve(plan.repoPath) || !receipt.readiness || !Array.isArray(receipt.readiness.items)
+        || (!result.ok && receipt.readiness.state !== 'blocked')) throw new Error('Inconsistent prerequisite receipt.');
+      return { ...receipt, receiptPath };
+    } catch (error) {
+      return { receiptPath, readiness: { state: 'blocked', ready: false, exitCode: 1,
+        blockedIds: ['prerequisite-check'], omittedIds: [], items: [{ id: 'prerequisite-check', required: true,
+          state: 'failed', reason: result.signal || error.message, exitCode: result.code ?? null }] } };
+    }
+  }
+});
+await writeJsonFileResolved(path.join(runDiagnosticsRoot, 'prerequisites.json'), prerequisites.report);
+// Prerequisite installation and initialization finish before benchmark children or guardrail timing.
+const canMeasure = !prerequisites.report.campaignBlocked && [...prerequisites.preparedRepos.values()]
+  .some((prepared) => prepared.presence.ok && prepared.workspace?.ok && prepared.prerequisite?.readiness?.state !== 'blocked');
+const usrGuardrailBenchmarks = canMeasure ? await runUsrGuardrailBenchmarks() : [];
+
 progressRuntime.setTotal(tasks.length);
 const results = await runBenchExecutionLoop({
   executionPlans,
@@ -660,6 +695,8 @@ const results = await runBenchExecutionLoop({
   runLedger,
   progressRuntime,
   lifecycle,
+  preparedRepos: prerequisites.preparedRepos,
+  prerequisiteCampaignBlocked: prerequisites.report.campaignBlocked,
   wantsSqlite,
   backendList,
   lockMode,
@@ -680,6 +717,7 @@ const output = await buildReportOutput({
   waiverFile,
   methodology
 });
+output.prerequisites = prerequisites.report;
 if (usrGuardrailBenchmarks.length) {
   output.usrGuardrails = {
     generatedAt: new Date().toISOString(),

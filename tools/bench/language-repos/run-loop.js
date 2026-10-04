@@ -2,7 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
-import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../../shared/dict-utils.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, getEffectiveConfigHash } from '../../shared/dict-utils.js';
 import { checkIndexLock, formatLockDetail } from '../language/locks.js';
 import {
   buildLineStats,
@@ -17,6 +17,7 @@ import {
 } from '../language/timeout.js';
 import { needsIndexArtifacts, needsSqliteArtifacts } from '../language/repos.js';
 import { summarizeRepoCheckout } from '../language/submodule-recovery.js';
+import { isPreparedBenchmarkRootCurrent } from '../language/prerequisites.js';
 
 const BENCH_CRASH_QUARANTINE_SCHEMA_VERSION = 1;
 const OPENMOONRAY_WORKER_POOL_QUARANTINE_ID = 'openmoonray-worker-pool-off';
@@ -495,6 +496,8 @@ export const runBenchExecutionLoop = async ({
   runLedger = null,
   progressRuntime,
   lifecycle,
+  preparedRepos = null,
+  prerequisiteCampaignBlocked = false,
   wantsSqlite,
   backendList,
   lockMode,
@@ -613,7 +616,8 @@ export const runBenchExecutionLoop = async ({
       if (!lifecycle.hasRepoPath(repoPath)) {
         progressRuntime.update();
       }
-      const repoState = await lifecycle.ensureRepoPresent({ task, repoPath, repoLabel });
+      const prepared = preparedRepos?.get(repoPath);
+      const repoState = prepared?.presence || await lifecycle.ensureRepoPresent({ task, repoPath, repoLabel });
       if (!repoState.ok) {
         appendLog(
           `[error] ${repoState.failureReason === 'platform_incompatible_checkout' ? 'platform compatibility blocked' : 'clone failed'} for ${repoLabel}; continuing.`,
@@ -651,12 +655,33 @@ export const runBenchExecutionLoop = async ({
         continue;
       }
 
-      const preflightState = await lifecycle.prepareRepoWorkspace({ repoPath });
+      const preflightState = prepared?.workspace || await lifecycle.prepareRepoWorkspace({ repoPath });
       const checkout = summarizeRepoCheckout(preflightState.checkout);
+      const prerequisite = prepared?.prerequisite || null;
+      const prerequisiteConfigChanged = prerequisite?.effectiveConfigHash
+        && getEffectiveConfigHash(repoPath, loadUserConfig(repoPath)) !== prerequisite.effectiveConfigHash;
+      const preparedRootCurrent = !prepared || dryRun || isPreparedBenchmarkRootCurrent(repoPath, prepared);
       const checkoutDiagnostics = {
         checkout,
-        ...(checkout?.partialReady ? { countsByType: { repo_partial_checkout: 1 } } : {})
+        ...(prerequisite ? { prerequisites: prerequisite } : {}),
+        countsByType: {
+          ...(checkout?.partialReady ? { repo_partial_checkout: 1 } : {}),
+          ...(prerequisite?.readiness?.state === 'degraded' ? { prerequisite_incomplete: 1 } : {})
+        }
       };
+      if (prepared && !dryRun && (!preparedRootCurrent
+        || prerequisite?.readiness?.state === 'blocked' || prerequisiteCampaignBlocked || prerequisiteConfigChanged)) {
+        const failureReason = !preparedRootCurrent
+          ? 'preflight-checkout-changed' : prerequisiteConfigChanged ? 'preflight-configuration-changed' : 'preflight-prerequisites';
+        appendLog(`[error] ${failureReason} for ${repoLabel}; measurement was not started.`, 'error');
+        const result = { ...task, repoPath, outFile: null, summary: null, failed: true,
+          failureReason, failureCode: 1, diagnostics: { ...checkoutDiagnostics,
+            ...(prerequisiteCampaignBlocked ? { prerequisiteCampaignBlocked: true } : {}) } };
+        progressRuntime.completeRepo();
+        results.push(result);
+        runLedger?.recordRepoCompleted?.(result);
+        continue;
+      }
       if (!preflightState?.ok) {
         appendLog(`[error] preflight failed for ${repoLabel}; continuing.`, 'error');
         const crashRetention = await lifecycle.attachCrashRetention({
