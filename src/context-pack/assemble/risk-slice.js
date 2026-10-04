@@ -569,7 +569,7 @@ export const buildRiskSlice = ({
           filePath: path.resolve(repoRoot, row.file),
           start: row.start,
           end: row.end
-        })));
+        })), indexSignature, repoRoot);
       for (const row of relevantRows) {
         const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot });
         if (hydrated.details) {

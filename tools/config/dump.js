@@ -48,13 +48,12 @@ const payload = {
 
 if (argv.json) {
   console.log(JSON.stringify(payload, null, 2));
-  process.exit(0);
+} else {
+  console.error('Config dump');
+  console.error(`- repo: ${repoRoot}`);
+  console.error(`- cache root: ${payload.derived.cacheRoot}`);
+  console.error(`- repo cache: ${payload.derived.repoCacheRoot}`);
+  console.error(`- quality: ${payload.policy.quality.value} (${payload.policy.quality.source})`);
+  console.error(`- mcp mode: ${payload.derived.mcp.mode} (${payload.derived.mcp.modeSource})`);
+  console.error(`- mcp sdk: ${payload.derived.mcp.sdkAvailable ? 'available' : 'missing'}`);
 }
-
-console.error('Config dump');
-console.error(`- repo: ${repoRoot}`);
-console.error(`- cache root: ${payload.derived.cacheRoot}`);
-console.error(`- repo cache: ${payload.derived.repoCacheRoot}`);
-console.error(`- quality: ${payload.policy.quality.value} (${payload.policy.quality.source})`);
-console.error(`- mcp mode: ${payload.derived.mcp.mode} (${payload.derived.mcp.modeSource})`);
-console.error(`- mcp sdk: ${payload.derived.mcp.sdkAvailable ? 'available' : 'missing'}`);

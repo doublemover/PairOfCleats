@@ -30,6 +30,9 @@ const verifyHandle = (fd, root, target) => {
   assertNoSymlinkPath(root, target);
   const opened = fs.fstatSync(fd);
   const current = fs.statSync(target);
+  if (opened.isDirectory()) {
+    throw Object.assign(new Error('Repository path is a directory.'), { code: 'EISDIR' });
+  }
   if (!opened.isFile() || opened.dev !== current.dev || opened.ino !== current.ino) throw unsafePath();
   // Linux resolves the actual opened object, not the now mutable pathname.
   // Other platforms retain no-follow + canonical and descriptor-identity checks.

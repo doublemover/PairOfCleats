@@ -7,7 +7,7 @@ import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
 import { buildPrimaryExcerpt, clearContextPackCaches } from '../../src/context-pack/excerpt-cache.js';
 import { readTextFileWithHash } from '../../src/shared/encoding.js';
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-contained-'));
+const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'poc-contained-')));
 const repo = path.join(tmp, 'repo');
 const outside = path.join(tmp, 'outside');
 fs.mkdirSync(repo);
@@ -23,6 +23,8 @@ try {
   const fd = openContainedFileSync(repo, file);
   assert.equal(fs.readFileSync(fd, 'utf8'), 'safe fixture');
   fs.closeSync(fd);
+  await assert.rejects(() => readContainedFile(repo, repo), { code: 'EISDIR' });
+  assert.throws(() => openContainedFileSync(repo, repo), { code: 'EISDIR' });
   const first = buildPrimaryExcerpt({ chunk: { file: 'sample.txt', start: 0, end: 12 }, repoRoot: repo, maxBytes: 32, warnings: [] });
   assert.equal(first.excerpt, 'safe fixture');
   fs.unlinkSync(file);

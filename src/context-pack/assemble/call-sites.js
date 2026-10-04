@@ -62,6 +62,7 @@ export const resolveRiskCallSiteExcerpt = ({ row, repoRoot }) => {
   }
   const resolvedExcerpt = resolveExcerpt({
     filePath,
+    repoRoot,
     start: row.start,
     end: row.end,
     maxBytes: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_BYTES,
