@@ -64,7 +64,8 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     return null;
   }
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
-  const cached = readCache(manifestPath);
+  const cachePolicy = { maxBytes: resolvedMaxBytes, view: 'manifest', strict: Boolean(strict) };
+  const cached = readCache(manifestPath, cachePolicy);
   if (cached) return cached;
   const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
   const manifest = normalizeManifest(raw);
@@ -74,7 +75,7 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     throw err;
   }
   if (manifest) {
-    writeCache(manifestPath, manifest);
+    writeCache(manifestPath, manifest, cachePolicy);
   }
   return manifest;
 };
