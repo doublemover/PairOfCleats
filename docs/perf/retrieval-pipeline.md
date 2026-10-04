@@ -71,6 +71,14 @@ recurrence and counts character reads; it does not measure end-to-end speed.
 
 ## ANN Fallbacks
 
+Post-load vocabulary indexes build their Map directly for ordinary arrays,
+without retaining a temporary array of `[term, position]` pairs. Duplicate terms
+still keep their last position and first insertion order; existing indexes are
+reused. Sparse vocabularies retain their native rejection, and custom mapping or
+array constructors use the previous route. A tiny actual hydration fixture covers
+phrase, character and field postings indexes. It verifies the omitted pair-array
+input; whole-query peak memory and latency remain unmeasured.
+
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
