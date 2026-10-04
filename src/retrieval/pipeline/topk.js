@@ -7,19 +7,14 @@ const normalizeScore = (value) => {
   return Number.isFinite(score) ? score : null;
 };
 
-const normalizeIdValue = (value) => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return { type: 'number', value };
-  }
-  return { type: 'string', value: value == null ? '' : String(value) };
-};
-
 const compareNormalizedIds = (a, b) => {
-  const left = normalizeIdValue(a);
-  const right = normalizeIdValue(b);
-  if (left.type !== right.type) return left.type === 'number' ? -1 : 1;
-  if (left.value < right.value) return -1;
-  if (left.value > right.value) return 1;
+  const leftIsNumber = typeof a === 'number' && Number.isFinite(a);
+  const left = leftIsNumber ? a : (a == null ? '' : String(a));
+  const rightIsNumber = typeof b === 'number' && Number.isFinite(b);
+  const right = rightIsNumber ? b : (b == null ? '' : String(b));
+  if (leftIsNumber !== rightIsNumber) return leftIsNumber ? -1 : 1;
+  if (left < right) return -1;
+  if (left > right) return 1;
   return 0;
 };
 
@@ -34,16 +29,23 @@ export const compareTopKEntries = (a, b) => {
   return rankA - rankB;
 };
 
-const buildTopKSortEntry = (item, { score, id, sourceRank }) => ({
-  score: score ? score(item) : (item?.score ?? item?.sim ?? 0),
-  id: id ? id(item) : (item?.idx ?? item?.id),
-  sourceRank: sourceRank ? sourceRank(item) : (item?.sourceRank ?? 0)
-});
-
-const createTopKItemComparator = (selectors) => (a, b) => compareTopKEntries(
-  buildTopKSortEntry(a, selectors),
-  buildTopKSortEntry(b, selectors)
-);
+const createTopKItemComparator = ({ score, id, sourceRank }) => (a, b) => {
+  // Keep selector/coercion order while avoiding two temporary sort records.
+  const valueA = score ? score(a) : (a?.score ?? a?.sim ?? 0);
+  const idA = id ? id(a) : (a?.idx ?? a?.id);
+  const sourceRankA = sourceRank ? sourceRank(a) : (a?.sourceRank ?? 0);
+  const valueB = score ? score(b) : (b?.score ?? b?.sim ?? 0);
+  const idB = id ? id(b) : (b?.idx ?? b?.id);
+  const sourceRankB = sourceRank ? sourceRank(b) : (b?.sourceRank ?? 0);
+  const scoreA = Number.isFinite(valueA) ? valueA : -Infinity;
+  const scoreB = Number.isFinite(valueB) ? valueB : -Infinity;
+  if (scoreA !== scoreB) return scoreB - scoreA;
+  const idCompare = compareNormalizedIds(idA, idB);
+  if (idCompare) return idCompare;
+  const rankA = Number.isFinite(sourceRankA) ? sourceRankA : 0;
+  const rankB = Number.isFinite(sourceRankB) ? sourceRankB : 0;
+  return rankA - rankB;
+};
 
 const isBetter = (score, id, rank, other) => {
   if (!other) return true;

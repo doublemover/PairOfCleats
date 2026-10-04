@@ -14,6 +14,12 @@ compared using the following tie-break rules:
 These invariants ensure that tie cases produce consistent output across runs and across different
 ANN/sparse providers.
 
+Comparators work on scalar values without constructing intermediate normalized-ID
+records or small-list sorting records. Mixed numeric/string ID order, duplicate
+ties, selector evaluation and ID coercion behavior remain compatible. Focused
+parity fixtures cover both heap and full-sort paths; end-to-end allocation or
+latency gains have not been measured.
+
 ## Top-K Selection
 
 Top-K selection uses a heap-based reducer when the candidate list is large enough relative to `k`
