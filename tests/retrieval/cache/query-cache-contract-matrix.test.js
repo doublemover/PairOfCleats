@@ -20,6 +20,8 @@ import { runNode } from '../../helpers/run-node.js';
 const root = process.cwd();
 
 const QUERY_CACHE_FAST_TEST_CONFIG = {
+  // Auto quality disables query caching on smaller machines; this case tests caching.
+  quality: 'balanced',
   indexing: {
     typeInference: false,
     typeInferenceCrossFile: false,
