@@ -41,7 +41,7 @@ import {
   removePackedMinhash,
   removePackedPostings
 } from '../artifacts/sparse-cleanup.js';
-import { packMinhashSignatures } from '../artifacts/minhash-packed.js';
+import { createMinhashSignatureIterable, packMinhashSignatures } from '../artifacts/minhash-packed.js';
 
 const cleanupPathExists = async (targetPath) => {
   if (!targetPath) return false;
@@ -747,21 +747,13 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
   const minhashCount = minhashFromPostings
     ? postings.minhashSigs.length
     : (minhashStream ? state.chunks.length : (postings.minhashSigs?.length || 0));
-  const minhashIterable = minhashFromPostings
-    ? minhashFromPostings
-    : (minhashStream
-      ? (function* () {
-        for (const chunk of state.chunks) {
-          yield chunk?.minhashSig;
-        }
-      })()
-      : (postings.minhashSigs || []));
-  const packedMinhash = sparseArtifactsEnabled
-    ? packMinhashSignatures({
-      signatures: minhashFromPostings,
-      chunks: minhashStream ? state.chunks : null
-    })
-    : null;
+  const minhashSource = {
+    signatures: minhashFromPostings,
+    chunks: minhashStream ? state.chunks : null,
+    sampling: minhashSamplingMeta
+  };
+  const minhashIterable = createMinhashSignatureIterable(minhashSource);
+  const packedMinhash = sparseArtifactsEnabled ? packMinhashSignatures(minhashSource) : null;
   if (packedMinhash?.coercedRows && typeof log === 'function') {
     log(
       `[minhash] packed signatures coerced ${packedMinhash.coercedRows} row(s) `

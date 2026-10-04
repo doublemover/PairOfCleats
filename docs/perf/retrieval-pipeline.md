@@ -69,6 +69,16 @@ rows without metadata are unavailable rather than guessed. Older sampled SQLite
 stores and packed-only LMDB stores need a backend rebuild to restore those data;
 there is no automatic store migration.
 
+With `minhashStream` enabled, oversized-corpus emission retains the sampling
+descriptor and borrows the existing chunk signatures instead of retaining a
+second array of transformed rows. JSON measurement/writing uses a repeatable
+iterator that allocates only the current sampled row. Packed emission reads the
+recorded indices directly into its final buffer, preserving the bytes and row
+coercion behavior of materialized sampling. Explicit `minhashStream: false`
+retains materialized rows. This removes the additional document-count-sized JS
+row collection; the existing full chunk signatures and complete packed buffer
+are still retained. No whole-index peak-memory or throughput gain is measured.
+
 ## Graph/Context Pack Caches
 
 When graph-backed expansion (impact/context-pack) is enabled, `GraphStore` maintains small bounded LRU caches

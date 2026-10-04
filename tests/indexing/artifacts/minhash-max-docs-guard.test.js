@@ -20,7 +20,7 @@ const postings = await buildPostings({
   fieldDocLengths: {},
   phrasePost: new Map(),
   triPost: new Map(),
-  postingsConfig: { minhashMaxDocs: 2 },
+  postingsConfig: { minhashMaxDocs: 2, minhashStream: false },
   embeddingsEnabled: false,
   modelId: 'stub',
   useStubEmbeddings: true,
@@ -43,7 +43,7 @@ if (postings.minhashGuard.hashStride <= 1) {
   fail('Expected sampled/minified signatures to record stride > 1.');
 }
 if (postings.minhashStream !== false) {
-  fail('Expected sampled minhash mode to disable streaming and use transformed signatures.');
+  fail('Expected explicit minhashStream:false to materialize sampled signatures.');
 }
 if (postings.minhashSigs.some((sig) => !Array.isArray(sig) || sig.length !== postings.minhashGuard.sampledSignatureLength)) {
   fail('Expected sampled signatures to match sampledSignatureLength.');
