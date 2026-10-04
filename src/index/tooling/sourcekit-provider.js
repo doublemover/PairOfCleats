@@ -107,6 +107,7 @@ const shouldSkipSourcekitPath = (virtualPath, excludePathRegexes) => {
 };
 
 const asFiniteNumber = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim())) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
@@ -537,7 +538,7 @@ export const createSourcekitProvider = () => ({
   id: 'sourcekit',
   preflightId: 'sourcekit.package-resolution',
   preflightClass: 'dependency',
-  version: '2.1.0',
+  version: '2.1.1',
   label: 'sourcekit-lsp',
   priority: 40,
   languages: ['swift'],
@@ -665,7 +666,7 @@ export const createSourcekitProvider = () => ({
     const checks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {
       return {
-        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -697,6 +698,7 @@ export const createSourcekitProvider = () => ({
           ?? hoverTimeoutMs
       )
     );
+    log(`[tooling] sourcekit request budgets providerTimeoutMs=${timeoutMs} hoverTimeoutMs=${Math.max(1000, hoverTimeoutMs)} signatureHelpTimeoutMs=${Math.max(1000, signatureHelpTimeoutMs)}.`);
     const hoverMaxPerFile = Math.max(
       1,
       asFiniteInteger(sourcekitConfig.hoverMaxPerFile) ?? SOURCEKIT_DEFAULT_HOVER_MAX_PER_FILE
@@ -764,7 +766,7 @@ export const createSourcekitProvider = () => ({
         })
       });
       return {
-        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: buildSourcekitDiagnostics({
           preflight,
@@ -795,7 +797,7 @@ export const createSourcekitProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -810,7 +812,7 @@ export const createSourcekitProvider = () => ({
       if (definitelyMissing) {
         log('[index] sourcekit-lsp not detected; skipping.');
         return {
-          provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: appendDiagnosticChecks(null, checks)
         };
@@ -859,7 +861,7 @@ export const createSourcekitProvider = () => ({
           })
         });
         return {
-          provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: buildSourcekitDiagnostics({
             admission: admissionPolicy,
@@ -991,7 +993,7 @@ export const createSourcekitProvider = () => ({
         })
       });
       return {
-        provider: { id: 'sourcekit', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: result.byChunkUid,
         diagnostics: buildSourcekitDiagnostics({
           diagnosticsCount: result.diagnosticsCount,

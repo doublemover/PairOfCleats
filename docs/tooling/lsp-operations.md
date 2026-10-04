@@ -58,6 +58,8 @@ When an LSP regression appears:
 
 ## Failure Classes
 
+SourceKit uses its existing 3.5-second hover/signature-help default when those settings are absent, null, or blank; inlay hints inherit the hover deadline. Explicit positive overrides still apply, subject to the shared client's one-second minimum. The provider logs the resolved request budgets so a timeout can be compared with the deadline actually selected. Package resolution and initialization readiness are separate from request success; a healthy preflight does not establish that every Swift semantic request will complete. Provider version 2.1.1 invalidates results cached under the earlier absent-value policy.
+
 - Capability drift:
   - provider advertises support and later rejects or omits the method
 - Delayed partial response:
