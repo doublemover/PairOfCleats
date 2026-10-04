@@ -50,6 +50,15 @@ Stage summary fields:
 Use these reports to prioritize optimization work before implementing algorithmic changes.
 
 ## Stage1 Memory Notes
+- File-text byte sizing includes both the selected raw buffer and an owned
+  decoded-text data property when the producer retains both. The UTF-8 text
+  estimate extends the existing per-entry proxy; it is not exact JS heap size or
+  shared-reference accounting across keys. A tiny actual cache-writer/restore
+  fixture counts 9 buffer bytes plus 9 text bytes, so two independent entries
+  cannot fit a 24-byte proxy budget. Buffer-only/text-only, empty-buffer fallback,
+  dynamic accessors and explicit entry-only/disabled cache policies remain
+  compatible. This may evict a dual-representation entry earlier; raw buffers
+  and text are still retained for their existing consumers.
 - Comment byte truncation encodes only the admitted UTF-8 prefix for positive
   integer caps, preserving complete character boundaries and existing byte/text
   results. A tiny actual comment-collector fixture verifies a 31-byte temporary

@@ -83,9 +83,21 @@ export const estimateFileTextBytes = (value) => {
   if (typeof value === 'string') size = estimateStringBytes(value);
   else if (Buffer.isBuffer(value)) size = value.length;
   else if (value && typeof value === 'object') {
-    if (Buffer.isBuffer(value.buffer)) size = value.buffer.length;
-    else if (Buffer.isBuffer(value.data)) size = value.data.length;
-    else if (typeof value.text === 'string') size = estimateStringBytes(value.text);
+    let hasBuffer = false;
+    if (Buffer.isBuffer(value.buffer)) {
+      size = value.buffer.length;
+      hasBuffer = true;
+    } else if (Buffer.isBuffer(value.data)) {
+      size = value.data.length;
+      hasBuffer = true;
+    } else if (typeof value.text === 'string') size = estimateStringBytes(value.text);
+    if (hasBuffer && size > 0) {
+      // Producer records retain both representations. Do not evaluate a custom
+      // accessor merely to extend the existing binary-payload size estimate.
+      let text;
+      try { text = Object.getOwnPropertyDescriptor(value, 'text')?.value; } catch {}
+      if (typeof text === 'string') size += estimateStringBytes(text);
+    }
   }
   if (!Number.isFinite(size) || size <= 0) {
     size = estimateJsonBytes(value);
