@@ -3,6 +3,7 @@ import { rangeToOffsets } from '../../lsp/positions.js';
 import { buildVfsUri } from '../../lsp/uris.js';
 import { resolveVfsDiskPath } from '../../../../index/tooling/vfs.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { findTargetForOffsets as lookupTargetForOffsets } from './target-index.js';
 
 export const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
@@ -188,6 +189,7 @@ export const shapeDiagnosticsByChunkUid = ({
   const diagnosticsByChunkUid = {};
   const diagnosticsSeenByChunkUid = new Map();
   let diagnosticsCount = 0;
+  const reuseTargetLookups = findTargetForOffsets === lookupTargetForOffsets;
 
   if (!captureDiagnostics || !diagnosticsByUri?.size) {
     return { diagnosticsByChunkUid, diagnosticsCount };
@@ -211,13 +213,22 @@ export const shapeDiagnosticsByChunkUid = ({
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
     const docText = openEntry?.text || doc.text || '';
     const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
+    let previousStart = NaN;
+    let previousEnd = NaN;
+    let previousTarget = null;
 
     for (const diag of diagnostics) {
       const offsets = rangeToOffsets(lineIndex, diag.range, {
         text: docText,
         positionEncoding
       });
-      const target = findTargetForOffsets(docTargetIndex, offsets);
+      // The app-owned lookup is pure over this document's immutable target index.
+      // Retain only the last range; custom callback invocation semantics stay intact.
+      const repeatedRange = reuseTargetLookups && offsets.start === previousStart && offsets.end === previousEnd;
+      const target = repeatedRange ? previousTarget : findTargetForOffsets(docTargetIndex, offsets);
+      previousStart = offsets.start;
+      previousEnd = offsets.end;
+      previousTarget = target;
       if (!target?.chunkRef?.chunkUid) continue;
 
       const chunkUid = target.chunkRef.chunkUid;

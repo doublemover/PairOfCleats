@@ -75,6 +75,12 @@ Use these reports to prioritize optimization work before implementing algorithmi
   A no-server-start fixture proves eight healthy keys retire while those owners
   survive. Historical failure metadata is still intentionally unbounded, so this
   is a scoped lifetime improvement rather than a complete health-cache budget.
+- Diagnostic projection reuses the app-owned overlap lookup for consecutive
+  identical source-offset ranges within one immutable document. It retains three
+  scalar values rather than a growing query cache; changed ranges and document
+  boundaries perform a fresh lookup. Nested target ties, encodings, dedupe/caps
+  and custom callback behavior remain compatible. A 48-diagnostic tiny fixture
+  performs one target lookup instead of 48; whole-session speed is unmeasured.
 - A bounded postings queue now applies backpressure between tokenization and postings apply; queue depth + wait time show up in checkpoint `extra.postingsQueue`.
 - Tree-sitter stats are recorded in checkpoint `extra.treeSitter` (WASM loads/evictions + load modes, parser activations, query cache hits/misses, chunk cache hits/misses, worker fallbacks, parse timeouts/disable counts, batch sizing/deferrals, and cache sizes).
 
