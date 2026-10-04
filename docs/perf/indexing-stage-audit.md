@@ -50,6 +50,13 @@ Stage summary fields:
 Use these reports to prioritize optimization work before implementing algorithmic changes.
 
 ## Stage1 Memory Notes
+- Comment byte truncation encodes only the admitted UTF-8 prefix for positive
+  integer caps, preserving complete character boundaries and existing byte/text
+  results. A tiny actual comment-collector fixture verifies a 31-byte temporary
+  buffer instead of encoding the complete 16 KiB source comment first. The source
+  string is still retained and its encoded length is checked; this is not a
+  whole-index RSS or latency measurement. Fractional/legacy cap inputs retain
+  their previous behavior, and file reads/encoding detection are unchanged.
 - Token sequences share the token array when no synonyms are present to reduce duplicate retention.
 - Field/comment tokens are only materialized when fielded/phrase/chargram sources require them.
 - Postings maps are cleared as soon as dense arrays are materialized to keep peak heap lower.
