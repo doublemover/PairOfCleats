@@ -96,6 +96,14 @@ Use these reports to prioritize optimization work before implementing algorithmi
   grammar residency budget.
 
 ## Stage2 Memory Notes
+- The import-resolution filesystem-existence accelerator computes its three
+  seeded Bloom hashes in one UTF-16 character pass. Seeds, bit positions and the
+  separate exact-membership hash are unchanged; the callbacks are shared for the
+  life of the index rather than allocating a hash tuple for every path. A tiny
+  fixture compares 4,224 membership and hash-decision cases, including Bloom
+  false positives rejected by exact lookup, and retains incomplete-scan/ignore
+  behavior. This removes repeated character reads without an end-to-end resolver
+  latency claim.
 - `graph_relations` is built from a streamed edge spill/merge pipeline and emitted as sharded JSONL to avoid materializing in-memory graph structures.
 - Spill buffers are bounded by bytes/rows and use a staging directory under the index output that is cleaned up after finalization.
 - Repo map construction dedupes entries within file/name/kind groups to reduce duplicate retention; legacy variants are removed only after successful writes to preserve rollback safety.

@@ -46,6 +46,19 @@ const hash32 = (text, seed = 0x811c9dc5) => {
   return hash >>> 0;
 };
 
+const withBloomHashes = (text, visit) => {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x27d4eb2f;
+  let h3 = 0x9e3779b1;
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ code, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ code, 0x01000193) >>> 0;
+    h3 = Math.imul(h3 ^ code, 0x01000193) >>> 0;
+  }
+  return visit(h1, h2, h3);
+};
+
 const createBloom = (entryCount = 0) => {
   const targetBits = Math.max(
     MIN_BLOOM_BITS,
@@ -65,20 +78,14 @@ const createBloom = (entryCount = 0) => {
     const bitMask = 1 << (index & 7);
     return (bytes[byteIndex] & bitMask) !== 0;
   };
-  const add = (text) => {
-    const h1 = hash32(text, 0x811c9dc5);
-    const h2 = hash32(text, 0x27d4eb2f);
-    const h3 = hash32(text, 0x9e3779b1);
+  const setBits = (h1, h2, h3) => {
     setBit(h1);
     setBit(h2);
     setBit(h3);
   };
-  const mightContain = (text) => {
-    const h1 = hash32(text, 0x811c9dc5);
-    const h2 = hash32(text, 0x27d4eb2f);
-    const h3 = hash32(text, 0x9e3779b1);
-    return hasBit(h1) && hasBit(h2) && hasBit(h3);
-  };
+  const checkBits = (h1, h2, h3) => hasBit(h1) && hasBit(h2) && hasBit(h3);
+  const add = (text) => withBloomHashes(text, setBits);
+  const mightContain = (text) => withBloomHashes(text, checkBits);
   return {
     add,
     mightContain,
