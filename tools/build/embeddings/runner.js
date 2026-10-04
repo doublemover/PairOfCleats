@@ -125,6 +125,7 @@ import {
   observeExtractedProseLowYieldSample
 } from '../../../src/index/build/indexer/steps/process-files/extracted-prose.js';
 import { sortEntriesByOrderIndex } from '../../../src/index/build/indexer/steps/process-files/ordering.js';
+import { summarizeBundleEmbeddingCoverage, stampBundleEmbeddingCoverage } from './runner/bundle-coverage.js';
 import {
   createIncrementalChunkMappingIndex,
   createMappingFailureReasons,
@@ -188,6 +189,7 @@ const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
  * @property {object|null} lowYieldBailout
  * @property {boolean} manifestWritten
  * @property {boolean} completeCoverage
+ * @property {object} coverage Counts for examined, unexamined and invalid manifest bundles.
  */
 /**
  * Resolve max chunk-meta payload size used when loading chunk metadata for
@@ -995,7 +997,7 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
  * }} input
  * @returns {Promise<RefreshIncrementalBundlesResult|{attempted:number,rewritten:number,manifestWritten:boolean,completeCoverage:boolean}>}
  */
-const refreshIncrementalBundlesWithEmbeddings = async ({
+export const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
   repoCacheRoot,
   incremental,
@@ -1253,22 +1255,15 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   }
   const lowYieldBailoutSummary = buildExtractedProseLowYieldBailoutSummary(lowYieldState);
 
-  const missingFiles = Math.max(0, eligible - covered);
-  const missingChunks = Math.max(0, skippedNoMappingChunks);
-  const completeCoverage = eligible > 0
-    ? covered === eligible && missingChunks === 0
-    : skippedInvalidBundle === 0;
+  const coverage = summarizeBundleEmbeddingCoverage({ totalFiles: scanned, processedFiles: processedEntries,
+    eligibleFiles: eligible, coveredFiles: covered, missingChunks: skippedNoMappingChunks, invalidBundles: skippedInvalidBundle });
+  const completeCoverage = coverage.complete;
   let manifestWritten = false;
   if (rewriteFailures === 0) {
-    manifest.bundleEmbeddings = completeCoverage;
+    stampBundleEmbeddingCoverage(manifest, coverage);
     manifest.bundleEmbeddingMode = embeddingMode || null;
     manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
     manifest.bundleEmbeddingStage = 'stage3';
-    manifest.bundleEmbeddingCoverageEligible = eligible;
-    manifest.bundleEmbeddingCoverageCovered = covered;
-    manifest.bundleEmbeddingCoverageMissingFiles = missingFiles;
-    manifest.bundleEmbeddingCoverageMissingChunks = missingChunks;
-    manifest.bundleEmbeddingCoverageComplete = completeCoverage;
     manifestWritten = await scheduleIo(
       () => writeIncrementalManifest(incremental.manifestPath, manifest)
     );
@@ -1325,6 +1320,7 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     lowYieldBailout: lowYieldBailoutSummary,
     manifestWritten,
     completeCoverage,
+    coverage,
     rewriteFailures
   };
 };
