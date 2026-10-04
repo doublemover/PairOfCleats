@@ -56,7 +56,7 @@ try {
   assert.equal(pending.spawnCalls.length, 0, 'trust revoked during an async input must be rechecked at spawn');
 } finally { pending.restoreGlobals(); }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-tui-path-'));
+const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'poc-tui-path-')));
 try {
   const supervisor = path.join(tmp, 'tools', 'tui', 'supervisor.js');
   fs.mkdirSync(path.dirname(supervisor), { recursive: true });

@@ -58,7 +58,8 @@ const tabIndented = smartChunk({
   context: { yamlChunking: { mode: 'top-level' } }
 });
 const tabNames = tabIndented.map((chunk) => chunk.name);
-if (!tabNames.includes('root') || !tabNames.includes('other') || tabNames.includes('child')) {
+if (tabIndented.length !== 1 || tabNames[0] !== 'root'
+  || tabIndented[0].meta?.parserFallbackReason !== 'parse-failed') {
   console.error(`Unexpected tab-indented YAML chunks: ${tabNames.join(',')}`);
   process.exit(1);
 }

@@ -79,14 +79,14 @@ for (const entry of cases) {
     resolveCommandProfile
   });
 
-  const reportMissingMarkers = await runDoctor();
+  const reportMissingMarkers = await runDoctor({ authorizeFixtureExecution: true });
   const providerMissing = (reportMissingMarkers.providers || []).find((provider) => provider.id === entry.providerId);
   const missingCheck = (providerMissing?.checks || []).find((check) => check.name === entry.checkName);
   assert.ok(missingCheck, `expected workspace-model check for ${entry.providerId}`);
   assert.equal(missingCheck.status, 'warn', `expected warn when workspace markers are missing for ${entry.providerId}`);
 
   await writeDoctorWorkspaceMarker(tempRoot, entry.providerId);
-  const reportWithMarkers = await runDoctor();
+  const reportWithMarkers = await runDoctor({ authorizeFixtureExecution: true });
   const providerPresent = (reportWithMarkers.providers || []).find((provider) => provider.id === entry.providerId);
   const presentCheck = (providerPresent?.checks || []).find((check) => check.name === entry.checkName);
   assert.ok(presentCheck, `expected workspace-model check after marker creation for ${entry.providerId}`);

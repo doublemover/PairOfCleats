@@ -6,6 +6,7 @@ import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { withLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const root = process.cwd();
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
@@ -42,6 +43,11 @@ const cases = [
       await fs.mkdir(path.join(tempRoot, 'svc-b'), { recursive: true });
       await fs.writeFile(path.join(tempRoot, 'svc-a', 'go.mod'), 'module example.com/svc-a\n\ngo 1.22\n', 'utf8');
       await fs.writeFile(path.join(tempRoot, 'svc-b', 'go.mod'), 'module example.com/svc-b\n\ngo 1.22\n', 'utf8');
+      const goProbeOkScriptPath = await writeGoProbe(
+        tempRoot,
+        'go-probe-partitioned-ok.js',
+        "process.stdout.write('example.com/fixture\\n');\n"
+      );
       const documents = [
         {
           virtualPath: '.poc-vfs/svc-a/src/sample.go#seg:gopls-workspace-root-ambiguous-a.txt',
@@ -67,7 +73,10 @@ const cases = [
           args: [serverPath, '--mode', 'go'],
           languages: ['go'],
           uriScheme: 'poc-vfs',
-          preflightRuntimeRequirements: []
+          preflightRuntimeRequirements: [],
+          goWorkspaceModuleCmd: process.execPath,
+          goWorkspaceModuleArgs: [goProbeOkScriptPath],
+          goWorkspaceWarmup: false
         },
         request: {
           documents,
@@ -262,24 +271,30 @@ await withLspTestPath({ repoRoot: root }, async () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
     await fs.mkdir(tempRoot, { recursive: true });
     const setup = await entry.setup(tempRoot);
-    const result = await runToolingProviders({
-      strict: true,
-      repoRoot: tempRoot,
-      buildRoot: tempRoot,
-      toolingConfig: {
-        enabledTools: [setup.toolId],
-        lsp: {
-          enabled: true,
-          servers: [{
-            id: setup.serverId,
-            ...setup.serverConfig
-          }]
+    const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+    let result;
+    try {
+      result = await runToolingProviders({
+        strict: true,
+        repoRoot: tempRoot,
+        buildRoot: tempRoot,
+        toolingConfig: {
+          enabledTools: [setup.toolId],
+          lsp: {
+            enabled: true,
+            servers: [{
+              id: setup.serverId,
+              ...setup.serverConfig
+            }]
+          }
+        },
+        cache: {
+          enabled: false
         }
-      },
-      cache: {
-        enabled: false
-      }
-    }, setup.request);
+      }, setup.request);
+    } finally {
+      restoreExecution();
+    }
     const diagnostics = result.diagnostics?.[setup.toolId] || {};
     setup.assertResult(result, diagnostics);
   }

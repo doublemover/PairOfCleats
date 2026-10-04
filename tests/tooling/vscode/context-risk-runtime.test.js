@@ -46,6 +46,7 @@ const harness = createVsCodeRuntimeHarness({
   activeFile,
   activeEditor,
   configValues: {
+    cliPath: './bin/pairofcleats.js',
     cliArgs: ['--trace']
   }
 });

@@ -114,13 +114,14 @@ try {
 
   __resetToolingCommandProbeCacheForTests();
   __setToolingCommandProbeSuccessTtlMsForTests(25);
+  const ttlToolingDir = path.join(tempRoot, 'ttl-tooling');
 
   const ttlFirst = resolveToolingCommandProfile({
     providerId: 'gopls',
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
+    toolingConfig: { dir: ttlToolingDir, cache: { dir: ttlToolingDir } }
   });
   assert.equal(ttlFirst.probe.cached, false);
 
@@ -129,7 +130,7 @@ try {
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
+    toolingConfig: { dir: ttlToolingDir, cache: { dir: ttlToolingDir } }
   });
   assert.equal(ttlSecond.probe.cached, true);
 
@@ -140,7 +141,7 @@ try {
     cmd: fixtureCmd,
     args: [],
     repoRoot: root,
-    toolingConfig: { dir: toolingDir, cache: { dir: toolingDir } }
+    toolingConfig: { dir: ttlToolingDir, cache: { dir: ttlToolingDir } }
   });
   assert.equal(ttlThird.probe.cached, false);
 

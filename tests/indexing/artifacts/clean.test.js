@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -16,6 +17,7 @@ const cacheRoot = path.join(baseDir, 'cache');
 await fsPromises.rm(baseDir, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
 
 const env = applyTestEnv({ cacheRoot });
 
@@ -37,6 +39,7 @@ await fsPromises.writeFile(path.join(cacheSqliteDir, 'index.db.bak'), 'legacy-ba
 
 const legacySqliteDir = path.join(repoRoot, 'index-sqlite');
 await fsPromises.mkdir(legacySqliteDir, { recursive: true });
+await fsPromises.writeFile(path.join(legacySqliteDir, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-code.db'), 'legacy-code');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-prose.db'), 'legacy-prose');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index.db'), 'legacy-index');

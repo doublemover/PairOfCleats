@@ -26,6 +26,7 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot,
   activeFile: path.join(srcDir, 'app.ts'),
   configValues: {
+    cliPath: './bin/pairofcleats.js',
     cliArgs: ['--trace'],
     searchMode: 'code'
   }

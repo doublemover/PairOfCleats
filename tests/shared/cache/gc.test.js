@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -32,6 +33,7 @@ const run = (args, label) => {
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
+await fsPromises.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
 
 const now = Date.now();
 await makeRepo('old-repo', 2048, now - 5 * 24 * 60 * 60 * 1000);

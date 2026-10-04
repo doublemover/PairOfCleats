@@ -22,6 +22,7 @@ const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
   configValues: {
+    cliPath: './bin/pairofcleats.js',
     cliArgs: ['--trace']
   }
 });

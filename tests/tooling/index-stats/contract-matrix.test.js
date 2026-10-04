@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getRepoCacheRoot, getRepoId, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -32,15 +33,16 @@ const createIndexStatsRepoFixture = async (prefix, {
   repoDirName = 'repo',
   configCacheRootName = 'cache'
 } = {}) => {
-  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), `pairofcleats-${prefix}-`));
-  const cacheRoot = path.join(tempRoot, 'cache');
+  const tempRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), `pairofcleats-${prefix}-`)));
   const configCacheRoot = path.join(tempRoot, configCacheRootName);
+  const cacheRoot = resolveVersionedCacheRoot(configCacheRoot);
   const repoRoot = path.join(tempRoot, repoDirName);
   await fs.mkdir(repoRoot, { recursive: true });
   await writeJson(path.join(repoRoot, '.pairofcleats.json'), {
     cache: { root: configCacheRoot }
   });
   const userConfig = loadUserConfig(repoRoot);
+  userConfig.cache = { ...userConfig.cache, root: cacheRoot };
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
   const createBuildIndexDir = async (buildId, mode = 'code') => {
     const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
@@ -169,6 +171,7 @@ const createIndexStatsRepoFixture = async (prefix, {
 
 {
   const {
+    cacheRoot,
     repoRoot,
     createBuildIndexDir,
     writeCurrentBuild
@@ -203,7 +206,9 @@ const createIndexStatsRepoFixture = async (prefix, {
   });
   await writeCurrentBuild('build-1', buildRoot);
 
-  const run = runStats(['--repo', repoRoot, '--json']);
+  const run = runStats(['--repo', repoRoot, '--json'], {
+    env: applyTestEnv({ cacheRoot, syncProcess: false })
+  });
   assert.equal(run.status, 0, run.stderr || run.stdout);
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.schemaVersion, 1);
@@ -222,6 +227,7 @@ const createIndexStatsRepoFixture = async (prefix, {
 
 {
   const {
+    cacheRoot,
     repoRoot,
     createBuildIndexDir,
     writeCurrentBuild
@@ -240,7 +246,10 @@ const createIndexStatsRepoFixture = async (prefix, {
   });
   await writeCurrentBuild('build-verify', buildRoot);
 
-  const run = runStats(['--repo', repoRoot, '--verify', '--json'], { allowFailure: true });
+  const run = runStats(['--repo', repoRoot, '--verify', '--json'], {
+    allowFailure: true,
+    env: applyTestEnv({ cacheRoot, syncProcess: false })
+  });
   assert.equal(run.status, 1);
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.verify?.ok, false);
