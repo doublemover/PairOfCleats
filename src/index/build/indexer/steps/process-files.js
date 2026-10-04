@@ -3,6 +3,7 @@ import {
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
 } from '../../../../shared/concurrency/ordered-completion.js';
 import { getEnvConfig } from '../../../../shared/env/runtime.js';
+import { buildScmMetadataObservation } from '../../../scm/metadata-diagnostics.js';
 import { fileExt, toPosix } from '../../../../shared/file-paths.js';
 import { countLinesForEntries } from '../../../../shared/file-stats.js';
 import { log, logLine, showProgress } from '../../../../shared/progress-runtime.js';
@@ -755,6 +756,7 @@ export const processFiles = async ({
       }
       if (timing && typeof timing === 'object') {
         timing.scmMetaMs = Math.max(0, Date.now() - scmMetaStart);
+        timing.scmMetadata = buildScmMetadataObservation(scmSnapshot?.stats);
       }
     }
 
@@ -3269,4 +3271,3 @@ export const processFiles = async ({
     });
   }
 };
-

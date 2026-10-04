@@ -10,6 +10,7 @@ import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
 import { toRepoPosixPath } from '../paths.js';
 import { buildScmFreshnessGuard } from '../runtime.js';
+import { preserveScmMetadataFailure } from '../metadata-diagnostics.js';
 import { resolveGitConfig, runGitTask } from './git/config.js';
 import {
   buildGitMetaBatchResponseFromEntry,
@@ -89,7 +90,7 @@ const toSortedRepoPosixFiles = (entries, repoRoot) => {
  * Standard provider unavailable payload.
  * @returns {{ok:false,reason:'unavailable'}}
  */
-const toUnavailableResult = () => ({ ok: false, reason: 'unavailable' });
+const toUnavailableResult = (result = null) => ({ ok: false, reason: 'unavailable', ...preserveScmMetadataFailure(result) });
 
 /**
  * Run a git task with shared timeout/circuit state.
@@ -220,7 +221,7 @@ const fetchGitMetaBatch = async ({
     config,
     includeChurn
   });
-  return fetched.ok ? fetched : null;
+  return fetched;
 };
 
 /**
@@ -381,7 +382,7 @@ export const gitProvider = {
           config,
           includeChurn
         });
-        if (!fetched) return null;
+        if (!fetched || fetched.ok === false) return { ...toUnavailableResult(fetched) };
         mergeGitMetaPrefetchEntry({
           entry: reusableEntry,
           filesPosix: unresolvedFiles,
@@ -394,7 +395,7 @@ export const gitProvider = {
         };
       });
       if (!hydratedResult?.entry) {
-        return toUnavailableResult();
+        return toUnavailableResult(hydratedResult);
       }
       return buildGitMetaBatchResponseFromEntry({
         entry: hydratedResult.entry,
@@ -409,7 +410,7 @@ export const gitProvider = {
       config,
       includeChurn
     });
-    if (!fetched) return toUnavailableResult();
+    if (!fetched || fetched.ok === false) return toUnavailableResult(fetched);
     return buildFetchedBatchResponse(fetched);
   },
   async annotate({ repoRoot, filePosix, timeoutMs, signal, commitId = null }) {

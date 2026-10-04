@@ -6,6 +6,7 @@ import { showProgress } from '../../../../shared/progress-runtime.js';
 import { toRepoPosixPath } from '../../paths.js';
 import { runScmCommand } from '../../runner.js';
 import { runGitTask } from './config.js';
+import { buildScmMetadataFailure } from '../../metadata-diagnostics.js';
 import {
   createUnavailableFileMeta,
   normalizeFileMeta,
@@ -304,6 +305,8 @@ export const createBatchDiagnostics = () => ({
   timeoutRetries: 0,
   cooldownSkips: 0,
   unavailableChunks: 0,
+  failureCount: 0,
+  failures: [],
   timeoutHeatmap: []
 });
 
@@ -401,6 +404,9 @@ export const runGitMetaBatchFetch = async ({
     attemptCount,
     updateTimeoutState = false
   }) => {
+    diagnostics.failureCount += 1;
+    if (diagnostics.failures.length < 8) diagnostics.failures.push(buildScmMetadataFailure(failure, 'git-file-meta-batch'));
+    else diagnostics.truncated = true;
     if (failure.timeoutLike) {
       diagnostics.timeoutCount += 1;
       for (const filePosix of chunk) {
@@ -619,7 +625,8 @@ export const runGitMetaBatchFetch = async ({
       }
       diagnostics.unavailableChunks += 1;
       if (failure && (failure.fatalUnavailable || !failure.timeoutLike)) {
-        return { ok: false, fatal: true, reason: failure.message || 'unavailable' };
+        return { ok: false, fatal: true, reason: failure.message || 'unavailable',
+          failure: buildScmMetadataFailure(failure, 'git-file-meta-batch') };
       }
       const unavailableMetaByPath = Object.create(null);
       for (const filePosix of chunk) {
@@ -642,6 +649,7 @@ export const runGitMetaBatchFetch = async ({
       return {
         ok: false,
         reason: 'unavailable',
+        failure: chunkResult.failure || null,
         diagnostics
       };
     }

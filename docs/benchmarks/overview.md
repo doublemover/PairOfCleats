@@ -20,6 +20,12 @@ successful tasks. Unknown evidence fails its zero-default
 Ordinary partial runs keep their existing exit policy. Reports retain actual
 skipped-file counts separately from estimated suppressed files and recall loss.
 
+SCM metadata recovery retains bounded failure codes and messages, batch counters,
+per-file attempted/completed/unavailable counts, and unresolved-file counts in
+stage timings under `scmMetadata`. This distinguishes a fully recovered provider
+that intentionally lacks batch support from a real batch failure, and keeps the
+failure evidence available after benchmark cache cleanup.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

@@ -13,6 +13,7 @@ import {
   normalizeFileMeta
 } from './file-meta.js';
 import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch } from './runtime.js';
+import { buildScmMetadataFailure, normalizeScmMetadataDiagnostics, preserveScmMetadataFailure } from './metadata-diagnostics.js';
 
 const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 1;
 const SCM_FILE_META_SNAPSHOT_NAME = 'file-meta-v1.json';
@@ -156,50 +157,7 @@ const resolveChangedFileSet = async ({
   return fileSet;
 };
 
-const normalizeBatchDiagnostics = (value) => {
-  const timeoutCount = Number.isFinite(Number(value?.timeoutCount))
-    ? Math.max(0, Math.floor(Number(value.timeoutCount)))
-    : 0;
-  const timeoutRetries = Number.isFinite(Number(value?.timeoutRetries))
-    ? Math.max(0, Math.floor(Number(value.timeoutRetries)))
-    : 0;
-  const cooldownSkips = Number.isFinite(Number(value?.cooldownSkips))
-    ? Math.max(0, Math.floor(Number(value.cooldownSkips)))
-    : 0;
-  const unavailableChunks = Number.isFinite(Number(value?.unavailableChunks))
-    ? Math.max(0, Math.floor(Number(value.unavailableChunks)))
-    : 0;
-  const timeoutHeatmap = Array.isArray(value?.timeoutHeatmap)
-    ? value.timeoutHeatmap
-      .map((entry) => {
-        const file = normalizeFileKey(entry?.file);
-        if (!file) return null;
-        return {
-          file,
-          timeouts: Number.isFinite(Number(entry?.timeouts))
-            ? Math.max(0, Math.floor(Number(entry.timeouts)))
-            : 0,
-          retries: Number.isFinite(Number(entry?.retries))
-            ? Math.max(0, Math.floor(Number(entry.retries)))
-            : 0,
-          cooldownSkips: Number.isFinite(Number(entry?.cooldownSkips))
-            ? Math.max(0, Math.floor(Number(entry.cooldownSkips)))
-            : 0,
-          lastTimeoutMs: Number.isFinite(Number(entry?.lastTimeoutMs))
-            ? Math.max(0, Math.floor(Number(entry.lastTimeoutMs)))
-            : null
-        };
-      })
-      .filter(Boolean)
-    : [];
-  return {
-    timeoutCount,
-    timeoutRetries,
-    cooldownSkips,
-    unavailableChunks,
-    timeoutHeatmap
-  };
-};
+const normalizeBatchDiagnostics = normalizeScmMetadataDiagnostics;
 
 const runBatchFetch = async ({
   providerImpl,
@@ -212,20 +170,20 @@ const runBatchFetch = async ({
   if (!providerImpl || typeof providerImpl.getFileMetaBatch !== 'function') {
     return { ok: false, reason: 'unsupported' };
   }
-  const result = await providerImpl.getFileMetaBatch({
-    repoRoot,
-    filesPosix,
-    includeChurn,
-    timeoutMs,
-    headId
-  });
+  let result;
+  try {
+    result = await providerImpl.getFileMetaBatch({ repoRoot, filesPosix, includeChurn, timeoutMs, headId });
+  } catch (error) {
+    if (error?.name === 'AbortError' || error?.code === 'ABORT_ERR') throw error;
+    result = { ok: false, reason: 'unavailable', failure: buildScmMetadataFailure(error, 'getFileMetaBatch') };
+  }
   if (!result || result.ok === false || !result.fileMetaByPath || typeof result.fileMetaByPath !== 'object') {
-    return { ok: false, reason: result?.reason || 'unavailable' };
+    return { ok: false, reason: result?.reason || 'unavailable', ...preserveScmMetadataFailure(result) };
   }
   return {
     ok: true,
     fileMetaByPath: normalizeFileMetaMap(result.fileMetaByPath),
-    diagnostics: normalizeBatchDiagnostics(result?.diagnostics || null)
+    diagnostics: normalizeScmMetadataDiagnostics(result?.diagnostics || null)
   };
 };
 
@@ -244,18 +202,30 @@ const runPerFileFetch = async ({
       : 8
   });
   const fileMetaByPath = Object.create(null);
+  const diagnostics = { attempted: 0, complete: 0, unavailable: 0, failures: [], truncated: false };
   await Promise.all(filesPosix.map((filePosix) => queue.add(async () => {
-    const meta = await providerImpl.getFileMeta({
-      repoRoot,
-      filePosix,
-      includeChurn,
-      timeoutMs,
-      headId
-    });
-    if (!meta || meta.ok === false) return;
-    fileMetaByPath[filePosix] = normalizeFileMeta(meta);
+    diagnostics.attempted += 1;
+    let meta;
+    try {
+      meta = await providerImpl.getFileMeta({ repoRoot, filePosix, includeChurn, timeoutMs, headId });
+    } catch (error) {
+      if (error?.name === 'AbortError' || error?.code === 'ABORT_ERR') throw error;
+      meta = { ok: false, reason: 'unavailable', failure: buildScmMetadataFailure(error, 'getFileMeta') };
+    }
+    if (!meta || meta.ok === false) {
+      diagnostics.unavailable += 1;
+      if (meta?.failure) {
+        if (diagnostics.failures.length < 8) diagnostics.failures.push(buildScmMetadataFailure(meta.failure, 'getFileMeta'));
+        else diagnostics.truncated = true;
+      }
+      return;
+    }
+    const normalized = normalizeFileMeta(meta);
+    fileMetaByPath[filePosix] = normalized;
+    if (!isIncompleteFileMeta(normalized, { includeChurn })) diagnostics.complete += 1;
+    else diagnostics.unavailable += 1;
   })));
-  return fileMetaByPath;
+  return { fileMetaByPath, diagnostics };
 };
 
 const hasCompleteFetchedMeta = (fileMetaByPath, filesPosix, { includeChurn = false } = {}) => (
@@ -357,7 +327,7 @@ export const prepareScmFileMetaSnapshot = async ({
   if (configCompatible && cachedIncludeChurn === includeChurn) {
     for (const filePosix of targetFiles) {
       const meta = cachedFiles[filePosix];
-      if (!meta) continue;
+      if (!meta || isIncompleteFileMeta(meta, { includeChurn })) continue;
       if (canReuseByHead) {
         reusable[filePosix] = meta;
         reused += 1;
@@ -377,6 +347,9 @@ export const prepareScmFileMetaSnapshot = async ({
   let fetchedMap = Object.create(null);
   let batchDiagnostics = normalizeBatchDiagnostics(null);
   let usedUnavailableBatchFallback = false;
+  let batchReason = null;
+  let batchFailure = null;
+  let perFileDiagnostics = { attempted: 0, complete: 0, unavailable: 0, failures: [], truncated: false };
   let source = reused > 0 ? 'mixed' : 'fresh';
   if (missing.length > 0) {
     const batch = await runBatchFetch({
@@ -390,9 +363,7 @@ export const prepareScmFileMetaSnapshot = async ({
     if (batch.ok) {
       fetchedMap = batch.fileMetaByPath;
       batchDiagnostics = batch.diagnostics || normalizeBatchDiagnostics(null);
-      const incompleteFiles = Object.entries(fetchedMap)
-        .filter(([, meta]) => isIncompleteFileMeta(meta, { includeChurn }))
-        .map(([filePosix]) => filePosix);
+      const incompleteFiles = missing.filter((filePosix) => isIncompleteFileMeta(fetchedMap[filePosix], { includeChurn }));
       if (incompleteFiles.length > 0) {
         const completedMap = await runPerFileFetch({
           providerImpl,
@@ -403,14 +374,18 @@ export const prepareScmFileMetaSnapshot = async ({
           maxConcurrency: maxFallbackConcurrency,
           headId
         });
-        for (const [filePosix, meta] of Object.entries(completedMap || {})) {
+        perFileDiagnostics = completedMap.diagnostics;
+        for (const [filePosix, meta] of Object.entries(completedMap.fileMetaByPath || {})) {
           fetchedMap[filePosix] = meta;
         }
         source = reused > 0 ? 'mixed-fallback' : 'fresh-fallback';
       }
     } else {
       usedUnavailableBatchFallback = true;
-      fetchedMap = await runPerFileFetch({
+      batchReason = batch.reason;
+      batchFailure = batch.failure || null;
+      batchDiagnostics = normalizeScmMetadataDiagnostics(batch.diagnostics);
+      const completed = await runPerFileFetch({
         providerImpl,
         repoRoot,
         filesPosix: missing,
@@ -419,6 +394,8 @@ export const prepareScmFileMetaSnapshot = async ({
         maxConcurrency: maxFallbackConcurrency,
         headId
       });
+      fetchedMap = completed.fileMetaByPath;
+      perFileDiagnostics = completed.diagnostics;
       source = reused > 0 ? 'mixed-fallback' : 'fallback';
     }
     const recoveredAllMissing = hasCompleteFetchedMeta(fetchedMap, missing, { includeChurn });
@@ -427,7 +404,7 @@ export const prepareScmFileMetaSnapshot = async ({
       || batchDiagnostics.cooldownSkips > 0
       || batchDiagnostics.unavailableChunks > 0
     );
-    if (recoveredAllMissing && !unresolvedDiagnostics && !usedUnavailableBatchFallback) {
+    if (recoveredAllMissing && !unresolvedDiagnostics && (!usedUnavailableBatchFallback || batchReason === 'unsupported')) {
       source = reused > 0 ? 'mixed' : 'fresh';
     }
   } else {
@@ -455,6 +432,7 @@ export const prepareScmFileMetaSnapshot = async ({
     freshnessKey: freshnessGuard.key || null,
     configSignature: freshnessGuard.configSignature || null,
     updatedAt: new Date().toISOString(),
+    diagnostics: { batchReason, batchFailure, batch: batchDiagnostics, perFile: perFileDiagnostics },
     files: persisted
   };
   await atomicWriteJson(snapshotPath, payload, { spaces: 2 });
@@ -472,6 +450,7 @@ export const prepareScmFileMetaSnapshot = async ({
     freshnessGuard
   });
   const fetched = Object.keys(fetchedMap).length;
+  const unresolvedFiles = targetFiles.filter((file) => isIncompleteFileMeta(fileMetaByPath[file], { includeChurn })).length;
   const causeClass = resolveScmFallbackCause({
     source,
     timeoutCount: batchDiagnostics.timeoutCount,
@@ -523,6 +502,11 @@ export const prepareScmFileMetaSnapshot = async ({
       `[scm] file-meta snapshot: source=${source} requested=${targetFiles.length} reused=${reused} fetched=${fetched}.`
       + ` elapsedMs=${Math.max(0, Date.now() - startedAtMs)}${diagnosticsSuffix}`
     );
+    if (batchReason || perFileDiagnostics.attempted > 0) {
+      logFn(`[scm] file-meta recovery: batch=${batchReason || 'partial'} perFileAttempted=${perFileDiagnostics.attempted}`
+        + ` complete=${perFileDiagnostics.complete} unavailable=${perFileDiagnostics.unavailable} unresolved=${unresolvedFiles}`
+        + (batchFailure ? ` failure=${JSON.stringify(batchFailure)}` : ''));
+    }
   }
   return {
     fileMetaByPath,
@@ -532,6 +516,13 @@ export const prepareScmFileMetaSnapshot = async ({
       requested: targetFiles.length,
       reused,
       fetched,
+      unresolvedFiles,
+      batchReason,
+      batchFailure,
+      perFileDiagnostics,
+      failureCount: batchDiagnostics.failureCount,
+      failures: batchDiagnostics.failures,
+      truncated: batchDiagnostics.truncated,
       reuse: reuseSummary,
       timeoutCount: batchDiagnostics.timeoutCount,
       timeoutRetries: batchDiagnostics.timeoutRetries,
