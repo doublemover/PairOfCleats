@@ -170,6 +170,15 @@ raw/comment/escape boundaries retain their existing behavior.
 
 ## Scheduler Notes
 
+Internal telemetry polls pass scalar arguments to the interval-gated capture
+helpers instead of constructing two public-options records on every schedule,
+stats or interval poll. The public capture options/defaults remain unchanged.
+Tiny controls verify one clock read per poll, no unsampled queue walks, separate
+live snapshots when callbacks change queue state, forced capture and bounded
+record retention; the actual three-task scheduler control also passes. The
+removed records are a source-level allocation change, with no measured heap or
+throughput result and no change to sampling policy.
+
 Build-state waiter removal mutates its private dense array in order. Settling
 an already-detached flush batch leaves the next batch's waiter array untouched,
 instead of copying it once per completed waiter. A tiny two-batch fixture observes
