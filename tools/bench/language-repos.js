@@ -37,6 +37,7 @@ import {
   readBenchRunLedger
 } from './language-repos/run-ledger.js';
 import { createBenchProgressRuntime, runBenchExecutionLoop } from './language-repos/run-loop.js';
+import { applyBenchmarkResourceRoots, resolveBenchmarkResourceRoots } from './language/resource-roots.js';
 
 const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
   {
@@ -85,6 +86,7 @@ const {
   configPath,
   reposRoot,
   cacheRoot,
+  resourceRoot,
   resultsRoot,
   corpusVersion,
   waiverFile,
@@ -104,6 +106,8 @@ const {
 
 // The launch-selected storage root must reach config resolution and subprocesses;
 // repository-local config cannot authorize a storage location.
+const resourceRoots = resolveBenchmarkResourceRoots({ root: scriptRoot, resourceRoot, cacheRoot });
+Object.assign(process.env, applyBenchmarkResourceRoots(process.env, resourceRoots));
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
 
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });

@@ -21,6 +21,7 @@ export function getEnvConfig(env = process.env) {
     ...secrets,
     mcpMode,
     homeRoot: normalizeString(env.PAIROFCLEATS_HOME),
+    toolingDir: normalizeString(env.PAIROFCLEATS_TOOLING_DIR),
     cacheRoot: normalizeString(env.PAIROFCLEATS_CACHE_ROOT),
     cacheNamespace: normalizeString(env.PAIROFCLEATS_CACHE_NAMESPACE),
     cacheRebuild: normalizeBoolean(env.PAIROFCLEATS_CACHE_REBUILD),

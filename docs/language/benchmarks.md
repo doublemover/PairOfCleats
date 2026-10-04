@@ -45,6 +45,7 @@ The matrix runner is `node tools/bench/language-matrix.js`.
 - `--clone` / `--no-clone`: clone missing repos (default on).
 - `--root <path>`: clone destination root (default `benchmarks/repos`).
 - `--cache-root <path>`: cache root for all benchmark runs (default `<shared-cache-root>/bench-language`, where shared cache root resolves via `PAIROFCLEATS_CACHE_ROOT`/`LOCALAPPDATA`).
+- `--resource-root <path>`: shared prerequisite home for managed tooling, dictionaries, model cache and extensions. Defaults to `PAIROFCLEATS_HOME` or the platform's standard shared cache home, independently of the run cache. Existing explicit asset directories still apply. Select the home used by earlier managed installations to reuse a custom location; no files are migrated. Shared assets must stay outside the per-run cache.
 - `--cache-suffix <name>` / `--cache-run`: append a suffix or auto-generate a run id to isolate caches per run.
 - `--keep-cache`: preserve per-repo caches after each run (default: cleanup after each repo).
 - `--strict-submodules`: require the repository contract's required submodules to be available. By default, unavailable submodules warn and the runner continues with available files; optional modules retain their existing contract policy.

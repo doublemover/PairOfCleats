@@ -63,7 +63,7 @@ export function getToolingDir(repoRoot, userConfig = null) {
   const envConfig = getEnvConfig();
   const homeRoot = envConfig.homeRoot || getCacheRootBase();
   const tooling = cfg.tooling || {};
-  return tooling.dir || path.join(homeRoot, 'tooling');
+  return envConfig.toolingDir || tooling.dir || path.join(homeRoot, 'tooling');
 }
 
 /**
