@@ -5,57 +5,39 @@ import os from 'node:os';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
+import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
 
 const env = applyTestEnv();
-
-const root = process.cwd();
-const scriptPath = path.join(root, 'tools', 'setup', 'postinstall.js');
+const scriptPath = path.join(process.cwd(), 'tools', 'setup', 'postinstall.js');
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-postinstall-rebuild-'));
-const workingRoot = process.platform === 'win32'
-  ? path.join(tempRoot, 'patch%PATH%!runner&cwd')
-  : tempRoot;
+const workingRoot = path.join(tempRoot, 'patch %PATH%!runner&cwd');
 const markerPath = path.join(workingRoot, 'rebuild-ran.txt');
+const run = (extraEnv = {}) => runNode([scriptPath], 'postinstall rebuild native contract', workingRoot, {
+  ...env, ...extraEnv
+}, { stdio: 'pipe', allowFailure: true, timeoutMs: 30000 });
 
 try {
-  await fs.mkdir(path.join(workingRoot, 'patches'), { recursive: true });
-  await fs.mkdir(path.join(workingRoot, 'node_modules', '.bin'), { recursive: true });
+  const fixture = await createPatchFixture(workingRoot);
   await fs.mkdir(path.join(workingRoot, 'tools', 'setup'), { recursive: true });
-  await fs.writeFile(path.join(workingRoot, 'patches', 'sample+1.0.0.patch'), 'diff --git a/x b/x\n');
-
-  const patchPackageBin = process.platform === 'win32'
-    ? path.join(workingRoot, 'node_modules', '.bin', 'patch-package.cmd')
-    : path.join(workingRoot, 'node_modules', '.bin', 'patch-package');
-  const patchPackageScript = process.platform === 'win32'
-    ? '@echo off\r\nnode "%~dp0\\patch-package-runner.cjs" %*\r\n'
-    : '#!/usr/bin/env sh\nexit 0\n';
-  await fs.writeFile(patchPackageBin, patchPackageScript, 'utf8');
-  if (process.platform !== 'win32') {
-    await fs.chmod(patchPackageBin, 0o755);
-  }
-  if (process.platform === 'win32') {
-    await fs.writeFile(
-      path.join(workingRoot, 'node_modules', '.bin', 'patch-package-runner.cjs'),
-      'process.exit(0);\n',
-      'utf8'
-    );
-  }
-
   const rebuildScriptPath = path.join(workingRoot, 'tools', 'setup', 'rebuild-native.js');
-  await fs.writeFile(
-    rebuildScriptPath,
-    `#!/usr/bin/env node
-const fs = require('node:fs');
-fs.writeFileSync(${JSON.stringify(markerPath)}, 'ran', 'utf8');
-`,
-    'utf8'
-  );
+  await fs.writeFile(rebuildScriptPath, `const fs = require('node:fs');
+if (fs.readFileSync(${JSON.stringify(fixture.target)}, 'utf8') !== ${JSON.stringify(patchedText)}) process.exit(9);
+fs.appendFileSync(${JSON.stringify(markerPath)}, 'ran\\n');
+`);
+  assert.equal(run().status, 0, 'clean install should patch before rebuilding');
+  assert.equal(run({ npm_config_omit: 'dev' }).status, 0, 'reinstall should work without dev patch tooling');
+  assert.equal(await fs.readFile(markerPath, 'utf8'), 'ran\nran\n');
 
-  const result = runNode([scriptPath], 'postinstall rebuild native contract', workingRoot, env, { stdio: 'pipe' });
-  assert.equal(result.status, 0, `postinstall should succeed, got ${result.status}`);
+  await fs.writeFile(rebuildScriptPath, 'process.exit(7);\n');
+  assert.equal(run().status, 7, 'preserve native rebuild exit codes');
+  if (process.platform !== 'win32') {
+    await fs.writeFile(rebuildScriptPath, "process.kill(process.pid, 'SIGTERM');\n");
+    assert.equal(run().signal, 'SIGTERM', 'preserve native rebuild child signals');
+  }
 
-  const marker = await fs.readFile(markerPath, 'utf8');
-  assert.equal(marker, 'ran');
-
+  await fs.writeFile(fixture.target, originalText.replace('old one', 'new one'));
+  assert.equal(run().status, 1, 'partial patches must block rebuilding');
+  assert.equal(await fs.readFile(markerPath, 'utf8'), 'ran\nran\n');
   console.log('postinstall rebuild native contract test passed');
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });

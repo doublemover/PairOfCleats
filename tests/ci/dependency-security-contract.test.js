@@ -29,6 +29,11 @@ const failures = [];
 for (const [packagePath, entry] of Object.entries(lock.packages)) {
   if (!packagePath || !entry.version) continue;
   const packageName = entry.name || packagePath.split('node_modules/').at(-1);
+  // GHSA-vfj7-8cjw-p6xm has no patched braces release as of 2026-10-05.
+  // Keep this later advisory explicit without rewriting the historical baseline.
+  if (packageName === 'braces' && semver.satisfies(entry.version, '<=3.0.3')) {
+    failures.push(`${packagePath}@${entry.version}: vulnerable recursive brace expansion`);
+  }
   const advisory = baseline.packages[packageName];
   if (advisory && semver.satisfies(entry.version, advisory.range, { includePrerelease: true })) {
     failures.push(`${packagePath}@${entry.version}: known vulnerable range ${advisory.range}`);

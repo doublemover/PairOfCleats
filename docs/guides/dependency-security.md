@@ -7,10 +7,10 @@ The pre-remediation npm audit reported 37 affected package entries containing
 entries). The dated updated-graph audit at the recorded October 2 checkpoint
 reported zero known vulnerabilities, including development and optional
 dependencies. That is a historical receipt, not a current-head clean-audit claim.
-A later braces development-tool advisory has an unresolved follow-through; the
-bounded assessment did not establish a complete official version-only repair.
-Its limited exposure does not make the advisory fixed. The follow-through is
-parked, and no audit gate or advisory baseline was suppressed.
+A later braces development-tool advisory was reproduced on October 5 as seven
+high-severity npm package entries. Its limited exposure did not make it fixed.
+The dependency-path replacement below addresses that follow-through without
+suppressing the audit gate or advisory baseline.
 
 The authenticated GitHub Security inventory contained **150 open Dependabot
 alerts** across 29 package families: 3 critical, 68 high, 75 moderate, and 4 low.
@@ -54,6 +54,42 @@ checks every locked package, including nested and cross-platform optional copies
 against the known vulnerable ranges. CI also runs `npm audit --audit-level=low`
 against current advisories. The baseline is a regression check, not a substitute
 for the live advisory database. An audit/network error is not a clean result.
+
+## October 5 development-tool dependency paths
+
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+affects braces through 3.0.3 and has no patched release at this checkpoint.
+The failures came through jscpd's old fast-glob/micromatch chain and
+patch-package's find-yarn-workspace-root/micromatch chain. Raising Node versions
+alone does not fix this advisory.
+
+- jscpd moves from 4.2.3 to the official 5.4.0 Rust-based CLI. Its native npm
+  packages cover macOS x64/arm64, Linux x64/arm64 GNU/musl, and Windows x64/arm64.
+  The existing duplicate-scan command and configuration remain the integration
+  surface; no semantic-model download or additional analysis is enabled.
+  `--absolute` keeps multi-root report paths unambiguous. The new tokenizer is
+  not numerically equivalent to 4.x: a controlled 33-line JavaScript duplicate
+  reports 311 tokens in 5.4.0 versus 527 in 4.2.3, and aggregate line counting
+  also differs. The configured 8-line/80-token minima are retained, but boundary
+  detection and historical duplication totals are not promised identical. Do
+  not compare old/new percentages as a code-quality trend without recalibration.
+  The focused CLI contract checks all six roots, ignores, file-size/symlink
+  exclusions, JSON/Markdown reporters, minima, and a failing percentage threshold.
+  Platform package availability is checked in the lock graph; runtime execution
+  was checked on Linux, while macOS/Windows execution belongs to platform CI.
+- The three checked-in native build patches remain unchanged. A repository-owned
+  `node tools/setup/apply-patches.js` applies them through Git instead of retaining
+  patch-package's vulnerable workspace-discovery dependency. Source installs
+  require Git on PATH. Required patches still fail closed rather than being
+  skipped, and native rebuilding remains a separate required bootstrap step.
+- `npm audit --audit-level=low` still includes development and optional packages.
+  The regression contract additionally rejects the later vulnerable braces range.
+  No npm override, advisory exception, scanner exclusion, or forced downgrade is
+  used to produce a clean audit.
+
+The source-checkout bootstrap scripts use the same helper as postinstall.
+Historical commands and audit counts elsewhere in this document describe their
+dated checkpoints; they are not claims about a fresh run.
 
 ## Rust dependency remediation
 

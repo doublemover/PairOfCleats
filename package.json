@@ -12,8 +12,8 @@
   },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
-    "bootstrap": "npm install --ignore-scripts && npx patch-package --exclude \"a^\" && node tools/setup/rebuild-native.js",
-    "bootstrap:ci": "npm ci --ignore-scripts && npx patch-package --exclude \"a^\" && node tools/setup/rebuild-native.js",
+    "bootstrap": "npm install --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
+    "bootstrap:ci": "npm ci --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
     "test": "node tests/run.js --lane ci-lite",
     "test:ci-lite": "node tests/run.js --lane ci-lite",
     "test:ci": "node tests/run.js --lane ci",
@@ -24,7 +24,7 @@
     "test:api": "node tests/run.js --lane api",
     "test:storage": "node tests/run.js --lane storage",
     "test:perf": "node tests/run.js --lane perf",
-    "audit:duplicates": "jscpd --config .jscpd.json src bin tools tests extensions sublime",
+    "audit:duplicates": "jscpd --config .jscpd.json --absolute src bin tools tests extensions sublime",
     "verify": "node tools/ci/run-suite.js --mode ci",
     "verify:production": "node tools/testing/refresh-governance.js && node tests/ci/markdown-link-check.test.js && node tests/tooling/docs/contract-matrix.test.js && node tests/tooling/script-coverage/harness.test.js && node tools/release/check.js --dry-run",
     "config:budget": "node tools/config/inventory.js --check",
@@ -159,8 +159,7 @@
   "devDependencies": {
     "c8": "^12.0.0",
     "eslint": "10.0.1",
-    "jscpd": "^4.2.3",
-    "node-pty": "^1.1.0",
-    "patch-package": "^8.0.1"
+    "jscpd": "5.4.0",
+    "node-pty": "^1.1.0"
   }
 }
