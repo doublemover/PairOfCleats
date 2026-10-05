@@ -7,9 +7,7 @@
   "notes": "Duration-bucket manifest for the medium integration lane.",
   "sourceOrderFile": "tests/ci/ci.order.txt",
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
-  "timingArtifactPaths": [
-    ".testLogs/ci-testRunTimes.txt"
-  ],
+  "timingArtifactPaths": [],
   "suiteCategorySummary": {
     "hero": 90,
     "matrix": 27,
@@ -76,8 +74,7 @@
       "id": "indexing/file-processor/skip-minified-binary",
       "order": 10,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/config-inventory/report-format",
@@ -89,8 +86,7 @@
       "id": "indexing/shards/shard-progress-determinism",
       "order": 12,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 3390
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "runner/harness/contract-matrix",
@@ -132,8 +128,7 @@
       "id": "shared/encoding/unicode-offset",
       "order": 19,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/lsp/sourcekit-package-preflight-cache-resolved-invalidation",
@@ -157,8 +152,7 @@
       "id": "indexing/metadata/external-docs",
       "order": 23,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/type-inference/crossfile/output.integration",
@@ -296,15 +290,13 @@
       "id": "indexing/imports/import-links",
       "order": 46,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/install/tool-root",
       "order": 47,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface",
-      "durationMs": 5020
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "indexer/metav2/contract-matrix",
@@ -352,8 +344,7 @@
       "id": "indexing/type-inference/providers/type-inference-lsp-enrichment",
       "order": 55,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/contracts/golden-surface-suite",
@@ -431,8 +422,7 @@
       "id": "storage/sqlite/incremental/manifest-normalization",
       "order": 68,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/determinism/symbol-artifact",
@@ -444,8 +434,7 @@
       "id": "storage/sqlite/migrations/schema-mismatch-rebuild",
       "order": 70,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5030
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/incremental/bundle-coverage-metadata-fallback",
@@ -535,15 +524,13 @@
       "id": "services/api/repo-authorization",
       "order": 85,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 3400
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "tooling/triage/context-pack",
       "order": 86,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5030
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "services/api/server-stream",
@@ -555,8 +542,7 @@
       "id": "retrieval/filters/filter-index-artifact",
       "order": 88,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/incremental/manifest",
@@ -580,8 +566,7 @@
       "id": "indexing/chunking/formats/format-fidelity",
       "order": 92,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "map/build-contract-matrix",
@@ -671,50 +656,43 @@
       "id": "indexing/artifacts/artifact-size-guardrails",
       "order": 107,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 2520
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexing/runtime/two-stage-state",
       "order": 108,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5040
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/incremental/file-manifest-updates",
       "order": 109,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5030
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/incremental/manifest-hash-fill",
       "order": 110,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "retrieval/ann/hnsw-atomic",
       "order": 111,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/sqlite/incremental/doc-id-reuse",
       "order": 112,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "cli/general/repo-root",
       "order": 113,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5020
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "indexer/call-sites/contract-matrix",
@@ -732,8 +710,7 @@
       "id": "tooling/triage/records-index-and-search",
       "order": 116,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 5030
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
       "id": "storage/lmdb/contract-matrix",
@@ -763,8 +740,7 @@
       "id": "retrieval/contracts/compact-json",
       "order": 121,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior",
-      "durationMs": 2040
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

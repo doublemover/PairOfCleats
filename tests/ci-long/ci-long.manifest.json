@@ -7,9 +7,7 @@
   "notes": "Duration-bucket manifest for the long lane.",
   "sourceOrderFile": "tests/ci-long/ci-long.order.txt",
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
-  "timingArtifactPaths": [
-    ".testLogs/ci-long-testRunTimes.txt"
-  ],
+  "timingArtifactPaths": [],
   "suiteCategorySummary": {
     "hero": 0,
     "matrix": 10,
@@ -22,8 +20,7 @@
       "id": "retrieval/ranking/fielded-bm25",
       "order": 1,
       "suiteCategory": "heavy-runtime",
-      "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 5010
+      "suiteCategoryReason": "long-lane-or-tag"
     },
     {
       "id": "storage/sqlite/index-state-fail-closed",
@@ -53,15 +50,13 @@
       "id": "indexing/shards/shard-merge",
       "order": 6,
       "suiteCategory": "heavy-runtime",
-      "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 5020
+      "suiteCategoryReason": "long-lane-or-tag"
     },
     {
       "id": "indexing/chunking/comment-join",
       "order": 7,
       "suiteCategory": "heavy-runtime",
-      "suiteCategoryReason": "long-lane-or-tag",
-      "durationMs": 5030
+      "suiteCategoryReason": "long-lane-or-tag"
     },
     {
       "id": "retrieval/backend/backend-contract-matrix",

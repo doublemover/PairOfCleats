@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-03
+Last audited: 2026-10-05
 Canonical for: initiative status, execution order, and remaining work
 
 PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
@@ -42,6 +42,65 @@ head. None is a blanket release-readiness claim.
 | Worklogs and benchmark JSON under `docs/worklogs/**` | `historical evidence` | Historical measurements and authored worklogs are retained. | Keep new execution status here; label measurements with their exact revision and environment. |
 
 ## Canonical Next Queue
+
+The current platform campaign on PR519's `43851c2a` head is evidence rather than
+a completed release pass: [CI run 37259123772](https://github.com/doublemover/PairOfCleats/actions/runs/37259123772)
+passed gate/TUI checks but failed all three platform lanes. Its exact test artifacts
+identify the first implementation/acceptance batch below. Keep this concrete queue
+ahead of broader validation work; do not reopen archived implementation checklists.
+
+### Concrete Platform and Product Queue
+
+1. **Close compression-worker transfer failures.** Node 24.21's pooled buffers
+   reproduced the SQLite zstd shard hang: transferring a small pooled backing
+   array throws before delivery and leaves an active task stranded. Exact-sized
+   owned copies for pooled/sliced/untransferable/shared buffers, dispatch-failure
+   rejection and unexpected-exit handling now have focused regression coverage.
+   Revalidate zstd shard creation/ingestion on the final platform candidate.
+2. **Preserve Windows wrapper control flow.** The multifile failure belongs to
+   Solargraph. Extracting the final executable from a conditional `.cmd` wrapper
+   ran its server branch during a version probe. Straight-line wrappers retain
+   direct launch; conditional/opaque wrappers use their authored shell flow.
+   Linux checks establish invocation selection; Windows must execute the branch
+   and multifile regressions on the final candidate.
+3. **Make authority and checkout fixtures precise.** Benign Elixir/Solargraph
+   runtime commands created inside fixture repositories now require an explicit
+   test-owned root grant. Production trust checks stay unchanged. Release-workflow
+   parsing accepts CRLF, and archived byte-identity evidence stays LF in Git
+   checkouts. Compressed-artifact/federation fixtures use launch-owned cache roots;
+   Sublime discovery fixtures ignore unrelated host ancestor markers. Refresh
+   Windows contract acceptance after publication.
+4. **Preserve measured-versus-historical timing provenance.** Lane-evidence refreshes
+   wrote historical fallback rows into measured timing inputs, so a repeated
+   refresh relabeled them as fresh. Report generation is now read-only for these
+   inputs; repeated-generation controls preserve historical labels and existing
+   measured bytes. A refreshed governance report is not a fresh test campaign.
+5. **Diagnose the remaining Pyright probe failure.** Ubuntu's command-profile
+   matrix rejected the default Pyright probe; the same exact-lock matrix passes
+   in this Linux cloud checkout. Establish the failing probe's selected command,
+   exit/output/timeout and cold-start conditions before changing provider policy
+   or weakening assertions. A focused cloud pass does not close this platform case.
+6. **Refresh representative retrieval quality.** Exercise free-text versus explicit
+   Boolean/phrase intent, filters, ANN allowed IDs and deterministic ranking through
+   supported memory/SQLite backends. Use the current golden/IQ fixtures and record
+   exact revisions; optional native-backend acceptance is a separate result.
+7. **Refresh snapshot and resource lifecycle acceptance.** Exercise snapshot freeze,
+   historical lookup, as-of cache isolation and cleanup across repeated searches
+   and index generation changes. Cover supported storage backends with tiny
+   repositories before larger projects or optional native components.
+8. **Measure ordered Stage1 and IO budgets.** Run current throughput/memory,
+   cancellation/backpressure and compression-order controls under the 30-second
+   per-test policy. Record timeouts as blockers and retain bounded queues/caps;
+   source-level reductions alone are not end-to-end performance measurements.
+   Parser/search fixture prewarming is split into bounded cold cases with unrelated
+   SCM history disabled; dedicated Git metadata cases own their one-commit history.
+9. **Extend real project and interactive acceptance.** Serial, small project cases
+   should cover toolchain imports/workspace roots beyond tiny single-file servers,
+   followed by supported TUI cancellation, repeated commands and shutdown flows.
+   Exact-root authority remains required for build-capable tooling. SDK/platform,
+   native-backend and interactive acceptance are unproved until executed.
+
+### Ongoing Review and Release Discipline
 
 1. **Maintain the consolidated draft review.** The completion branch is published in
    [draft PR519](https://github.com/doublemover/PairOfCleats/pull/519). The seven older

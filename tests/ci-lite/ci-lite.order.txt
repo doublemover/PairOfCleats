@@ -723,6 +723,8 @@ tooling/config/contract-matrix
 indexing/watch/debounce
 indexing/artifacts/chunk-meta-trim-strict
 tooling/fixtures/prewarm-shared-indexes
+tooling/fixtures/prewarm-languages
+tooling/fixtures/prewarm-type-filters
 indexing/watch/e2e-promotion
 lang/contracts/misc-buildfiles
 tooling/lsp/configured-provider-preflight-matrix
@@ -799,3 +801,4 @@ lang/contracts/jsonc-structure-boundaries
 lang/contracts/toml-semantic-lexical-boundaries
 lang/contracts/yaml-syntax-node-boundaries
 lang/contracts/xml-lexical-boundaries
+shared/json-stream/compression-pool-transfer

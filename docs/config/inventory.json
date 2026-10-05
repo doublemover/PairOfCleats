@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T00:43:39.367Z",
+  "generatedAt": "2026-10-05T09:37:17.161Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3389,6 +3389,7 @@
         "tests/helpers/test-env-sync-option.test.js",
         "tests/helpers/test-env.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+        "tests/indexing/artifacts/chunk-meta-trim-strict.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",
@@ -3401,6 +3402,9 @@
         "tests/services/mcp/mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tooling/fixtures/prewarm-languages.test.js",
+        "tests/tooling/fixtures/prewarm-shared-indexes.test.js",
+        "tests/tooling/fixtures/prewarm-type-filters.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",

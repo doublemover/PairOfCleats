@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-02T01:43:31.624Z",
+  "generatedAt": "2026-10-05T09:37:16.281Z",
   "summary": {
     "lanes": 5,
-    "tests": 954,
+    "tests": 989,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 253,
+    "families": 261,
     "topSlowest": 10,
     "timingCoverage": {
-      "freshArtifactTests": 74,
-      "historicalFallbackTests": 0,
-      "missingTests": 880
+      "freshArtifactTests": 0,
+      "historicalFallbackTests": 74,
+      "missingTests": 915
     }
   },
   "lanes": [
@@ -25,9 +25,7 @@
       "knownDurationMs": 0,
       "p50DurationMs": null,
       "p95DurationMs": null,
-      "resolvedTimingArtifactPaths": [
-        ".testLogs/gate-testRunTimes.txt"
-      ],
+      "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "missing": 35
       }
@@ -37,17 +35,15 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 769,
+      "totalTests": 804,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
       "p95DurationMs": 2140,
-      "resolvedTimingArtifactPaths": [
-        ".testLogs/ci-lite-testRunTimes.txt"
-      ],
+      "resolvedTimingArtifactPaths": [],
       "timingSources": {
-        "timing-artifact": 49,
-        "missing": 720
+        "historical-test-times": 49,
+        "missing": 755
       }
     },
     {
@@ -60,11 +56,9 @@
       "knownDurationMs": 101770,
       "p50DurationMs": 5020,
       "p95DurationMs": 5030,
-      "resolvedTimingArtifactPaths": [
-        ".testLogs/ci-testRunTimes.txt"
-      ],
+      "resolvedTimingArtifactPaths": [],
       "timingSources": {
-        "timing-artifact": 22,
+        "historical-test-times": 22,
         "missing": 99
       }
     },
@@ -78,11 +72,9 @@
       "knownDurationMs": 15060,
       "p50DurationMs": 5020,
       "p95DurationMs": 5030,
-      "resolvedTimingArtifactPaths": [
-        ".testLogs/ci-long-testRunTimes.txt"
-      ],
+      "resolvedTimingArtifactPaths": [],
       "timingSources": {
-        "timing-artifact": 3,
+        "historical-test-times": 3,
         "missing": 15
       }
     },
@@ -106,9 +98,9 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 62,
+      "count": 65,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 53
+      "unknownDurationCount": 56
     },
     {
       "key": "indexing/chunking",
@@ -136,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 13,
+      "count": 14,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 8
+      "unknownDurationCount": 9
     },
     {
       "key": "indexing/type-inference",
@@ -166,9 +158,9 @@
     },
     {
       "key": "lang/contracts",
-      "count": 2,
+      "count": 13,
       "knownDurationMs": 5030,
-      "unknownDurationCount": 1
+      "unknownDurationCount": 12
     },
     {
       "key": "indexing/language-fixture",
@@ -250,9 +242,9 @@
     },
     {
       "key": "shared/json-stream",
-      "count": 17,
+      "count": 18,
       "knownDurationMs": 220,
-      "unknownDurationCount": 15
+      "unknownDurationCount": 16
     },
     {
       "key": "tooling/type-inference",
@@ -304,15 +296,15 @@
     },
     {
       "key": "tooling/lsp",
-      "count": 79,
+      "count": 85,
       "knownDurationMs": 0,
-      "unknownDurationCount": 79
+      "unknownDurationCount": 85
     },
     {
       "key": "indexing/tree-sitter",
-      "count": 26,
+      "count": 27,
       "knownDurationMs": 0,
-      "unknownDurationCount": 26
+      "unknownDurationCount": 27
     },
     {
       "key": "tooling/vfs",
@@ -525,6 +517,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "retrieval/cli",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "retrieval/output",
       "count": 3,
       "knownDurationMs": 0,
@@ -538,6 +536,12 @@
     },
     {
       "key": "tooling/config-inventory",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/fixtures",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -1137,12 +1141,6 @@
       "unknownDurationCount": 1
     },
     {
-      "key": "retrieval/cli",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
       "key": "retrieval/context-expansion",
       "count": 1,
       "knownDurationMs": 0,
@@ -1162,6 +1160,54 @@
     },
     {
       "key": "runner/stability-classification",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/contained-file-boundaries",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/download-transactions",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/editor-tui-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/java-workspace-execution-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/native-download-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/repository-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/rust-workspace-execution-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/zig-workspace-execution-authority",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1557,12 +1603,6 @@
       "unknownDurationCount": 1
     },
     {
-      "key": "tooling/fixtures",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
       "key": "tooling/impact",
       "count": 1,
       "knownDurationMs": 0,
@@ -1626,16 +1666,16 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 354,
+      "count": 355,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 313,
+      "unknownDurationCount": 314,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
       "key": "sqlite-heavy",
-      "count": 62,
+      "count": 65,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 53,
+      "unknownDurationCount": 56,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {
@@ -1661,9 +1701,9 @@
     },
     {
       "key": "lsp-bootstrap",
-      "count": 79,
+      "count": 85,
       "knownDurationMs": 0,
-      "unknownDurationCount": 79,
+      "unknownDurationCount": 85,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {
