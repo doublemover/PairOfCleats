@@ -15,6 +15,11 @@ const source = 'export function example(input) {\n'
   + Array.from({ length: 30 }, (_, i) => `  const value${i} = input[${i}] + ${i};`).join('\n')
   + '\n  return value0;\n}\n';
 try {
+  // The scanner honors .gitignore inside a Git repository. Give this fixture
+  // its own root instead of relying on a runner's temporary-directory ancestors.
+  const init = spawnSync('git', ['init', '--quiet', temp], { encoding: 'utf8', timeout: 30000 });
+  assert.equal(init.error, undefined, init.error?.message);
+  assert.equal(init.status, 0, init.stderr);
   const inputs = roots.map((name) => path.join(temp, name));
   for (const dir of inputs) {
     fs.mkdirSync(dir, { recursive: true });
@@ -36,13 +41,15 @@ try {
     fs.writeFileSync(configPath, JSON.stringify({ ...config, ...overrides, output }));
     const result = spawnSync(process.execPath, [
       cli, '--config', configPath, '--absolute', '--workers', '1', ...args, ...inputs
-    ], { encoding: 'utf8', timeout: 30000 });
+    ], { cwd: temp, encoding: 'utf8', timeout: 30000 });
     assert.equal(result.error, undefined, result.error?.message);
     return { result, output, report: JSON.parse(fs.readFileSync(path.join(output, 'jscpd-report.json'), 'utf8')) };
   };
   const ordinary = run('ordinary');
   assert.equal(ordinary.result.status, 0, ordinary.result.stderr);
   assert.equal(ordinary.report.statistics.total.sources, 12, 'all six roots scanned; ignored/oversized/symlink files excluded');
+  assert.equal(run('gitignore-disabled', {}, ['--no-gitignore']).report.statistics.total.sources, 13,
+    'the extra file is the explicit .gitignore control, not a missing scan root');
   assert.ok(ordinary.report.duplicates.length > 0, 'configured duplicate thresholds find controlled copies');
   assert.ok(fs.readFileSync(path.join(ordinary.output, 'jscpd-report.md'), 'utf8').length > 0);
   for (const duplicate of ordinary.report.duplicates) {
