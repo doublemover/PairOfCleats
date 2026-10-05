@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fsSync from 'node:fs';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { readJsonFileSafe } from '../../shared/file-read.js';
+import { resolvePyrightWorkspaceConfigPreflight } from './preflight/pyright-workspace-config.js';
 import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
@@ -32,7 +32,6 @@ import {
 } from './preflight/command-profile-preflight.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
-const PYRIGHT_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
 const PYRIGHT_WORKSPACE_SCAN_OUTLIER_ENTRY_THRESHOLD = 3000;
 const PYRIGHT_WORKSPACE_SCAN_OUTLIER_DURATION_MS = 250;
 const PYRIGHT_WORKSPACE_MARKERS = new Set([
@@ -43,7 +42,7 @@ const PYRIGHT_WORKSPACE_MARKERS = new Set([
 ]);
 
 const buildPyrightProviderEnvelope = ({ configHash, diagnostics }) => ({
-  provider: { id: 'pyright', version: '2.0.0', configHash },
+  provider: { id: 'pyright', version: '2.0.1', configHash },
   byChunkUid: {},
   diagnostics
 });
@@ -139,75 +138,6 @@ export const __canRunPyrightForTests = (cmd) => (
   })?.probe?.ok === true
 );
 
-const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
-  const configPath = path.join(String(ctx?.repoRoot || process.cwd()), 'pyrightconfig.json');
-  let readError = null;
-  const parsed = await readJsonFileSafe(configPath, {
-    fallback: null,
-    maxBytes: PYRIGHT_CONFIG_MAX_BYTES,
-    onError: (info) => {
-      readError = info;
-    }
-  });
-  const code = String(readError?.error?.code || '').trim().toUpperCase();
-  if (!readError) {
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return { state: 'ready', reasonCode: null, message: '', checks: [] };
-    }
-    const message = 'pyright workspace config (pyrightconfig.json) must be a JSON object.';
-    return {
-      state: 'degraded',
-      reasonCode: 'pyright_workspace_config_invalid',
-      message,
-      checks: [{
-        name: 'pyright_workspace_config_invalid',
-        status: 'warn',
-        message
-      }]
-    };
-  }
-  if (code === 'ENOENT') {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
-  }
-  if (code === 'ERR_JSON_FILE_TOO_LARGE') {
-    const message = `pyright workspace config exceeds ${PYRIGHT_CONFIG_MAX_BYTES} bytes.`;
-    return {
-      state: 'degraded',
-      reasonCode: 'pyright_workspace_config_too_large',
-      message,
-      checks: [{
-        name: 'pyright_workspace_config_too_large',
-        status: 'warn',
-        message
-      }]
-    };
-  }
-  if (String(readError?.phase || '').toLowerCase() === 'parse') {
-    const message = `pyright workspace config is invalid JSON: ${readError?.error?.message || 'parse failed'}`;
-    return {
-      state: 'degraded',
-      reasonCode: 'pyright_workspace_config_invalid',
-      message,
-      checks: [{
-        name: 'pyright_workspace_config_invalid',
-        status: 'warn',
-        message
-      }]
-    };
-  }
-  const message = `pyright workspace config is unreadable: ${readError?.error?.message || 'read failed'}`;
-  return {
-    state: 'degraded',
-    reasonCode: 'pyright_workspace_config_unreadable',
-    message,
-    checks: [{
-      name: 'pyright_workspace_config_unreadable',
-      status: 'warn',
-      message
-    }]
-  };
-};
-
 const resolvePyrightWorkspaceRootPreflight = ({ ctx }) => {
   const repoRoot = String(ctx?.repoRoot || process.cwd());
   const thresholds = resolveWorkspaceScanOutlierThresholds(ctx?.toolingConfig || {});
@@ -279,7 +209,7 @@ export const createPyrightProvider = () => ({
   id: 'pyright',
   preflightId: 'pyright.command-profile',
   preflightClass: 'probe',
-  version: '2.0.0',
+  version: '2.0.1',
   label: 'pyright',
   priority: 30,
   languages: ['python'],
@@ -365,7 +295,7 @@ export const createPyrightProvider = () => ({
     const checks = [...duplicateChecks];
     if (!docs.length || !targets.length) {
       return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -413,7 +343,7 @@ export const createPyrightProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -568,7 +498,7 @@ export const createPyrightProvider = () => ({
       toolingConfig: ctx?.toolingConfig || null
     });
     return {
-      provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
       diagnostics: result.runtime
         ? { ...(diagnostics || {}), runtime: result.runtime }

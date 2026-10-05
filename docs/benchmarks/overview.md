@@ -59,6 +59,11 @@ trigger its download. The default English recipe can repair an empty file; unsup
 missing resources remain visible. File readiness does not imply complete
 dictionary-language coverage or measured segmentation quality.
 
+Pyright preparation accepts the comments and trailing commas supported by its
+own configuration format. Valid project settings no longer produce a false
+invalid-config warning. Malformed, unavailable and oversized configuration
+files remain explicit, and ordinary JSON readers keep their strict policy.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
