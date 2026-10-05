@@ -61,6 +61,12 @@ this evidence. An enabled flag or a reported JavaScript backend alone does not
 prove vector retrieval; observed results also do not establish native
 compatibility or judged relevance. These observations do not change exit gates.
 
+Automatic query-worker sizing reads current manifest and SQLite file sizes when
+byte estimates are omitted. Unknown values no longer become zero through numeric
+coercion; an explicit zero retains its meaning. The existing memory estimates,
+worker caps and recycling policy remain unchanged. Manifest sizes are declared
+artifact metadata, not a measurement of live process memory.
+
 Dictionary preparation follows the selected configuration and shared directory.
 When English is not requested, valid non-English or custom wordlists do not
 trigger its download. The default English recipe can repair an empty file; unsupported
