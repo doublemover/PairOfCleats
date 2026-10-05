@@ -174,3 +174,8 @@ Packaging/publish hardening:
 ## Sublime package
 
 The Sublime package source lives under `sublime/PairOfCleats` and is emitted as `dist/sublime/pairofcleats.sublime-package`.
+
+Repository discovery selects the nearest `.pairofcleats.json`, `.git` directory,
+or `.git` file. This keeps a linked Git worktree or submodule rooted at its working
+directory when its metadata lives elsewhere, including inside an enclosing repo.
+Multiple open worktrees still require an explicit selection for mutating commands.

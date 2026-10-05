@@ -22,7 +22,8 @@ def find_repo_root(start_path):
     while True:
         if os.path.isfile(os.path.join(path, '.pairofcleats.json')):
             return path
-        if os.path.isdir(os.path.join(path, '.git')):
+        git_marker = os.path.join(path, '.git')
+        if os.path.isdir(git_marker) or os.path.isfile(git_marker):
             return path
 
         parent = os.path.dirname(path)
