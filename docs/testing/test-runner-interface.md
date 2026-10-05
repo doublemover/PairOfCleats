@@ -135,6 +135,9 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
   - Each run writes to `<log-dir>/run-<epoch>-<rand>/` and updates `.testLogs/latest`.
   - Log files are named `<sanitized-id>.attempt-<n>.log` (slashes become `_`).
 - `--log-times[=<path>]`
+  - Executed tests own these timing inputs. Governance/lane-evidence refreshes read
+    them without creating or rewriting them; historical fallback rows retain their
+    provenance across repeated report generation.
   - Write a per-test timing list (`<ms>\t<id>`) to `.testLogs/<lane>-testRunTimes.txt` by default.
   - If a path is provided, write there instead.
   - When multiple lanes are selected, the default filename uses `multi`.

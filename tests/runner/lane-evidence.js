@@ -357,8 +357,7 @@ export const generateLaneEvidence = async ({
   root = process.cwd(),
   historicalTimingsPath = path.join(process.cwd(), DEFAULT_HISTORICAL_TIMINGS_PATH),
   outputJsonPath = path.join(process.cwd(), 'docs', 'testing', 'lane-evidence.json'),
-  outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'lane-evidence.md'),
-  writeTimingArtifacts = true
+  outputMarkdownPath = path.join(process.cwd(), 'docs', 'testing', 'lane-evidence.md')
 } = {}) => {
   const config = await loadLaneManifestConfig({ root });
   const pathById = await buildPathById(root);
@@ -398,12 +397,8 @@ export const generateLaneEvidence = async ({
       targetMaxDurationSeconds: laneConfig.targetMaxDurationSeconds,
       rows
     });
-    if (writeTimingArtifacts && timingArtifactPath) {
-      const timingLines = rows
-        .filter((row) => Number.isFinite(row.durationMs))
-        .map((row) => `${Math.round(Number(row.durationMs))}ms\t${row.id}`);
-      await writeTextIfChanged(timingArtifactPath, `${timingLines.join('\n')}\n`, { encoding: 'utf8' });
-    }
+    // Timing artifacts belong to executed tests. Writing fallback history back
+    // into an input here would label it as fresh measurement on the next run.
   }
 
   const initialReport = buildLaneEvidenceReport({ laneRows });

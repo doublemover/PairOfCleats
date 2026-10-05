@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { buildLaneEvidenceReport, parseHistoricalTestTimes } from './lane-evidence.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { buildLaneEvidenceReport, generateLaneEvidence, parseHistoricalTestTimes } from './lane-evidence.js';
 
 const parsed = parseHistoricalTestTimes(`
 - 2026-01-18 07:50:10 | \`tests\\cli\\search\\search-removed-flags.test.js\` | 1.03s | timeout
@@ -45,5 +48,54 @@ assert.equal(report.lanes[0].p50DurationMs, 800);
 assert.equal(report.lanes[1].p95DurationMs, 2200);
 assert.equal(report.summary.timingCoverage.freshArtifactTests, 1);
 assert.deepEqual(report.lanes[0].resolvedTimingArtifactPaths, ['.testLogs/ci-testRunTimes.txt']);
+
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-lane-evidence-provenance-'));
+try {
+  await fs.mkdir(path.join(root, 'tests', 'runner'), { recursive: true });
+  await fs.mkdir(path.join(root, 'tests', 'ci'), { recursive: true });
+  await fs.mkdir(path.join(root, 'tests', 'shared'), { recursive: true });
+  await fs.writeFile(path.join(root, 'tests', 'shared', 'historical.test.js'), '');
+  await fs.writeFile(path.join(root, 'tests', 'shared', 'measured.test.js'), '');
+  await fs.writeFile(path.join(root, 'tests', 'ci', 'ci.order.txt'), 'shared/historical\nshared/measured\n');
+  await fs.writeFile(path.join(root, 'tests', 'runner', 'lane-manifests.jsonc'), JSON.stringify({
+    orderedLanes: {
+      ci: {
+        orderFile: 'tests/ci/ci.order.txt',
+        manifestFile: 'tests/ci/ci.manifest.json',
+        timingArtifactPaths: ['.testLogs/ci-testRunTimes.txt']
+      }
+    }
+  }));
+  const historicalTimingsPath = path.join(root, 'history.md');
+  await fs.writeFile(historicalTimingsPath, '- 2026-01-18 08:08:55 | `tests/shared/historical.test.js` | 3.73s | exit 0\n');
+  const options = {
+    root,
+    historicalTimingsPath,
+    outputJsonPath: path.join(root, 'report.json'),
+    outputMarkdownPath: path.join(root, 'report.md')
+  };
+  const timingPath = path.join(root, '.testLogs', 'ci-testRunTimes.txt');
+  for (let run = 0; run < 2; run += 1) {
+    const generated = await generateLaneEvidence(options);
+    assert.equal(generated.report.summary.timingCoverage.freshArtifactTests, 0);
+    assert.equal(generated.report.summary.timingCoverage.historicalFallbackTests, 1);
+    await assert.rejects(fs.access(timingPath), 'report generation must not create measured timing inputs');
+  }
+  await fs.mkdir(path.dirname(timingPath), { recursive: true });
+  const measuredTimings = '25ms\tshared/measured\n';
+  await fs.writeFile(timingPath, measuredTimings);
+  for (let run = 0; run < 2; run += 1) {
+    const generated = await generateLaneEvidence(options);
+    assert.equal(generated.report.summary.timingCoverage.freshArtifactTests, 1);
+    assert.equal(generated.report.summary.timingCoverage.historicalFallbackTests, 1);
+    assert.equal(await fs.readFile(timingPath, 'utf8'), measuredTimings, 'measured input must remain byte-for-byte unchanged');
+    assert.equal(
+      generated.laneRows[0].rows.find((row) => row.id === 'shared/historical').timingSource,
+      'historical-test-times'
+    );
+  }
+} finally {
+  await fs.rm(root, { recursive: true, force: true });
+}
 
 console.log('lane evidence test passed');
