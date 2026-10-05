@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { removePathWithRetry } from '../io/remove-path-with-retry.js';
+import { canonicalizeBundlePayloadForChecksum } from '../bundle-checksum.js';
 import { createTimeoutError, runWithTimeout } from '../promise-timeout.js';
 import {
   BUNDLE_CHECKSUM_SCHEMA_VERSION,
@@ -13,8 +14,7 @@ import {
 } from '../bundle-io-constants.js';
 import {
   checksumBundlePayloadLocal,
-  estimatePayloadBytes,
-  normalizeBundlePayload
+  estimatePayloadBytes
 } from '../bundle-io-checksum.js';
 import {
   resolveBundleJsonChecksumPath,
@@ -131,7 +131,7 @@ export const clearBundlePatchFile = async (bundlePath) => {
 };
 
 export const writeBundleJsonChecksum = async (bundlePath, bundle) => {
-  const normalized = normalizeBundlePayload(bundle);
+  const normalized = canonicalizeBundlePayloadForChecksum(bundle, { typedArraysBeforeToJSON: true });
   const checksum = await checksumBundlePayload(normalized);
   if (!checksum || !checksum.value || !checksum.algo) {
     try {

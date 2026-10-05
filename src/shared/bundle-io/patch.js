@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import { atomicWriteJson, atomicWriteText } from '../io/atomic-write.js';
+import { stringifyJsonValue } from '../json-stream/encode.js';
 import {
   BUNDLE_PATCH_FIELD_KEYS,
   BUNDLE_PATCH_FORMAT_TAG,
@@ -239,7 +240,7 @@ export async function writeBundlePatch({
   }
   const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });
   if (!patch) return { applied: false, reason: 'no-changes' };
-  const serialized = `${JSON.stringify(patch)}\n`;
+  const serialized = `${stringifyJsonValue(patch)}\n`;
   const bytes = Buffer.byteLength(serialized, 'utf8');
   if (!Number.isFinite(bytes) || bytes <= 0 || bytes > MAX_BUNDLE_PATCH_ENTRY_BYTES) {
     return { applied: false, reason: 'patch-entry-too-large' };

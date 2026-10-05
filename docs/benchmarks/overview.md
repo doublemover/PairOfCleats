@@ -35,6 +35,13 @@ unexercised. Empty-mode receipts must match their checksum, current ready state,
 generation and database target; an unknown or missing nonempty mode remains an
 error. Confirmed empty receipts also prevent unnecessary automatic rebuilds.
 
+Incremental JSON bundles and their patches now use the same byte-vector and
+omitted-field representation as their checksums. Buffer vectors, typed-array
+patches and omitted optional fields round-trip without false corruption
+reports. Existing MessagePack checksum representations remain readable. This
+fix has a small deterministic write/read fixture; it does not establish the
+cause of checksum mismatches in earlier repository campaigns.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

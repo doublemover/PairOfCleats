@@ -77,8 +77,11 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
       checksumAlgo: checksum?.algo ?? null
     };
   }
+  const fields = Object.fromEntries(Object.entries(bundle).filter(([, value]) => (
+    value !== undefined && typeof value !== 'function' && typeof value !== 'symbol'
+  )));
   await writeJsonObjectFile(bundlePath, {
-    fields: bundle,
+    fields,
     trailingNewline: true,
     atomic: true
   });
