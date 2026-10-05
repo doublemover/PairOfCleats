@@ -71,3 +71,40 @@ Regression coverage:
 - `indexing.postings.chargramFields` and `indexing.postings.chargramStopwords` control optional chargram enrichment behavior.
 - `retrieval.annCandidateCap`, `retrieval.annCandidateMinDocCount`, and `retrieval.annCandidateMaxDocCount` define ANN/minhash candidate safety bounds.
 - `retrieval.relationBoost.*` is the boost-only ranking control surface and defaults to disabled.
+
+## Existing authority and native-extension inventory
+
+The known-key allowlists in `tools/config/inventory.js` include the following
+implemented surfaces. Recognition by the inventory does not grant execution,
+download or storage authority, and does not change the public-surface budgets.
+See [execution authority](../guides/execution-authority.md) and
+[environment overrides](env-overrides.md) for their launch-owned boundaries.
+
+- `security.archives.maxBytes`, `maxEntryBytes` and `maxEntries` are owned by
+  `tools/download/extensions.js`; positive values can tighten the fixed extraction
+  ceilings, but cannot disable or raise them.
+- `security.downloads` is owned by `tools/shared/download-utils.js`: `requireHash`,
+  `warnUnsigned`, `allowlist`, `maxBytes`, `timeoutMs` and `maxRedirects` configure
+  the existing bounded download policy. Native extensions additionally enforce
+  `tools/sqlite/extension-trust.js`; their digest requirement is unconditional.
+  `src/shared/config-authority.js` removes repository-selected download allowlists
+  unless the exact repository has a launch-owned trust grant.
+- `sqlite.annMode` and every declared `sqlite.vectorExtension` property are owned
+  by `tools/sqlite/vector-extension.js`, including source/platform selection,
+  digest, path, provider/table/encoding options and the legacy ANN-mode fallback.
+  The config-authority layer removes the whole vector-extension object from
+  untrusted repository configuration; artifact verification still precedes loading.
+- `PAIROFCLEATS_TRUSTED_CONFIG` and `PAIROFCLEATS_TRUSTED_REPOS` are owned by
+  `src/shared/config-authority.js`; they require an external user-owned config
+  path or an exact canonical repository-root grant, respectively.
+- `PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS` and `PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS`
+  are launch inputs to `tools/download/shared-fetch.js`; ordinary repository
+  configuration cannot supply these exceptions to the network policy.
+- `PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD` is checked by
+  `tools/mcp/tools/handlers/downloads.js` separately from artifact approval.
+- `PAIROFCLEATS_TOOLING_DIR` and `PAIROFCLEATS_TOOLING_LOG_DIR` are normalized by
+  `src/shared/env/runtime.js` and consumed by tooling/resource-root and diagnostic
+  owners; their launch-selected paths take precedence over config paths.
+- `PAIROFCLEATS_TUI_NODE`, `PAIROFCLEATS_TUI_SUPERVISOR` and
+  `PAIROFCLEATS_TUI_WORKSPACE_ROOT` are pinned by `bin/tui-wrapper-env.js` for the
+  trusted wrapper handoff, not accepted as repository config keys.

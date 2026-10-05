@@ -9,6 +9,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const scripts = Object.keys(pkg.scripts || {}).sort();
 
 const expectedScripts = [
+  'audit:duplicates',
   'bootstrap',
   'bootstrap:ci',
   'config:budget',
@@ -22,10 +23,13 @@ const expectedScripts = [
   'test:ci',
   'test:ci-lite',
   'test:ci-long',
+  'test:lane-audit',
+  'test:refresh-governance',
   'test:perf',
   'test:services',
   'test:storage',
-  'verify'
+  'verify',
+  'verify:production'
 ].sort();
 
 assert.deepEqual(

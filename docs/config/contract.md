@@ -14,6 +14,8 @@ Sources:
 - retrieval
 - runtime
 - search
+- security
+- sqlite
 - threads
 - tooling
 
@@ -233,6 +235,38 @@ search.scoreBlend.sparseWeight (number)
 search.sqliteAutoArtifactBytes (number)
 search.sqliteAutoChunkThreshold (number)
 search.sqliteFtsWeights
+security (object)
+security.archives (object)
+security.archives.maxBytes (number)
+security.archives.maxEntries (number)
+security.archives.maxEntryBytes (number)
+security.downloads (object)
+security.downloads.allowlist (object)
+security.downloads.maxBytes (number)
+security.downloads.maxRedirects (number)
+security.downloads.requireHash (boolean)
+security.downloads.timeoutMs (number)
+security.downloads.warnUnsigned (boolean)
+sqlite (object)
+sqlite.annMode (string) enum=auto|extension|js
+sqlite.vectorExtension (object)
+sqlite.vectorExtension.annMode (string) enum=auto|extension|js
+sqlite.vectorExtension.arch (string)
+sqlite.vectorExtension.column (string)
+sqlite.vectorExtension.dir (string)
+sqlite.vectorExtension.downloads (object)
+sqlite.vectorExtension.enabled (boolean)
+sqlite.vectorExtension.encoding (string)
+sqlite.vectorExtension.filename (string)
+sqlite.vectorExtension.ingestEncoding (string)
+sqlite.vectorExtension.module (string)
+sqlite.vectorExtension.options (string)
+sqlite.vectorExtension.path (string)
+sqlite.vectorExtension.platform (string)
+sqlite.vectorExtension.provider (string)
+sqlite.vectorExtension.sha256 (string)
+sqlite.vectorExtension.table (string)
+sqlite.vectorExtension.url (string)
 threads (number)
 tooling (object)
 tooling.allowGlobalFallback (boolean)

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-02T02:04:45.556Z",
+  "generatedAt": "2026-10-05T00:43:39.367Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -92,6 +92,7 @@
       "workspaceId"
     ],
     "knownEnvVars": [
+      "PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS",
       "PAIROFCLEATS_ANN_BACKEND",
       "PAIROFCLEATS_API_TOKEN",
       "PAIROFCLEATS_BENCH_ANTIVIRUS_STATE",
@@ -123,6 +124,7 @@
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DISPATCH_STRICT",
       "PAIROFCLEATS_DOC_EXTRACT",
+      "PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS",
       "PAIROFCLEATS_EMBEDDINGS",
       "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
       "PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED",
@@ -144,6 +146,7 @@
       "PAIROFCLEATS_LOG_FORMAT",
       "PAIROFCLEATS_LOG_LEVEL",
       "PAIROFCLEATS_MAX_OLD_SPACE_MB",
+      "PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD",
       "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
       "PAIROFCLEATS_MCP_MODE",
       "PAIROFCLEATS_MCP_QUEUE_MAX",
@@ -241,10 +244,14 @@
       "PAIROFCLEATS_TEST_TREE_SITTER_SCHEDULER_CRASH",
       "PAIROFCLEATS_TEST_WATCHDOG_MS",
       "PAIROFCLEATS_THREADS",
+      "PAIROFCLEATS_TOOLING_DIR",
+      "PAIROFCLEATS_TOOLING_LOG_DIR",
       "PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE",
       "PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE",
       "PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE",
       "PAIROFCLEATS_TRACE_ARTIFACT_IO",
+      "PAIROFCLEATS_TRUSTED_CONFIG",
+      "PAIROFCLEATS_TRUSTED_REPOS",
       "PAIROFCLEATS_TUI_ALT_SCREEN",
       "PAIROFCLEATS_TUI_CAPTURE_FIXTURE",
       "PAIROFCLEATS_TUI_CAPTURE_OUT_DIR",
@@ -253,8 +260,11 @@
       "PAIROFCLEATS_TUI_EVENT_LOG_DIR",
       "PAIROFCLEATS_TUI_INSTALL_ROOT",
       "PAIROFCLEATS_TUI_MOUSE",
+      "PAIROFCLEATS_TUI_NODE",
       "PAIROFCLEATS_TUI_RUN_ID",
+      "PAIROFCLEATS_TUI_SUPERVISOR",
       "PAIROFCLEATS_TUI_UNICODE",
+      "PAIROFCLEATS_TUI_WORKSPACE_ROOT",
       "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "PAIROFCLEATS_UV_THREADPOOL_SIZE",
       "PAIROFCLEATS_VERBOSE",
@@ -462,6 +472,33 @@
       "search.sqliteAutoArtifactBytes",
       "search.sqliteAutoChunkThreshold",
       "search.sqliteFtsWeights",
+      "security.archives.maxBytes",
+      "security.archives.maxEntries",
+      "security.archives.maxEntryBytes",
+      "security.downloads.allowlist",
+      "security.downloads.maxBytes",
+      "security.downloads.maxRedirects",
+      "security.downloads.requireHash",
+      "security.downloads.timeoutMs",
+      "security.downloads.warnUnsigned",
+      "sqlite.annMode",
+      "sqlite.vectorExtension.annMode",
+      "sqlite.vectorExtension.arch",
+      "sqlite.vectorExtension.column",
+      "sqlite.vectorExtension.dir",
+      "sqlite.vectorExtension.downloads",
+      "sqlite.vectorExtension.enabled",
+      "sqlite.vectorExtension.encoding",
+      "sqlite.vectorExtension.filename",
+      "sqlite.vectorExtension.ingestEncoding",
+      "sqlite.vectorExtension.module",
+      "sqlite.vectorExtension.options",
+      "sqlite.vectorExtension.path",
+      "sqlite.vectorExtension.platform",
+      "sqlite.vectorExtension.provider",
+      "sqlite.vectorExtension.sha256",
+      "sqlite.vectorExtension.table",
+      "sqlite.vectorExtension.url",
       "threads",
       "tooling.allowGlobalFallback",
       "tooling.autoEnableOnDetect",
@@ -538,8 +575,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 283,
-    "leafKeys": 236,
+    "totalKeys": 315,
+    "leafKeys": 263,
     "topLevel": [
       {
         "key": "cache",
@@ -568,6 +605,14 @@
       {
         "key": "search",
         "count": 16
+      },
+      {
+        "key": "security",
+        "count": 12
+      },
+      {
+        "key": "sqlite",
+        "count": 20
       },
       {
         "key": "threads",
@@ -1697,6 +1742,174 @@
       "enum": null
     },
     {
+      "path": "security",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.archives",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.archives.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.archives.maxEntries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.archives.maxEntryBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.downloads",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.allowlist",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.maxRedirects",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.requireHash",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "security.downloads.warnUnsigned",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "sqlite",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite.annMode",
+      "type": "string",
+      "enum": [
+        "auto",
+        "extension",
+        "js"
+      ]
+    },
+    {
+      "path": "sqlite.vectorExtension",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.annMode",
+      "type": "string",
+      "enum": [
+        "auto",
+        "extension",
+        "js"
+      ]
+    },
+    {
+      "path": "sqlite.vectorExtension.arch",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.column",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.downloads",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.encoding",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.filename",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.ingestEncoding",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.module",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.options",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.path",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.platform",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.provider",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.sha256",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.table",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "sqlite.vectorExtension.url",
+      "type": "string",
+      "enum": null
+    },
+    {
       "path": "threads",
       "type": "number",
       "enum": null
@@ -2057,6 +2270,18 @@
   "configKeysUnknown": [],
   "envVars": [
     {
+      "name": "PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS",
+      "files": [
+        "src/shared/env/runtime.js",
+        "tests/security/download-transactions.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/tooling/download/shared-fetch-contract.test.js",
+        "tests/tooling/install/download-dicts-test-helper.js",
+        "tests/tooling/install/download-extensions.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_ANN_BACKEND",
       "files": [
         "tests/helpers/test-env-clear.test.js",
@@ -2066,9 +2291,10 @@
     {
       "name": "PAIROFCLEATS_API_TOKEN",
       "files": [
-        "extensions/vscode/extension.js",
+        "extensions/vscode/security.js",
         "src/shared/env/runtime.js",
         "tests/retrieval/filters/filter-core-contract-matrix.test.js",
+        "tests/security/editor-tui-authority.test.js",
         "tests/services/api/trust-boundary-matrix.test.js",
         "tests/tooling/vscode/search-env-runtime.test.js",
         "tools/api/trust-boundary.js",
@@ -2175,6 +2401,8 @@
         "tests/indexing/scm/no-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
         "tests/perf/baseline-artifacts.test.js",
+        "tests/perf/bench/language-default-cache-root.test.js",
+        "tests/perf/bench/language-resource-roots.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/run.js",
         "tests/services/api/core.test.js",
@@ -2187,6 +2415,7 @@
         "tests/services/mcp/tool-index-status.test.js",
         "tests/services/service-mode-smoke.test.js",
         "tests/shared/cache/contract-matrix.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/shared/subprocess/quoting.test.js",
         "tests/shared/toolchain-env-applies-gradle-daemon-policy.test.js",
@@ -2328,7 +2557,11 @@
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/perf/bench/language-prerequisite-runtime.test.js",
+        "tests/tooling/install/setup-readiness-exit.test.js",
         "tools/bench/embeddings/model-bakeoff.js",
+        "tools/bench/language/prerequisite-runtime.js",
+        "tools/bench/language/resource-roots.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
       ]
@@ -2343,9 +2576,10 @@
     {
       "name": "PAIROFCLEATS_DISPATCH_STRICT",
       "files": [
-        "bin/pairofcleats.js",
         "src/retrieval/cli-args.js",
+        "src/shared/env/runtime.js",
         "tests/cli/general/cli.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/tooling/docs/contract-matrix.test.js",
         "tools/config/inventory.js"
       ]
@@ -2354,6 +2588,15 @@
       "name": "PAIROFCLEATS_DOC_EXTRACT",
       "files": [
         "src/shared/env/runtime.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS",
+      "files": [
+        "src/shared/env/runtime.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/tooling/download/shared-fetch-contract.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2370,10 +2613,13 @@
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/piece-assembly/core.test.js",
+        "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/run.test.js",
         "tests/retrieval/parity/equivalence.test.js",
+        "tests/security/download-transactions.test.js",
         "tests/services/api/core.test.js",
         "tests/services/core-observability.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/smoke/api-core-health.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
@@ -2415,6 +2661,8 @@
       "name": "PAIROFCLEATS_EXTENSIONS_DIR",
       "files": [
         "src/shared/env/runtime.js",
+        "tools/bench/language/prerequisite-runtime.js",
+        "tools/bench/language/resource-roots.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2437,8 +2685,12 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/helpers/mcp-client.js",
+        "tests/perf/bench/language-resource-roots.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/contract-matrix.test.js",
+        "tests/tooling/install/tooling-post-install-verification.test.js",
+        "tools/bench/language/prerequisite-runtime.js",
+        "tools/bench/language/resource-roots.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js",
         "tools/release/verify-surface.js"
@@ -2550,6 +2802,15 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD",
+      "files": [
+        "src/shared/env/runtime.js",
+        "tests/security/native-download-authority.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_MCP_MAX_BUFFER_BYTES",
       "files": [
         "src/shared/env/runtime.js",
@@ -2603,7 +2864,11 @@
       "name": "PAIROFCLEATS_MODELS_DIR",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/perf/bench/language-default-cache-root.test.js",
+        "tests/perf/bench/language-resource-roots.test.js",
         "tools/bench/embeddings/model-bakeoff.js",
+        "tools/bench/language/prerequisite-runtime.js",
+        "tools/bench/language/resource-roots.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
       ]
@@ -3072,14 +3337,16 @@
     {
       "name": "PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS",
       "files": [
-        "tools/bench/language-repos/run-loop.js",
+        "src/shared/env/testing.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS",
       "files": [
-        "tools/bench/language-repos.js",
+        "src/shared/env/testing.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3128,6 +3395,7 @@
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/postings/helpers/vector-only-cleanup-fixture.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
+        "tests/perf/bench/language-default-cache-root.test.js",
         "tests/retrieval/filters/semantic-filter-contract-matrix.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/mcp/mode-selection.test.js",
@@ -3376,22 +3644,27 @@
         "tests/indexing/crash-log-retention.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
+        "tests/perf/bench/language-default-cache-root.test.js",
+        "tests/perf/bench/language-query-capabilities.test.js",
         "tests/perf/bench/language-report-environment-metadata.test.js",
         "tests/perf/bench/language-run-ledger-summary.test.js",
+        "tests/perf/bench/query-byte-estimate.test.js",
         "tests/perf/bench/run.test.js",
         "tests/retrieval/parity/equivalence.test.js",
         "tests/services/api/status-path-redaction.test.js",
         "tests/services/core-observability.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/run-suite-path-normalization.test.js",
         "tests/tooling/doctor/command-profile-contract-matrix.test.js",
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
+        "tests/tooling/install/clangd-cache-recipe.test.js",
+        "tests/tooling/install/go-sdk-cache-recipe.test.js",
+        "tests/tooling/install/managed-tool-file-evidence.test.js",
         "tools/bench/ab-sweep.js",
         "tools/bench/index/scheduler-store-format.js",
-        "tools/bench/language-repos.js",
-        "tools/bench/language-repos/run-loop.js",
         "tools/bench/language/logging.js",
         "tools/config/contract-doc.js",
         "tools/config/inventory.js",
@@ -3411,9 +3684,32 @@
         "tests/helpers/search-filters-repo.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/baseline-artifacts.test.js",
+        "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/run.test.js",
         "tests/run.js",
+        "tests/security/repository-authority.test.js",
         "tools/ci/run-suite.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TOOLING_DIR",
+      "files": [
+        "src/shared/env/runtime.js",
+        "src/shared/toolchain-env.js",
+        "tests/perf/bench/language-resource-roots.test.js",
+        "tools/bench/language/prerequisite-runtime.js",
+        "tools/bench/language/resource-roots.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TOOLING_LOG_DIR",
+      "files": [
+        "src/shared/env/runtime.js",
+        "tests/perf/bench/language-tooling-log-directory.test.js",
+        "tests/tooling/type-inference/tooling-diagnostic-retention.test.js",
+        "tools/bench/language/tooling-logs.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3443,6 +3739,30 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/helpers/triage.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TRUSTED_CONFIG",
+      "files": [
+        "src/shared/config-authority.js",
+        "tests/security/repository-authority.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TRUSTED_REPOS",
+      "files": [
+        "src/shared/config-authority.js",
+        "tests/helpers/execution-authority.js",
+        "tests/perf/bench/language-resource-roots.test.js",
+        "tests/security/java-workspace-execution-authority.test.js",
+        "tests/security/nested-repository-command-authority.test.js",
+        "tests/security/repository-authority.test.js",
+        "tests/security/rust-workspace-execution-authority.test.js",
+        "tests/security/zig-workspace-execution-authority.test.js",
+        "tests/tooling/config/loader-schema-contract.test.js",
+        "tests/tooling/lsp/dedicated-providers-multifile-session-reuse.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3522,6 +3842,14 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TUI_NODE",
+      "files": [
+        "bin/tui-wrapper-env.js",
+        "tests/security/editor-tui-authority.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TUI_RUN_ID",
       "files": [
         "bin/tui-wrapper-env.js",
@@ -3532,9 +3860,27 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TUI_SUPERVISOR",
+      "files": [
+        "bin/tui-wrapper-env.js",
+        "tests/security/editor-tui-authority.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TUI_UNICODE",
       "files": [
         "tests/tui/terminal-capability-fallback.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_TUI_WORKSPACE_ROOT",
+      "files": [
+        "bin/tui-wrapper-env.js",
+        "src/shared/env/tui.js",
+        "tests/security/editor-tui-authority.test.js",
+        "tests/shared/env-boolean-case-insensitive.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3690,7 +4036,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 457,
+    "totalFlags": 463,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -3770,6 +4116,7 @@
       "actionable-unresolved-rate-max",
       "additionalProperties",
       "adversarial-ratio",
+      "allow-unmarked-cache",
       "ann",
       "ann-backends",
       "ann-mode",
@@ -3817,6 +4164,8 @@
       "clean",
       "code",
       "collectorDiagnostics",
+      "collectorNow",
+      "collectorScanBudget",
       "collectorScanBudgets",
       "colorize",
       "column",
@@ -3914,6 +4263,7 @@
       "index-root",
       "input",
       "inputs",
+      "install",
       "install-root",
       "intent-weights",
       "interactive",
@@ -4038,6 +4388,7 @@
       "refresh-json",
       "refs",
       "registry",
+      "relPath",
       "release-git-sha",
       "release-tag",
       "repeats",
@@ -4050,6 +4401,7 @@
       "require-index",
       "require-provider",
       "require-sqlite",
+      "require-steps",
       "require-target",
       "required",
       "resolver-gap-rate-drift-warn-max",
@@ -4488,6 +4840,14 @@
         ]
       },
       {
+        "file": "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js",
+        "flags": [
+          "ext",
+          "relPath",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
         "flags": [
           "treeSitter"
@@ -4533,6 +4893,19 @@
           "maxBytes",
           "minBytes",
           "windowBytes"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/graphql-ast-boundaries.test.js",
+        "flags": [
+          "collectorScanBudget"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/jsonc-structure-boundaries.test.js",
+        "flags": [
+          "collectorNow",
+          "collectorScanBudget"
         ]
       },
       {
@@ -4621,6 +4994,18 @@
           "retries",
           "skip-bench",
           "skip-script-coverage"
+        ]
+      },
+      {
+        "file": "tests/security/java-workspace-execution-authority.test.js",
+        "flags": [
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/security/rust-workspace-execution-authority.test.js",
+        "flags": [
+          "treeSitter"
         ]
       },
       {
@@ -4827,6 +5212,18 @@
           "out-json",
           "out-md",
           "require-target"
+        ]
+      },
+      {
+        "file": "tools/bench/language/prerequisite-check.js",
+        "flags": [
+          "install",
+          "out",
+          "repo",
+          "sqlite",
+          "strict",
+          "stub-embeddings",
+          "timeout-ms"
         ]
       },
       {
@@ -5512,6 +5909,7 @@
       {
         "file": "tools/index/cache-gc.js",
         "flags": [
+          "allow-unmarked-cache",
           "apply",
           "cache-root",
           "concurrency",
@@ -5529,6 +5927,7 @@
         "file": "tools/index/clean-artifacts.js",
         "flags": [
           "all",
+          "allow-unmarked-cache",
           "dry-run",
           "repo"
         ]
@@ -5838,6 +6237,7 @@
           "json",
           "non-interactive",
           "repo",
+          "require-steps",
           "root",
           "skip-artifacts",
           "skip-dicts",
@@ -5869,6 +6269,7 @@
           "platform",
           "provider",
           "repo",
+          "sha256",
           "table"
         ]
       },
@@ -5915,6 +6316,13 @@
         ]
       },
       {
+        "file": "tools/tooling/install-clangd.js",
+        "flags": [
+          "scope",
+          "tooling-root"
+        ]
+      },
+      {
         "file": "tools/tooling/install-lua-language-server.js",
         "flags": [
           "release-tag",
@@ -5945,6 +6353,7 @@
       {
         "file": "tools/tooling/uninstall.js",
         "flags": [
+          "allow-unmarked-cache",
           "dry-run",
           "repo",
           "yes"
@@ -6106,7 +6515,7 @@
       },
       {
         "flag": "repo",
-        "count": 56,
+        "count": 57,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6117,6 +6526,7 @@
           "tools/analysis/structural-search.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/graph/shared.js",
+          "tools/bench/language/prerequisite-check.js",
           "tools/bench/micro/run.js",
           "tools/bench/query-generator.js",
           "tools/build/compact-sqlite-index.js",
@@ -6168,7 +6578,7 @@
       },
       {
         "flag": "out",
-        "count": 48,
+        "count": 49,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -6178,6 +6588,7 @@
           "tools/bench/dict-seg.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/index/tree-sitter-load.js",
+          "tools/bench/language/prerequisite-check.js",
           "tools/bench/map/build-map-streaming.js",
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js",
@@ -6279,6 +6690,25 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 13,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/chunks.test.js",
+          "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js",
+          "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
+          "tests/indexing/tree-sitter/preload-and-planning-contract-matrix.test.js",
+          "tests/indexing/tree-sitter/streaming-chunking.test.js",
+          "tests/indexing/tree-sitter/xml-runtime.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tests/security/java-workspace-execution-authority.test.js",
+          "tests/security/rust-workspace-execution-authority.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "root",
         "count": 12,
         "files": [
@@ -6314,22 +6744,6 @@
         ]
       },
       {
-        "flag": "treeSitter",
-        "count": 10,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/chunks.test.js",
-          "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
-          "tests/indexing/tree-sitter/preload-and-planning-contract-matrix.test.js",
-          "tests/indexing/tree-sitter/streaming-chunking.test.js",
-          "tests/indexing/tree-sitter/xml-runtime.test.js",
-          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
-          "tools/bench/index/tree-sitter-load.js"
-        ]
-      },
-      {
         "flag": "dry-run",
         "count": 9,
         "files": [
@@ -6357,6 +6771,21 @@
           "tools/ci/build-artifacts.js",
           "tools/download/extensions.js",
           "tools/eval/run.js"
+        ]
+      },
+      {
+        "flag": "timeout-ms",
+        "count": 9,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/bench/language/prerequisite-check.js",
+          "tools/docs/script-inventory.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/scip.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -6432,20 +6861,6 @@
         ]
       },
       {
-        "flag": "timeout-ms",
-        "count": 8,
-        "files": [
-          "bin/pairofcleats.js",
-          "tests/tooling/fixtures/fixture-parity.test.js",
-          "tools/docs/script-inventory.js",
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/scip.js",
-          "tools/tooling/install-lua-language-server.js",
-          "tools/tooling/install-phpactor-phar.js"
-        ]
-      },
-      {
         "flag": "force",
         "count": 7,
         "files": [
@@ -6469,6 +6884,19 @@
           "tools/build/tantivy-index.js",
           "tools/index/reconcile-identity.js",
           "tools/index/validate.js"
+        ]
+      },
+      {
+        "flag": "strict",
+        "count": 7,
+        "files": [
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tools/bench/language/prerequisite-check.js",
+          "tools/index/reconcile-identity.js",
+          "tools/index/validate.js",
+          "tools/tooling/doctor.js",
+          "tools/triage/ingest.js"
         ]
       },
       {
@@ -6532,14 +6960,14 @@
         ]
       },
       {
-        "flag": "strict",
+        "flag": "stub-embeddings",
         "count": 6,
         "files": [
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tools/index/reconcile-identity.js",
-          "tools/index/validate.js",
-          "tools/tooling/doctor.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/language/prerequisite-check.js",
+          "tools/bench/micro/run.js",
+          "tools/build/embeddings/cli.js",
+          "tools/triage/context-pack.js",
           "tools/triage/ingest.js"
         ]
       },
@@ -6599,6 +7027,17 @@
         ]
       },
       {
+        "flag": "scope",
+        "count": 5,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tools/tooling/install-clangd.js",
+          "tools/tooling/install-lua-language-server.js",
+          "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
         "flag": "size",
         "count": 5,
         "files": [
@@ -6607,17 +7046,6 @@
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
-        ]
-      },
-      {
-        "flag": "stub-embeddings",
-        "count": 5,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/micro/run.js",
-          "tools/build/embeddings/cli.js",
-          "tools/triage/context-pack.js",
-          "tools/triage/ingest.js"
         ]
       },
       {
@@ -6781,12 +7209,12 @@
         ]
       },
       {
-        "flag": "scope",
+        "flag": "sha256",
         "count": 4,
         "files": [
-          "bin/pairofcleats.js",
-          "tests/shared/cache/contract-matrix.test.js",
-          "tools/tooling/install-lua-language-server.js",
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/sqlite/verify-extensions.js",
           "tools/tooling/install-phpactor-phar.js"
         ]
       },
@@ -6818,6 +7246,15 @@
           "tools/workspace/catalog.js",
           "tools/workspace/manifest.js",
           "tools/workspace/status.js"
+        ]
+      },
+      {
+        "flag": "allow-unmarked-cache",
+        "count": 3,
+        "files": [
+          "tools/index/cache-gc.js",
+          "tools/index/clean-artifacts.js",
+          "tools/tooling/uninstall.js"
         ]
       },
       {
@@ -6938,11 +7375,11 @@
         ]
       },
       {
-        "flag": "sha256",
+        "flag": "tooling-root",
         "count": 3,
         "files": [
-          "tools/download/dicts.js",
-          "tools/download/extensions.js",
+          "tools/tooling/install-clangd.js",
+          "tools/tooling/install-lua-language-server.js",
           "tools/tooling/install-phpactor-phar.js"
         ]
       },
@@ -7001,6 +7438,14 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench/micro/run.js"
+        ]
+      },
+      {
+        "flag": "collectorScanBudget",
+        "count": 2,
+        "files": [
+          "tests/lang/contracts/graphql-ast-boundaries.test.js",
+          "tests/lang/contracts/jsonc-structure-boundaries.test.js"
         ]
       },
       {
@@ -7089,6 +7534,14 @@
         "files": [
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "ext",
+        "count": 2,
+        "files": [
+          "tests/indexing/language-registry/config-data-adapters-contract.test.js",
+          "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js"
         ]
       },
       {
@@ -7492,6 +7945,14 @@
         ]
       },
       {
+        "flag": "sqlite",
+        "count": 2,
+        "files": [
+          "tools/bench/language/prerequisite-check.js",
+          "tools/bench/micro/run.js"
+        ]
+      },
+      {
         "flag": "surface",
         "count": 2,
         "files": [
@@ -7521,14 +7982,6 @@
         "files": [
           "tools/analysis/map-iso-serve.js",
           "tools/reports/report-code-map.js"
-        ]
-      },
-      {
-        "flag": "tooling-root",
-        "count": 2,
-        "files": [
-          "tools/tooling/install-lua-language-server.js",
-          "tools/tooling/install-phpactor-phar.js"
         ]
       },
       {
@@ -7623,6 +8076,14 @@
       "tests/indexing/lifecycle/build-entry-failure-no-unsettled-warning.test.js",
       "tests/indexing/tree-sitter/chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/memory-plateau.test.js",
+      "tests/lang/contracts/dockerfile-ast-boundaries.test.js",
+      "tests/lang/contracts/handlebars-ast-boundaries.test.js",
+      "tests/lang/contracts/jinja-django-lexical-boundaries.test.js",
+      "tests/lang/contracts/mustache-parse-token-boundaries.test.js",
+      "tests/lang/contracts/proto-reflection-lexical-boundaries.test.js",
+      "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js",
+      "tests/lang/contracts/xml-lexical-boundaries.test.js",
+      "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
       "tests/perf/bench/run.test.js",
       "tests/shared/cli-option-validators-contract.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
