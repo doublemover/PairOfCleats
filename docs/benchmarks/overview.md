@@ -102,6 +102,22 @@ recipe and cache protocol; native SDK/server installation and cross-platform
 acceptance remain unrun. SDK availability alone does not establish compatibility
 with every server release or repository workspace.
 
+Supported hosts can also prepare clangd from its official standalone release.
+The managed package retains the builtin C/C++ headers beside the executable;
+copying only the binary would lose those resources. Published archive digests,
+binary target headers and the reported version are checked before the cache is
+used. Linux/Windows x64 and universal macOS x64/arm64 routes are declared; other
+targets remain manual. Public release redirects stay within the vendor's
+approved origins, and existing system installations keep their normal detection
+path. Tiny inert fixtures verify the installer/cache protocol, not native host
+compatibility, compilation-database coverage or real repository enrichment.
+
+Managed binary verification uses a shared bounded record of previously verified
+hashes. File identity, size, nanosecond modification time and change time must
+all match before a hash can be reused. Changed or evicted records require a new
+streamed hash. The per-process cache retains at most 16 records and a 128 KiB
+conservative string/reference proxy; this is not a process-memory measurement.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveManagedGoSdk } from './managed-go.js';
+import { resolveManagedClangd } from './managed-clangd.js';
 
 const dedupePaths = (entries) => {
   const seen = new Set();
@@ -93,7 +94,8 @@ export const resolveLocalToolingBinDirs = (toolingRoot) => {
     path.join(absoluteToolingRoot, 'node', 'node_modules', '.bin'),
     path.join(absoluteToolingRoot, 'dotnet'),
     path.join(absoluteToolingRoot, 'composer', 'vendor', 'bin'),
-    resolveManagedGoSdk(absoluteToolingRoot)?.binDir || ''
+    resolveManagedGoSdk(absoluteToolingRoot)?.binDir || '',
+    resolveManagedClangd(absoluteToolingRoot)?.binDir || ''
   ]);
 };
 

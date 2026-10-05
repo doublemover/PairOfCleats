@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
+import { hashManagedToolFile as hashManagedGoFile, readManagedToolText as readManagedGoText } from './managed-tool-file.js';
 import { normalizeEnvPathKeys, resolveEnvPath } from './env-path.js';
 
 export const GO_RELEASE_INDEX_URL = 'https://go.dev/dl/?mode=json';
@@ -18,55 +18,6 @@ export const resolveGoSdkTarget = ({ platform = process.platform, arch = process
 const within = (root, candidate) => {
   const relative = path.relative(root, candidate);
   return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
-};
-
-/** Hash only regular stable files, with a bounded buffer and no executable launch. */
-export const hashManagedGoFile = (filePath, maxBytes = 64 * 1024 * 1024) => {
-  const before = fs.lstatSync(filePath);
-  if (!before.isFile() || before.size <= 0 || before.size > maxBytes) throw new Error('Invalid managed Go file.');
-  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-  try {
-    const opened = fs.fstatSync(fd);
-    if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size) {
-      throw new Error('Managed Go file changed before reading.');
-    }
-    const hash = crypto.createHash('sha256');
-    const buffer = Buffer.allocUnsafe(64 * 1024);
-    let offset = 0;
-    while (offset < before.size) {
-      const read = fs.readSync(fd, buffer, 0, Math.min(buffer.length, before.size - offset), offset);
-      if (!read) throw new Error('Managed Go file was truncated.');
-      hash.update(buffer.subarray(0, read));
-      offset += read;
-    }
-    const after = fs.fstatSync(fd);
-    if (after.size !== opened.size || after.mtimeMs !== opened.mtimeMs) throw new Error('Managed Go file changed while reading.');
-    return hash.digest('hex');
-  } finally {
-    fs.closeSync(fd);
-  }
-};
-
-export const readManagedGoText = (filePath, maxBytes = 16 * 1024) => {
-  const stat = fs.lstatSync(filePath);
-  if (!stat.isFile() || stat.size <= 0 || stat.size > maxBytes) return null;
-  const fd = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-  try {
-    const opened = fs.fstatSync(fd);
-    if (opened.dev !== stat.dev || opened.ino !== stat.ino || opened.size !== stat.size) return null;
-    const buffer = Buffer.allocUnsafe(stat.size + 1);
-    let offset = 0;
-    while (offset < buffer.length) {
-      const read = fs.readSync(fd, buffer, offset, buffer.length - offset, offset);
-      if (!read) break;
-      offset += read;
-    }
-    const after = fs.fstatSync(fd);
-    if (offset !== stat.size || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs) return null;
-    return buffer.subarray(0, offset).toString('utf8');
-  } finally {
-    fs.closeSync(fd);
-  }
 };
 
 /** Managed cache discovery never grants repository execution authority. */
@@ -97,6 +48,13 @@ export const resolveManagedGoSdk = (toolingRoot, targetOptions = {}) => {
     if (hashManagedGoFile(command) !== receipt.goBinarySha256) return null;
     const versionText = readManagedGoText(path.join(goRoot, 'VERSION'), 4096);
     if (versionText?.split('\n')[0].trim() !== receipt.version) return null;
+    for (const relativeFile of [target.os === 'windows' ? 'bin/gofmt.exe' : 'bin/gofmt', 'src/runtime/runtime.go']) {
+      const stat = fs.lstatSync(path.join(goRoot, relativeFile));
+      if (!stat.isFile() || stat.size <= 0) return null;
+    }
+    const compilerTools = path.join(goRoot, 'pkg', 'tool', `${target.os}_${target.arch}`);
+    const tools = fs.readdirSync(compilerTools, { withFileTypes: true });
+    if (!fs.lstatSync(compilerTools).isDirectory() || !tools.length || tools.some((entry) => !entry.isFile())) return null;
     return { ...receipt, goRoot, binDir: path.join(goRoot, 'bin'), command };
   } catch {
     return null;
@@ -124,3 +82,5 @@ export const isGoToolchainServer = ({ providerId = '', command = '' } = {}) => {
   const name = path.basename(String(command)).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
   return ['gopls', 'lsp-gopls', 'sqls', 'lsp-sqls'].includes(id) || ['gopls', 'sqls'].includes(name);
 };
+
+export { hashManagedGoFile, readManagedGoText };

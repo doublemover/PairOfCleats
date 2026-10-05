@@ -128,6 +128,12 @@ try {
     dependencies: createDependencies({ probe: async () => ({ ok: true, stdout: 'go version go1.26.8 linux/amd64' }) }) }),
   (error) => error.reason === 'go_sdk_probe_failed');
   assert.deepEqual(await fs.readdir(path.join(probeRoot, 'sdk/go')), []);
+  const runtimeMarker = path.join(sdk.goRoot, 'src/runtime/runtime.go');
+  await fs.rm(runtimeMarker);
+  assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null,
+    'a remaining go binary alone is not a reusable SDK layout');
+  await fs.writeFile(runtimeMarker, bytes);
+  assert.ok(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }));
   await fs.writeFile(sdk.command, Buffer.from('changed SDK artifact'));
   assert.equal(resolveManagedGoSdk(toolingRoot, { platform: 'linux', arch: 'x64' }), null);
   await assert.rejects(ensureManagedGoSdk({ toolingRoot, cwd: root, platform: 'linux', arch: 'x64',

@@ -20,6 +20,7 @@ import {
   resolvePathEnvKey as resolveSharedPathEnvKey
 } from '../../src/shared/env-path.js';
 import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -382,10 +383,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'clangd',
       label: 'clangd',
       languages: ['c', 'cpp', 'objc'],
-      detect: { cmd: 'clangd', args: ['--version'], binDirs: [] },
-      install: {
-        manual: true
-      },
+      detect: { cmd: 'clangd', args: ['--version'], binDirs: [resolveManagedClangd(absoluteToolingRoot)?.binDir].filter(Boolean) },
+      install: resolveClangdArchiveTarget() ? { cache: { cmd: process.execPath,
+        args: [path.join(implementationRoot, 'tools/tooling/install-clangd.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot] } }
+        : { manual: true },
       docs: TOOL_DOCS.clangd
     },
     {

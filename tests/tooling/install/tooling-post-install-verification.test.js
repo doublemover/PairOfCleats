@@ -33,7 +33,7 @@ assert.equal(failed.payload.readiness.state, 'blocked');
 assert.equal(failed.payload.readiness.ready, false);
 assert.deepEqual(failed.payload.readiness.blockedIds, ['pyright']);
 assert.equal(failed.payload.readiness.items[0].verificationLevel, null);
-const manual = run('clangd');
+const manual = run('sourcekit-lsp');
 assert.equal(manual.result.status, 1, 'manual-only requirements cannot masquerade as installed');
 assert.equal(manual.payload.readiness.items[0].state, 'manual-action-required');
 const unknown = run('unknown-tool-fixture,unknown-tool-fixture');
