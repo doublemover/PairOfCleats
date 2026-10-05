@@ -53,6 +53,14 @@ Setup and benchmark preparation check the actual artifact before reporting it
 ready, including in check-only mode. This verifies installation data; native
 compatibility and actual ANN query coverage still need runtime checks.
 
+Query summaries retain per-mode ANN stage evidence separately from the requested
+ANN flag: vector-result sources, MinHash-result sources, sparse bypasses and
+stages without results. Cache hits and searches without stage evidence are
+counted separately. Aggregate reports explicitly identify older reports without
+this evidence. An enabled flag or a reported JavaScript backend alone does not
+prove vector retrieval; observed results also do not establish native
+compatibility or judged relevance. These observations do not change exit gates.
+
 Dictionary preparation follows the selected configuration and shared directory.
 When English is not requested, valid non-English or custom wordlists do not
 trigger its download. The default English recipe can repair an empty file; unsupported

@@ -22,6 +22,7 @@ import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
 import { resolveBenchSqliteModeStatus } from '../../../tools/bench/language/sqlite-mode-status.js';
+import { createBenchQueryCapabilityCollector, formatBenchQueryCapabilityLines } from '../../../tools/bench/language/query-capabilities.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { createSearchWorkerPool, resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 
@@ -485,6 +486,7 @@ const queryConcurrencyList = Number.isFinite(queryConcurrencyRaw) && queryConcur
   : [4];
 
 const runQueries = async (requestedConcurrency) => {
+  const queryCapabilities = createBenchQueryCapabilityCollector({ annRequested: annEnabled });
   const latency = {};
   const memoryRss = {};
   const hitCounts = {};
@@ -631,6 +633,7 @@ const runQueries = async (requestedConcurrency) => {
       );
     }
     const payload = await runSearch(workerPool, task.query, task.backend);
+    queryCapabilities.observe(task.backend, payload);
     queryProgress.count += 1;
     logQueryProgress();
     const elapsedMs = Number(payload.stats?.elapsedMs);
@@ -689,6 +692,7 @@ const runQueries = async (requestedConcurrency) => {
     backends,
     queryCoverage: { ...queryBackendDecision.coverage,
       executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
+    queryCapabilities: queryCapabilities.snapshot(),
     queryConcurrency: backends.length ? Object.values(workerPlans).reduce(
       (max, plan) => Math.max(max, Math.max(1, Number(plan?.effectiveConcurrency) || 1)),
       1
@@ -788,7 +792,8 @@ if (argv.json) {
     logBench(`Benchmark summary${concurrencyLabel}`);
     logBench(`- Queries: ${runSummary.queries}`);
     logBench(`- TopN: ${runSummary.topN}`);
-    logBench(`- Ann: ${runSummary.annEnabled}`);
+    logBench(`- ANN requested: ${runSummary.annEnabled}`);
+    for (const line of formatBenchQueryCapabilityLines(runSummary.queryCapabilities)) logBench(line);
     if (Number.isFinite(runSummary.queryWallMs)) {
       logBench(
         `- Query wall time: ${formatDuration(runSummary.queryWallMs)} ` +

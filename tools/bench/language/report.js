@@ -3,6 +3,7 @@ import path from 'node:path';
 import { log } from '../../../src/shared/progress-runtime.js';
 import { mergeReuseSummaries, summarizeReuseObservations } from '../../../src/shared/reuse-diagnostics.js';
 import { buildBenchQualityBudgetSummary } from './quality-summary.js';
+import { formatBenchQueryCapabilityLines, mergeBenchQueryCapabilities } from './query-capabilities.js';
 import {
   STAGE_TIMING_SCHEMA_VERSION,
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
@@ -1508,6 +1509,7 @@ export const summarizeResults = (items, { metricTags = null, methodology = null 
     backends,
     latencyMsAvg,
     hitRate,
+    queryCapabilities: mergeBenchQueryCapabilities(valid.map((entry) => entry.summary)),
     reuse: buildBenchReuseSummary({
       tasks: valid,
       methodology
@@ -1529,6 +1531,12 @@ export const printSummary = (
 ) => {
   if (!summary || quietMode) return;
   writeLine(`\n${label} summary (${count} repos)`);
+  const queryCapabilities = summary.queryCapabilities;
+  if (queryCapabilities) {
+    writeLine(`- ANN query evidence: ${queryCapabilities.observedReports} observed reports, `
+      + `${queryCapabilities.unobservedReports} reports without evidence`);
+    for (const line of formatBenchQueryCapabilityLines(queryCapabilities)) writeLine(line);
+  }
   for (const backend of summary.backends) {
     const latency = summary.latencyMsAvg?.[backend];
     const hit = summary.hitRate?.[backend];
