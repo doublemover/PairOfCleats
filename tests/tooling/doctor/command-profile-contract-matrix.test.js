@@ -12,6 +12,7 @@ import {
 } from '../../../src/index/tooling/command-resolver.js';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
+import { redactDiagnosticText } from '../../../src/shared/diagnostic-text.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
@@ -20,6 +21,154 @@ import { withTemporaryEnv } from '../../helpers/test-env.js';
 const root = process.cwd();
 const testRoot = resolveTestCachePath(root, `tooling-doctor-command-profile-contract-${process.pid}-${Date.now()}`);
 const restorePath = prependLspTestPath({ repoRoot: root });
+
+const diagnosticText = (value, maxChars = 64) => (
+  typeof value === 'string'
+    ? redactDiagnosticText(value, maxChars).replace(/\s+/gu, ' ').trim()
+    : null
+);
+const diagnosticNumber = (value) => Number.isFinite(value) ? value : null;
+const diagnosticArgs = (args) => {
+  const values = Array.isArray(args) ? args : [];
+  let redactNext = false;
+  return {
+    values: values.slice(0, 6).map((value) => {
+      if (redactNext) {
+        redactNext = false;
+        return '[redacted]';
+      }
+      if (typeof value === 'string' && /^--?(?:password|passwd|api[-_]key|access[-_]token|client[-_]secret|token|secret)(?:=|$)/iu.test(value)) {
+        const equalsIndex = value.indexOf('=');
+        redactNext = equalsIndex === -1;
+        return `${diagnosticText(equalsIndex === -1 ? value : value.slice(0, equalsIndex), 64)}=[redacted]`;
+      }
+      return diagnosticText(value, 80);
+    }),
+    omitted: Math.max(0, values.length - 6)
+  };
+};
+const formatCommandProbeDiagnostics = (profile, elapsedMs) => {
+  const probe = profile?.probe;
+  const attempts = Array.isArray(probe?.attempted) ? probe.attempted : [];
+  const failureReasons = Array.isArray(probe?.failureReasons) ? probe.failureReasons : [];
+  return JSON.stringify({
+    platform: process.platform,
+    nodeVersion: process.version,
+    providerId: diagnosticText(profile?.providerId),
+    requested: {
+      cmd: diagnosticText(profile?.requested?.cmd, 256),
+      args: diagnosticArgs(profile?.requested?.args)
+    },
+    resolved: {
+      cmd: diagnosticText(profile?.resolved?.cmd, 256),
+      args: diagnosticArgs(profile?.resolved?.args),
+      mode: diagnosticText(profile?.resolved?.mode),
+      reason: diagnosticText(profile?.resolved?.reason)
+    },
+    elapsedMs: diagnosticNumber(elapsedMs),
+    probe: {
+      ok: probe?.ok === true,
+      cached: typeof probe?.cached === 'boolean' ? probe.cached : null,
+      cacheSource: diagnosticText(probe?.cacheSource),
+      resolvedPath: diagnosticText(probe?.resolvedPath, 256),
+      failureReasons: failureReasons.slice(0, 8).map((reason) => diagnosticText(reason)),
+      omittedFailureReasons: Math.max(0, failureReasons.length - 8),
+      validationFailureReason: diagnosticText(probe?.validationFailure?.reasonCode),
+      attempted: attempts.slice(0, 4).map((attempt) => ({
+        args: diagnosticArgs(attempt?.args),
+        exitCode: diagnosticNumber(attempt?.exitCode),
+        errorCode: diagnosticText(attempt?.errorCode),
+        stdout: diagnosticText(attempt?.stdout, 240),
+        stderr: diagnosticText(attempt?.stderr, 240)
+      })),
+      omittedAttempts: Math.max(0, attempts.length - 4)
+    }
+  });
+};
+const assertCommandProbeSucceeded = (profile, message, elapsedMs) => {
+  assert.equal(profile.probe.ok, true, `${message}\ncommand probe diagnostics: ${formatCommandProbeDiagnostics(profile, elapsedMs)}`);
+};
+
+const runProbeDiagnosticCases = () => {
+  const failedProfile = {
+    providerId: 'pyright',
+    requested: { cmd: 'pyright-langserver', args: ['--stdio'] },
+    resolved: {
+      cmd: '/local/node_modules/.bin/pyright-langserver',
+      args: ['--stdio'],
+      mode: 'direct',
+      reason: 'default-direct-launch'
+    },
+    probe: {
+      ok: false,
+      cached: false,
+      cacheSource: null,
+      failureReasons: ['timeout', 'non-zero-exit'],
+      attempted: [
+        { args: ['--version'], exitCode: null, errorCode: 'SUBPROCESS_TIMEOUT', stdout: '', stderr: 'probe timed out' },
+        { args: ['--help'], exitCode: 1, stdout: 'usage output', stderr: 'Bearer diagnostic-secret password=diagnostic-password' }
+      ]
+    },
+    env: { PRIVATE_TEST_MARKER: 'environment-must-not-be-dumped' }
+  };
+  assert.throws(() => assertCommandProbeSucceeded(failedProfile, 'expected pyright probe success', 4001), (error) => {
+    assert.equal(error.code, 'ERR_ASSERTION');
+    assert.equal(error.actual, false);
+    assert.equal(error.expected, true);
+    const diagnostics = JSON.parse(error.message.split('command probe diagnostics: ')[1].split('\n')[0]);
+    assert.equal(diagnostics.requested.cmd, failedProfile.requested.cmd);
+    assert.equal(diagnostics.resolved.cmd, failedProfile.resolved.cmd);
+    assert.deepEqual(diagnostics.resolved.args.values, ['--stdio']);
+    assert.deepEqual(diagnostics.probe.attempted.map((attempt) => attempt.args.values), [['--version'], ['--help']]);
+    assert.equal(diagnostics.probe.attempted[0].exitCode, null);
+    assert.equal(diagnostics.probe.attempted[0].errorCode, 'SUBPROCESS_TIMEOUT');
+    assert.equal(diagnostics.probe.attempted[1].exitCode, 1);
+    assert.equal(diagnostics.probe.attempted[1].stdout, 'usage output');
+    assert.equal(diagnostics.probe.attempted[1].stderr, 'Bearer [redacted] password=[redacted]');
+    assert.deepEqual(diagnostics.probe.failureReasons, ['timeout', 'non-zero-exit']);
+    assert.equal(diagnostics.probe.cached, false);
+    assert.equal(diagnostics.probe.cacheSource, null);
+    assert.equal(diagnostics.elapsedMs, 4001);
+    assert.equal(error.message.includes('environment-must-not-be-dumped'), false);
+    return true;
+  });
+  for (const cacheSource of ['memory', 'persistent']) {
+    const diagnostics = JSON.parse(formatCommandProbeDiagnostics({
+      ...failedProfile,
+      probe: { ...failedProfile.probe, cached: true, cacheSource }
+    }));
+    assert.equal(diagnostics.probe.cached, true);
+    assert.equal(diagnostics.probe.cacheSource, cacheSource);
+    assert.equal(diagnostics.elapsedMs, null);
+  }
+  const oversizedText = '\\"'.repeat(10000);
+  const oversizedArgs = Array(20).fill(oversizedText);
+  const boundedProfile = {
+    providerId: oversizedText,
+    requested: { cmd: oversizedText, args: ['--token', 'argument-secret', '--password=inline-secret', ...oversizedArgs] },
+    resolved: { cmd: oversizedText, args: oversizedArgs, mode: oversizedText, reason: oversizedText },
+    probe: {
+      ok: false,
+      cacheSource: oversizedText,
+      resolvedPath: oversizedText,
+      failureReasons: Array(20).fill(oversizedText),
+      validationFailure: { reasonCode: oversizedText, env: failedProfile.env },
+      attempted: Array(20).fill({ args: oversizedArgs, errorCode: oversizedText, stdout: oversizedText, stderr: oversizedText })
+    }
+  };
+  const boundedText = formatCommandProbeDiagnostics(boundedProfile, NaN);
+  const bounded = JSON.parse(boundedText);
+  assert.equal(boundedText.length < 16_384, true, 'expected total diagnostic text to remain bounded');
+  assert.equal(boundedText.includes('argument-secret'), false);
+  assert.equal(boundedText.includes('inline-secret'), false);
+  assert.equal(bounded.probe.attempted.length, 4);
+  assert.equal(bounded.probe.omittedAttempts, 16);
+  assert.equal(bounded.probe.attempted[0].stdout.length <= 240, true);
+  assert.equal(bounded.resolved.args.values.length, 6);
+  assert.equal(bounded.resolved.args.omitted, 14);
+  assert.equal(bounded.probe.failureReasons.length, 8);
+  assert.equal(bounded.probe.omittedFailureReasons, 12);
+};
 
 const makeExecutable = async (targetPath, body, helperBody = '#!/usr/bin/env node\nprocess.exit(0);\n') => {
   await fs.mkdir(path.dirname(targetPath), { recursive: true });
@@ -324,6 +473,7 @@ const runPyrightOverrideCases = async () => {
   const nodeBin = path.dirname(process.execPath);
 
   await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
+    const startedAt = Date.now();
     const explicitProfile = resolveToolingCommandProfile({
       providerId: 'pyright',
       cmd: fixtureCmd,
@@ -331,11 +481,12 @@ const runPyrightOverrideCases = async () => {
       repoRoot: root,
       toolingConfig: {}
     });
-    assert.equal(explicitProfile.probe.ok, true, 'expected explicit pyright command path probe to succeed');
+    assertCommandProbeSucceeded(explicitProfile, 'expected explicit pyright command path probe to succeed', Date.now() - startedAt);
     assert.equal(path.resolve(explicitProfile.resolved.cmd), path.resolve(fixtureCmd), 'expected explicit pyright command path to be preserved');
   });
 
   await withTemporaryEnv({ PATH: nodeBin, Path: nodeBin }, async () => {
+    const startedAt = Date.now();
     const defaultProfile = resolveToolingCommandProfile({
       providerId: 'pyright',
       cmd: 'pyright-langserver',
@@ -343,7 +494,7 @@ const runPyrightOverrideCases = async () => {
       repoRoot: root,
       toolingConfig: {}
     });
-    assert.equal(defaultProfile.probe.ok, true, 'expected default pyright command probe to tolerate stdio usage error output');
+    assertCommandProbeSucceeded(defaultProfile, 'expected default pyright command probe to tolerate stdio usage error output', Date.now() - startedAt);
   });
 };
 
@@ -470,6 +621,7 @@ const restoreExecution = grantFixtureRepositoryExecution(testRoot);
 try {
   runTimeoutTierCases();
   runMissingDetectionCases();
+  runProbeDiagnosticCases();
   await runCommandResolutionCases();
   await runToolingDirPrecedenceCase();
   await runDirectProbeCases();

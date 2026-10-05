@@ -43,58 +43,54 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-The current platform campaign on PR519's `43851c2a` head is evidence rather than
-a completed release pass: [CI run 37259123772](https://github.com/doublemover/PairOfCleats/actions/runs/37259123772)
-passed gate/TUI checks but failed all three platform lanes. Its exact test artifacts
-identify the first implementation/acceptance batch below. Keep this concrete queue
-ahead of broader validation work; do not reopen archived implementation checklists.
+PR519's published `82528215` checkpoint has fresh
+[hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):
+gate and Rust TUI pass; Ubuntu passes all 804 tests; macOS and Windows each pass
+803 with one failure and no timeouts. The prior pooled-buffer zstd hang, runtime
+authority fixtures and Windows CRLF assertions now pass. Historical timing inputs
+remain distinct from current measurements. This is still a draft, incomplete
+platform acceptance result. Keep the two demonstrated failures ahead of broader
+validation work; do not reopen archived implementation checklists.
 
 ### Concrete Platform and Product Queue
 
-1. **Close compression-worker transfer failures.** Node 24.21's pooled buffers
-   reproduced the SQLite zstd shard hang: transferring a small pooled backing
-   array throws before delivery and leaves an active task stranded. Exact-sized
-   owned copies for pooled/sliced/untransferable/shared buffers, dispatch-failure
-   rejection and unexpected-exit handling now have focused regression coverage.
-   Revalidate zstd shard creation/ingestion on the final platform candidate.
-2. **Preserve Windows wrapper control flow.** The multifile failure belongs to
-   Solargraph. Extracting the final executable from a conditional `.cmd` wrapper
-   ran its server branch during a version probe. Straight-line wrappers retain
-   direct launch; conditional/opaque wrappers use their authored shell flow.
-   Linux checks establish invocation selection; Windows must execute the branch
-   and multifile regressions on the final candidate.
-3. **Make authority and checkout fixtures precise.** Benign Elixir/Solargraph
-   runtime commands created inside fixture repositories now require an explicit
-   test-owned root grant. Production trust checks stay unchanged. Release-workflow
-   parsing accepts CRLF, and archived byte-identity evidence stays LF in Git
-   checkouts. Compressed-artifact/federation fixtures use launch-owned cache roots;
-   Sublime discovery fixtures ignore unrelated host ancestor markers. Refresh
-   Windows contract acceptance after publication.
-4. **Preserve measured-versus-historical timing provenance.** Lane-evidence refreshes
-   wrote historical fallback rows into measured timing inputs, so a repeated
-   refresh relabeled them as fresh. Report generation is now read-only for these
-   inputs; repeated-generation controls preserve historical labels and existing
-   measured bytes. A refreshed governance report is not a fresh test campaign.
-5. **Diagnose the remaining Pyright probe failure.** Ubuntu's command-profile
-   matrix rejected the default Pyright probe; the same exact-lock matrix passes
-   in this Linux cloud checkout. Establish the failing probe's selected command,
-   exit/output/timeout and cold-start conditions before changing provider policy
-   or weakening assertions. A focused cloud pass does not close this platform case.
-6. **Refresh representative retrieval quality.** Exercise free-text versus explicit
+1. **Preserve literal argv through Windows shell fallbacks.** Conditional version
+   branches and the original Solargraph multifile case now pass, but the new
+   fallback regression receives quoted caret-escaped text instead of the literal
+   caller argument. The corrective candidate carries explicit pre-escaped argv
+   transport through shared runners, LSP, benchmark canaries and VS Code; it keeps
+   authored control flow and rejects shell line separators. Quote/transport
+   controls on Linux do not establish native Windows execution. Actual Windows
+   branch, literal-argument and async/sync runner acceptance remains open.
+2. **Observe the remaining Pyright probe failure before changing policy.** The
+   earlier Ubuntu assertion now passes there and on Windows, while macOS rejects
+   the same default-command probe. Saved logs contain no selected command or probe
+   output. The test now includes bounded redacted command, argument, attempt,
+   exit/error, cache and elapsed-time diagnostics on assertion failure. Establish
+   the actual failing conditions before changing provider budgets, retry policy
+   or assertions. The existing exact-lock local pass does not close this case.
+3. **Revalidate synchronous timeout child-tree cleanup.** The broader subprocess
+   check `shared/subprocess/sync-timeout-kills-child-tree` fails repeatedly in the
+   current Linux cloud workspace on both published `82528215` and the corrective
+   candidate: its descendant remains observable after the parent timeout. This
+   case is outside the 804-test `ci-lite` manifest. Establish descendant/process-
+   group ownership before correcting cleanup; do not turn the baseline failure
+   into a skipped test or a claimed full-subprocess pass.
+4. **Refresh representative retrieval quality.** Exercise free-text versus explicit
    Boolean/phrase intent, filters, ANN allowed IDs and deterministic ranking through
    supported memory/SQLite backends. Use the current golden/IQ fixtures and record
    exact revisions; optional native-backend acceptance is a separate result.
-7. **Refresh snapshot and resource lifecycle acceptance.** Exercise snapshot freeze,
+5. **Refresh snapshot and resource lifecycle acceptance.** Exercise snapshot freeze,
    historical lookup, as-of cache isolation and cleanup across repeated searches
    and index generation changes. Cover supported storage backends with tiny
    repositories before larger projects or optional native components.
-8. **Measure ordered Stage1 and IO budgets.** Run current throughput/memory,
+6. **Measure ordered Stage1 and IO budgets.** Run current throughput/memory,
    cancellation/backpressure and compression-order controls under the 30-second
    per-test policy. Record timeouts as blockers and retain bounded queues/caps;
    source-level reductions alone are not end-to-end performance measurements.
    Parser/search fixture prewarming is split into bounded cold cases with unrelated
    SCM history disabled; dedicated Git metadata cases own their one-commit history.
-9. **Extend real project and interactive acceptance.** Serial, small project cases
+7. **Extend real project and interactive acceptance.** Serial, small project cases
    should cover toolchain imports/workspace roots beyond tiny single-file servers,
    followed by supported TUI cancellation, repeated commands and shutdown flows.
    Exact-root authority remains required for build-capable tooling. SDK/platform,
