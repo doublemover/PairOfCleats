@@ -65,9 +65,9 @@ export const buildSetupReadiness = ({ steps = {}, errors = [] }, { requiredIds =
     else state = 'missing';
     return { id, required, state,
       verificationLevel: state === 'available-and-verified'
-        ? id === 'tooling' ? 'executable-probe-and-layout' : id === 'config' ? 'schema-validation' : 'artifact-presence'
+        ? step.verificationLevel || (id === 'tooling' ? 'executable-probe-and-layout' : id === 'config' ? 'schema-validation' : 'artifact-presence')
         : null,
-      reason: failures.map((error) => error.message).filter(Boolean).join('; ') || null,
+      reason: failures.map((error) => error.message).filter(Boolean).join('; ') || step.reason || null,
       ...(step.readiness ? { details: step.readiness } : {})
     };
   }) });

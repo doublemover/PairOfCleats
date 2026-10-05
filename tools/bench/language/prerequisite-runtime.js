@@ -10,6 +10,7 @@ import { selectToolingProviders } from '../../../src/index/tooling/provider-regi
 import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 import { buildBenchmarkPrerequisiteReadiness } from './prerequisites.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../sqlite/vector-extension.js';
+import { verifyVectorExtensionArtifact } from '../../sqlite/extension-trust.js';
 import { getXxhashBackend } from '../../../src/shared/hash.js';
 import { loadTypeScript } from '../../../src/index/tooling/typescript/load.js';
 import { isRepoTrusted } from '../../../src/shared/config-authority.js';
@@ -108,10 +109,12 @@ export const checkBenchmarkPrerequisites = async ({ repoRoot, scriptRoot, buildR
     assets.push({ id: 'dictionaries', required: true, state: paths.length ? 'available-and-verified' : 'missing',
       verificationLevel: paths.length ? 'artifact-presence' : null });
   }
-  if (!autoInstall && needsExtension) {
+  if (needsExtension) {
     const extensionPath = (dependencies.resolveVectorPath || resolveVectorExtensionPath)(vectorConfig);
-    assets.push({ id: 'extensions', required: strict, state: extensionPath ? 'available-and-verified' : 'missing',
-      verificationLevel: extensionPath ? 'artifact-presence' : null });
+    const verification = (dependencies.verifyVectorArtifact || verifyVectorExtensionArtifact)(extensionPath, vectorConfig);
+    const extensionAsset = assets.find((asset) => asset.id === 'extensions');
+    if (extensionAsset) Object.assign(extensionAsset, verification, { required: strict });
+    else assets.push({ id: 'extensions', required: strict, ...verification });
   }
   if (realEmbeddings && userConfig.indexing?.embeddings?.enabled !== false) {
     const modelConfig = (dependencies.getModelConfig || getModelConfig)(repoRoot, userConfig);

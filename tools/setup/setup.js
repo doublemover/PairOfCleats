@@ -22,6 +22,7 @@ import {
 } from '../shared/dict-utils.js';
 import { exitLikeCommandResult, runCommand as runCommandBase } from '../shared/cli-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
+import { verifyVectorExtensionArtifact } from '../sqlite/extension-trust.js';
 import { buildSetupReadiness } from './readiness.js';
 
 const argv = createCli({
@@ -314,7 +315,7 @@ if (argv['skip-extensions']) {
     if (!hasExtension) {
       const shouldDownload = await promptYesNo('Download SQLite ANN extension?', true);
       if (shouldDownload) {
-        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js')]);
+        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', root]);
         if (!result.ok) {
           warn('Extension download failed.');
           recordError('extensions', result, 'download failed');
@@ -328,10 +329,17 @@ if (argv['skip-extensions']) {
     } else {
       log(`SQLite ANN extension present (${extPath}).`);
     }
+    const verification = verifyVectorExtensionArtifact(resolveVectorExtensionPath(vectorExtension), vectorExtension);
+    if (!verification.ok) warn(`SQLite ANN extension is unavailable: ${verification.reason}`);
     recordStep('extensions', {
       skipped: false,
       enabled: true,
-      present: !!resolveVectorExtensionPath(vectorExtension),
+      present: verification.present,
+      ok: declined ? undefined : verification.ok,
+      ready: verification.ok,
+      reason: verification.reason,
+      verificationLevel: verification.verificationLevel || null,
+      verification,
       beforePresent: hasExtension,
       downloaded,
       declined

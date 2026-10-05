@@ -41,3 +41,24 @@ export const assertTrustedExtension = (file, config, expectedBinaryHash = null) 
 };
 
 export const extensionDownloadPolicy = (userConfig) => ({ ...resolveDownloadPolicy(userConfig), requireHash: true });
+
+/** Verify the installed artifact without loading or executing native code. */
+export const verifyVectorExtensionArtifact = (file, config) => {
+  if (typeof file !== 'string' || !file) {
+    return { ok: false, present: false, state: 'missing', reason: 'SQLite extension path is not configured.' };
+  }
+  let present = false;
+  try {
+    const stat = fs.lstatSync(file);
+    present = true;
+    if (!stat.isFile() || stat.size === 0) {
+      throw new Error('SQLite extension artifact must be a nonempty regular file.');
+    }
+    const sha256 = assertTrustedExtension(file, config, config.trustedBinarySha256);
+    return { ok: true, present: true, state: 'available-and-verified', path: file, sha256,
+      verificationLevel: 'artifact-existence-and-approved-integrity', reason: null };
+  } catch (error) {
+    return { ok: false, present, state: error?.code === 'ENOENT' && !present ? 'missing' : 'failed',
+      path: file, reason: error?.message || String(error), code: error?.code || null };
+  }
+};

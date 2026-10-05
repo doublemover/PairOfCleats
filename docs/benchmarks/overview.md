@@ -48,6 +48,11 @@ inference before any cached rows alter its inputs. Complete entries retain
 their existing reuse path, so warm results do not silently lose updates that
 were omitted from a bounded cache.
 
+A configured path alone no longer counts as an installed SQLite ANN extension.
+Setup and benchmark preparation check the actual artifact before reporting it
+ready, including in check-only mode. This verifies installation data; native
+compatibility and actual ANN query coverage still need runtime checks.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
