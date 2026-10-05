@@ -11,6 +11,7 @@ import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 import { buildBenchmarkPrerequisiteReadiness } from './prerequisites.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../sqlite/vector-extension.js';
 import { verifyVectorExtensionArtifact } from '../../sqlite/extension-trust.js';
+import { hasRequestedDictionaryAssets, resolveDictionarySetupReadiness } from '../../setup/dictionary-readiness.js';
 import { getXxhashBackend } from '../../../src/shared/hash.js';
 import { loadTypeScript } from '../../../src/index/tooling/typescript/load.js';
 import { isRepoTrusted } from '../../../src/shared/config-authority.js';
@@ -91,7 +92,7 @@ export const checkBenchmarkPrerequisites = async ({ repoRoot, scriptRoot, buildR
   const setupArgs = [path.join(scriptRoot, 'tools/setup/setup.js'), '--root', repoRoot, '--non-interactive', '--json',
     '--skip-validate', '--skip-install', '--skip-tooling', '--skip-models', '--skip-index', '--skip-sqlite', '--skip-artifacts'];
   const dictConfig = (dependencies.getDictConfig || getDictConfig)(repoRoot, userConfig);
-  const needsDictionary = dictConfig.languages.length > 0 || dictConfig.files.length > 0;
+  const needsDictionary = hasRequestedDictionaryAssets(dictConfig);
   const vectorConfig = (dependencies.getVectorConfig || getVectorExtensionConfig)(repoRoot, userConfig);
   const needsExtension = wantsSqlite && vectorConfig.enabled === true;
   if (!needsDictionary) setupArgs.push('--skip-dicts');
@@ -104,10 +105,17 @@ export const checkBenchmarkPrerequisites = async ({ repoRoot, scriptRoot, buildR
       assets.push(check ? { ...check, required: id === 'dictionaries' || strict }
         : { id, required: id === 'dictionaries' || strict, state: 'unverified', reason: setup.error || 'Missing setup asset receipt.' });
     }
-  } else if (!autoInstall && needsDictionary) {
+  }
+  if (needsDictionary) {
     const paths = await (dependencies.getDictionaryPaths || getDictionaryPaths)(repoRoot, dictConfig);
-    assets.push({ id: 'dictionaries', required: true, state: paths.length ? 'available-and-verified' : 'missing',
-      verificationLevel: paths.length ? 'artifact-presence' : null });
+    const verification = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths: paths });
+    const dictionaryAsset = assets.find((asset) => asset.id === 'dictionaries');
+    const state = verification.present ? 'available-and-verified'
+      : ['declined', 'failed'].includes(dictionaryAsset?.state) ? dictionaryAsset.state : 'missing';
+    const checked = { state, verificationLevel: verification.verificationLevel,
+      reason: verification.reason, details: { usablePaths: verification.usablePaths, scope: 'effective file readiness; not dictionary-language completeness' } };
+    if (dictionaryAsset) Object.assign(dictionaryAsset, checked);
+    else assets.push({ id: 'dictionaries', required: true, ...checked });
   }
   if (needsExtension) {
     const extensionPath = (dependencies.resolveVectorPath || resolveVectorExtensionPath)(vectorConfig);

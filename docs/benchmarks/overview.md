@@ -53,6 +53,12 @@ Setup and benchmark preparation check the actual artifact before reporting it
 ready, including in check-only mode. This verifies installation data; native
 compatibility and actual ANN query coverage still need runtime checks.
 
+Dictionary preparation follows the selected configuration and shared directory.
+When English is not requested, valid non-English or custom wordlists do not
+trigger its download. The default English recipe can repair an empty file; unsupported
+missing resources remain visible. File readiness does not imply complete
+dictionary-language coverage or measured segmentation quality.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

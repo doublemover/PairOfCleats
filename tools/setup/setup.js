@@ -24,6 +24,7 @@ import { exitLikeCommandResult, runCommand as runCommandBase } from '../shared/c
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
 import { verifyVectorExtensionArtifact } from '../sqlite/extension-trust.js';
 import { buildSetupReadiness } from './readiness.js';
+import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
 
 const argv = createCli({
   scriptName: 'setup',
@@ -238,15 +239,15 @@ if (argv['skip-dicts']) {
 } else {
   const dictConfig = getDictConfig(root, userConfig);
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
-  const englishPath = path.join(dictConfig.dir, 'en.txt');
-  const hasDicts = dictionaryPaths.length > 0;
-  const needsEnglish = !fs.existsSync(englishPath);
+  const before = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths });
   let downloaded = false;
   let declined = false;
-  if (!hasDicts || needsEnglish) {
+  if (before.downloadableLanguages.length) {
     const shouldDownload = await promptYesNo('Download English dictionary wordlist?', true);
     if (shouldDownload) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en']);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'),
+        '--lang', before.downloadableLanguages.join(','), '--repo', root, '--dir', dictConfig.dir,
+        ...(before.replaceEmptyEnglish ? ['--force'] : [])]);
       if (!result.ok) {
         warn('Dictionary download failed.');
         recordError('dictionaries', result, 'download failed');
@@ -257,13 +258,21 @@ if (argv['skip-dicts']) {
       warn('Skipping dictionary download. Identifier splitting will be limited.');
       declined = true;
     }
-  } else {
+  } else if (before.present) {
     log(`Dictionary files found (${dictionaryPaths.length}).`);
+  } else if (before.applicable) {
+    warn(before.reason);
   }
+  const verification = resolveDictionarySetupReadiness({ dictConfig,
+    dictionaryPaths: await getDictionaryPaths(root, dictConfig) });
   recordStep('dictionaries', {
     skipped: false,
-    present: (await getDictionaryPaths(root, dictConfig)).length > 0 && fs.existsSync(englishPath),
-    beforePresent: hasDicts && !needsEnglish,
+    applicable: verification.applicable,
+    present: verification.present,
+    verificationLevel: verification.verificationLevel,
+    reason: verification.reason,
+    usablePaths: verification.usablePaths,
+    beforePresent: before.present,
     downloaded,
     declined
   });
