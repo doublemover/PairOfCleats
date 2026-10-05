@@ -270,6 +270,7 @@ jobs:
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
           if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
             npm run bootstrap:ci
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
             Write-Host 'node_modules cache hit; verifying native modules.'
             node tools/setup/rebuild-native.js --verify

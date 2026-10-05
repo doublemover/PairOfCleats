@@ -108,7 +108,7 @@ const parsePatch = (name, buffer) => {
 const runGit = (stage, patch, args) => {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)));
   Object.assign(env, {
-    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: os.devNull,
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: path.join(stage, 'empty.gitconfig'),
     GIT_ATTR_NOSYSTEM: '1', GIT_CEILING_DIRECTORIES: path.dirname(stage)
   });
   const result = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--whitespace=nowarn', ...args, '-'], {
@@ -145,6 +145,9 @@ export const applyPatches = (cwd = process.cwd()) => {
   if (!names.length) return 0;
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-package-patches-'));
   try {
+    // Git for Windows rejects Node's device path (\\.\nul). A private empty
+    // regular file disables user configuration consistently on every platform.
+    fs.writeFileSync(path.join(stage, 'empty.gitconfig'), '', { flag: 'wx', mode: 0o600 });
     const prepared = [];
     const targets = new Set();
     let totalBytes = 0;

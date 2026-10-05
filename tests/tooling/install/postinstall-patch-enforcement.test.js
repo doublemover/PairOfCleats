@@ -26,7 +26,10 @@ const make = async (name, options) => {
 
 try {
   const clean = await make('path with spaces %PATH%!&');
-  assert.equal(run(clean.cwd).status, 0);
+  const invalidGitConfig = path.join(tempRoot, 'invalid.gitconfig');
+  await fs.writeFile(invalidGitConfig, '[invalid config\n');
+  const cleanResult = run(clean.cwd, helper, { GIT_CONFIG_GLOBAL: invalidGitConfig });
+  assert.equal(cleanResult.status, 0, `isolated Git configuration must work: ${cleanResult.stderr}`);
   assert.equal(await fs.readFile(clean.target, 'utf8'), patchedText);
   const repeat = run(clean.cwd);
   assert.equal(repeat.status, 0);

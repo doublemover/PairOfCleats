@@ -50,4 +50,6 @@ assert.deepEqual(failures, [], 'the lock graph must stay fixed and target-compat
 
 const workflow = fs.readFileSync(path.join(root, '.github/workflows/ci.yml'), 'utf8');
 assert.match(workflow, /run:\s*npm audit --audit-level=low\s*\n/, 'CI must also check current advisories, including dev/optional packages');
+assert.match(workflow, /shell: pwsh[\s\S]*npm run bootstrap:ci\s*\r?\n\s*if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}/,
+  'Windows bootstrap failures must stop before version-report commands can mask them');
 console.log('dependency security and engine contract passed');
