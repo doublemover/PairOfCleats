@@ -137,3 +137,35 @@ export function setCacheRebuildEnv(enabled, env = process.env) {
     delete env.PAIROFCLEATS_CACHE_REBUILD;
   }
 }
+
+export function isStrictDispatchEnvEnabled(env = process.env) {
+  return normalizeBoolean(env.PAIROFCLEATS_DISPATCH_STRICT);
+}
+
+/** Security opt-ins intentionally accept only the exact launch value `1`. */
+export function getDownloadEnvConfig(env = process.env) {
+  return {
+    allowLocal: env.PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS === '1',
+    redirectOriginsJson: env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS || '[]'
+  };
+}
+
+export function isMcpNativeLoadEnabled(env = process.env) {
+  return env.PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD === '1';
+}
+
+const replaceEnvValue = (env, key, value) => {
+  const previous = env[key];
+  if (value === undefined) delete env[key];
+  else env[key] = value;
+  return previous;
+};
+
+export function setCacheRootEnv(value, env = process.env) {
+  return replaceEnvValue(env, 'PAIROFCLEATS_CACHE_ROOT', value);
+}
+
+/** Return the raw previous value so temporary overrides can restore it exactly. */
+export function setEmbeddingsEnv(value, env = process.env) {
+  return replaceEnvValue(env, 'PAIROFCLEATS_EMBEDDINGS', value);
+}

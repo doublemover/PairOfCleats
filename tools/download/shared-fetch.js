@@ -2,6 +2,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
 import { createDownloadLookup, validateDownloadUrl } from './network-policy.js';
+import { getDownloadEnvConfig } from '../../src/shared/env/runtime.js';
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -142,9 +143,10 @@ export async function fetchDownloadUrl(initialUrl, options = {}) {
     toBoundedInteger(options.maxRedirects, DEFAULT_MAX_REDIRECTS, { min: 0 }));
   const timeoutMs = toTimeoutMs(options.timeoutMs) || 30_000;
   const maxBytes = toMaxBytes(options.maxBytes) || 64 * 1024 * 1024;
-  const allowLocal = options.allowLocal === true || process.env.PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS === '1';
+  const downloadEnv = getDownloadEnvConfig();
+  const allowLocal = options.allowLocal === true || downloadEnv.allowLocal;
   let configuredOrigins = [];
-  try { configuredOrigins = JSON.parse(process.env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS || '[]'); } catch {}
+  try { configuredOrigins = JSON.parse(downloadEnv.redirectOriginsJson); } catch {}
   const redirectOrigins = new Set(Array.isArray(configuredOrigins)
     ? configuredOrigins.map((entry) => validateDownloadUrl(entry, { allowLocal }).origin) : []);
 

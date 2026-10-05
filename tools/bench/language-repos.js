@@ -4,6 +4,8 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { getBenchMirrorRefreshMs } from '../../src/shared/env/bench.js';
+import { setCacheRootEnv } from '../../src/shared/env/runtime.js';
+import { getBenchTestEnvConfig } from '../../src/shared/env/testing.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
@@ -111,7 +113,7 @@ const {
 // repository-local config cannot authorize a storage location.
 const resourceRoots = resolveBenchmarkResourceRoots({ root: scriptRoot, resourceRoot, cacheRoot });
 Object.assign(process.env, applyBenchmarkResourceRoots(process.env, resourceRoots));
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+setCacheRootEnv(cacheRoot);
 
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
 const mirrorRefreshMs = resolveMirrorRefreshMs(getBenchMirrorRefreshMs());
@@ -611,9 +613,10 @@ runLedger.recordRunStarted({
   taskCount: tasks.length,
   environment: benchEnvironmentMetadata
 });
-const testInterruptAfterMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS);
+const testEnvConfig = getBenchTestEnvConfig();
+const testInterruptAfterMs = testEnvConfig.selfInterruptAfterMs;
 if (
-  process.env.PAIROFCLEATS_TESTING === '1'
+  testEnvConfig.testing
   && Number.isFinite(testInterruptAfterMs)
   && testInterruptAfterMs > 0
 ) {

@@ -7,6 +7,7 @@ import { findPythonExecutable } from './executable.js';
 import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
 import { registerChildProcessForCleanup } from '../../shared/subprocess/tracking-register.js';
 import { killChildProcessTree } from '../../shared/kill-tree.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const PYTHON_AST_DEFAULTS = {
   enabled: true,
@@ -31,7 +32,7 @@ export function normalizePythonAstConfig(config = {}, options = {}) {
   const defaultMaxWorkers = Number.isFinite(options.defaultMaxWorkers)
     ? Math.max(1, Math.floor(options.defaultMaxWorkers))
     : PYTHON_AST_DEFAULTS.maxWorkers;
-  const launchThreads = Number(process.env.PAIROFCLEATS_THREADS);
+  const launchThreads = getEnvConfig().threads;
   const launchCap = Math.max(1, Math.min(4, os.availableParallelism(),
     Number.isFinite(launchThreads) && launchThreads > 0 ? Math.floor(launchThreads) : 4));
   const hardMaxWorkers = Number.isFinite(options.hardMaxWorkers)

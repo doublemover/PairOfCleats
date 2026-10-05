@@ -12,6 +12,18 @@ const isTesting = (env) => env?.PAIROFCLEATS_TESTING === '1' || env?.PAIROFCLEAT
 
 export const isTestingEnv = (env = process.env) => isTesting(env);
 
+/** Preserve the benchmark fixtures' exact `1` test gate. */
+export function getBenchTestEnvConfig(env = process.env) {
+  const testing = env.PAIROFCLEATS_TESTING === '1';
+  return {
+    testing,
+    selfInterruptAfterMs: testing
+      ? normalizeNumber(env.PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS)
+      : null,
+    repoDelayMs: testing ? normalizeNumber(env.PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS) : null
+  };
+}
+
 export function getTestEnvConfig(env = process.env) {
   if (!isTesting(env)) {
     return {

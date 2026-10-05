@@ -36,6 +36,7 @@ import {
 import { resolveDispatchRuntimeEnv } from './dispatch-runtime-env.js';
 import { isDirectExecution } from '../src/shared/direct-execution.js';
 import { readFlagValue } from '../src/shared/cli/argv.js';
+import { isStrictDispatchEnvEnabled } from '../src/shared/env/runtime.js';
 
 const ROOT = resolveToolRoot();
 const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
@@ -1005,7 +1006,7 @@ function validateArgs(args, allowedFlags, valueFlags, options = {}) {
 }
 
 function resolveSearchDispatchArgs(rest) {
-  const strict = isStrictDispatchEnvEnabled(process.env.PAIROFCLEATS_DISPATCH_STRICT);
+  const strict = isStrictDispatchEnvEnabled();
   const result = {
     strict,
     args: []
@@ -1030,11 +1031,6 @@ function resolveSearchDispatchArgs(rest) {
     result.args.push(rest[i]);
   }
   return result;
-}
-
-function isStrictDispatchEnvEnabled(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  return ['1', 'true', 'yes', 'on'].includes(normalized);
 }
 
 /**

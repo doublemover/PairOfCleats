@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { search } from '../../src/integrations/core/search.js';
 import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+import { setEmbeddingsEnv } from '../../src/shared/env/runtime.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
 
@@ -365,8 +366,7 @@ async function withSearchEnv(callback) {
     }
   }
   if (argv['stub-embeddings']) {
-    originalEnv.set('PAIROFCLEATS_EMBEDDINGS', process.env.PAIROFCLEATS_EMBEDDINGS);
-    process.env.PAIROFCLEATS_EMBEDDINGS = 'stub';
+    originalEnv.set('PAIROFCLEATS_EMBEDDINGS', setEmbeddingsEnv('stub'));
   }
   try {
     return await callback();

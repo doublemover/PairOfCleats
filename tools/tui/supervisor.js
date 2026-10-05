@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { getTuiEnvConfig } from '../../src/shared/env/tui.js';
+import { getTuiEnvConfig, getTuiWorkspaceRoot } from '../../src/shared/env/tui.js';
 import { getToolVersion, resolveToolRoot } from '../shared/dict-utils.js';
 import { FLOW_METRICS_INTERVAL_MS, SUPERVISOR_PROTOCOL } from './supervisor/constants.js';
 import { createJobController } from './supervisor/jobs.js';
@@ -77,7 +77,7 @@ const {
 const buildSessionDescriptor = () => ({
   mode: 'supervised',
   source: 'local-supervisor',
-  scope: process.env.PAIROFCLEATS_TUI_WORKSPACE_ROOT || process.cwd(),
+  scope: getTuiWorkspaceRoot() || process.cwd(),
   connection: 'connected',
   note: 'interactive supervisor session',
   controllable: true

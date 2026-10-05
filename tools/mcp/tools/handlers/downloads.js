@@ -4,6 +4,7 @@ import { createProgressReporter, createStreamLineProgressForwarder } from '../..
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from '../../runner.js';
 import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 import { parseNameUrlSources } from '../../../shared/input-parsers.js';
+import { isMcpNativeLoadEnabled } from '../../../../src/shared/env/runtime.js';
 
 /**
  * Handle the MCP download_models tool call.
@@ -113,7 +114,7 @@ export function verifyExtensions(args = {}) {
   for (const key of ['path', 'dir', 'provider', 'platform', 'arch']) {
     if (args[key] != null) throw new Error('MCP native verification uses the launching user’s configured artifact only.');
   }
-  if (args.load === true && process.env.PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD !== '1') {
+  if (args.load === true && !isMcpNativeLoadEnabled()) {
     throw new Error('MCP native loading requires explicit launch-time authorization. Verification is non-loading by default.');
   }
   const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);

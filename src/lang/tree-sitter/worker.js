@@ -2,6 +2,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { treeSitterState } from './state.js';
 import { destroyPiscinaPool } from '../../shared/piscina-cleanup.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 import {
   buildWorkerExecArgv,
   collectNodeHeapArgv,
@@ -16,7 +17,7 @@ export const normalizeTreeSitterWorkerConfig = (raw) => {
   if (!raw || typeof raw !== 'object') return { enabled: false };
   const enabled = raw.enabled !== false;
   const maxWorkersRaw = Number(raw.maxWorkers);
-  const launchThreads = Number(process.env.PAIROFCLEATS_THREADS);
+  const launchThreads = getEnvConfig().threads;
   const defaultMax = Math.max(1, Math.min(4, CPU_COUNT,
     Number.isFinite(launchThreads) && launchThreads > 0 ? Math.floor(launchThreads) : 4));
   const maxWorkers = Number.isFinite(maxWorkersRaw) && maxWorkersRaw > 0

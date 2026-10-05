@@ -3,6 +3,7 @@ import path from 'node:path';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, getEffectiveConfigHash } from '../../shared/dict-utils.js';
+import { getBenchTestEnvConfig } from '../../../src/shared/env/testing.js';
 import { checkIndexLock, formatLockDetail } from '../language/locks.js';
 import {
   buildLineStats,
@@ -356,8 +357,9 @@ export const buildBenchRepoCloseoutSummaryLines = ({
 };
 
 const maybeDelayBenchTestRepoStart = async () => {
-  if (process.env.PAIROFCLEATS_TESTING !== '1') return;
-  const delayMs = Number(process.env.PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS);
+  const testEnvConfig = getBenchTestEnvConfig();
+  if (!testEnvConfig.testing) return;
+  const delayMs = testEnvConfig.repoDelayMs;
   if (!Number.isFinite(delayMs) || delayMs <= 0) return;
   await new Promise((resolve) => setTimeout(resolve, Math.floor(delayMs)));
 };
