@@ -75,9 +75,10 @@ export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, ma
   if (metaEntry) {
     const metaPath = resolveManifestPath(dir, metaEntry.path, strict);
     if (metaPath) {
-      const cachedMeta = readCache(metaPath);
+      const cachePolicy = { maxBytes, view: 'json' };
+      const cachedMeta = readCache(metaPath, cachePolicy);
       const metaRaw = cachedMeta || readJsonFile(metaPath, { maxBytes });
-      if (!cachedMeta) writeCache(metaPath, metaRaw);
+      if (!cachedMeta) writeCache(metaPath, metaRaw, cachePolicy);
       const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
       const parts = normalizeMetaParts(meta?.parts);
       const offsets = Array.isArray(meta?.offsets) ? meta.offsets : [];

@@ -157,7 +157,8 @@ const readJsonLinesSyncWithFallback = (
   }
 ) => {
   const collectRows = typeof onEntry !== 'function';
-  const readCached = (targetPath) => (useCache ? readCache(targetPath) : null);
+  const cachePolicy = { maxBytes, view: 'jsonl', validationMode, recoveryFallback };
+  const readCached = (targetPath) => (useCache ? readCache(targetPath, cachePolicy) : null);
   const readJsonlFromBuffer = (buffer, sourcePath) => {
     const parsed = collectRows ? [] : null;
     const scan = scanJsonlBuffer(buffer, sourcePath, {
@@ -184,7 +185,7 @@ const readJsonLinesSyncWithFallback = (
       const decompressed = decompressBuffer(buffer, compression, maxBytes, targetPath);
       const parsed = readJsonlFromBuffer(decompressed, targetPath);
       if (cleanup) cleanupBak(targetPath);
-      if (useCache) writeCache(targetPath, parsed);
+      if (useCache) writeCache(targetPath, parsed, cachePolicy);
       if (shouldMeasure) {
         recordArtifactRead({
           path: targetPath,
@@ -209,7 +210,7 @@ const readJsonLinesSyncWithFallback = (
     }
     const parsed = readJsonlFromBuffer(raw, targetPath);
     if (cleanup) cleanupBak(targetPath);
-    if (useCache) writeCache(targetPath, parsed);
+    if (useCache) writeCache(targetPath, parsed, cachePolicy);
     if (shouldMeasure) {
       recordArtifactRead({
         path: targetPath,

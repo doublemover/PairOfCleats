@@ -48,10 +48,13 @@ const warnMaterializeFallback = (dir, name, format) => {
  * @returns {any}
  */
 const readJsonFileCached = (filePath, options) => {
-  const cached = readCache(filePath);
+  const cachePolicy = { maxBytes: options?.maxBytes, view: 'json' };
+  // Recovery may return a sibling/backup whose identity is not the primary path.
+  const useCache = options?.recoveryFallback !== true;
+  const cached = useCache ? readCache(filePath, cachePolicy) : null;
   if (cached) return cached;
   const value = readJsonFile(filePath, options);
-  writeCache(filePath, value);
+  if (useCache) writeCache(filePath, value, cachePolicy);
   return value;
 };
 

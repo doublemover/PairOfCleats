@@ -27,6 +27,15 @@ Loaders default to streaming row iteration for JSONL shards; materialized reads 
 `loadFileMetaRows` streams JSONL using offsets when present and falls back to JSONL shards in non-strict mode if a
 columnar/JSON payload exceeds `MAX_JSON_BYTES`.
 
+Materialized artifact caches reuse values only within the caller's read profile:
+byte limit, validation mode and raw JSON/JSONL or normalized-manifest view. A
+smaller limit performs fresh admission instead of returning a value admitted
+under a larger limit; decoded compression limits remain enforced. Compatible
+profiles still reuse their values, and failed reads cannot populate another
+profile. Explicit JSON recovery reads bypass the primary-path cache because a
+backup or sibling can have a different source identity. Format/schema versions
+and the existing manifest limit normalization are unchanged.
+
 Artifacts:
 - `file_meta.json` or `file_meta.parts/*` + `file_meta.meta.json`
 - `file_meta.columnar.json` + `file_meta.meta.json`
