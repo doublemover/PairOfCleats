@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeEol } from '../../src/shared/eol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const packagePath = path.join(ROOT, 'package.json');
@@ -126,6 +127,7 @@ const assertReleaseTagTriggerPresent = ({ workflowText, label }) => {
 };
 
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
+  workflowText = normalizeEol(workflowText);
   const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@[^\s]+[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
   if (checkoutRefs.length < 9) {
     console.error(`${label} must pin manual release checkouts to the requested tag ref in every checkout-based job.`);
@@ -390,5 +392,6 @@ assertWorkflowScriptsExist({ workflowText: releaseWorkflow, label: 'Release work
 assertNodePinned({ workflowText: releaseWorkflow, label: 'Release workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: releaseWorkflow, label: 'Release workflow' });
 assertReleaseWorkflowStructure({ workflowText: releaseWorkflow, label: 'Release workflow' });
+assertReleaseWorkflowStructure({ workflowText: normalizeEol(releaseWorkflow).replaceAll('\n', '\r\n'), label: 'CRLF release workflow' });
 
 console.log('workflow contract test passed (ci, ci-long, nightly, release)');

@@ -2,6 +2,7 @@ import os from 'node:os';
 import { Worker } from 'node:worker_threads';
 import { normalizeGzipOptions, resolveZstd } from './compress.js';
 import { createTimeoutError, runWithTimeout } from '../promise-timeout.js';
+import { toTransferableBuffer } from './buffer-transfer.js';
 
 const JSONL_COMPRESS_WORKER_TERMINATE_TIMEOUT_MS = 5000;
 const WORKER_URL = new URL('./jsonl-compress-worker.js', import.meta.url);
@@ -59,7 +60,7 @@ class JsonlCompressionPool {
     worker.on('message', (msg) => this._handleMessage(worker, msg));
     worker.on('error', (err) => this._handleWorkerError(err));
     worker.on('exit', (code) => {
-      if (!this.closed && code && !this.error) {
+      if (!this.closed && !this.error) {
         this._handleWorkerError(new Error(`JSONL compression worker exited with code ${code}`));
       }
     });
@@ -125,7 +126,12 @@ class JsonlCompressionPool {
       worker.busy = true;
       this.pending.set(task.id, task);
       const payload = task.payload;
-      worker.postMessage({ id: task.id, payload }, [payload.buffer]);
+      try {
+        worker.postMessage({ id: task.id, payload }, [payload.buffer]);
+      } catch (err) {
+        this._fail(err);
+        return;
+      }
     }
     if (this._isIdle()) {
       while (this.idleWaiters.length) {
@@ -141,7 +147,7 @@ class JsonlCompressionPool {
     if (this.error) {
       return Promise.reject(this.error);
     }
-    const payload = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+    const payload = toTransferableBuffer(buffer);
     const id = this.nextId + 1;
     this.nextId = id;
     return new Promise((resolve, reject) => {

@@ -1,6 +1,7 @@
 import { parentPort } from 'node:worker_threads';
 import { createRequire } from 'node:module';
 import { gzipSync } from 'fflate';
+import { toTransferableBuffer } from './buffer-transfer.js';
 
 if (!parentPort) {
   throw new Error('jsonl compress worker: missing parent port');
@@ -75,7 +76,7 @@ parentPort.on('message', (msg) => {
         parentPort.postMessage({ id, ok: true, payload: new Uint8Array(0) });
         return;
       }
-      const payload = compressed;
+      const payload = toTransferableBuffer(compressed);
       parentPort.postMessage({ id, ok: true, payload }, [payload.buffer]);
     })
     .catch((err) => {

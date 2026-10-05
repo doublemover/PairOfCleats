@@ -115,7 +115,34 @@ try {
     false,
     'expected fixed-arg wrappers without %* to avoid appending caller argv'
   );
+  const conditionalWrapperPath = path.join(tempRoot, 'conditional.cmd');
+  await fs.writeFile(
+    conditionalWrapperPath,
+    '@echo off\r\nif "%1"=="--version" exit /b 0\r\nnode "%~dp0\\echo-arg.js" %*\r\n',
+    'utf8'
+  );
+  const conditionalInvocation = resolveWindowsCmdInvocation(conditionalWrapperPath, ['--version']);
+  assert.equal(
+    path.basename(conditionalInvocation.command).toLowerCase(),
+    'cmd.exe',
+    'conditional wrappers must retain their authored probe/launch control flow'
+  );
   if (process.platform === 'win32') {
+    const conditionalResult = spawnSync(conditionalInvocation.command, conditionalInvocation.args, {
+      shell: false,
+      windowsHide: true,
+      encoding: 'utf8'
+    });
+    assert.equal(conditionalResult.status, 0, 'version branch must exit successfully');
+    await assert.rejects(fs.access(outputPath), 'version probe must not launch the server branch');
+    const conditionalLaunch = resolveWindowsCmdInvocation(conditionalWrapperPath, [literalArg]);
+    const conditionalLaunchResult = spawnSync(conditionalLaunch.command, conditionalLaunch.args, {
+      shell: false,
+      windowsHide: true,
+      encoding: 'utf8'
+    });
+    assert.equal(conditionalLaunchResult.status, 0, 'conditional server branch must launch successfully');
+    assert.equal(await fs.readFile(outputPath, 'utf8'), literalArg, 'shell fallback must preserve literal argument text');
     const result = spawnSync(runInvocation.command, runInvocation.args, {
       shell: false,
       windowsHide: true,

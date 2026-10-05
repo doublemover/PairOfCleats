@@ -96,6 +96,14 @@ function maybeResolveWindowsCmdShim(cmdPath, args = []) {
     .split(/\r?\n/u)
     .map((line) => unwrapWrapperPrefix(line))
     .filter(Boolean);
+  // Only bypass cmd.exe for a straight-line wrapper. Extracting the last
+  // invocation from an IF/GOTO script would discard its probe/launch branches.
+  const launchLinePattern = /^(?:node|php|python|ruby|java|dotnet|"%_prog%"|%_prog%)(?:\s|$)/iu;
+  const launchLines = lines.filter((line) => launchLinePattern.test(line));
+  if (launchLines.length !== 1 || lines.some((line) => (
+    !launchLinePattern.test(line)
+    && !/^(?:echo\s+off|setlocal|endlocal|rem(?:\s.*)?|::.*)$/iu.test(line)
+  )) || /[&|<>]/u.test(launchLines[0])) return null;
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index];
     if (!/(?:^|\s)(?:node|php|python|ruby|java|dotnet|"%_prog%"|%_prog%)/iu.test(line)) continue;

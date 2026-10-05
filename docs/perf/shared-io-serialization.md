@@ -14,6 +14,11 @@ This document captures the shared JSON streaming and artifact IO performance wor
 ## Zstd Chunk Boundaries
 - Zstd compression chunk sizes are clamped to 64 KB to 4 MB.
 - This reduces repeated buffer concatenations and keeps compression buffers bounded.
+- Compression workers transfer only full, transferable backing buffers. Pooled,
+  sliced, marked-untransferable and shared buffers get an exact-sized owned copy,
+  preserving aliases and avoiding Node 24 pooled-buffer transfer errors.
+- A dispatch error or unexpected worker exit rejects pending work and idle waiters;
+  small shards cannot leave a compression worker permanently busy after a failed transfer.
 
 ## Artifact Read Telemetry
 A lightweight observer can record large artifact reads without tying shared IO to a specific metrics backend.
