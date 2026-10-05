@@ -34,15 +34,15 @@ jobs:
       release_ref: ${{ steps.release-revision.outputs.release_ref }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
@@ -77,7 +77,7 @@ jobs:
           --manifest dist/release/prepare/release-manifest.json
 
       - name: Upload prepare artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-prepare
           path: |
@@ -87,7 +87,7 @@ jobs:
           compression-level: 0
 
       - name: Upload prepare doc drift artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-prepare-docs
           path: |
@@ -103,14 +103,14 @@ jobs:
     needs: prepare
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
@@ -125,7 +125,7 @@ jobs:
           --manifest dist/release/build-node/release-manifest.json
 
       - name: Upload packaged node artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-node-packages
           path: |
@@ -142,14 +142,14 @@ jobs:
     needs: prepare
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
@@ -164,7 +164,7 @@ jobs:
           --manifest dist/release/verify-runtime/release-manifest.json
 
       - name: Upload runtime verification artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-runtime-verify
           path: |
@@ -182,21 +182,21 @@ jobs:
       - build-node-packages
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
         run: npm run bootstrap:ci
 
       - name: Download packaged node artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-node-packages
           path: dist
@@ -210,7 +210,7 @@ jobs:
           --manifest dist/release/verify-node/release-manifest.json
 
       - name: Upload node package verification artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-node-package-verify
           path: |
@@ -236,14 +236,14 @@ jobs:
             release_id: macos
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Setup Rust toolchain
@@ -263,7 +263,7 @@ jobs:
           --manifest dist/release/build-tui-${{ matrix.release_id }}/release-manifest.json
 
       - name: Upload TUI build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-tui-${{ matrix.release_id }}
           path: |
@@ -291,21 +291,21 @@ jobs:
             release_id: macos
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
         run: npm run bootstrap:ci
 
       - name: Download TUI build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-tui-${{ matrix.release_id }}
           path: dist
@@ -320,7 +320,7 @@ jobs:
           --manifest dist/release/verify-tui-${{ matrix.release_id }}/release-manifest.json
 
       - name: Upload TUI verification artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-tui-verify-${{ matrix.release_id }}
           path: |
@@ -341,69 +341,69 @@ jobs:
       - verify-tui
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-prepare
           path: dist/release/downloads/release-prepare
 
       - name: Download prepare doc drift artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-prepare-docs
           path: dist/release/downloads/release-prepare-docs
 
       - name: Download packaged node artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-node-packages
           path: dist/release/downloads/release-node-packages
 
       - name: Download runtime verification artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-runtime-verify
           path: dist/release/downloads/release-runtime-verify
 
       - name: Download node package verification artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-node-package-verify
           path: dist/release/downloads/release-node-package-verify
 
       - name: Download TUI build artifacts for ubuntu
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-tui-ubuntu
           path: dist/release/downloads/release-tui-ubuntu
 
       - name: Download TUI build artifacts for windows
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-tui-windows
           path: dist/release/downloads/release-tui-windows
 
       - name: Download TUI build artifacts for macos
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-tui-macos
           path: dist/release/downloads/release-tui-macos
 
       - name: Download TUI verification artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: release-tui-verify-*
           path: dist/release/downloads
@@ -417,7 +417,7 @@ jobs:
           --out dist/release/bundle
 
       - name: Upload release bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-bundle
           path: |
@@ -439,19 +439,19 @@ jobs:
       id-token: write
     steps:
       - name: Download release bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-bundle
           path: dist/release
 
       - name: Download trust materials
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-trust-materials
           path: dist/release/trust
 
       - name: Attest release bundle provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: |
             dist/release/bundle/**
@@ -464,14 +464,14 @@ jobs:
     needs: release-bundle
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Setup Rust toolchain
@@ -486,7 +486,7 @@ jobs:
         run: cargo install cargo-cyclonedx --locked
 
       - name: Download release bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-bundle
           path: dist/release
@@ -499,7 +499,7 @@ jobs:
           --out-dir dist/release/trust
 
       - name: Upload trust materials
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-trust-materials
           path: |
@@ -521,13 +521,13 @@ jobs:
       contents: write
     steps:
       - name: Download release bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-bundle
           path: dist/release
 
       - name: Download trust materials
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-trust-materials
           path: dist/release/trust
@@ -591,52 +591,52 @@ jobs:
       actions: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.15.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Install deps
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-prepare
           path: dist/release/downloads/release-prepare
 
       - name: Download prepare doc drift artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-prepare-docs
           path: dist/release/downloads/release-prepare-docs
 
       - name: Download runtime verification artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-runtime-verify
           path: dist/release/downloads/release-runtime-verify
 
       - name: Download node package verification artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-node-package-verify
           path: dist/release/downloads/release-node-package-verify
 
       - name: Download TUI verification artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: release-tui-verify-*
           path: dist/release/downloads
           merge-multiple: false
 
       - name: Download trust materials
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: release-trust-materials
           path: dist/release/trust
@@ -735,7 +735,7 @@ jobs:
           --out-md dist/release/readiness/readiness-summary.md
 
       - name: Upload readiness artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-readiness
           path: |

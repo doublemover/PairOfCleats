@@ -1,7 +1,7 @@
 # Release Matrix Guide
 
 Status: Active guide v1.1
-Last audited: 2026-05-21
+Last audited: 2026-10-05 (Node runtime pins)
 
 ## Purpose
 
@@ -11,16 +11,18 @@ Define the authoritative release support matrix for workflow targets, Node runti
 
 | Target ID | Workflow target | Node | Required toolchains |
 | --- | --- | --- | --- |
-| `ubuntu-latest-node24` | `ubuntu-latest` | 24.15.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `windows-latest-node24` | `windows-latest` | 24.15.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `macos-latest-node24` | `macos-latest` | 24.15.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 24.15.0 | Rust 1.88.0, Cargo, Node, npm, Git |
+| `ubuntu-latest-node24` | `ubuntu-latest` | 24.21.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `windows-latest-node24` | `windows-latest` | 24.21.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `macos-latest-node24` | `macos-latest` | 24.21.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 24.21.0 | Rust 1.88.0, Cargo, Node, npm, Git |
 
 Notes:
 
 - New targets are unsupported until added to this table and validated by required jobs.
 - Required toolchains are hard requirements for release lanes. Missing toolchains fail fast.
-- `package.json` requires `node >=24.15.0`; CI and release workflows pin `actions/setup-node` to `24.15.0`.
+- `package.json` requires `node >=24.15.0`; CI and release workflows pin `actions/setup-node` to `24.21.0`.
+- [Node runtime policy](node-runtime.md) separates the compatibility floor,
+  pinned release runtime, action runtimes and the unvalidated Node 26 target.
 
 ## Required release jobs
 

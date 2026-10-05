@@ -18,7 +18,13 @@ if (!fs.existsSync(runSuitePath)) {
 
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const scripts = pkg.scripts || {};
-const nodeVersionRegex = /node-version:\s*['"]?24\.15\.0['"]?/;
+const pinnedNodeVersion = fs.readFileSync(path.join(ROOT, '.nvmrc'), 'utf8').trim();
+if (!/^24\.\d+\.\d+$/.test(pinnedNodeVersion)) {
+  console.error('.nvmrc must pin an exact Node 24 LTS version.');
+  process.exit(1);
+}
+const nodeVersionPattern = `node-version:\\s*['"]?${pinnedNodeVersion.replace(/\./g, '\\.')}['"]?`;
+const nodeVersionRegex = new RegExp(nodeVersionPattern);
 const rustToolchainPath = path.join(ROOT, 'crates', 'pairofcleats-tui', 'rust-toolchain.toml');
 const rustToolchainText = fs.readFileSync(rustToolchainPath, 'utf8');
 const pinnedRustToolchain = rustToolchainText.match(/channel\s*=\s*"([^"]+)"/)?.[1] || '';
@@ -42,14 +48,20 @@ const assertWorkflowScriptsExist = ({ workflowText, label }) => {
 };
 
 const assertNodePinned = ({ workflowText, label }) => {
-  if (!nodeVersionRegex.test(workflowText)) {
-    console.error(`${label} does not pin Node 24.15.0`);
+  const versions = Array.from(workflowText.matchAll(/node-version:\s*['"]?([^'"\s]+)['"]?/g), (match) => match[1]);
+  if (!versions.length || versions.some((version) => version !== pinnedNodeVersion)) {
+    console.error(`${label} must pin every Node setup to ${pinnedNodeVersion} from .nvmrc.`);
+    process.exit(1);
+  }
+  const cacheVersions = Array.from(workflowText.matchAll(/key:\s*node-modules-[^\r\n]*?-node-(\d+\.\d+\.\d+)-/g), (match) => match[1]);
+  if (cacheVersions.some((version) => version !== pinnedNodeVersion)) {
+    console.error(`${label} node_modules cache keys must match Node ${pinnedNodeVersion}.`);
     process.exit(1);
   }
 };
 
 const assertHiddenArtifactUploadsConfigured = ({ workflowText, label }) => {
-  const uploadSteps = (workflowText.match(/uses:\s*actions\/upload-artifact@v4/g) || []).length;
+  const uploadSteps = (workflowText.match(/uses:\s*actions\/upload-artifact@[^\s]+/g) || []).length;
   if (uploadSteps <= 0) return;
   const includeHidden = (workflowText.match(/include-hidden-files:\s*true/g) || []).length;
   if (includeHidden < uploadSteps) {
@@ -114,7 +126,7 @@ const assertReleaseTagTriggerPresent = ({ workflowText, label }) => {
 };
 
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
-  const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@v4[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
+  const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@[^\s]+[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
   if (checkoutRefs.length < 9) {
     console.error(`${label} must pin manual release checkouts to the requested tag ref in every checkout-based job.`);
     process.exit(1);
@@ -127,7 +139,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /name:\s*Release/,
     /push:\s*\n\s*tags:\s*\n\s*-\s*'v\*'/,
     /workflow_dispatch:/,
-    /node-version:\s*['"]?24\.15\.0['"]?/,
+    nodeVersionRegex,
     /tools\/release\/metadata\.js/,
     /tools\/release\/check\.js[\s\S]*--phases\s+changelog,contracts,toolchain/,
     /tools\/release\/check\.js[\s\S]*--surfaces\s+vscode,sublime[\s\S]*--phases\s+build/,
@@ -147,9 +159,9 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /wait_for_successful_run 'ci-long\.yml' 'dispatch'/,
     /gh run download "\$ci_run_id" -n ci-quality-artifacts-ubuntu/,
     /tools\/release\/readiness-gate\.js[\s\S]*--release-git-sha\s+\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/,
-    /uses:\s*actions\/download-artifact@v4/,
-    /uses:\s*actions\/upload-artifact@v4/,
-    /uses:\s*actions\/attest-build-provenance@v2/,
+    /uses:\s*actions\/download-artifact@v7\b/,
+    /uses:\s*actions\/upload-artifact@v6\b/,
+    /uses:\s*actions\/attest-build-provenance@v3\b/,
     /environment:\s*release/,
     /gh release create/,
     /gh release upload/
@@ -172,7 +184,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
     if (jobName === 'attest') continue;
-    if (!/node-version:\s*['"]?24\.15\.0['"]?[\s\S]*cache:\s*npm/.test(jobBlock)) {
+    if (!new RegExp(`${nodeVersionPattern}[\\s\\S]*cache:\\s*npm`).test(jobBlock)) {
       console.error(`${label} ${jobName} must enable npm cache in setup-node.`);
       process.exit(1);
     }
@@ -319,6 +331,27 @@ const readWorkflow = (name) => {
   }
   return fs.readFileSync(workflowPath, 'utf8');
 };
+
+const minimumNode24ActionMajor = {
+  'checkout': 5,
+  'setup-node': 5,
+  'cache': 5,
+  'upload-artifact': 6,
+  'download-artifact': 7,
+  'github-script': 8,
+  'attest-build-provenance': 3
+};
+for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) {
+  if (!fileName.endsWith('.yml')) continue;
+  const workflowText = readWorkflow(fileName);
+  for (const match of workflowText.matchAll(/uses:\s*actions\/([a-z-]+)@v(\d+)\b/g)) {
+    const minimum = minimumNode24ActionMajor[match[1]];
+    if (minimum && Number(match[2]) < minimum) {
+      console.error(`${fileName}: actions/${match[1]} must use Node 24 (major v${minimum} or newer).`);
+      process.exit(1);
+    }
+  }
+}
 
 const ciWorkflow = readWorkflow('ci.yml');
 assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
