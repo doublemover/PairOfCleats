@@ -30,6 +30,7 @@ export const spawnResolvedSubprocess = (command, args = [], options = {}) => {
   const invocation = resolveCommandInvocation(command, args, effectiveEnv);
   return spawnSubprocess(invocation.command, invocation.args, {
     ...options,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? options.windowsVerbatimArguments,
     env: mergeInvocationEnv(effectiveEnv, invocation.env)
   });
 };
@@ -39,6 +40,7 @@ export const spawnResolvedSubprocessSync = (command, args = [], options = {}) =>
   const invocation = resolveCommandInvocation(command, args, effectiveEnv);
   return spawnSubprocessSync(invocation.command, invocation.args, {
     ...options,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments ?? options.windowsVerbatimArguments,
     env: mergeInvocationEnv(effectiveEnv, invocation.env)
   });
 };

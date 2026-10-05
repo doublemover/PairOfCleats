@@ -172,7 +172,14 @@ export function spawnSubprocess(command, args, options = {}) {
       reject(new SubprocessError(SHELL_MODE_DISABLED_ERROR, result));
       return;
     }
-    const child = spawn(command, args, { cwd: options.cwd, env: options.env, stdio, shell: false, detached });
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio,
+      shell: false,
+      detached,
+      windowsVerbatimArguments: options.windowsVerbatimArguments === true
+    });
     let unregisterTrackedChild = () => {};
     if (cleanupOnParentExit) {
       unregisterTrackedChild = registerChildProcessForCleanup(child, {

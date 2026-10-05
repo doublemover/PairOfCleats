@@ -44,6 +44,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
     env: options.env,
     stdio,
     shell: false,
+    windowsVerbatimArguments: options.windowsVerbatimArguments === true,
     input: options.input,
     timeout: Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0
       ? Math.max(1, Math.floor(resolvedTimeoutMs))

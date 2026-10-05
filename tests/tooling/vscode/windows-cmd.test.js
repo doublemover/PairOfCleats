@@ -13,6 +13,11 @@ const {
 } = require('../../../extensions/vscode/windows-cmd.js');
 
 const args = ['alpha&beta', '%TEMP%', '!VALUE!', '^caret'];
+assert.equal(
+  await fs.readFile(new URL('../../../extensions/vscode/windows-cmd-core.cjs', import.meta.url), 'utf8'),
+  await fs.readFile(new URL('../../../src/shared/subprocess/windows-cmd-core.cjs', import.meta.url), 'utf8'),
+  'packaged VS Code cmd owner must remain identical to the shared owner'
+);
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-vscode-windows-cmd-'));
 try {
   const wrapperPath = path.join(tempRoot, 'echo-arg.cmd');
@@ -45,6 +50,12 @@ try {
     resolveSharedInvocation('npm', args, shimEnv),
     'expected VS Code bare shim invocation to match shared Windows cmd behavior'
   );
+  const conditionalWrapper = path.join(tempRoot, 'conditional.cmd');
+  await fs.writeFile(conditionalWrapper, '@echo off\r\nif "%1"=="--version" exit /b 0\r\nnode "%~dp0\\echo-arg.js" %*\r\n');
+  const conditionalShared = resolveSharedInvocation(conditionalWrapper, args);
+  assert.equal(path.basename(conditionalShared.command).toLowerCase(), 'cmd.exe');
+  assert.equal(conditionalShared.windowsVerbatimArguments, true);
+  assert.deepEqual(resolveWindowsCmdInvocation(conditionalWrapper, args), conditionalShared, 'extension must retain conditional wrapper control flow and argv transport');
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });
 }

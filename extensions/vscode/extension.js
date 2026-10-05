@@ -2041,6 +2041,7 @@ async function runNavigationCommand({
     cwd: repoContext.repoRoot,
     env: invocation.env ? { ...env, ...invocation.env } : env,
     shell: false,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
     windowsHide: true
   });
   if (!spawned.ok) {
@@ -2150,6 +2151,7 @@ async function runInlineContextCommand({
     cwd: repoContext.repoRoot,
     env: invocation.env ? { ...env, ...invocation.env } : env,
     shell: false,
+    windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
     windowsHide: true
   });
   if (!spawned.ok) {
@@ -3590,6 +3592,7 @@ async function runBufferedJsonCommand({
         cwd: repoRoot,
         env: invocation.env ? { ...env, ...invocation.env } : env,
         shell: false,
+        windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
         windowsHide: true
       });
       if (!spawned.ok) {
@@ -4030,6 +4033,7 @@ async function startManagedCommand(spec, { repoContext: seededRepoContext = null
     cwd: repoRoot,
     env: resolved.env ? { ...env, ...resolved.env } : env,
     shell: false,
+    windowsVerbatimArguments: resolved.windowsVerbatimArguments === true,
     windowsHide: true
   });
   if (!spawned.ok) {
@@ -4307,6 +4311,7 @@ async function executeSearchCommand({
           cwd: repoRoot,
           env: invocation.env ? { ...env, ...invocation.env } : env,
           shell: false,
+          windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
           windowsHide: true
         });
         if (!spawned.ok) {

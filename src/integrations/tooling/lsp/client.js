@@ -596,6 +596,7 @@ export function createLspClient(options) {
       cwd,
       env: invocation.env ? { ...resolvedEnv, ...invocation.env } : resolvedEnv,
       shell: false,
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
       detached: killTreeDetached
     };
     const child = typeof spawnProcess === 'function'

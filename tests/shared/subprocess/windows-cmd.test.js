@@ -14,6 +14,24 @@ import {
 assert.match(quoteWindowsCmdArg('%TEMP%'), /\^%TEMP\^%/, 'expected percent expansion to be escaped');
 assert.match(quoteWindowsCmdArg('!BANG!'), /\^!BANG\^!/, 'expected delayed expansion marker to be escaped');
 assert.match(quoteWindowsCmdArg('value^caret'), /\^\^/, 'expected carets to be doubled');
+assert.equal(quoteWindowsCmdArg('--version'), '--version', 'simple probe arguments must remain unquoted');
+assert.equal(quoteWindowsCmdArg('alpha beta'), '^"alpha^ beta^"', 'quote syntax must be escaped outside cmd quotes');
+assert.equal(quoteWindowsCmdArg('alpha beta', { doubleEscape: true }), '^^^"alpha^^^ beta^^^"');
+assert.equal(quoteWindowsCmdArg(''), '^"^"', 'empty argv must reach the final executable');
+assert.equal(quoteWindowsCmdArg('space \\'), '^"space^ \\\\^"', 'trailing backslashes must not consume the final quote');
+assert.equal(quoteWindowsCmdArg('a"b'), '^"a\\^"b^"', 'embedded quotes need executable argv and cmd escaping');
+for (const count of [2, 3]) {
+  assert.equal(
+    quoteWindowsCmdArg(`a${'\\'.repeat(count)}"b`),
+    `^"a${'\\'.repeat(count * 2 + 1)}^"b^"`,
+    'every backslash before a quote must be doubled, plus the quote escape'
+  );
+}
+for (const value of ['bad\rtext', 'bad\ntext', 'bad\0text']) {
+  assert.throws(() => quoteWindowsCmdArg(value), (err) => err?.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT');
+}
+const longQuoteInput = `${'\\'.repeat(50_000)}"`;
+assert.equal(quoteWindowsCmdArg(longQuoteInput).length, 100_007, 'quote handling must remain linear for long backslash runs');
 
 assert.throws(
   () => resolveWindowsCmdInvocation('tool.cmd', ['alpha beta', '%TEMP%', '!BANG!', '^caret']),
@@ -21,7 +39,7 @@ assert.throws(
   'expected unresolved Windows wrapper commands to fail closed'
 );
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-windows-cmd-'));
+const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc windows cmd with spaces '));
 try {
   const scriptPath = path.join(tempRoot, 'echo-arg.js');
   const wrapperPath = path.join(tempRoot, 'echo-arg.cmd');
@@ -103,6 +121,22 @@ try {
     /opaque\.cmd/i,
     'expected opaque wrapper fallback payload to target the wrapper path'
   );
+  assert.equal(opaqueInvocation.windowsVerbatimArguments, true, 'shell payload must bypass Node argv quoting');
+  assert.match(opaqueInvocation.args[3], /^"[\s\S]*"$/u, 'cmd /s needs an outer payload quote pair');
+  const numericWrapperPath = path.join(tempRoot, 'numeric.cmd');
+  const numericWrapperBody = '@echo off\r\nif "%1"=="--version" exit /b 0\r\nnode "%~dp0\\echo-arg.js" %1\r\n';
+  await fs.writeFile(numericWrapperPath, numericWrapperBody);
+  const numericInvocation = resolveWindowsCmdInvocation(numericWrapperPath, [literalArg]);
+  await fs.writeFile(numericWrapperPath, `@rem formerly forwarded with %*\r\n:: %* is not active forwarding here\r\n${numericWrapperBody}`);
+  assert.deepEqual(
+    resolveWindowsCmdInvocation(numericWrapperPath, [literalArg]),
+    numericInvocation,
+    'comment-only %* text must not change argument transport'
+  );
+  for (const inactiveForwarding of ['rem %*', ':: %*', 'echo "%*"', 'set "example=%*"', 'call nested.cmd %*', 'node "%~dp0\\echo-arg.js" "%*"', 'node "%~dp0\\echo-arg.js" %%*']) {
+    await fs.writeFile(numericWrapperPath, `${inactiveForwarding}\r\n${numericWrapperBody}`);
+    assert.deepEqual(resolveWindowsCmdInvocation(numericWrapperPath, [literalArg]), numericInvocation, 'other batch protocols must not masquerade as a native argv forwarder');
+  }
   const fixedInvocation = resolveWindowsCmdInvocation(fixedWrapperPath, ['--ignored']);
   assert.match(fixedInvocation.args[0] || '', /ok\.js$/i, 'expected fixed-arg wrapper to resolve its script payload');
   assert.deepEqual(
@@ -127,22 +161,61 @@ try {
     'cmd.exe',
     'conditional wrappers must retain their authored probe/launch control flow'
   );
+  assert.equal(conditionalInvocation.windowsVerbatimArguments, true);
+  const conditionalLiteralInvocation = resolveWindowsCmdInvocation(conditionalWrapperPath, [literalArg]);
+  assert.ok(
+    conditionalLiteralInvocation.args[3].includes('^^^"^^^%TEMP^^^%^^^&literal^^^!bang^^^^caret^^^"'),
+    'forwarded argv needs two cmd parsing layers'
+  );
+  assert.throws(
+    () => resolveWindowsCmdInvocation(conditionalWrapperPath, ['bad\necho injected']),
+    (err) => err?.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT',
+    'shell fallbacks must reject line separators rather than execute another command'
+  );
+  assert.deepEqual(
+    resolveWindowsCmdInvocation(wrapperPath, ['direct\nargument']).args.slice(1),
+    ['direct\nargument'],
+    'direct executable argv must retain its existing literal behavior'
+  );
   if (process.platform === 'win32') {
     const conditionalResult = spawnSync(conditionalInvocation.command, conditionalInvocation.args, {
       shell: false,
       windowsHide: true,
+      windowsVerbatimArguments: conditionalInvocation.windowsVerbatimArguments,
       encoding: 'utf8'
     });
     assert.equal(conditionalResult.status, 0, 'version branch must exit successfully');
+    assert.equal(conditionalResult.stderr, '', 'version branch must not hide cmd syntax errors');
     await assert.rejects(fs.access(outputPath), 'version probe must not launch the server branch');
     const conditionalLaunch = resolveWindowsCmdInvocation(conditionalWrapperPath, [literalArg]);
     const conditionalLaunchResult = spawnSync(conditionalLaunch.command, conditionalLaunch.args, {
       shell: false,
       windowsHide: true,
+      windowsVerbatimArguments: conditionalLaunch.windowsVerbatimArguments,
       encoding: 'utf8'
     });
     assert.equal(conditionalLaunchResult.status, 0, 'conditional server branch must launch successfully');
+    assert.equal(conditionalLaunchResult.stderr, '', 'literal server branch must not hide cmd syntax errors');
     assert.equal(await fs.readFile(outputPath, 'utf8'), literalArg, 'shell fallback must preserve literal argument text');
+    const allArgsPath = path.join(tempRoot, 'all-args.json');
+    const allArgsScript = path.join(tempRoot, 'all-args.js');
+    const allArgsWrapper = path.join(tempRoot, 'all-args.cmd');
+    await fs.writeFile(allArgsScript, `require('node:fs').writeFileSync(${JSON.stringify(allArgsPath)}, JSON.stringify(process.argv.slice(2)));\n`);
+    await fs.writeFile(allArgsWrapper, '@echo off\r\nif "%1"=="--version" exit /b 0\r\nnode "%~dp0\\all-args.js" %*\r\n');
+    const literalArgs = [literalArg, 'alpha beta', '', 'a"b', `two${'\\'.repeat(2)}"quote`, `three${'\\'.repeat(3)}"quote`, 'space \\', '()[]|<>;,`*?', '%COMSPEC%', '!TEMP!'];
+    for (let firstIndex = 0; firstIndex < literalArgs.length; firstIndex += 1) {
+      const reordered = [...literalArgs.slice(firstIndex), ...literalArgs.slice(0, firstIndex)];
+      const allArgsInvocation = resolveWindowsCmdInvocation(allArgsWrapper, reordered);
+      const allArgsResult = spawnSync(allArgsInvocation.command, allArgsInvocation.args, {
+        shell: false,
+        windowsHide: true,
+        windowsVerbatimArguments: allArgsInvocation.windowsVerbatimArguments,
+        encoding: 'utf8'
+      });
+      assert.equal(allArgsResult.status, 0, `conditional argv matrix must launch: ${allArgsResult.stderr}`);
+      assert.equal(allArgsResult.stderr, '', 'successful final launch must not conceal IF argument syntax errors');
+      assert.deepEqual(JSON.parse(await fs.readFile(allArgsPath, 'utf8')), reordered, 'native cmd must preserve the complete literal argv matrix');
+    }
     const result = spawnSync(runInvocation.command, runInvocation.args, {
       shell: false,
       windowsHide: true,

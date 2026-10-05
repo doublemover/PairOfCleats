@@ -1,7 +1,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const WINDOWS_CMD_META_PATTERN = /[\s"%!&|<>^();]/u;
+const WINDOWS_CMD_META_PATTERN = /[()\][%!^"`<>&|;, *?\t]/u;
+const WINDOWS_CMD_META_ESCAPE_PATTERN = /[()\][%!^"`<>&|;, *?\t]/gu;
+const WRAPPER_LAUNCH_PATTERN = /^(?:node|php|python|ruby|java|dotnet|"%_prog%"|%_prog%)(?:\s|$)/iu;
+
+function assertSafeShellText(text) {
+  if (!/[\0\r\n]/u.test(text)) return;
+  const error = new Error('Windows command shell text cannot contain NUL or line breaks.');
+  error.code = 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT';
+  throw error;
+}
+
+function escapeWindowsCmdMeta(text) {
+  return text.replace(WINDOWS_CMD_META_ESCAPE_PATTERN, '^$&');
+}
 
 function unwrapWrapperPrefix(line) {
   return String(line || '')
@@ -98,10 +111,9 @@ function maybeResolveWindowsCmdShim(cmdPath, args = []) {
     .filter(Boolean);
   // Only bypass cmd.exe for a straight-line wrapper. Extracting the last
   // invocation from an IF/GOTO script would discard its probe/launch branches.
-  const launchLinePattern = /^(?:node|php|python|ruby|java|dotnet|"%_prog%"|%_prog%)(?:\s|$)/iu;
-  const launchLines = lines.filter((line) => launchLinePattern.test(line));
+  const launchLines = lines.filter((line) => WRAPPER_LAUNCH_PATTERN.test(line));
   if (launchLines.length !== 1 || lines.some((line) => (
-    !launchLinePattern.test(line)
+    !WRAPPER_LAUNCH_PATTERN.test(line)
     && !/^(?:echo\s+off|setlocal|endlocal|rem(?:\s.*)?|::.*)$/iu.test(line)
   )) || /[&|<>]/u.test(launchLines[0])) return null;
   for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -122,28 +134,35 @@ function maybeResolveWindowsCmdShim(cmdPath, args = []) {
   return null;
 }
 
-function quoteWindowsCmdArg(value) {
+function quoteWindowsCmdArg(value, { doubleEscape = false } = {}) {
   const text = String(value ?? '');
-  if (!text) return '""';
-  const escaped = text
-    .replaceAll('^', '^^')
-    .replaceAll('%', '^%')
-    .replaceAll('!', '^!')
-    .replaceAll('&', '^&')
-    .replaceAll('|', '^|')
-    .replaceAll('<', '^<')
-    .replaceAll('>', '^>')
-    .replaceAll('(', '^(')
-    .replaceAll(')', '^)')
-    .replaceAll(';', '^;')
-    .replaceAll('"', '""');
-  if (!WINDOWS_CMD_META_PATTERN.test(text)) return escaped;
-  return `"${escaped}"`;
+  assertSafeShellText(text);
+  if (text && !WINDOWS_CMD_META_PATTERN.test(text)) return text;
+  // First quote for the eventual executable's Windows argv parser. Backslashes
+  // are doubled only before a quote (including the final closing quote).
+  let quoted = '"';
+  let backslashes = 0;
+  for (const character of text) {
+    if (character === '\\') {
+      backslashes += 1;
+      continue;
+    }
+    quoted += '\\'.repeat(character === '"' ? backslashes * 2 + 1 : backslashes);
+    quoted += character;
+    backslashes = 0;
+  }
+  quoted += `${'\\'.repeat(backslashes * 2)}"`;
+  // Escape the quote syntax too: carets *inside* protective quotes are literal.
+  // A batch forwarder (%*) parses the text again, requiring one more layer.
+  const escaped = escapeWindowsCmdMeta(quoted);
+  return doubleEscape ? escapeWindowsCmdMeta(escaped) : escaped;
 }
 
-function buildWindowsShellCommand(cmd, args = []) {
-  return [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
+function buildWindowsShellCommand(cmd, args = [], { doubleEscape = false } = {}) {
+  const command = String(cmd ?? '');
+  assertSafeShellText(command);
+  return [escapeWindowsCmdMeta(command), ...(Array.isArray(args) ? args : [])
+    .map((value) => quoteWindowsCmdArg(value, { doubleEscape }))]
     .join(' ');
 }
 
@@ -155,9 +174,17 @@ function resolveWindowsCommandProcessor() {
 }
 
 function buildWindowsCmdShellInvocation(cmdPath, args = []) {
+  // A recognized native launch with trailing, unquoted %* parses argv again.
+  // Comments, SET/ECHO text, quoted %*, CALL and positional forwarding are not
+  // evidence of this protocol. General nested batch protocols remain opaque.
+  const doubleEscape = fs.readFileSync(cmdPath, 'utf8')
+    .split(/\r?\n/u)
+    .map(unwrapWrapperPrefix)
+    .some((line) => WRAPPER_LAUNCH_PATTERN.test(line) && /(?:^|\s)%\*\s*$/u.test(line));
   return {
     command: resolveWindowsCommandProcessor(),
-    args: ['/d', '/s', '/c', buildWindowsShellCommand(cmdPath, args)]
+    args: ['/d', '/s', '/c', `"${buildWindowsShellCommand(cmdPath, args, { doubleEscape })}"`],
+    windowsVerbatimArguments: true
   };
 }
 

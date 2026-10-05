@@ -152,6 +152,7 @@ const runVersionProbe = ({ command, args }) => {
       ? resolveWindowsCmdInvocation(command, args, process.env)
       : { command, args };
     const result = spawnSync(invocation.command, invocation.args, {
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
       cwd: process.cwd(),
       env: process.env,
       encoding: 'utf8',
