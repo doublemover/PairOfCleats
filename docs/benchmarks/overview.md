@@ -42,6 +42,12 @@ reports. Existing MessagePack checksum representations remain readable. This
 fix has a small deterministic write/read fixture; it does not establish the
 cause of checksum mismatches in earlier repository campaigns.
 
+Cross-file inference also checks complete chunk coverage before reusing a
+whole-run cache result. Size-truncated or incomplete entries trigger fresh
+inference before any cached rows alter its inputs. Complete entries retain
+their existing reuse path, so warm results do not silently lose updates that
+were omitted from a bounded cache.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

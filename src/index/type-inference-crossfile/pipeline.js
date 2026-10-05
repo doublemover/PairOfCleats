@@ -183,7 +183,8 @@ export async function applyCrossFileInference({
     cachePath: cacheContext.cachePath,
     chunks,
     crossFileFingerprint: cacheContext.crossFileFingerprint,
-    log
+    log,
+    requireComplete: true
   });
   if (cachedStats) {
     return withCacheMetadata({

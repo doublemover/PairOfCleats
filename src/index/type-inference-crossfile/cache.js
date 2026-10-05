@@ -155,6 +155,21 @@ const applyCachedCrossFileOutput = ({ chunks, cacheRows }) => {
   return applied > 0;
 };
 
+const hasCompleteCachedCrossFileOutput = ({ chunks, cacheRows, admission }) => {
+  if (!Array.isArray(chunks) || cacheRows.length !== chunks.length) return false;
+  if (admission?.mode === 'value-ranked-partial' || Number(admission?.droppedRows) > 0) return false;
+  const expectedIds = new Set(chunks.map(resolveChunkIdentity));
+  if (expectedIds.size !== chunks.length) return false;
+  const seen = new Set();
+  for (const row of cacheRows) {
+    const id = typeof row?.id === 'string' ? row.id : null;
+    if (!id || !expectedIds.has(id) || seen.has(id)
+      || !Object.hasOwn(row, 'codeRelations') || !Object.hasOwn(row, 'docmeta')) return false;
+    seen.add(id);
+  }
+  return true;
+};
+
 const resolveCrossFileCacheRoot = ({ cacheRoot, rootDir }) => {
   if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
     return cacheRoot.trim();
@@ -249,7 +264,8 @@ export const readCrossFileInferenceCache = async ({
   chunks,
   crossFileFingerprint,
   log = () => {},
-  maxReadBytes = DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES
+  maxReadBytes = DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES,
+  requireComplete = false
 }) => {
   if (!cachePath) return null;
   try {
@@ -278,6 +294,12 @@ export const readCrossFileInferenceCache = async ({
       && cached.fingerprint === crossFileFingerprint
       && Array.isArray(cached?.rows)
     ) {
+      if (requireComplete && !hasCompleteCachedCrossFileOutput({ chunks, cacheRows: cached.rows, admission })) {
+        if (typeof log === 'function') {
+          log('[perf] cross-file cache reuse skipped: output coverage is incomplete; recomputing inference.');
+        }
+        return null;
+      }
       const applied = applyCachedCrossFileOutput({
         chunks,
         cacheRows: cached.rows
