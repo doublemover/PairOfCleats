@@ -171,6 +171,7 @@ export {
  * @param {object|null} [params.initializationOptions=null]
  * @param {string|null} [params.providerId=null]
  * @param {string|null} [params.providerVersion=null]
+ * @param {string|null} [params.toolingRoot=null] Application-owned managed runtime directory.
  * @param {boolean} [params.semanticTokensEnabled=true]
  * @param {boolean} [params.inlayHintsEnabled=true]
  * @param {string|null} [params.workspaceRootDir=null]
@@ -249,7 +250,8 @@ export async function collectLspTypes({
   sessionIdleTimeoutMs = null,
   sessionMaxLifetimeMs = null,
   sessionPoolingEnabled = true,
-  abortSignal = null
+  abortSignal = null,
+  toolingRoot = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
     ? abortSignal
@@ -476,7 +478,7 @@ export async function collectLspTypes({
     cmd,
     args,
     cwd: resolvedWorkspaceRootDir,
-    env: applyToolchainDaemonPolicyEnv(process.env),
+    env: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }),
     log,
     stderrFilter,
     onNotification,

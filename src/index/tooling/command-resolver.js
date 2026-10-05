@@ -888,6 +888,8 @@ export const probeLspInitializeHandshake = async (input) => {
     cmd,
     args,
     cwd,
+    env: applyToolchainDaemonPolicyEnv(process.env, { command: cmd,
+      providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }),
     log: () => {}
   });
   const startedAt = Date.now();

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { applyManagedGoEnvironment, isGoToolchainServer } from './managed-go.js';
 
 const GRADLE_DAEMON_FLAG = '-Dorg.gradle.daemon=false';
 const GRADLE_DAEMON_PATTERN = /-Dorg\.gradle\.daemon\s*=\s*\S+/i;
@@ -44,5 +45,7 @@ export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
   if (beamCrashDumpPath) {
     next.ERL_CRASH_DUMP = beamCrashDumpPath;
   }
-  return next;
+  return isGoToolchainServer(options)
+    ? applyManagedGoEnvironment(next, { toolingRoot: options?.toolingRoot || next.PAIROFCLEATS_TOOLING_DIR })
+    : next;
 };

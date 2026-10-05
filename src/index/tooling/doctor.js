@@ -562,6 +562,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
             const handshake = await probeLspInitializeHandshake({
               providerId,
               cmd: commandProfile.resolved.cmd,
+              toolingConfig,
               args: commandProfile.resolved.args || [],
               cwd: handshakeCwd,
               timeoutMs: Number.isFinite(Number(options?.handshakeTimeoutMs))

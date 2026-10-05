@@ -83,6 +83,25 @@ Go-based servers. An unrelated exit-zero program is reported as an unmet
 prerequisite. Installation commands and prerequisite probes use the application
 directory, keeping their setup context separate from the repository being timed.
 
+Go-based server preparation can now provision an official portable Go SDK when
+one is missing, including when the server itself is already installed. `gopls`
+and `sqls` share the same SDK and module/build caches outside the per-run index
+cache. Installation records the version, platform, architecture, official
+archive SHA256 and executable-version check; cached bytes are verified before
+reuse. Dry-run plans the SDK without downloading it, and check-only benchmark
+preparation keeps its existing no-provision behavior.
+
+Managed Go is visible to command resolution and Go-server child environments,
+without modifying the system PATH. Preparation defaults to one Go worker and
+one compiler job, preserves explicit launch limits, and disables implicit
+toolchain downloads unless explicitly selected by the launch environment.
+Portable archive recipes cover Linux/macOS x64 and arm64 plus Windows x64,
+arm64 and x86; Linux x86 is also supported. Other targets and unverified existing
+cache slots remain explicit failures or manual work. Inert fixtures cover the
+recipe and cache protocol; native SDK/server installation and cross-platform
+acceptance remain unrun. SDK availability alone does not establish compatibility
+with every server release or repository workspace.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

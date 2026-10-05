@@ -374,6 +374,7 @@ export const createDedicatedLspProvider = (descriptor) => {
           partitionResults.push(await collectLspTypes({
             ...runtimeConfig,
             rootDir: ctx.repoRoot,
+            toolingRoot: ctx?.toolingConfig?.dir || null,
             workspaceRootDir: partition.rootDir,
             workspaceKey: partition.workspaceKey,
             documents: partition.documents,
