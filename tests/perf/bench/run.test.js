@@ -21,6 +21,7 @@ import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
+import { resolveBenchSqliteModeStatus } from '../../../tools/bench/language/sqlite-mode-status.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { createSearchWorkerPool, resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 
@@ -170,21 +171,24 @@ const hasIndex = (mode) => {
   return hasChunkMetaArtifactsSync(dir);
 };
 /**
- * Detect whether sqlite artifacts already exist for a mode.
+ * Resolve existing databases and verified empty-mode receipts.
  *
  * @param {'code'|'prose'} mode
- * @returns {boolean}
+ * @returns {object}
  */
-const hasSqliteIndex = (mode) => {
+const resolveSqliteModeStatus = (mode) => {
   const paths = resolveSqlitePaths(runtimeRoot, userConfig);
-  const target = mode === 'prose' ? paths.prosePath : paths.codePath;
-  return fsSync.existsSync(target);
+  return resolveBenchSqliteModeStatus({ mode, indexDir: getIndexDir(runtimeRoot, mode, userConfig),
+    dbPath: mode === 'prose' ? paths.prosePath : paths.codePath });
 };
 if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
   logBench('[bench] Missing index artifacts; enabling --build-index.');
 }
-if (needsSqlite && !buildSqlite && (!hasSqliteIndex('code') || !hasSqliteIndex('prose'))) {
+if (needsSqlite && !buildSqlite && ['code', 'prose'].some((mode) => {
+  const status = resolveSqliteModeStatus(mode);
+  return !status.dbExists && !status.zeroState;
+})) {
   buildSqlite = true;
   logBench('[bench] Missing sqlite artifacts; enabling --build-sqlite.');
 }
@@ -262,7 +266,7 @@ function buildSearchArgs(query, backend) {
     backend,
     topN,
     annArg,
-    mode: testHarnessSearchMode,
+    mode: queryBackendDecision.coverage.selectedSearchModeByBackend[backend] || testHarnessSearchMode,
     repo: repoArg,
     extraArgs
   });
@@ -442,18 +446,9 @@ if (buildIndex || buildSqlite) {
   }
 }
 
-const resolveSqliteModeStatus = (mode) => {
-  const modeIndexDir = getIndexDir(runtimeRoot, mode, userConfig);
-  const zeroStateManifestPath = path.join(modeIndexDir, 'pieces', 'sqlite-zero-state.json');
-  return {
-    dbExists: hasSqliteIndex(mode),
-    zeroState: fsSync.existsSync(zeroStateManifestPath),
-    zeroStateManifestPath
-  };
-};
-
 const queryBackendDecision = resolveBenchQueryBackends({
   requestedBackends,
+  requestedModes: testHarnessSearchMode ? [testHarnessSearchMode] : ['code', 'prose'],
   sqliteModes: {
     code: resolveSqliteModeStatus('code'),
     prose: resolveSqliteModeStatus('prose')
@@ -467,14 +462,11 @@ const queryBackendDecision = resolveBenchQueryBackends({
   })()
 });
 if (queryBackendDecision.reason) {
-  if (queryBackendDecision.skippedSqlite) {
-    logBench(`[bench] ${queryBackendDecision.reason}`);
-  } else {
-    fatalExit(`[bench] ${queryBackendDecision.reason}`);
-  }
+  fatalExit(`[bench] ${queryBackendDecision.reason}`);
 }
+if (queryBackendDecision.warning) logBench(`[bench] ${queryBackendDecision.warning}`);
 const backends = queryBackendDecision.backends;
-if (!backends.length) {
+if (!backends.length && !queryBackendDecision.emptySqliteWorkload) {
   fatalExit('[bench] No query backends remain after sqlite zero-state filtering.');
 }
 
@@ -678,7 +670,7 @@ const runQueries = async (requestedConcurrency) => {
   }
   logQueryProgress(true);
   const queryWallMs = Date.now() - queryProgress.startMs;
-  const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : 0;
+  const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : null;
   const queryWallMsPerQuery = selectedQueries.length ? queryWallMs / selectedQueries.length : 0;
 
   const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b], { scale: 1000 })]));
@@ -695,10 +687,12 @@ const runQueries = async (requestedConcurrency) => {
     annEnabled,
     embeddingProvider,
     backends,
-    queryConcurrency: Object.values(workerPlans).reduce(
+    queryCoverage: { ...queryBackendDecision.coverage,
+      executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
+    queryConcurrency: backends.length ? Object.values(workerPlans).reduce(
       (max, plan) => Math.max(max, Math.max(1, Number(plan?.effectiveConcurrency) || 1)),
       1
-    ),
+    ) : 0,
     queryConcurrencyRequested: requestedConcurrency,
     queryConcurrencyAutoReason: backends.length === 1
       ? (workerPlans[backends[0]]?.reason || null)

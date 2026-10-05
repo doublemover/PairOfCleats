@@ -26,6 +26,15 @@ stage timings under `scmMetadata`. This distinguishes a fully recovered provider
 that intentionally lacks batch support from a real batch failure, and keeps the
 failure evidence available after benchmark cache cleanup.
 
+An empty primary SQLite mode no longer removes a usable sibling mode from the
+query benchmark. A code-only SQLite index is queried with an explicit code
+selector; the reverse case selects prose. Reports name the selected primary
+modes per backend and count executed searches, so results with different scope
+can be compared deliberately. An entirely empty SQLite workload is recorded as
+unexercised. Empty-mode receipts must match their checksum, current ready state,
+generation and database target; an unknown or missing nonempty mode remains an
+error. Confirmed empty receipts also prevent unnecessary automatic rebuilds.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
