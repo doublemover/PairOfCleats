@@ -185,7 +185,7 @@ function resolveDetectArgCandidates(tool) {
 function probeWithArgCandidates(cmd, argCandidates) {
   const attempts = [];
   for (const args of argCandidates) {
-    const probe = probeCommand(cmd, args, { timeoutMs: 4000 });
+    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd: resolveToolRoot() });
     attempts.push({
       args,
       outcome: probe.outcome,

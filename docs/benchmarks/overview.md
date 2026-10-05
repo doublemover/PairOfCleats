@@ -64,6 +64,11 @@ own configuration format. Valid project settings no longer produce a false
 invalid-config warning. Malformed, unavailable and oversized configuration
 files remain explicit, and ordinary JSON readers keep their strict policy.
 
+Tool preparation checks the Go SDK's version identity before using it to install
+Go-based servers. An unrelated exit-zero program is reported as an unmet
+prerequisite. Installation commands and prerequisite probes use the application
+directory, keeping their setup context separate from the repository being timed.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the

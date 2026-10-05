@@ -129,7 +129,7 @@ const runRequirementCases = async () => {
     await fs.writeFile(path.join(goBinDir, 'go.cmd'), '@echo off\r\nnode "%~dp0\\ok.js" %*\r\n', 'utf8');
     await fs.writeFile(path.join(goBinDir, 'ok.js'), '#!/usr/bin/env node\nprocess.exit(0);\n', 'utf8');
   } else {
-    await makeScript(path.join(goBinDir, 'go'), '#!/bin/sh\nif [ "$1" = "version" ]; then exit 0; fi\nif [ "$1" = "install" ]; then exit 0; fi\nexit 1\n');
+    await makeScript(path.join(goBinDir, 'go'), '#!/bin/sh\nif [ "$1" = "version" ]; then echo "go version go1.27.1 linux/amd64"; exit 0; fi\nif [ "$1" = "install" ]; then exit 0; fi\nexit 1\n');
   }
   const goPayload = runCliJson({
     scriptPath: path.join(root, 'tools', 'tooling', 'install.js'),

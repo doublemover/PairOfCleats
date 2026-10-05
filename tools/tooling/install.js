@@ -6,10 +6,11 @@ import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
-import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolInstallReadiness } from '../setup/readiness.js';
 import { invalidateToolingCommandProbeCache } from '../../src/index/tooling/command-resolver.js';
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
+import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats tooling install',
@@ -18,6 +19,7 @@ const argv = createCli({
 
 const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);
+const installationCwd = resolveToolRoot();
 const toolingConfig = getToolingConfig(root);
 const scope = argv.scope || toolingConfig.installScope || 'cache';
 const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFallback !== false;
@@ -28,15 +30,6 @@ const stdoutGuard = createStdoutGuard({
 });
 const languageOverride = normalizeLanguageList(argv.languages);
 const toolOverride = [...new Set(normalizeLanguageList(argv.tools))];
-
-const resolveRequirementCheckArgCandidates = (commandName) => {
-  const normalized = String(commandName || '').trim().toLowerCase();
-  if (normalized === 'go') return [['version'], ['--version']];
-  if (normalized === 'dotnet') return [['--info'], ['--version']];
-  if (normalized === 'composer') return [['--version']];
-  if (normalized === 'gem') return [['--version']];
-  return [['--version'], ['version']];
-};
 
 const runInstallCommand = (command, args, options = {}) => {
   try {
@@ -105,23 +98,29 @@ for (const tool of tools) {
   }
   const { cmd, args, env, requires } = selection.plan;
   if (requires) {
-    const requirementArgCandidates = resolveRequirementCheckArgCandidates(requires);
+    const requirementArgCandidates = resolveInstallerRequirementProbeArgs(requires);
     let requirementSatisfied = false;
     const requirementChecks = [];
     for (const requirementArgs of requirementArgCandidates) {
       const requireCheck = probeCommand(requires, requirementArgs, {
-        stdio: 'ignore',
+        cwd: installationCwd,
+        stdio: 'pipe',
         timeoutMs: 4000,
+        maxOutputBytes: 64 * 1024,
         outputEncoding: 'utf8'
       });
+      const verification = verifyInstallerRequirementProbe(requires, requireCheck);
       requirementChecks.push({
         args: requirementArgs,
         outcome: requireCheck?.outcome || 'inconclusive',
         status: Number.isInteger(requireCheck?.status) ? Number(requireCheck.status) : null,
         signal: typeof requireCheck?.signal === 'string' ? requireCheck.signal : null,
-        errorCode: typeof requireCheck?.errorCode === 'string' ? requireCheck.errorCode : null
+        errorCode: typeof requireCheck?.errorCode === 'string' ? requireCheck.errorCode : null,
+        verificationLevel: verification.verificationLevel || null,
+        identity: verification.identity || null,
+        reason: verification.reason || null
       });
-      if (requireCheck?.ok === true) {
+      if (verification.ok === true) {
         requirementSatisfied = true;
         break;
       }
@@ -132,6 +131,8 @@ for (const tool of tools) {
         status: 'missing-requirement',
         requires,
         requirementChecks,
+        ...(requirementChecks.some((check) => check.reason === 'unrecognized_go_sdk_version')
+          ? { error: 'The go command did not emit a recognized Go SDK version.' } : {}),
         docs: tool.docs || null,
         probe: status.probe || null
       });
@@ -160,6 +161,7 @@ for (const action of actions) {
   console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
   const env = action.env ? { ...process.env, ...action.env } : process.env;
   const spawnOpts = {
+    cwd: installationCwd,
     env,
     // Keep JSON mode machine-parseable: suppress child stdout and stream
     // installer diagnostics through stderr only.
