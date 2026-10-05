@@ -2,12 +2,11 @@ import importlib
 import json
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeWindow, install_fake_modules
+from runtime_harness import isolated_temp_directory, FakeWindow, install_fake_modules
 
 
 class _FakeResult:
@@ -124,7 +123,7 @@ class MapBehaviorTests(unittest.TestCase):
         self.assertIn('Warnings:', panel.appended)
 
     def test_map_open_last_viewer_opens_local_file_predictably(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             out_path = os.path.join(tmp, 'map.svg')
             with open(out_path, 'w', encoding='utf-8') as handle:
                 handle.write('<svg/>')
@@ -138,7 +137,7 @@ class MapBehaviorTests(unittest.TestCase):
             self.assertEqual(self.window.opened_files[-1]['path'], out_path)
 
     def test_map_jump_to_node_uses_stored_repo_and_handles_missing_location(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             node_list_path = os.path.join(tmp, 'nodes.json')
             with open(node_list_path, 'w', encoding='utf-8') as handle:
                 json.dump({'nodes': [{'label': 'Detached', 'id': 'n1'}]}, handle)
@@ -207,7 +206,7 @@ class MapBehaviorTests(unittest.TestCase):
         self.assertIn('API mode is not supported for map.', self.sublime.last_error)
 
     def test_repo_map_prompts_for_repo_when_multiple_roots_exist(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             os.makedirs(os.path.join(repo_a, '.git'))

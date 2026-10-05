@@ -1,10 +1,35 @@
 import os
 import sys
+import tempfile
+from contextlib import contextmanager
+from unittest.mock import patch
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 PACKAGE_ROOT = os.path.join(REPO_ROOT, 'sublime')
 if PACKAGE_ROOT not in sys.path:
     sys.path.insert(0, PACKAGE_ROOT)
+
+
+@contextmanager
+def isolated_temp_directory():
+    """Keep repository discovery fixtures independent of host ancestor markers."""
+    with tempfile.TemporaryDirectory() as root:
+        original_isdir = os.path.isdir
+        original_isfile = os.path.isfile
+
+        def fixture_check(original, candidate):
+            candidate = os.path.abspath(candidate)
+            if os.path.basename(candidate) in ('.git', '.pairofcleats.json'):
+                try:
+                    if os.path.commonpath([root, candidate]) != root:
+                        return False
+                except ValueError:
+                    return False
+            return original(candidate)
+
+        with patch('os.path.isdir', side_effect=lambda value: fixture_check(original_isdir, value)), \
+                patch('os.path.isfile', side_effect=lambda value: fixture_check(original_isfile, value)):
+            yield root
 
 
 class FakeSettings:

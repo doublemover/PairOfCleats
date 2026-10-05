@@ -1,12 +1,11 @@
 import importlib
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeView, FakeWindow, install_fake_modules
+from runtime_harness import isolated_temp_directory, FakeView, FakeWindow, install_fake_modules
 
 
 class PathsBehaviorTests(unittest.TestCase):
@@ -21,7 +20,7 @@ class PathsBehaviorTests(unittest.TestCase):
         self.sublime.set_active_window(self.window)
 
     def test_read_only_resolution_prefers_nested_path_hint_repo(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             outer = os.path.join(tmp, 'outer')
             inner = os.path.join(outer, 'inner')
             os.makedirs(os.path.join(outer, '.git'))
@@ -35,7 +34,7 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertIsNone(reason)
 
     def test_strict_resolution_prompts_for_multiple_repo_roots(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             os.makedirs(os.path.join(repo_a, '.git'))
@@ -55,7 +54,7 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertIn('Using selected repo', chosen['reason'])
 
     def test_strict_resolution_with_external_hint_keeps_repo_choices(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             outside = os.path.join(tmp, 'outside', 'file.txt')
@@ -80,7 +79,7 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertIn('Using selected repo', chosen['reason'])
 
     def test_strict_resolution_fails_closed_without_repo(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             folder = os.path.join(tmp, 'workspace')
             os.makedirs(folder)
             self.window.set_folders([folder])
@@ -93,7 +92,7 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertIn('require an explicit repo root', reason)
 
     def test_read_only_resolution_can_fall_back_to_open_folder(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             folder = os.path.join(tmp, 'workspace')
             os.makedirs(folder)
             self.window.set_folders([folder])
@@ -106,7 +105,7 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertIn('using open folder', reason.lower())
 
     def test_watch_root_override_must_stay_within_repo(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo = os.path.join(tmp, 'repo')
             inside = os.path.join(repo, 'src')
             outside = os.path.join(tmp, 'outside')
@@ -125,7 +124,7 @@ class PathsBehaviorTests(unittest.TestCase):
             self.assertEqual(watch_root, os.path.abspath(inside))
 
     def test_watch_root_override_must_stay_within_repo(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_root = os.path.join(tmp, 'repo')
             outside = os.path.join(tmp, 'outside')
             os.makedirs(os.path.join(repo_root, '.git'))
