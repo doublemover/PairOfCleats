@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { parseTree } from 'jsonc-parser';
+import { hasAmbiguousGeneratedArtifactPrefix } from './generated-artifact-prefix.js';
 
 const FORMAT = 'poc.generated@1';
 const KIND = 'object-cache';
@@ -85,26 +85,6 @@ const candidateArtifacts = (relativePath) => {
 
 export const isGeneratedArtifactCacheCandidatePath = (relativePath) => candidateArtifacts(relativePath).length > 0;
 
-const hasAmbiguousJsonPrefix = (text, complete) => {
-  const errors = [];
-  const tree = parseTree(text, errors, { disallowComments: true, allowTrailingComma: false });
-  if (!tree || tree.type !== 'object' || (complete && errors.length)) return true;
-  const pending = [tree];
-  while (pending.length) {
-    const node = pending.pop();
-    if (node.type === 'object') {
-      const keys = new Set();
-      for (const property of node.children || []) {
-        const key = property.children?.[0]?.value;
-        if (keys.has(key)) return true;
-        keys.add(key);
-      }
-    }
-    pending.push(...(node.children || []));
-  }
-  return false;
-};
-
 /** Classify this cache object only. No field nominates another file or directory. */
 export const classifyGeneratedArtifactCachePrefix = ({ relativePath = null, prefix }) => {
   const candidates = relativePath == null ? null : candidateArtifacts(relativePath);
@@ -118,7 +98,7 @@ export const classifyGeneratedArtifactCachePrefix = ({ relativePath = null, pref
   try {
     const header = JSON.parse(match[1]);
     if (!isGeneratedCacheMetadata(header) || (candidates && !candidates.includes(header.artifact))) return null;
-    if (hasAmbiguousJsonPrefix(text, bytes.length < PREFIX_BYTES)) return null;
+    if (hasAmbiguousGeneratedArtifactPrefix(text, bytes.length < PREFIX_BYTES)) return null;
     return { ...header, action: 'omit' };
   } catch {
     return null;
