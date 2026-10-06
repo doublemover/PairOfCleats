@@ -145,6 +145,8 @@ native/package/TUI/developer outputs. Preserve strict schemas, JSONL/array shape
 checksums, offsets and useful searchable reports. Native Windows/macOS/TUI proof,
 clean dependency installation, full benchmark measurement, representative retrieval
 quality and startup-ready watch acceptance remain distinct checks.
+The [Mac checklist](guides/mac-acceptance-2026-10-06.md) records exact native
+verification commands and the capped benchmark reproduction; it is not a pass.
 
 ### Ongoing Review and Release Discipline
 
