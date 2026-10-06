@@ -21,7 +21,10 @@ cannot authorize omission of source paths, other files, or directories.
   unchanged; both marked and legacy unmarked entries load.
 - Cross-file inference: fingerprints, stats, admission details, and rows retain
   their existing meanings. Marker bytes enter row admission estimates, and a final
-  serialized-byte check includes admission diagnostics before any write. A cache
+  serialized-byte check includes admission diagnostics before any write. It counts
+  encoder output without retaining it, then combines the small metadata envelope,
+  previously measured row sizes, and exact JSON framing. The complete selected-row
+  payload is never materialized just to enforce this cap. A cache
   that exceeds its configured cap is skipped without replacing an existing file.
 - Import resolution and its persistence-failure marker: normalization still reads
   the version, nested file/lookup maps, and diagnostics. Warning throttling and

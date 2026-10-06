@@ -4,6 +4,7 @@ import { getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
+import { writeJsonValue } from '../../shared/json-stream/encode.js';
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
@@ -72,6 +73,42 @@ const normalizeCacheStats = (cacheStats) => ({
   bundleSizing: cacheStats?.bundleSizing || null,
   inferenceLiteEnabled: cacheStats?.inferenceLiteEnabled === true
 });
+
+const measureCacheJsonValueBytes = async (value) => {
+  let bytes = 0;
+  await writeJsonValue({
+    write(chunk) {
+      bytes += Buffer.byteLength(chunk, 'utf8');
+      return true;
+    }
+  }, value);
+  return bytes;
+};
+
+/**
+ * Count the exact uncompressed streaming-writer payload without retaining its
+ * serialized bytes. Rows were measured once during admission; only their byte
+ * counts are used here. Root field values follow writeJsonObjectFile semantics.
+ * @param {object} fields
+ * @param {Array<{rowBytes:number}>} rowEntries
+ * @returns {Promise<number>}
+ */
+export const measureCrossFileCachePayloadBytes = async (fields, rowEntries) => {
+  let bytes = 2; // Root braces.
+  let fieldCount = 0;
+  for (const [key, value] of Object.entries(fields)) {
+    bytes += (fieldCount > 0 ? 1 : 0) + Buffer.byteLength(JSON.stringify(key), 'utf8') + 1;
+    bytes += await measureCacheJsonValueBytes(value);
+    fieldCount += 1;
+  }
+  bytes += (fieldCount > 0 ? 1 : 0) + Buffer.byteLength('"rows":[]', 'utf8');
+  for (let index = 0; index < rowEntries.length; index += 1) {
+    const rowBytes = rowEntries[index].rowBytes;
+    if (!Number.isSafeInteger(rowBytes) || rowBytes < 0) throw new TypeError('Invalid cached row byte count.');
+    bytes += rowBytes + (index > 0 ? 1 : 0);
+  }
+  return bytes;
+};
 
 const classifyCrossFileCacheRow = (row) => {
   const hasRelations = row?.codeRelations && typeof row.codeRelations === 'object';
@@ -358,14 +395,13 @@ export const writeCrossFileInferenceCache = async ({
     const generatedAt = new Date().toISOString();
     const normalizedStats = normalizeCacheStats(stats);
     const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
-    const baseBytes = Buffer.byteLength(JSON.stringify(withGeneratedCacheMetadata({
+    const baseBytes = await measureCrossFileCachePayloadBytes(withGeneratedCacheMetadata({
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
-      admission: null,
-      rows: []
-    }, 'cross-file-inference')), 'utf8');
+      admission: null
+    }, 'cross-file-inference'), []);
     const rowEntries = [];
     for (let index = 0; index < chunks.length; index += 1) {
       const chunk = chunks[index];
@@ -378,8 +414,7 @@ export const writeCrossFileInferenceCache = async ({
           ? chunk.docmeta
           : null
       };
-      const rowJson = JSON.stringify(row);
-      const rowBytes = Buffer.byteLength(rowJson, 'utf8');
+      const rowBytes = await measureCacheJsonValueBytes(row);
       rowEntries.push({ index, row, rowBytes });
     }
     const admissionSelection = selectCrossFileCacheRowsForAdmission({
@@ -427,9 +462,9 @@ export const writeCrossFileInferenceCache = async ({
       admission
     }, 'cross-file-inference');
     // Admission diagnostics and provenance also count toward the byte cap.
-    // The row-selection estimate intentionally stays cheap; verify final bytes
-    // before writing rather than publishing an oversized cache under a tight cap.
-    const finalBytes = Buffer.byteLength(JSON.stringify({ ...fields, rows }), 'utf8');
+    // Reuse admission's exact row byte counts; never materialize the whole cache
+    // just to enforce the final cap before the streaming write.
+    const finalBytes = await measureCrossFileCachePayloadBytes(fields, admissionSelection.retained);
     if (cacheMaxBytes > 0 && finalBytes > cacheMaxBytes) {
       if (typeof log === 'function') {
         log(`[perf] cross-file cache write skipped: final payload ${finalBytes} bytes exceeds max ${cacheMaxBytes} bytes.`);
