@@ -3,6 +3,10 @@ name: Release
 permissions:
   contents: read
 
+# Hosted validation/packaging uses the bundled CPU runtime, not CUDA extras.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 on:
   push:
     tags:

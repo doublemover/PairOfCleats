@@ -43,7 +43,15 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-PR519's published `82528215` checkpoint has fresh
+PR519 now publishes `13136005`, with local `ci-lite` 822/822 and gate 35/35.
+Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37411807912)
+stopped before tests: ONNX's supplemental Linux CUDA download from NuGet timed
+out, so Rust and all platform jobs were skipped. CPU-hosted CI/nightly/release
+workflows now use the vendor's supported supplemental-download skip setting.
+ONNX remains required; a network-forbidden installer check and real tiny CPU
+inference regression preserve that distinction. New hosted acceptance is pending.
+
+The previous `82528215` checkpoint has
 [hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):
 gate and Rust TUI pass; Ubuntu passes all 804 tests; macOS and Windows each pass
 803 with one failure and no timeouts. The prior pooled-buffer zstd hang, runtime
@@ -111,8 +119,8 @@ input/dependency or producer failure; eight focused ingest tests pass.
 Closed setup input now reports an actionable error. Search preserves its explicit
 strict-dispatch opt-in. The 33 affected option/CLI/ingestion/TUI tests pass.
 
-The integrated Linux checkpoint at `13136005` is `ci-lite` 822/822 and gate 35/35,
-with no failures, timeouts or skips. Later batches require their own checkpoint.
+Follow-on `0d3e37db` passes Linux `ci-lite` 831/831 and gate 35/35, with no failures,
+timeouts or skips (peak family RSS 988.55 MiB). Published `13136005` passed 822/35.
 Subsequent SQLite compaction metadata preservation passes six focused tests and
 19 actual compact/freeze/generation-change/live/historical checks on memory and
 SQLite. Old damaged snapshots require separate recovery. Native platform

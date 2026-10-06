@@ -3,6 +3,10 @@ name: CI
 permissions:
   contents: read
 
+# Hosted validation/packaging uses the bundled CPU runtime, not CUDA extras.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 on:
   push:
     branches: [main]
@@ -54,6 +58,7 @@ jobs:
           node tests/ci/dependency-security-contract.test.js
           node tests/ci/duplicate-scanner-contract.test.js
           node tests/ci/workflow-contract.test.js
+          node tests/ci/onnx-cpu-install-policy.test.js
           node tests/tooling/install/postinstall-patch-enforcement.test.js
           node tests/tooling/install/postinstall-rebuild-native.test.js
           node tests/tooling/install/postinstall-signal-exit.test.js

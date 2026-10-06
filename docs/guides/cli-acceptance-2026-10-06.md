@@ -66,6 +66,12 @@ mode preservation and POSIX cancellation/staging cleanup. Output and summary are
 separate publications, not a crash-atomic pair. Uncatchable termination may leave
 a temporary file. Native Windows replacement/cancellation still needs proof.
 
+The isolated follow-on checkpoint `0d3e37db` passes 831/831 `ci-lite` and 35/35
+gate tests, with zero failures, timeouts or skips. It includes staged ingestion,
+record-routing precedence, 15 audited object-cache families and strict visible
+JSON-prefix validation. Peak process-family RSS was 988.55 MiB under the unchanged
+1 GiB limit. These results do not establish native Windows/macOS acceptance.
+
 The first generated-artifact batch moves map caches outside the indexed repository
 by default and gives custom caches a portable, versioned ownership marker. Actual
 build → map → rebuild fixtures preserve authored chunk counts, including custom
