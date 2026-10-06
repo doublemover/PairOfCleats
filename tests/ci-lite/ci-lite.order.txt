@@ -803,3 +803,11 @@ lang/contracts/yaml-syntax-node-boundaries
 lang/contracts/xml-lexical-boundaries
 shared/json-stream/compression-pool-transfer
 shared/subprocess/sync-timeout-kills-child-tree
+cli/general/tooling-command-controls
+tooling/reports/parity-matrix-execution
+shared/generated-artifact-discovery
+tooling/reports/map-cache-isolation
+shared/capabilities/mcp-launch-root
+indexing/watch/default-depth
+indexing/watch/generated-cache-guard
+cli/general/signal-cleanup

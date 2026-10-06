@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-05T09:37:17.161Z",
+  "generatedAt": "2026-10-06T01:06:06.562Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2352,6 +2352,7 @@
         "src/shared/env/runtime.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
+        "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/bench/ab-sweep.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
@@ -3692,6 +3693,7 @@
         "tests/perf/bench/run.test.js",
         "tests/run.js",
         "tests/security/repository-authority.test.js",
+        "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
       ]
@@ -5027,6 +5029,12 @@
           "caps",
           "failOnWarn",
           "onlyExports"
+        ]
+      },
+      {
+        "file": "tests/shared/generated-artifact-discovery.test.js",
+        "flags": [
+          "include"
         ]
       },
       {
@@ -7009,6 +7017,17 @@
         ]
       },
       {
+        "flag": "include",
+        "count": 5,
+        "files": [
+          "src/map/build-map.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tests/shared/generated-artifact-discovery.test.js"
+        ]
+      },
+      {
         "flag": "iterations",
         "count": 5,
         "files": [
@@ -7110,16 +7129,6 @@
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/token-uri-encode.js"
-        ]
-      },
-      {
-        "flag": "include",
-        "count": 4,
-        "files": [
-          "src/map/build-map.js",
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tests/shared/cache/contract-matrix.test.js"
         ]
       },
       {

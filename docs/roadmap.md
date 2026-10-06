@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-05
+Last audited: 2026-10-06
 Canonical for: initiative status, execution order, and remaining work
 
 PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
@@ -97,6 +97,49 @@ validation work; do not reopen archived implementation checklists.
    followed by supported TUI cancellation, repeated commands and shutdown flows.
    Exact-root authority remains required for build-capable tooling. SDK/platform,
    native-backend and interactive acceptance are unproved until executed.
+
+### CLI, Setup and Generated-Artifact Acceptance
+
+The October 6 cloud pass inventories all 58 registered CLI routes and exercises
+real commands on isolated repositories with embeddings disabled. It fixes strict
+doctor flag defaults, navigation help, runnable graph examples, application-root
+TUI build/install and MCP SDK detection, false-success parity reports, default
+watch depth and CLI parent-signal child cleanup. Parity now requires a fresh,
+structurally valid report and propagates failed children as a nonzero exit.
+Focused regressions cover each correction; controlled Cargo fixtures do not
+establish native Rust build or interactive rendering acceptance.
+The complete Linux `ci-lite` checkpoint passes 813 tests with no failures,
+timeouts or skips (Node 24.21.0, one worker, 30-second per-test deadline, 512 MiB
+Node heap, 1 GiB aggregate process-family cap). This checkpoint predates the
+separate SQLite compaction and broader generated-artifact follow-on batches.
+
+Actual API, both MCP transports and the TUI supervisor pass repeated requests,
+invalid requests and shutdown/cancellation controls. Snapshot freeze followed by
+an index generation change preserves historical memory results. Historical
+SQLite search failed with missing `metaV2_json` and requires isolated reproduction
+and a fix or explicit limitation. These
+tiny, lexical-only fixtures do not establish ANN quality, optional backend
+acceptance or complete project/platform coverage. Full benchmark measurement,
+clean dependency installation, permission/worktree cases and further repeated
+CLI/setup/TUI rounds remain open. The watch steady-state fixture waits for startup
+admission; a startup-ready race has not been ruled out. Parent-only cancellation
+proves child termination, not graceful service flushing.
+
+The first generated-artifact batch moves map caches outside the indexed repository
+by default and gives custom caches a portable, versioned ownership marker. Actual
+build → map → rebuild fixtures preserve authored chunk counts, including custom
+in-repository caches, legacy default caches and authored siblings. Discovery and
+watch inspect only candidate filenames using one contained read capped at 8 KiB;
+ordinary paths perform no marker reads. See the
+[generated-artifact contract](guides/generated-artifact-ownership.md).
+
+The exhaustive producer inventory is an implementation queue, not blanket
+exclusion authority. Continue in bounded batches: producer registry and action
+contracts; index/storage manifests; caches/runtime state; reports/editor outputs;
+then native/package/TUI/developer outputs. Useful reports remain searchable.
+Strict schemas, JSONL/array row shapes, offsets, native headers, checksums and
+snapshot hardlinks require producer-specific compatibility handling. Legacy
+unmarked custom caches and unsupported external formats are explicit exceptions.
 
 ### Ongoing Review and Release Discipline
 

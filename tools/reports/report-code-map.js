@@ -6,12 +6,13 @@ import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
+import { createMapCacheEnvelope, generatedMapCacheIdentity, readMapCacheEnvelope } from '../../src/shared/generated-artifact.js';
 import { buildCodeMap, buildNodeList, buildMapCacheKey } from '../../src/map/build-map.js';
 import { renderDot } from '../../src/map/dot-writer.js';
 import { renderSvgHtml } from '../../src/map/html-writer.js';
 import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
 import { MAP_BENCH_BUILD_OPTIONS, resolveLimit } from '../shared/map-build-options.js';
-import { getCurrentBuildInfo, getIndexDir, getRepoId, resolveRepoConfig } from '../shared/dict-utils.js';
+import { getCurrentBuildInfo, getIndexDir, getRepoCacheRoot, getRepoId, resolveRepoConfig } from '../shared/dict-utils.js';
 import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
@@ -95,8 +96,9 @@ const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode });
 const cacheKey = buildMapCacheKey({ buildId: buildInfo?.buildId || null, options: buildOptions });
 const cacheDir = argv['cache-dir']
   ? path.resolve(argv['cache-dir'])
-  : path.join(repoRoot, '.pairofcleats', 'maps', 'cache');
-const cachePath = path.join(cacheDir, `${cacheKey}.json`);
+  : path.join(getRepoCacheRoot(repoRoot, userConfig), 'maps', 'cache');
+const cacheIdentity = generatedMapCacheIdentity(cacheKey);
+const cachePath = path.join(cacheDir, cacheIdentity.fileName);
 
 const ensureDir = (targetPath) => {
   if (!targetPath) return;
@@ -109,7 +111,7 @@ const warnings = [];
 
 if (!argv.refresh && fs.existsSync(cachePath)) {
   try {
-    mapModel = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    mapModel = readMapCacheEnvelope(JSON.parse(fs.readFileSync(cachePath, 'utf8')), cacheIdentity.key);
   } catch (err) {
     warnings.push(`cache read failed: ${err?.message || err}`);
   }
@@ -119,7 +121,7 @@ if (!mapModel) {
   mapModel = await buildCodeMap({ repoRoot, indexDir, options: buildOptions });
   mapModel.root.id = getRepoId(repoRoot);
   try {
-    writeJsonFileSyncResolved(cachePath, mapModel);
+    writeJsonFileSyncResolved(cachePath, createMapCacheEnvelope(mapModel, cacheIdentity.key), { spaces: 0 });
   } catch (err) {
     warnings.push(`cache write failed: ${err?.message || err}`);
   }

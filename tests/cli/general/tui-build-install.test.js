@@ -15,6 +15,9 @@ const distDir = path.join(tempRoot, 'dist');
 const targetDir = path.join(tempRoot, 'cargo-target');
 const installRoot = path.join(tempRoot, 'install');
 const fakeCargoPath = path.join(tempRoot, 'fake-cargo.mjs');
+const launchDir = path.join(tempRoot, 'user-project');
+await fsPromises.mkdir(launchDir);
+await fsPromises.writeFile(path.join(launchDir, '.pairofcleats.json'), '{}');
 const triple = resolveHostTargetTriple({ platform: process.platform, arch: os.arch() });
 const { targets } = readTargetsManifestSync({ root });
 const target = resolveTargetForTriple(targets, triple);
@@ -57,7 +60,7 @@ const env = applyTestEnv({
 const installResult = runNode(
   [binPath, 'tui', 'install', '--target', triple, '--install-root', installRoot, '--json'],
   'pairofcleats tui install',
-  root,
+  launchDir,
   env,
   {
     stdio: 'pipe'
@@ -73,7 +76,7 @@ assert.equal(fs.existsSync(path.join(installRoot, triple, 'bin', target.artifact
 const explicitBuildResult = runNode(
   [binPath, 'tui', 'build', '--target', triple, '--smoke'],
   'pairofcleats tui build',
-  root,
+  launchDir,
   env,
   {
     stdio: 'pipe'

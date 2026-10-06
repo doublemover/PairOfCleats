@@ -2,7 +2,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { resolveToolRoot } from '../shared/dict-utils.js';
 import {
   readTargetsManifest,
   resolveHostTargetTriple,
@@ -22,7 +22,7 @@ const argv = createCli({
   }
 }).parse();
 
-const root = resolveRepoRootArg(null, process.cwd());
+const root = resolveToolRoot();
 const smoke = argv.smoke === true;
 const verifyOnly = argv['verify-manifest'] === true;
 

@@ -35,6 +35,7 @@ if (!searchLinked || !buildLinked) {
 const env = { ...process.env };
 delete env.PAIROFCLEATS_TESTING;
 delete env.PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING;
+delete env.CI;
 
 const searchResult = runNode(
   [searchLink, '--help'],

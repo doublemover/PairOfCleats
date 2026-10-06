@@ -437,6 +437,10 @@ const printUsage = () => {
 
 if (isDirectExecution(import.meta.url)) {
   const argv = process.argv.slice(2);
+  if (argv.includes('--help') || argv.includes('-h')) {
+    printUsage();
+    process.exit(0);
+  }
   const kind = readFlagValue(argv, 'kind');
   const query = readFlagValue(argv, 'symbol') || '';
   const filePath = readFlagValue(argv, 'file') || '';

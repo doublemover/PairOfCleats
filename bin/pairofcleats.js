@@ -25,7 +25,7 @@ import {
   listCommonWorkflowExamples,
   listHelpSections
 } from '../src/shared/command-registry-query.js';
-import { spawnSubprocessSync } from '../src/shared/subprocess/runner.js';
+import { spawnSubprocess } from '../src/shared/subprocess/runner.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
 import {
@@ -1059,14 +1059,31 @@ async function runScript(scriptPath, extraArgs, restArgs) {
       restArgs,
       baseEnv: process.env
     });
-  const result = spawnSubprocessSync(process.execPath, [resolved, ...extraArgs, ...restArgs], {
-    stdio: 'inherit',
-    env,
-    rejectOnNonZeroExit: false
-  });
+  let requestedSignal = null;
+  const signalHandlers = new Map();
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGBREAK']) {
+    const handler = () => { requestedSignal ||= signal; };
+    try {
+      process.once(signal, handler);
+      signalHandlers.set(signal, handler);
+    } catch {}
+  }
+  let result;
+  try {
+    // Keep the event loop available for tracked-child teardown when a supervisor
+    // signals only this CLI. Borrow the terminal session for interactive tools.
+    result = await spawnSubprocess(process.execPath, [resolved, ...extraArgs, ...restArgs], {
+      stdio: 'inherit',
+      env,
+      detached: false,
+      rejectOnNonZeroExit: false
+    });
+  } finally {
+    for (const [signal, handler] of signalHandlers) process.off(signal, handler);
+  }
   exitLikeChild({
-    status: result.exitCode,
-    signal: result.signal
+    status: requestedSignal ? null : result.exitCode,
+    signal: requestedSignal || result.signal
   });
 }
 

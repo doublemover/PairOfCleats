@@ -15,7 +15,7 @@ async function runCli() {
     options: {
       json: { type: 'boolean', default: false },
       repo: { type: 'string' },
-      strict: { type: 'boolean', default: true },
+      strict: { type: 'boolean', describe: 'Require strict checks (enabled unless --non-strict).' },
       'non-strict': { type: 'boolean', default: false }
     }
   }).parse();

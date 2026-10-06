@@ -9,8 +9,8 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 674,
-    "matrix": 106,
+    "hero": 681,
+    "matrix": 107,
     "meta": 24,
     "soak": 1,
     "heavy-runtime": 0
@@ -4843,6 +4843,54 @@
     {
       "id": "shared/subprocess/sync-timeout-kills-child-tree",
       "order": 805,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/tooling-command-controls",
+      "order": 806,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/parity-matrix-execution",
+      "order": 807,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "shared/generated-artifact-discovery",
+      "order": 808,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/map-cache-isolation",
+      "order": 809,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/capabilities/mcp-launch-root",
+      "order": 810,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/default-depth",
+      "order": 811,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/generated-cache-guard",
+      "order": 812,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/signal-cleanup",
+      "order": 813,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

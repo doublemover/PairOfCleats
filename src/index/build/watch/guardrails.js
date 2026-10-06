@@ -17,6 +17,7 @@ export const resolveMaxFilesCap = (maxFiles) => {
 };
 
 export const resolveMaxDepthCap = (maxDepth) => {
+  if (maxDepth == null) return null;
   const cap = Number(maxDepth);
   return Number.isFinite(cap) && cap >= 0 ? Math.floor(cap) : null;
 };

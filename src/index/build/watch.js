@@ -23,6 +23,7 @@ import {
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
 import { coerceAbortSignal } from '../../shared/abort.js';
+import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
@@ -296,6 +297,11 @@ export async function watchIndex({
       const changed = await updateTrackedEntry(absPath);
       const afterTracked = trackedCounts.get(absPath) || 0;
       if (beforeTracked > 0 || afterTracked > 0 || changed) scheduleBuild();
+      else if (!pendingUpdates.has(absPath)) {
+        pendingPaths.delete(absPath);
+        setWatchBacklog(pendingPaths.size);
+        emitWatchState();
+      }
     };
     if (!updateQueue) {
       const fallbackConcurrency = Number.isFinite(Number(runtimeRef.ioConcurrency))
@@ -466,6 +472,14 @@ export async function watchIndex({
     }
     if (stat.isSymbolicLink()) {
       return { skip: true, reason: 'symlink' };
+    }
+    if (stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
+      const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
+      if (artifact?.action === 'omit') {
+        return { skip: true, reason: 'generated-artifact', extra: {
+          artifactKind: artifact.kind, artifactFormat: artifact.format, artifactFlags: artifact.flags, action: artifact.action
+        } };
+      }
     }
     let language = getLanguageForFile(ext, relPosix);
     if (!ext && !language && stat.isFile()) {
@@ -933,6 +947,10 @@ export async function watchIndex({
     if (before > 0) {
       removeEntryFromModes(absPath);
       scheduleBuild();
+    } else {
+      pendingPaths.delete(absPath);
+      setWatchBacklog(pendingPaths.size);
+      emitWatchState();
     }
   };
 

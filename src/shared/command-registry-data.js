@@ -319,7 +319,7 @@ export const COMMAND_REGISTRY = Object.freeze([
   }),
   entry('context-pack', ['context-pack'], 'tools/analysis/context-pack.js', 'Build a composite context pack for a seed.', {
     helpGroup: 'Graph',
-    helpExamples: ['pairofcleats context-pack --repo . --seed path:src/index.js']
+    helpExamples: ['pairofcleats context-pack --repo . --seed file:src/index.js --hops 1']
   }),
   entry('api-contracts', ['api-contracts'], 'tools/api/contracts.js', 'Report cross-file API contracts.', {
     helpGroup: 'Graph'
@@ -332,7 +332,7 @@ export const COMMAND_REGISTRY = Object.freeze([
   }),
   entry('impact', ['impact'], 'tools/analysis/impact.js', 'Analyze change impact over the graph.', {
     helpGroup: 'Graph',
-    helpExamples: ['pairofcleats impact --repo . --changed src/index.js']
+    helpExamples: ['pairofcleats impact --repo . --changed src/index.js --depth 2 --direction both']
   }),
   entry('risk.explain', ['risk', 'explain'], 'tools/analysis/explain-risk.js', 'Explain interprocedural risk flows.', {
     helpGroup: 'Risk',

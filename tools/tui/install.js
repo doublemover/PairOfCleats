@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
-import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { resolveToolRoot } from '../shared/dict-utils.js';
 import {
   TUI_INSTALL_LAYOUT_VERSION,
   ensureExecutableModeSync,
@@ -31,7 +31,7 @@ const argv = createCli({
   }
 }).parse();
 
-const root = resolveRepoRootArg(null, process.cwd());
+const root = resolveToolRoot();
 
 const resolveEventLogDir = ({ layout }) => {
   if (argv['event-log-dir']) {

@@ -13,6 +13,7 @@ import { getLanguageForFile } from '../language-registry.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { createRecordsClassifier } from './records.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { pickMinLimit, resolveFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
@@ -315,6 +316,14 @@ export async function discoverEntries({
       if (stat.isSymbolicLink()) {
         recordSkip(absPath, 'symlink');
         return;
+      }
+      if (stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
+        const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
+        if (artifact?.action === 'omit') {
+          recordSkip(absPath, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,
+            artifactFlags: artifact.flags, action: artifact.action });
+          return;
+        }
       }
       let language = getLanguageForFile(ext, relPosix);
       if (!ext && !language && stat.isFile()) {
