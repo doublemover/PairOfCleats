@@ -34,14 +34,29 @@ export class SimpleMinHash {
    * @param {string} token
    */
   update(token) {
+    // h(seed, token) = seed * 31^length + h(0, token), modulo 2^32.
+    // Keep custom hash implementations and non-string inputs on the public path.
+    const factorable = typeof token === 'string' && this.hash === DEFAULT_TOKEN_HASH;
+    let multiplier = 1;
+    let polynomial = 0;
+    if (factorable && this.seeds.length) {
+      for (let i = 0; i < token.length; i += 1) {
+        multiplier = Math.imul(multiplier, 31) >>> 0;
+        polynomial = (Math.imul(polynomial, 31) + token.charCodeAt(i)) >>> 0;
+      }
+    }
     this.seeds.forEach((seed, i) => {
-      const hv = this.hash(token, seed);
+      const hv = factorable && Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff
+        ? (Math.imul(seed, multiplier) + polynomial) >>> 0
+        : this.hash(token, seed);
       if (hv < this.hashValues[i]) {
         this.hashValues[i] = hv;
       }
     });
   }
 }
+
+const DEFAULT_TOKEN_HASH = SimpleMinHash.prototype.hash;
 
 const clampPositiveInt = (value, fallback = 0) => {
   const parsed = Number(value);

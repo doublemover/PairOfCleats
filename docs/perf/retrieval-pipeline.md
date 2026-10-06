@@ -27,6 +27,19 @@ compose results (fusion + ranking). The `slack` is bounded to keep memory usage 
 Candidate sets and score buffers use small pools to avoid repeated allocations inside a single query.
 Pools are capped and drop oversized buffers to avoid unbounded growth.
 
+Score-buffer fallback growth is geometric and stays within the configured
+retention ceiling while the requested size fits. The main search pipeline
+already supplies a capacity hint; fallback growth is an API safety improvement,
+not evidence of a normal-query latency gain. Reset and release clear only the
+previous active prefix's nonnumeric references, including oversized drops.
+Released buffers have no active lease and duplicate release cannot pool one
+buffer twice. Retained output objects must be independent of borrowed entry views.
+
+Top-K comparators use primitive ID/type values and selector locals, avoiding
+temporary comparison records while retaining numeric-before-string ordering,
+string coercion, selector evaluation order and stable source-rank ties. No timing
+gain is implied by this source-level allocation reduction.
+
 ## ANN Fallbacks
 
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for

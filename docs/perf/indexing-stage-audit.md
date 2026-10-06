@@ -51,6 +51,12 @@ Use these reports to prioritize optimization work before implementing algorithmi
 
 ## Stage1 Memory Notes
 - Token sequences share the token array when no synonyms are present to reduce duplicate retention.
+- MinHash factors a token's seed-independent polynomial and power of31 once,
+  using exact32-bit arithmetic for ordinary string tokens and unsigned integer
+  seeds. Character reads follow token length rather than signature width times
+  token length. Public custom hash methods and unusual inputs retain the original
+  per-seed path; signatures, resets and sampled metadata stay compatible. This is
+  a work-count reduction, not a measured end-to-end throughput claim.
 - Field/comment tokens are only materialized when fielded/phrase/chargram sources require them.
 - Postings maps are cleared as soon as dense arrays are materialized to keep peak heap lower.
 - Token IDs are canonicalized at tokenize time (64-bit hash); chunk meta can retain packed token IDs to reduce memory pressure.
