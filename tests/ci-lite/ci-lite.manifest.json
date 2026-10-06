@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 702,
+    "hero": 703,
     "matrix": 108,
     "meta": 25,
     "soak": 1,
@@ -5029,6 +5029,12 @@
     {
       "id": "shared/generated-artifact-prefix-validation",
       "order": 836,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/runtime-admission-policy",
+      "order": 837,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
