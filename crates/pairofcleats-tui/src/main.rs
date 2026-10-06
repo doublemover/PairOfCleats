@@ -985,34 +985,46 @@ fn tail_window_slice<T: Clone>(items: &[T], scroll: usize, height: usize) -> Vec
 }
 
 fn frame_signature(model: &AppModel) -> String {
-    let last_log = model
+    // Describe rendering inputs explicitly. Runtime bookkeeping (input queues,
+    // credit counters, clocks and chunk assemblies) must not trigger idle draws.
+    let logs: Vec<_> = model
         .logs
-        .back()
-        .map(|entry| entry.text.clone())
-        .unwrap_or_default();
-    let selected = model.selected_job.clone().unwrap_or_default();
-    let last_alert = model
+        .iter()
+        .map(|entry| (&entry.text, &entry.level, &entry.source))
+        .collect();
+    let alerts: Vec<_> = model
         .alerts
-        .back()
-        .map(|alert| format!("{}:{}", alert.level, alert.message))
-        .unwrap_or_default();
-    format!(
-        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
-        model.run_id,
-        model.job_status.len(),
-        model.task_status.len(),
-        model.logs.len(),
-        selected,
-        model.focus_panel.label(),
-        model.follow_updates,
-        model.job_filter.label(),
-        model.task_filter.label(),
-        model.log_level_filter.label(),
-        model.job_scroll,
-        last_log,
-        model.session.mode,
-        last_alert
-    )
+        .iter()
+        .map(|entry| (&entry.level, &entry.message))
+        .collect();
+    json!({
+        "summaries": [session_summary_text(model, usize::MAX),
+            operator_summary_text(model, usize::MAX),
+            runtime_summary_text(model, usize::MAX),
+            workload_summary_text(model, usize::MAX),
+            footer_hint_text(model, usize::MAX)],
+        "workloadTitle": model.workload_kind.label(),
+        "jobOrder": model.job_order,
+        "jobStatus": model.job_status,
+        "jobTitles": model.job_titles,
+        "tasks": model.task_order,
+        "taskStatus": model.task_status,
+        "logs": logs,
+        "alerts": alerts,
+        "selectedJob": model.selected_job,
+        "scroll": [model.job_scroll, model.task_scroll, model.log_scroll],
+        "search": [&model.search_jobs, &model.search_tasks, &model.search_logs],
+        "searchTarget": model.search_target.label(),
+        "searchDraft": model.search_draft,
+        "paletteIndex": model.palette_index,
+        "terminal": [model.terminal_caps.color, model.terminal_caps.unicode]
+    })
+    .to_string()
+}
+
+fn invalidate_frame(model: &mut AppModel) {
+    model.last_render_signature.clear();
+    model.dirty = true;
 }
 
 fn current_search(model: &AppModel, panel: FocusPanel) -> &str {
@@ -3229,7 +3241,12 @@ fn main() -> anyhow::Result<()> {
         }
 
         if event::poll(Duration::from_millis(20))? {
-            if let CEvent::Key(key) = event::read()? {
+            let terminal_event = event::read()?;
+            if matches!(terminal_event, CEvent::Resize(_, _)) {
+                // Terminal::draw performs autoresize through the normal backend.
+                // An unchanged model still needs a new layout after SIGWINCH.
+                invalidate_frame(&mut model);
+            } else if let CEvent::Key(key) = terminal_event {
                 if key.kind == KeyEventKind::Release {
                     continue;
                 }
@@ -3336,4 +3353,133 @@ fn main() -> anyhow::Result<()> {
     save_snapshot(&snapshot_path, &model);
     let _ = supervisor.kill();
     Ok(())
+}
+
+#[cfg(test)]
+mod redraw_tests {
+    use super::*;
+
+    fn model() -> AppModel {
+        AppModel::new(
+            "redraw-test".into(),
+            TerminalCapabilities {
+                color: true,
+                unicode: true,
+                mouse: false,
+                alt_screen: true,
+            },
+            None,
+        )
+    }
+
+    fn screen(model: &AppModel, width: u16, height: u16) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        terminal.draw(|frame| render_ui(frame, model)).unwrap();
+        terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect()
+    }
+
+    #[test]
+    fn overlays_and_search_change_rendered_frames_and_signature() {
+        let mut model = model();
+        let baseline = screen(&model, 120, 40);
+        let signature = frame_signature(&model);
+        apply_local_input(&mut model, "toggle_help");
+        let help = screen(&model, 120, 40);
+        assert_ne!(help, baseline);
+        assert!(help.contains("help overlay"));
+        assert_ne!(frame_signature(&model), signature);
+        apply_local_input(&mut model, "toggle_help");
+        assert_eq!(screen(&model, 120, 40), baseline);
+        assert_eq!(frame_signature(&model), signature);
+        apply_local_input(&mut model, "toggle_palette");
+        let palette = screen(&model, 120, 40);
+        let palette_signature = frame_signature(&model);
+        assert!(palette.contains("Actions"));
+        assert_ne!(palette, baseline);
+        apply_local_input(&mut model, "palette_down");
+        assert_ne!(screen(&model, 120, 40), palette);
+        assert_ne!(frame_signature(&model), palette_signature);
+        apply_local_input(&mut model, "toggle_palette");
+        apply_local_input(&mut model, "focus_logs");
+        model.push_log("cache refresh".into());
+        model.push_log("unrelated entry".into());
+        apply_local_input(&mut model, "search_open");
+        let search = screen(&model, 120, 40);
+        let search_signature = frame_signature(&model);
+        assert!(search.contains("Type to filter"));
+        apply_local_input(&mut model, "search_type:cache");
+        assert_ne!(screen(&model, 120, 40), search);
+        assert_ne!(frame_signature(&model), search_signature);
+        apply_local_input(&mut model, "search_apply");
+        let applied = screen(&model, 120, 40);
+        assert!(applied.contains("cache refresh"));
+        assert!(!applied.contains("unrelated entry"));
+        let applied_signature = frame_signature(&model);
+        apply_local_input(&mut model, "clear_search");
+        assert!(screen(&model, 120, 40).contains("unrelated entry"));
+        assert_ne!(frame_signature(&model), applied_signature);
+    }
+
+    #[test]
+    fn every_scroll_filter_and_search_panel_invalidates_visible_state() {
+        let changes: &[fn(&mut AppModel)] = &[
+            |m| m.job_scroll += 1,
+            |m| m.task_scroll += 1,
+            |m| m.log_scroll += 1,
+            |m| m.job_filter = m.job_filter.next(),
+            |m| m.task_filter = m.task_filter.next(),
+            |m| m.log_level_filter = m.log_level_filter.next(),
+            |m| m.log_source_filter = m.log_source_filter.next(),
+            |m| m.search_jobs = "cache".into(),
+            |m| m.search_tasks = "cache".into(),
+            |m| m.search_logs = "cache".into(),
+            |m| m.search_target = FocusPanel::Logs,
+            |m| m.follow_updates = false,
+            |m| m.focus_panel = FocusPanel::Tasks,
+        ];
+        for change in changes {
+            let mut model = model();
+            let before = frame_signature(&model);
+            change(&mut model);
+            assert_ne!(frame_signature(&model), before);
+        }
+    }
+
+    #[test]
+    fn resize_invalidates_cached_frame_and_layout_returns_to_wide() {
+        let mut model = model();
+        let wide = screen(&model, 120, 40);
+        model.last_render_signature = frame_signature(&model);
+        model.dirty = false;
+        invalidate_frame(&mut model);
+        assert!(model.dirty);
+        assert!(model.last_render_signature.is_empty());
+        let narrow = screen(&model, 64, 30);
+        assert_ne!(narrow, wide);
+        assert_eq!(narrow.chars().count(), 64 * 30);
+        assert_eq!(screen(&model, 120, 40), wide);
+    }
+
+    #[test]
+    fn same_count_job_updates_redraw_but_idle_bookkeeping_does_not() {
+        let mut model = model();
+        model.job_order.push_back("job-1".into());
+        model.job_status.insert("job-1".into(), "running".into());
+        let running = frame_signature(&model);
+        model.job_status.insert("job-1".into(), "cancelled".into());
+        assert_ne!(frame_signature(&model), running);
+        assert!(screen(&model, 120, 40).contains("cancelled"));
+        let idle = frame_signature(&model);
+        model.flow_credit_pending += 1;
+        model.next_input_seq += 1;
+        model.last_metrics_emit = Instant::now();
+        model.dirty = true;
+        assert_eq!(frame_signature(&model), idle);
+    }
 }
