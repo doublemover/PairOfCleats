@@ -828,3 +828,4 @@ indexing/artifacts/runtime-cache-metadata-roundtrip
 indexing/type-inference/crossfile/cache-serialized-size-parity
 indexing/discovery/owned-object-cache
 tooling/reports/object-cache-isolation
+shared/generated-artifact-prefix-validation
