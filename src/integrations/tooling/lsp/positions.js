@@ -43,10 +43,11 @@ const convertLineCharacterToOffset = ({ text, start, end, character, encoding })
     const codePoint = text.codePointAt(current);
     if (codePoint == null) break;
     const codeUnitLength = codePoint > 0xFFFF ? 2 : 1;
-    const slice = text.slice(current, current + codeUnitLength);
     const unitWidth = encoding === 'utf-32'
       ? 1
-      : Buffer.byteLength(slice, 'utf8');
+      // Lone surrogates encode as the three-byte replacement character, just
+      // like other BMP code points in this branch. No temporary slice needed.
+      : (codePoint <= 0x7F ? 1 : codePoint <= 0x7FF ? 2 : codePoint <= 0xFFFF ? 3 : 4);
     if ((consumed + unitWidth) > targetUnits) break;
     consumed += unitWidth;
     current += codeUnitLength;

@@ -18,3 +18,13 @@ Current checkpoint:
 
 Bench harness:
 - `node tools/bench/bench-runner.js --suite sweet16-ci --json .testLogs/bench-sweet16.json --quiet`
+
+### LSP coordinate width conversion
+
+UTF-8 and UTF-32 position conversion derives each visited code point's width
+without creating a temporary substring. UTF-8 widths include the three-byte
+replacement encoding for lone surrogates; UTF-16 positions, line terminator
+clamping and source-coordinate ownership remain unchanged. Differential fixtures
+cover supplementary characters, isolated surrogates, CRLF and partial UTF-8
+character positions. This is an operation/allocation improvement only; no timing
+claim or shared cross-document coordinate cache is introduced.
