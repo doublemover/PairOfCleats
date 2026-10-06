@@ -1,40 +1,53 @@
 import { buildReverseAdjacencyCsr } from '../indexes.js';
 import { compareStrings } from '../../shared/sort.js';
 
-const mergeSortedUniqueStrings = (left, right) => {
-  const out = [];
-  let i = 0;
-  let j = 0;
+function* mergeSortedUniqueStrings(left, right) {
+  const leftIterator = left[Symbol.iterator]();
+  const rightIterator = right[Symbol.iterator]();
+  let a = leftIterator.next();
+  let b = rightIterator.next();
+  // Preserve the one-sided resolver contract as well as the merged ordering.
+  if (a.done) {
+    if (!b.done) yield b.value;
+    yield* rightIterator;
+    return;
+  }
+  if (b.done) {
+    yield a.value;
+    yield* leftIterator;
+    return;
+  }
   let last = null;
-  while (i < left.length || j < right.length) {
-    const pickLeft = j >= right.length
-      || (i < left.length && compareStrings(left[i], right[j]) <= 0);
-    const value = pickLeft ? left[i++] : right[j++];
+  while (!a.done || !b.done) {
+    const pickLeft = b.done || (!a.done && compareStrings(a.value, b.value) <= 0);
+    const value = pickLeft ? a.value : b.value;
+    if (pickLeft) a = leftIterator.next();
+    else b = rightIterator.next();
     if (!value || value === last) continue;
-    out.push(value);
+    yield value;
     last = value;
   }
-  return out;
-};
+}
 
-export const collectCsrNeighborIds = ({ ids, offsets, edges, nodeIndex }) => {
-  if (!Array.isArray(ids)) return [];
-  if (!(offsets instanceof Uint32Array) || !(edges instanceof Uint32Array)) return [];
-  if (!Number.isFinite(nodeIndex) || nodeIndex < 0 || nodeIndex + 1 >= offsets.length) return [];
+/** Borrow the immutable CSR row for the duration of synchronous traversal. */
+export function* iterateCsrNeighborIds({ ids, offsets, edges, nodeIndex }) {
+  if (!Array.isArray(ids)) return;
+  if (!(offsets instanceof Uint32Array) || !(edges instanceof Uint32Array)) return;
+  if (!Number.isFinite(nodeIndex) || nodeIndex < 0 || nodeIndex + 1 >= offsets.length) return;
   const start = offsets[nodeIndex];
   const end = offsets[nodeIndex + 1];
-  if (end <= start) return [];
-  const neighbors = [];
+  if (end <= start) return;
   let prev = null;
   for (let idx = start; idx < end; idx += 1) {
     const neighborIndex = edges[idx];
     if (prev != null && neighborIndex === prev) continue;
     prev = neighborIndex;
     const neighborId = ids[neighborIndex];
-    if (neighborId) neighbors.push(neighborId);
+    if (neighborId) yield neighborId;
   }
-  return neighbors;
-};
+}
+
+export const collectCsrNeighborIds = (input) => Array.from(iterateCsrNeighborIds(input));
 
 export const normalizeNeighborList = (neighbors, normalizeNeighborId) => {
   if (!normalizeNeighborId) return neighbors;
@@ -48,7 +61,7 @@ export const normalizeNeighborList = (neighbors, normalizeNeighborId) => {
   return list;
 };
 
-export const createCsrNeighborResolver = ({ graphIndex }) => {
+export const createCsrNeighborIterator = ({ graphIndex }) => {
   const ensureReverseCsr = (graphName) => {
     if (!graphIndex?.graphRelationsCsr || !graphName) return null;
     const forward = graphIndex.graphRelationsCsr[graphName];
@@ -74,13 +87,13 @@ export const createCsrNeighborResolver = ({ graphIndex }) => {
     const nodeIndex = idTable?.idToIndex?.get(nodeId);
     if (nodeIndex == null) return [];
     if (dir === 'out') {
-      const out = collectCsrNeighborIds({ ...graph, nodeIndex });
+      const out = iterateCsrNeighborIds({ ...graph, nodeIndex });
       return normalizeNeighborList(out, normalizeNeighborId);
     }
     if (dir === 'in') {
       const reverse = ensureReverseCsr(graphName);
       if (!reverse) return [];
-      const incoming = collectCsrNeighborIds({
+      const incoming = iterateCsrNeighborIds({
         ids: graph.ids,
         offsets: reverse.offsets,
         edges: reverse.edges,
@@ -90,10 +103,17 @@ export const createCsrNeighborResolver = ({ graphIndex }) => {
     }
     const out = resolveCsrNeighbors(graphName, nodeId, 'out', normalizeNeighborId) || [];
     const incoming = resolveCsrNeighbors(graphName, nodeId, 'in', normalizeNeighborId) || [];
-    if (!out.length) return incoming;
-    if (!incoming.length) return out;
     return mergeSortedUniqueStrings(out, incoming);
   };
 
   return resolveCsrNeighbors;
+};
+
+/** Keep the materialized resolver contract for callers that need an array. */
+export const createCsrNeighborResolver = (options) => {
+  const iterate = createCsrNeighborIterator(options);
+  return (...args) => {
+    const neighbors = iterate(...args);
+    return neighbors === null ? null : Array.from(neighbors);
+  };
 };

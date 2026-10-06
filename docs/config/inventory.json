@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T18:37:38.917Z",
+  "generatedAt": "2026-10-06T21:54:48.512Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -2673,6 +2673,7 @@
       "name": "PAIROFCLEATS_FILE_CACHE_MAX",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/shared/cache/lru-dual-cap.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3287,6 +3288,7 @@
       "name": "PAIROFCLEATS_SUMMARY_CACHE_MAX",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/shared/cache/lru-dual-cap.test.js",
         "tools/config/inventory.js"
       ]
     },
