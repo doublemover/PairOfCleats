@@ -6,6 +6,7 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { describeCommandRegistryEntry } from '../../../src/shared/command-registry-query.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const root = process.cwd();
 const bin = path.join(root, 'bin', 'pairofcleats.js');
@@ -28,7 +29,7 @@ try {
     const result = run(['tooling', 'doctor', '--repo', repo, '--json', ...flags]);
     assert.equal(result.status, 0, `doctor ${flags.join(' ')}: ${result.stderr}`);
     const report = JSON.parse(result.stdout);
-    assert.equal(report.repoRoot, repo);
+    assert.equal(report.repoRoot, toRealPathSync(repo));
     assert.ok(Array.isArray(report.providers));
     assert.deepEqual(report.providers.filter(provider => provider.enabled).map(provider => provider.id), ['typescript']);
   }
