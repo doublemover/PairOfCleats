@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T16:50:26.023Z",
+  "generatedAt": "2026-10-06T18:37:38.917Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3479,7 +3479,6 @@
       "files": [
         "tests/helpers/test-env.js",
         "tests/run.js",
-        "tests/tooling/sublime/package-harness.test.js",
         "tools/config/inventory.js"
       ]
     },
