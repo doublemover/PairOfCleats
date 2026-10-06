@@ -1,3 +1,4 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import path from 'node:path';
 
 import { writeJsonLinesSharded } from '../../../shared/json-stream/jsonl-sharded.js';
@@ -356,7 +357,7 @@ export const createArtifactWriter = ({
         }));
         const metaPath = path.join(outDir, `${base}.meta.json`);
         await writeJsonObjectFile(metaPath, {
-          fields: {
+          fields: withGeneratedArtifactMetadata({
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
             artifact: base,
             format: 'jsonl-sharded',
@@ -374,7 +375,7 @@ export const createArtifactWriter = ({
               ...(predictedSerializeMs > 0 ? { predictedSerializeMs } : {}),
               ...(preallocatePartBytes > 0 ? { preallocatePartBytes } : {})
             }
-          },
+          }, 'sharded-meta', base),
           checksumAlgo: 'sha1',
           atomic: true
         });

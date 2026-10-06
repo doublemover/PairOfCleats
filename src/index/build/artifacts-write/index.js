@@ -5,6 +5,7 @@ import { coerceAbortSignal } from '../../../shared/abort.js';
 import { log, logLine, showProgress } from '../../../shared/progress-runtime.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../shared/artifact-io/json.js';
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import { loadJsonArrayArtifact } from '../../../shared/artifact-io/loaders/core.js';
 import { resolveArtifactCompressionTier } from '../../../shared/artifact-io/compression.js';
 import { toPosix } from '../../../shared/file-paths.js';
@@ -930,6 +931,8 @@ export async function writeIndexArtifacts(input) {
     const indexStatePath = path.join(outDir, 'index_state.json');
     const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
     const determinismReportPath = path.join(outDir, 'determinism_report.json');
+    const markedIndexState = withGeneratedArtifactMetadata(indexState, 'index-state');
+    indexState.extensions = markedIndexState.extensions;
     const stableState = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
     const stableHash = sha1(stableStringifyForSignature(stableState));
     const determinismReport = buildDeterminismReport({
@@ -959,12 +962,12 @@ export async function writeIndexArtifacts(input) {
      */
     const writeIndexStateMeta = async (bytes) => {
       await writeJsonObjectFile(indexStateMetaPath, {
-        fields: {
+        fields: withGeneratedArtifactMetadata({
           stableHash,
           generatedAt: indexState.generatedAt || null,
           updatedAt: new Date().toISOString(),
           bytes: Number.isFinite(bytes) ? bytes : null
-        },
+        }, 'index-state-meta'),
         atomic: true
       });
     };
@@ -987,7 +990,7 @@ export async function writeIndexArtifacts(input) {
       enqueueWrite(
         formatArtifactLabel(indexStatePath),
         async () => {
-          await writeJsonObjectFile(indexStatePath, { fields: indexState, atomic: true });
+          await writeJsonObjectFile(indexStatePath, { fields: markedIndexState, atomic: true });
           let bytes = null;
           try {
             const stat = await fs.stat(indexStatePath);
@@ -1004,7 +1007,7 @@ export async function writeIndexArtifacts(input) {
               `index_state.${compressionMode === 'zstd' ? 'json.zst' : 'json.gz'}`
             );
             await writeJsonObjectFile(compressedPath, {
-              fields: indexState,
+              fields: markedIndexState,
               compression: compressionMode,
               gzipOptions: compressionGzipOptions,
               atomic: true
@@ -1274,7 +1277,7 @@ export async function writeIndexArtifacts(input) {
           const payload = buildFileMetaColumnar(fileMeta);
           await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
           await writeJsonObjectFile(fileMetaMetaPath, {
-            fields: {
+            fields: withGeneratedArtifactMetadata({
               schemaVersion: '1.0.0',
               artifact: 'file_meta',
               format: 'columnar',
@@ -1291,7 +1294,7 @@ export async function writeIndexArtifacts(input) {
                 fingerprint: fileMetaFingerprint || null,
                 cacheKey: fileMetaCacheKey || null
               }
-            },
+            }, 'file-meta', 'file_meta'),
             atomic: true
           });
         },
@@ -1330,7 +1333,7 @@ export async function writeIndexArtifacts(input) {
         formatArtifactLabel(fileMetaMetaPath),
         async () => {
           await writeJsonObjectFile(fileMetaMetaPath, {
-            fields: {
+            fields: withGeneratedArtifactMetadata({
               schemaVersion: '1.0.0',
               artifact: 'file_meta',
               format: 'json',
@@ -1347,7 +1350,7 @@ export async function writeIndexArtifacts(input) {
                 fingerprint: fileMetaFingerprint || null,
                 cacheKey: fileMetaCacheKey || null
               }
-            },
+            }, 'file-meta', 'file_meta'),
             atomic: true
           });
         }

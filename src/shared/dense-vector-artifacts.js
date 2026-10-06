@@ -1,3 +1,4 @@
+import { withGeneratedArtifactMetadata } from './generated-artifact-core.js';
 import path from 'node:path';
 import { writeJsonLinesSharded } from './json-stream/jsonl-sharded.js';
 import { writeJsonObjectFile } from './json-stream/json-writers.js';
@@ -62,7 +63,7 @@ export const writeDenseVectorArtifacts = async ({
   }));
   const metaPath = path.join(indexDir, `${baseName}.meta.json`);
   await writeJsonObjectFile(metaPath, {
-    fields: {
+    fields: withGeneratedArtifactMetadata({
       schemaVersion: '1.0.0',
       artifact: baseName,
       format: 'jsonl-sharded',
@@ -76,7 +77,7 @@ export const writeDenseVectorArtifacts = async ({
       parts,
       offsets: sharded.offsets || [],
       ...vectorFields
-    },
+    }, 'dense-vector-meta', baseName),
     atomic: true
   });
   let binPath = null;

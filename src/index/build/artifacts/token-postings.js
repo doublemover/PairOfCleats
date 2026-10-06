@@ -1,3 +1,4 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
@@ -276,7 +277,7 @@ export async function enqueueTokenPostingsArtifacts({
         await fs.rename(tempDir, shardsDir);
         await removePathOrThrow(backupDir, { recursive: true });
         await writeJsonObjectFile(metaPath, {
-          fields: {
+          fields: withGeneratedArtifactMetadata({
             avgDocLen: postings.avgDocLen,
             totalDocs: state.docLengths.length,
             format: 'sharded',
@@ -285,7 +286,7 @@ export async function enqueueTokenPostingsArtifacts({
             parts,
             compression: tokenPostingsCompression || null,
             ...(tokenIdMeta ? { extensions: { tokenId: tokenIdMeta } } : {})
-          },
+          }, 'token-postings-meta'),
           arrays: {
             docLengths: state.docLengths
           },

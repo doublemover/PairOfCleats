@@ -5,6 +5,7 @@ import { MAX_JSON_BYTES } from './artifact-io/constants.js';
 import { readJsonFile } from './artifact-io/json.js';
 import { writeJsonObjectFile } from './json-stream/json-writers.js';
 import { checksumFile } from './hash.js';
+import { isGeneratedArtifactMetadata, withGeneratedArtifactMetadata } from './generated-artifact-core.js';
 
 /**
  * Update the index_state entry in the manifest with fresh size/checksum metadata.
@@ -45,6 +46,7 @@ export const updateIndexStateManifest = async (indexDir) => {
     current.path === 'index_state.json'
     && Number(current.bytes) === Number(bytes)
     && String(current.checksum || '') === String(nextChecksum || '')
+    && isGeneratedArtifactMetadata(manifest.extensions?.__poc_generated, 'pieces-manifest')
   ) {
     return;
   }
@@ -56,11 +58,11 @@ export const updateIndexStateManifest = async (indexDir) => {
     bytes,
     checksum: nextChecksum || current.checksum || null
   };
-  const next = {
+  const next = withGeneratedArtifactMetadata({
     ...manifest,
     updatedAt: new Date().toISOString(),
     pieces
-  };
+  }, 'pieces-manifest');
   try {
     await writeJsonObjectFile(manifestPath, { fields: next, atomic: true });
   } catch {

@@ -8,6 +8,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../../src/shared/hash.js';
 import { fromPosix } from '../../../src/shared/file-paths.js';
+import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 
 /**
  * Update pieces manifest with embedding artifacts for a given mode.
@@ -153,7 +154,8 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     });
   }
   const now = new Date().toISOString();
-  const manifest = {
+  const manifest = withGeneratedArtifactMetadata({
+    extensions: existing.extensions,
     version: existing.version || 2,
     artifactSurfaceVersion: existing.artifactSurfaceVersion || ARTIFACT_SURFACE_VERSION,
     compatibilityKey: existing.compatibilityKey ?? null,
@@ -164,7 +166,7 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     repoId: existing.repoId ?? null,
     buildId: existing.buildId ?? null,
     pieces: [...retained, ...enriched]
-  };
+  }, 'pieces-manifest');
   await fs.mkdir(piecesDir, { recursive: true });
   await writeJsonObjectFile(manifestPath, { fields: manifest, atomic: true });
 };

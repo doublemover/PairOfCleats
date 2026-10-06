@@ -7,6 +7,7 @@ import { checksumFile } from '../../../shared/hash.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { fromPosix } from '../../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 
 export const writePiecesManifest = async ({
   pieceEntries,
@@ -80,7 +81,7 @@ export const writePiecesManifest = async ({
     }
   );
   await writeJsonObjectFile(manifestPath, {
-    fields: {
+    fields: withGeneratedArtifactMetadata({
       version: 2,
       artifactSurfaceVersion: indexState?.artifactSurfaceVersion || ARTIFACT_SURFACE_VERSION,
       compatibilityKey: indexState?.compatibilityKey || null,
@@ -90,7 +91,7 @@ export const writePiecesManifest = async ({
       repoId: indexState?.repoId || null,
       buildId: indexState?.buildId || null,
       pieces: normalizedEntries
-    },
+    }, 'pieces-manifest'),
     atomic: true
   });
   log(`→ Wrote pieces manifest (${normalizedEntries.length} entries).`, {

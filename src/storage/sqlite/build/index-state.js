@@ -5,6 +5,7 @@ import { readJson } from '../utils.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../../shared/index-state-utils.js';
 import { getIndexDir } from '../../../shared/dict-utils.js';
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 
 export const updateSqliteState = async (indexDirOrOptions, patch = null) => {
   let indexDir = indexDirOrOptions;
@@ -45,7 +46,10 @@ export const updateSqliteState = async (indexDirOrOptions, patch = null) => {
     updatedAt: now
   };
   try {
-    await writeJsonObjectFile(statePath, { fields: state, atomic: true });
+    await writeJsonObjectFile(statePath, {
+      fields: withGeneratedArtifactMetadata(state, 'index-state'),
+      atomic: true
+    });
   } catch {
     // Ignore index state write failures.
   }

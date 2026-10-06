@@ -13,6 +13,7 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { assertArtifactPublicationReady } from './artifact-publication.js';
+import { withGeneratedArtifactMetadata } from '../../shared/generated-artifact-core.js';
 
 const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 
@@ -46,6 +47,7 @@ export async function promoteBuild({
   };
   const currentPath = path.join(buildsRoot, 'current.json');
   let priorRoots = {};
+  let priorExtensions = null;
   if (fsSync.existsSync(currentPath)) {
     let currentReadError = null;
     const current = await readJsonFileSafe(currentPath, {
@@ -67,6 +69,9 @@ export async function promoteBuild({
       });
     }
     if (current && typeof current === 'object') {
+      if (current.extensions && typeof current.extensions === 'object' && !Array.isArray(current.extensions)) {
+        priorExtensions = current.extensions;
+      }
       if (current.buildRootsByMode && typeof current.buildRootsByMode === 'object' && !Array.isArray(current.buildRootsByMode)) {
         for (const [mode, value] of Object.entries(current.buildRootsByMode)) {
           const normalized = normalizeRelativeRoot(value);
@@ -97,7 +102,8 @@ export async function promoteBuild({
   for (const mode of promotedModes) {
     buildRootsByMode[mode] = relativeRoot;
   }
-  const payload = {
+  const payload = withGeneratedArtifactMetadata({
+    extensions: priorExtensions,
     buildId,
     buildRoot: relativeRoot,
     buildRootsByMode: Object.keys(buildRootsByMode).length ? buildRootsByMode : null,
@@ -109,7 +115,7 @@ export async function promoteBuild({
     compatibilityKey,
     tool: { version: getToolVersion() },
     repo: repoProvenance || null
-  };
+  }, 'builds-current');
   await fs.mkdir(buildsRoot, { recursive: true });
   await atomicWriteJson(currentPath, payload, { spaces: 0 });
   log('[build] updated current.json', {

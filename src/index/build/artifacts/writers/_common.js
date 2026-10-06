@@ -3,6 +3,7 @@ import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../../contracts/version
 import { resolveJsonlExtension } from '../../../../shared/json-stream/jsonl-write.js';
 import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
 import { removePathWithRetry } from '../../../../shared/io/remove-path-with-retry.js';
+import { withGeneratedArtifactMetadata } from '../../../../shared/generated-artifact-core.js';
 export { resolveJsonlExtension };
 
 export const resolveJsonExtension = (value) => {
@@ -65,7 +66,7 @@ export const buildShardedJsonlMetaFields = ({
   parts = [],
   extensions = undefined,
   extraFields = null
-} = {}) => ({
+} = {}) => withGeneratedArtifactMetadata({
   schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
   artifact,
   format: 'jsonl-sharded',
@@ -76,10 +77,10 @@ export const buildShardedJsonlMetaFields = ({
   maxPartRecords: result?.maxPartRecords ?? 0,
   maxPartBytes: result?.maxPartBytes ?? 0,
   targetMaxBytes: result?.targetMaxBytes ?? null,
-  ...(extensions ? { extensions } : {}),
   ...(extraFields && typeof extraFields === 'object' ? extraFields : {}),
+  extensions: { ...(extensions || {}), ...(extraFields?.extensions || {}) },
   parts
-});
+}, 'sharded-meta', artifact);
 
 export const writeShardedJsonlMeta = async ({
   metaPath,

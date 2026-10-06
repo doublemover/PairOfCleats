@@ -19,6 +19,7 @@ import {
 import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
+import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
@@ -142,6 +143,7 @@ const updateLmdbState = async (indexDir, patch) => {
     ...patch,
     updatedAt: now
   };
+  state = withGeneratedArtifactMetadata(state, 'index-state');
   try {
     await writeJsonObjectFile(statePath, { fields: state, atomic: true });
   } catch {

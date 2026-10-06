@@ -1,3 +1,4 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -498,7 +499,7 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
           const payload = buildFileMetaColumnar(fileMeta);
           await writeJsonObjectFile(columnarPath, { fields: payload, atomic: true });
           await writeJsonObjectFile(fileMetaMetaPath, {
-            fields: {
+            fields: withGeneratedArtifactMetadata({
               schemaVersion: '1.0.0',
               artifact: 'file_meta',
               format: 'columnar',
@@ -515,7 +516,7 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
                 fingerprint: fileMetaFingerprint || null,
                 cacheKey: fileMetaCacheKey || null
               }
-            },
+            }, 'file-meta', 'file_meta'),
             atomic: true
           });
         },
@@ -554,7 +555,7 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
         formatArtifactLabel(fileMetaMetaPath),
         async () => {
           await writeJsonObjectFile(fileMetaMetaPath, {
-            fields: {
+            fields: withGeneratedArtifactMetadata({
               schemaVersion: '1.0.0',
               artifact: 'file_meta',
               format: 'json',
@@ -571,7 +572,7 @@ export const enqueueArtifactFamilyWrites = async (context = {}) => {
                 fingerprint: fileMetaFingerprint || null,
                 cacheKey: fileMetaCacheKey || null
               }
-            },
+            }, 'file-meta', 'file_meta'),
             atomic: true
           });
         }

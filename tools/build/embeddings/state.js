@@ -4,6 +4,7 @@ import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { updateIndexStateManifest } from '../../../src/shared/index-state-utils.js';
+import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 
 /**
  * Load `index_state.json` defensively for embeddings updates.
@@ -26,7 +27,10 @@ export const loadIndexState = (statePath) => {
  * @returns {Promise<void>}
  */
 export const writeIndexState = async (statePath, state) => {
-  await writeJsonObjectFile(statePath, { fields: state, atomic: true });
+  await writeJsonObjectFile(statePath, {
+    fields: withGeneratedArtifactMetadata(state, 'index-state'),
+    atomic: true
+  });
   const indexDir = statePath ? path.dirname(statePath) : null;
   if (!indexDir) return;
   await updateIndexStateManifest(indexDir);

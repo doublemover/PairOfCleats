@@ -47,6 +47,13 @@ try {
   const current = JSON.parse(await fs.readFile(path.join(buildsRoot, 'current.json'), 'utf8'));
   assert.equal(current.buildId, 'build-a');
   assert.equal(current.stage, 'stage2');
+  assert.equal(current.extensions.__poc_generated.kind, 'builds-current');
+  assert.equal(Object.keys(current)[0], 'extensions');
+  current.extensions.caller = { preserved: true };
+  await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify(current));
+  await promoteBuild({ repoRoot, userConfig, buildId: 'build-a', buildRoot, stage: 'stage2', modes: ['code'] });
+  const next = JSON.parse(await fs.readFile(path.join(buildsRoot, 'current.json'), 'utf8'));
+  assert.deepEqual(next.extensions.caller, { preserved: true });
 
   console.log('promotion requires publication test passed');
 } finally {
