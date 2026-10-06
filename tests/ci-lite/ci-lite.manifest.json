@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 690,
+    "hero": 691,
     "matrix": 108,
     "meta": 24,
     "soak": 1,
@@ -4951,6 +4951,12 @@
     {
       "id": "tooling/ingest/output-preservation",
       "order": 823,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/discovery/generated-records-precedence",
+      "order": 824,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -473,14 +473,6 @@ export async function watchIndex({
     if (stat.isSymbolicLink()) {
       return { skip: true, reason: 'symlink' };
     }
-    if (stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
-      const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
-      if (artifact?.action === 'omit') {
-        return { skip: true, reason: 'generated-artifact', extra: {
-          artifactKind: artifact.kind, artifactFormat: artifact.format, artifactFlags: artifact.flags, action: artifact.action
-        } };
-      }
-    }
     let language = getLanguageForFile(ext, relPosix);
     if (!ext && !language && stat.isFile()) {
       const shebang = await detectShebangLanguage(absPath);
@@ -516,6 +508,14 @@ export async function watchIndex({
     }
     // Preserve records routing even when generated-policy heuristics match.
     if (!record) {
+      if (stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
+        const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
+        if (artifact?.action === 'omit') {
+          return { skip: true, reason: 'generated-artifact', extra: {
+            artifactKind: artifact.kind, artifactFormat: artifact.format, artifactFlags: artifact.flags, action: artifact.action
+          } };
+        }
+      }
       const generatedPolicyDecision = resolveGeneratedPolicyDecision({
         generatedPolicy,
         relPath: relPosix,
