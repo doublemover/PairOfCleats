@@ -1000,9 +1000,14 @@ fn frame_signature(model: &AppModel) -> String {
     json!({
         "summaries": [session_summary_text(model, usize::MAX),
             operator_summary_text(model, usize::MAX),
-            runtime_summary_text(model, usize::MAX),
             workload_summary_text(model, usize::MAX),
             footer_hint_text(model, usize::MAX)],
+        // Render duration is measured by drawing this very frame. It updates
+        // when another visible change draws, but cannot cause its own redraw.
+        "runtime": [json!(job_status_counts(model)), json!(task_status_counts(model)),
+            json!(format!("{:.0}", model.telemetry.queue_depth_ewma)),
+            json!(format!("{:.0}", model.telemetry.event_lag_ms_ewma)),
+            json!(model.session.note)],
         "workloadTitle": model.workload_kind.label(),
         "jobOrder": model.job_order,
         "jobStatus": model.job_status,
@@ -3482,6 +3487,7 @@ mod redraw_tests {
         model.flow_credit_pending += 1;
         model.next_input_seq += 1;
         model.last_metrics_emit = Instant::now();
+        model.telemetry.render_ms_ewma = 16.0;
         model.dirty = true;
         assert_eq!(frame_signature(&model), idle);
     }
