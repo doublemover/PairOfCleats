@@ -5,8 +5,7 @@ import { createCli } from '../../src/shared/cli.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   emitIngestSummaryJson,
-  ensureParentDir,
-  finishWriteStream,
+  withStagedIngestOutput,
   ingestTextLineStream,
   normalizeRepoRelativePath,
   normalizeTimeoutMs,
@@ -103,19 +102,17 @@ const runGlobalCommand = async () => {
   });
 };
 
-await ensureParentDir(outputPath);
-writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
-if (runGlobal) {
-  await runGlobalCommand();
-} else if (inputPath && inputPath !== '-') {
-  const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
-  await ingestTextLines(inputStream);
-} else {
-  await ingestTextLines(process.stdin);
-}
-
-writeStream.end();
-await finishWriteStream(writeStream);
+await withStagedIngestOutput(outputPath, async (stream) => {
+  writeStream = stream;
+  if (runGlobal) {
+    await runGlobalCommand();
+  } else if (inputPath && inputPath !== '-') {
+    const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
+    await ingestTextLines(inputStream);
+  } else {
+    await ingestTextLines(process.stdin);
+  }
+});
 
 const summary = {
   generatedAt: new Date().toISOString(),

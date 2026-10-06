@@ -6,8 +6,7 @@ import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   bumpStat,
   emitIngestSummaryJson,
-  ensureParentDir,
-  finishWriteStream,
+  withStagedIngestOutput,
   ingestJsonLineStream,
   normalizeRepoRelativePath,
   writeIngestSummaryReport,
@@ -149,17 +148,15 @@ const ingestJsonLines = async (stream) => {
   });
 };
 
-await ensureParentDir(outputPath);
-writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
-if (inputPath && inputPath !== '-') {
-  const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
-  await ingestJsonLines(inputStream);
-} else {
-  await ingestJsonLines(process.stdin);
-}
-
-writeStream.end();
-await finishWriteStream(writeStream);
+await withStagedIngestOutput(outputPath, async (stream) => {
+  writeStream = stream;
+  if (inputPath && inputPath !== '-') {
+    const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
+    await ingestJsonLines(inputStream);
+  } else {
+    await ingestJsonLines(process.stdin);
+  }
+});
 
 const summary = {
   generatedAt: new Date().toISOString(),

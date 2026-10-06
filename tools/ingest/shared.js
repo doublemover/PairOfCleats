@@ -1,11 +1,15 @@
+import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import { once } from 'node:events';
 import path from 'node:path';
 import readline from 'node:readline';
+import { finished } from 'node:stream/promises';
 
 import { toPosix } from '../../src/shared/file-paths.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { normalizeRepoRelativePath as normalizeSharedRepoRelativePath } from '../../src/shared/path-normalize.js';
 import { emitJson } from '../shared/cli-utils.js';
+import { createTempPath } from '../../src/shared/io/temp-path.js';
 
 export const normalizeRepoRelativePath = (repoRoot, value, { stripVirtualRepoRoot = false } = {}) => {
   if (!value) return null;
@@ -50,8 +54,66 @@ export const normalizeTimeoutMs = (value) => {
 };
 
 export const writeLine = async (stream, line) => {
+  if (stream.errored) throw stream.errored;
+  if (stream.destroyed) throw new Error('Ingest output stream is closed.');
   if (!stream.write(line)) {
-    await new Promise((resolve) => stream.once('drain', resolve));
+    await once(stream, 'drain');
+  }
+};
+
+/**
+ * Stream into an exclusive temporary file and publish only after the producer
+ * and output stream both succeed. Input may safely alias the output path.
+ * The summary is a separate file, not a crash-atomic two-file transaction.
+ */
+export const withStagedIngestOutput = async (outputPath, consume) => {
+  await ensureParentDir(outputPath);
+  let mode;
+  try {
+    const existing = await fsPromises.stat(outputPath);
+    if (!existing.isFile()) {
+      const error = new Error(`Ingest output must be a regular file: ${outputPath}`);
+      error.code = 'EISDIR';
+      throw error;
+    }
+    await fsPromises.access(outputPath, fs.constants.W_OK);
+    mode = existing.mode & 0o777;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const tempPath = createTempPath(outputPath);
+  await ensureParentDir(tempPath);
+  const handle = await fsPromises.open(tempPath, 'wx', mode);
+  const stream = handle.createWriteStream({ encoding: 'utf8' });
+  let outputError = null;
+  // Observe errors immediately, including ones emitted before consume returns.
+  const completed = finished(stream, { cleanup: true }).catch((error) => { outputError = error; });
+  const cleanupAtExit = () => {
+    try { if (Number.isInteger(stream.fd)) fs.closeSync(stream.fd); } catch {}
+    try { fs.rmSync(tempPath, { force: true }); } catch {}
+  };
+  const onInterrupt = () => { cleanupAtExit(); process.exit(130); };
+  const onTerminate = () => { cleanupAtExit(); process.exit(143); };
+  process.once('exit', cleanupAtExit);
+  process.once('SIGINT', onInterrupt);
+  process.once('SIGTERM', onTerminate);
+  try {
+    await consume(stream);
+    stream.end();
+    await completed;
+    if (outputError) throw outputError;
+    // A sibling rename never opens or truncates the previous destination.
+    // Rename failure leaves that destination intact and is reported to the CLI.
+    await fsPromises.rename(tempPath, outputPath);
+  } finally {
+    stream.destroy();
+    await completed;
+    try { await fsPromises.rm(tempPath, { force: true }); }
+    finally {
+      process.off('exit', cleanupAtExit);
+      process.off('SIGINT', onInterrupt);
+      process.off('SIGTERM', onTerminate);
+    }
   }
 };
 

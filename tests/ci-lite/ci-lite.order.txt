@@ -820,3 +820,4 @@ indexing/artifacts/core-metadata-bypass-writers
 indexing/artifacts/compaction-metadata-roundtrip
 indexing/discovery/owned-metadata
 tooling/ingest/shared-runner-lifecycle
+tooling/ingest/output-preservation

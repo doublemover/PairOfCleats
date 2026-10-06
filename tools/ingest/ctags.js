@@ -6,8 +6,7 @@ import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   bumpStat,
   emitIngestSummaryJson,
-  ensureParentDir,
-  finishWriteStream,
+  withStagedIngestOutput,
   ingestJsonLineStream,
   normalizeRepoRelativePath,
   normalizeTimeoutMs,
@@ -138,25 +137,23 @@ const runCtagsCommand = async () => {
   });
 };
 
-await ensureParentDir(outputPath);
-writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
-if (interactive) {
-  await ingestStream(process.stdin);
-} else if (inputPath && inputPath !== '-') {
-  const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
-  await ingestStream(inputStream);
-} else if (inputPath === '-' || runCtags) {
-  if (runCtags) {
-    await runCtagsCommand();
-  } else {
+await withStagedIngestOutput(outputPath, async (stream) => {
+  writeStream = stream;
+  if (interactive) {
     await ingestStream(process.stdin);
+  } else if (inputPath && inputPath !== '-') {
+    const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
+    await ingestStream(inputStream);
+  } else if (inputPath === '-' || runCtags) {
+    if (runCtags) {
+      await runCtagsCommand();
+    } else {
+      await ingestStream(process.stdin);
+    }
+  } else {
+    await runCtagsCommand();
   }
-} else {
-  await runCtagsCommand();
-}
-
-writeStream.end();
-await finishWriteStream(writeStream);
+});
 
 const summary = {
   generatedAt: new Date().toISOString(),

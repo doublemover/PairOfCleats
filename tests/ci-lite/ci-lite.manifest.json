@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 689,
+    "hero": 690,
     "matrix": 108,
     "meta": 24,
     "soak": 1,
@@ -4945,6 +4945,12 @@
     {
       "id": "tooling/ingest/shared-runner-lifecycle",
       "order": 822,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ingest/output-preservation",
+      "order": 823,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

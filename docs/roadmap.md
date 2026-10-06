@@ -105,15 +105,18 @@ The [October 6 acceptance record](guides/cli-acceptance-2026-10-06.md) covers al
 worktrees and permission/cancellation controls. Corrections include CLI child
 cleanup, doctor/index-validation flag defaults, runnable examples, application-root
 TUI/MCP resolution, watch depth, fresh parity receipts and unknown-option admission.
-Ingest commands also retain early child-exit events and clean up failed consumers.
+Ingest commands retain early child-exit events and clean up failed consumers. A
+follow-on staged-output fix preserves previous output and summary bytes on missing
+input/dependency or producer failure; eight focused ingest tests pass.
 Closed setup input now reports an actionable error. Search preserves its explicit
 strict-dispatch opt-in. The 33 affected option/CLI/ingestion/TUI tests pass.
 
-The earlier complete Linux checkpoint is `ci-lite` 813/813 and gate 35/35.
+The integrated Linux checkpoint at `13136005` is `ci-lite` 822/822 and gate 35/35,
+with no failures, timeouts or skips. Later batches require their own checkpoint.
 Subsequent SQLite compaction metadata preservation passes six focused tests and
 19 actual compact/freeze/generation-change/live/historical checks on memory and
-SQLite. Old damaged snapshots require separate recovery. A full integrated rerun and native
-platform acceptance remain separate from those focused passes.
+SQLite. Old damaged snapshots require separate recovery. Native platform
+acceptance remains separate from those Linux passes.
 
 Map caches now default outside source trees; marked custom caches and exact legacy
 default caches survive build → map → rebuild without inflating authored chunks.
