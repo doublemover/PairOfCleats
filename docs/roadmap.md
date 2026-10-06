@@ -105,6 +105,7 @@ The [October 6 acceptance record](guides/cli-acceptance-2026-10-06.md) covers al
 worktrees and permission/cancellation controls. Corrections include CLI child
 cleanup, doctor/index-validation flag defaults, runnable examples, application-root
 TUI/MCP resolution, watch depth, fresh parity receipts and unknown-option admission.
+Ingest commands also retain early child-exit events and clean up failed consumers.
 Closed setup input now reports an actionable error. Search preserves its explicit
 strict-dispatch opt-in. The 33 affected option/CLI/ingestion/TUI tests pass.
 

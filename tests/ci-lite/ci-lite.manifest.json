@@ -9,8 +9,8 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 688,
-    "matrix": 107,
+    "hero": 689,
+    "matrix": 108,
     "meta": 24,
     "soak": 1,
     "heavy-runtime": 0
@@ -4859,80 +4859,92 @@
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "shared/generated-artifact-discovery",
+      "id": "tooling/reports/parity-matrix-failure-contract",
       "order": 808,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "tooling/reports/map-cache-isolation",
+      "id": "shared/generated-artifact-discovery",
       "order": 809,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/capabilities/mcp-launch-root",
+      "id": "tooling/reports/map-cache-isolation",
       "order": 810,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/default-depth",
+      "id": "shared/capabilities/mcp-launch-root",
       "order": 811,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/watch/generated-cache-guard",
+      "id": "indexing/watch/default-depth",
       "order": 812,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/general/signal-cleanup",
+      "id": "indexing/watch/generated-cache-guard",
       "order": 813,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/compact-metadata-roundtrip",
+      "id": "cli/general/signal-cleanup",
       "order": 814,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/general/unknown-workflow-options",
+      "id": "storage/sqlite/compact-metadata-roundtrip",
       "order": 815,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/file-processor/generated-artifact-content",
+      "id": "cli/general/unknown-workflow-options",
       "order": 816,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/generated-artifact-core",
+      "id": "indexing/file-processor/generated-artifact-content",
       "order": 817,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/core-metadata-bypass-writers",
+      "id": "shared/generated-artifact-core",
       "order": 818,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/compaction-metadata-roundtrip",
+      "id": "indexing/artifacts/core-metadata-bypass-writers",
       "order": 819,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/discovery/owned-metadata",
+      "id": "indexing/artifacts/compaction-metadata-roundtrip",
       "order": 820,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/discovery/owned-metadata",
+      "order": 821,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ingest/shared-runner-lifecycle",
+      "order": 822,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

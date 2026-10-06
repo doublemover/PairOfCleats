@@ -44,6 +44,12 @@ default, and parity accepts an explicit repository from an unrelated directory.
 Closed setup input now fails with an actionable unattended-setup message instead
 of Node's unsettled-top-level-await exit. The 33 affected CLI/ingestion/TUI/report
 tests pass with no failures, timeouts or skips.
+The subsequent ingest lifecycle regression captures spawn/error/close before
+draining stdout, so missing dependencies and fast exits cannot strand an awaited
+command. Failed stdout/stderr consumers terminate their owned child tree with
+bounded reaping, and signal exits are failures rather than zero-code success.
+The parity fixture is split into a real success/report case and deterministic
+nonzero/missing/invalid-report controls to keep each test within 30 seconds.
 Actual repeated Git-worktree builds/searches remain isolated, a read-only config
 destination fails with a permission error, and parent-only watch/indexer-service
 cancellation terminates their children. These are Linux fixture results.
@@ -63,4 +69,3 @@ then native/package/TUI/developer outputs. Useful reports remain searchable.
 Strict schemas, JSONL/array row shapes, offsets, native headers, checksums and
 snapshot hardlinks require producer-specific compatibility handling. Legacy
 unmarked custom caches and unsupported external formats are explicit exceptions.
-

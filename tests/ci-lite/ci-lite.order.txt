@@ -805,6 +805,7 @@ shared/json-stream/compression-pool-transfer
 shared/subprocess/sync-timeout-kills-child-tree
 cli/general/tooling-command-controls
 tooling/reports/parity-matrix-execution
+tooling/reports/parity-matrix-failure-contract
 shared/generated-artifact-discovery
 tooling/reports/map-cache-isolation
 shared/capabilities/mcp-launch-root
@@ -818,3 +819,4 @@ shared/generated-artifact-core
 indexing/artifacts/core-metadata-bypass-writers
 indexing/artifacts/compaction-metadata-roundtrip
 indexing/discovery/owned-metadata
+tooling/ingest/shared-runner-lifecycle
