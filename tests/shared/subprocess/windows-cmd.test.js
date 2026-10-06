@@ -24,15 +24,15 @@ assert.match(quoteWindowsCmdArg('%TEMP%'), /\^%TEMP\^%/, 'expected percent expan
 assert.match(quoteWindowsCmdArg('!BANG!'), /\^!BANG\^!/, 'expected delayed expansion marker to be escaped');
 assert.match(quoteWindowsCmdArg('value^caret'), /\^\^/, 'expected carets to be doubled');
 assert.equal(quoteWindowsCmdArg('--version'), '--version', 'simple probe arguments must remain unquoted');
-assert.equal(quoteWindowsCmdArg('alpha beta'), '^"alpha^ beta^"', 'quote syntax must be escaped outside cmd quotes');
-assert.equal(quoteWindowsCmdArg('alpha beta', { doubleEscape: true }), '^^^"alpha^^^ beta^^^"');
-assert.equal(quoteWindowsCmdArg(''), '^"^"', 'empty argv must reach the final executable');
-assert.equal(quoteWindowsCmdArg('space \\'), '^"space^ \\\\^"', 'trailing backslashes must not consume the final quote');
-assert.equal(quoteWindowsCmdArg('a"b'), '^"a\\^"b^"', 'embedded quotes need executable argv and cmd escaping');
+assert.equal(quoteWindowsCmdArg('alpha beta'), '"alpha beta"', 'ordinary quoted arguments must remain valid batch positional parameters');
+assert.equal(quoteWindowsCmdArg('alpha beta', { doubleEscape: true }), '"alpha beta"');
+assert.equal(quoteWindowsCmdArg(''), '""', 'empty argv must reach the final executable');
+assert.equal(quoteWindowsCmdArg('space \\'), '"space \\\\"', 'trailing backslashes must not consume the final quote');
+assert.equal(quoteWindowsCmdArg('a"b'), 'a\\^"b', 'embedded quotes need executable argv and cmd escaping');
 for (const count of [2, 3]) {
   assert.equal(
     quoteWindowsCmdArg(`a${'\\'.repeat(count)}"b`),
-    `^"a${'\\'.repeat(count * 2 + 1)}^"b^"`,
+    `a${'\\'.repeat(count * 2 + 1)}^"b`,
     'every backslash before a quote must be doubled, plus the quote escape'
   );
 }
@@ -40,7 +40,7 @@ for (const value of ['bad\rtext', 'bad\ntext', 'bad\0text']) {
   assert.throws(() => quoteWindowsCmdArg(value), (err) => err?.code === 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT');
 }
 const longQuoteInput = `${'\\'.repeat(50_000)}"`;
-assert.equal(quoteWindowsCmdArg(longQuoteInput).length, 100_007, 'quote handling must remain linear for long backslash runs');
+assert.equal(quoteWindowsCmdArg(longQuoteInput).length, 100_003, 'quote handling must remain linear for long backslash runs');
 
 assert.throws(
   () => resolveWindowsCmdInvocation('tool.cmd', ['alpha beta', '%TEMP%', '!BANG!', '^caret']),
@@ -161,7 +161,7 @@ try {
   const conditionalWrapperPath = path.join(tempRoot, 'conditional.cmd');
   await fs.writeFile(
     conditionalWrapperPath,
-    '@echo off\r\nif "%1"=="--version" exit /b 0\r\nnode "%~dp0\\echo-arg.js" %*\r\n',
+    '@echo off\r\nif "%~1"=="--version" exit /b 0\r\nnode "%~dp0\\echo-arg.js" %*\r\n',
     'utf8'
   );
   const conditionalInvocation = resolveWindowsCmdInvocation(conditionalWrapperPath, ['--version']);
@@ -173,7 +173,7 @@ try {
   assert.equal(conditionalInvocation.windowsVerbatimArguments, true);
   const conditionalLiteralInvocation = resolveWindowsCmdInvocation(conditionalWrapperPath, [literalArg]);
   assert.ok(
-    conditionalLiteralInvocation.args[3].includes('^^^"^^^%TEMP^^^%^^^&literal^^^!bang^^^^caret^^^"'),
+    conditionalLiteralInvocation.args[3].includes('^^^%TEMP^^^%^^^&literal^^^!bang^^^^caret'),
     'forwarded argv needs two cmd parsing layers'
   );
   assert.throws(
@@ -210,7 +210,7 @@ try {
     const allArgsScript = path.join(tempRoot, 'all-args.js');
     const allArgsWrapper = path.join(tempRoot, 'all-args.cmd');
     await fs.writeFile(allArgsScript, `require('node:fs').writeFileSync(${JSON.stringify(allArgsPath)}, JSON.stringify(process.argv.slice(2)));\n`);
-    await fs.writeFile(allArgsWrapper, '@echo off\r\nif "%1"=="--version" exit /b 0\r\nnode "%~dp0\\all-args.js" %*\r\n');
+    await fs.writeFile(allArgsWrapper, '@echo off\r\nif exist "%~dp0skip-launch" exit /b 7\r\nnode "%~dp0\\all-args.js" %*\r\n');
     const literalArgs = [literalArg, 'alpha beta', '', 'a"b', `two${'\\'.repeat(2)}"quote`, `three${'\\'.repeat(3)}"quote`, 'space \\', '()[]|<>;,`*?', '%COMSPEC%', '!TEMP!'];
     for (let firstIndex = 0; firstIndex < literalArgs.length; firstIndex += 1) {
       const reordered = [...literalArgs.slice(firstIndex), ...literalArgs.slice(0, firstIndex)];
@@ -225,6 +225,29 @@ try {
       assert.equal(allArgsResult.stderr, '', 'successful final launch must not conceal IF argument syntax errors');
       assert.deepEqual(JSON.parse(await fs.readFile(allArgsPath, 'utf8')), reordered, 'native cmd must preserve the complete literal argv matrix');
     }
+    await fs.rm(allArgsPath);
+    await fs.writeFile(path.join(tempRoot, 'skip-launch'), 'guard');
+    const guardedInvocation = resolveWindowsCmdInvocation(allArgsWrapper, [literalArg]);
+    const guardedResult = spawnSync(guardedInvocation.command, guardedInvocation.args, {
+      shell: false, windowsHide: true,
+      windowsVerbatimArguments: guardedInvocation.windowsVerbatimArguments,
+      encoding: 'utf8', timeout: 5000, maxBuffer: 65536
+    });
+    assert.equal(guardedResult.status, 7, nativeFailure('opaque guard must preserve its authored nonzero exit', guardedInvocation, guardedResult));
+    assert.equal(guardedResult.stderr, '', 'opaque guard must not conceal cmd syntax errors');
+    await assert.rejects(fs.access(allArgsPath), 'opaque guard must not launch the native server');
+    await fs.rm(path.join(tempRoot, 'skip-launch'));
+    const injectedPath = path.join(tempRoot, 'injected.txt');
+    const attack = `literal&echo injected>${injectedPath}`;
+    const attackInvocation = resolveWindowsCmdInvocation(allArgsWrapper, [attack]);
+    const attackResult = spawnSync(attackInvocation.command, attackInvocation.args, {
+      shell: false, windowsHide: true,
+      windowsVerbatimArguments: attackInvocation.windowsVerbatimArguments,
+      encoding: 'utf8', timeout: 5000, maxBuffer: 65536
+    });
+    assert.equal(attackResult.status, 0, nativeFailure('shell-looking text must remain literal', attackInvocation, attackResult));
+    assert.deepEqual(JSON.parse(await fs.readFile(allArgsPath, 'utf8')), [attack]);
+    await assert.rejects(fs.access(injectedPath), 'literal argv must not execute a second command');
     const result = spawnSync(runInvocation.command, runInvocation.args, {
       shell: false,
       windowsHide: true,
