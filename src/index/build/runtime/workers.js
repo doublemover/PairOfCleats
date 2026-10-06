@@ -471,6 +471,7 @@ export const createRuntimeQueues = ({
     const ioQueue = createSchedulerQueueAdapter({
       scheduler,
       queueName: SCHEDULER_QUEUE_NAMES.stage1Io,
+      backpressure: true,
       tokens: { io: 1 },
       maxPending: maxIoPending,
       maxPendingBytes: maxIoPendingBytes,

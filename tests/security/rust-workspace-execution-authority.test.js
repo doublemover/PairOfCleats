@@ -80,7 +80,7 @@ try {
   assert.equal(resolveRustWorkspaceExecutionAuthority({ repoRoot: repo, providerId: 'rust-analyzer' }), null);
   assert.equal(resolveRustWorkspaceExecutionAuthority({ repoRoot: repo, workspaceRoot: path.join(repo, 'nested'), server }), null);
   assert.ok(resolveRustWorkspaceExecutionAuthority({ repoRoot: repo, workspaceRoot: outside, server }));
-  fs.symlinkSync(outside, path.join(repo, 'escape'));
+  fs.symlinkSync(outside, path.join(repo, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
   assert.ok(resolveRustWorkspaceExecutionAuthority({ repoRoot: repo, workspaceRoot: path.join(repo, 'escape'), server }));
   assert.notEqual(provider.getConfigHash(ctx), untrustedHash, 'trust participates in cache/preflight identity');
 

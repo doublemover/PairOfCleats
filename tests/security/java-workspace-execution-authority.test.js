@@ -88,7 +88,7 @@ try {
   grant();
   assert.equal(resolveWorkspaceExecutionAuthority({ repoRoot: repo, workspaceRoot: path.join(repo, 'nested'), server }), null);
   assert.ok(resolveWorkspaceExecutionAuthority({ repoRoot: repo, workspaceRoot: outside, server }));
-  fs.symlinkSync(outside, path.join(repo, 'escape'));
+  fs.symlinkSync(outside, path.join(repo, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
   assert.ok(resolveWorkspaceExecutionAuthority({ repoRoot: repo, workspaceRoot: path.join(repo, 'escape'), server }));
   assert.notEqual(configured.getConfigHash(ctx), configuredHash);
   assert.notEqual(dedicated.getConfigHash(ctx), dedicatedHash);

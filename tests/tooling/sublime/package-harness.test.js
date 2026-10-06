@@ -83,7 +83,7 @@ const env = applyTestEnv({
 const result = spawnSync(python, [script], {
   encoding: 'utf8',
   env,
-  stdio: process.env.PAIROFCLEATS_TEST_LOG_SILENT ? 'inherit' : 'pipe'
+  stdio: 'inherit'
 });
 
 if (result.status !== 0) {

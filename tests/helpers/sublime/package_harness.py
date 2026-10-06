@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -26,8 +27,8 @@ class _Handle:
 
 
 def _trace_enabled():
-    value = os.environ.get('PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE', '')
-    return str(value).strip().lower() in ('1', 'true', 'yes')
+    value = os.environ.get('PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE', '1')
+    return str(value).strip().lower() not in ('0', 'false', 'no')
 
 
 def _trace(message):
@@ -268,7 +269,8 @@ class PackageHarnessTests(unittest.TestCase):
         if env:
             full_env.update(env)
         _trace('run start: {0} {1}'.format(command, ' '.join(args)))
-        completed = subprocess.run(
+        started = time.monotonic()
+        process = subprocess.Popen(
             [command] + list(args),
             cwd=cwd or None,
             env=full_env,
@@ -277,6 +279,13 @@ class PackageHarnessTests(unittest.TestCase):
             text=True,
             encoding='utf-8',
         )
+        while True:
+            try:
+                stdout, stderr = process.communicate(timeout=10)
+                break
+            except subprocess.TimeoutExpired:
+                _trace('stage={0} status=running elapsed={1:.1f}s'.format(title or args[0], time.monotonic() - started))
+        completed = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
         _trace('run done: status={0} title={1}'.format(completed.returncode, title or ''))
         stdout_output = completed.stdout or ''
         stderr_output = completed.stderr or ''
