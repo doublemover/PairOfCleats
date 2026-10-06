@@ -958,7 +958,8 @@ export const createSourcekitProvider = () => ({
         providerId: 'sourcekit',
         command: resolvedCmd,
         args: resolvedArgs,
-        toolingConfig: ctx?.toolingConfig || null
+        toolingConfig: ctx?.toolingConfig || null,
+        cwd: ctx?.repoRoot || process.cwd()
       });
 
       logHoverMetrics(log, result.hoverMetrics);

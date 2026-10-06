@@ -406,7 +406,8 @@ export const createDedicatedLspProvider = (descriptor) => {
           providerId: descriptor.id,
           command: resolvedCmd,
           args: resolvedArgs,
-          toolingConfig: ctx?.toolingConfig || null
+          toolingConfig: ctx?.toolingConfig || null,
+          cwd: ctx?.repoRoot || process.cwd()
         });
       } finally {
         if (typeof collectCleanup === 'function') {

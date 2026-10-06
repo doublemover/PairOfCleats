@@ -812,7 +812,8 @@ export const createClangdProvider = () => ({
       providerId: 'clangd',
       command: resolvedCmd,
       args: resolvedArgs,
-      toolingConfig: ctx?.toolingConfig || null
+      toolingConfig: ctx?.toolingConfig || null,
+      cwd: ctx?.repoRoot || process.cwd()
     });
     return {
       provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },

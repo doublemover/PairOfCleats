@@ -495,7 +495,8 @@ export const createPyrightProvider = () => ({
       providerId: 'pyright',
       command: resolvedCmd,
       args: resolvedArgs,
-      toolingConfig: ctx?.toolingConfig || null
+      toolingConfig: ctx?.toolingConfig || null,
+      cwd: ctx?.repoRoot || process.cwd()
     });
     return {
       provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },

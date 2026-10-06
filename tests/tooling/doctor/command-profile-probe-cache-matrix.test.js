@@ -5,8 +5,10 @@ import path from 'node:path';
 
 import {
   __getToolingCommandProbeCacheStatsForTests,
+  __resolveNoProvisionProbeEnvForTests,
   __resetToolingCommandProbeCacheForTests,
   __setToolingCommandProbeSuccessTtlMsForTests,
+  invalidateProbeCacheOnInitializeFailure,
   resolveToolingCommandProfile
 } from '../../../src/index/tooling/command-resolver.js';
 import { sleep } from '../../../src/shared/sleep.js';
@@ -144,6 +146,49 @@ try {
     toolingConfig: { dir: ttlToolingDir, cache: { dir: ttlToolingDir } }
   });
   assert.equal(ttlThird.probe.cached, false);
+
+  const baseProbeEnv = { GOTOOLCHAIN: 'auto', RUSTUP_AUTO_INSTALL: '1' };
+  const probeEnv = __resolveNoProvisionProbeEnvForTests(baseProbeEnv);
+  assert.equal(probeEnv.GOTOOLCHAIN, 'path');
+  assert.equal(probeEnv.RUSTUP_AUTO_INSTALL, '0');
+  assert.equal(baseProbeEnv.GOTOOLCHAIN, 'auto', 'probe guards cannot mutate caller environment');
+  assert.equal(__resolveNoProvisionProbeEnvForTests({ GOTOOLCHAIN: 'local' }).GOTOOLCHAIN, 'local');
+  assert.equal(__resolveNoProvisionProbeEnvForTests({ GOTOOLCHAIN: 'go1.27.1+auto' }).GOTOOLCHAIN, 'go1.27.1+path');
+
+  // One application-owned fixture command is cwd-sensitive, like SDK shims.
+  const cwdA = path.join(tempRoot, 'cwd-a');
+  const cwdB = path.join(tempRoot, 'cwd-b');
+  fs.mkdirSync(cwdA, { recursive: true });
+  fs.mkdirSync(cwdB, { recursive: true });
+  const cwdScript = path.join(tempRoot, 'cwd-probe.js');
+  fs.writeFileSync(cwdScript, "console.log('fixture 1.0.0 cwd=' + process.cwd());\n");
+  const cwdCommand = path.join(tempRoot, process.platform === 'win32' ? 'cwd-probe.cmd' : 'cwd-probe');
+  fs.writeFileSync(cwdCommand, process.platform === 'win32'
+    ? `@echo off\r\n"${process.execPath}" "${cwdScript}" %*\r\n`
+    : `#!${process.execPath}\nconsole.log('fixture 1.0.0 cwd=' + process.cwd());\n`);
+  if (process.platform !== 'win32') fs.chmodSync(cwdCommand, 0o755);
+  const scopedConfig = { cache: { dir: path.join(tempRoot, 'scoped-cache') } };
+  const scoped = cwd => resolveToolingCommandProfile({ providerId: 'cwd-sensitive-fixture',
+    cmd: cwdCommand, args: [], repoRoot: cwd, toolingConfig: scopedConfig });
+  __resetToolingCommandProbeCacheForTests();
+  const scopedA = scoped(cwdA);
+  const scopedB = scoped(cwdB);
+  assert.equal(scopedA.probe.ok, true);
+  assert.equal(scopedB.probe.ok, true);
+  assert.match(scopedA.probe.versionText, /cwd-a/);
+  assert.match(scopedB.probe.versionText, /cwd-b/);
+  assert.equal(scopedA.probe.cached, false);
+  assert.equal(scopedB.probe.cached, false, 'another repository cwd cannot reuse the first probe');
+  assert.equal(scoped(cwdA).probe.cached, true);
+  __resetToolingCommandProbeCacheForTests();
+  assert.equal(scoped(cwdA).probe.cacheSource, 'persistent');
+  assert.equal(scoped(cwdB).probe.cacheSource, 'persistent');
+  assert.equal(invalidateProbeCacheOnInitializeFailure({ checks: [{ name: 'tooling_initialize_failed' }],
+    providerId: 'cwd-sensitive-fixture', command: cwdCommand, args: [], cwd: cwdA,
+    toolingConfig: scopedConfig }), true);
+  __resetToolingCommandProbeCacheForTests();
+  assert.equal(scoped(cwdA).probe.cached, false, 'failed launch invalidates the matching cwd');
+  assert.equal(scoped(cwdB).probe.cacheSource, 'persistent', 'other cwd success remains independent');
 
   console.log('tooling doctor command profile probe cache matrix test passed');
 } finally {

@@ -537,7 +537,8 @@ export const collectConfiguredOutput = async ({
     providerId: server.id || providerId,
     command: resolvedCmd,
     args: resolvedArgs,
-    toolingConfig: ctx?.toolingConfig || null
+    toolingConfig: ctx?.toolingConfig || null,
+    cwd: ctx?.repoRoot || process.cwd()
   });
   if (server.rustSuppressProcMacroDiagnostics) {
     const suppression = applyRustProcMacroSuppression(diagnosticsByChunkUid);

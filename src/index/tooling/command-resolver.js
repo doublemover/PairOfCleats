@@ -21,6 +21,8 @@ import {
   writePersistentCommandProbeCache
 } from './command-probe-persistent-cache.js';
 import { normalizeProviderId } from './provider-contract.js';
+import { probeLspCapabilities } from '../../integrations/tooling/providers/lsp/capabilities.js';
+import { redactDiagnosticText } from '../../shared/diagnostic-text.js';
 
 const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat'];
 const DEFAULT_PROBE_ARGS = [['--version'], ['--help']];
@@ -36,6 +38,19 @@ const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 const DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS = 5 * 60_000;
 let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
+const resolveNoProvisionProbeEnv = (baseEnv, options = {}) => {
+  const next = applyToolchainDaemonPolicyEnv(baseEnv, options);
+  next.RUSTUP_AUTO_INSTALL = '0';
+  const go = String(next.GOTOOLCHAIN || '').trim();
+  if (!go || go === 'auto') next.GOTOOLCHAIN = 'path';
+  else if (go === 'local+auto') next.GOTOOLCHAIN = 'local+path';
+  else if (/^go[0-9][0-9A-Za-z.]*\+auto$/u.test(go)) next.GOTOOLCHAIN = go.replace(/\+auto$/u, '+path');
+  else if (/^go[0-9][0-9A-Za-z.]*$/u.test(go)) next.GOTOOLCHAIN = `${go}+path`;
+  return next;
+};
+
+export const __resolveNoProvisionProbeEnvForTests = resolveNoProvisionProbeEnv;
+
 const runProbeCommand = (cmd, args = [], options = {}) => {
   const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
   const timeoutMs = Number.isFinite(Number(options.timeoutMs))
@@ -45,7 +60,8 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
   return spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd,
-    env: applyToolchainDaemonPolicyEnv(process.env, { cwd }),
+    env: resolveNoProvisionProbeEnv(process.env, { cwd, command: cmd,
+      providerId: options.providerId, toolingRoot: options.toolingConfig?.dir || null }),
     rejectOnNonZeroExit: false,
     captureStdout: true,
     captureStderr: true,
@@ -168,7 +184,8 @@ export const invalidateToolingCommandProbeCache = ({
   command = null,
   args = [],
   toolingConfig = null,
-  successOnly = false
+  successOnly = false,
+  cwd = process.cwd()
 } = {}) => {
   const normalizedProviderId = normalizeProviderId(providerId || '');
   const commandKey = normalizeCommandCacheKey(command);
@@ -188,7 +205,8 @@ export const invalidateToolingCommandProbeCache = ({
       providerId: normalizedProviderId,
       command,
       args,
-      toolingConfig
+      toolingConfig,
+      cwd
     });
   }
   return removed;
@@ -209,7 +227,8 @@ export const invalidateProbeCacheOnInitializeFailure = ({
   providerId = null,
   command = null,
   args = [],
-  toolingConfig = null
+  toolingConfig = null,
+  cwd = process.cwd()
 } = {}) => {
   const hasInitializeFailure = Array.isArray(checks)
     && checks.some((check) => check?.name === 'tooling_initialize_failed');
@@ -219,6 +238,7 @@ export const invalidateProbeCacheOnInitializeFailure = ({
     command,
     args,
     toolingConfig,
+    cwd,
     successOnly: true
   });
   return true;
@@ -545,8 +565,10 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
   return '';
 };
 
-const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig }) => {
-  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}`;
+const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig, cwd = process.cwd() }) => {
+  let probeCwd = path.resolve(cwd);
+  try { probeCwd = fsSync.realpathSync(probeCwd); } catch {}
+  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}\u0000${normalizeComparablePath(probeCwd)}`;
   const now = Date.now();
   const normalizedProviderId = normalizeProviderId(providerId);
   const commandKey = normalizeCommandCacheKey(command);
@@ -567,6 +589,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
     command,
     args: launchArgs,
     toolingConfig,
+    cwd: probeCwd,
     successTtlMs: resolveCommandProbeSuccessTtlMs()
   });
   if (persistentCached?.ok === true) {
@@ -587,7 +610,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
   const attempted = [];
   for (const args of probeArgs) {
     try {
-      const result = runProbeCommand(command, args, { timeoutMs });
+      const result = runProbeCommand(command, args, { timeoutMs, cwd: probeCwd, providerId, toolingConfig });
       attempted.push({
         args,
         exitCode: result.exitCode ?? null,
@@ -621,6 +644,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
           command,
           args: launchArgs,
           toolingConfig,
+          cwd: probeCwd,
           attempted
         });
         return {
@@ -803,7 +827,8 @@ export const resolveToolingCommandProfile = (input) => {
     launchArgs: requestedArgs,
     probeArgs,
     timeoutMs: probeTimeoutMs,
-    toolingConfig
+    toolingConfig,
+    cwd: repoRoot
   });
   const validation = validateResolvedToolingCommandLayout({
     providerId,
@@ -888,13 +913,13 @@ export const probeLspInitializeHandshake = async (input) => {
     cmd,
     args,
     cwd,
-    env: applyToolchainDaemonPolicyEnv(process.env, { command: cmd,
+    env: resolveNoProvisionProbeEnv(process.env, { cwd, command: cmd,
       providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }),
     log: () => {}
   });
   const startedAt = Date.now();
   try {
-    await client.initialize({
+    const initializeResult = await client.initialize({
       rootUri: pathToFileUri(cwd),
       capabilities: { textDocument: { documentSymbol: {} } },
       timeoutMs
@@ -904,7 +929,13 @@ export const probeLspInitializeHandshake = async (input) => {
       ok: true,
       latencyMs: Date.now() - startedAt,
       errorCode: null,
-      errorMessage: null
+      errorMessage: null,
+      capabilities: probeLspCapabilities(initializeResult),
+      serverInfo: initializeResult?.serverInfo && typeof initializeResult.serverInfo === 'object'
+        ? { name: redactDiagnosticText(initializeResult.serverInfo.name || '', 160),
+          version: redactDiagnosticText(initializeResult.serverInfo.version || '', 160) || null }
+        : null,
+      capabilityEvidence: 'initialize-advertisement'
     };
   } catch (err) {
     invalidateToolingCommandProbeCache({
@@ -912,6 +943,7 @@ export const probeLspInitializeHandshake = async (input) => {
       command: cmd,
       args,
       toolingConfig: input?.toolingConfig || null,
+      cwd,
       successOnly: true
     });
     return {
