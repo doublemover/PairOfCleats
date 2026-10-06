@@ -358,7 +358,7 @@ const runDegradedWarningCases = async () => {
     id: 'healthy-warning-fixture', version: '1.0.0', kinds: ['types'],
     capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
     getConfigHash: () => 'healthy-warning-fixture-v1',
-    async run() { return { byChunkUid: { 'warning-chunk': { returnType: 'number' } },
+    async run() { return { byChunkUid: { 'warning-chunk': { payload: { returnType: 'number' } } },
       diagnostics: { checks: [], fidelity: { state: 'healthy' } } }; }
   });
   const caseRoot = path.join(tempRoot, 'degraded-warnings');
