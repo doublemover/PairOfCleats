@@ -1,3 +1,10 @@
+# DEPRECATED: Ordinary integration roadmap checkpoint
+
+Canonical replacement: [active roadmap](../roadmap.md).
+Reason: preserve the source-reviewed integration checkpoint while keeping the active queue concise.
+Archived: 2026-10-06, from local integration commit 65ac4b08c48bd2928bbafac0718caa57aae9dd1a.
+Historical statements below are not fresh integrated validation. Relative links are adjusted for this archive.
+
 # PairOfCleats Roadmap
 
 Status: Active
@@ -31,7 +38,7 @@ head. None is a blanket release-readiness claim.
 
 | Initiative | Status | Done now | Remaining / next |
 | --- | --- | --- | --- |
-| Execution, storage and download authority | `implemented; focused validation` | Launch-owned configuration, editor execution/credential gates, pinned TUI companion paths, bounded worker pools, native-artifact provenance, download transactions and descriptor-backed reads are covered by synthetic regressions. | Preserve the explicit authority boundaries in the [guide](guides/execution-authority.md); native TUI and non-Linux platform acceptance remain separate. |
+| Execution, storage and download authority | `implemented; focused validation` | Launch-owned configuration, editor execution/credential gates, pinned TUI companion paths, bounded worker pools, native-artifact provenance, download transactions and descriptor-backed reads are covered by synthetic regressions. | Preserve the explicit authority boundaries in the [guide](../guides/execution-authority.md); native TUI and non-Linux platform acceptance remain separate. |
 | Stage1 ordered throughput cutover | `implemented` | Contiguous window planning, commit cursor ordering, no-gap-recovery assertions and targeted Stage1 tests are present. | Refresh perf and memory budget tests in the release gate before release. |
 | Phase 10 interprocedural risk flows | `implemented` | Risk summaries/flows/call-sites, validators and consumers are implemented; the completion pass fixes capped results, source deduplication and zero-confidence handling. | Run the affected risk and release acceptance lanes on the final release candidate. |
 | Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | IndexRefs, snapshot/diff tools and API routes are present; cache-boundary checks and historical LMDB/HNSW resolution are corrected. | Refresh cross-platform and end-to-end snapshot acceptance before release. |
@@ -50,7 +57,7 @@ passes gate, Rust TUI, Ubuntu 827/827 and macOS 827/827. Windows records 824 pas
 two failures, one declared POSIX-signal skip and no runner timeouts. The canonical
 path fixture passes; remaining failures are the cmd conditional syntax case and
 parity cleanup EBUSY. Clean dependency/native installation and the full-graph audit
-passed on the published dependency graph. The [dependency migration](guides/dependency-security.md#october-6-current-advisory-follow-through)
+passed on the published dependency graph. The [dependency migration](../guides/dependency-security.md#october-6-current-advisory-follow-through)
 and explicit worker precedence remain in the ordinary integration.
 
 Unpublished hardware repairs preserve literal cmd forwarding and conditional exit
@@ -62,10 +69,14 @@ Mac arm64 tiny CLI and native-terminal checks establish their limited recorded
 scope. All final integrated checks remain pending. The isolated SQLite/Node26
 comparison `5faa768b` is excluded; retain better-sqlite3 12.6.2 and Node24 policy.
 
-Historical `82528215` platform and lifecycle results remain in the
-[integration checkpoint archive](archived/ordinary-integration-roadmap-2026-10-06.md).
-They do not establish current integrated acceptance. Keep demonstrated failures
-ahead of broader validation and retain historical measurements as dated evidence.
+The previous `82528215` checkpoint has
+[hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):
+gate and Rust TUI pass; Ubuntu passes all 804 tests; macOS and Windows each pass
+803 with one failure and no timeouts. The prior pooled-buffer zstd hang, runtime
+authority fixtures and Windows CRLF assertions now pass. Historical timing inputs
+remain distinct from current measurements. This is still a draft, incomplete
+platform acceptance result. Keep demonstrated current failures ahead of broader
+validation work; do not reopen archived implementation checklists.
 
 ### Concrete Platform and Product Queue
 
@@ -118,40 +129,71 @@ ahead of broader validation and retain historical measurements as dated evidence
 
 ### CLI, Setup and Generated-Artifact Acceptance
 
-The [October 6 record](guides/cli-acceptance-2026-10-06.md) preserves the 58-route
-CLI/setup/service acceptance, strict option controls, subprocess cleanup and
-staged ingest output preservation. Input/dependency/producer failures retain old
-output and summary; successful publication is not a crash-atomic two-file transaction.
-Closed setup input reports an actionable error; explicit strict search remains opt-in.
+The [October 6 acceptance record](../guides/cli-acceptance-2026-10-06.md) covers all
+58 CLI routes, actual isolated setup/command/service workflows, repeated Git
+worktrees and permission/cancellation controls. Corrections include CLI child
+cleanup, doctor/index-validation flag defaults, runnable examples, application-root
+TUI/MCP resolution, watch depth, fresh parity receipts and unknown-option admission.
+Ingest commands retain early child-exit events and clean up failed consumers. The
+follow-on staged-output fix preserves previous output and summary bytes on missing
+input/dependency or producer failure; eight focused ingest tests pass. The summary
+is a separate file, not a crash-atomic two-file transaction.
+Closed setup input now reports an actionable error. Search preserves its explicit
+strict-dispatch opt-in. The 33 affected option/CLI/ingestion/TUI tests pass.
 
-Optional-tool degradation produces one bounded, deduplicated summary per pass,
-with redacted provider details in the application-owned default cache. The draft
-retains 48 underlying checks and a healthy contribution; integrated execution is
-pending. Trust, chunk identity and required output contracts remain strict. No
-tool install/upgrade or generic automatic binary fallback is enabled.
+Normal-use optional tooling keeps reduced-capability provenance while emitting one
+bounded, deduplicated actionable summary per tooling pass. Detailed redacted
+provider records use the existing application-owned default cache surface without
+requiring a log-dir flag. The draft's runtime-contract case preserves48 underlying
+checks and a healthy provider contribution; final execution is still pending.
+No forced tool install/upgrade or broad integrity/trust relaxation is included.
+Universal project-version negotiation and broader normal-use acceptance remain
+separate from this bounded warning-presentation correction.
 
-Published `29398b4a` has 827 ordered CI-lite entries. The companion extends the
-836-entry foundation union to 837 entries, preserving the published prefix and
-earlier additions. Historical component passes are archived; the combined lane
-requires its own exact-revision receipt. The no-ANN forwarding regression is
-mandatory outside the ordered lane. Node24 and SQLite 12.6.2 remain unchanged.
+Earlier follow-on `0d3e37db` passed Linux `ci-lite` 831/831 and gate 35/35, with no
+failures, timeouts or skips. Published `29398b4a` has 827 CI-lite entries. The final
+union has 836 unique ordered entries, retaining all five published migration/
+portability additions and all nine earlier-only entries. It has not yet run as a
+combined lane. The new real no-ANN regression is explicitly selected outside the
+ordered CI-lite list. Preserve exact commit identity with every result.
 
-Map/core/cache classification follows the [ownership contract](guides/generated-artifact-ownership.md),
-[core contract](guides/generated-core-artifact-metadata.md) and
-[object-cache contract](guides/generated-object-cache-metadata.md). Fifteen audited
-object/runtime families carry first-field provenance. Explicit record roots/globs
-win; malformed/unrecognized input remains indexable. Ordinary paths add no marker
-I/O; renamed admission uses the existing content read. Bounded prefix validation,
-legacy cache reads, keys/TTL/health, complete payloads and streaming byte caps are
-preserved. Native descendants are not excluded by manifest claims.
+SQLite compaction metadata preservation passes six historical focused tests and
+19 compact/freeze/generation-change/live/historical checks on memory and SQLite.
+Old damaged snapshots require separate recovery. Final integrated full-lane and
+native-platform acceptance remain separate from those earlier passes.
 
-Remaining artifact batches cover exact-member linkage, remaining runtime state,
-reports/editor output and native/package/TUI surfaces. Preserve schemas, JSONL/array
-shapes, checksums and useful searchable reports. The [Mac checklist](guides/mac-acceptance-2026-10-06.md)
-and [archived checkpoints](archived/ordinary-integration-roadmap-2026-10-06.md) are
-historical plans/results. Final native, snapshot recovery, dependency bootstrap,
-retrieval quality, watch readiness and representative performance require current
-evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion.
+Map caches now default outside source trees; marked custom caches and exact legacy
+default caches survive build → map → rebuild without inflating authored chunks.
+Candidate-filename discovery/watch reads are capped at 8 KiB; ordinary paths incur
+no marker I/O. Renamed marked caches are checked again at the existing content-read
+boundary, with a one-time incremental policy migration and no extra file read.
+See the [ownership contract](../guides/generated-artifact-ownership.md).
+
+Core metadata producers and rewrite paths now stamp compatible extension slots;
+discovery and the existing-content guard omit those marked metadata files only.
+Schema, stable-hash, compaction, extension-preservation and native-byte regressions
+cover the producer batch. Referenced members and native store descendants are
+not excluded by manifest claims. See the
+[core metadata contract](../guides/generated-core-artifact-metadata.md).
+
+Fifteen audited object-cache/runtime families now emit first-field declarations
+and participate in discovery, watch and renamed-content admission. Legacy readers,
+cache keys/TTLs, cooldown/health behavior and bounded streaming byte caps retain
+their contracts. Explicit records roots/globs retain marked records. Core and
+object-cache classifiers share the bounded JSON-prefix validator; visible syntax
+errors and duplicate keys are rejected, only genuinely extendable capped tails
+are accepted, and excessive depth fails open. See the
+[object-cache contract](../guides/generated-object-cache-metadata.md).
+
+Continue bounded artifact batches: exact-member content linkage; remaining caches/
+runtime state; reports/editor outputs; then native/package/TUI/developer outputs.
+Preserve strict schemas, JSONL/array shapes, checksums, offsets and useful searchable
+reports. The [Mac checklist](../guides/mac-acceptance-2026-10-06.md) is the historical
+follow-on plan, not proof of final integration. Hardware checks establish their
+exact isolated source/artifact scope. Clean integrated dependency installation,
+full representative benchmarks, retrieval quality and startup-ready watch
+acceptance remain distinct checks. No SQLite dependency or Node26 promotion is
+part of this ordinary integration.
 
 ### Ongoing Review and Release Discipline
 
@@ -160,17 +202,17 @@ evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion
    reviewed proposals were closed with specific approved supersession explanations;
    original branches remain preserved. Keep the draft summary current without
    treating publication or focused checks as merge/release acceptance. See the
-   [branch and capability review](branch-capability-review-2026-10-02.md).
+   [branch and capability review](../branch-capability-review-2026-10-02.md).
 2. **Maintain concrete lifecycle fixes.** Full-build diagnostic callback failures
    were reproduced against the frozen branch with a real one-chunk SQLite bundle:
    a failed checkpoint plus a throwing warning callback left the database open.
    Checkpoint/pragma warnings and the artifact clamping summary now cannot bypass
    finalization; genuine promotion/build failures retain their original errors.
    The finalization and prior startup-ownership fixtures pass locally. See the
-   [bounded recovery and resource guide](guides/recovery-low-load-2026-10-03.md).
+   [bounded recovery and resource guide](../guides/recovery-low-load-2026-10-03.md).
 3. **Run release acceptance when scheduled.** Broad gate/CI, platform, hosted security,
    optional-backend and measured-performance campaigns are deferred. Follow the
-   [release validation plan](roadmap-release-validation-plan.md); do not substitute
+   [release validation plan](../roadmap-release-validation-plan.md); do not substitute
    historical logs or focused tests for its acceptance criteria.
 4. **Maintain documentation from evidence.** Update the affected owner/spec and this
    queue when behavior changes. Keep completed command transcripts in historical
@@ -186,7 +228,7 @@ evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion
    Install/test one compatible toolchain at a time on small repositories, using
    the low-load profile with embeddings and model downloads disabled. Record exact
    versions, provenance, observed capabilities and unrun limits.
-   The [individual acceptance record](guides/language-toolchain-acceptance.md)
+   The [individual acceptance record](../guides/language-toolchain-acceptance.md)
    includes bounded syntax-owner corrections for Dockerfile, GraphQL, Handlebars,
    Protobuf and Mustache, distinct heuristic Jinja/Django boundaries, plus
    explicit JSONC syntax/strict-JSON compatibility, TOML semantic values with
@@ -208,12 +250,12 @@ Current reconciliation, 2026-10-02: the completion pass verified focused graph,
 semantic retrieval, configuration, embeddings, metadata/risk, LSP/JSON-RPC,
 IndexRef, cache, SQLite, HTTP and runner contracts. New lifecycle cases are
 registered in the ordered `ci-lite` manifest. The
-[capability review](branch-capability-review-2026-10-02.md) names the affected
+[capability review](../branch-capability-review-2026-10-02.md) names the affected
 regressions and distinguishes source findings from executed checks.
 
 Dependency evidence includes the recorded JavaScript remediation, native grammar
 activation, q8/ONNX inference and RustSec/toolchain checks. See
-[dependency security](guides/dependency-security.md). An audit snapshot is dated
+[dependency security](../guides/dependency-security.md). An audit snapshot is dated
 proof, and does not certify future advisories or close hosted alerts by itself.
 
 The earlier interrupted `ci-lite` run is incomplete: 477 tests passed before
@@ -229,17 +271,17 @@ observability, quality, and security-risk controls remain the acceptance surface
 their old green results have not been relabeled as fresh proof on this head.
 Missing historical logs remain unavailable rather than reconstructed.
 USR rollout phases A–H and lifecycle acceptance remain in the
-[rollout and release migration policy](specs/usr-core-rollout-release-migration.md).
+[rollout and release migration policy](../specs/usr-core-rollout-release-migration.md).
 
 ## Ownership and Historical Records
 
-- [Shared-module ownership and closed batches](tooling/shared-module-reductions/432-prioritized-implementation-backlog.md)
-- [Duplicate audit status and refresh policy](tooling/duplication-reduction-status.md)
-- [Checklist rules](guides/roadmap-checklists.md)
-- [Branch/capability review and focused evidence](branch-capability-review-2026-10-02.md)
-- [Historical roadmap and full worklog](archived/roadmap.md)
-- [Historical release-evidence record](roadmap-release-validation-evidence-20260521.md)
-- [Earlier task-list reconciliation](archived/task-list-reconciliation-2026-10-02.md)
+- [Shared-module ownership and closed batches](../tooling/shared-module-reductions/432-prioritized-implementation-backlog.md)
+- [Duplicate audit status and refresh policy](../tooling/duplication-reduction-status.md)
+- [Checklist rules](../guides/roadmap-checklists.md)
+- [Branch/capability review and focused evidence](../branch-capability-review-2026-10-02.md)
+- [Historical roadmap and full worklog](../archived/roadmap.md)
+- [Historical release-evidence record](../roadmap-release-validation-evidence-20260521.md)
+- [Earlier task-list reconciliation](../archived/task-list-reconciliation-2026-10-02.md)
 
 The archived roadmap preserves the previous authored text byte-for-byte, including
 its completed lanes, abandoned/no-adopt migrations, command outcomes and evidence
