@@ -16,7 +16,7 @@ use crossterm::terminal::{
 use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Terminal;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -1779,6 +1779,7 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             true,
             model.terminal_caps.color,
         ));
+    frame.render_widget(Clear, area);
     frame.render_widget(overlay, area);
 }
 
@@ -1824,6 +1825,7 @@ fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         true,
         model.terminal_caps.color,
     ));
+    frame.render_widget(Clear, area);
     frame.render_widget(overlay, area);
 }
 
@@ -1845,6 +1847,7 @@ fn render_search_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             true,
             model.terminal_caps.color,
         ));
+    frame.render_widget(Clear, area);
     frame.render_widget(overlay, area);
 }
 
