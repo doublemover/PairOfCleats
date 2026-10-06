@@ -10,6 +10,7 @@ import {
 import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const resolveEntryLimit = (raw) => {
+  if (raw == null) return null;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
 };

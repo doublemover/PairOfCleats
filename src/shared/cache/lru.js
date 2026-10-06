@@ -34,11 +34,14 @@ export function createLruCache({
   onClear = null,
   onSizeChange = null
 }) {
-  const entryLimit = Number.isFinite(Number(maxEntries))
+  const entryLimit = maxEntries != null && Number.isFinite(Number(maxEntries))
     ? Math.max(0, Math.floor(Number(maxEntries)))
     : null;
   const hasEntryLimit = entryLimit !== null;
-  const maxSizeBytes = hasEntryLimit ? 0 : mbToBytes(maxMb);
+  // Null/undefined means no entry cap, consistently with defineCachePolicy.
+  // An explicit zero still disables storage; positive entry and byte caps are
+  // independent constraints and both apply when an owner supplies both.
+  const maxSizeBytes = entryLimit === 0 ? 0 : mbToBytes(maxMb);
   const ttlValue = Number.isFinite(Number(ttlMs)) ? Math.max(0, Number(ttlMs)) : 0;
 
   const stats = {
@@ -56,7 +59,7 @@ export function createLruCache({
     reporter.track(stats);
   }
 
-  if ((hasEntryLimit && entryLimit > 0) || maxSizeBytes > 0) {
+  if (entryLimit !== 0 && ((hasEntryLimit && entryLimit > 0) || maxSizeBytes > 0)) {
     let cache = null;
     const options = {
       allowStale: false,
@@ -70,7 +73,8 @@ export function createLruCache({
     };
     if (hasEntryLimit && entryLimit > 0) {
       options.max = entryLimit;
-    } else {
+    }
+    if (maxSizeBytes > 0) {
       options.maxSize = maxSizeBytes;
       const baseSizer = typeof sizeCalculation === 'function'
         ? sizeCalculation

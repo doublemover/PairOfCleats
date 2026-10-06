@@ -67,3 +67,17 @@ Telemetry only fires when:
 ## Offsets Metadata
 - Offsets sidecars use the unified `u64-le` format with an explicit `version`.
 - Sharded JSONL meta records offsets `format`, `version`, `compression`, and `suffix`.
+
+## Shared LRU admission
+
+`createLruCache` applies both an explicitly supplied positive `maxEntries` and
+positive `maxMb`. A byte cap no longer disappears when an entry cap is present.
+`null`/`undefined` entry limits mean absent, matching the cache-policy contract;
+explicit `maxEntries: 0` still disables storage. Entry-only and disabled caches
+never invoke the size calculator. TTL, disposal reasons and callback order remain
+owned by the existing LRU wrapper and library.
+
+Use an inexpensive owner-supplied `sizeCalculation` when actual buffer/string
+bytes are known. The existing sampled JSON estimator is a policy proxy, not an
+exact retained-heap measurement. A cache eviction still does not revoke external
+leases; owners must retire and release resources under their existing lifecycle.

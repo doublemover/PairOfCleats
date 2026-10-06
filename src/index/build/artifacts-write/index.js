@@ -114,7 +114,7 @@ import {
   removePackedPostings,
   VECTOR_ONLY_SPARSE_PIECE_DENYLIST
 } from '../artifacts/sparse-cleanup.js';
-import { packMinhashSignatures } from '../artifacts/minhash-packed.js';
+import { iterateMinhashSignatures, packMinhashSignatures } from '../artifacts/minhash-packed.js';
 import { dispatchPlannedArtifactWrites, resolveQueuedWriteLanes } from './planning.js';
 import {
   createArtifactOrderingRecorder,
@@ -1525,16 +1525,13 @@ export async function writeIndexArtifacts(input) {
   const minhashIterable = minhashFromPostings
     ? minhashFromPostings
     : (minhashStream
-      ? (function* () {
-        for (const chunk of state.chunks) {
-          yield chunk?.minhashSig;
-        }
-      })()
+      ? iterateMinhashSignatures({ chunks: state.chunks, sampling: minhashSamplingMeta })
       : (postings.minhashSigs || []));
   const packedMinhash = sparseArtifactsEnabled
     ? packMinhashSignatures({
       signatures: minhashFromPostings,
-      chunks: minhashStream ? state.chunks : null
+      chunks: minhashStream ? state.chunks : null,
+      sampling: minhashSamplingMeta
     })
     : null;
   if (packedMinhash?.coercedRows && typeof log === 'function') {

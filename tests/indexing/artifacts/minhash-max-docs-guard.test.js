@@ -27,8 +27,8 @@ const postings = await buildPostings({
   log: () => {}
 });
 
-if (postings.minhashSigs.length !== chunks.length) {
-  fail('Expected sampled minhash signatures for every chunk when max docs guard triggers.');
+if (postings.minhashSigs.length !== 0) {
+  fail('Expected sampled streaming mode to avoid a materialized signature table.');
 }
 if (!postings.minhashGuard || postings.minhashGuard.sampled !== true || postings.minhashGuard.skipped !== false) {
   fail('Expected minhash guard to record sampled/minified mode.');
@@ -42,11 +42,8 @@ if (postings.minhashGuard.sampledSignatureLength >= chunks[0].minhashSig.length)
 if (postings.minhashGuard.hashStride <= 1) {
   fail('Expected sampled/minified signatures to record stride > 1.');
 }
-if (postings.minhashStream !== false) {
-  fail('Expected sampled minhash mode to disable streaming and use transformed signatures.');
-}
-if (postings.minhashSigs.some((sig) => !Array.isArray(sig) || sig.length !== postings.minhashGuard.sampledSignatureLength)) {
-  fail('Expected sampled signatures to match sampledSignatureLength.');
+if (postings.minhashStream !== true) {
+  fail('Expected sampled minhash mode to preserve default streaming publication.');
 }
 
 console.log('minhash max docs guard test passed');

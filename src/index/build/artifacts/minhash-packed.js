@@ -1,17 +1,32 @@
+import { minifyMinhashSignature } from '../../minhash.js';
+
+/** Yield one owned sampled row at a time, or borrow an unchanged ordinary row.
+ * Chunks must remain stable until the artifact writer has consumed the stream. */
+export function* iterateMinhashSignatures({ chunks, sampling = null }) {
+  for (const chunk of chunks) {
+    yield sampling
+      ? minifyMinhashSignature(chunk?.minhashSig, sampling)
+      : chunk?.minhashSig;
+  }
+}
+
+
 /**
  * Pack minhash signatures into a dense u32 buffer.
  *
- * @param {{signatures?:Array<Array<number>>,chunks?:Array<object>}} input
+ * @param {{signatures?:Array<Array<number>>,chunks?:Array<object>,sampling?:object|null}} input
  * @returns {{buffer:Buffer,dims:number,count:number,coercedRows:number}|null}
  */
-export const packMinhashSignatures = ({ signatures, chunks }) => {
+export const packMinhashSignatures = ({ signatures, chunks, sampling = null }) => {
   const source = Array.isArray(signatures) && signatures.length ? signatures : null;
   const sourceChunks = Array.isArray(chunks) && chunks.length ? chunks : null;
   if (!source && !sourceChunks) return null;
   const resolveDims = () => {
     const values = source || sourceChunks;
     for (const entry of values) {
-      const sig = source ? entry : entry?.minhashSig;
+      const sig = source ? entry : (sampling
+        ? minifyMinhashSignature(entry?.minhashSig, sampling)
+        : entry?.minhashSig);
       if (Array.isArray(sig) && sig.length) return sig.length;
     }
     return 0;
@@ -45,10 +60,9 @@ export const packMinhashSignatures = ({ signatures, chunks }) => {
       writeSignature(sig);
     }
   } else {
-    for (const chunk of sourceChunks) {
-      writeSignature(chunk?.minhashSig);
+    for (const sig of iterateMinhashSignatures({ chunks: sourceChunks, sampling })) {
+      writeSignature(sig);
     }
   }
   return { buffer, dims, count, coercedRows };
 };
-

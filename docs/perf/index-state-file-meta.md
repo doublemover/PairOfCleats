@@ -7,7 +7,7 @@ Key changes:
 - `index_state.json` writes are skipped when the stable hash is unchanged.
 - `file_meta` can be emitted as JSONL shards or as a columnar/string-table payload.
 - `minhash_signatures` can be streamed and packed into a binary format.
-- Postings guards record skip events for minhash when the corpus exceeds configured thresholds.
+- Postings guards record sampled/minified mode, or a skip when no usable signature exists.
 
 ## Index State Write Skips
 `index_state.json` writes are gated by a stable hash that ignores volatile fields (`generatedAt`, `updatedAt`).
@@ -54,16 +54,27 @@ Minhash signatures are stored in two forms:
 When available, loaders prefer the packed format. The JSON format remains for compatibility.
 
 ### Streaming
-When `postings.minhashStream` is enabled (default), minhash signatures are streamed from chunks and do not require a full in-memory array.
+When `postings.minhashStream` is enabled (default), ordinary and sampled/minified
+signatures are streamed from stable chunks without a full transformed row table.
+Sampled JSON emission owns one row at a time; packed emission still allocates its
+required complete `4 * rows * dimensions` byte payload. The active artifact writer uses
+the same row transformation and preserve sampling identity, order and coercion.
+Chunks remain owned until queued writers settle. This removes the additional
+sampled row table, not the original chunk signatures or the packed output, and
+is not a measured RSS or throughput claim. Explicit `minhashStream: false`
+retains materialized emission.
 
 ### Guards
-If `postings.minhashMaxDocs` is set and the corpus exceeds the limit, minhash emission is skipped and a guard entry is recorded in `index_state.extensions.minhashGuard`.
+If `postings.minhashMaxDocs` is set and the corpus exceeds the limit, an available
+signature width selects deterministic stride sampling. Only a corpus with no
+usable signature width is skipped. The exact plan or skip is recorded in
+`index_state.extensions.minhashGuard`.
 
 ## Config Surface
 - `indexing.artifacts.fileMetaFormat`: `auto | columnar | jsonl`
 - `indexing.artifacts.fileMetaColumnarThresholdBytes`: emit columnar only above this size
 - `indexing.artifactCompression.perArtifact`: per-artifact compression overrides
-- `postings.minhashMaxDocs`: skip minhash when doc count exceeds limit
+- `postings.minhashMaxDocs`: sample minhash dimensions when doc count exceeds limit
 - `postings.minhashStream`: stream minhash rows instead of buffering
 - `postings.phraseSpillMaxBytes`: spill phrase postings by byte threshold
 - `postings.chargramSpillMaxBytes`: spill chargram postings by byte threshold
