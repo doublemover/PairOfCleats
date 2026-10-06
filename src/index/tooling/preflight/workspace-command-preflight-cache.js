@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata, withoutGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -173,10 +174,10 @@ export const readWorkspaceCommandPreflightCacheHit = async ({
   })) {
     return { markerPath, hit: true, marker: memoryMarker };
   }
-  const marker = await readJsonFileSafe(markerPath, {
+  const marker = withoutGeneratedCacheMetadata(await readJsonFileSafe(markerPath, {
     fallback: null,
     maxBytes: WORKSPACE_COMMAND_PREFLIGHT_MARKER_MAX_BYTES
-  });
+  }));
   if (!isReusableWorkspaceCommandPreflightMarker({
     marker,
     fingerprint,
@@ -239,7 +240,7 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
       ? Math.max(0, Math.round(Number(durationMs)))
       : null
   };
-  await atomicWriteJson(markerPath, marker, {
+  await atomicWriteJson(markerPath, withGeneratedCacheMetadata(marker, 'workspace-preflight'), {
     spaces: 0,
     newline: false
   });

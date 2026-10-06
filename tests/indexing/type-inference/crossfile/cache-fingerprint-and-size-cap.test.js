@@ -118,6 +118,8 @@ await writeCrossFileInferenceCache({
 });
 
 const writtenPayload = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+assert.equal(Object.keys(writtenPayload)[0], '__poc_generated');
+assert.equal(writtenPayload.__poc_generated.artifact, 'cross-file-inference');
 assert.equal(writtenPayload.fingerprint, 'small-fingerprint', 'expected cache fingerprint to match write input');
 assert.equal(Array.isArray(writtenPayload.rows), true, 'expected persisted rows array');
 assert.equal(writtenPayload.rows.length, 1, 'expected one cached row for compact input');
@@ -159,11 +161,12 @@ await writeCrossFileInferenceCache({
   stats: {
     linkedCalls: 1
   },
-  maxBytes: 700,
+  maxBytes: 2048,
   log: (line) => partialLogs.push(String(line || ''))
 });
 
 const partialPayload = JSON.parse(await fs.readFile(partialCachePath, 'utf8'));
+assert.ok((await fs.stat(partialCachePath)).size <= 2048, 'complete serialized cache must honor its cap');
 assert.equal(partialPayload.admission?.mode, 'value-ranked-partial', 'expected partial admission mode');
 assert.equal(partialPayload.admission?.retainedRows, 1, 'expected one retained row under tight cap');
 assert.equal(partialPayload.admission?.droppedRows, 1, 'expected one dropped row under tight cap');
@@ -205,6 +208,22 @@ assert.equal(
   true,
   'expected partial cache hit log to surface dropped rows'
 );
+
+delete partialPayload.__poc_generated;
+await fs.writeFile(partialCachePath, JSON.stringify(partialPayload));
+const legacyChunks = partialChunks.map((chunk) => ({ ...chunk, codeRelations: null, docmeta: null }));
+assert.deepEqual(await readCrossFileInferenceCache({ cachePath: partialCachePath, chunks: legacyChunks, crossFileFingerprint: 'partial-fingerprint', log: () => {} }), restoredStats);
+assert.deepEqual(legacyChunks, restoredChunks, 'legacy unmarked cache remains readable');
+
+const boundaryPath = path.join(cacheDir, 'boundary.json');
+const boundaryLogs = [];
+await writeCrossFileInferenceCache({
+  cacheDir, cachePath: boundaryPath, chunks, crossFileFingerprint: 'boundary', stats: {},
+  maxBytes: 900, log: (line) => boundaryLogs.push(line)
+});
+const boundarySize = await fs.stat(boundaryPath).then((stat) => stat.size).catch(() => null);
+assert.ok(boundarySize === null || boundarySize <= 900, 'marker and admission report must not evade maxBytes');
+assert.ok(boundaryLogs.some((line) => line.includes('final payload')), 'final serialized-size guard must account for admission metadata');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../../../shared/json-stream/json-writers.js';
+import { withGeneratedCacheMetadata } from '../../../../../shared/generated-artifact-cache.js';
 import {
   normalizeParamNames,
   normalizeParamTypes,
@@ -185,10 +186,10 @@ export const persistLspRequestCache = async ({ cachePath, entries, maxEntries })
   const limited = rows.length > cap ? rows.slice(0, cap) : rows;
   await writeJsonObjectFile(cachePath, {
     trailingNewline: false,
-    fields: {
+    fields: withGeneratedCacheMetadata({
       version: LSP_REQUEST_CACHE_SCHEMA_VERSION,
       generatedAt: new Date().toISOString()
-    },
+    }, 'lsp-requests'),
     arrays: {
       entries: limited
     },

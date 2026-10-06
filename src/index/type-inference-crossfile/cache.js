@@ -4,6 +4,7 @@ import { getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
@@ -357,14 +358,14 @@ export const writeCrossFileInferenceCache = async ({
     const generatedAt = new Date().toISOString();
     const normalizedStats = normalizeCacheStats(stats);
     const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
-    const baseBytes = Buffer.byteLength(JSON.stringify({
+    const baseBytes = Buffer.byteLength(JSON.stringify(withGeneratedCacheMetadata({
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
       admission: null,
       rows: []
-    }), 'utf8');
+    }, 'cross-file-inference')), 'utf8');
     const rowEntries = [];
     for (let index = 0; index < chunks.length; index += 1) {
       const chunk = chunks[index];
@@ -418,15 +419,26 @@ export const writeCrossFileInferenceCache = async ({
         + `within ${cacheMaxBytes} bytes (dropped=${admissionSelection.dropped.length}).`
       );
     }
+    const fields = withGeneratedCacheMetadata({
+      schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
+      generatedAt,
+      fingerprint: crossFileFingerprint,
+      stats: normalizedStats,
+      admission
+    }, 'cross-file-inference');
+    // Admission diagnostics and provenance also count toward the byte cap.
+    // The row-selection estimate intentionally stays cheap; verify final bytes
+    // before writing rather than publishing an oversized cache under a tight cap.
+    const finalBytes = Buffer.byteLength(JSON.stringify({ ...fields, rows }), 'utf8');
+    if (cacheMaxBytes > 0 && finalBytes > cacheMaxBytes) {
+      if (typeof log === 'function') {
+        log(`[perf] cross-file cache write skipped: final payload ${finalBytes} bytes exceeds max ${cacheMaxBytes} bytes.`);
+      }
+      return;
+    }
     await writeJsonObjectFile(cachePath, {
       trailingNewline: false,
-      fields: {
-        schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
-        generatedAt,
-        fingerprint: crossFileFingerprint,
-        stats: normalizedStats,
-        admission
-      },
+      fields,
       arrays: { rows },
       atomic: true
     });

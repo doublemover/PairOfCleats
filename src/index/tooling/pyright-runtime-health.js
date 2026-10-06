@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -380,7 +381,7 @@ export const persistPyrightRuntimeHealth = async ({
 } = {}) => {
   const healthPath = resolveRuntimeHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
   await fs.promises.mkdir(path.dirname(healthPath), { recursive: true });
-  await atomicWriteJson(healthPath, record, {
+  await atomicWriteJson(healthPath, withGeneratedCacheMetadata(record, 'pyright-runtime-health'), {
     spaces: 0,
     newline: false
   });

@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -804,7 +805,7 @@ export const saveImportResolutionCache = async ({
     diagnostics: normalizeDiagnostics(cache.diagnostics)
   };
   try {
-    await atomicWriteJson(cachePath, payload, { spaces: 2 });
+    await atomicWriteJson(cachePath, withGeneratedCacheMetadata(payload, 'import-resolution'), { spaces: 2 });
     clearPersistWarningState(cachePath);
     let markerCleared = false;
     let markerClearError = null;
@@ -864,7 +865,7 @@ export const saveImportResolutionCache = async ({
         errorMessage: err?.message || String(err || '')
       };
       try {
-        await atomicWriteJson(configuredFailOpenMarkerPath, markerPayload, { spaces: 2 });
+        await atomicWriteJson(configuredFailOpenMarkerPath, withGeneratedCacheMetadata(markerPayload, 'import-resolution-persist-failure'), { spaces: 2 });
         markerWritten = true;
         if (isObject(cacheStats)) {
           cacheStats.cachePersistFailOpenMarkerWrites = Number(cacheStats.cachePersistFailOpenMarkerWrites || 0) + 1;

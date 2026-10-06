@@ -16,8 +16,9 @@ const read = (chunks, options = {}) => readCrossFileInferenceCache({ cachePath, 
   crossFileFingerprint: 'fixture', requireComplete: true, ...options });
 try {
   await writeCrossFileInferenceCache({ cacheDir: root, cachePath, chunks: inferred,
-    crossFileFingerprint: 'fixture', stats: { inferredReturns: 1 }, maxBytes: 700 });
+    crossFileFingerprint: 'fixture', stats: { inferredReturns: 1 }, maxBytes: 2048 });
   const partial = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+  assert.ok((await fs.stat(cachePath)).size <= 2048, 'partial entry includes metadata within its byte cap');
   assert.equal(partial.admission.droppedRows, 1, 'actual bounded writer retains only one row');
   const cold = fresh();
   const before = structuredClone(cold);
