@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 689,
+    "hero": 691,
     "matrix": 108,
-    "meta": 24,
+    "meta": 25,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -4945,6 +4945,24 @@
     {
       "id": "tooling/ingest/shared-runner-lifecycle",
       "order": 822,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/dependency-runtime-migration",
+      "order": 823,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "indexing/git/simple-git-v4-migration",
+      "order": 824,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/extracted-prose/mammoth-security-migration",
+      "order": 825,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

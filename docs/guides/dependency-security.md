@@ -55,6 +55,71 @@ against the known vulnerable ranges. CI also runs `npm audit --audit-level=low`
 against current advisories. The baseline is a regression check, not a substitute
 for the live advisory database. An audit/network error is not a clean result.
 
+## October 6 current-advisory follow-through
+
+The automatic CI run at `5e81db47` passed native installation and then reported
+eight affected package entries from five advisory families. The targeted update
+below removes those paths; the dated local full-graph audit reports zero known
+vulnerabilities, including development and optional packages. Hosted acceptance
+of these changes and Windows/macOS runtime verification remain separate.
+
+| Dependency path | Resolution | Compatibility review |
+| --- | --- | --- |
+| `simple-git` → `@simple-git/argv-parser` | 4.0.2 → 2.0.1 | Four application imports use the named `simpleGit` export. Existing read-only Git commands use complete options and retain the default environment/unsafe-operation guards. |
+| `pino-pretty` → `fast-copy` | 4.0.2 → 4.1.2 | New depth limit, independent Buffer bytes, and DataView bounds are exercised alongside normal formatted error logs. |
+| Optional MCP SDK → Express → `proxy-addr` | 2.0.7 → 2.0.8 | IPv4-mapped trust masks are corrected. PoC uses the SDK's stdio transport; it does not configure Express trust-proxy behavior. The installed transitive API is tested with trusted and untrusted addresses. |
+| CSS/compiler consumers → `source-map-js` | 1.2.1 → 1.2.2 | Normal map round trips, PostCSS output maps and Vue scoped CSS survive the indexed-section offset validation. |
+| `mammoth` → `argparse` → `sprintf-js` | Mammoth 1.13.0; scoped argparse 2.0.1; sprintf absent | Exact Mammoth pin plus a single-file CLI patch uses argparse's native v2 API without deprecation shims. |
+
+The [Git 4 release notes](https://github.com/steveukx/git-js/releases/tag/simple-git@4.0.0)
+remove the default export, deprecated APIs and abbreviated options, and filter
+sensitive ambient environment variables. PoC uses repository roots and read-only
+status, revision, log, blame and remote-list queries; it does not use removed
+methods or enable unsafe environment forwarding. Real-repository tests cover all
+four consumers, file paths with spaces, churn/blame, dirty status, and MCP status.
+Ambient `GIT_DIR` no longer redirects those calls; explicit unsafe `VISUAL` is
+rejected. The [4.0.1 release](https://github.com/steveukx/git-js/releases/tag/simple-git@4.0.1)
+fixes publication metadata; [4.0.2](https://github.com/steveukx/git-js/releases/tag/simple-git@4.0.2)
+includes the patched editor-variable detection.
+
+The [fast-copy changelog](https://github.com/planttheidea/fast-copy/blob/master/CHANGELOG.md)
+adds a default depth limit of 1,000, throwing a catchable `MaxDepthExceededError`
+that extends `RangeError`; it also corrects BigInt typed arrays, Buffer ownership,
+tag lookup and DataView bounds. PoC has no custom copier or direct runtime call;
+its pretty-log formatter is the consumer. The depth limit remains enabled.
+[proxy-addr 2.0.8](https://github.com/jshttp/proxy-addr/releases/tag/v2.0.8)
+is the trust-mask fix. [source-map-js 1.2.2](https://github.com/7rulnik/source-map-js/releases/tag/v1.2.2)
+also fixes browser CSP compatibility. Its offset cap rejects invalid or excessive
+indexed maps instead of attempting unbounded line padding; ordinary maps retain
+their API and format.
+
+[Mammoth's release notes](https://github.com/mwilliamson/mammoth.js/blob/1.13.0/NEWS)
+include Windows image-output traversal, styles prototype-pollution and parsing
+backtracking fixes in 1.12.1–1.12.3. Version 1.13 replaces Bluebird with native
+promises, recognizes custom XML/moved text and improves Markdown escaping.
+PoC awaits `extractRawText({buffer})` and reads the result fields, so it needs no
+promise adapter. Its output may now include text that older Mammoth omitted.
+
+Upgrading Mammoth alone retains argparse 1.x and vulnerable sprintf-js, which has
+no patched release for this advisory. The scoped override avoids a global parser
+change; the existing checked package-patch installer applies
+`patches/mammoth+1.13.0.patch`. It preserves CLI argument names, choices, output
+paths and mutual exclusion while using snake_case methods, `String` types and
+the v2 `default` option. Argparse 2's absent values become `undefined` instead of
+`null`; Mammoth's truthiness checks support both. See the
+[v1-to-v2 migration guide](https://github.com/nodeca/argparse/blob/2.0.1/doc/migrate_v1_to_v2.md).
+Argparse 3's additional help/parser changes are unnecessary for this fix.
+Real DOCX tests require the Mammoth backend, compare text and image bytes, run
+conversion/error cases under `--throw-deprecation`, and verify first/repeated
+patch application plus version/partial-patch rejection. Do not accept npm's
+suggested Mammoth downgrade or restore sprintf-js.
+
+The [additional regression baseline](../../tests/fixtures/security/dependency-advisories-2026-10-06.json)
+records the five advisory ranges with official links. The historical October 2
+baseline and live `npm audit --audit-level=low` gate remain active. Native package
+versions are unchanged; installation verification and real CPU inference still
+run independently of the audit.
+
 ## October 5 development-tool dependency paths
 
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
@@ -147,8 +212,9 @@ platform CI jobs remain responsible for Windows and macOS validation.
 ## Installation and verification
 
 Use `npm run bootstrap:ci` for a clean install with the checked-in lockfile and
-native patches. After an intentional `npm install --ignore-scripts`, use
-`node tools/setup/rebuild-native.js --repair` and verify native dependencies;
+package patches. After an intentional `npm install --ignore-scripts`, run
+`node tools/setup/apply-patches.js` before
+`node tools/setup/rebuild-native.js --repair`, then verify native dependencies;
 an audit result alone does not show that native binaries are usable.
 
 ```sh

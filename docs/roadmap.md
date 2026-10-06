@@ -43,13 +43,18 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-PR519 now publishes `13136005`, with local `ci-lite` 822/822 and gate 35/35.
-Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37411807912)
+PR519 publishes `5e81db47`; its `13136005` base passed local `ci-lite` 822/822
+and gate 35/35. The [earlier hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37411807912)
 stopped before tests: ONNX's supplemental Linux CUDA download from NuGet timed
 out, so Rust and all platform jobs were skipped. CPU-hosted CI/nightly/release
 workflows now use the vendor's supported supplemental-download skip setting.
 ONNX remains required; a network-forbidden installer check and real tiny CPU
-inference regression preserve that distinction. New hosted acceptance is pending.
+inference regression preserve that distinction. The [next hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37413083341)
+passed native installation, then stopped at eight vulnerable dependency entries
+from five advisory families. The reviewed dependency update removes those paths,
+migrates Git4 imports and Mammoth's CLI, and passes a fresh full-graph audit.
+See [compatibility review](guides/dependency-security.md#october-6-current-advisory-follow-through).
+New hosted and cross-platform acceptance remain pending.
 
 The previous `82528215` checkpoint has
 [hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):

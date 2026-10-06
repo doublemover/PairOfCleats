@@ -820,3 +820,6 @@ indexing/artifacts/core-metadata-bypass-writers
 indexing/artifacts/compaction-metadata-roundtrip
 indexing/discovery/owned-metadata
 tooling/ingest/shared-runner-lifecycle
+ci/dependency-runtime-migration
+indexing/git/simple-git-v4-migration
+indexing/extracted-prose/mammoth-security-migration

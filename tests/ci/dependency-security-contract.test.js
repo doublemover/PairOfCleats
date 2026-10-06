@@ -12,6 +12,7 @@ const readJson = (relative) => JSON.parse(fs.readFileSync(path.join(root, relati
 const manifest = readJson('package.json');
 const lock = readJson('package-lock.json');
 const baseline = readJson('tests/fixtures/security/dependency-advisories-2026-10-02.json');
+const additions = readJson('tests/fixtures/security/dependency-advisories-2026-10-06.json');
 
 assert.equal(lock.lockfileVersion, 3, 'dependency security checks require the complete npm lock graph');
 for (const field of ['dependencies', 'optionalDependencies', 'devDependencies', 'engines']) {
@@ -19,6 +20,8 @@ for (const field of ['dependencies', 'optionalDependencies', 'devDependencies', 
 }
 assert.ok(manifest.dependencies['@huggingface/transformers'], 'use the maintained Transformers.js package');
 assert.equal(manifest.dependencies['@xenova/transformers'], undefined, 'do not restore the vulnerable v2 runtime');
+assert.equal(manifest.dependencies.mammoth, '1.13.0', 'the reviewed Mammoth CLI patch requires an exact package version');
+assert.equal(manifest.overrides?.mammoth?.argparse, '2.0.1', 'remove the unpatched sprintf chain through the reviewed argparse migration');
 
 const minimumNode = semver.minVersion(manifest.engines.node);
 assert.ok(minimumNode && semver.gte(minimumNode, '24.15.0'), 'patched native dependencies require Node 24.15+');
@@ -34,9 +37,11 @@ for (const [packagePath, entry] of Object.entries(lock.packages)) {
   if (packageName === 'braces' && semver.satisfies(entry.version, '<=3.0.3')) {
     failures.push(`${packagePath}@${entry.version}: vulnerable recursive brace expansion`);
   }
-  const advisory = baseline.packages[packageName];
-  if (advisory && semver.satisfies(entry.version, advisory.range, { includePrerelease: true })) {
-    failures.push(`${packagePath}@${entry.version}: known vulnerable range ${advisory.range}`);
+  for (const advisories of [baseline, additions]) {
+    const advisory = advisories.packages[packageName];
+    if (advisory && semver.satisfies(entry.version, advisory.range, { includePrerelease: true })) {
+      failures.push(`${packagePath}@${entry.version}: known vulnerable range ${advisory.range}`);
+    }
   }
   // npm skips optional binaries for other platforms (e.g. Windows ia32 Sharp
   // supports only Node 20). Security ranges above still cover every platform.

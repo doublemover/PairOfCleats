@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { runScmCommand } from './scm/runner.js';
 import { getScmRuntimeConfig } from './scm/runtime.js';
 import {

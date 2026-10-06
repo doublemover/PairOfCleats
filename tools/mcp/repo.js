@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
