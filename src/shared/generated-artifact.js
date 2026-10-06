@@ -4,6 +4,7 @@ import { parseTree } from 'jsonc-parser';
 import { openContainedFile } from './contained-file.js';
 
 export const GENERATED_ARTIFACT_PREFIX_BYTES = 8192;
+export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@2';
 export const GENERATED_ARTIFACT_FLAGS = Object.freeze({ OMIT: 1, WARN: 2 });
 const FORMAT = 'poc.generated@1';
 const MAP_KIND = 'code-map-cache';
@@ -55,15 +56,47 @@ export const readMapCacheEnvelope = (payload, key) => (
     ? payload.data : null
 );
 
-const parseMapHeader = (text, key) => {
+const parseMapHeader = (text, key = null) => {
   const match = /^\s*\{\s*"__poc_generated"\s*:\s*(\{[^{}]*\})\s*,\s*"data"\s*:\s*\{/.exec(text);
   if (!match) return false;
   try {
     const keys = [...match[1].matchAll(/"((?:[^"\\]|\\.)*)"\s*:/g)]
       .map(entry => JSON.parse(`"${entry[1]}"`)).sort();
     if (keys.join(',') !== HEADER_KEYS.join(',')) return false;
-    return isMapHeader(JSON.parse(match[1]), key);
+    const header = JSON.parse(match[1]);
+    if (!/^[a-f0-9]{64}$/.test(header.key || '') || !isMapHeader(header, key || header.key)) return false;
+    return { header, dataOffset: match[0].length - 1 };
   } catch { return false; }
+};
+
+const hasMapModelHeader = (text, repoRoot = null) => {
+  const nodes = /"nodes"\s*:\s*\[/.exec(text);
+  if (!nodes) return false;
+  try {
+    const headerText = `${text.slice(0, nodes.index).trimEnd().replace(/,$/, '')}}`;
+    if (hasDuplicateKeys(headerText)) return false;
+    const header = JSON.parse(headerText);
+    if (Object.keys(header).sort().join(',') !== LEGACY_HEADER_KEYS.join(',')) return false;
+    return header.version === '1.0.0' && Number.isFinite(Date.parse(header.generatedAt))
+      && typeof header.root?.path === 'string'
+      && (!repoRoot || path.resolve(header.root.path) === path.resolve(repoRoot))
+      && typeof header.root?.id === 'string'
+      && ['code', 'prose', 'both'].includes(header.mode)
+      && header.options && Array.isArray(header.options.include)
+      && header.legend && typeof header.legend === 'object';
+  } catch { return false; }
+};
+
+/** Recognize a renamed owned cache from bytes already read for normal indexing. */
+export const classifyGeneratedArtifactContentPrefix = ({ prefix }) => {
+  const lead = Buffer.isBuffer(prefix) ? prefix.subarray(0, 512).toString('utf8') : String(prefix || '').slice(0, 512);
+  if (!/^\s*\{\s*"__poc_generated"\s*:/.test(lead)) return null;
+  const text = Buffer.isBuffer(prefix)
+    ? prefix.subarray(0, GENERATED_ARTIFACT_PREFIX_BYTES).toString('utf8')
+    : String(prefix || '').slice(0, GENERATED_ARTIFACT_PREFIX_BYTES);
+  const parsed = parseMapHeader(text);
+  if (!parsed || !hasMapModelHeader(text.slice(parsed.dataOffset))) return null;
+  return { kind: MAP_KIND, format: FORMAT, flags: GENERATED_ARTIFACT_FLAGS.OMIT, action: 'omit' };
 };
 
 export const isGeneratedArtifactCandidatePath = (relativePath) => {
@@ -87,21 +120,7 @@ export const classifyGeneratedArtifactPrefix = ({ relativePath, prefix, repoRoot
   if (!LEGACY_MAP_PATH.test(normalized)) return null;
   // Historical caches have no reserved header. Require their exact old location,
   // canonical key filename and recognizable map header; authored siblings survive.
-  const nodes = /"nodes"\s*:\s*\[/.exec(text);
-  if (!nodes) return null;
-  try {
-    const headerText = `${text.slice(0, nodes.index).trimEnd().replace(/,$/, '')}}`;
-    if (hasDuplicateKeys(headerText)) return null;
-    const header = JSON.parse(headerText);
-    if (Object.keys(header).sort().join(',') !== LEGACY_HEADER_KEYS.join(',')) return null;
-    if (header.version !== '1.0.0' || !Number.isFinite(Date.parse(header.generatedAt))
-      || typeof header.root?.path !== 'string'
-      || path.resolve(header.root.path) !== path.resolve(repoRoot)
-      || typeof header.root?.id !== 'string'
-      || !['code', 'prose', 'both'].includes(header.mode)
-      || !header.options || !Array.isArray(header.options.include)
-      || !header.legend || typeof header.legend !== 'object') return null;
-  } catch { return null; }
+  if (typeof repoRoot !== 'string' || !repoRoot || !hasMapModelHeader(text, repoRoot)) return null;
   return { kind: MAP_KIND, format: 'legacy-code-map@1', flags: GENERATED_ARTIFACT_FLAGS.OMIT, action: 'omit' };
 };
 

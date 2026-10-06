@@ -43,6 +43,8 @@ try {
   const explicit = path.join(repo, 'custom-cache');
   map(['--cache-dir', explicit, '--refresh']);
   assert.equal((await fs.readdir(explicit)).length, 1, 'explicit cache destination remains supported');
+  const [explicitCacheName] = await fs.readdir(explicit);
+  await fs.copyFile(path.join(explicit, explicitCacheName), path.join(repo, 'renamed-map-data.json'));
 
   const legacyCache = path.join(repo, '.pairofcleats', 'maps', 'cache');
   await fs.mkdir(legacyCache, { recursive: true });
@@ -51,7 +53,7 @@ try {
   }
   build();
   assert.equal(stats().modes.code.chunkMeta.rows, before.modes.code.chunkMeta.rows,
-    'build-map-rebuild must not ingest current or legacy map cache data');
+    'build-map-rebuild must not ingest current, renamed or legacy map cache data');
   await fs.writeFile(path.join(explicit, 'authored.js'), 'export const intentionallySearchable = 1;\n');
   await fs.writeFile(path.join(legacyCache, 'authored.js'), 'export const legacySibling = 2;\n');
   build();

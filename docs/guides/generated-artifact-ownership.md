@@ -28,6 +28,21 @@ marker reads. The header must occupy the first JSON field with the following
 Only the current file is omitted, with structured skip metadata naming its kind,
 format, flags and action. This is an ownership convention, not authentication.
 
+An additional check runs on the source buffer already read by the file processor,
+before decoding, parsing or chunking. It recognizes a renamed or copied marked
+map cache only when the exact supported declaration and recognizable map-model
+header are present in the first 8 KiB. This adds no filesystem read. Ordinary
+buffers get a small first-field check; quoted examples and marker-shaped authored
+JSON without the map structure remain searchable. The signature starts in the
+first 512 bytes, as emitted by the producer. Explicit records keep their searchable
+semantic role. Unmarked legacy caches still require the exact historical path.
+
+The discovery-policy version participates in the incremental content hash.
+The first build after this policy change re-evaluates previously cached source
+bundles; otherwise a warm pre-guard bundle could bypass the first-content read.
+Subsequent unchanged builds retain normal incremental reuse. Frozen snapshots are
+not rewritten by this migration.
+
 For old defaults, only
 `.pairofcleats/maps/cache/code-map:lk1:<40 hexadecimal digits>.json` is considered.
 Its bounded prefix must contain the recognizable map header, including the exact

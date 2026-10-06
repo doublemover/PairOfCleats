@@ -111,13 +111,14 @@ strict-dispatch opt-in. The 33 affected option/CLI/ingestion/TUI tests pass.
 The earlier complete Linux checkpoint is `ci-lite` 813/813 and gate 35/35.
 Subsequent SQLite compaction metadata preservation passes six focused tests and
 19 actual compact/freeze/generation-change/live/historical checks on memory and
-SQLite. Old damaged snapshots require separate recovery. Full 815-test and native
-platform acceptance are not implied by those focused passes.
+SQLite. Old damaged snapshots require separate recovery. A full integrated rerun and native
+platform acceptance remain separate from those focused passes.
 
 Map caches now default outside source trees; marked custom caches and exact legacy
 default caches survive build → map → rebuild without inflating authored chunks.
 Candidate-filename discovery/watch reads are capped at 8 KiB; ordinary paths incur
-no marker I/O. Renamed artifacts require the planned existing-content-read guard.
+no marker I/O. Renamed marked caches are checked again at the existing content-read
+boundary, with a one-time incremental policy migration and no extra file read.
 See the [ownership contract](guides/generated-artifact-ownership.md).
 
 Continue bounded artifact batches: producer registry and action contracts;

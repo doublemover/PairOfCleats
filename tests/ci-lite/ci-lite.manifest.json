@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 683,
+    "hero": 684,
     "matrix": 107,
     "meta": 24,
     "soak": 1,
@@ -4903,6 +4903,12 @@
     {
       "id": "cli/general/unknown-workflow-options",
       "order": 815,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/generated-artifact-content",
+      "order": 816,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

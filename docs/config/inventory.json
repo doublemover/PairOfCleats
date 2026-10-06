@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T01:42:46.819Z",
+  "generatedAt": "2026-10-06T01:58:12.477Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -4792,6 +4792,12 @@
         ]
       },
       {
+        "file": "tests/indexing/file-processor/generated-artifact-content.test.js",
+        "flags": [
+          "include"
+        ]
+      },
+      {
         "file": "tests/indexing/imports/import-resolution-policy-contract-matrix.test.js",
         "flags": [
           "flowMode"
@@ -6963,6 +6969,18 @@
         ]
       },
       {
+        "flag": "include",
+        "count": 6,
+        "files": [
+          "src/map/build-map.js",
+          "tests/indexing/file-processor/generated-artifact-content.test.js",
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tests/shared/cache/contract-matrix.test.js",
+          "tests/shared/generated-artifact-discovery.test.js"
+        ]
+      },
+      {
         "flag": "incremental",
         "count": 6,
         "files": [
@@ -7017,17 +7035,6 @@
           "tools/config/validate.js",
           "tools/docs/script-inventory.js",
           "tools/reports/diagnostics-report.js"
-        ]
-      },
-      {
-        "flag": "include",
-        "count": 5,
-        "files": [
-          "src/map/build-map.js",
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tests/shared/cache/contract-matrix.test.js",
-          "tests/shared/generated-artifact-discovery.test.js"
         ]
       },
       {

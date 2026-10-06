@@ -18,6 +18,7 @@ import {
   isDocsSearchIndexJsonPath
 } from './docs-search-json.js';
 import { resolveBinarySkip } from './skip.js';
+import { classifyGeneratedArtifactContentPrefix } from '../../../shared/generated-artifact.js';
 
 /**
  * Normalize extractor units into stable, serializable metadata.
@@ -124,6 +125,17 @@ export async function resolvePreCpuFileContent({
           message: err?.message || String(err)
         }
       };
+    }
+  }
+
+  // Reuse the source buffer: renamed owned outputs must not require a second
+  // blanket discovery read. Explicit records retain their searchable role.
+  if (mode !== 'records') {
+    const artifact = classifyGeneratedArtifactContentPrefix({ prefix: artifacts.fileBuffer });
+    if (artifact?.action === 'omit') {
+      return { skip: { reason: 'generated-artifact', artifactKind: artifact.kind,
+        artifactFormat: artifact.format, artifactFlags: artifact.flags, action: artifact.action,
+        recognition: 'existing-content-read' } };
     }
   }
 
