@@ -1095,20 +1095,23 @@ fn matches_log_source_filter(source: &str, filter: LogSourceFilter) -> bool {
     }
 }
 
-fn job_status_counts(model: &AppModel) -> (usize, usize, usize) {
+fn job_status_counts(model: &AppModel) -> (usize, usize, usize, usize) {
     let mut running = 0usize;
     let mut failed = 0usize;
     let mut done = 0usize;
+    let mut cancelled = 0usize;
     for status in model.job_status.values() {
         if status.contains("failed") {
             failed += 1;
         } else if status.contains("done") {
             done += 1;
+        } else if status.contains("cancelled") {
+            cancelled += 1;
         } else {
             running += 1;
         }
     }
-    (running, failed, done)
+    (running, failed, done, cancelled)
 }
 
 fn task_status_counts(model: &AppModel) -> (usize, usize) {
@@ -1585,10 +1588,10 @@ fn operator_summary_text(model: &AppModel, width: usize) -> String {
 }
 
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
-    let (running_jobs, failed_jobs, done_jobs) = job_status_counts(model);
+    let (running_jobs, failed_jobs, done_jobs, cancelled_jobs) = job_status_counts(model);
     let (active_tasks, failed_tasks) = task_status_counts(model);
     let parts = [
-        format!("jobs {running_jobs}r/{failed_jobs}f/{done_jobs}d"),
+        format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel"),
         format!("tasks {active_tasks}a/{failed_tasks}f"),
         format!("queue {:.0}", model.telemetry.queue_depth_ewma),
         format!("lag {:.0}ms", model.telemetry.event_lag_ms_ewma),
@@ -3490,5 +3493,49 @@ mod redraw_tests {
         model.telemetry.render_ms_ewma = 16.0;
         model.dirty = true;
         assert_eq!(frame_signature(&model), idle);
+    }
+
+    #[test]
+    fn running_to_cancelled_moves_the_runtime_count() {
+        let mut model = model();
+        apply_protocol_event(
+            &mut model,
+            json!({
+                "event": "job:start", "jobId": "job-1", "title": "Search Help"
+            }),
+            0,
+        );
+        assert_eq!(job_status_counts(&model), (1, 0, 0, 0));
+        let running = frame_signature(&model);
+        apply_protocol_event(
+            &mut model,
+            json!({
+                "event": "job:end", "jobId": "job-1", "status": "cancelled", "exitCode": 130
+            }),
+            0,
+        );
+        assert_eq!(job_status_counts(&model), (0, 0, 0, 1));
+        assert_ne!(frame_signature(&model), running);
+        assert!(runtime_summary_text(&model, 62).contains("jobs 0run/0fail/0done/1cancel"));
+        assert!(screen(&model, 64, 30).contains("jobs 0run/0fail/0done/1cancel"));
+    }
+
+    #[test]
+    fn known_terminal_states_preserve_failed_done_and_cancelled_counts() {
+        let mut model = model();
+        for (id, status) in [
+            ("running", "running"),
+            ("accepted", "accepted"),
+            ("cancelling", "cancelling"),
+            ("failed", "failed"),
+            ("done", "done"),
+            ("cancelled", "cancelled"),
+        ] {
+            model.job_status.insert(id.into(), status.into());
+        }
+        assert_eq!(job_status_counts(&model), (3, 1, 1, 1));
+        assert!(runtime_summary_text(&model, 120).contains("jobs 3run/1fail/1done/1cancel"));
+        model.job_status.remove("cancelled");
+        assert_eq!(job_status_counts(&model), (3, 1, 1, 0));
     }
 }
