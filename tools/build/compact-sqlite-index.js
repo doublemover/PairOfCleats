@@ -185,12 +185,12 @@ export async function compactDatabase(input) {
   const insertChunk = outDb.prepare(`
     INSERT OR REPLACE INTO chunks (
       id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
-      headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      metaV2_json, headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
       docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
       churn, churn_added, churn_deleted, churn_commits, chunk_authors
     ) VALUES (
       @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
-      @name, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @name, @metaV2_json, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
       @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
       @last_modified, @last_author, @churn, @churn_added, @churn_deleted, @churn_commits,
       @chunk_authors
@@ -565,4 +565,3 @@ if (isDirectRun) {
   display.log('SQLite compaction complete.');
   display.close();
 }
-

@@ -115,9 +115,15 @@ separate SQLite compaction and broader generated-artifact follow-on batches.
 
 Actual API, both MCP transports and the TUI supervisor pass repeated requests,
 invalid requests and shutdown/cancellation controls. Snapshot freeze followed by
-an index generation change preserves historical memory results. Historical
-SQLite search failed with missing `metaV2_json` and requires isolated reproduction
-and a fix or explicit limitation. These
+an index generation change preserves historical memory results. The subsequent
+SQLite lifecycle pass exposed metadata loss in `sqlite compact`: its chunk INSERT
+omitted `metaV2_json`, leaving new frozen snapshots unreadable by SQLite retrieval.
+The corrected INSERT preserves every persisted chunk column. A regression covers
+repeated compaction, reassigned local IDs, stable chunk identity, retrieval
+hydration, backups and dry-run bytes. All 19 fresh CLI lifecycle checks pass,
+including repeated live/historical searches on memory and SQLite after compaction,
+snapshot freeze and a generation change. Previously damaged snapshots require
+their own recovery; this fix does not rewrite historical artifacts. These
 tiny, lexical-only fixtures do not establish ANN quality, optional backend
 acceptance or complete project/platform coverage. Full benchmark measurement,
 clean dependency installation, permission/worktree cases and further repeated

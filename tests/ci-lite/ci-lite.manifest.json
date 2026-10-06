@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 681,
+    "hero": 682,
     "matrix": 107,
     "meta": 24,
     "soak": 1,
@@ -4891,6 +4891,12 @@
     {
       "id": "cli/general/signal-cleanup",
       "order": 813,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/compact-metadata-roundtrip",
+      "order": 814,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
