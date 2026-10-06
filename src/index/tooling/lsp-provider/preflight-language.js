@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { assessZlsZigCompatibility } from '../runtime-admission.js';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
 import {
   LUA_WORKSPACE_CONFIG_MAX_BYTES,
@@ -137,6 +138,34 @@ export const resolveYamlSchemaModePreflight = ({ server }) => {
       message
     }
   };
+};
+
+export const resolveZlsRuntimeCompatibilityPreflight = ({ server, commandProfile, runtimeProfiles = [] } = {}) => {
+  const context = resolveServerLanguageContext(server);
+  const token = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(?:exe|cmd|bat)$/u, '');
+  const isZls = context.serverId === 'zls' || server?.preset === 'zls' || token === 'zls';
+  if (!isZls || commandProfile?.probe?.ok !== true) {
+    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+  }
+  const zigProfile = (Array.isArray(runtimeProfiles) ? runtimeProfiles : [])
+    .find(entry => entry?.id === 'zig')?.commandProfile;
+  const compatibility = assessZlsZigCompatibility({ zlsVersionText: commandProfile?.probe?.versionText,
+    zigVersionText: zigProfile?.probe?.ok === true ? zigProfile.probe.versionText : null });
+  const pair = `ZLS ${compatibility.zls ? `${compatibility.zls.major}.${compatibility.zls.minor}.${compatibility.zls.patch}` : 'unknown'} / `
+    + `Zig ${compatibility.zig ? `${compatibility.zig.major}.${compatibility.zig.minor}.${compatibility.zig.patch}` : 'unknown'}`;
+  if (compatibility.state === 'incompatible') {
+    const message = `${pair} has incompatible release families/channels; skipping optional Zig enrichment. No tool upgrade is performed.`;
+    return { state: 'blocked', blockProvider: true, reasonCode: compatibility.reasonCode, message, compatibility,
+      checks: [{ name: compatibility.reasonCode, status: 'warn', message }] };
+  }
+  if (compatibility.state === 'unverified') {
+    const message = `${pair} compatibility is unverified; retain reduced-capability provenance and actual protocol/capability gates.`;
+    return { state: 'degraded', reasonCode: compatibility.reasonCode, message, compatibility,
+      checks: [{ name: compatibility.reasonCode, status: 'warn', message }] };
+  }
+  const message = `${pair} satisfies the upstream release-family rule; semantic acceptance still requires actual capability checks.`;
+  return { state: 'ready', reasonCode: null, message: '', compatibility,
+    checks: [{ name: 'zls_zig_release_family_admissible', status: 'ok', message }] };
 };
 
 const ZIG_WORKSPACE_MARKER_NAMES = new Set(['build.zig', 'build.zig.zon']);

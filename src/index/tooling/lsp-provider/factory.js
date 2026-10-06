@@ -23,7 +23,8 @@ import {
   resolveLuaWorkspaceLibraryPreflight,
   resolveRustProcMacroSuppressionPolicyPreflight,
   resolveYamlSchemaModePreflight,
-  resolveZigWorkspaceRootPreflight
+  resolveZigWorkspaceRootPreflight,
+  resolveZlsRuntimeCompatibilityPreflight
 } from './preflight-language.js';
 import { collectConfiguredOutput } from './runtime.js';
 import {
@@ -285,6 +286,10 @@ export const createConfiguredLspProvider = (server) => {
       providerId,
       requirements: server.preflightRuntimeRequirements
     });
+    const zlsRuntimeCompatibilityPreflight = resolveZlsRuntimeCompatibilityPreflight({
+      server, commandProfile: commandPreflight?.commandProfile,
+      runtimeProfiles: runtimeRequirementPreflight?.profiles || []
+    });
     const zigWorkspaceRootPreflight = resolveZigWorkspaceRootPreflight({
       server,
       repoRoot: ctx?.repoRoot || process.cwd()
@@ -303,6 +308,7 @@ export const createConfiguredLspProvider = (server) => {
         runtimeRequirementPreflight?.checks,
         rustSuppressionPolicyPreflight?.check,
         rustSuppressionPolicyPreflight?.checks,
+        zlsRuntimeCompatibilityPreflight?.checks,
         zigWorkspaceRootPreflight?.check,
         zigWorkspaceRootPreflight?.checks
       );
@@ -327,7 +333,8 @@ export const createConfiguredLspProvider = (server) => {
         yamlSchemaModePreflight,
         runtimeRequirementPreflight,
         rustSuppressionPolicyPreflight,
-        zigWorkspaceRootPreflight
+        zigWorkspaceRootPreflight,
+        zlsRuntimeCompatibilityPreflight
       }
     });
   };

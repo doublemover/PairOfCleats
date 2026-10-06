@@ -21,9 +21,10 @@ export const resolveRuntimeRequirementsPreflight = ({
   if (executionAuthority) return { ...executionAuthority, checks: [executionAuthority.check] };
   const runtimeRequirements = Array.isArray(requirements) ? requirements : [];
   if (!runtimeRequirements.length) {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+    return { state: 'ready', reasonCode: null, message: '', checks: [], profiles: [] };
   }
   const checks = [];
+  const profiles = [];
   for (const requirement of runtimeRequirements) {
     const requirementId = String(requirement?.id || '').trim().toLowerCase();
     const requirementCmd = String(requirement?.cmd || '').trim();
@@ -39,6 +40,7 @@ export const resolveRuntimeRequirementsPreflight = ({
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
+    profiles.push({ id: requirementId, commandProfile });
     const probeOk = commandProfile?.probe?.ok === true;
     if (probeOk) continue;
     const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
@@ -51,7 +53,7 @@ export const resolveRuntimeRequirementsPreflight = ({
     });
   }
   if (!checks.length) {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+    return { state: 'ready', reasonCode: null, message: '', checks: [], profiles };
   }
   const firstMissing = checks.find((entry) => String(entry?.name || '').endsWith('_missing')) || null;
   return {
@@ -60,6 +62,7 @@ export const resolveRuntimeRequirementsPreflight = ({
     message: firstMissing
       ? 'one or more runtime requirements are unavailable.'
       : 'one or more runtime requirement probes were inconclusive.',
-    checks
+    checks,
+    profiles
   };
 };

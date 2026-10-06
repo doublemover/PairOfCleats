@@ -116,6 +116,7 @@ export const resolveConfiguredWorkspacePreflight = async ({
     languagePreflights?.runtimeRequirementPreflight?.checks,
     languagePreflights?.rustSuppressionPolicyPreflight?.check,
     languagePreflights?.rustSuppressionPolicyPreflight?.checks,
+    languagePreflights?.zlsRuntimeCompatibilityPreflight?.checks,
     languagePreflights?.zigWorkspaceRootPreflight?.check,
     languagePreflights?.zigWorkspaceRootPreflight?.checks,
     goWorkspacePreflight?.check,
@@ -129,6 +130,7 @@ export const resolveConfiguredWorkspacePreflight = async ({
     languagePreflights?.yamlSchemaModePreflight,
     languagePreflights?.runtimeRequirementPreflight,
     languagePreflights?.rustSuppressionPolicyPreflight,
+    languagePreflights?.zlsRuntimeCompatibilityPreflight,
     languagePreflights?.zigWorkspaceRootPreflight,
     goWorkspacePreflight,
     rustWorkspacePreflight
