@@ -10,6 +10,7 @@ import { resolvePreCpuFileContent } from '../../../src/index/build/file-processo
 import { buildContentConfigHash, normalizeContentConfig } from '../../../src/index/build/runtime/hash.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
+import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 
 const repoRoot = process.cwd();
 const map = { version: '1.0.0', generatedAt: '2026-10-06T00:00:00.000Z',
@@ -48,6 +49,11 @@ const quoted = await checkContent(JSON.stringify({ documentation: text }));
 assert.equal(quoted.result.skip, null);
 const records = await checkContent(text, 'records');
 assert.equal(records.result.skip, null, 'explicit records retain their searchable semantic role');
+const metadata = JSON.stringify(withGeneratedArtifactMetadata({ mode: 'code' }, 'index-state'));
+assert.equal((await checkContent(metadata)).result.skip?.artifactKind, 'index-state',
+  'renamed core metadata uses the same existing-buffer guard');
+assert.equal((await checkContent(metadata, 'records')).result.skip, null);
+assert.equal((await checkContent(JSON.stringify({ documentation: metadata }))).result.skip, null);
 assert.equal(reads, 0, 'classification must reuse the existing source buffer');
 
 const config = { indexing: { typeInference: false } };
@@ -55,6 +61,10 @@ const env = { cacheRoot: '/fixture-cache' };
 const oldHash = sha1(stableStringifyForSignature({ config: normalizeContentConfig(config), env: { ...env, cacheRoot: '' } }));
 assert.notEqual(buildContentConfigHash(config, env), oldHash,
   'policy migration must invalidate bundles created before content classification');
+const mapOnlyHash = sha1(stableStringifyForSignature({ generatedArtifactPolicyVersion: 'poc.generated-discovery@2',
+  config: normalizeContentConfig(config), env: { ...env, cacheRoot: '' } }));
+assert.notEqual(buildContentConfigHash(config, env), mapOnlyHash,
+  'adding core metadata recognition must also invalidate the earlier map-only policy');
 assert.equal(buildContentConfigHash(config, env), buildContentConfigHash(config, { cacheRoot: '/elsewhere' }));
 
 const ordinary = Buffer.from('export function authored() { return "poc.generated@1"; }');

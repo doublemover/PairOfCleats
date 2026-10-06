@@ -1,6 +1,6 @@
 # Generated-artifact ownership
 
-Status: first bounded implementation batch, 2026-10-06.
+Current coverage: map caches and registered core metadata, 2026-10-06.
 
 Generated content is not automatically disposable or unsearchable. Authored
 configuration, triage records, documentation and useful reports retain their input
@@ -49,6 +49,16 @@ Its bounded prefix must contain the recognizable map header, including the exact
 repository root and supported version. Authored siblings, malformed candidates,
 unknown markers and old unmarked caches at other custom locations remain inputs.
 No directory is excluded merely because it contains one owned artifact.
+
+## Core metadata
+
+The [core metadata contract](generated-core-artifact-metadata.md) registers pieces
+manifests, index state, build pointers, sharded metadata and audited alternate
+metadata writers. Discovery/watch omit matching marked metadata files themselves;
+the existing-content guard also recognizes renamed marked metadata. Referenced
+JSONL/array/native members remain outside this metadata-only exclusion policy.
+Authored siblings and unmarked lookalikes are preserved, including when a manifest
+contains their paths. Generic JSON writers remain policy-neutral.
 
 ## Remaining formats
 

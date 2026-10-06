@@ -121,8 +121,15 @@ no marker I/O. Renamed marked caches are checked again at the existing content-r
 boundary, with a one-time incremental policy migration and no extra file read.
 See the [ownership contract](guides/generated-artifact-ownership.md).
 
-Continue bounded artifact batches: producer registry and action contracts;
-index/storage metadata; caches/runtime state; reports/editor outputs; then
+Core metadata producers and rewrite paths now stamp compatible extension slots;
+discovery and the existing-content guard omit those marked metadata files only.
+Schema, stable-hash, compaction, extension-preservation and native-byte regressions
+cover the producer batch. Referenced members and native store descendants are
+not excluded by manifest claims. See the
+[core metadata contract](guides/generated-core-artifact-metadata.md).
+
+Continue bounded artifact batches: exact-member content linkage;
+caches/runtime state; reports/editor outputs; then
 native/package/TUI/developer outputs. Preserve strict schemas, JSONL/array shapes,
 checksums, offsets and useful searchable reports. Native Windows/macOS/TUI proof,
 clean dependency installation, full benchmark measurement, representative retrieval

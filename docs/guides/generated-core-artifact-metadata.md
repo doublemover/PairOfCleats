@@ -55,6 +55,11 @@ The classifier does not follow payload paths, decompress data, hash members, or
 make filesystem access decisions. Its caller remains responsible for contained
 reads and for deciding how the returned policy applies to source discovery.
 
+Source discovery and watch now call the path-bound classifier through the shared
+generated-artifact guard. The file processor calls the content-only classifier on
+already-read buffers before parsing/chunking. Neither integration follows manifest
+members, and explicit records retain their searchable input role.
+
 ## Rewrite and compatibility rules
 
 Markers have no timestamps, build IDs, absolute paths, or other volatile data.

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 684,
+    "hero": 688,
     "matrix": 107,
     "meta": 24,
     "soak": 1,
@@ -4909,6 +4909,30 @@
     {
       "id": "indexing/file-processor/generated-artifact-content",
       "order": 816,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/generated-artifact-core",
+      "order": 817,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/core-metadata-bypass-writers",
+      "order": 818,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/compaction-metadata-roundtrip",
+      "order": 819,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/discovery/owned-metadata",
+      "order": 820,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

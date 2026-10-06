@@ -814,3 +814,7 @@ cli/general/signal-cleanup
 storage/sqlite/compact-metadata-roundtrip
 cli/general/unknown-workflow-options
 indexing/file-processor/generated-artifact-content
+shared/generated-artifact-core
+indexing/artifacts/core-metadata-bypass-writers
+indexing/artifacts/compaction-metadata-roundtrip
+indexing/discovery/owned-metadata
