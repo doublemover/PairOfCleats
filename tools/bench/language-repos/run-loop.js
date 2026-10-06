@@ -534,8 +534,8 @@ export const runBenchExecutionLoop = async ({
   const benchArgsPrefix = [argv['stub-embeddings'] ? '--stub-embeddings' : '--real-embeddings'];
   const benchArgsSuffix = [];
   if (argv.incremental) benchArgsSuffix.push('--incremental');
-  if (argv.ann) benchArgsSuffix.push('--ann');
-  if (argv['no-ann']) benchArgsSuffix.push('--no-ann');
+  if (argv.ann === true) benchArgsSuffix.push('--ann');
+  if (argv.ann === false || argv['no-ann'] === true) benchArgsSuffix.push('--no-ann');
   if (argv.backend) benchArgsSuffix.push('--backend', String(argv.backend));
   if (argv.top) benchArgsSuffix.push('--top', String(argv.top));
   if (argv.limit) benchArgsSuffix.push('--limit', String(argv.limit));
