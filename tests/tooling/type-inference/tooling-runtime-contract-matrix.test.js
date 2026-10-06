@@ -12,6 +12,7 @@ import {
 import { runCrossFilePropagation } from '../../../src/index/type-inference-crossfile/propagation.js';
 import {
   __resolveDefaultToolingCacheDirForTests,
+  __summarizeToolingDegradationWarningForTests,
   runToolingPass
 } from '../../../src/index/type-inference-crossfile/tooling.js';
 import { registerToolingProvider, TOOLING_PROVIDERS } from '../../../src/index/tooling/provider-registry.js';
@@ -325,6 +326,74 @@ const runToolingPassCases = async () => {
   assert.equal(logs.some((line) => line.includes('[tooling] doctor:')), false);
 };
 
+
+
+const runDegradedWarningCases = async () => {
+  assert.equal(__summarizeToolingDegradationWarningForTests([]), null);
+  const summary = __summarizeToolingDegradationWarningForTests([
+    { providerId: 'z', reasonCodes: ['missing_optional_tool', 'missing_optional_tool'] },
+    { providerId: 'a', reasonCodes: ['missing_optional_tool'] },
+    { providerId: 'a', reasonCodes: ['missing_optional_tool'] },
+    { providerId: 'b', reasonCodes: [] },
+    { providerId: 'c', reasonCodes: [] }
+  ]);
+  assert.match(summary, /4 provider\(s\) \(a, b, c, \+1 more\)/);
+  assert.equal(summary.match(/missing_optional_tool/gu).length, 1);
+  assert.match(summary, /Available parser\/provider results remain usable/);
+
+  TOOLING_PROVIDERS.clear();
+  const ids = ['warn-a', 'warn-b', 'warn-c', 'warn-d'];
+  for (const id of ids) registerToolingProvider({
+    id, version: '1.0.0', kinds: ['types'],
+    capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+    getConfigHash: () => `${id}-v1`,
+    async run() {
+      return { byChunkUid: {}, diagnostics: {
+        checks: Array.from({ length: 12 }, () => ({ name: 'missing_optional_tool', status: 'error', message: 'Optional tool unavailable.' })),
+        fidelity: { state: 'degraded', qualityDelta: { partialSuccess: false } }
+      } };
+    }
+  });
+  registerToolingProvider({
+    id: 'healthy-warning-fixture', version: '1.0.0', kinds: ['types'],
+    capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+    getConfigHash: () => 'healthy-warning-fixture-v1',
+    async run() { return { byChunkUid: { 'warning-chunk': { returnType: 'number' } },
+      diagnostics: { checks: [], fidelity: { state: 'healthy' } } }; }
+  });
+  const caseRoot = path.join(tempRoot, 'degraded-warnings');
+  const source = 'function answer() { return 42; }\n';
+  await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
+  await fs.writeFile(path.join(caseRoot, 'src/sample.js'), source);
+  const chunks = [{ chunkUid: 'warning-chunk', chunkId: 'warning-chunk', file: 'src/sample.js',
+    name: 'answer', kind: 'function', start: 0, end: source.length, docmeta: {},
+    metaV2: { symbol: { qualifiedName: 'answer' } } }];
+  const logs = [];
+  const stats = await runToolingPass({ rootDir: caseRoot, buildRoot: caseRoot, chunks,
+    entryByUid: new Map(), log: line => logs.push(String(line)),
+    toolingConfig: { enabledTools: [...ids, 'healthy-warning-fixture'], cache: { enabled: false } },
+    toolingTimeoutMs: 1000, toolingRetries: 0, toolingBreaker: 1, toolingLogDir: null,
+    fileTextByFile: new Map([['src/sample.js', source]]) });
+  assert.equal(chunks[0].docmeta.returnType, 'number', 'healthy enrichment must still contribute');
+  assert.equal(stats.toolingDegradedProviders, 4);
+  assert.equal(stats.toolingDegradedErrors, 48, 'presentation cannot erase underlying diagnostics');
+  assert.equal(logs.filter(line => line.includes('[tooling] warning: reduced enrichment')).length, 1);
+  assert.equal(logs.some(line => line.includes('error missing_optional_tool')), false);
+  assert.equal(logs.some(line => line.includes('degraded mode active (fail-open)')), false);
+  const diagnosticFile = path.join(__resolveDefaultToolingCacheDirForTests({ rootDir: caseRoot, buildRoot: caseRoot }), 'diagnostics', 'tooling.json');
+  const snapshot = JSON.parse(await fs.readFile(diagnosticFile, 'utf8'));
+  assert.equal(snapshot.reportedProviderCount, 5);
+  assert.equal(snapshot.truncated, false);
+  const records = snapshot.providers;
+  for (const id of ids) {
+    const record = records.find(entry => entry.providerId === id);
+    assert.ok(record, `diagnostic record remains available for ${id}`);
+    assert.equal(record.reportedCheckCount, 12);
+    assert.equal(record.checks.length, 12);
+    assert.equal(record.checks.every(check => check.status === 'error'), true);
+  }
+};
+
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -334,6 +403,7 @@ try {
   await runFailOpenRuntimeCase();
   await runBudgetCase();
   await runToolingPassCases();
+  await runDegradedWarningCases();
   console.log('tooling runtime contract matrix test passed');
 } finally {
   await fs.rm(tempRoot, { recursive: true, force: true });

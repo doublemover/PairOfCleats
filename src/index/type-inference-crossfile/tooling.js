@@ -9,6 +9,7 @@ import { addInferredParam, addInferredReturn } from './apply.js';
 import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative, isUncPath } from '../../shared/file-paths.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
 import { buildToolingDiagnosticRecord, redactToolingDiagnosticText } from './tooling-diagnostic-record.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
@@ -57,6 +58,30 @@ const resolveDefaultToolingCacheDir = ({
 
 export const __resolveDefaultToolingCacheDirForTests = resolveDefaultToolingCacheDir;
 
+const summarizeToolingDegradationWarning = (degradedProviders) => {
+  const providers = new Set();
+  const reasons = new Set();
+  for (const entry of Array.isArray(degradedProviders) ? degradedProviders : []) {
+    const providerId = redactToolingDiagnosticText(entry?.providerId || '', 96).replace(/\s+/gu, ' ').trim();
+    if (!providerId) continue;
+    providers.add(providerId);
+    for (const raw of Array.isArray(entry?.reasonCodes) ? entry.reasonCodes : []) {
+      const reason = redactToolingDiagnosticText(raw, 96).replace(/\s+/gu, ' ').trim();
+      if (reason) reasons.add(reason);
+    }
+  }
+  if (!providers.size) return null;
+  const compact = (values) => {
+    const sorted = [...values].sort();
+    return sorted.slice(0, 3).join(', ') + (sorted.length > 3 ? `, +${sorted.length - 3} more` : '');
+  };
+  return `[tooling] warning: reduced enrichment for ${providers.size} provider(s) (${compact(providers)}). `
+    + (reasons.size ? `Reasons: ${compact(reasons)}. ` : '')
+    + 'Available parser/provider results remain usable; check project tools and their compatible versions if richer type/navigation coverage is needed.';
+};
+
+export const __summarizeToolingDegradationWarningForTests = summarizeToolingDegradationWarning;
+
 const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
   if (!logDir || !provider) return baseLog;
   const absDir = isAbsolutePathNative(logDir) ? logDir : path.join(rootDir, logDir);
@@ -74,12 +99,36 @@ const createToolingLogger = (rootDir, logDir, provider, baseLog) => {
     baseLog(message);
     void writer.enqueue(`[${new Date().toISOString()}] ${message}\n`);
   };
+  logger.filePath = logFile;
   logger.flush = () => writer.flush();
   logger.close = () => writer.close();
   // File-only structured data avoids interpreting zero-valued timeout counters as operator warnings.
   logger.writeDiagnostic = (record) => writer.enqueue(
     `[${new Date().toISOString()}] [tooling-diagnostic] ${JSON.stringify(record)}\n`
   );
+  return logger;
+};
+
+const createLatestToolingDiagnosticLogger = ({ rootDir, buildRoot, baseLog }) => {
+  const filePath = path.join(resolveDefaultToolingCacheDir({ rootDir, buildRoot }), 'diagnostics', 'tooling.json');
+  const records = [];
+  let reportedProviderCount = 0;
+  const logger = (message) => baseLog(message);
+  logger.filePath = filePath;
+  logger.writeDiagnostic = async (record) => {
+    reportedProviderCount += 1;
+    if (records.length < 128) records.push(record);
+  };
+  logger.close = async () => {
+    if (!reportedProviderCount) return;
+    try {
+      await atomicWriteJson(filePath, { schemaVersion: 1, generatedAt: new Date().toISOString(),
+        reportedProviderCount, truncated: reportedProviderCount > records.length, providers: records },
+      { spaces: 2, newline: true });
+    } catch (error) {
+      baseLog(`[tooling] diagnostic snapshot write failed (${error?.code || 'unknown'}).`);
+    }
+  };
   return logger;
 };
 
@@ -301,7 +350,11 @@ export const runToolingPass = async ({
   }
   log(`[tooling] providers:selected count=${providerIds.length}.`);
 
-  const providerLog = createToolingLogger(rootDir, toolingLogDir, 'tooling', log);
+  // Keep bounded structured cause/capability records even without a log-dir flag.
+  // Use the existing application-owned cache surface, not authored source folders.
+  const providerLog = toolingLogDir
+    ? createToolingLogger(rootDir, toolingLogDir, 'tooling', log)
+    : createLatestToolingDiagnosticLogger({ rootDir, buildRoot, baseLog: log });
   let result;
   try {
     log(`[tooling] providers:start docs=${documents.length} targets=${targets.length}.`);
@@ -309,33 +362,22 @@ export const runToolingPass = async ({
     result = await runToolingProviders(ctx, { documents, targets, kinds: ['types'] }, providerIds);
     const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
     log(`[tooling] providers:done elapsedMs=${providerElapsedMs}.`);
-    if (Array.isArray(result?.degradedProviders) && result.degradedProviders.length) {
-      const summary = result.degradedProviders
-        .map((entry) => `${entry.providerId}${entry.errorCount > 0 ? `:error=${entry.errorCount}` : ''}${entry.warningCount > 0 ? `:warn=${entry.warningCount}` : ''}`)
-        .join(', ');
-      log(`[tooling] degraded mode active for ${result.degradedProviders.length} provider(s): ${summary}`);
-    }
     if (providerLog && result?.diagnostics) {
       for (const [providerId, diag] of Object.entries(result.diagnostics || {})) {
         if (!diag) continue;
         const provider = providerPlans.find((plan) => plan.provider?.id === providerId)?.provider;
         const record = buildToolingDiagnosticRecord({ providerId, providerContractVersion: provider?.version, diagnostics: diag });
         if (providerLog.writeDiagnostic) await providerLog.writeDiagnostic(record);
-        if (record.cachedRuntimeOmitted) continue;
-        let reported = 0;
-        for (const check of record.checks) {
-          if (!['warn', 'error'].includes(check.status)) continue;
-          if (reported++ >= 8) break;
-          providerLog(`[tooling] ${record.providerId} ${check.status} ${check.name}: ${redactToolingDiagnosticText(check.message, 512).replace(/\s+/gu, ' ')}`);
-        }
       }
     }
     if (providerLog && Array.isArray(result?.observations)) {
       for (const observation of result.observations) {
-        if (!observation?.message) continue;
+        if (!observation?.message || observation.code === 'tooling_provider_degraded_mode') continue;
         providerLog(`[tooling] ${observation.message}`);
       }
     }
+    const warning = summarizeToolingDegradationWarning(result?.degradedProviders);
+    if (warning) log(`${warning} Diagnostics: ${redactToolingDiagnosticText(providerLog.filePath, 512)}.`);
   } finally {
     await providerLog?.close?.();
   }
