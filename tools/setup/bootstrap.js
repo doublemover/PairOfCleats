@@ -23,7 +23,7 @@ const argv = createCli({
     repo: { type: 'string' }
   },
   aliases: { s: 'with-sqlite', i: 'incremental' }
-}).parse();
+}).strictOptions().parse();
 
 const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const toolRoot = resolveToolRoot();

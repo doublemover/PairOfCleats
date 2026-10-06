@@ -26,7 +26,7 @@ const argv = createCli({
     mode: { type: 'string' },
     repo: { type: 'string' }
   }
-}).parse();
+}).strictOptions().parse();
 
 const exitWithSummaryError = (message, code = 1) => {
   if (argv.json) {

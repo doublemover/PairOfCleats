@@ -96,7 +96,7 @@ const argv = createCli({
       describe: 'Write JSON results to a file'
     }
   }
-}).parse();
+}).strictOptions().parse();
 
 const hasRepoArg = rawArgs.includes('--repo');
 const repoRoot = argv['repo-current'] && !hasRepoArg

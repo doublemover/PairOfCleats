@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 682,
+    "hero": 683,
     "matrix": 107,
     "meta": 24,
     "soak": 1,
@@ -4897,6 +4897,12 @@
     {
       "id": "storage/sqlite/compact-metadata-roundtrip",
       "order": 814,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/unknown-workflow-options",
+      "order": 815,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

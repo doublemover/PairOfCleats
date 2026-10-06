@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T01:06:06.562Z",
+  "generatedAt": "2026-10-06T01:42:46.819Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -3822,6 +3822,7 @@
       "files": [
         "bin/tui-wrapper-env.js",
         "src/shared/env/tui.js",
+        "tests/cli/general/unknown-workflow-options.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tui/observability/supervisor-fixture.js",
         "tools/config/inventory.js"
@@ -6181,6 +6182,7 @@
           "out-dir",
           "queries",
           "queries-dir",
+          "repo",
           "results",
           "search",
           "top"
@@ -6527,7 +6529,7 @@
       },
       {
         "flag": "repo",
-        "count": 57,
+        "count": 58,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -6577,6 +6579,7 @@
           "tools/reports/combined-summary.js",
           "tools/reports/diagnostics-report.js",
           "tools/reports/metrics-dashboard.js",
+          "tools/reports/parity-matrix.js",
           "tools/reports/show-throughput/options.js",
           "tools/setup/bootstrap.js",
           "tools/setup/setup.js",

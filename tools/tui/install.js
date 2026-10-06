@@ -29,7 +29,7 @@ const argv = createCli({
     'install-root': { type: 'string', default: '' },
     'event-log-dir': { type: 'string', default: '' }
   }
-}).parse();
+}).strictOptions().parse();
 
 const root = resolveToolRoot();
 

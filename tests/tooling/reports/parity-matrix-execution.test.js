@@ -31,7 +31,7 @@ const env = applyTestEnv({
   extraEnv: { PAIROFCLEATS_THREADS: '1', PAIROFCLEATS_BUNDLE_THREADS: '1' }
 });
 const args = [path.join(root, 'bin', 'pairofcleats.js'), 'report', 'parity',
-  '--backends', 'sqlite', '--ann-modes', 'off', '--queries', queries, '--out-dir', out];
+  '--repo', repo, '--backends', 'sqlite', '--ann-modes', 'off', '--queries', queries, '--out-dir', out];
 const readMatrix = () => fs.readFile(path.join(out, 'matrix.json'), 'utf8').then(JSON.parse);
 
 try {
@@ -40,7 +40,7 @@ try {
   { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
   assert.equal(build.status, 0, build.stderr);
 
-  const success = runNode(args, 'parity matrix success', repo, env,
+  const success = runNode(args, 'parity matrix success from unrelated directory', temp, env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
   assert.equal(success.status, 0, success.stderr);
   const matrix = await readMatrix();

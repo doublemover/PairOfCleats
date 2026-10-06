@@ -22,7 +22,7 @@ const argv = createCli({
     out: { type: 'string' },
     json: { type: 'boolean', default: false }
   }
-}).parse();
+}).strictOptions().parse();
 
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const cacheRoot = getRepoCacheRoot(repoRoot, userConfig);

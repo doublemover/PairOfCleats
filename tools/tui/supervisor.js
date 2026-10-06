@@ -5,6 +5,12 @@ import { FLOW_METRICS_INTERVAL_MS, SUPERVISOR_PROTOCOL } from './supervisor/cons
 import { createJobController } from './supervisor/jobs.js';
 import { createEventLogRecorder, createFlowController } from './supervisor/protocol-flow.js';
 import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
+import { createCli } from '../../src/shared/cli.js';
+
+createCli({
+  scriptName: 'pairofcleats tui supervisor',
+  usage: 'Run the TUI supervisor over stdin/stdout using the poc.tui@1 protocol.'
+}).strictOptions().parse();
 
 const ROOT = resolveToolRoot();
 const tuiEnvConfig = getTuiEnvConfig(process.env);

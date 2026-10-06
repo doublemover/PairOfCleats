@@ -68,10 +68,10 @@ async function runCli() {
       repo: { type: 'string' },
       mode: { type: 'string' },
       'index-root': { type: 'string' },
-      strict: { type: 'boolean', default: true },
+      strict: { type: 'boolean', describe: 'Validate strict contracts (default unless --non-strict).' },
       'non-strict': { type: 'boolean', default: false }
     }
-  }).parse();
+  }).strictOptions().parse();
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;

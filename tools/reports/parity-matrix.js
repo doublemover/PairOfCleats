@@ -17,6 +17,7 @@ import { readQueryFile } from '../shared/query-file-utils.js';
 const argv = createCli({
   scriptName: 'pairofcleats report parity',
   options: {
+    repo: { type: 'string' },
     backend: { type: 'string' },
     backends: { type: 'string' },
     'ann-modes': { type: 'string' },
@@ -30,10 +31,10 @@ const argv = createCli({
     'dry-run': { type: 'boolean', default: false },
     'fail-fast': { type: 'boolean', default: false }
   }
-}).parse();
+}).strictOptions().parse();
 
 const scriptRoot = resolveToolRoot();
-const { repoRoot, userConfig } = resolveRepoConfig(null);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
 const parityScript = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'equivalence.test.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

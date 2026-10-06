@@ -7,7 +7,7 @@ const argv = createCli({
   options: {
     json: { type: 'boolean', default: false }
   }
-}).parse();
+}).strictOptions().parse();
 
 const [op = 'list', ...rest] = argv._.map((value) => String(value));
 

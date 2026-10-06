@@ -28,7 +28,7 @@ const argv = createCli({
     args: { type: 'string' },
     'timeout-ms': { type: 'number' }
   }
-}).parse();
+}).strictOptions().parse();
 
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const cacheRoot = getRepoCacheRoot(repoRoot, userConfig);

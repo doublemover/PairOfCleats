@@ -49,7 +49,7 @@ const argv = createCli({
     'require-steps': { type: 'string' }
   },
   aliases: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' }
-}).parse();
+}).strictOptions().parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);
@@ -103,10 +103,27 @@ function recordError(step, result, message) {
   });
 }
 
+async function readSetupAnswer(question) {
+  const inputClosed = () => new Error('Setup input closed before an answer. Use --non-interactive with explicit --skip-* options for unattended setup.');
+  let onClose;
+  const closed = new Promise((_, reject) => {
+    onClose = () => reject(inputClosed());
+    rl.once('close', onClose);
+  });
+  try {
+    return await Promise.race([rl.question(question), closed]);
+  } catch (error) {
+    if (error?.code === 'ERR_USE_AFTER_CLOSE') throw inputClosed();
+    throw error;
+  } finally {
+    rl.off('close', onClose);
+  }
+}
+
 async function promptYesNo(question, defaultYes) {
   if (nonInteractive) return defaultYes;
   const suffix = defaultYes ? 'Y/n' : 'y/N';
-  const answer = (await rl.question(`${question} [${suffix}] `)).trim().toLowerCase();
+  const answer = (await readSetupAnswer(`${question} [${suffix}] `)).trim().toLowerCase();
   if (!answer) return defaultYes;
   return answer === 'y' || answer === 'yes';
 }
@@ -114,7 +131,7 @@ async function promptYesNo(question, defaultYes) {
 async function promptChoice(question, choices, defaultChoice) {
   if (nonInteractive) return defaultChoice;
   const choiceList = choices.join('/');
-  const answer = (await rl.question(`${question} (${choiceList}) [${defaultChoice}] `)).trim().toLowerCase();
+  const answer = (await readSetupAnswer(`${question} (${choiceList}) [${defaultChoice}] `)).trim().toLowerCase();
   if (!answer) return defaultChoice;
   const normalized = answer === 'g' ? 'global' : answer === 'c' ? 'cache' : answer;
   const match = choices.find((choice) => choice.toLowerCase() === normalized);

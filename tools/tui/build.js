@@ -20,7 +20,7 @@ const argv = createCli({
     'verify-manifest': { type: 'boolean', default: false },
     target: { type: 'string', default: '' }
   }
-}).parse();
+}).strictOptions().parse();
 
 const root = resolveToolRoot();
 const smoke = argv.smoke === true;

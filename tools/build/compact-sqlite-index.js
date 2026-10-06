@@ -519,7 +519,7 @@ if (isDirectRun) {
       verbose: { type: 'boolean', default: false },
       quiet: { type: 'boolean', default: false }
     }
-  }).parse();
+  }).strictOptions().parse();
 
   const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
 

@@ -812,3 +812,4 @@ indexing/watch/default-depth
 indexing/watch/generated-cache-guard
 cli/general/signal-cleanup
 storage/sqlite/compact-metadata-roundtrip
+cli/general/unknown-workflow-options
