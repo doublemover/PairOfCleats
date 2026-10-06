@@ -83,16 +83,10 @@ ahead of broader validation and retain historical measurements as dated evidence
    allowance and cannot pass through persistent cache reuse. Preserve deterministic
    short-timeout, cleanup and production timeout contracts. Recheck both published
    portability controls and marker-bearing cache reads on the integrated source.
-3. **Preserve synchronous timeout child-tree cleanup.** The published baseline
-   leaves a live orphan because the synchronous spawn returns after its direct
-   child has been reaped, too late for parent-PID discovery. Both sync owners now
-   create a private POSIX process group for bounded tree-owned commands and pass
-   the same ownership to cleanup. Explicit detach/tree opt-outs and unbounded
-   interactive dispatch retain their requested behavior. The original regression,
-   raw-owner force-kill and process-group controls pass on Linux; all 27 subprocess
-   selectors pass. The regression is now in `ci-lite` rather than outside its
-   acceptance surface. The registered POSIX regressions also pass on hosted macOS;
-   Windows parent-signal behavior remains deferred native acceptance.
+3. **Preserve synchronous timeout child-tree cleanup.** POSIX tree-owned commands
+   use private process groups; detach/tree opt-outs and unbounded interactive
+   dispatch retain their requested behavior. Historical Linux/macOS regressions
+   are archived; native Windows signal acceptance remains separate.
 4. **Refresh representative retrieval quality.** Exercise free-text versus explicit
    Boolean/phrase intent, filters, ANN allowed IDs and deterministic ranking through
    supported memory/SQLite backends. Use the current golden/IQ fixtures and record
@@ -187,20 +181,10 @@ evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion
    the low-load profile with embeddings and model downloads disabled. Record exact
    versions, provenance, observed capabilities and unrun limits.
    The [individual acceptance record](guides/language-toolchain-acceptance.md)
-   includes bounded syntax-owner corrections for Dockerfile, GraphQL, Handlebars,
-   Protobuf and Mustache, distinct heuristic Jinja/Django boundaries, plus
-   explicit JSONC syntax/strict-JSON compatibility, TOML semantic values with
-   application-owned lexical ranges, bounded YAML syntax-node ownership, and
-   exact-component registry setup evidence. Their focused fixtures do not replace compiler/runtime,
-   full-index or platform acceptance.
-   It also covers the C# synchronous-loader update and Groovy's explicit partial
-   coverage; these parser checks do not establish language-server acceptance.
-   Verified installed Rust, ZLS/Zig or Java/JDT tooling does not grant workspace
-   execution: use the exact launch-owned repository authority boundary before
-   their LSP/probe/preflight acceptance. Native Rust/Java AST analysis remains
-   available without that grant; Zig currently has no native parser route.
-   ZLS/Zig workspace tooling has the same boundary because package/include
-   resolution can execute its build runner. Zig is currently tooling-only.
+   distinguishes syntax/registry fixtures from full SDK/server/project acceptance.
+   Preserve exact launch-owned authority before build-capable Rust/Java/Zig
+   probes or workspace execution. Native Rust/Java AST remains available without
+   that grant; Zig is tooling-only. Archived parser details are historical proof.
 
 ## Current Validation Boundary
 
@@ -223,12 +207,12 @@ run into a full-lane pass. Other-platform and interactive TUI behavior, a fresh
 full duplicate audit, and representative end-to-end performance measurements
 remain separate checks.
 
-May 20–22 validation and USR Gate A/B/C statements are historical checkpoint
+May 20â€“22 validation and USR Gate A/B/C statements are historical checkpoint
 records. The Gate B1-B7 technical, compatibility, matrix, conformance,
 observability, quality, and security-risk controls remain the acceptance surface;
 their old green results have not been relabeled as fresh proof on this head.
 Missing historical logs remain unavailable rather than reconstructed.
-USR rollout phases A–H and lifecycle acceptance remain in the
+USR rollout phases Aâ€“H and lifecycle acceptance remain in the
 [rollout and release migration policy](specs/usr-core-rollout-release-migration.md).
 
 ## Ownership and Historical Records
