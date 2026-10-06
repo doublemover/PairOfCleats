@@ -43,7 +43,15 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-PR519's published `82528215` checkpoint has fresh
+PR519 now publishes `13136005`, with local `ci-lite` 822/822 and gate 35/35.
+Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37411807912)
+stopped before tests: ONNX's supplemental Linux CUDA download from NuGet timed
+out, so Rust and all platform jobs were skipped. CPU-hosted CI/nightly/release
+workflows now use the vendor's supported supplemental-download skip setting.
+ONNX remains required; a network-forbidden installer check and real tiny CPU
+inference regression preserve that distinction. New hosted acceptance is pending.
+
+The previous `82528215` checkpoint has
 [hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):
 gate and Rust TUI pass; Ubuntu passes all 804 tests; macOS and Windows each pass
 803 with one failure and no timeouts. The prior pooled-buffer zstd hang, runtime
