@@ -212,6 +212,7 @@ const runBudgetCase = async () => {
     rootDir: root,
     chunks: [caller, ...targets, ...fillers],
     enabled: true,
+    cacheEnabled: false,
     log: (line) => logs.push(String(line)),
     useTooling: false,
     enableTypeInference: false,
