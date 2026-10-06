@@ -49,8 +49,11 @@ format-specific review and are not registered by this batch.
 
 Declarations must be the first extension field in the first root field. Unknown
 versions, flags, kinds, extra declaration fields, malformed declarations, and
-duplicate keys visible in the prefix fail open. Short complete inputs must also
-be valid JSON. A capped prefix cannot validate an unseen suffix of a large file.
+duplicate keys visible in the prefix fail open. Every visible token must follow
+strict JSON grammar; a capped input may end only at a genuinely extendable tail.
+The shared iterative validator rejects excessive nesting beyond 256 containers.
+Short complete inputs must also be complete JSON objects. A capped prefix cannot
+validate an unseen suffix of a large file.
 The classifier does not follow payload paths, decompress data, hash members, or
 make filesystem access decisions. Its caller remains responsible for contained
 reads and for deciding how the returned policy applies to source discovery.
@@ -59,6 +62,10 @@ Source discovery and watch now call the path-bound classifier through the shared
 generated-artifact guard. The file processor calls the content-only classifier on
 already-read buffers before parsing/chunking. Neither integration follows manifest
 members, and explicit records retain their searchable input role.
+Records-root and configured include-glob routing take precedence in discovery and
+watch as well as at the content boundary. A marked report deliberately admitted
+as a record is therefore retained, while an otherwise identical cache remains
+omitted from source indexing.
 
 ## Rewrite and compatibility rules
 

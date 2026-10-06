@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { compareStrings } from '../../../shared/sort.js';
@@ -346,7 +347,7 @@ export const saveTreeSitterSchedulerAdaptiveProfile = async ({
   };
   try {
     await fs.mkdir(path.dirname(profilePath), { recursive: true });
-    await writeJsonObjectFile(profilePath, { fields: payload, atomic: true });
+    await writeJsonObjectFile(profilePath, { fields: withGeneratedCacheMetadata(payload, 'tree-sitter-adaptive-profile'), atomic: true });
   } catch (err) {
     if (typeof log === 'function') {
       log(`[tree-sitter:schedule] adaptive profile save failed: ${err?.message || err}`);

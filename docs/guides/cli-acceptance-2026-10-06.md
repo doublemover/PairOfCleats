@@ -50,9 +50,27 @@ command. Failed stdout/stderr consumers terminate their owned child tree with
 bounded reaping, and signal exits are failures rather than zero-code success.
 The parity fixture is split into a real success/report case and deterministic
 nonzero/missing/invalid-report controls to keep each test within 30 seconds.
+The integrated `13136005` checkpoint passes 822/822 `ci-lite` and 35/35 gate tests,
+with no failures, timeouts or skips under the same bounded Linux settings.
 Actual repeated Git-worktree builds/searches remain isolated, a read-only config
 destination fails with a permission error, and parent-only watch/indexer-service
 cancellation terminates their children. These are Linux fixture results.
+
+A follow-on failure-preservation check reproduced all four ingestion commands
+truncating a previous output before rejecting missing input. Their output now
+streams into an exclusive temporary file and is renamed into place only after
+the producer and output stream succeed. Missing inputs/dependencies, nonzero
+children and output errors preserve prior output and summary bytes; input/output
+aliasing retains real rows. Eight focused ingest tests pass, including private-file
+mode preservation and POSIX cancellation/staging cleanup. Output and summary are
+separate publications, not a crash-atomic pair. Uncatchable termination may leave
+a temporary file. Native Windows replacement/cancellation still needs proof.
+
+The isolated follow-on checkpoint `0d3e37db` passes 831/831 `ci-lite` and 35/35
+gate tests, with zero failures, timeouts or skips. It includes staged ingestion,
+record-routing precedence, 15 audited object-cache families and strict visible
+JSON-prefix validation. Peak process-family RSS was 988.55 MiB under the unchanged
+1 GiB limit. These results do not establish native Windows/macOS acceptance.
 
 The first generated-artifact batch moves map caches outside the indexed repository
 by default and gives custom caches a portable, versioned ownership marker. Actual

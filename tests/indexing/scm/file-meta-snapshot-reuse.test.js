@@ -126,6 +126,19 @@ try {
 
   const snapshotPath = resolveScmFileMetaSnapshotPath(cacheRoot);
   assert.equal(fs.existsSync(snapshotPath), true, 'expected snapshot file to persist');
+  const persistedSnapshot = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+  assert.equal(Object.keys(persistedSnapshot)[0], '__poc_generated');
+  assert.equal(persistedSnapshot.__poc_generated.artifact, 'scm-file-meta');
+  assert.deepEqual(Object.keys(persistedSnapshot.files).sort(), files);
+  delete persistedSnapshot.__poc_generated;
+  fs.writeFileSync(snapshotPath, JSON.stringify(persistedSnapshot));
+  setScmRuntimeConfig({ repoHeadId: 'headB', snapshotSalt: 'v2' });
+  const legacy = await prepareScmFileMetaSnapshot({
+    repoCacheRoot: cacheRoot, provider: 'git', providerImpl, repoRoot,
+    repoProvenance: { head: { commitId: 'headB' }, dirty: false }, filesPosix: files, includeChurn: false
+  });
+  assert.equal(legacy.stats.fetched, 0, 'legacy snapshot should retain same-head reuse');
+  assert.equal(JSON.parse(fs.readFileSync(snapshotPath, 'utf8')).__poc_generated.artifact, 'scm-file-meta');
 } finally {
   setScmRuntimeConfig(defaultScmRuntimeConfig);
   fs.rmSync(cacheRoot, { recursive: true, force: true });

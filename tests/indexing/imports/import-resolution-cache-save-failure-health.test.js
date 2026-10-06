@@ -56,6 +56,8 @@ assert.equal(
   'expected explicit import cache persist failure warning'
 );
 const markerPayload = JSON.parse(await fs.readFile(failOpenMarkerPath, 'utf8'));
+assert.equal(Object.keys(markerPayload)[0], '__poc_generated');
+assert.equal(markerPayload.__poc_generated.artifact, 'import-resolution-persist-failure');
 assert.equal(markerPayload?.marker, 'import-resolution-cache-persist-fail-open');
 assert.equal(markerPayload?.cachePath, badCachePath);
 

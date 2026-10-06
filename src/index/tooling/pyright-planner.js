@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -87,7 +88,7 @@ export const persistPyrightPlannerHealth = async ({
   };
   const healthPath = resolvePlannerHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
   await fs.promises.mkdir(path.dirname(healthPath), { recursive: true });
-  await atomicWriteJson(healthPath, payload, {
+  await atomicWriteJson(healthPath, withGeneratedCacheMetadata(payload, 'pyright-planner-health'), {
     spaces: 0,
     newline: false
   });

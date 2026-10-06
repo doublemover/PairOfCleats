@@ -7,9 +7,11 @@ Canonical for: initiative status, execution order, and remaining work
 PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
 The current completion branch adds targeted correctness, dependency and resource-lifecycle
 fixes, and reconciles older branches by behavior. Release-wide acceptance remains open.
-The current source-merge candidate awaits the owner's local extended-suite result.
-Focused cloud checks establish their recorded scope; they do not establish a clean
-whole-lock install, a completed extended suite or release-wide readiness. Use this
+The ordinary integration combines published `29398b4a`, earlier cache/ingestion
+follow-on `09309e75`, Sublime worktree fix `154c3982`, and native-hardware repairs
+`212ad438`, with the packaged Windows cmd mirror synchronized to its shared owner.
+The final integrated commit still requires its own bounded validation. Historical
+component passes do not establish an integrated pass or release-wide readiness. Use this
 page for current status, the linked contracts for behavior, and the archived
 worklogs for historical evidence.
 
@@ -43,16 +45,22 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-PR519 publishes `3e0796cc`, with local `ci-lite` 825/825, gate 35/35 and a
-zero-vulnerability full-graph audit. Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37416912207)
-passes clean dependency/native installation, audit, gate and Rust TUI checks.
-Ubuntu passes 824/825; macOS passes 822/825; Windows records 819 passes, five
-failures and one declared POSIX-signal skip. The [dependency migration](guides/dependency-security.md#october-6-current-advisory-follow-through)
-is published; this is still incomplete platform acceptance. Follow-on work fixes
-fixture path/CRLF assumptions and explicit worker-pool precedence, isolates CLI
-controls from host tool inventories, and separates cold Pyright startup from
-short-deadline contracts. Windows transport diagnosis is deferred to the grouped
-hardware validation session; preserve its [execution checklist](guides/native-validation-2026-10-06.md).
+PR519's published head is `29398b4a`. Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37428326764)
+passes gate, Rust TUI, Ubuntu 827/827 and macOS 827/827. Windows records 824 passes,
+two failures, one declared POSIX-signal skip and no runner timeouts. The canonical
+path fixture passes; remaining failures are the cmd conditional syntax case and
+parity cleanup EBUSY. Clean dependency/native installation and the full-graph audit
+passed on the published dependency graph. The [dependency migration](guides/dependency-security.md#october-6-current-advisory-follow-through)
+and explicit worker precedence remain in the ordinary integration.
+
+Unpublished hardware repairs preserve literal cmd forwarding and conditional exit
+behavior, real parser-to-child `--no-ann` intent, visible-state TUI redraws and
+separate cancelled-job counts. Nine focused normal-token Windows checks pass; a
+separate bounded parity fixture times out without EBUSY and leaves no observed
+owned children. This does not diagnose or repair the original EBUSY cleanup case.
+Mac arm64 tiny CLI and native-terminal checks establish their limited recorded
+scope. All final integrated checks remain pending. The isolated SQLite/Node26
+comparison `5faa768b` is excluded; retain better-sqlite3 12.6.2 and Node24 policy.
 
 The previous `82528215` checkpoint has
 [hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):
@@ -65,18 +73,20 @@ validation work; do not reopen archived implementation checklists.
 
 ### Concrete Platform and Product Queue
 
-1. **Preserve literal argv through Windows shell fallbacks.** Current native CI
-   exits 255 in the conditional server branch. The version branch succeeds, but
-   the old assertion lost child stderr. Preserve bounded command/result diagnostics
-   and reproduce the literal-argument matrix on native Windows before changing
-   transport. Keep authored control flow and line-separator rejection. Linux
-   quoting checks do not close native argv or parent-signal cleanup acceptance.
-2. **Verify cold Pyright startup without changing production deadlines.** Current
-   Ubuntu/Windows diagnostics identify the installed command and two 2-second
-   probe timeouts; macOS passes. An uncached local comparison measures about 0.7s
-   normally and 2s under V8 coverage. The installed-tool integration check now has
-   a bounded explicit allowance and cannot pass through persistent cache reuse;
-   deterministic short-timeout, cleanup and production timeout contracts remain.
+1. **Validate integrated Windows transport and diagnose parity cleanup.** Preserve
+   the original cmd exit255 failure and its stderr. The isolated repair passes
+   literal argument rotation, conventional percent-tilde batch version expansion,
+   authored exit7, injection controls and meaningful timeouts on normal-token
+   Windows. Keep shared and packaged VS Code cmd owners byte-identical, with the
+   existing equality regression intact. Rerun on the integrated source. Capture
+   the parity primary failure separately from finally cleanup, then establish
+   actual owned-child cleanup before closing EBUSY. The later bounded timeout
+   without EBUSY is not a repair receipt.
+2. **Retain cold Pyright isolation without changing production deadlines.** The
+   published installed-tool integration case passes with its bounded explicit
+   allowance and cannot pass through persistent cache reuse. Preserve deterministic
+   short-timeout, cleanup and production timeout contracts. Recheck both published
+   portability controls and marker-bearing cache reads on the integrated source.
 3. **Preserve synchronous timeout child-tree cleanup.** The published baseline
    leaves a live orphan because the synchronous spawn returns after its direct
    child has been reaped, too late for parent-PID discovery. Both sync owners now
@@ -104,8 +114,11 @@ validation work; do not reopen archived implementation checklists.
 7. **Extend real project and interactive acceptance.** Serial, small project cases
    should cover toolchain imports/workspace roots beyond tiny single-file servers,
    followed by supported TUI cancellation, repeated commands and shutdown flows.
-   Exact-root authority remains required for build-capable tooling. SDK/platform,
-   native-backend and interactive acceptance are unproved until executed.
+   Mac native hardware proof covers Help/Palette/Search, movement, resize, real
+   run/cancel, terminal exit and idle redraw suppression on its isolated branch.
+   Final integrated native artifacts and other platforms require distinct proof.
+   Exact-root authority remains required for build-capable tooling; broader SDK,
+   project and optional-native-backend acceptance remain separate.
 
 ### CLI, Setup and Generated-Artifact Acceptance
 
@@ -114,15 +127,33 @@ The [October 6 acceptance record](guides/cli-acceptance-2026-10-06.md) covers al
 worktrees and permission/cancellation controls. Corrections include CLI child
 cleanup, doctor/index-validation flag defaults, runnable examples, application-root
 TUI/MCP resolution, watch depth, fresh parity receipts and unknown-option admission.
-Ingest commands also retain early child-exit events and clean up failed consumers.
+Ingest commands retain early child-exit events and clean up failed consumers. The
+follow-on staged-output fix preserves previous output and summary bytes on missing
+input/dependency or producer failure; eight focused ingest tests pass. The summary
+is a separate file, not a crash-atomic two-file transaction.
 Closed setup input now reports an actionable error. Search preserves its explicit
 strict-dispatch opt-in. The 33 affected option/CLI/ingestion/TUI tests pass.
 
-The earlier complete Linux checkpoint is `ci-lite` 813/813 and gate 35/35.
-Subsequent SQLite compaction metadata preservation passes six focused tests and
-19 actual compact/freeze/generation-change/live/historical checks on memory and
-SQLite. Old damaged snapshots require separate recovery. A full integrated rerun and native
-platform acceptance remain separate from those focused passes.
+Normal-use optional tooling keeps reduced-capability provenance while emitting one
+bounded, deduplicated actionable summary per tooling pass. Detailed redacted
+provider records use the existing application-owned default cache surface without
+requiring a log-dir flag. The draft's runtime-contract case preserves48 underlying
+checks and a healthy provider contribution; final execution is still pending.
+No forced tool install/upgrade or broad integrity/trust relaxation is included.
+Universal project-version negotiation and broader normal-use acceptance remain
+separate from this bounded warning-presentation correction.
+
+Earlier follow-on `0d3e37db` passed Linux `ci-lite` 831/831 and gate 35/35, with no
+failures, timeouts or skips. Published `29398b4a` has 827 CI-lite entries. The final
+union has 836 unique ordered entries, retaining all five published migration/
+portability additions and all nine earlier-only entries. It has not yet run as a
+combined lane. The new real no-ANN regression is explicitly selected outside the
+ordered CI-lite list. Preserve exact commit identity with every result.
+
+SQLite compaction metadata preservation passes six historical focused tests and
+19 compact/freeze/generation-change/live/historical checks on memory and SQLite.
+Old damaged snapshots require separate recovery. Final integrated full-lane and
+native-platform acceptance remain separate from those earlier passes.
 
 Map caches now default outside source trees; marked custom caches and exact legacy
 default caches survive build → map → rebuild without inflating authored chunks.
@@ -138,12 +169,24 @@ cover the producer batch. Referenced members and native store descendants are
 not excluded by manifest claims. See the
 [core metadata contract](guides/generated-core-artifact-metadata.md).
 
-Continue bounded artifact batches: exact-member content linkage;
-caches/runtime state; reports/editor outputs; then
-native/package/TUI/developer outputs. Preserve strict schemas, JSONL/array shapes,
-checksums, offsets and useful searchable reports. Native Windows/macOS/TUI proof,
-clean dependency installation, full benchmark measurement, representative retrieval
-quality and startup-ready watch acceptance remain distinct checks.
+Fifteen audited object-cache/runtime families now emit first-field declarations
+and participate in discovery, watch and renamed-content admission. Legacy readers,
+cache keys/TTLs, cooldown/health behavior and bounded streaming byte caps retain
+their contracts. Explicit records roots/globs retain marked records. Core and
+object-cache classifiers share the bounded JSON-prefix validator; visible syntax
+errors and duplicate keys are rejected, only genuinely extendable capped tails
+are accepted, and excessive depth fails open. See the
+[object-cache contract](guides/generated-object-cache-metadata.md).
+
+Continue bounded artifact batches: exact-member content linkage; remaining caches/
+runtime state; reports/editor outputs; then native/package/TUI/developer outputs.
+Preserve strict schemas, JSONL/array shapes, checksums, offsets and useful searchable
+reports. The [Mac checklist](guides/mac-acceptance-2026-10-06.md) is the historical
+follow-on plan, not proof of final integration. Hardware checks establish their
+exact isolated source/artifact scope. Clean integrated dependency installation,
+full representative benchmarks, retrieval quality and startup-ready watch
+acceptance remain distinct checks. No SQLite dependency or Node26 promotion is
+part of this ordinary integration.
 
 ### Ongoing Review and Release Discipline
 

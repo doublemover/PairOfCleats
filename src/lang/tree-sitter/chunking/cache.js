@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
@@ -211,7 +212,7 @@ const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) 
       cacheKey: key,
       chunks: cloneChunkList(chunks)
     };
-    atomicWriteJsonSync(filePath, payload, {
+    atomicWriteJsonSync(filePath, withGeneratedCacheMetadata(payload, 'tree-sitter-chunks'), {
       spaces: 0,
       newline: false,
       durable: false

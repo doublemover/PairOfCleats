@@ -825,3 +825,12 @@ indexing/git/simple-git-v4-migration
 indexing/extracted-prose/mammoth-security-migration
 indexing/runtime/worker-pool-explicit-policy
 tooling/doctor/pyright-installed-probe
+tooling/ingest/output-preservation
+indexing/discovery/generated-records-precedence
+shared/generated-artifact-cache
+indexing/artifacts/object-cache-metadata-roundtrip
+indexing/artifacts/runtime-cache-metadata-roundtrip
+indexing/type-inference/crossfile/cache-serialized-size-parity
+indexing/discovery/owned-object-cache
+tooling/reports/object-cache-isolation
+shared/generated-artifact-prefix-validation

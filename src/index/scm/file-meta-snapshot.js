@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import path from 'node:path';
 import PQueue from 'p-queue';
 import { toPosix } from '../../shared/file-paths.js';
@@ -435,7 +436,7 @@ export const prepareScmFileMetaSnapshot = async ({
     diagnostics: { batchReason, batchFailure, batch: batchDiagnostics, perFile: perFileDiagnostics },
     files: persisted
   };
-  await atomicWriteJson(snapshotPath, payload, { spaces: 2 });
+  await atomicWriteJson(snapshotPath, withGeneratedCacheMetadata(payload, 'scm-file-meta'), { spaces: 2 });
 
   const fileMetaByPath = Object.create(null);
   for (const filePosix of targetFiles) {

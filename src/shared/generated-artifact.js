@@ -3,10 +3,11 @@ import { createHash } from 'node:crypto';
 import { parseTree } from 'jsonc-parser';
 import { openContainedFile } from './contained-file.js';
 import { classifyGeneratedArtifactCorePrefix, isGeneratedArtifactCoreCandidatePath } from './generated-artifact-core.js';
+import { classifyGeneratedArtifactCachePrefix, isGeneratedArtifactCacheCandidatePath } from './generated-artifact-cache.js';
 
 export const GENERATED_ARTIFACT_PREFIX_BYTES = 8192;
 // Bump when recognition changes so older bundles cannot bypass new classifications.
-export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@3';
+export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@4';
 export const GENERATED_ARTIFACT_FLAGS = Object.freeze({ OMIT: 1, WARN: 2 });
 const FORMAT = 'poc.generated@1';
 const MAP_KIND = 'code-map-cache';
@@ -94,6 +95,8 @@ export const classifyGeneratedArtifactContentPrefix = ({ prefix }) => {
   const lead = Buffer.isBuffer(prefix) ? prefix.subarray(0, 512).toString('utf8') : String(prefix || '').slice(0, 512);
   if (/^\s*\{\s*"extensions"\s*:/.test(lead)) return classifyGeneratedArtifactCorePrefix({ prefix });
   if (!/^\s*\{\s*"__poc_generated"\s*:/.test(lead)) return null;
+  const cache = classifyGeneratedArtifactCachePrefix({ prefix });
+  if (cache) return cache;
   const text = Buffer.isBuffer(prefix)
     ? prefix.subarray(0, GENERATED_ARTIFACT_PREFIX_BYTES).toString('utf8')
     : String(prefix || '').slice(0, GENERATED_ARTIFACT_PREFIX_BYTES);
@@ -105,7 +108,7 @@ export const classifyGeneratedArtifactContentPrefix = ({ prefix }) => {
 export const isGeneratedArtifactCandidatePath = (relativePath) => {
   const normalized = String(relativePath || '').replace(/\\/g, '/');
   return MAP_NAME.test(path.posix.basename(normalized)) || LEGACY_MAP_PATH.test(normalized)
-    || isGeneratedArtifactCoreCandidatePath(normalized);
+    || isGeneratedArtifactCoreCandidatePath(normalized) || isGeneratedArtifactCacheCandidatePath(normalized);
 };
 
 /** Classify only this file. Marker data never names exclusions or grants trust. */
@@ -121,7 +124,10 @@ export const classifyGeneratedArtifactPrefix = ({ relativePath, prefix, repoRoot
     if (!parseMapHeader(text, name[1])) return null;
     return { kind: MAP_KIND, format: FORMAT, flags: GENERATED_ARTIFACT_FLAGS.OMIT, action: 'omit' };
   }
-  if (!LEGACY_MAP_PATH.test(normalized)) return classifyGeneratedArtifactCorePrefix({ relativePath: normalized, prefix });
+  if (!LEGACY_MAP_PATH.test(normalized)) {
+    return classifyGeneratedArtifactCorePrefix({ relativePath: normalized, prefix })
+      || classifyGeneratedArtifactCachePrefix({ relativePath: normalized, prefix });
+  }
   // Historical caches have no reserved header. Require their exact old location,
   // canonical key filename and recognizable map header; authored siblings survive.
   if (typeof repoRoot !== 'string' || !repoRoot || !hasMapModelHeader(text, repoRoot)) return null;

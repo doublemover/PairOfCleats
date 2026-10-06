@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata, withoutGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
@@ -40,7 +41,7 @@ const readEnrichmentState = async (statePath) => {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Enrichment state must be a JSON object.');
   }
-  return parsed;
+  return withoutGeneratedCacheMetadata(parsed);
 };
 
 export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) => {
@@ -79,7 +80,7 @@ export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) 
       updatedAt: new Date().toISOString()
     };
     try {
-      await writeJsonObjectFile(statePath, { fields: next, atomic: true, trailingNewline: true });
+      await writeJsonObjectFile(statePath, { fields: withGeneratedCacheMetadata(next, 'enrichment-state'), atomic: true, trailingNewline: true });
     } catch (err) {
       logEnrichmentWarning(log, `[enrichment] Failed to write state: ${err?.message || err}`);
       throw err;

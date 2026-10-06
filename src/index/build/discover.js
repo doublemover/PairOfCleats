@@ -317,7 +317,7 @@ export async function discoverEntries({
         recordSkip(absPath, 'symlink');
         return;
       }
-      if (stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
+      if (!preclassifiedRecord && stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
         const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
         if (artifact?.action === 'omit') {
           recordSkip(absPath, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,

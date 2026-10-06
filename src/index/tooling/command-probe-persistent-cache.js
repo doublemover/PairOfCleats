@@ -4,6 +4,7 @@ import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 
 const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 1;
 const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp1';
@@ -217,7 +218,7 @@ export const writePersistentCommandProbeCache = ({
   if (!descriptor || !isAttemptList(attempted) || attempted.length === 0) return false;
   try {
     fsSync.mkdirSync(descriptor.cacheDir, { recursive: true });
-    atomicWriteJsonSync(descriptor.cachePath, {
+    atomicWriteJsonSync(descriptor.cachePath, withGeneratedCacheMetadata({
       schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       ok: true,
@@ -229,7 +230,7 @@ export const writePersistentCommandProbeCache = ({
         mtimeMs: descriptor.fingerprint.mtimeMs
       },
       attempted
-    }, { spaces: 0 });
+    }, 'command-probe'), { spaces: 0 });
     persistentWriteCount += 1;
     prunePersistentCommandProbeCacheDir(descriptor.cacheDir);
     return true;

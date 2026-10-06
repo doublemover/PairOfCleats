@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { parseTree } from 'jsonc-parser';
+import { hasAmbiguousGeneratedArtifactPrefix } from './generated-artifact-prefix.js';
 
 const FORMAT = 'poc.generated@1';
 const PREFIX_BYTES = 8192;
@@ -86,26 +86,6 @@ const metadataCandidates = (relativePath) => {
 
 export const isGeneratedArtifactCoreCandidatePath = (relativePath) => metadataCandidates(relativePath).length > 0;
 
-const hasAmbiguousJsonPrefix = (text, complete) => {
-  const errors = [];
-  const tree = parseTree(text, errors, { disallowComments: true, allowTrailingComma: false });
-  if (!tree || tree.type !== 'object' || (complete && errors.length)) return true;
-  const pending = [tree];
-  while (pending.length) {
-    const node = pending.pop();
-    if (node.type === 'object') {
-      const keys = new Set();
-      for (const property of node.children || []) {
-        const key = property.children?.[0]?.value;
-        if (keys.has(key)) return true;
-        keys.add(key);
-      }
-    }
-    pending.push(...(node.children || []));
-  }
-  return false;
-};
-
 /** Classify this metadata file only, from the bounded first-field declaration. */
 export const classifyGeneratedArtifactCorePrefix = ({ relativePath = null, prefix }) => {
   const candidates = relativePath == null ? null : metadataCandidates(relativePath);
@@ -117,9 +97,9 @@ export const classifyGeneratedArtifactCorePrefix = ({ relativePath = null, prefi
   const match = /^\s*\{\s*"extensions"\s*:\s*\{\s*"__poc_generated"\s*:\s*(\{[^{}]{0,512}\})\s*[,}]/.exec(text);
   if (!match) return null;
   try {
-    // Complete short documents must be valid JSON. For larger outputs, only the
-    // bounded prefix is available; reject duplicate keys visible in that prefix.
-    if (hasAmbiguousJsonPrefix(text, bytes.length < PREFIX_BYTES)) return null;
+    // Reject all visible syntax errors and duplicate keys, while allowing only
+    // a genuinely extendable JSON tail at the byte cap.
+    if (hasAmbiguousGeneratedArtifactPrefix(text, bytes.length < PREFIX_BYTES)) return null;
     const header = JSON.parse(match[1]);
     const keys = [...match[1].matchAll(/"((?:[^"\\]|\\.)*)"\s*:/g)]
       .map((entry) => JSON.parse(`"${entry[1]}"`)).sort();

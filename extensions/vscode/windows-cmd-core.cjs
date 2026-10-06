@@ -140,7 +140,8 @@ function quoteWindowsCmdArg(value, { doubleEscape = false } = {}) {
   if (text && !WINDOWS_CMD_META_PATTERN.test(text)) return text;
   // First quote for the eventual executable's Windows argv parser. Backslashes
   // are doubled only before a quote (including the final closing quote).
-  let quoted = '"';
+  const needsQuotes = !text || /\s/u.test(text);
+  let quoted = needsQuotes ? '"' : '';
   let backslashes = 0;
   for (const character of text) {
     if (character === '\\') {
@@ -151,7 +152,8 @@ function quoteWindowsCmdArg(value, { doubleEscape = false } = {}) {
     quoted += character;
     backslashes = 0;
   }
-  quoted += `${'\\'.repeat(backslashes * 2)}"`;
+  quoted += needsQuotes ? `${'\\'.repeat(backslashes * 2)}"` : '\\'.repeat(backslashes);
+  if (needsQuotes && !/[%!^"&|<>]/u.test(text)) return quoted;
   // Escape the quote syntax too: carets *inside* protective quotes are literal.
   // A batch forwarder (%*) parses the text again, requiring one more layer.
   const escaped = escapeWindowsCmdMeta(quoted);

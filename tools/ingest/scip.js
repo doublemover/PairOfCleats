@@ -7,8 +7,7 @@ import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import {
   bumpStat,
   emitIngestSummaryJson,
-  ensureParentDir,
-  finishWriteStream,
+  withStagedIngestOutput,
   ingestJsonLineStream,
   normalizeRepoRelativePath,
   normalizeTimeoutMs,
@@ -201,22 +200,20 @@ const runScipCommand = async () => {
   });
 };
 
-await ensureParentDir(outputPath);
-writeStream = fs.createWriteStream(outputPath, { encoding: 'utf8' });
-if (runScip) {
-  await runScipCommand();
-} else if (inputPath && inputPath !== '-') {
-  const parsed = await ingestJsonFile(inputPath);
-  if (!parsed) {
-    const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
-    await ingestJsonLines(inputStream);
+await withStagedIngestOutput(outputPath, async (stream) => {
+  writeStream = stream;
+  if (runScip) {
+    await runScipCommand();
+  } else if (inputPath && inputPath !== '-') {
+    const parsed = await ingestJsonFile(inputPath);
+    if (!parsed) {
+      const inputStream = fs.createReadStream(inputPath, { encoding: 'utf8' });
+      await ingestJsonLines(inputStream);
+    }
+  } else {
+    await ingestJsonLines(process.stdin);
   }
-} else {
-  await ingestJsonLines(process.stdin);
-}
-
-writeStream.end();
-await finishWriteStream(writeStream);
+});
 
 const summary = {
   generatedAt: new Date().toISOString(),

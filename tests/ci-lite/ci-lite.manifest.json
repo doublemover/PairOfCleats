@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 693,
+    "hero": 702,
     "matrix": 108,
     "meta": 25,
     "soak": 1,
@@ -4975,6 +4975,60 @@
     {
       "id": "tooling/doctor/pyright-installed-probe",
       "order": 827,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ingest/output-preservation",
+      "order": 828,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/discovery/generated-records-precedence",
+      "order": 829,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/generated-artifact-cache",
+      "order": 830,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/object-cache-metadata-roundtrip",
+      "order": 831,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/runtime-cache-metadata-roundtrip",
+      "order": 832,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/type-inference/crossfile/cache-serialized-size-parity",
+      "order": 833,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/discovery/owned-object-cache",
+      "order": 834,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/object-cache-isolation",
+      "order": 835,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/generated-artifact-prefix-validation",
+      "order": 836,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
