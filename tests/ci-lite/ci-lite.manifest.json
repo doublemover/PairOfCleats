@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 691,
+    "hero": 693,
     "matrix": 108,
     "meta": 25,
     "soak": 1,
@@ -4963,6 +4963,18 @@
     {
       "id": "indexing/extracted-prose/mammoth-security-migration",
       "order": 825,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/worker-pool-explicit-policy",
+      "order": 826,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/doctor/pyright-installed-probe",
+      "order": 827,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

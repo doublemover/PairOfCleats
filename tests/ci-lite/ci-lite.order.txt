@@ -823,3 +823,5 @@ tooling/ingest/shared-runner-lifecycle
 ci/dependency-runtime-migration
 indexing/git/simple-git-v4-migration
 indexing/extracted-prose/mammoth-security-migration
+indexing/runtime/worker-pool-explicit-policy
+tooling/doctor/pyright-installed-probe

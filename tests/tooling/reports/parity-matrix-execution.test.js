@@ -7,7 +7,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-parity-matrix-execution-'));
+const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-parity-matrix-execution-')));
 const repo = path.join(temp, 'repo');
 const out = path.join(temp, 'matrix');
 const queries = path.join(temp, 'queries.txt');
@@ -35,9 +35,10 @@ const readMatrix = () => fs.readFile(path.join(out, 'matrix.json'), 'utf8').then
 
 try {
   const build = runNode([path.join(root, 'bin', 'pairofcleats.js'), 'index', 'build',
-    '--repo', repo, '--mode', 'all', '--threads', '1'], 'parity fixture build', repo, env,
+    '--repo', repo, '--mode', 'both', '--threads', '1'], 'parity fixture build', repo, env,
   { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });
   assert.equal(build.status, 0, `${build.error?.code || ''} ${build.signal || ''}\n${build.stderr}`);
+  assert.doesNotMatch(build.stderr, /Worker pool enabled/, 'the fixture explicitly disables worker pools');
 
   const success = runNode(args, 'parity matrix success from unrelated directory', temp, env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });

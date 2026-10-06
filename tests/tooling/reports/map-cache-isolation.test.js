@@ -8,7 +8,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-map-cache-isolation-'));
+const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-map-cache-isolation-')));
 const repo = path.join(temp, 'repo');
 await fs.mkdir(path.join(repo, 'src'), { recursive: true });
 await fs.writeFile(path.join(repo, 'src/cache.js'), 'export function refreshCache(value) { return value; }\n');
@@ -21,10 +21,14 @@ const env = applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'off
 const cli = (args) => {
   const result = runNode([path.join(root, 'bin', 'pairofcleats.js'), ...args], args.join(' '), repo, env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, `${result.error?.code || ''} ${result.signal || ''}\n${result.stderr}`);
   return result;
 };
-const build = () => cli(['index', 'build', '--repo', repo, '--stage', 'stage1', '--mode', 'code', '--threads', '1']);
+const build = () => {
+  const result = cli(['index', 'build', '--repo', repo, '--stage', 'stage1', '--mode', 'code', '--threads', '1']);
+  assert.doesNotMatch(result.stderr, /Worker pool enabled/, 'the fixture explicitly disables worker pools');
+  return result;
+};
 const stats = () => JSON.parse(cli(['index', 'stats', '--repo', repo, '--mode', 'code', '--json']).stdout);
 const map = (extra = []) => JSON.parse(cli(['report', 'map', '--repo', repo, '--format', 'json', ...extra]).stdout);
 

@@ -213,10 +213,16 @@ try {
   const fixturePatch = path.join(patchFixture, 'patches', 'mammoth+1.13.0.patch');
   await fs.mkdir(path.dirname(fixtureCli), { recursive: true });
   await fs.mkdir(path.dirname(fixturePatch), { recursive: true });
-  await fs.writeFile(fixtureCli, fixtureSource, { mode: 0o755 });
+  // Git for Windows reports ordinary files as 100644; that warning is harmless.
+  await fs.writeFile(fixtureCli, fixtureSource, { mode: 0o644 });
   await fs.writeFile(path.join(fixturePackage, 'LICENSE'), license);
   await fs.writeFile(fixtureManifest, JSON.stringify({ name: 'mammoth', version: '1.13.0' }));
-  await fs.copyFile(new URL('../../../patches/mammoth+1.13.0.patch', import.meta.url), fixturePatch);
+  // The installer normalizes patch line endings before passing them to Git.
+  // Match that boundary for this direct reverse check on Windows checkouts.
+  const patchSource = (await fs.readFile(
+    new URL('../../../patches/mammoth+1.13.0.patch', import.meta.url), 'utf8'
+  )).replace(/\r\n/g, '\n');
+  await fs.writeFile(fixturePatch, patchSource);
 
   // Undo the installed patch in the disposable fixture to obtain upstream
   // bytes without fetching a package or keeping a second vendor source copy.
@@ -243,10 +249,15 @@ try {
   assert.equal(reverse.status, 0, `installed CLI must contain the complete reviewed patch: ${reverse.stderr}`);
   const pristineSource = await fs.readFile(fixtureCli, 'utf8');
   assert.match(pristineSource, /parser\.addArgument/);
-  assert.equal(applyPatches(patchFixture), 1, 'the actual patch applies to pristine vendor source');
-  assert.equal(await fs.readFile(fixtureCli, 'utf8'), fixtureSource);
-  assert.equal(applyPatches(patchFixture), 1, 'repeat patch application is accepted');
-  assert.equal(await fs.readFile(fixtureCli, 'utf8'), fixtureSource);
+  for (const lineEnding of ['\n', '\r\n']) {
+    await fs.writeFile(fixturePatch, patchSource.replace(/\n/g, lineEnding));
+    await fs.writeFile(fixtureCli, pristineSource.replace(/\n/g, lineEnding));
+    const expectedSource = fixtureSource.replace(/\n/g, lineEnding);
+    assert.equal(applyPatches(patchFixture), 1, 'the actual patch applies to LF and CRLF vendor fixtures');
+    assert.equal(await fs.readFile(fixtureCli, 'utf8'), expectedSource);
+    assert.equal(applyPatches(patchFixture), 1, 'repeat patch application is accepted');
+    assert.equal(await fs.readFile(fixtureCli, 'utf8'), expectedSource);
+  }
 
   await fs.writeFile(fixtureCli, pristineSource);
   await fs.writeFile(fixtureManifest, JSON.stringify({ name: 'mammoth', version: '1.13.1' }));

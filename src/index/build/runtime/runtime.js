@@ -192,7 +192,10 @@ export async function createBuildRuntime({
     indexingConfig = mergeConfig(indexingConfig, {
       workerPool: {
         enabled: policyWorkerPool.enabled !== false ? 'auto' : false,
-        maxWorkers: policyWorkerPool.maxThreads
+        maxWorkers: policyWorkerPool.maxThreads,
+        // Automatic policy supplies defaults; explicit repository settings
+        // still pass through the normal environment overrides and hard caps.
+        ...(isObject(indexingConfig.workerPool) ? indexingConfig.workerPool : {})
       }
     });
   }

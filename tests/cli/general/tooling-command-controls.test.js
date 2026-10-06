@@ -9,12 +9,14 @@ import { describeCommandRegistryEntry } from '../../../src/shared/command-regist
 
 const root = process.cwd();
 const bin = path.join(root, 'bin', 'pairofcleats.js');
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-tooling-cli-controls-'));
+const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-tooling-cli-controls-')));
 const repo = path.join(temp, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify({
   indexing: { scm: { provider: 'none' }, typeInference: false },
-  tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
+  // This tests CLI controls, not the host's optional language-server inventory.
+  tooling: { enabledTools: ['typescript'], autoEnableOnDetect: false,
+    allowGlobalFallback: false, lsp: { enabled: false } }
 }));
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(temp, 'cache') });
 const run = (args) => runNode([bin, ...args], args.join(' '), root, env, {
@@ -28,6 +30,7 @@ try {
     const report = JSON.parse(result.stdout);
     assert.equal(report.repoRoot, repo);
     assert.ok(Array.isArray(report.providers));
+    assert.deepEqual(report.providers.filter(provider => provider.enabled).map(provider => provider.id), ['typescript']);
   }
   const conflicting = run(['tooling', 'doctor', '--strict', '--non-strict', '--repo', repo]);
   assert.equal(conflicting.status, 1);

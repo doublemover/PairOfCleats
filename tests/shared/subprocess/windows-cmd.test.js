@@ -4,12 +4,21 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { redactDiagnosticText } from '../../../src/shared/diagnostic-text.js';
 
 import {
   quoteWindowsCmdArg,
   resolveWindowsCmdShimPath,
   resolveWindowsCmdInvocation
 } from '../../../src/shared/subprocess/windows-cmd.js';
+
+const nativeFailure = (label, invocation, result) => `${label}\n${JSON.stringify({
+  command: invocation.command, args: invocation.args,
+  windowsVerbatimArguments: invocation.windowsVerbatimArguments,
+  status: result.status, signal: result.signal, errorCode: result.error?.code || null,
+  stdout: redactDiagnosticText(String(result.stdout || ''), 1024),
+  stderr: redactDiagnosticText(String(result.stderr || ''), 1024)
+})}`;
 
 assert.match(quoteWindowsCmdArg('%TEMP%'), /\^%TEMP\^%/, 'expected percent expansion to be escaped');
 assert.match(quoteWindowsCmdArg('!BANG!'), /\^!BANG\^!/, 'expected delayed expansion marker to be escaped');
@@ -182,9 +191,9 @@ try {
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: conditionalInvocation.windowsVerbatimArguments,
-      encoding: 'utf8'
+      encoding: 'utf8', timeout: 5000, maxBuffer: 65536
     });
-    assert.equal(conditionalResult.status, 0, 'version branch must exit successfully');
+    assert.equal(conditionalResult.status, 0, nativeFailure('version branch must exit successfully', conditionalInvocation, conditionalResult));
     assert.equal(conditionalResult.stderr, '', 'version branch must not hide cmd syntax errors');
     await assert.rejects(fs.access(outputPath), 'version probe must not launch the server branch');
     const conditionalLaunch = resolveWindowsCmdInvocation(conditionalWrapperPath, [literalArg]);
@@ -192,9 +201,9 @@ try {
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: conditionalLaunch.windowsVerbatimArguments,
-      encoding: 'utf8'
+      encoding: 'utf8', timeout: 5000, maxBuffer: 65536
     });
-    assert.equal(conditionalLaunchResult.status, 0, 'conditional server branch must launch successfully');
+    assert.equal(conditionalLaunchResult.status, 0, nativeFailure('conditional server branch must launch successfully', conditionalLaunch, conditionalLaunchResult));
     assert.equal(conditionalLaunchResult.stderr, '', 'literal server branch must not hide cmd syntax errors');
     assert.equal(await fs.readFile(outputPath, 'utf8'), literalArg, 'shell fallback must preserve literal argument text');
     const allArgsPath = path.join(tempRoot, 'all-args.json');
@@ -210,9 +219,9 @@ try {
         shell: false,
         windowsHide: true,
         windowsVerbatimArguments: allArgsInvocation.windowsVerbatimArguments,
-        encoding: 'utf8'
+        encoding: 'utf8', timeout: 5000, maxBuffer: 65536
       });
-      assert.equal(allArgsResult.status, 0, `conditional argv matrix must launch: ${allArgsResult.stderr}`);
+      assert.equal(allArgsResult.status, 0, nativeFailure(`conditional argv matrix first index ${firstIndex} must launch`, allArgsInvocation, allArgsResult));
       assert.equal(allArgsResult.stderr, '', 'successful final launch must not conceal IF argument syntax errors');
       assert.deepEqual(JSON.parse(await fs.readFile(allArgsPath, 'utf8')), reordered, 'native cmd must preserve the complete literal argv matrix');
     }

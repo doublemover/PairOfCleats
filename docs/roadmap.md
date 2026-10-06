@@ -43,18 +43,16 @@ head. None is a blanket release-readiness claim.
 
 ## Canonical Next Queue
 
-PR519 publishes `5e81db47`; its `13136005` base passed local `ci-lite` 822/822
-and gate 35/35. The [earlier hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37411807912)
-stopped before tests: ONNX's supplemental Linux CUDA download from NuGet timed
-out, so Rust and all platform jobs were skipped. CPU-hosted CI/nightly/release
-workflows now use the vendor's supported supplemental-download skip setting.
-ONNX remains required; a network-forbidden installer check and real tiny CPU
-inference regression preserve that distinction. The [next hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37413083341)
-passed native installation, then stopped at eight vulnerable dependency entries
-from five advisory families. The reviewed dependency update removes those paths,
-migrates Git4 imports and Mammoth's CLI, and passes a fresh full-graph audit.
-See [compatibility review](guides/dependency-security.md#october-6-current-advisory-follow-through).
-New hosted and cross-platform acceptance remain pending.
+PR519 publishes `3e0796cc`, with local `ci-lite` 825/825, gate 35/35 and a
+zero-vulnerability full-graph audit. Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37416912207)
+passes clean dependency/native installation, audit, gate and Rust TUI checks.
+Ubuntu passes 824/825; macOS passes 822/825; Windows records 819 passes, five
+failures and one declared POSIX-signal skip. The [dependency migration](guides/dependency-security.md#october-6-current-advisory-follow-through)
+is published; this is still incomplete platform acceptance. Follow-on work fixes
+fixture path/CRLF assumptions and explicit worker-pool precedence, isolates CLI
+controls from host tool inventories, and separates cold Pyright startup from
+short-deadline contracts. Windows transport diagnosis is deferred to the grouped
+hardware validation session; preserve its [execution checklist](guides/native-validation-2026-10-06.md).
 
 The previous `82528215` checkpoint has
 [hosted evidence](https://github.com/doublemover/PairOfCleats/actions/runs/37325731002):
@@ -62,26 +60,23 @@ gate and Rust TUI pass; Ubuntu passes all 804 tests; macOS and Windows each pass
 803 with one failure and no timeouts. The prior pooled-buffer zstd hang, runtime
 authority fixtures and Windows CRLF assertions now pass. Historical timing inputs
 remain distinct from current measurements. This is still a draft, incomplete
-platform acceptance result. Keep the two demonstrated failures ahead of broader
+platform acceptance result. Keep demonstrated current failures ahead of broader
 validation work; do not reopen archived implementation checklists.
 
 ### Concrete Platform and Product Queue
 
-1. **Preserve literal argv through Windows shell fallbacks.** Conditional version
-   branches and the original Solargraph multifile case now pass, but the new
-   fallback regression receives quoted caret-escaped text instead of the literal
-   caller argument. The corrective candidate carries explicit pre-escaped argv
-   transport through shared runners, LSP, benchmark canaries and VS Code; it keeps
-   authored control flow and rejects shell line separators. Quote/transport
-   controls on Linux do not establish native Windows execution. Actual Windows
-   branch, literal-argument and async/sync runner acceptance remains open.
-2. **Observe the remaining Pyright probe failure before changing policy.** The
-   earlier Ubuntu assertion now passes there and on Windows, while macOS rejects
-   the same default-command probe. Saved logs contain no selected command or probe
-   output. The test now includes bounded redacted command, argument, attempt,
-   exit/error, cache and elapsed-time diagnostics on assertion failure. Establish
-   the actual failing conditions before changing provider budgets, retry policy
-   or assertions. The existing exact-lock local pass does not close this case.
+1. **Preserve literal argv through Windows shell fallbacks.** Current native CI
+   exits 255 in the conditional server branch. The version branch succeeds, but
+   the old assertion lost child stderr. Preserve bounded command/result diagnostics
+   and reproduce the literal-argument matrix on native Windows before changing
+   transport. Keep authored control flow and line-separator rejection. Linux
+   quoting checks do not close native argv or parent-signal cleanup acceptance.
+2. **Verify cold Pyright startup without changing production deadlines.** Current
+   Ubuntu/Windows diagnostics identify the installed command and two 2-second
+   probe timeouts; macOS passes. An uncached local comparison measures about 0.7s
+   normally and 2s under V8 coverage. The installed-tool integration check now has
+   a bounded explicit allowance and cannot pass through persistent cache reuse;
+   deterministic short-timeout, cleanup and production timeout contracts remain.
 3. **Preserve synchronous timeout child-tree cleanup.** The published baseline
    leaves a live orphan because the synchronous spawn returns after its direct
    child has been reaped, too late for parent-PID discovery. Both sync owners now
@@ -90,7 +85,8 @@ validation work; do not reopen archived implementation checklists.
    interactive dispatch retain their requested behavior. The original regression,
    raw-owner force-kill and process-group controls pass on Linux; all 27 subprocess
    selectors pass. The regression is now in `ci-lite` rather than outside its
-   acceptance surface. Native Windows/macOS behavior remains unverified.
+   acceptance surface. The registered POSIX regressions also pass on hosted macOS;
+   Windows parent-signal behavior remains deferred native acceptance.
 4. **Refresh representative retrieval quality.** Exercise free-text versus explicit
    Boolean/phrase intent, filters, ANN allowed IDs and deterministic ranking through
    supported memory/SQLite backends. Use the current golden/IQ fixtures and record
