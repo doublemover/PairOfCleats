@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-05T09:37:16.281Z",
+  "generatedAt": "2026-10-06T16:50:23.920Z",
   "summary": {
     "lanes": 5,
-    "tests": 989,
+    "tests": 1022,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 261,
+    "families": 267,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 915
+      "missingTests": 948
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 804,
+      "totalTests": 837,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 755
+        "missing": 788
       }
     },
     {
@@ -98,9 +98,9 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 65,
+      "count": 66,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 56
+      "unknownDurationCount": 57
     },
     {
       "key": "indexing/chunking",
@@ -122,9 +122,9 @@
     },
     {
       "key": "indexing/file-processor",
-      "count": 9,
+      "count": 10,
       "knownDurationMs": 8370,
-      "unknownDurationCount": 4
+      "unknownDurationCount": 5
     },
     {
       "key": "tooling/install",
@@ -134,9 +134,9 @@
     },
     {
       "key": "indexing/type-inference",
-      "count": 13,
+      "count": 14,
       "knownDurationMs": 5700,
-      "unknownDurationCount": 6
+      "unknownDurationCount": 7
     },
     {
       "key": "indexing/imports",
@@ -146,15 +146,15 @@
     },
     {
       "key": "cli/general",
-      "count": 3,
+      "count": 6,
       "knownDurationMs": 5410,
-      "unknownDurationCount": 1
+      "unknownDurationCount": 4
     },
     {
       "key": "indexing/runtime",
-      "count": 3,
+      "count": 4,
       "knownDurationMs": 5040,
-      "unknownDurationCount": 2
+      "unknownDurationCount": 3
     },
     {
       "key": "lang/contracts",
@@ -212,9 +212,9 @@
     },
     {
       "key": "indexing/artifacts",
-      "count": 37,
+      "count": 41,
       "knownDurationMs": 2990,
-      "unknownDurationCount": 31
+      "unknownDurationCount": 35
     },
     {
       "key": "indexing/workers",
@@ -230,9 +230,9 @@
     },
     {
       "key": "tooling/reports",
-      "count": 5,
+      "count": 9,
       "knownDurationMs": 510,
-      "unknownDurationCount": 3
+      "unknownDurationCount": 7
     },
     {
       "key": "shared/hash",
@@ -254,9 +254,9 @@
     },
     {
       "key": "indexing/watch",
-      "count": 15,
+      "count": 17,
       "knownDurationMs": 160,
-      "unknownDurationCount": 14
+      "unknownDurationCount": 16
     },
     {
       "key": "indexing/postings",
@@ -296,9 +296,9 @@
     },
     {
       "key": "tooling/lsp",
-      "count": 85,
+      "count": 86,
       "knownDurationMs": 0,
-      "unknownDurationCount": 85
+      "unknownDurationCount": 86
     },
     {
       "key": "indexing/tree-sitter",
@@ -343,6 +343,12 @@
       "unknownDurationCount": 15
     },
     {
+      "key": "tooling/doctor",
+      "count": 15,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 15
+    },
+    {
       "key": "indexing/scm",
       "count": 14,
       "knownDurationMs": 0,
@@ -350,12 +356,6 @@
     },
     {
       "key": "retrieval/pipeline",
-      "count": 14,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 14
-    },
-    {
-      "key": "tooling/doctor",
       "count": 14,
       "knownDurationMs": 0,
       "unknownDurationCount": 14
@@ -374,9 +374,9 @@
     },
     {
       "key": "shared/subprocess",
-      "count": 11,
+      "count": 12,
       "knownDurationMs": 0,
-      "unknownDurationCount": 11
+      "unknownDurationCount": 12
     },
     {
       "key": "indexing/relations",
@@ -403,6 +403,12 @@
       "unknownDurationCount": 7
     },
     {
+      "key": "indexing/extracted-prose",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
       "key": "retrieval/federation",
       "count": 7,
       "knownDurationMs": 0,
@@ -415,12 +421,6 @@
       "unknownDurationCount": 7
     },
     {
-      "key": "indexing/extracted-prose",
-      "count": 6,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 6
-    },
-    {
       "key": "runner/harness",
       "count": 6,
       "knownDurationMs": 0,
@@ -428,6 +428,12 @@
     },
     {
       "key": "tooling/api-contracts",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "tooling/ingest",
       "count": 6,
       "knownDurationMs": 0,
       "unknownDurationCount": 6
@@ -457,6 +463,18 @@
       "unknownDurationCount": 4
     },
     {
+      "key": "indexing/discovery",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/git",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
       "key": "indexing/map",
       "count": 4,
       "knownDurationMs": 0,
@@ -481,12 +499,6 @@
       "unknownDurationCount": 4
     },
     {
-      "key": "tooling/ingest",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
       "key": "tooling/sublime",
       "count": 4,
       "knownDurationMs": 0,
@@ -506,12 +518,6 @@
     },
     {
       "key": "indexing/filter-index",
-      "count": 3,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 3
-    },
-    {
-      "key": "indexing/git",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -644,6 +650,12 @@
     },
     {
       "key": "ci/capability-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/dependency-runtime-migration",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -973,12 +985,6 @@
       "unknownDurationCount": 1
     },
     {
-      "key": "indexing/discovery",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
       "key": "indexing/failure-taxonomy-null-shard",
       "count": 1,
       "knownDurationMs": 0,
@@ -1303,6 +1309,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "shared/capabilities",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "shared/cli",
       "count": 1,
       "knownDurationMs": 0,
@@ -1346,6 +1358,30 @@
     },
     {
       "key": "shared/files",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-core",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-discovery",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-prefix-validation",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1666,23 +1702,23 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 355,
+      "count": 369,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 314,
+      "unknownDurationCount": 328,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
       "key": "sqlite-heavy",
-      "count": 65,
+      "count": 66,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 56,
+      "unknownDurationCount": 57,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {
       "key": "cli-cold-start",
-      "count": 4,
+      "count": 7,
       "knownDurationMs": 5410,
-      "unknownDurationCount": 2,
+      "unknownDurationCount": 5,
       "note": "CLI process startup and argument-routing overlap."
     },
     {
@@ -1701,9 +1737,9 @@
     },
     {
       "key": "lsp-bootstrap",
-      "count": 85,
+      "count": 86,
       "knownDurationMs": 0,
-      "unknownDurationCount": 85,
+      "unknownDurationCount": 86,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {
