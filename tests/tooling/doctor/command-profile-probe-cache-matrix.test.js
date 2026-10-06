@@ -156,16 +156,16 @@ try {
   assert.equal(__resolveNoProvisionProbeEnvForTests({ GOTOOLCHAIN: 'go1.27.1+auto' }).GOTOOLCHAIN, 'go1.27.1+path');
 
   // One application-owned fixture command is cwd-sensitive, like SDK shims.
-  const cwdA = path.join(tempRoot, 'cwd-a');
-  const cwdB = path.join(tempRoot, 'cwd-b');
+  const cwdA = path.join(tempRoot, 'cwd-a with spaces');
+  const cwdB = path.join(tempRoot, 'cwd-b with spaces');
   fs.mkdirSync(cwdA, { recursive: true });
   fs.mkdirSync(cwdB, { recursive: true });
   const cwdScript = path.join(tempRoot, 'cwd-probe.js');
-  fs.writeFileSync(cwdScript, "console.log('fixture 1.0.0 cwd=' + process.cwd());\n");
+  fs.writeFileSync(cwdScript, "console.log('fixture 1.0.0 cwd=' + process.cwd() + ' env=' + JSON.stringify({rust:process.env.RUSTUP_AUTO_INSTALL,go:process.env.GOTOOLCHAIN}));\n");
   const cwdCommand = path.join(tempRoot, process.platform === 'win32' ? 'cwd-probe.cmd' : 'cwd-probe');
   fs.writeFileSync(cwdCommand, process.platform === 'win32'
     ? `@echo off\r\n"${process.execPath}" "${cwdScript}" %*\r\n`
-    : `#!${process.execPath}\nconsole.log('fixture 1.0.0 cwd=' + process.cwd());\n`);
+    : `#!${process.execPath}\nconsole.log('fixture 1.0.0 cwd=' + process.cwd() + ' env=' + JSON.stringify({rust:process.env.RUSTUP_AUTO_INSTALL,go:process.env.GOTOOLCHAIN}));\n`);
   if (process.platform !== 'win32') fs.chmodSync(cwdCommand, 0o755);
   const scopedConfig = { cache: { dir: path.join(tempRoot, 'scoped-cache') } };
   const scoped = cwd => resolveToolingCommandProfile({ providerId: 'cwd-sensitive-fixture',
@@ -177,6 +177,10 @@ try {
   assert.equal(scopedB.probe.ok, true);
   assert.match(scopedA.probe.versionText, /cwd-a/);
   assert.match(scopedB.probe.versionText, /cwd-b/);
+  assert.match(scopedA.probe.versionText, /cwd-a with spaces/);
+  assert.match(scopedB.probe.versionText, /cwd-b with spaces/);
+  assert.match(scopedA.probe.versionText, /"rust":"0"/);
+  assert.equal(scopedA.probe.versionText.includes(`"go":"${__resolveNoProvisionProbeEnvForTests(process.env).GOTOOLCHAIN}"`), true);
   assert.equal(scopedA.probe.cached, false);
   assert.equal(scopedB.probe.cached, false, 'another repository cwd cannot reuse the first probe');
   assert.equal(scoped(cwdA).probe.cached, true);
