@@ -69,13 +69,15 @@ validation work; do not reopen archived implementation checklists.
    exit/error, cache and elapsed-time diagnostics on assertion failure. Establish
    the actual failing conditions before changing provider budgets, retry policy
    or assertions. The existing exact-lock local pass does not close this case.
-3. **Revalidate synchronous timeout child-tree cleanup.** The broader subprocess
-   check `shared/subprocess/sync-timeout-kills-child-tree` fails repeatedly in the
-   current Linux cloud workspace on both published `82528215` and the corrective
-   candidate: its descendant remains observable after the parent timeout. This
-   case is outside the 804-test `ci-lite` manifest. Establish descendant/process-
-   group ownership before correcting cleanup; do not turn the baseline failure
-   into a skipped test or a claimed full-subprocess pass.
+3. **Preserve synchronous timeout child-tree cleanup.** The published baseline
+   leaves a live orphan because the synchronous spawn returns after its direct
+   child has been reaped, too late for parent-PID discovery. Both sync owners now
+   create a private POSIX process group for bounded tree-owned commands and pass
+   the same ownership to cleanup. Explicit detach/tree opt-outs and unbounded
+   interactive dispatch retain their requested behavior. The original regression,
+   raw-owner force-kill and process-group controls pass on Linux; all 27 subprocess
+   selectors pass. The regression is now in `ci-lite` rather than outside its
+   acceptance surface. Native Windows/macOS behavior remains unverified.
 4. **Refresh representative retrieval quality.** Exercise free-text versus explicit
    Boolean/phrase intent, filters, ANN allowed IDs and deterministic ranking through
    supported memory/SQLite backends. Use the current golden/IQ fixtures and record

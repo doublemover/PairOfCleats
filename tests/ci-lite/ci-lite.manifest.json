@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 673,
+    "hero": 674,
     "matrix": 106,
     "meta": 24,
     "soak": 1,
@@ -4837,6 +4837,12 @@
     {
       "id": "shared/json-stream/compression-pool-transfer",
       "order": 804,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/sync-timeout-kills-child-tree",
+      "order": 805,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

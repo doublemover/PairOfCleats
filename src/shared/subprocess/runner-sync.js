@@ -27,6 +27,12 @@ export function spawnSubprocessSync(command, args, options = {}) {
   const rejectOnNonZeroExit = options.rejectOnNonZeroExit !== false;
   const expectedExitCodes = resolveExpectedExitCodes(options.expectedExitCodes);
   const resolvedTimeoutMs = toNumber(options.timeoutMs);
+  const hasTimeout = Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0;
+  // A sync timeout reaps the direct child before returning. Own its process group
+  // up front so descendants can still be terminated after they are reparented.
+  const detached = typeof options.detached === 'boolean'
+    ? options.detached
+    : hasTimeout && options.killTree !== false && process.platform !== 'win32';
   const killSignal = options.killSignal || 'SIGTERM';
   if (options.shell === true) {
     const normalized = buildResult({
@@ -44,9 +50,10 @@ export function spawnSubprocessSync(command, args, options = {}) {
     env: options.env,
     stdio,
     shell: false,
+    detached,
     windowsVerbatimArguments: options.windowsVerbatimArguments === true,
     input: options.input,
-    timeout: Number.isFinite(resolvedTimeoutMs) && resolvedTimeoutMs > 0
+    timeout: hasTimeout
       ? Math.max(1, Math.floor(resolvedTimeoutMs))
       : undefined,
     killSignal,
@@ -73,7 +80,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
         result?.pid,
         resolvedTimeoutMs,
         options.killTree !== false,
-        options.detached === true
+        detached
       );
     }
     if (result.error?.code === 'ETIMEDOUT') {

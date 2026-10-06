@@ -802,3 +802,4 @@ lang/contracts/toml-semantic-lexical-boundaries
 lang/contracts/yaml-syntax-node-boundaries
 lang/contracts/xml-lexical-boundaries
 shared/json-stream/compression-pool-transfer
+shared/subprocess/sync-timeout-kills-child-tree
