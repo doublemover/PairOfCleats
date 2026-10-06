@@ -69,6 +69,14 @@ files must parse as JSON; parse failures including excessive nesting fail open.
 An unseen suffix of a large file cannot be validated from its prefix. Filesystem
 containment and index-admission wiring remain the caller's responsibilities.
 
+The shared guard now includes these candidates in discovery and watch. Renamed
+marked objects are checked again using the existing content buffer before
+decoding/parsing/chunking, with no extra source-file read. Explicit records-root
+or include-glob routing retains those records. The `poc.generated-discovery@4`
+content-policy migration refreshes earlier incremental bundles once. A real
+command-probe producer and three consecutive builds demonstrate stable authored
+chunk counts for named and renamed in-repository cache output.
+
 ## Deliberately remaining work
 
 These unimplemented producer families require a separate compatibility pass:

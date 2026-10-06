@@ -132,8 +132,15 @@ cover the producer batch. Referenced members and native store descendants are
 not excluded by manifest claims. See the
 [core metadata contract](guides/generated-core-artifact-metadata.md).
 
+Fifteen audited object-cache/runtime families now emit first-field declarations
+and participate in discovery, watch and renamed-content admission. Legacy readers,
+cache keys/TTLs and bounded streaming byte caps retain their contracts. Real probe
+output remains usable without increasing chunks across three builds. Explicit
+records roots/globs retain marked records. See the
+[object-cache contract](guides/generated-object-cache-metadata.md).
+
 Continue bounded artifact batches: exact-member content linkage;
-caches/runtime state; reports/editor outputs; then
+remaining caches/runtime state; reports/editor outputs; then
 native/package/TUI/developer outputs. Preserve strict schemas, JSONL/array shapes,
 checksums, offsets and useful searchable reports. Native Windows/macOS/TUI proof,
 clean dependency installation, full benchmark measurement, representative retrieval

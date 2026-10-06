@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 691,
+    "hero": 697,
     "matrix": 108,
     "meta": 24,
     "soak": 1,
@@ -4957,6 +4957,42 @@
     {
       "id": "indexing/discovery/generated-records-precedence",
       "order": 824,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/generated-artifact-cache",
+      "order": 825,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/object-cache-metadata-roundtrip",
+      "order": 826,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/runtime-cache-metadata-roundtrip",
+      "order": 827,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/type-inference/crossfile/cache-serialized-size-parity",
+      "order": 828,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/discovery/owned-object-cache",
+      "order": 829,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/object-cache-isolation",
+      "order": 830,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

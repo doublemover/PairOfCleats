@@ -5,6 +5,7 @@ import path from 'node:path';
 import { discoverFilesForModes } from '../../../src/index/build/discover.js';
 import { watchIndex } from '../../../src/index/build/watch.js';
 import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 import { createTempWatchRepo, createWatchDeps, createWatchRuntime, waitFor } from '../watch/helpers.js';
 
 const { tempRoot, repoRoot } = await createTempWatchRepo({
@@ -14,13 +15,18 @@ const recordsDir = path.join(repoRoot, 'records');
 const includedDir = path.join(repoRoot, 'included');
 const cacheDir = path.join(repoRoot, 'cache');
 const marked = JSON.stringify(withGeneratedArtifactMetadata({ mode: 'code' }, 'index-state'));
-const recordPaths = [path.join(recordsDir, 'index_state.json'), path.join(includedDir, 'index_state.json')];
+const markedCache = JSON.stringify(withGeneratedCacheMetadata({ version: 1, entries: [] }, 'learned-auto-profile'));
+const recordPaths = [path.join(recordsDir, 'index_state.json'), path.join(includedDir, 'index_state.json'),
+  path.join(recordsDir, 'learned-auto-profile.json'), path.join(includedDir, 'learned-auto-profile.json')];
 const cachePath = path.join(cacheDir, 'index_state.json');
+const objectCachePath = path.join(cacheDir, 'learned-auto-profile.json');
 const recordsConfig = { includeGlobs: ['included/**'], detect: false };
 const ignoreMatcher = { ignores: () => false };
 try {
   for (const dir of [recordsDir, includedDir, cacheDir]) await fs.mkdir(dir);
-  for (const file of [...recordPaths, cachePath]) await fs.writeFile(file, marked);
+  for (const file of [...recordPaths, cachePath, objectCachePath]) {
+    await fs.writeFile(file, file.endsWith('index_state.json') ? marked : markedCache);
+  }
   const skippedByMode = { code: [], records: [] };
   const found = await discoverFilesForModes({ root: repoRoot, modes: ['code', 'records'],
     recordsDir, recordsConfig, ignoreMatcher, skippedByMode });
@@ -28,6 +34,7 @@ try {
     'explicit records routing must precede owned metadata omission');
   assert.ok(found.code.every(entry => !recordPaths.includes(entry.abs)));
   assert.ok(skippedByMode.code.some(entry => entry.file === cachePath && entry.reason === 'generated-artifact'));
+  assert.ok(skippedByMode.code.some(entry => entry.file === objectCachePath && entry.reason === 'generated-artifact'));
   assert.ok(skippedByMode.code.filter(entry => recordPaths.includes(entry.file)).every(entry => entry.reason === 'records'));
 
   const runtime = { ...await createWatchRuntime({ repoRoot }), recordsDir, recordsConfig, ignoreMatcher };
@@ -45,13 +52,14 @@ try {
     onReady: readyResolve, onStateChange: state => states.push(state) });
   try {
     await ready;
-    for (const file of [...recordPaths, cachePath]) getOnEvent()({ type: 'add', absPath: file });
-    await waitFor(() => builds.some(build => build.mode === 'records' && build.discovery.entries.length === 2));
+    for (const file of [...recordPaths, cachePath, objectCachePath]) getOnEvent()({ type: 'add', absPath: file });
+    await waitFor(() => builds.some(build => build.mode === 'records' && build.discovery.entries.length === recordPaths.length));
     await waitFor(() => states.at(-1)?.quiescent === true);
-    const recordsBuild = builds.find(build => build.mode === 'records' && build.discovery.entries.length === 2);
+    const recordsBuild = builds.find(build => build.mode === 'records' && build.discovery.entries.length === recordPaths.length);
     assert.deepEqual(recordsBuild.discovery.entries.map(entry => entry.abs).sort(), recordPaths.sort());
     assert.ok(builds.filter(build => build.mode === 'code').every(build => build.discovery.entries.length === 0));
     assert.ok(recordsBuild.discovery.skippedFiles.some(entry => entry.file === cachePath && entry.reason === 'generated-artifact'));
+    assert.ok(recordsBuild.discovery.skippedFiles.some(entry => entry.file === objectCachePath && entry.reason === 'generated-artifact'));
     for (const file of recordPaths) {
       await fs.rm(file);
       getOnEvent()({ type: 'unlink', absPath: file });

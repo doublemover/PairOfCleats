@@ -822,3 +822,9 @@ indexing/discovery/owned-metadata
 tooling/ingest/shared-runner-lifecycle
 tooling/ingest/output-preservation
 indexing/discovery/generated-records-precedence
+shared/generated-artifact-cache
+indexing/artifacts/object-cache-metadata-roundtrip
+indexing/artifacts/runtime-cache-metadata-roundtrip
+indexing/type-inference/crossfile/cache-serialized-size-parity
+indexing/discovery/owned-object-cache
+tooling/reports/object-cache-isolation

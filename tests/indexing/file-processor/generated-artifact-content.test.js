@@ -11,6 +11,7 @@ import { buildContentConfigHash, normalizeContentConfig } from '../../../src/ind
 import { sha1 } from '../../../src/shared/hash.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
 const repoRoot = process.cwd();
 const map = { version: '1.0.0', generatedAt: '2026-10-06T00:00:00.000Z',
@@ -54,6 +55,10 @@ assert.equal((await checkContent(metadata)).result.skip?.artifactKind, 'index-st
   'renamed core metadata uses the same existing-buffer guard');
 assert.equal((await checkContent(metadata, 'records')).result.skip, null);
 assert.equal((await checkContent(JSON.stringify({ documentation: metadata }))).result.skip, null);
+const objectCache = JSON.stringify(withGeneratedCacheMetadata({ version: 1, entries: [] }, 'lsp-requests'));
+assert.equal((await checkContent(objectCache)).result.skip?.artifactKind, 'object-cache');
+assert.equal((await checkContent(objectCache, 'records')).result.skip, null);
+assert.equal((await checkContent(JSON.stringify({ documentation: objectCache }))).result.skip, null);
 assert.equal(reads, 0, 'classification must reuse the existing source buffer');
 
 const config = { indexing: { typeInference: false } };
@@ -65,6 +70,10 @@ const mapOnlyHash = sha1(stableStringifyForSignature({ generatedArtifactPolicyVe
   config: normalizeContentConfig(config), env: { ...env, cacheRoot: '' } }));
 assert.notEqual(buildContentConfigHash(config, env), mapOnlyHash,
   'adding core metadata recognition must also invalidate the earlier map-only policy');
+const coreOnlyHash = sha1(stableStringifyForSignature({ generatedArtifactPolicyVersion: 'poc.generated-discovery@3',
+  config: normalizeContentConfig(config), env: { ...env, cacheRoot: '' } }));
+assert.notEqual(buildContentConfigHash(config, env), coreOnlyHash,
+  'object-cache recognition must refresh earlier bundles once');
 assert.equal(buildContentConfigHash(config, env), buildContentConfigHash(config, { cacheRoot: '/elsewhere' }));
 
 const ordinary = Buffer.from('export function authored() { return "poc.generated@1"; }');
