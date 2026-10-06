@@ -1577,11 +1577,12 @@ export async function writeIndexArtifacts(input) {
     const packedChecksum = computePackedChecksum(packedMinhash.buffer);
     const packedPath = path.join(outDir, 'minhash_signatures.packed.bin');
     const packedMetaPath = path.join(outDir, 'minhash_signatures.packed.meta.json');
+    const packedMetaPiece = { type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' };
     minhashWrites.enqueueWrite(
       formatArtifactLabel(packedPath),
       async () => {
         await writeBinaryArtifactAtomically(packedPath, packedMinhash.buffer);
-        await writeJsonObjectFile(packedMetaPath, {
+        const metaWrite = await writeJsonObjectFile(packedMetaPath, {
           fields: {
             format: 'u32',
             endian: 'le',
@@ -1590,8 +1591,18 @@ export async function writeIndexArtifacts(input) {
             checksum: packedChecksum.hash,
             ...(minhashSamplingMeta ? { sampling: minhashSamplingMeta } : {})
           },
-          atomic: true
+          atomic: true,
+          checksumAlgo: 'sha1'
         });
+        // The queue registers both pieces only after this complete job succeeds.
+        // Carry committed output-byte checksums instead of rereading both files.
+        packedMetaPiece.bytes = metaWrite.bytes;
+        packedMetaPiece.checksum = metaWrite.checksumHash;
+        return {
+          bytes: packedMinhash.buffer.length,
+          checksum: packedChecksum.value,
+          checksumAlgo: packedChecksum.algo
+        };
       },
       {
         publishedPieces: [
@@ -1600,12 +1611,14 @@ export async function writeIndexArtifacts(input) {
               type: 'postings',
               name: 'minhash_signatures_packed',
               format: 'bin',
-              count: packedMinhash.count
+              count: packedMinhash.count,
+              bytes: packedMinhash.buffer.length,
+              checksum: packedChecksum.hash
             },
             filePath: packedPath
           },
           {
-            entry: { type: 'postings', name: 'minhash_signatures_packed_meta', format: 'json' },
+            entry: packedMetaPiece,
             filePath: packedMetaPath
           }
         ]
