@@ -1,4 +1,4 @@
-import { StreamMessageWriter } from 'vscode-jsonrpc';
+import { WriteableStreamMessageWriter } from 'vscode-jsonrpc';
 
 const writerCache = new WeakMap();
 const CLOSED_STREAM_WRITE_ERROR_CODES = new Set([
@@ -19,15 +19,45 @@ export const isClosedStreamWriteError = (err) => {
 const getWriterState = (outputStream) => {
   let state = writerCache.get(outputStream);
   if (state) return state;
-  const writer = new StreamMessageWriter(outputStream);
-  state = { writer, closed: false, queue: Promise.resolve() };
+  const listeners = new Set();
+  const subscribe = (event, listener, once = false) => {
+    if (once) outputStream.once(event, listener);
+    else outputStream.on(event, listener);
+    const dispose = () => {
+      outputStream.removeListener(event, listener);
+      listeners.delete(dispose);
+    };
+    listeners.add(dispose);
+    return { dispose };
+  };
+  // Own the adapter subscriptions explicitly. The upstream writer disposes its
+  // emitters, but does not dispose the underlying stream subscriptions.
+  const writer = new WriteableStreamMessageWriter({
+    onClose: (listener) => subscribe('close', listener),
+    onError: (listener) => subscribe('error', listener),
+    onEnd: (listener) => subscribe('end', listener),
+    write: (data, encoding) => new Promise((resolve, reject) => {
+      const callback = (error) => error == null ? resolve() : reject(error);
+      if (typeof data === 'string') outputStream.write(data, encoding, callback);
+      else outputStream.write(data, callback);
+    }),
+    end: () => outputStream.end()
+  });
+  state = { writer, closed: false, pending: 0, disposed: false, queue: Promise.resolve() };
+  state.release = () => {
+    if (!state.closed || state.pending || state.disposed) return;
+    state.disposed = true;
+    state.writer.dispose();
+    for (const dispose of listeners) dispose();
+  };
   const markClosed = () => {
     state.closed = true;
+    state.release();
   };
   if (typeof outputStream.once === 'function') {
-    outputStream.once('close', markClosed);
-    outputStream.once('finish', markClosed);
-    outputStream.once('error', markClosed);
+    subscribe('close', markClosed, true);
+    subscribe('finish', markClosed, true);
+    subscribe('error', markClosed, true);
   }
   writerCache.set(outputStream, state);
   return state;
@@ -44,6 +74,8 @@ export function getJsonRpcWriter(outputStream) {
   }
   const state = getWriterState(outputStream);
   const write = (payload) => {
+    if (state.closed) return Promise.reject(new Error('JSON-RPC stream closed.'));
+    state.pending += 1;
     const run = async () => {
       if (state.closed || outputStream.destroyed || outputStream.writableEnded) {
         throw new Error('JSON-RPC stream closed.');
@@ -56,12 +88,15 @@ export function getJsonRpcWriter(outputStream) {
         state.closed = true;
       }
       throw err;
+    }).finally(() => {
+      state.pending -= 1;
+      state.release();
     });
   };
   const close = () => {
     state.closed = true;
-    state.writer.dispose?.();
-    writerCache.delete(outputStream);
+    state.release();
+    if (writerCache.get(outputStream) === state) writerCache.delete(outputStream);
   };
   return { write, close };
 }
@@ -74,7 +109,7 @@ export function closeJsonRpcWriter(outputStream) {
   const state = writerCache.get(outputStream);
   if (!state) return;
   state.closed = true;
-  state.writer.dispose?.();
+  state.release();
   writerCache.delete(outputStream);
 }
 

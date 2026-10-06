@@ -81,3 +81,13 @@ Use an inexpensive owner-supplied `sizeCalculation` when actual buffer/string
 bytes are known. The existing sampled JSON estimator is a policy proxy, not an
 exact retained-heap measurement. A cache eviction still does not revoke external
 leases; owners must retire and release resources under their existing lifecycle.
+
+## JSON-RPC writer retirement
+
+Each cached writer owns its stream adapter subscriptions. Closing a writer or
+finishing a stream releases those subscriptions once queued operations settle;
+external stream-owner listeners are preserved. An old handle cannot remove a
+replacement writer from the cache. Writes remain serialized with unchanged
+Content-Length framing and UTF-8 bytes; an in-flight write completes while queued
+writes reject after close. This cleanup does not introduce an outbound queue
+byte cap or cancel an already blocked underlying write.
