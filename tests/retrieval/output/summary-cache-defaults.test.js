@@ -8,16 +8,23 @@ import { configureOutputCaches, getFileTextCache, getSummaryCache } from '../../
 import { getBodySummary } from '../../../src/retrieval/output/summary.js';
 import { DEFAULT_CACHE_MB, BYTES_PER_MB } from '../../../src/shared/cache/size.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-summary-cache-'));
+const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-summary-cache-'));
+const root = path.join(tempRoot, 'repo');
+const aliasRoot = path.join(tempRoot, 'alias');
+await fs.mkdir(root);
+await fs.symlink(root, aliasRoot, process.platform === 'win32' ? 'junction' : 'dir');
 const file = path.join(root, 'sample.txt');
 await fs.writeFile(file, 'alpha beta gamma delta');
+// Summary reads use canonical paths, including macOS's /var -> /private/var.
+const canonicalFile = toRealPathSync(file);
 const first = { file: 'sample.txt', start: 0, end: 10 };
 const second = { file: 'sample.txt', start: 11, end: 22 };
 const originalRead = fsSync.readFileSync;
 let reads = 0;
 fsSync.readFileSync = function (input, ...args) {
-  if (input === file) reads += 1;
+  if (input === canonicalFile) reads += 1;
   return originalRead.call(this, input, ...args);
 };
 try {
@@ -31,6 +38,15 @@ try {
     assert.equal(getFileTextCache().stats.hits, 1);
     assert.equal(getFileTextCache().stats.maxSizeBytes, DEFAULT_CACHE_MB.fileText * BYTES_PER_MB);
     assert.equal(getSummaryCache().stats.maxSizeBytes, DEFAULT_CACHE_MB.summary * BYTES_PER_MB);
+
+    configureOutputCaches();
+    reads = 0;
+    assert.equal(getBodySummary(aliasRoot, first), 'alpha beta');
+    assert.equal(getBodySummary(root, first), 'alpha beta');
+    assert.equal(getBodySummary(root, second), 'gamma delta');
+    assert.equal(reads, 1, 'symlinked and real roots should share one admitted file read');
+    assert.equal(getSummaryCache().stats.hits, 1);
+    assert.equal(getFileTextCache().stats.hits, 1);
 
     configureOutputCaches({ cacheConfig: { fileText: { maxMb: 0.0001 }, summary: { maxMb: 0.0001 } } });
     for (const cache of [getFileTextCache(), getSummaryCache()]) {
@@ -64,5 +80,5 @@ try {
 } finally {
   fsSync.readFileSync = originalRead;
   configureOutputCaches();
-  await fs.rm(root, { recursive: true, force: true });
+  await fs.rm(tempRoot, { recursive: true, force: true });
 }
