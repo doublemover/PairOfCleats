@@ -30,7 +30,7 @@ jobs:
         test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
         printf "Tested source: %s\n" "$EXPECTED_SOURCE_SHA"
     - name: Setup Node
-      uses: actions/setup-node@v5
+      uses: actions/setup-node@v7
       with:
         node-version: 24.21.0
         cache: npm
