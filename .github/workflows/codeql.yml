@@ -28,7 +28,7 @@ jobs:
       - name: Rate limit (nightly)
         if: github.event_name == 'schedule'
         id: nightly
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const { data } = await github.rest.repos.listCommits({
@@ -49,7 +49,7 @@ jobs:
       - name: Rate limit (push)
         if: github.event_name == 'push'
         id: rate
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const branch = context.ref.replace('refs/heads/', '');
