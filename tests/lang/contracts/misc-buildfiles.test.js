@@ -15,7 +15,10 @@ const requiredFiles = [
   'src/BUILD',
   'src/WORKSPACE',
   'src/CMakeLists.txt',
-  'src/defs.bzl'
+  'src/defs.bzl',
+  'src/scripts/common.sh',
+  'tools/BUILD',
+  'tools/defs.bzl'
 ];
 
 const missing = requiredFiles.filter(
