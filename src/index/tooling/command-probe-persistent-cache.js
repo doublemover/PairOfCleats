@@ -3,8 +3,13 @@ import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
-import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
-import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import { isGeneratedCacheMetadata, withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import {
+  assertToolingCachePath,
+  readToolingCacheEntry,
+  removeToolingCacheEntry,
+  writeToolingCacheJsonSync
+} from './cache-storage.js';
 
 const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 1;
 const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp2';
@@ -90,6 +95,7 @@ const resolvePersistentCacheDescriptor = ({
 }) => {
   const cacheDir = resolvePersistentCacheRoot(toolingConfig);
   if (!cacheDir) return null;
+  try { assertToolingCachePath(cacheDir); } catch { return null; }
   const fingerprint = readCommandFingerprint(command);
   if (!fingerprint) return null;
   let normalizedCwd;
@@ -125,10 +131,35 @@ const isAttemptList = (value) => (
   && value.every((entry) => entry && typeof entry === 'object')
 );
 
+const isCommandProbeEntry = (payload, fileName, { requireOwnership = true } = {}) => {
+  if (requireOwnership && (!isGeneratedCacheMetadata(payload?.__poc_generated)
+    || payload.__poc_generated.artifact !== 'command-probe')) return false;
+  if (payload?.schemaVersion !== COMMAND_PROBE_CACHE_SCHEMA_VERSION
+    || payload.ok !== true || !isAttemptList(payload.attempted)
+    || typeof payload.cwd !== 'string' || !path.isAbsolute(payload.cwd)
+    || typeof payload.command?.path !== 'string' || !path.isAbsolute(payload.command.path)
+    || !Array.isArray(payload.args)) return false;
+  const key = buildLocalCacheKey({
+    namespace: 'tooling-command-probe',
+    version: COMMAND_PROBE_CACHE_KEY_VERSION,
+    payload: {
+      schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
+      providerId: payload.providerId,
+      commandPath: payload.command.path,
+      cwd: payload.cwd,
+      args: payload.args,
+      size: payload.command.size,
+      mtimeMs: payload.command.mtimeMs
+    }
+  });
+  return fileName === `${key.digest}.json`;
+};
+
 const prunePersistentCommandProbeCacheDir = (cacheDir) => {
   if (!cacheDir) return;
   let entries;
   try {
+    assertToolingCachePath(cacheDir);
     entries = fsSync.readdirSync(cacheDir, { withFileTypes: true });
   } catch {
     return;
@@ -136,17 +167,18 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
   const files = [];
   const cutoffMs = Date.now() - COMMAND_PROBE_CACHE_MAX_AGE_MS;
   for (const entry of entries) {
-    if (!entry?.isFile?.() || !entry.name.endsWith('.json')) continue;
+    if (!entry?.isFile?.() || !/^[a-f0-9]{40}\.json$/.test(entry.name)) continue;
     const fullPath = path.join(cacheDir, entry.name);
     try {
-      const stat = fsSync.statSync(fullPath);
+      const { payload, stat } = readToolingCacheEntry(fullPath);
+      if (!isCommandProbeEntry(payload, entry.name)) continue;
       const size = toFiniteSize(stat.size);
       const mtimeMs = toFiniteMtimeMs(stat.mtimeMs);
       if (mtimeMs > 0 && mtimeMs < cutoffMs) {
-        try { fsSync.rmSync(fullPath, { force: true }); } catch {}
+        try { removeToolingCacheEntry(fullPath, stat); } catch {}
         continue;
       }
-      files.push({ path: fullPath, mtimeMs, size });
+      files.push({ path: fullPath, stat, mtimeMs, size });
     } catch {}
   }
   if (files.length <= COMMAND_PROBE_CACHE_MAX_ENTRIES) return;
@@ -159,7 +191,7 @@ const prunePersistentCommandProbeCacheDir = (cacheDir) => {
   ));
   const overflow = files.length - COMMAND_PROBE_CACHE_MAX_ENTRIES;
   for (const entry of files.slice(0, overflow)) {
-    try { fsSync.rmSync(entry.path, { force: true }); } catch {}
+    try { removeToolingCacheEntry(entry.path, entry.stat); } catch {}
   }
 };
 
@@ -181,7 +213,8 @@ export const readPersistentCommandProbeCache = ({
   if (!descriptor) return null;
   persistentReadCount += 1;
   try {
-    const parsed = JSON.parse(fsSync.readFileSync(descriptor.cachePath, 'utf8'));
+    const { payload: parsed } = readToolingCacheEntry(descriptor.cachePath);
+    if (!isCommandProbeEntry(parsed, path.basename(descriptor.cachePath), { requireOwnership: false })) return null;
     if (Number(parsed?.schemaVersion) !== COMMAND_PROBE_CACHE_SCHEMA_VERSION) return null;
     if (parsed?.ok !== true) return null;
     if (parsed.cwd !== descriptor.cwd) return null;
@@ -228,8 +261,13 @@ export const writePersistentCommandProbeCache = ({
   });
   if (!descriptor || !isAttemptList(attempted) || attempted.length === 0) return false;
   try {
-    fsSync.mkdirSync(descriptor.cacheDir, { recursive: true });
-    atomicWriteJsonSync(descriptor.cachePath, withGeneratedCacheMetadata({
+    try {
+      const { payload } = readToolingCacheEntry(descriptor.cachePath);
+      if (!isCommandProbeEntry(payload, path.basename(descriptor.cachePath))) return false;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') return false;
+    }
+    writeToolingCacheJsonSync(descriptor.cachePath, withGeneratedCacheMetadata({
       schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
       createdAt: new Date().toISOString(),
       ok: true,
@@ -267,8 +305,9 @@ export const invalidatePersistentCommandProbeCache = ({
   });
   if (!descriptor) return false;
   try {
-    fsSync.rmSync(descriptor.cachePath, { force: true });
-    return true;
+    const { payload, stat } = readToolingCacheEntry(descriptor.cachePath);
+    return isCommandProbeEntry(payload, path.basename(descriptor.cachePath))
+      && removeToolingCacheEntry(descriptor.cachePath, stat);
   } catch {
     return false;
   }

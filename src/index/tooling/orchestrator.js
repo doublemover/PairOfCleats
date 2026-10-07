@@ -1,7 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import {
+  assertToolingCachePath,
+  ensureToolingCacheDir,
+  readToolingCacheEntry,
+  removeToolingCacheEntry,
+  writeToolingCacheJson
+} from './cache-storage.js';
 import { coerceFiniteNumber } from '../../shared/number-coerce.js';
 import {
   resolveQualityImpactForCause,
@@ -23,8 +29,8 @@ import {
   toTypeEntryCollection
 } from './provider-output-contract.js';
 
-const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk2';
-const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 2;
+const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk3';
+const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 3;
 const TOOLING_PROVIDER_CACHE_READ_MAX_BYTES = 8 * 1024 * 1024;
 const TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS = 10_000;
 const TOOLING_PROVIDER_PROGRESS_SLOW_WARN_MS = 45_000;
@@ -151,11 +157,14 @@ const buildCacheFileName = ({ providerId, cacheKey }) => {
   return `${safeProviderId}-${safeKey}.json`;
 };
 
-const ensureCacheDir = async (dir) => {
-  if (!dir) return null;
-  await fs.mkdir(dir, { recursive: true });
-  return dir;
-};
+const isOwnedProviderCache = (payload, fileName) => (
+  payload?.cache?.owner === 'pairofcleats'
+  && payload.cache.schemaVersion === TOOLING_PROVIDER_CACHE_SCHEMA_VERSION
+  && /^tooling-provider:lk3:[a-f0-9]{40}$/.test(payload.cache.key)
+  && typeof payload?.provider?.id === 'string'
+  && payload.provider.id.length > 0
+  && fileName === buildCacheFileName({ providerId: payload.provider.id, cacheKey: payload.cache.key })
+);
 
 const resolveProviderCachedExecution = async ({
   ctx,
@@ -177,7 +186,7 @@ const resolveProviderCachedExecution = async ({
     targets: planTargets,
     generation
   });
-  const cachePath = cacheDir
+  let cachePath = cacheDir
     ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
     : null;
   let output = null;
@@ -185,7 +194,8 @@ const resolveProviderCachedExecution = async ({
   let outputSource = 'live';
   if (cachePath) {
     try {
-      const stat = await fs.stat(cachePath);
+      assertToolingCachePath(cachePath);
+      const stat = await fs.lstat(cachePath);
       if (Number.isFinite(stat?.size) && stat.size > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
         observations.push({
           level: 'warn',
@@ -199,9 +209,12 @@ const resolveProviderCachedExecution = async ({
             generation
           }
         });
+        cachePath = null;
       } else {
-        const cached = JSON.parse(await fs.readFile(cachePath, 'utf8'));
-        if (cached?.provider?.id === providerId
+        const { payload: cached } = readToolingCacheEntry(cachePath, TOOLING_PROVIDER_CACHE_READ_MAX_BYTES);
+        if (!isOwnedProviderCache(cached, path.basename(cachePath))) {
+          cachePath = null;
+        } else if (cached?.provider?.id === providerId
           && cached?.provider?.version === provider.version
           && cached?.provider?.configHash === configHash) {
           output = normalizeCachedProviderOutput(cached);
@@ -222,6 +235,7 @@ const resolveProviderCachedExecution = async ({
             generation
           }
         });
+        cachePath = null;
       }
     }
   }
@@ -232,6 +246,7 @@ const resolveProviderCachedExecution = async ({
     planDocuments,
     planTargets,
     configHash,
+    cacheKey,
     cachePath,
     output,
     outputFromCache,
@@ -247,18 +262,23 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
   if (!limitBytes && !limitEntries) return { removed: 0, remainingBytes: 0 };
   let entries;
   try {
+    assertToolingCachePath(cacheDir);
     entries = await fs.readdir(cacheDir, { withFileTypes: true });
   } catch {
     return { removed: 0, remainingBytes: 0 };
   }
-  const files = entries.filter((entry) => entry.isFile() && entry.name.endsWith('.json'));
+  const files = entries.filter((entry) => (
+    entry.isFile() && /-tooling-provider_lk3_[a-f0-9]{40}\.json$/.test(entry.name)
+  ));
   const stats = [];
   for (const entry of files) {
     const fullPath = path.join(cacheDir, entry.name);
     try {
-      const stat = await fs.stat(fullPath);
+      const { payload, stat } = readToolingCacheEntry(fullPath, TOOLING_PROVIDER_CACHE_READ_MAX_BYTES);
+      if (!isOwnedProviderCache(payload, entry.name)) continue;
       stats.push({
         path: fullPath,
+        stat,
         size: Number.isFinite(stat.size) ? stat.size : 0,
         mtimeMs: Number.isFinite(stat.mtimeMs) ? stat.mtimeMs : 0
       });
@@ -269,24 +289,25 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
   const toRemove = new Set();
   if (limitEntries && stats.length > limitEntries) {
     for (const entry of stats.slice(0, stats.length - limitEntries)) {
-      toRemove.add(entry.path);
+      toRemove.add(entry);
       remainingBytes -= entry.size;
     }
   }
   if (limitBytes && remainingBytes > limitBytes) {
     for (const entry of stats) {
       if (remainingBytes <= limitBytes) break;
-      if (toRemove.has(entry.path)) continue;
-      toRemove.add(entry.path);
+      if (toRemove.has(entry)) continue;
+      toRemove.add(entry);
       remainingBytes -= entry.size;
     }
   }
-  for (const target of toRemove) {
+  let removed = 0;
+  for (const entry of toRemove) {
     try {
-      await fs.rm(target, { force: true });
+      if (removeToolingCacheEntry(entry.path, entry.stat)) removed += 1;
     } catch {}
   }
-  return { removed: toRemove.size, remainingBytes: Math.max(0, remainingBytes) };
+  return { removed, remainingBytes: Math.max(0, remainingBytes) };
 };
 
 const buildCachedDiagnosticsEnvelope = (diagnostics) => {
@@ -367,10 +388,16 @@ const buildDeterministicCachePayload = ({
   providerId,
   providerVersion,
   configHash,
+  cacheKey,
   generation
 }) => {
   if (!output || typeof output !== 'object') return null;
   return {
+    cache: {
+      owner: 'pairofcleats',
+      schemaVersion: TOOLING_PROVIDER_CACHE_SCHEMA_VERSION,
+      key: cacheKey
+    },
     provider: {
       id: providerId,
       version: providerVersion,
@@ -1028,7 +1055,19 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   };
 
   try {
-    const cacheDir = ctx?.cache?.enabled ? await ensureCacheDir(ctx.cache.dir) : null;
+    let cacheDir = null;
+    if (ctx?.cache?.enabled && ctx.cache.dir) {
+      try {
+        cacheDir = ensureToolingCacheDir(ctx.cache.dir);
+      } catch (error) {
+        observations.push({
+          level: 'warn',
+          code: 'tooling_cache_path_rejected',
+          message: '[tooling] unsafe or unavailable cache directory; using live runs.',
+          context: { error: error?.message || String(error) }
+        });
+      }
+    }
     const providerExecutions = [];
     for (const plan of providerPlans) {
       providerExecutions.push(await resolveProviderCachedExecution({
@@ -1129,10 +1168,25 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   providerId,
                   providerVersion: provider.version,
                   configHash,
+                  cacheKey: execution.cacheKey,
                   generation: execution.generation
                 });
                 if (deterministicPayload) {
-                  await atomicWriteJson(cachePath, deterministicPayload, { spaces: 2 });
+                  // Never create an entry too large for bounded ownership
+                  // verification: such entries cannot safely be read or pruned.
+                  const serializedBytes = Buffer.byteLength(JSON.stringify(deterministicPayload, null, 2), 'utf8') + 1;
+                  if (serializedBytes > TOOLING_PROVIDER_CACHE_READ_MAX_BYTES) {
+                    throw new Error('Provider cache payload exceeds the bounded cache-entry limit.');
+                  }
+                  try {
+                    const { payload } = readToolingCacheEntry(cachePath, TOOLING_PROVIDER_CACHE_READ_MAX_BYTES);
+                    if (!isOwnedProviderCache(payload, path.basename(cachePath))) {
+                      throw new Error('Refusing to replace an unowned tooling cache artifact.');
+                    }
+                  } catch (error) {
+                    if (error?.code !== 'ENOENT') throw error;
+                  }
+                  await writeToolingCacheJson(cachePath, deterministicPayload, { spaces: 2 });
                 }
               } catch (error) {
                 observations.push({

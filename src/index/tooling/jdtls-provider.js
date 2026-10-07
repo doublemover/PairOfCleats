@@ -1,5 +1,6 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { assertToolingCachePath } from './cache-storage.js';
 import { parseJavaSignature } from './signature-parse/java.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { createDedicatedLspProvider } from './dedicated-lsp-provider.js';
@@ -24,7 +25,7 @@ const resolveWorkspaceDataDir = (ctx, config) => {
       : path.resolve(ctx?.repoRoot || process.cwd(), configured);
   }
   const baseRoot = ctx?.cache?.dir || ctx?.buildRoot || ctx?.repoRoot || process.cwd();
-  return path.join(baseRoot, 'tooling', 'lsp-workspaces', 'jdtls');
+  return assertToolingCachePath(path.join(baseRoot, 'tooling', 'lsp-workspaces', 'jdtls'));
 };
 
 const ensureWorkspaceDataArg = (args, workspaceDataDir) => {
