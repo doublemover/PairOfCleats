@@ -117,7 +117,7 @@
     "tar-stream": "^3.1.7",
     "terminal-kit": "^3.1.4",
     "three": "^0.183.1",
-    "tinybench": "^6.0.0",
+    "tinybench": "^6.2.0",
     "tree-sitter": "^0.25.0",
     "tree-sitter-bash": "0.25.1",
     "tree-sitter-c": "0.24.1",
