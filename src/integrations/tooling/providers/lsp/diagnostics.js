@@ -3,6 +3,7 @@ import { rangeToOffsets } from '../../lsp/positions.js';
 import { buildVfsUri } from '../../lsp/uris.js';
 import { resolveVfsDiskPath } from '../../../../index/tooling/vfs.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { findTargetForOffsets as lookupTargetForOffsets } from './target-index.js';
 
 export const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
@@ -198,6 +199,7 @@ export const shapeDiagnosticsByChunkUid = ({
   const diagnosticsByChunkUid = {};
   const diagnosticsSeenByChunkUid = new Map();
   let diagnosticsCount = 0;
+  const reuseTargetLookups = findTargetForOffsets === lookupTargetForOffsets;
 
   if (!captureDiagnostics || !diagnosticsByUri?.size) {
     return { diagnosticsByChunkUid, diagnosticsCount };
@@ -224,7 +226,7 @@ export const shapeDiagnosticsByChunkUid = ({
     // Diagnostics commonly attach different messages to the same source range.
     // This bounded cache belongs only to this immutable document projection;
     // never carry coordinate/target results across documents or notifications.
-    const rangeTargets = diagnostics.length > 1 ? new Map() : null;
+    const rangeTargets = reuseTargetLookups && diagnostics.length > 1 ? new Map() : null;
 
     for (const diag of diagnostics) {
       const rangeKey = rangeTargets ? diagnosticRangeKey(diag.range) : null;

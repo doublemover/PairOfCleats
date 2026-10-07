@@ -6,6 +6,19 @@ import {
 } from './write-strategy.js';
 import { resolveActiveWritePhaseLabel } from './write-telemetry.js';
 
+const ownedWriteEntries = new WeakSet();
+
+/** Retire payload references after consuming an original, one-use planner entry. */
+export const retireQueuedArtifactWrite = (entry) => {
+  if (!ownedWriteEntries.delete(entry)) return false;
+  // Caller-frozen entries retain their prior contract instead of breaking cleanup.
+  if (!Object.getOwnPropertyDescriptor(entry, 'job')?.writable
+    || !Object.getOwnPropertyDescriptor(entry, 'prefetched')?.writable) return false;
+  entry.job = null;
+  entry.prefetched = null;
+  return true;
+};
+
 /**
  * Resolve deterministic write ordering weight for batch scheduling.
  *
@@ -272,7 +285,7 @@ export const createQueuedArtifactWritePlanner = (input = {}) => {
         : trackedJob();
       Promise.resolve(prefetched).catch(() => {});
     }
-    writes.push({
+    const entry = {
       label,
       priority,
       estimatedBytes,
@@ -288,7 +301,9 @@ export const createQueuedArtifactWritePlanner = (input = {}) => {
       seq: enqueueSeq,
       enqueuedAt: Date.now(),
       job: trackedJob
-    });
+    };
+    ownedWriteEntries.add(entry);
+    writes.push(entry);
     enqueueSeq += 1;
   };
 

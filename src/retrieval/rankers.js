@@ -2,6 +2,7 @@ import { SimpleMinHash, minifyMinhashSignature, normalizeMinhashSampling } from 
 import { createTopKReducer } from './pipeline/topk.js';
 import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
+import { createVocabIndex } from './vocab-index.js';
 
 /**
  * Legacy BM25-like scoring using chunk metadata fields directly.
@@ -66,7 +67,7 @@ const buildQueryTermFrequency = (tokens) => {
 
 const ensureVocabIndex = (index) => {
   if (!index.vocabIndex) {
-    index.vocabIndex = new Map(index.vocab.map((token, i) => [token, i]));
+    index.vocabIndex = createVocabIndex(index.vocab);
   }
   return index.vocabIndex;
 };

@@ -1,5 +1,6 @@
 import { extractNgrams, tri } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
+import { createVocabIndex } from '../vocab-index.js';
 
 /**
  * Create a candidate-set builder for sparse retrieval.
@@ -37,7 +38,7 @@ export const createCandidateSetBuilder = ({
 
     if (postingsConfig.enablePhraseNgrams !== false && idx.phraseNgrams?.vocab && idx.phraseNgrams?.postings) {
       const vocabIndex = idx.phraseNgrams.vocabIndex
-        || (idx.phraseNgrams.vocabIndex = new Map(idx.phraseNgrams.vocab.map((t, i) => [t, i])));
+        || (idx.phraseNgrams.vocabIndex = createVocabIndex(idx.phraseNgrams.vocab));
       const ngrams = extractNgrams(tokens, postingsConfig.phraseMinN, postingsConfig.phraseMaxN);
       for (const ng of ngrams) {
         const hit = vocabIndex.get(ng);
@@ -55,7 +56,7 @@ export const createCandidateSetBuilder = ({
 
     if (postingsConfig.enableChargrams !== false && idx.chargrams?.vocab && idx.chargrams?.postings) {
       const vocabIndex = idx.chargrams.vocabIndex
-        || (idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((t, i) => [t, i])));
+        || (idx.chargrams.vocabIndex = createVocabIndex(idx.chargrams.vocab));
       const sample = idx.chargrams.vocab[0];
       const hashedChargrams = typeof idx.chargrams?.fields?.hash?.prefix === 'string'
         || (typeof sample === 'string' && sample.startsWith('h64:'));

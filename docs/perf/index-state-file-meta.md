@@ -41,6 +41,15 @@ Artifacts:
 - `file_meta.columnar.json` + `file_meta.meta.json`
 JSONL shard metadata includes offsets (`offsets` array) when enabled.
 
+File metadata fingerprints hash ordinary canonical rows incrementally. This
+avoids retaining a second canonical row array and a whole-array JSON string;
+the original row snapshot remains so all source reads finish before hashing.
+The digest, row ordering, sparse-array nulls and artifact formats are unchanged.
+Complex values and customized array behavior retain the materialized route to
+preserve observable canonicalization and serialization order. This bounds the
+temporary JSON string to one row on the ordinary route; it does not establish a
+whole-process memory cap or a throughput improvement.
+
 The columnar format is an object with:
 - `columns`: ordered list of fields
 - `arrays`: column arrays

@@ -40,12 +40,14 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
     const fallback = (reason) => ({ parser: 'heuristic-handlebars', coverage: 'heuristic', reason,
       blocks: [], definitions: [], partials: [], imports: [], referenceEntries: [] });
     if (source.length > MAX_CHARS) return fallback('source-limit');
+    // Reuse only a previously successful immutable model. Its identical source
+    // already passed the fixed line/node limits and parser initialization.
+    if (source === previousText) return previousResult;
     const lines = buildSourceLines(source);
     if (lines.length > MAX_LINES) return fallback('line-limit');
     const initialization = loader.initialize();
     if (!initialization.available) return fallback(initialization.reason);
     const parser = loader.getParser();
-    if (source === previousText) return previousResult;
     try {
       const document = parser.parseWithoutProcessing(source);
       if (document?.type !== 'Program' || !Array.isArray(document.body)) return fallback('unsupported-ast');
@@ -126,12 +128,19 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
         if (node.type === 'PathExpression' && typeof node.original === 'string' && node.parts?.length) {
           append(referenceEntries, { value: node.original, ...rangeOf(node) });
         }
+        const nextDepth = depth + 1;
+        const nextBlockDepth = blockDepth + (isBlock ? 1 : 0);
         for (const [key, value] of Object.entries(node)) {
           if (key === 'loc') continue;
-          const next = { depth: depth + 1, blockDepth: blockDepth + (isBlock ? 1 : 0), scope };
           if (Array.isArray(value)) {
-            for (let index = value.length - 1; index >= 0; index -= 1) stack.push({ node: value[index], ...next });
-          } else if (value && typeof value === 'object') stack.push({ node: value, ...next });
+            for (let index = value.length - 1; index >= 0; index -= 1) {
+              const child = value[index];
+              if (!child || typeof child !== 'object') continue;
+              stack.push({ node: child, depth: nextDepth, blockDepth: nextBlockDepth, scope });
+            }
+          } else if (value && typeof value === 'object') {
+            stack.push({ node: value, depth: nextDepth, blockDepth: nextBlockDepth, scope });
+          }
         }
       }
       blocks.sort((left, right) => left.start - right.start);

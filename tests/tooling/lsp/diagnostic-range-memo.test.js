@@ -12,9 +12,10 @@ const targets = [
   { virtualRange: { start: 1, end: 4 }, chunkRef: { chunkUid: 'tied-inner' } }
 ];
 const shape = (diagnostics, options = {}) => {
-  let lookups = 0;
+  let indexReads = 0;
   const checks = [];
-  const index = buildTargetLookupIndex(options.targets || targets);
+  const built = buildTargetLookupIndex(options.targets || targets);
+  const index = { get entries() { indexReads += 1; return built.entries; } };
   const output = shapeDiagnosticsByChunkUid({
     captureDiagnostics: true, diagnosticsByUri: new Map([[uri, diagnostics]]),
     docs: [{ virtualPath: 'fixture.js', text: options.text || 'alpha 😀 omega\r\nnext' }],
@@ -23,14 +24,13 @@ const shape = (diagnostics, options = {}) => {
     diskPathMap: new Map(), resolvedRoot: '/tmp', resolvedScheme: 'file',
     lineIndexFactory: buildLineIndex, maxDiagnosticsPerChunk: options.maxDiagnosticsPerChunk ?? 1000,
     checks, checkFlags: {}, positionEncoding: options.encoding || 'utf-16',
-    findTargetForOffsets: (targetIndex, offsets) => {
-      lookups += 1;
+    findTargetForOffsets: options.custom ? (targetIndex, offsets) => {
       const indexed = findTargetForOffsets(targetIndex, offsets);
       assert.equal(indexed, findTargetForOffsetsLinear(options.targets || targets, offsets));
       return indexed;
-    }
+    } : findTargetForOffsets
   });
-  return { output, lookups, checks };
+  return { output, lookups: indexReads / 2, checks };
 };
 
 const repeated = Array.from({ length: 50 }, (_, i) => ({ range: range(), message: `message-${i}`, code: i }));
@@ -40,6 +40,8 @@ assert.deepEqual(shape([repeated[0]]).output.diagnosticsByChunkUid['first-inner'
 assert.equal(first.lookups, 1, 'equal coordinate values should reuse one document-scoped lookup');
 assert.deepEqual(first.output.diagnosticsByChunkUid['first-inner'], repeated);
 assert.equal(first.output.diagnosticsCount, 50);
+assert.deepEqual(first.output, shape(repeated, { custom: true }).output);
+assert.equal(shape(repeated, { custom: true }).lookups, 50, 'custom callbacks keep their invocation semantics');
 const capped = shape(repeated, { maxDiagnosticsPerChunk: 2 });
 assert.equal(capped.lookups, 1);
 assert.deepEqual(capped.output.diagnosticsByChunkUid['first-inner'], repeated.slice(0, 2));
@@ -55,6 +57,7 @@ assert.equal(misses.output.diagnosticsCount, 0);
 for (const encoding of ['utf-8', 'utf-16', 'utf-32']) {
   const diagnostics = Array.from({ length: 20 }, (_, i) => ({ range: range(i % 5, 7 + i % 5), message: String(i) }));
   const result = shape(diagnostics, { encoding });
+  assert.deepEqual(result.output, shape(diagnostics, { encoding, custom: true }).output);
   assert.equal(result.lookups, 5);
   assert.equal(result.output.diagnosticsCount, 20);
 }
@@ -74,25 +77,26 @@ assert.equal(shape(malformed).lookups, 2);
 // Same coordinates in a new call and a new document use their own target state.
 const changedTargets = [{ virtualRange: { start: 0, end: 30 }, chunkRef: { chunkUid: 'changed' } }];
 assert.deepEqual(shape(repeated, { targets: changedTargets }).output.diagnosticsByChunkUid.changed, repeated);
-let perDocumentLookups = 0;
+let perDocumentIndexReads = 0;
+const observedIndex = (rows) => {
+  const built = buildTargetLookupIndex(rows);
+  return { get entries() { perDocumentIndexReads += 1; return built.entries; } };
+};
 const twoDocuments = shapeDiagnosticsByChunkUid({
   captureDiagnostics: true,
   diagnosticsByUri: new Map([[uri, repeated], ['poc-vfs:///second', repeated]]),
   docs: [{ virtualPath: 'fixture.js', text: 'alpha' }, { virtualPath: 'second.js', text: 'beta' }],
   openDocs: new Map([['fixture.js', { uri }], ['second.js', { uri: 'poc-vfs:///second' }]]),
   targetIndexesByPath: new Map([
-    ['fixture.js', buildTargetLookupIndex(targets)],
-    ['second.js', buildTargetLookupIndex(changedTargets)]
+    ['fixture.js', observedIndex(targets)],
+    ['second.js', observedIndex(changedTargets)]
   ]),
   diskPathMap: new Map(), resolvedRoot: '/tmp', resolvedScheme: 'file',
   lineIndexFactory: buildLineIndex, maxDiagnosticsPerChunk: 1000,
   checks: [], checkFlags: {},
-  findTargetForOffsets: (index, offsets) => {
-    perDocumentLookups += 1;
-    return findTargetForOffsets(index, offsets);
-  }
+  findTargetForOffsets
 });
-assert.equal(perDocumentLookups, 2, 'identical coordinates in different documents cannot share target results');
+assert.equal(perDocumentIndexReads / 2, 2, 'identical coordinates in different documents cannot share target results');
 assert.equal(twoDocuments.diagnosticsByChunkUid['first-inner'].length, 50);
 assert.equal(twoDocuments.diagnosticsByChunkUid.changed.length, 50);
 console.log('LSP diagnostic range memoization, cap, encoding, ranking and lifetime contracts passed');

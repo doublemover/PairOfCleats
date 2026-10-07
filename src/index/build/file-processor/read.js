@@ -39,8 +39,16 @@ export const resolveFileCaps = (fileCaps, ext, languageId = null, mode = null) =
 export const truncateByBytes = (value, maxBytes) => {
   const text = typeof value === 'string' ? value : '';
   const limit = Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : 0;
-  if (!limit || Buffer.byteLength(text, 'utf8') <= limit) {
-    return { text, truncated: false, bytes: Buffer.byteLength(text, 'utf8') };
+  const textBytes = Buffer.byteLength(text, 'utf8');
+  if (!limit || textBytes <= limit) {
+    return { text, truncated: false, bytes: textBytes };
+  }
+  if (Number.isSafeInteger(limit) && limit > 0) {
+    // Buffer.write retains only complete UTF-8 characters. Allocate for the
+    // admitted prefix rather than encoding the full oversized source first.
+    const prefix = Buffer.allocUnsafe(limit);
+    const bytes = prefix.write(text, 0, limit, 'utf8');
+    return { text: prefix.toString('utf8', 0, bytes), truncated: true, bytes };
   }
   const buffer = Buffer.from(text, 'utf8');
   const resolveUtf8Boundary = (buf, end) => {

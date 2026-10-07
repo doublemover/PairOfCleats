@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { runNode } from '../../helpers/run-node.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 const root = process.cwd();
 const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-parity-matrix-execution-')));
@@ -32,17 +32,31 @@ const env = applyTestEnv({
 const args = [path.join(root, 'bin', 'pairofcleats.js'), 'report', 'parity',
   '--repo', repo, '--backends', 'sqlite', '--ann-modes', 'off', '--queries', queries, '--out-dir', out];
 const readMatrix = () => fs.readFile(path.join(out, 'matrix.json'), 'utf8').then(JSON.parse);
+const executionDeadline = Date.now() + 26000;
+const runNode = async (args, label, cwd) => {
+  try {
+    return await spawnSubprocess(process.execPath, args, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeoutMs: Math.max(1, Math.min(20000, executionDeadline - Date.now())),
+      rejectOnNonZeroExit: false
+    });
+  } catch (error) {
+    error.message = `${label}: ${error.message}\n${error.result?.stderr || ''}`;
+    throw error;
+  }
+};
+let executionError;
 
 try {
-  const build = runNode([path.join(root, 'bin', 'pairofcleats.js'), 'index', 'build',
-    '--repo', repo, '--mode', 'both', '--threads', '1'], 'parity fixture build', repo, env,
-  { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });
-  assert.equal(build.status, 0, `${build.error?.code || ''} ${build.signal || ''}\n${build.stderr}`);
+  const build = await runNode([path.join(root, 'bin', 'pairofcleats.js'), 'index', 'build',
+    '--repo', repo, '--mode', 'both', '--threads', '1'], 'parity fixture build', repo);
+  assert.equal(build.exitCode, 0, `${build.signal || ''}\n${build.stderr}`);
   assert.doesNotMatch(build.stderr, /Worker pool enabled/, 'the fixture explicitly disables worker pools');
 
-  const success = runNode(args, 'parity matrix success from unrelated directory', temp, env,
-    { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });
-  assert.equal(success.status, 0, `${success.error?.code || ''} ${success.signal || ''}\n${success.stderr}`);
+  const success = await runNode(args, 'parity matrix success from unrelated directory', temp);
+  assert.equal(success.exitCode, 0, `${success.signal || ''}\n${success.stderr}`);
   const matrix = await readMatrix();
   assert.equal(matrix.results.length, 1);
   assert.equal(matrix.results[0].status, 'ok', success.stderr);
@@ -53,6 +67,18 @@ try {
   assert.equal(report.summary.annEnabled, false);
 
   console.log('Parity matrix executes its current child and validates a fresh real report.');
+} catch (error) {
+  executionError = error;
+  throw error;
 } finally {
-  await fs.rm(temp, { recursive: true, force: true });
+  try {
+    await fs.rm(temp, { recursive: true, force: true, maxRetries: 6, retryDelay: 100 });
+  } catch (cleanupError) {
+    // Preserve the child failure if Windows still holds a transient directory
+    // handle. A cleanup failure must never replace the useful original error.
+    if (executionError) {
+      throw new AggregateError([executionError, cleanupError], executionError.message);
+    }
+    throw cleanupError;
+  }
 }

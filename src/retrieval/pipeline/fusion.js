@@ -36,15 +36,26 @@ export const fuseRankedHits = ({
   }
 
   const allHits = new Map();
-  const recordHit = (idxVal, update) => {
-    const current = allHits.get(idxVal) || { bm25: null, fts: null, ann: null, annSource: null };
-    allHits.set(idxVal, { ...current, ...update });
+  const recordHit = (idxVal) => {
+    let scores = allHits.get(idxVal);
+    if (!scores) {
+      scores = { bm25: null, fts: null, ann: null, annSource: null };
+      allHits.set(idxVal, scores);
+    }
+    return scores;
   };
+  const sparseField = sparseType === 'fts' ? 'fts' : 'bm25';
   bmHits.forEach((h) => {
-    recordHit(h.idx, sparseType === 'fts' ? { fts: h.score } : { bm25: h.score });
+    const idxVal = h.idx;
+    const score = h.score;
+    recordHit(idxVal)[sparseField] = score;
   });
   annHits.forEach((h) => {
-    recordHit(h.idx, { ann: h.sim, annSource });
+    const idxVal = h.idx;
+    const sim = h.sim;
+    const scores = recordHit(idxVal);
+    scores.ann = sim;
+    scores.annSource = annSource;
   });
 
   let sparseMaxScore = null;

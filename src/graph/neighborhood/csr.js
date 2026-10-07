@@ -114,6 +114,6 @@ export const createCsrNeighborResolver = (options) => {
   const iterate = createCsrNeighborIterator(options);
   return (...args) => {
     const neighbors = iterate(...args);
-    return neighbors === null ? null : Array.from(neighbors);
+    return neighbors === null || options?.iterable === true ? neighbors : Array.from(neighbors);
   };
 };

@@ -95,7 +95,9 @@ export const waitForStreamEvent = async (stream, event, options = {}) => {
  * @returns {Promise<void>}
  */
 export const writeChunk = async (stream, chunk) => {
-  await writeChunkWithTiming(stream, chunk);
+  if (!stream.write(chunk)) {
+    await waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
+  }
 };
 
 /**

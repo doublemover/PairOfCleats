@@ -10,9 +10,10 @@ import {
 import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const resolveEntryLimit = (raw) => {
-  if (raw == null) return null;
+  // Missing environment overrides must leave the configured byte cache active.
+  if (raw == null) return undefined;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : undefined;
 };
 
 let outputCacheReporter = createCacheReporter({ enabled: false, log: null });

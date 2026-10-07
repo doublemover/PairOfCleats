@@ -1,13 +1,30 @@
 import { sha1 } from './hash.js';
 import { stableStringifyForSignature } from './stable-json.js';
 import { getEnvConfig } from './env.js';
+import { createFifoBudgetMemo } from './cache/fifo-budget.js';
 
 export const CACHE_KEY_VERSION = 'ck1';
 export const DEFAULT_CACHE_NAMESPACE = 'pairofcleats';
 export const LOCAL_CACHE_KEY_VERSION = 'lk1';
 const LOCAL_CACHE_DIGEST_MEMO_MAX = 65536;
-const localCacheDigestMemo = new Map();
-const localCacheSimpleKeyMemo = new Map();
+// Two module-global memo budgets total 16 MiB per JS isolate. String lengths and
+// declared reference slots are a retention proxy, not Map overhead or process RSS.
+const LOCAL_CACHE_MEMO_PROXY_MAX_BYTES = 8 * 1024 * 1024;
+const REFERENCE_PROXY_BYTES = 8;
+const stringStorageProxy = (value) => typeof value === 'string' ? value.length * 2 : 0;
+const localCacheDigestMemo = createFifoBudgetMemo({
+  maxEntries: LOCAL_CACHE_DIGEST_MEMO_MAX,
+  maxBytes: LOCAL_CACHE_MEMO_PROXY_MAX_BYTES,
+  sizeCalculation: (digest, serialized) => stringStorageProxy(serialized)
+    + stringStorageProxy(digest) + 2 * REFERENCE_PROXY_BYTES
+});
+const localCacheSimpleKeyMemo = createFifoBudgetMemo({
+  maxEntries: LOCAL_CACHE_DIGEST_MEMO_MAX,
+  maxBytes: LOCAL_CACHE_MEMO_PROXY_MAX_BYTES,
+  sizeCalculation: (entry, memoKey) => stringStorageProxy(memoKey)
+    + stringStorageProxy(entry.key) + stringStorageProxy(entry.digest)
+    + stringStorageProxy(entry.serialized) + 5 * REFERENCE_PROXY_BYTES
+});
 const BUILDER_EMPTY_PROPERTY_VALUE = Symbol('builder-empty-property-value');
 const BUILDER_UNSUPPORTED_PROPERTY_VALUE = Symbol('builder-unsupported-property-value');
 
@@ -152,20 +169,12 @@ const hashMemoizedSerialized = (serialized) => {
   }
   const digest = sha1(serialized);
   localCacheDigestMemo.set(serialized, digest);
-  while (localCacheDigestMemo.size > LOCAL_CACHE_DIGEST_MEMO_MAX) {
-    const oldest = localCacheDigestMemo.keys().next().value;
-    localCacheDigestMemo.delete(oldest);
-  }
   return digest;
 };
 
 const rememberSimpleLocalCacheKey = (memoKey, entry) => {
   if (!memoKey) return;
   localCacheSimpleKeyMemo.set(memoKey, entry);
-  while (localCacheSimpleKeyMemo.size > LOCAL_CACHE_DIGEST_MEMO_MAX) {
-    const oldest = localCacheSimpleKeyMemo.keys().next().value;
-    localCacheSimpleKeyMemo.delete(oldest);
-  }
 };
 
 const buildResolvedLocalCacheKey = ({

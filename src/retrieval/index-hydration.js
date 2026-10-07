@@ -1,5 +1,6 @@
 import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
 import { loadHnswIndex } from '../shared/hnsw.js';
+import { createVocabIndex } from './vocab-index.js';
 
 const CHUNK_FILE_META_FIELDS = Object.freeze([
   ['file', 'missing'],
@@ -58,7 +59,7 @@ export const hydrateChunksFromFileMeta = (
 
 const ensureVocabIndex = (artifact) => {
   if (artifact?.vocab && !artifact.vocabIndex) {
-    artifact.vocabIndex = new Map(artifact.vocab.map((term, index) => [term, index]));
+    artifact.vocabIndex = createVocabIndex(artifact.vocab);
   }
 };
 

@@ -60,7 +60,7 @@ for (let i = 0; i < ids.length; i++) {
   const value = ids[i];
   Object.defineProperty(ids, i, { configurable: true, get() { idReads++; return value; } });
 }
-const graphResolver = createGraphNeighborResolver({ graphIndex });
+const graphResolver = createGraphNeighborResolver({ graphIndex, iterableCsr: true });
 for (const direction of ['out', 'in', 'both']) {
   idReads = 0;
   const row = graphResolver(graphIndex.callGraphIndex, names[0], direction, null, null, 'callGraph');
