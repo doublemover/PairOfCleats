@@ -133,7 +133,10 @@ try {
   assert.equal(transport.status, 7);
   assert.equal(Buffer.isBuffer(transport.stdout), true, 'buffer encoding is preserved');
   assert.equal(Buffer.isBuffer(transport.stderr), true);
-  assert.deepEqual(JSON.parse(transport.stdout.toString()), {
+  const observedTransport = JSON.parse(transport.stdout.toString());
+  // Windows may return an 8.3 cwd spelling; compare canonical directory
+  // identity on both sides without weakening the environment override check.
+  assert.deepEqual({ ...observedTransport, cwd: await fs.realpath(observedTransport.cwd) }, {
     cwd: await fs.realpath(overriddenCwd), value: 'fixture-only'
   }, 'cwd and environment overrides reach the real child');
   assert.equal(transport.stderr.toString(), 'fixture stderr');
