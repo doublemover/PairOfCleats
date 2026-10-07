@@ -4,7 +4,7 @@ import path from 'node:path';
 import { getCacheRoot } from '../../../shared/cache-roots.js';
 import { resolveEnvPath } from '../../../shared/env-path.js';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
-import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
+import { writeToolingCacheJson } from '../cache-storage.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { spawnResolvedSubprocess } from '../../../shared/subprocess/command-invocation.js';
 import { resolveToolingCommandProfile } from '../command-resolver.js';
@@ -336,8 +336,7 @@ const buildSourcekitPreflightMarkerRecord = ({
 };
 
 const writeSourcekitPreflightMarkerRecord = async (markerPath, record) => {
-  await fs.mkdir(path.dirname(markerPath), { recursive: true });
-  await atomicWriteJson(markerPath, record, {
+  await writeToolingCacheJson(markerPath, record, {
     spaces: 0,
     newline: false
   });
