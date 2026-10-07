@@ -9,7 +9,7 @@ import { addInferredParam, addInferredReturn } from './apply.js';
 import { ensureParamTypeMap, getParamTypeList } from './extract.js';
 import { isAbsolutePathNative, isUncPath } from '../../shared/file-paths.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { writeToolingCacheJson } from '../tooling/cache-storage.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
 import { buildToolingDiagnosticRecord, redactToolingDiagnosticText } from './tooling-diagnostic-record.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
@@ -122,7 +122,7 @@ const createLatestToolingDiagnosticLogger = ({ rootDir, buildRoot, baseLog }) =>
   logger.close = async () => {
     if (!reportedProviderCount) return;
     try {
-      await atomicWriteJson(filePath, { schemaVersion: 1, generatedAt: new Date().toISOString(),
+      await writeToolingCacheJson(filePath, { schemaVersion: 1, generatedAt: new Date().toISOString(),
         reportedProviderCount, truncated: reportedProviderCount > records.length, providers: records },
       { spaces: 2, newline: true });
     } catch (error) {

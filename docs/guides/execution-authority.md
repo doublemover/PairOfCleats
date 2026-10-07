@@ -26,6 +26,25 @@ Advanced user configuration is supported through launch-owned controls:
   `PAIROFCLEATS_NODE_OPTIONS`, `PAIROFCLEATS_CACHE_ROOT` and asset-directory
   overrides remain user-owned authority. Do not derive them from repository data.
 
+`tooling.cache.dir` is also a storage-authority setting: an untrusted repository
+cannot redirect provider or command-probe caches. Its cache size/entry limits
+remain effective at the default destination. Custom destinations require the
+launch-owned configuration or an exact repository trust grant above. Tooling cache
+writes and pruning reject symlinks/junctions in the selected path, including
+existing ancestors and not-yet-created descendants; use a direct canonical path
+for an intentionally relocated cache. The root-owned macOS system aliases
+`/var` → `/private/var` and `/tmp` → `/private/tmp` are recognized only with their
+exact system targets; cache-root and descendant links remain rejected.
+
+Provider and command-probe pruning only considers bounded, regular, singly linked
+files whose cache ownership envelope matches their generated filename and schema.
+Unrelated JSON and unmarked legacy files are preserved, even in a trusted custom
+directory. Provider cache format `lk3` starts a fresh cache without removing older
+formats. Legacy command-probe records remain readable but are not automatically
+deleted or replaced without ownership metadata. Provider results over the 8 MiB
+cache-entry limit remain available live but are not persisted. Ownership metadata is a layout
+guard, not authentication against another process controlling the same storage.
+
 Automatic tooling skips repository `node_modules/.bin` and repository-owned
 TypeScript compiler modules unless the root has that external trust grant.
 Canonical command containment is checked before version/help probing, and a

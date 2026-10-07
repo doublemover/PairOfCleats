@@ -881,3 +881,7 @@ tooling/lsp/diagnostic-repeat-range-lookup
 tooling/lsp/position-conversion-allocation
 tooling/lsp/position-width-no-slices
 tooling/lsp/session-health-retirement
+security/structural-windows-wrapper
+ci/codeql-workflow-contract
+security/tooling-cache-authority
+security/tooling-cache-storage

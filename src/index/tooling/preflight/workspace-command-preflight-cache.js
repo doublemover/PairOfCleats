@@ -1,9 +1,8 @@
 import { withGeneratedCacheMetadata, withoutGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
-import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
+import { writeToolingCacheJson } from '../cache-storage.js';
 
 const WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION = 2;
 const WORKSPACE_COMMAND_PREFLIGHT_MARKER_MAX_BYTES = 64 * 1024;
@@ -208,7 +207,6 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
     cacheRoot,
     namespace
   });
-  await fs.mkdir(path.dirname(markerPath), { recursive: true });
   const marker = {
     schemaVersion: WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION,
     completedAt: new Date().toISOString(),
@@ -240,7 +238,7 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
       ? Math.max(0, Math.round(Number(durationMs)))
       : null
   };
-  await atomicWriteJson(markerPath, withGeneratedCacheMetadata(marker, 'workspace-preflight'), {
+  await writeToolingCacheJson(markerPath, withGeneratedCacheMetadata(marker, 'workspace-preflight'), {
     spaces: 0,
     newline: false
   });

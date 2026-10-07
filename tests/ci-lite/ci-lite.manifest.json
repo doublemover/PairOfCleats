@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 749,
+    "hero": 752,
     "matrix": 108,
-    "meta": 25,
+    "meta": 26,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -5311,6 +5311,30 @@
     {
       "id": "tooling/lsp/session-health-retirement",
       "order": 883,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/structural-windows-wrapper",
+      "order": 884,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/codeql-workflow-contract",
+      "order": 885,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "security/tooling-cache-authority",
+      "order": 886,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/tooling-cache-storage",
+      "order": 887,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

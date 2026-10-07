@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
 import {
   DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
   runSyncCommandWithTimeout
@@ -8,52 +10,25 @@ import {
 const isWindows = process.platform === 'win32';
 const binaryCache = new Map();
 
-const quoteCmdArg = (value) => {
-  const text = String(value);
-  if (!text) return '""';
-  // If the argument contains no spaces, special cmd.exe metacharacters, or quotes,
-  // we can safely return it as-is.
-  if (!/[\\s&|^()<>]/.test(text) && !text.includes('"')) return text;
-
-  // Windows cmd.exe/C runtime style quoting:
-  // - Wrap the argument in double quotes.
-  // - Double internal quotes.
-  // - Carefully handle sequences of backslashes before quotes and at the end.
-  let quoted = '"';
-  let backslashes = 0;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (ch === '\\') {
-      backslashes++;
-      continue;
-    }
-    if (ch === '"') {
-      // Escape all accumulated backslashes, then escape the quote.
-      quoted += '\\'.repeat(backslashes * 2 + 1);
-      quoted += '"';
-      backslashes = 0;
-      continue;
-    }
-    // Normal character: keep accumulated backslashes, then the character.
-    if (backslashes > 0) {
-      quoted += '\\'.repeat(backslashes);
-      backslashes = 0;
-    }
-    quoted += ch;
+const resolveWindowsStructuralInvocation = (command, args, options) => {
+  const env = options.env || process.env;
+  const cwd = options.cwd instanceof URL ? fileURLToPath(options.cwd) : String(options.cwd || process.cwd());
+  const localCommand = path.resolve(cwd, command);
+  // cmd.exe used the child cwd for explicit relative paths and searched it
+  // before PATH for bare wrapper names. Preserve that lookup before quoting.
+  if (path.isAbsolute(command) || /[\\/]/u.test(command) || /^[a-z]:/iu.test(command) || fsExists(localCommand)) {
+    return resolveWindowsCmdInvocation(localCommand, args, env);
   }
-  // At the end, any remaining backslashes must be doubled to ensure the
-  // closing quote is not escaped.
-  if (backslashes > 0) {
-    quoted += '\\'.repeat(backslashes * 2);
-  }
-  quoted += '"';
-  return quoted;
+  const pathEnv = env.PATH || env.Path || env.path || '';
+  const resolutionEnv = {
+    ...env,
+    PATH: pathEnv.split(path.delimiter)
+      .filter((entry) => entry.trim())
+      .map((entry) => path.resolve(cwd, entry.trim()))
+      .join(path.delimiter)
+  };
+  return resolveWindowsCmdInvocation(command, args, resolutionEnv);
 };
-
-const buildCmdLine = (command, args) => [
-  quoteCmdArg(command),
-  ...args.map(quoteCmdArg)
-].join(' ');
 
 const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
@@ -67,14 +42,20 @@ const runCommand = (resolved, args, options = {}) => {
       : null)
     : null;
   if (isWindows && /\.(cmd|bat)$/i.test(command)) {
-    const cmdLine = buildCmdLine(command, effectiveArgs);
-    const wrapped = `"${cmdLine}"`;
-    return runSyncCommandWithTimeout('cmd.exe', ['/d', '/s', '/c', wrapped], {
+    let invocation;
+    try {
+      // Prefer direct argv for recognizable shims. Opaque wrappers must use the
+      // shared cmd transport, including line-break rejection and %* escaping.
+      invocation = resolveWindowsStructuralInvocation(command, effectiveArgs, options);
+    } catch (error) {
+      return { pid: null, status: null, signal: null, stdout: '', stderr: '', error };
+    }
+    return runSyncCommandWithTimeout(invocation.command, invocation.args, {
       ...options,
       encoding,
       timeoutMs,
       shell: false,
-      windowsVerbatimArguments: true
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments === true
     });
   }
   return runSyncCommandWithTimeout(command, effectiveArgs, {

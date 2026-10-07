@@ -1,13 +1,10 @@
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
-import { buildIndex } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { parseCommaList } from '../../../src/shared/comma-list.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
 import { formatMs, formatStats, writeJsonWithDir } from './utils.js';
-import { runIndexBuildBenchmark } from './index-build.js';
-import { runSearchBenchmark } from './search.js';
 
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
@@ -97,6 +94,11 @@ const argv = createCli({
     }
   }
 }).strictOptions().parse();
+
+// Reject invalid options and serve help before initializing the workflow runtime.
+const { buildIndex } = await import('../../../src/integrations/core/index.js');
+const { runIndexBuildBenchmark } = await import('./index-build.js');
+const { runSearchBenchmark } = await import('./search.js');
 
 const hasRepoArg = rawArgs.includes('--repo');
 const repoRoot = argv['repo-current'] && !hasRepoArg

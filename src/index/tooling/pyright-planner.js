@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../shared/file-read.js';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { writeToolingCacheJson } from './cache-storage.js';
 import { classifyLspDocumentPathPolicy } from '../../integrations/tooling/providers/lsp/path-policy.js';
 import {
   findWorkspaceMarkersNearPaths,
@@ -87,8 +87,7 @@ export const persistPyrightPlannerHealth = async ({
     hoverP95Ms: Number(hoverMethod?.latencyMs?.p95 || 0)
   };
   const healthPath = resolvePlannerHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
-  await fs.promises.mkdir(path.dirname(healthPath), { recursive: true });
-  await atomicWriteJson(healthPath, withGeneratedCacheMetadata(payload, 'pyright-planner-health'), {
+  await writeToolingCacheJson(healthPath, withGeneratedCacheMetadata(payload, 'pyright-planner-health'), {
     spaces: 0,
     newline: false
   });
