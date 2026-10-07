@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
 import {
   DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
@@ -8,6 +9,26 @@ import {
 
 const isWindows = process.platform === 'win32';
 const binaryCache = new Map();
+
+const resolveWindowsStructuralInvocation = (command, args, options) => {
+  const env = options.env || process.env;
+  const cwd = options.cwd instanceof URL ? fileURLToPath(options.cwd) : String(options.cwd || process.cwd());
+  const localCommand = path.resolve(cwd, command);
+  // cmd.exe used the child cwd for explicit relative paths and searched it
+  // before PATH for bare wrapper names. Preserve that lookup before quoting.
+  if (path.isAbsolute(command) || /[\\/]/u.test(command) || /^[a-z]:/iu.test(command) || fsExists(localCommand)) {
+    return resolveWindowsCmdInvocation(localCommand, args, env);
+  }
+  const pathEnv = env.PATH || env.Path || env.path || '';
+  const resolutionEnv = {
+    ...env,
+    PATH: pathEnv.split(path.delimiter)
+      .filter((entry) => entry.trim())
+      .map((entry) => path.resolve(cwd, entry.trim()))
+      .join(path.delimiter)
+  };
+  return resolveWindowsCmdInvocation(command, args, resolutionEnv);
+};
 
 const runCommand = (resolved, args, options = {}) => {
   const command = resolved?.command || resolved;
@@ -25,7 +46,7 @@ const runCommand = (resolved, args, options = {}) => {
     try {
       // Prefer direct argv for recognizable shims. Opaque wrappers must use the
       // shared cmd transport, including line-break rejection and %* escaping.
-      invocation = resolveWindowsCmdInvocation(command, effectiveArgs, options.env || process.env);
+      invocation = resolveWindowsStructuralInvocation(command, effectiveArgs, options);
     } catch (error) {
       return { pid: null, status: null, signal: null, stdout: '', stderr: '', error };
     }
