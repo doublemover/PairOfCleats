@@ -126,22 +126,30 @@ export function createMultiRowInserter(db, options = {}) {
       tableStats.dedupedRows = (tableStats.dedupedRows || 0) + Math.max(0, originalRowsLength - sourceRows.length);
     }
     let index = 0;
+    // One invocation-local scratch array serves every batch. Keeping it local
+    // also isolates reentrant callers without retaining payloads in the inserter.
+    const params = [];
     while (index < sourceRows.length) {
       const remaining = sourceRows.length - index;
       const take = remaining >= maxRows ? maxRows : remaining;
       const stmt = getStatement(take);
-      const params = [];
-      for (let i = 0; i < take; i += 1) {
-        const row = sourceRows[index + i];
-        if (!Array.isArray(row) || row.length !== columns.length) {
-          throw new Error(
-            `[sqlite] createMultiRowInserter(${table}): row shape mismatch; ` +
-            `expected ${columns.length} values, got ${Array.isArray(row) ? row.length : typeof row}`
-          );
+      try {
+        for (let i = 0; i < take; i += 1) {
+          const row = sourceRows[index + i];
+          if (!Array.isArray(row) || row.length !== columns.length) {
+            throw new Error(
+              `[sqlite] createMultiRowInserter(${table}): row shape mismatch; ` +
+              `expected ${columns.length} values, got ${Array.isArray(row) ? row.length : typeof row}`
+            );
+          }
+          params.push(...row);
         }
-        params.push(...row);
+        stmt.run(...params);
+      } finally {
+        // Release references on successful execution, malformed rows and bind
+        // failures, before preparing the next statement or updating statistics.
+        params.length = 0;
       }
-      stmt.run(...params);
       if (tableStats) {
         tableStats.runs = (tableStats.runs || 0) + 1;
         tableStats.rows = (tableStats.rows || 0) + take;
