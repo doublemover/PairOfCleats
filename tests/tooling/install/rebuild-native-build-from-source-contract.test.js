@@ -40,6 +40,16 @@ assert.match(
 );
 assert.match(
   source,
+  /pkgName === 'better-sqlite3' && buildFromSource[\s\S]*?>= 13\)[\s\S]*?rebuildSqliteNativeFromSource\(root, runNpmCommand\)/,
+  'SQLite v13 source recovery must use its explicit build-release policy'
+);
+assert.match(
+  source,
+  /if \(pkgName === 'better-sqlite3'\) return probeSqliteNative\(root\);/,
+  'SQLite verify and repair must probe the database rather than just importing the module'
+);
+assert.match(
+  source,
   /runNpmCommand\(args,\s*\{\s*[\s\S]*cwd:\s*resolveNodeModulesPath\(packageNameResult\.pkgName\),\s*[\s\S]*buildFromSource\s*[\s\S]*\}\)/,
   'expected install-script path to pass buildFromSource into npm command helper'
 );

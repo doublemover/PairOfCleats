@@ -60,7 +60,10 @@ separate bounded parity fixture times out without EBUSY and leaves no observed
 owned children. This does not diagnose or repair the original EBUSY cleanup case.
 Mac arm64 tiny CLI and native-terminal checks establish their limited recorded
 scope. All final integrated checks remain pending. The isolated SQLite/Node26
-comparison `5faa768b` is excluded; retain better-sqlite3 12.6.2 and Node24 policy.
+comparison `5faa768b` is excluded. The separately authorized dependency update
+in PR539 upgrades better-sqlite3 to 13.0.3 with native runtime verification and
+source-recovery compatibility; retain Node24 policy. This upgrade does not
+establish acceptance of the excluded SQLite/Node26 experiment.
 
 Historical `82528215` platform and lifecycle results remain in the
 [integration checkpoint archive](archived/ordinary-integration-roadmap-2026-10-06.md).
