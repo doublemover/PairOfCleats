@@ -79,14 +79,14 @@ for (const [caseIndex, scenario] of [
     }
     try {
       const publication = writeIndexArtifacts({
-      outDir, mode: 'code', state, postings, postingsConfig,
-      modelId: 'stub', useStubEmbeddings: true, dictSummary: null,
-      timing: { start: Date.now() }, root: testRoot,
-      userConfig: { indexing: { scm: { provider: 'none' }, artifacts: {
-        minhashJsonLargeThreshold: scenario.packedOnly ? 1 : 1000
-      } } },
-      incrementalEnabled: false, fileCounts: { candidates: scenario.count },
-      perfProfile: null, indexState, graphRelations: null, stageCheckpoints: null
+        outDir, mode: 'code', state, postings, postingsConfig,
+        modelId: 'stub', useStubEmbeddings: true, dictSummary: null,
+        timing: { start: Date.now() }, root: testRoot,
+        userConfig: { indexing: { scm: { provider: 'none' }, artifacts: {
+          minhashJsonLargeThreshold: scenario.packedOnly ? 1 : 1000
+        } } },
+        incrementalEnabled: false, fileCounts: { candidates: scenario.count },
+        perfProfile: null, indexState, graphRelations: null, stageCheckpoints: null
       });
       if (scenario.failMeta) await assert.rejects(publication, /injected MinHash metadata commit failure/);
       else await publication;
