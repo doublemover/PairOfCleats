@@ -14,11 +14,14 @@ if (!fs.existsSync(workflowPath)) {
 }
 
 const workflow = fs.readFileSync(workflowPath, 'utf8');
+const toolchainPath = path.join(root, 'crates', 'pairofcleats-tui', 'rust-toolchain.toml');
+const pinnedToolchain = fs.readFileSync(toolchainPath, 'utf8').match(/channel\s*=\s*"(\d+\.\d+\.\d+)"/)?.[1];
+if (!pinnedToolchain) throw new Error(`Missing exact Rust toolchain in ${toolchainPath}`);
 const requiredPatterns = [
   /- language:\s*javascript/,
   /- language:\s*rust/,
   /build-mode:\s*\$\{\{\s*matrix\.build-mode\s*\}\}/,
-  /toolchain:\s*1\.83\.0/,
+  new RegExp(`toolchain:\\s*${pinnedToolchain.replace(/\./g, '\\.')}\\b`),
   /uses:\s*dtolnay\/rust-toolchain@stable/,
   /uses:\s*github\/codeql-action\/autobuild@v4/,
   /category:\s*['"]?\/language:\$\{\{\s*matrix\.language\s*\}\}['"]?/

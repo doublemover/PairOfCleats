@@ -28,17 +28,17 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: node_modules
           key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
@@ -100,7 +100,7 @@ jobs:
     needs: gate
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -109,7 +109,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Restore Cargo cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -144,16 +144,16 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             .ci-cache/pairofcleats/models
@@ -165,7 +165,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: node_modules
           key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
@@ -245,16 +245,16 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
@@ -264,7 +264,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: node_modules
           key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
@@ -337,16 +337,16 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
@@ -356,7 +356,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: node_modules
           key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}

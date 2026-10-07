@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 import { normalizeEol } from '../../src/shared/eol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -334,23 +335,50 @@ const readWorkflow = (name) => {
   return fs.readFileSync(workflowPath, 'utf8');
 };
 
-const minimumNode24ActionMajor = {
-  'checkout': 5,
-  'setup-node': 5,
-  'cache': 5,
+const minimumActionMajor = {
+  'checkout': 7,
+  'setup-node': 7,
+  'cache': 6,
   'upload-artifact': 6,
   'download-artifact': 7,
-  'github-script': 8,
+  'github-script': 9,
   'attest-build-provenance': 3
+};
+// v9 adds getOctokit to the injected parameters and makes @actions/github ESM-only.
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+const githubScriptParameters = [
+  'require', '__original_require__', 'github', 'octokit', 'getOctokit',
+  'context', 'core', 'exec', 'glob', 'io'
+];
+const pinnedActionRefs = {
+  checkout: '3d3c42e5aac5ba805825da76410c181273ba90b1',
+  'github-script': '3a2844b7e9c422d3c10d287c895573f7108da1b3'
 };
 for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) {
   if (!fileName.endsWith('.yml')) continue;
   const workflowText = readWorkflow(fileName);
   for (const match of workflowText.matchAll(/uses:\s*actions\/([a-z-]+)@v(\d+)\b/g)) {
-    const minimum = minimumNode24ActionMajor[match[1]];
+    const minimum = minimumActionMajor[match[1]];
     if (minimum && Number(match[2]) < minimum) {
-      console.error(`${fileName}: actions/${match[1]} must use Node 24 (major v${minimum} or newer).`);
+      console.error(`${fileName}: actions/${match[1]} must use the supported major v${minimum} or newer.`);
       process.exit(1);
+    }
+  }
+  const workflow = parse(workflowText);
+  for (const job of Object.values(workflow.jobs || {})) {
+    for (const step of job.steps || []) {
+      const pinnedAction = step.uses?.match(/^actions\/(checkout|github-script)@([0-9a-f]{40})$/);
+      if (pinnedAction && pinnedAction[2] !== pinnedActionRefs[pinnedAction[1]]) {
+        throw new Error(`${fileName}: actions/${pinnedAction[1]} must pin the verified supported release.`);
+      }
+      if (!step.uses?.startsWith('actions/github-script@')) continue;
+      const script = step.with?.script;
+      if (typeof script !== 'string') throw new Error(`${fileName}: github-script requires a script.`);
+      if (/(?:require|__original_require__)\s*\(\s*['"]@actions\/github(?:\/[^'"]*)?['"]/.test(script)) {
+        throw new Error(`${fileName}: use the injected github/getOctokit instead of requiring @actions/github.`);
+      }
+      // Compile only: never execute API calls or other workflow effects in this contract.
+      new AsyncFunction(...githubScriptParameters, script);
     }
   }
 }
