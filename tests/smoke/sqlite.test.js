@@ -1,46 +1,59 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import path from 'node:path';
-import { cleanup, runNode, root } from './smoke-utils.js';
 
-import { applyTestEnv } from '../helpers/test-env.js';
-import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { cleanup, createSmokeIndexFixture, root, runSmokeNode } from './smoke-utils.js';
+import { runSqliteBuild } from '../helpers/sqlite-builder.js';
 
-const cacheSuffix = 'smoke-sqlite';
-const cacheRoots = [
-  resolveTestCachePath(root, 'sqlite-incremental', `file-manifest-updates-${cacheSuffix}`),
-  resolveTestCachePath(root, `sqlite-ann-fallback-${cacheSuffix}`)
-];
+let tempRoot = null;
 
 let failure = null;
 try {
-  await cleanup(cacheRoots);
-  const env = applyTestEnv({
-    testConfig: {
-      tooling: {
-        autoEnableOnDetect: false
-      }
-    },
-    extraEnv: {
-      PAIROFCLEATS_TEST_CACHE_SUFFIX: cacheSuffix
-    }
+  const fixture = await createSmokeIndexFixture({
+    name: 'smoke-sqlite',
+    token: 'sqlite_smoke_token'
   });
-  runNode(
-    'sqlite-incremental-manifest',
-    path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js'),
-    [],
-    { env }
-  );
-  runNode(
-    'sqlite-ann-fallback',
-    path.join(root, 'tests', 'storage', 'sqlite', 'ann', 'sqlite-fallback.test.js'),
-    [],
-    { env }
+  tempRoot = fixture.tempRoot;
+  const { env, repoRoot } = fixture;
+  const run = (label, args, options = {}) =>
+    runSmokeNode(label, args, { cwd: repoRoot, env, options });
+
+  run('build_index', [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ]);
+  await runSqliteBuild(repoRoot, { mode: 'code', env });
+
+  const searchResult = run('search sqlite backend', [
+    path.join(root, 'search.js'),
+    'sqlite_smoke_token',
+    '--mode',
+    'code',
+    '--backend',
+    'sqlite',
+    '--json',
+    '--repo',
+    repoRoot
+  ]);
+
+  const payload = JSON.parse(searchResult.stdout || '{}');
+  const hits = Array.isArray(payload?.code) ? payload.code : [];
+  assert.ok(hits.length > 0, 'expected sqlite smoke search to return at least one code hit');
+  assert.ok(
+    hits.some((hit) => String(hit?.file || '').includes('src/alpha.js')),
+    'expected sqlite smoke search to return src/alpha.js'
   );
 } catch (err) {
   console.error(err?.message || err);
   failure = err;
 }
-await cleanup(cacheRoots);
+if (tempRoot) {
+  await cleanup([tempRoot]);
+}
 
 if (failure) {
   process.exit(failure.exitCode ?? 1);

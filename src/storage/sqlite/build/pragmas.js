@@ -18,7 +18,9 @@ const applyPragma = (db, pragma, label) => {
     db.pragma(pragma);
   } catch (err) {
     const suffix = label ? ` (${label})` : '';
-    console.warn(`[sqlite] Failed to apply pragma${suffix}: ${err?.message || err}`);
+    try {
+      console.warn(`[sqlite] Failed to apply pragma${suffix}: ${err?.message || err}`);
+    } catch {}
   }
 };
 

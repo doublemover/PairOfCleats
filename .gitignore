@@ -4,6 +4,11 @@ index-code/
 index-prose/
 ci-artifacts/
 /artifacts/
+temp/
+dist/
+.c8/
+release-manifest.json
+release_check_report.json
 tests/.cache/
 tests/.logs/
 benchmarks/repos/
@@ -45,6 +50,13 @@ pip-wheel-metadata/
 worktrees/
 .worktrees/
 GIGAROADMAP.html
+
+# Local generated inventory reports (refresh commands remain source-controlled).
+/docs/testing/suite-taxonomy.json
+/docs/testing/suite-taxonomy.md
+/docs/tooling/repo-inventory.json
+/docs/tooling/shared-module-ledger.json
+/docs/tooling/shared-module-ledger.md
 
 # Rust
 target/

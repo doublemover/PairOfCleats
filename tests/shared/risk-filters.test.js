@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  filterRiskPartialFlows,
   filterRiskFlows,
   normalizeRiskFilters,
   validateRiskFilters
@@ -49,5 +50,29 @@ const flows = [
 ];
 
 assert.deepEqual(filterRiskFlows(flows, normalized).map((flow) => flow.flowId), ['sha1:abc']);
+
+const partialFlows = [
+  {
+    partialFlowId: 'sha1:partial-a',
+    source: {
+      ruleId: 'source.req.body',
+      ruleName: 'req body',
+      name: 'request.body',
+      category: 'input',
+      severity: 'low',
+      tags: ['user-input']
+    },
+    frontier: {
+      chunkUid: 'chunk-frontier-a',
+      terminalReason: 'budget'
+    }
+  }
+];
+
+assert.deepEqual(
+  filterRiskPartialFlows(partialFlows, normalizeRiskFilters({ flowId: 'sha1:abc' })).map((flow) => flow.partialFlowId),
+  ['sha1:partial-a'],
+  'expected flowId filters to remain non-applicable for partial flows'
+);
 
 console.log('risk filters test passed');

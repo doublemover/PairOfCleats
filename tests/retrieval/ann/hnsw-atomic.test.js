@@ -2,26 +2,33 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths } from '../../../src/shared/hnsw.js';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { requireHnswLib } from '../../helpers/optional-deps.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
-const tempRoot = resolveTestCachePath(root, 'hnsw-atomic');
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('hnsw-atomic', { root });
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 requireHnswLib({ reason: 'hnswlib-node not available; skipping hnsw atomic test.' });
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(tempRoot, { recursive: true });
-await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'main.js'),
+  'export function indexItem(value) { return value + 1; }\n',
+  'utf8'
+);
+await fsPromises.writeFile(
+  path.join(repoRoot, 'README.md'),
+  '# HNSW Atomic Fixture\n\nThis fixture keeps the ANN atomicity contract minimal.\n',
+  'utf8'
+);
 
 const env = applyTestEnv({
   cacheRoot,
@@ -30,6 +37,12 @@ const env = applyTestEnv({
   testConfig: {
     indexing: {
       scm: { provider: 'none' },
+      embeddings: {
+        hnsw: {
+          enabled: true,
+          isolate: false
+        }
+      },
       typeInference: false,
       typeInferenceCrossFile: false
     },
@@ -37,18 +50,30 @@ const env = applyTestEnv({
       autoEnableOnDetect: false,
       lsp: { enabled: false }
     }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
-const buildIndex = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--scm-provider',
+    'none',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ],
+  'hnsw atomic build index',
+  repoRoot,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildIndex.status !== 0) {
-  console.error('hnsw atomic test failed: build_index failed');
-  process.exit(buildIndex.status ?? 1);
-}
 
 const userConfig = loadUserConfig(repoRoot);
 const codeIndexDir = getIndexDir(repoRoot, 'code', userConfig);
@@ -57,15 +82,13 @@ const { indexPath: hnswIndexPath, metaPath: hnswMetaPath } = resolveHnswPaths(co
 await fsPromises.writeFile(hnswIndexPath, 'stub-index');
 await fsPromises.writeFile(hnswMetaPath, JSON.stringify({ version: 1, dims: 1, count: 0 }));
 
-const buildEmbeddings = spawnSync(
-  process.execPath,
-  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+runNode(
+  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
+  'hnsw atomic build embeddings',
+  repoRoot,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildEmbeddings.status !== 0) {
-  console.error('hnsw atomic test failed: build-embeddings failed');
-  process.exit(buildEmbeddings.status ?? 1);
-}
 
 await fsPromises.copyFile(hnswIndexPath, `${hnswIndexPath}.bak`);
 

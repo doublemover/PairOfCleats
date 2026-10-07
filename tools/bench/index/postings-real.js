@@ -4,29 +4,13 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { getRepoId } from '../../shared/dict-utils.js';
-import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
+import { loadChunkMeta } from '../../../src/shared/artifact-io/loaders.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { sha1 } from '../../../src/shared/hash.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess.js';
-
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
+import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
+import { parseSimpleBenchArgs } from '../shared.js';
 
 const readJsonFields = async (filePath) => {
   const raw = await fs.readFile(filePath, 'utf8');
@@ -61,7 +45,7 @@ const runNodeScript = ({ scriptPath, args, env, cwd }) => {
   throw new Error(`Script failed: ${path.basename(scriptPath)} (${result.exitCode ?? 'unknown'})`);
 };
 
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';

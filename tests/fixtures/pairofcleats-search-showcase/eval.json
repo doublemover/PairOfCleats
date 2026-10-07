@@ -1,0 +1,52 @@
+[
+  {
+    "query": "parseSearchArgs",
+    "mode": "code",
+    "expect": [{ "file": "src/retrieval/cli-args.js", "name": "parseSearchArgs" }]
+  },
+  {
+    "query": "resolveSearchMode",
+    "mode": "code",
+    "expect": [{ "file": "src/retrieval/cli-args.js", "name": "resolveSearchMode" }]
+  },
+  {
+    "query": "withLspSession",
+    "mode": "code",
+    "expect": [{ "file": "src/integrations/tooling/providers/lsp/session-pool.js", "name": "withLspSession" }]
+  },
+  {
+    "query": "captureSearchDebugRun",
+    "mode": "code",
+    "expect": [{ "file": "tools/testing/search-debug-capture.js", "name": "captureSearchDebugRun" }]
+  },
+  {
+    "query": "src/retrieval/cli-args.js",
+    "mode": "code",
+    "expect": [{ "file": "src/retrieval/cli-args.js" }]
+  },
+  {
+    "query": "\"Minimal API Server\"",
+    "mode": "prose",
+    "expect": [{ "file": "docs/api/server.md", "name": "Minimal API Server" }]
+  },
+  {
+    "query": "\"Search Pipeline\"",
+    "mode": "prose",
+    "expect": [{ "file": "docs/guides/search.md", "name": "Search Pipeline" }]
+  },
+  {
+    "query": "\"PairOfCleats exposes a lightweight programmatic API\"",
+    "mode": "prose",
+    "expect": [{ "file": "docs/api/core-api.md", "name": "Core API" }]
+  },
+  {
+    "query": "\"Collect LSP-derived signature/hover metadata\"",
+    "mode": "extracted-prose",
+    "expect": [{ "file": "src/integrations/tooling/providers/lsp.js" }]
+  },
+  {
+    "query": "parseSearchArgs yargs",
+    "mode": "code",
+    "expect": [{ "file": "src/retrieval/cli-args.js", "name": "parseSearchArgs" }]
+  }
+]

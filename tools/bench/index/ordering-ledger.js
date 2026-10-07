@@ -2,39 +2,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { loadChunkMeta, loadGraphRelations, loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
+import { loadChunkMeta, loadGraphRelations, loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders.js';
 import { createOrderingHasher, stableOrderWithComparator } from '../../../src/shared/order.js';
 import { compareChunkMetaRows, createGraphRelationsIterator } from '../../../src/index/build/artifacts/helpers.js';
 import { createFileRelationsIterator } from '../../../src/index/build/artifacts/writers/file-relations.js';
 import { createRepoMapIterator } from '../../../src/index/build/artifacts/writers/repo-map.js';
-
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const createRng = (seed) => {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-};
+import { createSeededRng, parseSimpleBenchArgs } from '../shared.js';
 
 const resolveIndexDir = (root, args) => {
   if (args.index) {
@@ -82,7 +55,7 @@ const buildSyntheticArtifacts = ({
   edgesPerNode,
   seed
 }) => {
-  const rng = createRng(seed);
+  const rng = createSeededRng(seed);
   const chunkMeta = Array.from({ length: chunkCount }, (_, index) => {
     const fileIndex = index % fileCount;
     return {
@@ -273,7 +246,7 @@ const printDelta = (baseline, current) => {
   );
 };
 
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const root = process.cwd();
 const seed = Number(args.seed) || 1337;
 const chunkCount = Number(args.chunks) || 100000;

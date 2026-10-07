@@ -3,8 +3,11 @@ import path from 'node:path';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
+import {
+  readServiceBuildStateSnapshot,
+  resolveServiceBuildStatePath
+} from '../indexer-service-helpers.js';
 
-const BUILD_STATE_FILE = 'build_state.json';
 const BUILD_STATE_POLL_MS = 5000;
 const BUILD_STATE_LOOKBACK_MS = 5 * 60 * 1000;
 
@@ -15,24 +18,6 @@ const BUILD_STATE_LOOKBACK_MS = 5 * 60 * 1000;
  * @returns {string}
  */
 const resolveBuildsRoot = (repoCacheRoot) => path.join(repoCacheRoot, 'builds');
-
-/**
- * Read one build-state snapshot from a build root directory.
- *
- * @param {string|null} buildRoot
- * @returns {Promise<{state:object,path:string}|null>}
- */
-const readBuildState = async (buildRoot) => {
-  if (!buildRoot) return null;
-  const statePath = path.join(buildRoot, BUILD_STATE_FILE);
-  try {
-    const raw = await fsPromises.readFile(statePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? { state: parsed, path: statePath } : null;
-  } catch {
-    return null;
-  }
-};
 
 /**
  * Enumerate build directories that currently expose `build_state.json`.
@@ -55,7 +40,7 @@ const listBuildStateCandidates = async (repoCacheRoot) => {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const buildRoot = path.join(buildsRoot, entry.name);
-    const statePath = path.join(buildRoot, BUILD_STATE_FILE);
+    const statePath = resolveServiceBuildStatePath(buildRoot);
     try {
       const stat = await fsPromises.stat(statePath);
       candidates.push({ buildRoot, statePath, mtimeMs: stat.mtimeMs });
@@ -76,7 +61,7 @@ const pickBuildState = async (repoCacheRoot, stage, sinceMs) => {
   const candidates = await listBuildStateCandidates(repoCacheRoot);
   for (const candidate of candidates) {
     if (Number.isFinite(sinceMs) && candidate.mtimeMs < sinceMs) continue;
-    const loaded = await readBuildState(candidate.buildRoot);
+    const loaded = await readServiceBuildStateSnapshot(candidate.buildRoot);
     if (!loaded) continue;
     const state = loaded.state;
     if (stage && state?.stage && state.stage !== stage) continue;
@@ -160,7 +145,7 @@ export const startBuildProgressMonitor = ({ job, repoPath, stage }) => {
       }
       return;
     }
-    const loaded = await readBuildState(active.buildRoot);
+    const loaded = await readServiceBuildStateSnapshot(active.buildRoot);
     if (loaded?.state) active.state = loaded.state;
     const line = formatProgressLine({ jobId: job.id, stage, state: active.state });
     if (line && line !== lastLine) {

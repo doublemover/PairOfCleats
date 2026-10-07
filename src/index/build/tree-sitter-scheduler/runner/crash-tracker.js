@@ -10,6 +10,7 @@ const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
 const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
 const CRASH_BUNDLE_FILE = 'crash-forensics.json';
 const DEFAULT_DURABLE_DIR = '_crash-forensics';
+const QUARANTINE_REPEAT_THRESHOLD = 2;
 const require = createRequire(import.meta.url);
 const packageVersionCache = new Map();
 
@@ -165,6 +166,39 @@ const resolveDurableCrashBundlePath = ({ runtime, outDir }) => {
   return path.join(durableDir, `${repoToken}-${buildToken}-${CRASH_BUNDLE_FILE}`);
 };
 
+const buildQuarantineDecisions = (eventsBySignature) => (
+  Array.from(eventsBySignature.values())
+    .map((event) => {
+      const grammarKeys = Array.from(new Set([
+        String(event?.grammarKey || '').trim(),
+        ...toArray(event?.task?.taskGrammarKeys).map((entry) => String(entry || '').trim()),
+        ...toArray(event?.task?.inferredFailedGrammarKeys).map((entry) => String(entry || '').trim())
+      ].filter(Boolean))).sort();
+      const virtualPaths = Array.from(new Set([
+        String(event?.file?.virtualPath || '').trim()
+      ].filter(Boolean))).sort();
+      const repeated = Number(event?.occurrences || 0) >= QUARANTINE_REPEAT_THRESHOLD;
+      return {
+        signature: String(event?.signature || '').trim() || null,
+        scope: repeated ? 'signature' : 'virtual_path',
+        target: repeated
+          ? (String(event?.signature || '').trim() || null)
+          : (virtualPaths[0] || grammarKeys[0] || null),
+        occurrences: Number(event?.occurrences || 0),
+        failureClass: String(event?.failureClass || '').trim() || null,
+        fallbackConsequence: String(event?.fallbackConsequence || '').trim() || null,
+        grammarKeys,
+        virtualPaths
+      };
+    })
+    .filter((entry) => entry.signature)
+    .sort((left, right) => (
+      String(left.scope).localeCompare(String(right.scope))
+      || String(left.target || '').localeCompare(String(right.target || ''))
+      || String(left.signature || '').localeCompare(String(right.signature || ''))
+    ))
+);
+
 /**
  * Materialize immutable bundle snapshot from tracker state.
  *
@@ -182,7 +216,8 @@ const makeBundleSnapshot = ({
   outDir,
   eventsBySignature,
   failedGrammarKeys,
-  degradedVirtualPaths
+  degradedVirtualPaths,
+  failureClassCounts
 }) => ({
   schemaVersion: CRASH_BUNDLE_SCHEMA_VERSION,
   generatedAt: new Date().toISOString(),
@@ -192,6 +227,10 @@ const makeBundleSnapshot = ({
   outDir: path.resolve(outDir),
   failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
   degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+  quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
+  failureClasses: Object.fromEntries(
+    Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+  ),
   events: Array.from(eventsBySignature.values())
     .sort((a, b) => String(a.signature).localeCompare(String(b.signature)))
 });
@@ -228,6 +267,7 @@ export const createSchedulerCrashTracker = ({
   const eventsBySignature = new Map();
   const failedGrammarKeys = new Set();
   const degradedVirtualPaths = new Set();
+  const failureClassCounts = new Map();
   const localBundlePath = path.join(paths.baseDir, CRASH_BUNDLE_FILE);
   const durableBundlePath = resolveDurableCrashBundlePath({ runtime, outDir });
   let persistSerial = Promise.resolve();
@@ -309,7 +349,9 @@ export const createSchedulerCrashTracker = ({
    *  taskId?:string|null,
    *  markFailed?:boolean,
    *  taskGrammarKeys?:string[]|null,
-   *  inferredFailedGrammarKeys?:string[]|null
+   *  inferredFailedGrammarKeys?:string[]|null,
+   *  failureClass?:string|null,
+   *  fallbackConsequence?:string|null
    * }} input
    * @returns {Promise<void>}
    */
@@ -320,7 +362,9 @@ export const createSchedulerCrashTracker = ({
     taskId = null,
     markFailed = true,
     taskGrammarKeys = null,
-    inferredFailedGrammarKeys = null
+    inferredFailedGrammarKeys = null,
+    failureClass = null,
+    fallbackConsequence = null
   }) => {
     if (!grammarKey) return;
     const group = groupByGrammarKey.get(grammarKey) || null;
@@ -334,6 +378,10 @@ export const createSchedulerCrashTracker = ({
         subprocessCrashEvents
       });
     }
+    const resolvedFailureClass = typeof failureClass === 'string' && failureClass
+      ? failureClass
+      : 'scheduler_failure';
+    failureClassCounts.set(resolvedFailureClass, (failureClassCounts.get(resolvedFailureClass) || 0) + 1);
     const languageId = typeof firstJob?.languageId === 'string' && firstJob.languageId
       ? firstJob.languageId
       : (Array.isArray(group?.languages) ? group.languages[0] : null);
@@ -360,6 +408,8 @@ export const createSchedulerCrashTracker = ({
       existing.occurrences += 1;
       existing.lastSeenAt = new Date().toISOString();
       if (taskId) existing.taskIds = Array.from(new Set([...toArray(existing.taskIds), taskId]));
+      existing.failureClass = existing.failureClass || resolvedFailureClass;
+      existing.fallbackConsequence = existing.fallbackConsequence || fallbackConsequence || null;
     } else {
       const event = {
         schemaVersion: CRASH_BUNDLE_SCHEMA_VERSION,
@@ -369,6 +419,8 @@ export const createSchedulerCrashTracker = ({
         lastSeenAt: new Date().toISOString(),
         stage: resolvedStage,
         grammarKey,
+        failureClass: resolvedFailureClass,
+        fallbackConsequence: fallbackConsequence || null,
         parser: parserMetadata,
         file: {
           containerPath: firstJob?.containerPath || null,
@@ -412,6 +464,7 @@ export const createSchedulerCrashTracker = ({
           languageId: parserMetadata.languageId || null,
           grammarKey,
           signature,
+          failureClass: resolvedFailureClass,
           message: error?.message || String(error),
           parser: parserMetadata,
           subprocess: {
@@ -432,7 +485,8 @@ export const createSchedulerCrashTracker = ({
       outDir,
       eventsBySignature,
       failedGrammarKeys,
-      degradedVirtualPaths
+      degradedVirtualPaths,
+      failureClassCounts
     });
     void enqueuePersist(bundle);
   };
@@ -448,7 +502,11 @@ export const createSchedulerCrashTracker = ({
       parserCrashEvents: Array.from(eventsBySignature.values())
         .sort((a, b) => String(a.signature).localeCompare(String(b.signature))),
       failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
-      degradedVirtualPaths: Array.from(degradedVirtualPaths).sort()
+      degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+      quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
+      failureClasses: Object.fromEntries(
+        Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+      )
     }),
     waitForPersistence: async () => {
       try {

@@ -7,10 +7,12 @@ import {
   getJsonRpcWriter,
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
-import { registerChildProcessForCleanup } from '../../../shared/subprocess.js';
+import { registerChildProcessForCleanup } from '../../../shared/subprocess/tracking-register.js';
 import { resolveWindowsCmdInvocation } from '../../../shared/subprocess/windows-cmd.js';
 import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/kill-tree.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { resolveNearestRankPercentile } from '../../../shared/perf/percentiles.js';
+import { createJsonRpcTraceRecorder } from './trace.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -59,6 +61,11 @@ const LANGUAGE_ID_BY_EXT = Object.freeze({
   '.kt': 'kotlin',
   '.kts': 'kotlin',
   '.zig': 'zig',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+  '.sh': 'shellscript',
+  '.bash': 'shellscript',
+  '.sql': 'sql',
   '.graphql': 'graphql',
   '.gql': 'graphql'
 });
@@ -122,25 +129,14 @@ const pushLatencySample = (samples, value, cap = LATENCY_SAMPLE_CAP) => {
   return removedTotal;
 };
 
-const percentile = (samples, q) => {
-  if (!Array.isArray(samples) || !samples.length) return 0;
-  const sorted = samples.slice().sort((a, b) => a - b);
-  const target = Number(q);
-  if (!Number.isFinite(target) || target <= 0) return sorted[0];
-  if (target >= 1) return sorted[sorted.length - 1];
-  const rank = Math.ceil(target * sorted.length);
-  const idx = Math.max(0, Math.min(sorted.length - 1, rank - 1));
-  return sorted[idx];
-};
-
 const summarizeLatencies = (samples, totalMs, maxMs) => ({
   count: Array.isArray(samples) ? samples.length : 0,
   avg: Number.isFinite(totalMs) && Array.isArray(samples) && samples.length
     ? totalMs / samples.length
     : 0,
   max: Number.isFinite(maxMs) ? maxMs : 0,
-  p50: percentile(samples, 0.5),
-  p95: percentile(samples, 0.95)
+  p50: resolveNearestRankPercentile(samples, 0.5),
+  p95: resolveNearestRankPercentile(samples, 0.95)
 });
 
 /**
@@ -153,6 +149,9 @@ const summarizeLatencies = (samples, totalMs, maxMs) => ({
  *   log?:(msg:string)=>void,
  *   onNotification?:(msg:object)=>void,
  *   onRequest?:(msg:object)=>Promise<any>,
+ *   providerId?:string,
+ *   sessionKey?:string,
+ *   tracePath?:string,
  *   spawnProcess?:(input:{cmd:string,args:string[],options:import('node:child_process').SpawnOptionsWithoutStdio,rawCmd:string,rawArgs:string[],useShell:boolean})=>import('node:child_process').ChildProcess
  * }} options
  */
@@ -166,6 +165,9 @@ export function createLspClient(options) {
     log = () => {},
     onNotification,
     onRequest,
+    providerId,
+    sessionKey,
+    tracePath,
     onLifecycleEvent,
     onStderrLine,
     stderrFilter,
@@ -179,7 +181,13 @@ export function createLspClient(options) {
     ? shell
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
   const killTreeDetached = process.platform !== 'win32';
-  const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env);
+  const resolvedEnv = applyToolchainDaemonPolicyEnv(env || process.env, { cwd });
+  const traceRecorder = createJsonRpcTraceRecorder({
+    tracePath: tracePath || resolvedEnv.POC_LSP_RPC_TRACE || '',
+    providerId: providerId || cmd,
+    sessionKey: sessionKey || null,
+    log
+  });
 
   let proc = null;
   let parser = null;
@@ -245,6 +253,10 @@ export function createLspClient(options) {
   };
 
   const emitLifecycleEvent = (event) => {
+    traceRecorder.recordLifecycle(event, {
+      providerId: providerId || cmd,
+      sessionKey
+    });
     if (typeof onLifecycleEvent !== 'function') return;
     try {
       onLifecycleEvent({
@@ -437,9 +449,16 @@ export function createLspClient(options) {
 
   const send = (payload) => {
     if (!writer || writerClosed) return false;
-    const pendingWrite = writer.write(payload);
+    const currentWriter = writer;
+    const currentGen = generation;
+    traceRecorder.recordOutbound(payload, {
+      providerId: providerId || cmd,
+      sessionKey
+    });
+    const pendingWrite = currentWriter.write(payload);
     if (pendingWrite && typeof pendingWrite.catch === 'function') {
       pendingWrite.catch((err) => {
+        if (writer !== currentWriter || generation !== currentGen) return;
         if (isClosedStreamWriteError(err)) {
           rejectPendingTransportClosed();
           writerClosed = true;
@@ -454,6 +473,11 @@ export function createLspClient(options) {
   const handleResponse = (message) => {
     const entry = pending.get(message.id);
     if (!entry) return;
+    traceRecorder.recordInbound(message, {
+      method: entry.method,
+      providerId: providerId || cmd,
+      sessionKey
+    });
     pending.delete(message.id);
     if (entry.timeout) clearTimeout(entry.timeout);
     const latencyMs = Date.now() - Number(entry.startedAt || Date.now());
@@ -475,11 +499,19 @@ export function createLspClient(options) {
   };
 
   const handleRequest = async (message) => {
+    const currentWriter = writer;
+    const currentGen = generation;
+    traceRecorder.recordInbound(message, {
+      providerId: providerId || cmd,
+      sessionKey
+    });
     if (typeof onRequest === 'function') {
       try {
         const result = await onRequest(message);
+        if (writer !== currentWriter || generation !== currentGen) return;
         send({ jsonrpc: '2.0', id: message.id, result: result ?? null });
       } catch (err) {
+        if (writer !== currentWriter || generation !== currentGen) return;
         send({
           jsonrpc: '2.0',
           id: message.id,
@@ -497,6 +529,12 @@ export function createLspClient(options) {
 
   const handleMessage = (message) => {
     if (!message || typeof message !== 'object') return;
+    if (!Object.prototype.hasOwnProperty.call(message, 'id') && message.method) {
+      traceRecorder.recordInbound(message, {
+        providerId: providerId || cmd,
+        sessionKey
+      });
+    }
     if (Object.prototype.hasOwnProperty.call(message, 'id')) {
       if (message.method) {
         void handleRequest(message);
@@ -558,6 +596,7 @@ export function createLspClient(options) {
       cwd,
       env: invocation.env ? { ...resolvedEnv, ...invocation.env } : resolvedEnv,
       shell: false,
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
       detached: killTreeDetached
     };
     const child = typeof spawnProcess === 'function'
@@ -603,6 +642,10 @@ export function createLspClient(options) {
       onMessage: handleMessage,
       onError: (err) => {
         log(`[lsp] parse error: ${err.message}`);
+        emitLifecycleEvent({
+          kind: 'protocol_parse_error',
+          message: err?.message || String(err)
+        });
         killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,
@@ -780,14 +823,22 @@ export function createLspClient(options) {
   };
 
   const initialize = async ({ rootUri, capabilities, initializationOptions, workspaceFolders, timeoutMs } = {}) => {
-    const result = await request('initialize', {
+    const initialization = request('initialize', {
       processId: process.pid,
       rootUri: rootUri || null,
       capabilities: mergeInitializeCapabilities(capabilities),
       initializationOptions: initializationOptions || null,
       workspaceFolders: workspaceFolders || (rootUri ? [{ uri: rootUri, name: rootUri.split('/').pop() || 'workspace' }] : null)
     }, { timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 10000 });
-    notify('initialized', {});
+    const current = proc;
+    const currentGen = generation;
+    const result = await initialization;
+    if (proc !== current || generation !== currentGen || !isTransportRunning()) {
+      const err = new Error('LSP transport closed.');
+      err.code = 'ERR_LSP_TRANSPORT_CLOSED';
+      throw err;
+    }
+    notify('initialized', {}, { startIfNeeded: false });
     backoffMs = 0;
     nextStartAt = 0;
     return result;
@@ -795,16 +846,17 @@ export function createLspClient(options) {
 
   const shutdownAndExit = async () => {
     if (!proc) return;
+    const current = proc;
+    const currentGen = generation;
     if (isTransportRunning()) {
       try {
         await request('shutdown', null, { timeoutMs: 5000, startIfNeeded: false });
       } catch {}
+      if (proc !== current || generation !== currentGen) return;
       if (!writerClosed) {
         notify('exit', null, { startIfNeeded: false });
       }
     }
-    const current = proc;
-    const currentGen = generation;
     await new Promise((resolve) => {
       if (!isChildRunning(current)) {
         resolve();

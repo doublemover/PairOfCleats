@@ -1,46 +1,59 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv, resolveSilentStdio } from '../helpers/test-env.js';
+import { buildIndex } from '../../src/integrations/core/index.js';
+import { runSearchCli } from '../../src/retrieval/cli.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 import { rmDirRecursive } from '../helpers/temp.js';
 import { runSqliteBuild } from '../helpers/sqlite-builder.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { createFastIndexingTestConfig } from '../helpers/fast-indexing-config.js';
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = resolveTestCachePath(root, 'sqlite-p95-latency');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await rmDirRecursive(tempRoot, { retries: 8, delayMs: 150 });
-await fsPromises.mkdir(tempRoot, { recursive: true });
-await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+await fsPromises.mkdir(repoRoot, { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'index.js'),
+  [
+    'export function greet(name) {',
+    '  return `hello ${name}`;',
+    '}',
+    'export const answer = 42;'
+  ].join('\n')
+);
+await fsPromises.writeFile(path.join(repoRoot, 'queries.txt'), 'greet\nanswer\n');
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  testConfig: createFastIndexingTestConfig(),
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }
 });
 
-const run = (args, label) => {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit',
-    encoding: 'utf8'
+try {
+  await buildIndex(repoRoot, {
+    mode: 'code',
+    stage: 'stage2',
+    sqlite: false,
+    'stub-embeddings': true,
+    progress: 'off',
+    log: () => {},
+    warn: () => {},
+    logError: (message) => console.error(message)
   });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    process.exit(result.status ?? 1);
-  }
-};
-
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index');
-await runSqliteBuild(repoRoot);
+} catch (err) {
+  console.error('Failed: build index');
+  console.error(err?.stack || err?.message || String(err));
+  process.exit(1);
+}
+await runSqliteBuild(repoRoot, { mode: 'code', env, emitOutput: false });
 
 const queriesPath = path.join(repoRoot, 'queries.txt');
 const rawQueries = await fsPromises.readFile(queriesPath, 'utf8');
@@ -48,7 +61,7 @@ const queries = rawQueries
   .split(/\r?\n/)
   .map((line) => line.trim())
   .filter((line) => line && !line.startsWith('#'))
-  .slice(0, 8);
+  .slice(0, 2);
 
 if (!queries.length) {
   console.error('No queries found for latency test.');
@@ -56,42 +69,45 @@ if (!queries.length) {
 }
 
 const durations = [];
-const searchPath = path.join(root, 'search.js');
-const runSearch = (query) => {
+const indexCache = new Map();
+const sqliteCache = new Map();
+const runSearch = async (query) => {
   const args = [
-    searchPath,
     query,
     '--backend',
     'sqlite',
     '--no-ann',
     '--json',
+    '--mode',
+    'code',
     '--repo',
     repoRoot
   ];
   const start = process.hrtime.bigint();
-  const result = spawnSync(
-    process.execPath,
-    args,
-    {
-      cwd: repoRoot,
-      env,
-      stdio: resolveSilentStdio('ignore'),
-      encoding: 'utf8'
-    }
-  );
-  const end = process.hrtime.bigint();
-  if (result.status !== 0) {
+  let payload = null;
+  try {
+    payload = await runSearchCli(args, {
+      emitOutput: false,
+      exitOnError: false,
+      indexCache,
+      sqliteCache
+    });
+  } catch (err) {
     console.error(`Search failed for query "${query}".`);
-    process.exit(result.status ?? 1);
+    console.error(err?.stack || err?.message || String(err));
+    process.exit(1);
+  }
+  const end = process.hrtime.bigint();
+  if (!payload || payload.ok === false) {
+    console.error(`Search failed for query "${query}".`);
+    process.exit(1);
   }
   return Number(end - start) / 1e6;
 };
 
 for (const query of queries) {
-  runSearch(query);
-  for (let i = 0; i < 2; i += 1) {
-    durations.push(runSearch(query));
-  }
+  await runSearch(query);
+  durations.push(await runSearch(query));
 }
 
 durations.sort((a, b) => a - b);

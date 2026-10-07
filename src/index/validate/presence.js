@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES, readJsonFile, resolveArtifactPresence } from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { resolveArtifactPresence } from '../../shared/artifact-io/manifest.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';

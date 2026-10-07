@@ -1,45 +1,28 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getBuildsRoot, getRepoId } from '../../../tools/dict-utils/paths.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+import { prepareTestCacheDir } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'dict-utils-builds');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
+const { dir: tempRoot } = await prepareTestCacheDir('dict-utils-builds', { root });
+const cacheRoot = path.join(tempRoot, 'cache');
 
-const savedEnv = { ...process.env };
-const restoreEnv = () => {
-  for (const key of Object.keys(process.env)) {
-    if (!(key in savedEnv)) delete process.env[key];
-  }
-  for (const [key, value] of Object.entries(savedEnv)) {
-    process.env[key] = value;
-  }
-};
-
-applyTestEnv();
-try {
-  process.env.PAIROFCLEATS_CACHE_ROOT = path.join(tempRoot, 'cache');
-
+await withTemporaryEnv(applyTestEnv({ cacheRoot, syncProcess: false }), async () => {
   const repoRoot = path.join(tempRoot, 'repo');
   await fs.mkdir(repoRoot, { recursive: true });
 
   const expected = path.join(
-    resolveVersionedCacheRoot(process.env.PAIROFCLEATS_CACHE_ROOT),
+    resolveVersionedCacheRoot(cacheRoot),
     'repos',
     getRepoId(repoRoot),
     'builds'
   );
 
   assert.equal(getBuildsRoot(repoRoot), expected);
+});
 
-  console.log('dict-utils builds root test passed');
-} finally {
-  restoreEnv();
-}
+console.log('dict-utils builds root test passed');

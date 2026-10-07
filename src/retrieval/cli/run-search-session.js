@@ -1,4 +1,4 @@
-import { incCacheEvent } from '../../shared/metrics.js';
+import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
 import { runSearchByMode } from './search-runner.js';
@@ -189,6 +189,7 @@ function resolveModeAnnMetadata({
       ?? null
     );
     state.embeddingNormalize = idx?.state?.embeddings?.embeddingIdentity?.normalize !== false;
+    state.embeddingModelProfile = idx?.state?.embeddings?.embeddingIdentity?.modelProfile || null;
   }
   return modeState;
 }
@@ -219,7 +220,8 @@ async function resolveQueryEmbeddingsByMode({
       state.modelId,
       state.embeddingDims,
       state.embeddingNormalize,
-      state.inputFormatting
+      state.inputFormatting,
+      state.embeddingModelProfile
     );
   }
   return embeddingsByMode;

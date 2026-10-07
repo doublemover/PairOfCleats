@@ -113,8 +113,4 @@ For each chunk entry:
 ## 7) Tests
 
 Existing tests cover key behaviors:
-- `tests/tooling/providers/provider-registry-ignores-legacy-keys.test.js`
-- `tests/tooling/providers/provider-registry-merges-deterministically.test.js`
-- `tests/tooling/providers/provider-registry-strict-missing-chunkuid.test.js`
-- `tests/tooling/providers/provider-registry-ordering.test.js`
-- `tests/tooling/providers/provider-registry-gating.test.js`
+- `tests/tooling/providers/provider-registry-contract-matrix.test.js`

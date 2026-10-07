@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
-import path from 'node:path';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
-
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  buildTokenPostingsArtifactDatabase,
+  setupTokenPostingsArtifactFixture
+} from './helpers/token-postings-streamed-fixture.js';
 
 let Database = null;
 try {
@@ -17,16 +14,9 @@ try {
   process.exit(1);
 }
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-token-postings-duplicate-docids');
-const indexDir = path.join(tempRoot, 'index-code');
-const outPath = path.join(tempRoot, 'index-code.db');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(indexDir, { recursive: true });
-
-await writeJsonLinesFile(path.join(indexDir, 'chunk_meta.jsonl'), [
-  {
+const { indexDir, outPath, indexPieces } = await setupTokenPostingsArtifactFixture({
+  tempLabel: 'sqlite-token-postings-duplicate-docids',
+  chunks: [{
     id: 0,
     file: 'src/example.js',
     start: 0,
@@ -36,43 +26,31 @@ await writeJsonLinesFile(path.join(indexDir, 'chunk_meta.jsonl'), [
     kind: 'code',
     name: 'example',
     tokens: ['alpha', 'alpha', 'beta']
+  }],
+  tokenPostings: {
+    json: {
+      fields: {
+        avgDocLen: 3,
+        totalDocs: 1
+      },
+      arrays: {
+        vocab: ['alpha'],
+        // Duplicate entries for (doc=0) must be merged by sqlite ingest.
+        postings: [
+          [[0, 2], [0, 3], [0, 1]]
+        ],
+        docLengths: [3]
+      }
+    }
   }
-], { atomic: true });
-
-await writeJsonObjectFile(path.join(indexDir, 'token_postings.json'), {
-  fields: {
-    avgDocLen: 3,
-    totalDocs: 1
-  },
-  arrays: {
-    vocab: ['alpha'],
-    // Duplicate entries for (doc=0) must be merged by sqlite ingest.
-    postings: [
-      [[0, 2], [0, 3], [0, 1]]
-    ],
-    docLengths: [3]
-  },
-  atomic: true
 });
-await writePiecesManifest(indexDir, [
-  { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
-  { name: 'token_postings', path: 'token_postings.json', format: 'json' }
-]);
-
-const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta/token_postings artifacts');
 
-const count = await buildDatabaseFromArtifacts({
+const count = await buildTokenPostingsArtifactDatabase({
   Database,
-  outPath,
-  index: indexPieces,
+  indexPieces,
   indexDir,
-  mode: 'code',
-  manifestFiles: null,
-  emitOutput: false,
-  validateMode: 'off',
-  vectorConfig: { enabled: false },
-  modelConfig: { id: null }
+  outPath
 });
 assert.equal(count, 1, 'expected sqlite build to ingest one chunk');
 

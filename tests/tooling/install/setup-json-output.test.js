@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -13,8 +13,8 @@ const cacheRoot = resolveTestCachePath(root, 'setup-json-output');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const result = spawnSync(
-  process.execPath,
+const env = applyTestEnv({ syncProcess: false, cacheRoot });
+const result = runNode(
   [
     path.join(root, 'tools', 'setup', 'setup.js'),
     '--non-interactive',
@@ -28,18 +28,11 @@ const result = spawnSync(
     '--skip-artifacts',
     '--json'
   ],
-  {
-    cwd: fixtureRoot,
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false, cacheRoot })
-  }
+  'setup json output',
+  fixtureRoot,
+  env,
+  { stdio: 'pipe' }
 );
-
-if (result.status !== 0) {
-  console.error('setup json-output test failed: setup exited non-zero');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
 
 let payload;
 try {

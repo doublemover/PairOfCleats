@@ -3,7 +3,7 @@ import {
   getTrackedSubprocessCount,
   terminateTrackedSubprocesses,
   terminateTrackedSubprocessesSync
-} from '../../src/shared/subprocess.js';
+} from '../../src/shared/subprocess/tracking.js';
 import { mergeConfig } from '../../src/shared/config.js';
 import { resolveDefaultTestConfigLane } from './test-cache.js';
 

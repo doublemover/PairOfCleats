@@ -1,6 +1,6 @@
 import escomplex from 'escomplex';
 import { ESLint } from 'eslint';
-import { log } from '../shared/progress.js';
+import { log } from '../shared/progress-runtime.js';
 
 let eslintInstance = null;
 let eslintInitFailed = false;

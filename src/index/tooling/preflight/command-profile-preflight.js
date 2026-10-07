@@ -35,6 +35,9 @@ const resolveUnavailableMessage = ({
   if (typeof unavailableMessage === 'string' && unavailableMessage.trim()) {
     return unavailableMessage.trim();
   }
+  if (typeof commandProfile?.probe?.validationFailure?.message === 'string' && commandProfile.probe.validationFailure.message.trim()) {
+    return commandProfile.probe.validationFailure.message.trim();
+  }
   if (typeof check?.message === 'string' && check.message.trim()) {
     return check.message.trim();
   }
@@ -110,6 +113,8 @@ export const resolveCommandProfilePreflightResult = ({
     };
   }
   const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
+  const validationReasonCode = String(commandProfile?.probe?.validationFailure?.reasonCode || '').trim();
+  const invalidLayout = validationReasonCode === 'broken-layout';
   const rawCheck = typeof unavailableCheck === 'function'
     ? unavailableCheck({
       providerId: String(providerId || ''),
@@ -118,7 +123,7 @@ export const resolveCommandProfilePreflightResult = ({
       definitelyMissing
     })
     : unavailableCheck;
-  const check = normalizeCheck(rawCheck);
+  let check = normalizeCheck(rawCheck);
   const message = resolveUnavailableMessage({
     unavailableMessage,
     check,
@@ -127,10 +132,17 @@ export const resolveCommandProfilePreflightResult = ({
     definitelyMissing,
     providerId: String(providerId || '')
   });
-  const blocked = blockWhenDefinitelyMissing === true && definitelyMissing;
+  if (invalidLayout && check) {
+    check = {
+      ...check,
+      message
+    };
+  }
+  const blocked = validationReasonCode === 'untrusted-repository-command'
+    || invalidLayout || (blockWhenDefinitelyMissing === true && definitelyMissing);
   return {
     state: blocked ? 'blocked' : 'degraded',
-    reasonCode: 'preflight_command_unavailable',
+    reasonCode: invalidLayout ? 'preflight_command_invalid_layout' : 'preflight_command_unavailable',
     message,
     requestedCommand: normalizedRequested,
     commandProfile,
@@ -146,7 +158,10 @@ export const resolveCommandProfilePreflightResult = ({
  * @param {{
  *   preflight?: object | null,
  *   fallbackRequestedCommand?: {cmd?:string,args?:string[]} | null,
- *   missingProfileCheck?: object | null
+ *   missingProfileCheck?: object | null,
+ *   providerId?: string | null,
+ *   repoRoot?: string | null,
+ *   toolingConfig?: object | null
  * }} input
  * @returns {{
  *   requestedCommand:{cmd:string,args:string[]},
@@ -161,7 +176,10 @@ export const resolveCommandProfilePreflightResult = ({
 export const resolveRuntimeCommandFromPreflight = ({
   preflight = null,
   fallbackRequestedCommand = null,
-  missingProfileCheck = null
+  missingProfileCheck = null,
+  providerId = null,
+  repoRoot = null,
+  toolingConfig = null
 } = {}) => {
   const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
     ? {
@@ -172,10 +190,20 @@ export const resolveRuntimeCommandFromPreflight = ({
       cmd: String(fallbackRequestedCommand?.cmd || '').trim(),
       args: Array.isArray(fallbackRequestedCommand?.args) ? fallbackRequestedCommand.args : []
     };
-  const commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
+  let commandProfile = preflight?.commandProfile && typeof preflight.commandProfile === 'object'
     ? preflight.commandProfile
     : null;
-  const cmd = String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
+  if (!commandProfile && requestedCommand.cmd) {
+    commandProfile = resolveToolingCommandProfile({
+      providerId: String(providerId || '').trim() || requestedCommand.cmd,
+      cmd: requestedCommand.cmd,
+      args: requestedCommand.args,
+      repoRoot: repoRoot || process.cwd(),
+      toolingConfig: toolingConfig || {}
+    });
+  }
+  const cmd = commandProfile?.resolved?.mode === 'blocked' ? ''
+    : String(commandProfile?.resolved?.cmd || requestedCommand.cmd || '').trim();
   const args = Array.isArray(commandProfile?.resolved?.args)
     ? commandProfile.resolved.args
     : requestedCommand.args;

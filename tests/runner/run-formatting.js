@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative, toPosix } from '../../src/shared/files.js';
+import { isAbsolutePathNative, toPosix } from '../../src/shared/file-paths.js';
 import {
   ANSI,
   applyLineBackground as applyLineBackgroundRaw,

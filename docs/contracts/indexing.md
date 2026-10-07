@@ -20,12 +20,23 @@
 - `records` indexes log/record artifacts and excludes those files from other modes.
 - `all` == `{code, prose, extracted-prose, records}`.
 
-## Optional document extraction dependencies (planned)
-- PDF/DOCX extraction is planned and currently used only by optional tooling/benchmarks.
-- When indexing gains document extraction, it will require optional packages:
-  - `pdfjs-dist` (PDF)
-  - `mammoth` (DOCX)
-- Until then, missing dependencies only affect optional tooling/benchmarks; indexing does not extract PDF/DOCX content.
+## Optional document extraction
+- Indexing can extract PDF/DOCX text in `extracted-prose` mode when
+  `indexing.documentExtraction.enabled` is `true` and the required runtime is available.
+- PDF uses `pdfjs-dist`. DOCX prefers Mammoth; when the `docx` package is available,
+  the fallback uses the application-owned ZIP/XML paragraph reader. These are text
+  extraction routes, not complete document renderers.
+- Discovery and preprocessing admit document files only when this feature is enabled.
+  The processor records extraction units, source-byte identity, normalization and fidelity.
+- Policy includes byte/timeout settings and PDF page limits. Missing runtimes, encrypted or
+  textless/scanned input, oversize input, timeout and extraction failures have
+  explicit reason codes; they are not successful empty-text indexing.
+- No OCR coverage is claimed. Extracted text does not preserve every document
+  layout feature, so inspect recorded warnings/fidelity when exact layout matters.
+
+Implementation owners are the file processor's document route and
+`src/index/extractors/pdf.js`, `docx.js` and `common.js`. This capability is separate
+from ordinary source-comment/docstring extraction.
 
 ## Artifact minimum set
 Required (baseline search):
@@ -97,4 +108,3 @@ Key requirements:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/scm-provider-contract.md`
 - `docs/sqlite/index-schema.md`
-

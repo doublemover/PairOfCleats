@@ -1,4 +1,5 @@
 import { compareStrings } from '../../shared/sort.js';
+import { appendReportFooterSections } from './report-sections.js';
 
 const formatNodeRef = (ref) => {
   if (!ref || typeof ref !== 'object') return 'unknown';
@@ -6,15 +7,6 @@ const formatNodeRef = (ref) => {
   if (ref.type === 'chunk' && ref.chunkUid) return `chunk:${ref.chunkUid}`;
   if (ref.type === 'symbol' && ref.symbolId) return `symbol:${ref.symbolId}`;
   return 'unknown';
-};
-
-const formatTruncation = (record) => {
-  if (!record) return '';
-  const pieces = [`${record.cap}`];
-  if (record.limit != null) pieces.push(`limit=${JSON.stringify(record.limit)}`);
-  if (record.observed != null) pieces.push(`observed=${JSON.stringify(record.observed)}`);
-  if (record.omitted != null) pieces.push(`omitted=${JSON.stringify(record.omitted)}`);
-  return pieces.join(' ');
 };
 
 export const renderArchitectureReport = (report) => {
@@ -57,21 +49,6 @@ export const renderArchitectureReport = (report) => {
     }
   }
 
-  const truncation = Array.isArray(report?.truncation) ? report.truncation : [];
-  if (truncation.length) {
-    lines.push('Truncation:');
-    for (const record of truncation) {
-      lines.push(`- ${formatTruncation(record)}`);
-    }
-  }
-
-  const warnings = Array.isArray(report?.warnings) ? report.warnings : [];
-  if (warnings.length) {
-    lines.push('Warnings:');
-    for (const warning of warnings) {
-      const prefix = warning?.code ? `${warning.code}: ` : '';
-      lines.push(`- ${prefix}${warning?.message || ''}`.trim());
-    }
-  }
+  appendReportFooterSections(lines, report);
   return lines.join('\n');
 };

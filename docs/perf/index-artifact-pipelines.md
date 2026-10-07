@@ -104,3 +104,14 @@ Stage4 notes:
 - `chunks_fts` is contentless (`content=''`, `contentless_delete=1`) and is used for MATCH + bm25 ranking only.
 - Full builds run an explicit FTS optimize step before `PRAGMA optimize`/`ANALYZE`.
 - Most lookup-heavy tables rely on PRIMARY KEY/UNIQUE indexes (and avoid redundant secondary indexes).
+
+### Packed MinHash checksum reuse
+
+Packed MinHash publication passes its already-computed SHA-1 and exact byte
+length to the pieces manifest. The metadata sidecar supplies a SHA-1 of its
+committed encoded bytes from the streaming writer. Both pieces are registered
+only after the binary and metadata job succeeds. Their manifest checksums now
+use the supported `sha1:` form instead of the fallback reread's `xxh64:` form;
+packed payload and sidecar bytes are unchanged. A failed metadata rename does
+not publish the manifest. Other artifact families may still use the checksum
+fallback; no total artifact-I/O or timing gain is claimed.

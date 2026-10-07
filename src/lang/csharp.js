@@ -1,8 +1,18 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildDefaultDocMeta,
+  buildBraceDelimitedMethodRelations,
+  collectCLikeDataflowFacts,
+  collectDottedCallsAndUsages,
+  collectCLikeTypeBodyMemberDeclarations,
+  extractReturnTypeBeforeName,
+  extractDocComment,
+  sliceSignature,
+  stripCLikeComments
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
@@ -161,18 +171,10 @@ function extractCSharpParams(signature) {
 }
 
 function extractCSharpReturns(signature, name) {
-  if (!name) return null;
-  const idx = signature.indexOf('(');
-  if (idx === -1) return null;
-  const before = signature.slice(0, idx).replace(/\s+/g, ' ').trim();
-  const nameIdx = before.lastIndexOf(name);
-  if (nameIdx === -1) return null;
-  const raw = before.slice(0, nameIdx).trim();
-  if (!raw) return null;
-  const filtered = raw
-    .split(/\s+/)
-    .filter((tok) => tok && !CSHARP_MODIFIERS.has(tok) && !tok.startsWith('['));
-  return filtered.length ? filtered.join(' ') : null;
+  return extractReturnTypeBeforeName(signature, name, {
+    modifiers: CSHARP_MODIFIERS,
+    shouldSkipToken: (tok) => tok.startsWith('[')
+  });
 }
 
 function parseCSharpSignature(signature) {
@@ -186,45 +188,13 @@ function parseCSharpSignature(signature) {
   return { name, returns };
 }
 
-function stripCSharpComments(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, ' ');
-}
-
-function getLastDottedSegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && raw[end - 1] === '.') end -= 1;
-  if (!end) return '';
-  const idx = raw.lastIndexOf('.', end - 1);
-  return raw.slice(idx + 1, end);
-}
+const stripCSharpComments = stripCLikeComments;
 
 function collectCSharpCallsAndUsages(text) {
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripCSharpComments(text);
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastDottedSegment(raw);
-    if (!base || CSHARP_CALL_KEYWORDS.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (CSHARP_USAGE_SKIP.has(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords: CSHARP_CALL_KEYWORDS,
+    usageSkip: CSHARP_USAGE_SKIP
+  });
 }
 
 function collectCSharpAttributes(lines, startLineIdx) {
@@ -364,28 +334,29 @@ export function buildCSharpChunks(text, options = {}) {
     }
   }
 
-  for (const typeDecl of typeDecls) {
-    if (!typeDecl || typeDecl.start == null || typeDecl.end == null) continue;
-    const bounds = findCLikeBodyBounds(text, typeDecl.start);
-    if (bounds.bodyStart === -1 || bounds.bodyEnd === -1) continue;
-    const startLine = offsetToLine(lineIndex, bounds.bodyStart + 1);
-    const endLine = offsetToLine(lineIndex, bounds.bodyEnd);
-    for (let i = startLine - 1; i < Math.min(lines.length, endLine); i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('[')) continue;
-      if (!trimmed.includes('(')) continue;
-      const { signature, endLine: sigEndLine, hasBody } = readSignatureLines(lines, i);
-      if (!signature.includes('(')) continue;
+  decls.push(...collectCLikeTypeBodyMemberDeclarations({
+    text,
+    lines,
+    lineIndex,
+    typeDecls,
+    findBodyBounds: findCLikeBodyBounds,
+    offsetToLine,
+    readSignatureLines,
+    shouldSkipLine: (trimmed) => (
+      !trimmed
+      || trimmed.startsWith('//')
+      || trimmed.startsWith('/*')
+      || trimmed.startsWith('*')
+      || trimmed.startsWith('[')
+    ),
+    shouldReadLine: (trimmed) => trimmed.includes('('),
+    buildEntry: ({ typeDecl, lineIndex: i, signature, start, end, endLine }) => {
       const parsed = parseCSharpSignature(signature);
-      if (!parsed.name) continue;
-      const start = lineIndex[i] + line.indexOf(trimmed);
-      const boundsInner = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = boundsInner.bodyEnd > start ? boundsInner.bodyEnd : lineIndex[sigEndLine] + lines[sigEndLine].length;
+      if (!parsed.name) return null;
       const modifiers = extractCSharpModifiers(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine,
         signature,
         params: extractCSharpParams(signature),
         returns: parsed.returns,
@@ -396,9 +367,9 @@ export function buildCSharpChunks(text, options = {}) {
       };
       const kind = parsed.name === typeDecl.name ? 'ConstructorDeclaration' : 'MethodDeclaration';
       const name = `${typeDecl.name}.${parsed.name}`;
-      decls.push({ start, end, name, kind, meta });
+      return { start, end, name, kind, meta };
     }
-  }
+  }));
 
   if (!decls.length) return null;
   decls.sort((a, b) => a.start - b.start);
@@ -418,31 +389,11 @@ export function buildCSharpChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildCSharpRelations(text, csharpChunks) {
-  const imports = collectCSharpImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
-  if (Array.isArray(csharpChunks)) {
-    for (const chunk of csharpChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
-      const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
-      if (mods.includes('public')) exports.add(chunk.name);
-      if (!['MethodDeclaration', 'ConstructorDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectCSharpCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
-    }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  return buildBraceDelimitedMethodRelations(text, csharpChunks, {
+    collectImports: collectCSharpImports,
+    collectCallsAndUsages: collectCSharpCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds
+  });
 }
 
 /**
@@ -452,30 +403,18 @@ export function buildCSharpRelations(text, csharpChunks) {
  */
 export function extractCSharpDocMeta(chunk) {
   const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  const decorators = Array.isArray(meta.attributes) ? meta.attributes : [];
-  const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
   const extendsList = Array.isArray(meta.extends) ? meta.extends : [];
   const implementsList = Array.isArray(meta.implements) ? meta.implements : [];
-  const returns = meta.returns || null;
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns,
-    returnType: returns,
-    signature: meta.signature || null,
-    decorators,
-    modifiers,
-    visibility: meta.visibility || null,
-    extends: extendsList,
-    implements: implementsList,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk, {
+    decoratorsFrom: 'attributes',
+    includeModifiers: true,
+    includeReturnType: true,
+    includeVisibility: true,
+    extraFields: {
+      extends: extendsList,
+      implements: implementsList
+    }
+  });
 }
 
 /**
@@ -505,27 +444,12 @@ export function computeCSharpFlow(text, chunk, options = {}) {
   };
 
   if (dataflowEnabled) {
-    out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: CSHARP_USAGE_SKIP,
-      memberOperators: ['.']
-    });
-    out.returnsValue = hasReturnValue(cleaned);
-    const throws = new Set();
-    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_.]*)/g;
-    let match;
-    while ((match = throwRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) throws.add(name);
-    }
-    out.throws = Array.from(throws);
-    const awaits = new Set();
-    const awaitRe = /\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g;
-    while ((match = awaitRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) awaits.add(name);
-    }
-    out.awaits = Array.from(awaits);
-    out.yields = /\byield\b/.test(cleaned);
+    Object.assign(out, collectCLikeDataflowFacts(cleaned, {
+      usageSkip: CSHARP_USAGE_SKIP,
+      memberOperators: ['.'],
+      awaitPattern: /\bawait\b\s+([A-Za-z_][A-Za-z0-9_.]*)/g,
+      yieldPattern: /\byield\b/
+    }));
   }
 
   if (controlFlowEnabled) {

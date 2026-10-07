@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { compileSafeRegex, normalizeSafeRegexConfig } from '../shared/safe-regex.js';
-import { isAbsolutePathNative } from '../shared/files.js';
+import {
+  attachSafeRegexPrefilter,
+  compileSafeRegex,
+  normalizeSafeRegexConfig
+} from '../shared/safe-regex.js';
+import { isAbsolutePathNative } from '../shared/file-paths.js';
 import { sha1 } from '../shared/hash.js';
 import { toArray } from '../shared/iterables.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
@@ -203,6 +207,13 @@ const DEFAULT_RULES = {
   ]
 };
 
+export const RISK_RULE_ROLE_MODEL = Object.freeze({
+  version: '1.0.0',
+  directRoles: Object.freeze(['source', 'sink', 'sanitizer']),
+  propagatorLikeRoles: Object.freeze(['propagator', 'wrapper', 'builder', 'callback', 'asyncHandoff']),
+  propagatorLikeEncoding: 'watch-semantics'
+});
+
 const normalizeRule = (rule, fallbackType) => {
   if (!rule || typeof rule !== 'object') return null;
   const name = typeof rule.name === 'string' ? rule.name.trim() : '';
@@ -257,16 +268,6 @@ const buildDiagnostic = ({ error, rule, pattern, flags, field }) => ({
   flags: flags || ''
 });
 
-const extractPrefilter = (pattern) => {
-  const source = typeof pattern === 'string' ? pattern : pattern?.source;
-  if (!source) return null;
-  const scrubbed = source.replace(/\\./g, ' ');
-  const tokens = scrubbed.match(/[A-Za-z0-9_$]{3,}/g);
-  if (!tokens || !tokens.length) return null;
-  tokens.sort((a, b) => b.length - a.length);
-  return tokens[0] || null;
-};
-
 const compilePattern = (pattern, flags, regexConfig, diagnostics, rule, field) => {
   const compiledResult = compileSafeRegex(pattern, flags, regexConfig);
   const compiled = compiledResult.regex;
@@ -280,25 +281,20 @@ const compilePattern = (pattern, flags, regexConfig, diagnostics, rule, field) =
     }
     return null;
   }
-  const prefilter = extractPrefilter(pattern);
-  if (prefilter) {
-    compiled.prefilter = prefilter;
-    if (compiled.flags && compiled.flags.includes('i')) {
-      compiled.prefilterLower = prefilter.toLowerCase();
-    }
-  }
-  return compiled;
+  return attachSafeRegexPrefilter(compiled, pattern);
 };
 
-const compileRule = (rule, regexConfig, diagnostics) => ({
-  ...rule,
-  patterns: rule.patterns
+const compileRule = (rule, regexConfig, diagnostics) => {
+  const patterns = rule.patterns
     .map((pattern) => compilePattern(pattern, '', regexConfig, diagnostics, rule, 'patterns'))
-    .filter(Boolean),
-  requires: rule.requires
+    .filter(Boolean);
+  const requires = rule.requires
     ? compilePattern(rule.requires, '', regexConfig, diagnostics, rule, 'requires')
-    : null
-});
+    : null;
+  // A failed condition cannot become an unconditional source, sink, or sanitizer.
+  if (rule.requires && !requires) return null;
+  return { ...rule, patterns, requires };
+};
 
 const mergeRules = (baseList, overrideList) => {
   const byId = new Map(baseList.map((entry) => [entry.id, entry]));
@@ -350,9 +346,9 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
 
   const bundle = {
     version: overrideBundle?.version || base.version || '1.0.0',
-    sources: sources.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
-    sinks: sinks.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
-    sanitizers: sanitizers.map((rule) => compileRule(rule, regexConfigBase, diagnostics)),
+    sources: sources.map((rule) => compileRule(rule, regexConfigBase, diagnostics)).filter(Boolean),
+    sinks: sinks.map((rule) => compileRule(rule, regexConfigBase, diagnostics)).filter(Boolean),
+    sanitizers: sanitizers.map((rule) => compileRule(rule, regexConfigBase, diagnostics)).filter(Boolean),
     regexConfig: safeRegexConfig,
     diagnostics: {
       warnings: diagnostics.warnings

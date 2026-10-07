@@ -4,6 +4,26 @@ const toSafeInt = (value, fallback = 0) => {
   return Math.floor(parsed);
 };
 
+const HEAVY_BENCH_LANGUAGE_IDS = new Set([
+  'c',
+  'clike',
+  'cmake',
+  'cpp',
+  'csharp',
+  'go',
+  'java',
+  'kotlin',
+  'protobuf',
+  'proto',
+  'python',
+  'ruby',
+  'rust',
+  'scala',
+  'sql',
+  'starlark',
+  'swift'
+]);
+
 const mapSize = (value) => {
   if (value instanceof Map || value instanceof Set) return value.size;
   if (Array.isArray(value)) return value.length;
@@ -100,6 +120,78 @@ export const resolveAdaptiveBenchTimeoutMs = ({
   const cap = toSafeInt(maxTimeoutMs, 2 * 60 * 60 * 1000);
   if (cap > 0) effective = Math.min(effective, cap);
   return effective;
+};
+
+export const resolveBenchRuntimeAdaptationPlan = ({
+  repoTimeoutMs,
+  language = null,
+  lineStats = null,
+  buildIndex = false,
+  buildSqlite = false,
+  queryCount = 0,
+  backendCount = 0,
+  queryConcurrency = 4,
+  realEmbeddings = true,
+  requestedThreads = null
+} = {}) => {
+  const requestedThreadsCount = toSafeInt(requestedThreads);
+  const normalizedLanguage = String(language || '').trim().toLowerCase();
+  const lineSummary = summarizeBenchLineStats(lineStats);
+  let repoTier = 'small';
+  if (lineSummary.weightedFiles >= 60_000 || lineSummary.weightedLines >= 3_000_000) {
+    repoTier = 'xlarge';
+  } else if (lineSummary.weightedFiles >= 12_000 || lineSummary.weightedLines >= 750_000) {
+    repoTier = 'large';
+  } else if (lineSummary.weightedFiles >= 2_500 || lineSummary.weightedLines >= 150_000) {
+    repoTier = 'medium';
+  } else if (lineSummary.weightedFiles === 0 && lineSummary.weightedLines === 0) {
+    repoTier = 'unknown';
+  }
+  const heavyLanguage = HEAVY_BENCH_LANGUAGE_IDS.has(normalizedLanguage);
+  const adaptationReasons = [];
+  if (repoTier === 'large' || repoTier === 'xlarge') adaptationReasons.push(`repo-tier:${repoTier}`);
+  if (heavyLanguage) adaptationReasons.push(`heavy-language:${normalizedLanguage}`);
+  if (buildIndex) adaptationReasons.push('build-index');
+  if (buildSqlite) adaptationReasons.push('build-sqlite');
+  const adaptiveRepoTimeoutMs = resolveAdaptiveBenchTimeoutMs({
+    baseTimeoutMs: repoTimeoutMs,
+    lineStats,
+    buildIndex,
+    buildSqlite,
+    queryCount,
+    backendCount,
+    queryConcurrency,
+    realEmbeddings
+  });
+  let recommendedThreads = null;
+  if (!(requestedThreadsCount > 0) && buildIndex) {
+    if (repoTier === 'xlarge') {
+      recommendedThreads = heavyLanguage ? 2 : 3;
+    } else if (repoTier === 'large' && heavyLanguage) {
+      recommendedThreads = 3;
+    } else if (repoTier === 'large' && buildSqlite) {
+      recommendedThreads = 4;
+    }
+  }
+  if (recommendedThreads != null) {
+    adaptationReasons.push(`threads:${recommendedThreads}`);
+  }
+  return {
+    repoTimeoutMs: adaptiveRepoTimeoutMs,
+    repoShape: {
+      tier: repoTier,
+      heavyLanguage,
+      language: normalizedLanguage || null,
+      weightedLines: lineSummary.weightedLines,
+      weightedFiles: lineSummary.weightedFiles,
+      buildIndex: buildIndex === true,
+      buildSqlite: buildSqlite === true,
+      realEmbeddings: realEmbeddings !== false
+    },
+    recommendedThreads,
+    adapted: adaptiveRepoTimeoutMs !== toSafeInt(repoTimeoutMs),
+    adaptationReasons
+  };
 };
 
 export const resolveBenchProcessTimeoutProfile = ({

@@ -55,6 +55,8 @@ export const shouldReuseExistingBundle = (existingBundle, nextBundle) => {
   }
   if ((existingBundle.encoding || null) !== (nextBundle.encoding || null)) return false;
   if ((existingBundle.encodingFallback || null) !== (nextBundle.encodingFallback || null)) return false;
+  if ((existingBundle.encodingFallbackClass || null) !== (nextBundle.encodingFallbackClass || null)) return false;
+  if ((existingBundle.encodingFallbackRisk || null) !== (nextBundle.encodingFallbackRisk || null)) return false;
   if ((existingBundle.encodingConfidence || null) !== (nextBundle.encodingConfidence || null)) return false;
   return true;
 };

@@ -1,12 +1,19 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { composeAbortSignals } from '../../../src/shared/abort.js';
 import { killProcessTree as killPidTree } from '../../../src/shared/kill-tree.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
 import { createProgressLineDecoder } from '../../../src/shared/cli/progress-stream.js';
 import { parseProgressEventLine } from '../../../src/shared/cli/progress-events.js';
+import {
+  buildProgressTimeoutBudget,
+  evaluateProgressTimeout,
+  normalizeProgressTimeoutOwnerPolicy,
+  PROGRESS_TIMEOUT_CLASSES,
+  PROGRESS_TIMEOUT_OUTCOMES
+} from '../../../src/shared/indexing/progress-timeout-policy.js';
 import { exitLikeCommandResult } from '../../shared/cli-utils.js';
 import {
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
@@ -14,7 +21,11 @@ import {
   formatBenchProgressConfidence,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
-  normalizeBenchDiagnosticText
+  createBenchDiagnosticClassifier,
+  parseBenchReuseObservation,
+  normalizeBenchDiagnosticSeverity,
+  normalizeBenchDiagnosticText,
+  resolveBenchDiagnosticSeverity
 } from './logging.js';
 
 const SCHEDULER_EVENT_WINDOW = 40;
@@ -23,6 +34,30 @@ const DIAGNOSTIC_STREAM_SUFFIX = '.diagnostics.jsonl';
 const PROGRESS_CONFIDENCE_STREAM_SUFFIX = '.progress-confidence.jsonl';
 const DIAGNOSTIC_REPEAT_COUNT = 5;
 const DIAGNOSTIC_REPEAT_INTERVAL_MS = 30 * 1000;
+const BENCH_INTERACTIVE_DIAGNOSTIC_SILENT_TYPES = new Set([
+  'provider_preflight_start',
+  'provider_preflight_finish',
+  'workspace_partition_decision',
+  'fallback_used',
+  'runtime_timeout_budget_extended',
+  'runtime_timeout'
+]);
+const BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_COUNT_BY_TYPE = Object.freeze({
+  provider_preflight_blocked: 2,
+  provider_circuit_breaker: 2,
+  provider_degraded_mode_entered: 2,
+  provider_request_timeout: 4,
+  provider_request_failed: 4,
+  queue_delay_hotspot: 6,
+  artifact_tail_stall: 3
+});
+const BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_INTERVAL_BY_TYPE = Object.freeze({
+  provider_request_timeout: 45 * 1000,
+  provider_request_failed: 45 * 1000,
+  queue_delay_hotspot: 90 * 1000,
+  artifact_tail_stall: 90 * 1000
+});
+const BENCH_REPO_DIAGNOSTIC_TOP_SIGNAL_LIMIT = 6;
 const PROGRESS_CONFIDENCE_EMIT_INTERVAL_MS = 15 * 1000;
 const PROGRESS_CONFIDENCE_EMIT_DELTA = 0.07;
 const QUEUE_DELAY_HOTSPOT_MS = 250;
@@ -257,6 +292,115 @@ const formatCompactDuration = (value) => {
   return `${(value / 1000).toFixed(1)}s`;
 };
 
+const BENCH_RUNTIME_PHASES = new Set([
+  'clone',
+  'provider_bootstrap',
+  'execute',
+  'artifact_write',
+  'sqlite',
+  'validation'
+]);
+
+const normalizeBenchRuntimePhase = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return BENCH_RUNTIME_PHASES.has(text) ? text : null;
+};
+
+const resolveBenchRuntimePhaseFromText = (...values) => {
+  const text = values
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean)
+    .join(' ');
+  if (!text) return null;
+  if (/\b(?:clone|checkout|mirror(?:-|\s)?(?:clone|refresh)|fetch)\b/.test(text)) return 'clone';
+  if (/\b(?:sqlite|mode-build|db-build|row-ledger)\b/.test(text)) return 'sqlite';
+  if (/\b(?:validation|validator|reconcile|integrity-check)\b/.test(text)) return 'validation';
+  if (/\b(?:artifact|field_postings|field_tokens|chunk_meta|repo_map|publication|closeout|binary-columnar|write:|\bwrite\b|flush)\b/.test(text)) {
+    return 'artifact_write';
+  }
+  if (
+    /\b(?:tooling|preflight|workspace-model|workspace|documentsymbol|document\/symbol|semantictokens|hover|inlay|clangd|pyright|sourcekit|gopls|rust-analyzer|lua-language-server)\b/.test(text)
+  ) {
+    return 'provider_bootstrap';
+  }
+  if (/\b(?:overall|parse|index|process|chunk|record|analysis|scheduler|tree-sitter)\b/.test(text)) return 'execute';
+  return null;
+};
+
+const resolveBenchRuntimePhaseForProgressEvent = (event = null) => {
+  if (!event || typeof event !== 'object') return null;
+  return normalizeBenchRuntimePhase(event.phase)
+    || normalizeBenchRuntimePhase(event?.meta?.phase)
+    || resolveBenchRuntimePhaseFromText(
+      event.stage,
+      event.taskId,
+      event.name,
+      event.message
+    );
+};
+
+const resolveBenchRuntimePhaseForDiagnostic = (diagnostic = null, event = null) => {
+  if (!diagnostic || typeof diagnostic !== 'object') return null;
+  return normalizeBenchRuntimePhase(diagnostic.phase)
+    || resolveBenchRuntimePhaseFromText(
+      diagnostic.stage,
+      diagnostic.taskId,
+      diagnostic.eventType,
+      diagnostic.providerId,
+      diagnostic.requestMethod,
+      diagnostic.message,
+      event?.stage,
+      event?.taskId,
+      event?.message
+    );
+};
+
+const resolveBenchPhaseExpectations = ({
+  phase = null,
+  ownerPolicy = null,
+  hasOwnedProgress = false,
+  lastInFlight = null,
+  lastQueueAgeMs = null
+} = {}) => {
+  if (ownerPolicy && typeof ownerPolicy === 'object') {
+    return {
+      phase: normalizeBenchRuntimePhase(ownerPolicy.phase) || 'execute',
+      queueExpected: ownerPolicy.queueExpected === true,
+      byteProgressExpected: ownerPolicy.byteProgressExpected === true,
+      optionalPhase: ownerPolicy.optionalPhase === true
+    };
+  }
+  if (!hasOwnedProgress) {
+    return {
+      phase: 'execute',
+      queueExpected: false,
+      byteProgressExpected: false,
+      optionalPhase: false
+    };
+  }
+  const normalizedPhase = normalizeBenchRuntimePhase(phase) || 'execute';
+  switch (normalizedPhase) {
+    case 'clone':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: true, optionalPhase: false };
+    case 'provider_bootstrap':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: false, optionalPhase: true };
+    case 'artifact_write':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: true, optionalPhase: true };
+    case 'sqlite':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: true, optionalPhase: false };
+    case 'validation':
+      return { phase: normalizedPhase, queueExpected: false, byteProgressExpected: false, optionalPhase: false };
+    case 'execute':
+    default:
+      return {
+        phase: 'execute',
+        queueExpected: Number.isFinite(lastInFlight) || Number.isFinite(lastQueueAgeMs),
+        byteProgressExpected: true,
+        optionalPhase: false
+      };
+  }
+};
+
 const resolveQueueAgeMs = ({ message, event }) => {
   const eventCandidates = [
     event?.queueAgeMs,
@@ -357,7 +501,7 @@ const isQueueDelayHotspot = (message) => {
   return normalized.includes('queue delay');
 };
 
-const resolveDiagnosticType = (message, event = null) => {
+const resolveLegacyDiagnosticType = (message, event = null) => {
   const text = String(message || '');
   if (!text) return null;
   if (matchesAnyPattern(text, PARSER_CRASH_PATTERNS)) return 'parser_crash';
@@ -368,10 +512,315 @@ const resolveDiagnosticType = (message, event = null) => {
     event?.meta?.fallback === true
     || normalizeBenchDiagnosticText(event?.meta?.decision || '').includes('fallback')
   );
+  if (parseBenchReuseObservation(text)) return null;
   if ((/\bfallback\b/i.test(text) || hasFallbackMeta) && !FALLBACK_NEGATIVE_PATTERN.test(text)) {
     return 'fallback_used';
   }
   return null;
+};
+
+const resolveLegacyDiagnosticFields = (eventType, message) => {
+  if (String(eventType || '').trim() !== 'artifact_tail_stall') {
+    return {};
+  }
+  const text = String(message || '');
+  const familyMatch = text.match(/\bfamily=(?<family>[a-z0-9_-]+)\b/i);
+  const phaseMatch = text.match(/\bphase=(?<phase>[^,\s)]+)\b/i);
+  return {
+    failureClass: familyMatch?.groups?.family
+      ? `family:${String(familyMatch.groups.family).trim().toLowerCase()}`
+      : null,
+    phase: phaseMatch?.groups?.phase
+      ? String(phaseMatch.groups.phase).trim().toLowerCase()
+      : null
+  };
+};
+
+const resolveTimeoutPhase = ({
+  timeoutDecision = null,
+  ownerPolicy = null,
+  ownedPhase = null,
+  diagnostics = null,
+  lastActivitySource = '',
+  lastActivityText = ''
+} = {}) => {
+  const explicitPhase = normalizeBenchRuntimePhase(ownerPolicy?.phase);
+  if (explicitPhase) return explicitPhase;
+  const progressPhase = normalizeBenchRuntimePhase(ownedPhase);
+  if (progressPhase) return progressPhase;
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const timeoutClass = String(timeoutDecision?.timeoutClass || '').trim().toLowerCase();
+  const text = `${String(lastActivitySource || '')} ${String(lastActivityText || '')}`.toLowerCase();
+  if (Number(countsByType.artifact_tail_stall || 0) > 0 || text.includes('artifact')) {
+    return 'artifact_write';
+  }
+  if (
+    Number(countsByType.provider_preflight_blocked || 0) > 0
+    || Number(countsByType.provider_request_timeout || 0) > 0
+    || Number(countsByType.provider_request_failed || 0) > 0
+    || Number(countsByType.provider_circuit_breaker || 0) > 0
+    || Number(countsByType.provider_degraded_mode_entered || 0) > 0
+    || text.includes('tooling')
+    || text.includes('preflight')
+    || text.includes('workspace')
+  ) {
+    return 'provider_bootstrap';
+  }
+  if (text.includes('sqlite')) return 'sqlite';
+  if (text.includes('validation')) return 'validation';
+  if (text.includes('clone') || text.includes('checkout')) return 'clone';
+  const budgetPhase = normalizeBenchRuntimePhase(timeoutDecision?.budget?.phase);
+  if (budgetPhase && budgetPhase !== 'execute') return budgetPhase;
+  if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.noQueueMovement) return 'execute';
+  if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.noByteProgress) return 'execute';
+  if (timeoutClass === PROGRESS_TIMEOUT_CLASSES.globalWallClockCap) return 'execute';
+  if (budgetPhase) return budgetPhase;
+  return 'unknown';
+};
+
+const resolveTimeoutResourceClass = ({ phase = 'unknown' } = {}) => {
+  switch (String(phase || '').trim().toLowerCase()) {
+    case 'artifact_write':
+    case 'sqlite':
+      return 'write-bound';
+    case 'provider_bootstrap':
+      return 'provider-bound';
+    case 'clone':
+      return 'network-bound';
+    case 'validation':
+    case 'execute':
+    default:
+      return 'cpu-bound';
+  }
+};
+
+const resolveTimeoutFailureMode = ({
+  timeoutDecision = null,
+  hasOwnedProgress = false,
+  ownedPhase = null,
+  lastOwnedProgressAtMs = null,
+  diagnostics = null,
+  lastActivityAtMs = null,
+  lastActivitySource = '',
+  lastHeartbeatAtMs = null,
+  lastQueueMovementAtMs = null,
+  lastByteProgressAtMs = null,
+  lastProgressCurrent = 0
+} = {}) => {
+  const effectiveBudgetMs = Number(timeoutDecision?.effectiveBudgetMs || timeoutDecision?.budget?.budgetMs || 0);
+  const recentWindowMs = Number.isFinite(effectiveBudgetMs) && effectiveBudgetMs > 0
+    ? Math.max(1000, Math.floor(effectiveBudgetMs * 0.5))
+    : 15_000;
+  const now = Date.now();
+  const recentOwnedProgress = hasOwnedProgress
+    && Number.isFinite(lastOwnedProgressAtMs)
+    && (now - lastOwnedProgressAtMs) <= recentWindowMs;
+  const recentActivity = Number.isFinite(lastActivityAtMs)
+    && String(lastActivitySource || '').trim().toLowerCase() !== 'spawn'
+    && String(lastActivitySource || '').trim().toLowerCase() !== 'process-cpu'
+    && String(lastActivitySource || '').trim().toLowerCase() !== 'process-memory'
+    && (now - lastActivityAtMs) <= recentWindowMs;
+  const recentHeartbeat = Number.isFinite(lastHeartbeatAtMs) && (now - lastHeartbeatAtMs) <= recentWindowMs;
+  const recentQueue = Number.isFinite(lastQueueMovementAtMs) && (now - lastQueueMovementAtMs) <= recentWindowMs;
+  const recentBytes = Number.isFinite(lastByteProgressAtMs) && (now - lastByteProgressAtMs) <= recentWindowMs;
+  const completedUnits = Number(lastProgressCurrent);
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const observedDiagnosticProgress = [
+    'provider_preflight_blocked',
+    'provider_request_timeout',
+    'provider_request_failed',
+    'provider_circuit_breaker',
+    'provider_degraded_mode_entered',
+    'artifact_tail_stall',
+    'queue_delay_hotspot',
+    'fallback_used'
+  ].some((eventType) => Number(countsByType[eventType] || 0) > 0);
+  const observedPhaseOwnedProgress = recentOwnedProgress && Boolean(
+    normalizeBenchRuntimePhase(timeoutDecision?.budget?.phase)
+    || normalizeBenchRuntimePhase(ownedPhase)
+  );
+  const observedProgress = observedPhaseOwnedProgress
+    || recentHeartbeat
+    || recentQueue
+    || recentBytes
+    || (!observedPhaseOwnedProgress && recentActivity)
+    || (!observedPhaseOwnedProgress && observedDiagnosticProgress)
+    || (Number.isFinite(completedUnits) && completedUnits > 0);
+  return observedProgress ? 'budget_exhausted_with_progress' : 'phase_stalled';
+};
+
+export const resolveIdleBudgetExtension = ({
+  decision = null,
+  currentIdleBudgetMs = 0,
+  hardTimeoutCapMs = null,
+  processElapsedMs = 0
+} = {}) => {
+  const currentBudgetMs = Number.isFinite(Number(currentIdleBudgetMs))
+    ? Math.max(0, Math.floor(Number(currentIdleBudgetMs)))
+    : 0;
+  const requestedBudgetMs = Number.isFinite(Number(decision?.effectiveBudgetMs))
+    ? Math.max(0, Math.floor(Number(decision.effectiveBudgetMs)))
+    : currentBudgetMs;
+  const remainingHardCapMs = Number.isFinite(Number(hardTimeoutCapMs))
+    ? Math.max(0, Math.floor(Number(hardTimeoutCapMs)) - Math.max(0, Math.floor(Number(processElapsedMs) || 0)))
+    : null;
+  const nextIdleBudgetMs = remainingHardCapMs != null
+    ? Math.min(requestedBudgetMs, remainingHardCapMs)
+    : requestedBudgetMs;
+  return {
+    currentBudgetMs,
+    requestedBudgetMs,
+    remainingHardCapMs,
+    nextIdleBudgetMs,
+    extended: nextIdleBudgetMs > currentBudgetMs
+  };
+};
+
+const resolveTimeoutQualityDelta = ({
+  phase = null,
+  ownerPolicy = null,
+  diagnostics = null
+} = {}) => {
+  const normalizedOwnerPolicy = normalizeProgressTimeoutOwnerPolicy(ownerPolicy);
+  if (
+    normalizedOwnerPolicy
+    && (
+      normalizedOwnerPolicy.skippedWork.length > 0
+      || normalizedOwnerPolicy.partialSuccess === true
+    )
+  ) {
+    return {
+      skippedWork: normalizedOwnerPolicy.skippedWork.slice(),
+      partialSuccess: normalizedOwnerPolicy.partialSuccess === true
+    };
+  }
+  const countsByType = diagnostics?.countsByType && typeof diagnostics.countsByType === 'object'
+    ? diagnostics.countsByType
+    : {};
+  const skipped = [];
+  const normalizedPhase = normalizeBenchRuntimePhase(phase);
+  if (normalizedPhase === 'provider_bootstrap') skipped.push('provider-ladder');
+  if (normalizedPhase === 'artifact_write') skipped.push('artifact-ladder');
+  if (Number(countsByType.provider_preflight_blocked || 0) > 0) skipped.push('workspace-preflight');
+  if (Number(countsByType.provider_request_timeout || 0) > 0) skipped.push('provider-requests');
+  if (Number(countsByType.provider_degraded_mode_entered || 0) > 0) skipped.push('provider-enrichment');
+  if (Number(countsByType.artifact_tail_stall || 0) > 0) skipped.push('artifact-closeout');
+  return skipped.length
+    ? {
+      skippedWork: Array.from(new Set(skipped)).sort((left, right) => left.localeCompare(right)),
+      partialSuccess: false
+    }
+    : {
+      skippedWork: [],
+      partialSuccess: false
+    };
+};
+
+const buildDiagnosticSummaryKey = ({
+  eventType,
+  providerId,
+  requestMethod,
+  failureClass,
+  preflightClass,
+  workspacePartition,
+  reuseSurface,
+  reuseSource,
+  qualityImpact
+}) => JSON.stringify([
+  toText(eventType) || null,
+  toText(providerId) || null,
+  toText(requestMethod) || null,
+  toText(failureClass) || null,
+  toText(preflightClass) || null,
+  toText(workspacePartition) || null,
+  toText(reuseSurface) || null,
+  toText(reuseSource) || null,
+  toText(qualityImpact) || null
+]);
+
+const formatDiagnosticSummaryLabel = (entry) => {
+  if (!entry || typeof entry !== 'object') return '';
+  const parts = [entry.eventType];
+  if (entry.providerId) parts.push(entry.providerId);
+  if (entry.requestMethod) parts.push(entry.requestMethod);
+  else if (entry.preflightClass) parts.push(entry.preflightClass);
+  if (entry.failureClass && entry.failureClass !== entry.eventType) parts.push(entry.failureClass);
+  if (entry.reuseSurface) parts.push(entry.reuseSurface);
+  if (entry.reuseSource) parts.push(`source=${entry.reuseSource}`);
+  if (entry.qualityImpact && entry.qualityImpact !== 'none') parts.push(`quality=${entry.qualityImpact}`);
+  if (entry.workspacePartition) parts.push(`partition=${entry.workspacePartition}`);
+  return parts.filter(Boolean).join(' ');
+};
+
+const WINDOWS_CRASH_EXIT_LABELS = Object.freeze({
+  3221225477: 'windows_access_violation',
+  3221225786: 'windows_terminated',
+  3221226505: 'windows_fast_fail'
+});
+
+const isCrashExitCode = (value) => {
+  const code = Number(value);
+  if (!Number.isFinite(code)) return false;
+  if (code < 0) return true;
+  return code >= 0xC0000000;
+};
+
+const resolveRecentCleanupLabel = (lines) => {
+  const entries = Array.isArray(lines) ? lines : [];
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const normalized = String(entries[index] || '').trim().replace(/^-+\s*/, '');
+    const match = normalized.match(/^\[cleanup\]\s+(\S+)\s+start$/i);
+    if (match?.[1]) return String(match[1]).trim();
+  }
+  return null;
+};
+
+export const buildBenchCrashAttribution = ({
+  code = null,
+  signal = null,
+  activeLabel = '',
+  activeChildPid = null,
+  activePhase = null,
+  timeoutDecision = null,
+  logHistory = []
+} = {}) => {
+  const exitCode = Number.isFinite(Number(code)) ? Number(code) : null;
+  const normalizedSignal = typeof signal === 'string' && signal.trim()
+    ? signal.trim()
+    : null;
+  if (!normalizedSignal && !isCrashExitCode(exitCode)) return null;
+  const recentLogTail = Array.isArray(logHistory)
+    ? logHistory
+      .map((line) => String(line || '').trim())
+      .filter(Boolean)
+      .slice(-12)
+    : [];
+  const crashClass = normalizedSignal
+    ? 'process_signal'
+    : (WINDOWS_CRASH_EXIT_LABELS[ exitCode ] || 'process_exit_crash');
+  const recentCleanupLabel = resolveRecentCleanupLabel(recentLogTail);
+  return {
+    schemaVersion: 1,
+    crashClass,
+    exitCode,
+    signal: normalizedSignal,
+    ntStatusHex: normalizedSignal || !Number.isFinite(exitCode) || exitCode < 0xC0000000
+      ? null
+      : `0x${exitCode.toString(16).toUpperCase()}`,
+    activeLabel: String(activeLabel || '').trim() || null,
+    activeChildPid: Number.isFinite(Number(activeChildPid)) ? Number(activeChildPid) : null,
+    activePhase: String(
+      activePhase
+      || timeoutDecision?.phase
+      || ''
+    ).trim() || null,
+    recentCleanupLabel,
+    recentLogTail
+  };
 };
 
 export const createProcessRunner = ({
@@ -618,6 +1067,17 @@ export const createProcessRunner = ({
     const resolvedIdleTimeoutMs = Number.isFinite(Number(idleTimeoutMs))
       ? Math.max(0, Math.floor(Number(idleTimeoutMs)))
       : 0;
+    const hardTimeoutCapMs = Number.isFinite(Number(spawnOptions.timeoutMs)) && Number(spawnOptions.timeoutMs) > 0
+      ? Math.floor(Number(spawnOptions.timeoutMs))
+      : null;
+    const maxIdleTimeoutBudgetMs = resolvedIdleTimeoutMs > 0
+      ? Math.max(
+        resolvedIdleTimeoutMs,
+        hardTimeoutCapMs != null
+          ? Math.min(hardTimeoutCapMs, Math.max(resolvedIdleTimeoutMs, Math.round(resolvedIdleTimeoutMs * 4)))
+          : Math.max(resolvedIdleTimeoutMs, Math.round(resolvedIdleTimeoutMs * 4))
+      )
+      : 0;
     const idleWatchdogPollMs = resolvedIdleTimeoutMs > 0
       ? Math.max(250, Math.min(DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS, Math.floor(resolvedIdleTimeoutMs / 4) || 250))
       : 0;
@@ -625,17 +1085,182 @@ export const createProcessRunner = ({
     const spawnSignal = idleAbortController
       ? composeAbortSignals(spawnOptions.signal, idleAbortController.signal)
       : spawnOptions.signal;
+    const processStartedAtMs = Date.now();
     let lastActivityAtMs = Date.now();
     let lastActivitySource = 'spawn';
     let lastActivityText = label;
+    let lastHeartbeatAtMs = null;
+    let lastQueueMovementAtMs = null;
+    let lastByteProgressAtMs = null;
+    let lastQueueAgeMs = null;
+    let lastInFlight = null;
+    let lastProgressCurrent = 0;
+    let lastProgressTotal = 0;
+    let lastOwnedProgressAtMs = processStartedAtMs;
+    let lastOwnedProgressSource = 'spawn';
+    let lastOwnedProgressText = label;
+    let lastOwnedPhase = 'execute';
+    let hasOwnedProgress = false;
+    let lastProcessProbeActivityAtMs = processStartedAtMs;
+    const phaseProgressState = new Map();
     let idleWatchdog = null;
     let idleTimeoutTriggered = false;
     let idleWatchdogProbeInFlight = false;
+    let timeoutDecision = null;
+    let activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
+    const timeoutOwnerPoliciesByPhase = new Map();
+    let lastTimeoutOwnerPolicy = null;
 
     const markActivity = ({ source = 'output', text = '' } = {}) => {
       lastActivityAtMs = Date.now();
       lastActivitySource = String(source || 'output');
       lastActivityText = truncateForDisplay(text || label, 140) || label;
+      if (!hasOwnedProgress) {
+        activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
+      }
+    };
+
+    const noteOwnedPhaseProgress = ({
+      phase = null,
+      source = 'output',
+      text = '',
+      kind = 'activity'
+    } = {}) => {
+      const normalizedPhase = normalizeBenchRuntimePhase(phase);
+      if (!normalizedPhase) return;
+      const now = Date.now();
+      const displayText = truncateForDisplay(text || label, 140) || label;
+      lastOwnedProgressAtMs = now;
+      lastOwnedProgressSource = String(source || 'output');
+      lastOwnedProgressText = displayText;
+      lastOwnedPhase = normalizedPhase;
+      hasOwnedProgress = true;
+      activeIdleTimeoutBudgetMs = resolvedIdleTimeoutMs;
+      const prior = phaseProgressState.get(normalizedPhase) || { count: 0 };
+      phaseProgressState.set(normalizedPhase, {
+        phase: normalizedPhase,
+        count: prior.count + 1,
+        lastAtMs: now,
+        lastSource: lastOwnedProgressSource,
+        lastText: displayText,
+        lastKind: String(kind || 'activity')
+      });
+    };
+
+    const noteTimeoutOwnerPolicy = (policy = null, fallbackPhase = null) => {
+      const normalizedFallbackPhase = normalizeBenchRuntimePhase(fallbackPhase);
+      const normalized = normalizeProgressTimeoutOwnerPolicy(
+        policy && typeof policy === 'object' && !Array.isArray(policy)
+          ? {
+            ...policy,
+            ...(normalizedFallbackPhase && !policy.phase ? { phase: normalizedFallbackPhase } : {})
+          }
+          : null
+      );
+      if (!normalized) return null;
+      const observedAtMs = Date.now();
+      const payload = {
+        ...normalized,
+        observedAtMs
+      };
+      timeoutOwnerPoliciesByPhase.set(normalized.phase, payload);
+      lastTimeoutOwnerPolicy = payload;
+      return payload;
+    };
+
+    const resolveActiveOwnedPhase = () => {
+      const normalizedLastPhase = normalizeBenchRuntimePhase(lastOwnedPhase);
+      if (normalizedLastPhase && normalizedLastPhase !== 'execute') return normalizedLastPhase;
+      let latest = null;
+      let latestSpecific = null;
+      for (const entry of phaseProgressState.values()) {
+        if (!entry || !Number.isFinite(entry.lastAtMs)) continue;
+        if (!latest || entry.lastAtMs > latest.lastAtMs) latest = entry;
+        if (
+          normalizeBenchRuntimePhase(entry.phase)
+          && entry.phase !== 'execute'
+          && (!latestSpecific || entry.lastAtMs > latestSpecific.lastAtMs)
+        ) {
+          latestSpecific = entry;
+        }
+      }
+      return normalizeBenchRuntimePhase(latestSpecific?.phase)
+        || normalizeBenchRuntimePhase(latest?.phase)
+        || normalizedLastPhase
+        || 'execute';
+    };
+
+    const resolveActiveTimeoutOwnerPolicy = (phase = null) => {
+      const normalizedPhase = normalizeBenchRuntimePhase(phase) || normalizeBenchRuntimePhase(resolveActiveOwnedPhase());
+      if (normalizedPhase && timeoutOwnerPoliciesByPhase.has(normalizedPhase)) {
+        return timeoutOwnerPoliciesByPhase.get(normalizedPhase);
+      }
+      if (
+        lastTimeoutOwnerPolicy
+        && normalizeBenchRuntimePhase(lastTimeoutOwnerPolicy.phase) === normalizedPhase
+      ) {
+        return lastTimeoutOwnerPolicy;
+      }
+      return null;
+    };
+
+    const markByteProgress = ({ source = 'stream-bytes', text = '' } = {}) => {
+      lastByteProgressAtMs = Date.now();
+      markActivity({ source, text });
+      if (hasOwnedProgress) {
+        noteOwnedPhaseProgress({
+          phase: resolveActiveOwnedPhase(),
+          source,
+          text,
+          kind: 'byte-progress'
+        });
+      }
+    };
+
+    const markQueueMovement = ({ source = 'queue-movement', text = '' } = {}) => {
+      lastQueueMovementAtMs = Date.now();
+      markActivity({ source, text });
+      if (hasOwnedProgress) {
+        noteOwnedPhaseProgress({
+          phase: resolveActiveOwnedPhase(),
+          source,
+          text,
+          kind: 'queue-progress'
+        });
+      }
+    };
+
+    const buildIdleTimeoutDecision = () => {
+      const activePhase = resolveActiveOwnedPhase();
+      const ownerPolicy = resolveActiveTimeoutOwnerPolicy(activePhase);
+      const phaseExpectations = resolveBenchPhaseExpectations({
+        phase: activePhase,
+        ownerPolicy,
+        hasOwnedProgress,
+        lastInFlight,
+        lastQueueAgeMs
+      });
+      const livenessAnchorAtMs = hasOwnedProgress
+        ? lastHeartbeatAtMs
+        : lastProcessProbeActivityAtMs;
+      const decision = evaluateProgressTimeout({
+        budget: buildProgressTimeoutBudget({
+          phase: phaseExpectations.phase,
+          baseTimeoutMs: Math.max(1, activeIdleTimeoutBudgetMs || resolvedIdleTimeoutMs),
+          maxTimeoutMs: maxIdleTimeoutBudgetMs || resolvedIdleTimeoutMs,
+          activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
+          completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
+          totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
+          elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+        }),
+        heartbeatAgeMs: Number.isFinite(livenessAnchorAtMs) ? Math.max(0, Date.now() - livenessAnchorAtMs) : null,
+        queueMovementAgeMs: Number.isFinite(lastQueueMovementAtMs) ? Math.max(0, Date.now() - lastQueueMovementAtMs) : null,
+        byteProgressAgeMs: Number.isFinite(lastByteProgressAtMs) ? Math.max(0, Date.now() - lastByteProgressAtMs) : null,
+        queueExpected: phaseExpectations.queueExpected,
+        byteProgressExpected: phaseExpectations.byteProgressExpected,
+        optionalPhase: phaseExpectations.optionalPhase
+      });
+      return ownerPolicy ? { ...decision, ownerPolicy } : decision;
     };
 
     const cleanupIdleWatchdog = () => {
@@ -649,12 +1274,15 @@ export const createProcessRunner = ({
       idleWatchdog = setInterval(async () => {
         if (idleTimeoutTriggered || idleAbortController.signal.aborted) return;
         if (idleWatchdogProbeInFlight) return;
-        const idleMs = Date.now() - lastActivityAtMs;
-        if (idleMs < resolvedIdleTimeoutMs) return;
+        const idleMs = hasOwnedProgress
+          ? (Date.now() - lastOwnedProgressAtMs)
+          : (Date.now() - lastProcessProbeActivityAtMs);
+        if (idleMs < activeIdleTimeoutBudgetMs) return;
         idleWatchdogProbeInFlight = true;
         try {
           const probe = await probeActiveChildActivity();
           if (probe?.kind === 'activity') {
+            lastProcessProbeActivityAtMs = Date.now();
             markActivity({ source: probe.source, text: probe.text });
             return;
           }
@@ -663,22 +1291,55 @@ export const createProcessRunner = ({
             return;
           }
           await new Promise((resolve) => setImmediate(resolve));
-          const refreshedIdleMs = Date.now() - lastActivityAtMs;
-          if (refreshedIdleMs < resolvedIdleTimeoutMs) {
+          const refreshedIdleMs = hasOwnedProgress
+            ? (Date.now() - lastOwnedProgressAtMs)
+            : (Date.now() - lastProcessProbeActivityAtMs);
+          if (refreshedIdleMs < activeIdleTimeoutBudgetMs) {
             return;
           }
         } finally {
           idleWatchdogProbeInFlight = false;
         }
+        const decision = buildIdleTimeoutDecision();
+        if (!decision.timedOut) {
+          timeoutDecision = decision;
+          const extensionBudget = resolveIdleBudgetExtension({
+            decision,
+            currentIdleBudgetMs: activeIdleTimeoutBudgetMs,
+            hardTimeoutCapMs,
+            processElapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+          });
+          if (extensionBudget.extended) {
+            activeIdleTimeoutBudgetMs = extensionBudget.nextIdleBudgetMs;
+            const timeoutExtensionMessage =
+              `[run] timeout budget extended: ${label} ` +
+              `(idle budget ${activeIdleTimeoutBudgetMs}ms, reason=${decision.decisionReason || 'healthy_progress'}, ` +
+              `candidate=${decision.candidateTimeoutClass || decision.timeoutClass || 'none'}, ` +
+              `outcome=${decision.outcome || PROGRESS_TIMEOUT_OUTCOMES.continueWait})`;
+            appendLog(timeoutExtensionMessage, 'info');
+            emitRuntimeTimeoutEvent({
+              eventType: 'runtime_timeout_budget_extended',
+              message: timeoutExtensionMessage,
+              timeoutKind: 'idle',
+              timeoutDecision: decision,
+              severity: 'info'
+            });
+          }
+          return;
+        }
         idleTimeoutTriggered = true;
+        timeoutDecision = decision;
+        const timeoutLastSource = hasOwnedProgress ? lastOwnedProgressSource : lastActivitySource;
+        const timeoutLastText = hasOwnedProgress ? lastOwnedProgressText : lastActivityText;
         const error = new Error(
-          `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (last activity: ${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''}).`
+          `Bench subprocess idle timeout after ${resolvedIdleTimeoutMs}ms (${hasOwnedProgress ? 'last owned progress' : 'last activity'}: ${timeoutLastSource}${timeoutLastText ? `: ${timeoutLastText}` : ''}).`
         );
         error.code = 'ERR_BENCH_IDLE_TIMEOUT';
         error.idleTimeoutMs = resolvedIdleTimeoutMs;
         error.lastActivityAtMs = lastActivityAtMs;
         error.lastActivitySource = lastActivitySource;
         error.lastActivityText = lastActivityText;
+        error.timeoutDecision = decision;
         try {
           idleAbortController.abort(error);
         } catch {
@@ -693,12 +1354,15 @@ export const createProcessRunner = ({
     const progressConfidenceStreams = Array.from(
       new Set(resolveLogPaths().map(resolveProgressConfidenceStreamPath).filter(Boolean))
     );
+    const diagnosticClassifier = createBenchDiagnosticClassifier();
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
     const telemetryWriteFailures = new Map();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
+    const diagnosticCountBySeverity = new Map();
     const diagnosticCountById = new Map();
+    const diagnosticSummaryBySignal = new Map();
     const heartbeatIntervalsMs = [];
     const queueAgeSamplesMs = [];
     const inFlightSamples = [];
@@ -756,6 +1420,35 @@ export const createProcessRunner = ({
         Array.from(diagnosticCountByType.entries())
           .sort(([left], [right]) => String(left).localeCompare(String(right)))
       ),
+      countsBySeverity: Object.fromEntries(
+        Array.from(diagnosticCountBySeverity.entries())
+          .sort(([left], [right]) => String(left).localeCompare(String(right)))
+      ),
+      topSignals: Array.from(diagnosticSummaryBySignal.values())
+        .sort((left, right) => (
+          Number(right.count) - Number(left.count)
+        ) || formatDiagnosticSummaryLabel(left).localeCompare(formatDiagnosticSummaryLabel(right)))
+        .slice(0, BENCH_REPO_DIAGNOSTIC_TOP_SIGNAL_LIMIT)
+        .map((entry) => ({
+          eventType: entry.eventType,
+          severity: entry.severity,
+          providerId: entry.providerId,
+          requestMethod: entry.requestMethod,
+          failureClass: entry.failureClass,
+          preflightClass: entry.preflightClass,
+          workspacePartition: entry.workspacePartition,
+          reuseSurface: entry.reuseSurface,
+          reuseSource: entry.reuseSource,
+          qualityImpact: entry.qualityImpact,
+          count: entry.count,
+          timeCostMs: Number.isFinite(entry.timeCostMs) ? entry.timeCostMs : null,
+          requestedCount: Number.isFinite(entry.requestedCount) ? entry.requestedCount : null,
+          reusedCount: Number.isFinite(entry.reusedCount) ? entry.reusedCount : null,
+          fetchedCount: Number.isFinite(entry.fetchedCount) ? entry.fetchedCount : null,
+          chunkCount: Number.isFinite(entry.chunkCount) ? entry.chunkCount : null,
+          message: entry.message,
+          summaryLabel: formatDiagnosticSummaryLabel(entry)
+        })),
       telemetryWriteFailures: Object.fromEntries(
         Array.from(telemetryWriteFailures.entries()).map(([filePath, info]) => [filePath, info.count])
       )
@@ -923,6 +1616,9 @@ export const createProcessRunner = ({
       const hasHeartbeatSignal = eventName.startsWith('task:')
         && (eventName === 'task:start' || eventName === 'task:progress' || eventName === 'task:end');
       if (hasHeartbeatSignal) {
+        lastHeartbeatAtMs = now;
+        lastProgressCurrent = Math.max(0, Number(event?.current) || 0);
+        lastProgressTotal = Math.max(lastProgressCurrent, Math.max(0, Number(event?.total) || 0));
         if (Number.isFinite(progressConfidenceStats.lastHeartbeatMs)) {
           const intervalMs = Math.max(0, now - progressConfidenceStats.lastHeartbeatMs);
           appendSample(heartbeatIntervalsMs, intervalMs);
@@ -938,11 +1634,19 @@ export const createProcessRunner = ({
       if (Number.isFinite(queueAgeMs)) {
         appendSample(queueAgeSamplesMs, queueAgeMs);
         progressConfidenceStats.queueSamples = queueAgeSamplesMs.length;
+        if (queueAgeMs !== lastQueueAgeMs) {
+          lastQueueAgeMs = queueAgeMs;
+          markQueueMovement({ source: 'queue-age', text: `queueAgeMs=${Math.round(queueAgeMs)}` });
+        }
       }
       const inFlight = resolveInFlightCount({ message, event });
       if (Number.isFinite(inFlight)) {
         appendSample(inFlightSamples, inFlight);
         progressConfidenceStats.inFlightSamples = inFlightSamples.length;
+        if (inFlight !== lastInFlight) {
+          lastInFlight = inFlight;
+          markQueueMovement({ source: 'in-flight', text: `inFlight=${Math.round(inFlight)}` });
+        }
       }
 
       emitProgressConfidenceSample({
@@ -962,7 +1666,10 @@ export const createProcessRunner = ({
       });
     };
 
-    const maybeEmitInteractiveDiagnostic = ({ eventType, eventId, message }) => {
+    const maybeEmitInteractiveDiagnostic = ({ eventType, eventId, message, severity = null }) => {
+      if (BENCH_INTERACTIVE_DIAGNOSTIC_SILENT_TYPES.has(String(eventType || '').trim())) {
+        return;
+      }
       const key = String(eventId || '');
       if (!key) return;
       const now = Date.now();
@@ -971,16 +1678,22 @@ export const createProcessRunner = ({
         count: prior.count + 1,
         lastEmitMs: prior.lastEmitMs
       };
+      const repeatCount = BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_COUNT_BY_TYPE[eventType] || DIAGNOSTIC_REPEAT_COUNT;
+      const repeatIntervalMs = BENCH_INTERACTIVE_DIAGNOSTIC_REPEAT_INTERVAL_BY_TYPE[eventType] || DIAGNOSTIC_REPEAT_INTERVAL_MS;
       const shouldEmit = next.count === 1
-        || (next.count % DIAGNOSTIC_REPEAT_COUNT === 0)
-        || (now - next.lastEmitMs >= DIAGNOSTIC_REPEAT_INTERVAL_MS);
+        || (next.count % repeatCount === 0)
+        || (now - next.lastEmitMs >= repeatIntervalMs);
       if (!shouldEmit) {
         interactiveDiagnostics.set(key, next);
         return;
       }
       const repeat = next.count > 1 ? ` x${next.count}` : '';
       const excerpt = truncateForDisplay(message, 110);
-      appendLog(`[diagnostics] ${eventType}${repeat} ${eventId} ${excerpt}`, 'warn');
+      const interactiveLevel = normalizeBenchDiagnosticSeverity(severity, 'warn');
+      appendLog(
+        `[diagnostics] ${eventType}${repeat} ${eventId} ${excerpt}`,
+        interactiveLevel === 'error' ? 'error' : 'warn'
+      );
       next.lastEmitMs = now;
       interactiveDiagnostics.set(key, next);
     };
@@ -991,20 +1704,71 @@ export const createProcessRunner = ({
       source = 'stream',
       level = null,
       stage = null,
-      taskId = null
+      taskId = null,
+      providerId = null,
+      workspacePartition = null,
+      requestMethod = null,
+      failureClass = null,
+      preflightId = null,
+      preflightClass = null,
+      preflightState = null,
+      reuseSurface = null,
+      reuseSource = null,
+      qualityImpact = null,
+      timeCostMs = null,
+      requestedCount = null,
+      reusedCount = null,
+      fetchedCount = null,
+      chunkCount = null,
+      timeoutKind = null,
+      phase = null,
+      resourceClass = null,
+      failureMode = null,
+      decisionReason = null,
+      outcome = null,
+      effectiveBudgetMs = null,
+      skippedWork = null,
+      partialSuccess = null,
+      suppressedCount = null,
+      suppressionPolicy = null,
+      omittedSampleClasses = null,
+      degradedRun = null,
+      visibleSampleCount = null,
+      actionableCount = null,
+      totalCount = null,
+      severity = null
     }) => {
       if (!eventType || !message) return;
+      const resolvedSeverity = normalizeBenchDiagnosticSeverity(
+        severity,
+        resolveBenchDiagnosticSeverity({
+          eventType,
+          failureClass,
+          preflightState
+        })
+      );
       const signature = buildBenchDiagnosticSignature({
         eventType,
         stage,
         taskId,
         source,
-        message: normalizeSignatureMessage(message)
+        message: normalizeSignatureMessage(message),
+        providerId,
+        workspacePartition,
+        requestMethod,
+        failureClass,
+        preflightId,
+        preflightClass,
+        preflightState,
+        reuseSurface,
+        reuseSource,
+        qualityImpact
       });
       const eventId = buildBenchDiagnosticEventId({ eventType, signature });
       const occurrence = (diagnosticCountById.get(eventId) || 0) + 1;
       diagnosticCountById.set(eventId, occurrence);
       diagnosticCountByType.set(eventType, (diagnosticCountByType.get(eventType) || 0) + 1);
+      diagnosticCountBySeverity.set(resolvedSeverity, (diagnosticCountBySeverity.get(resolvedSeverity) || 0) + 1);
       diagnosticEventCount += 1;
       const payload = {
         schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
@@ -1018,13 +1782,95 @@ export const createProcessRunner = ({
         source: toText(source) || 'stream',
         message: truncateForDisplay(message, 400),
         level: toText(level) || null,
+        severity: resolvedSeverity,
         stage: toText(stage) || null,
-        taskId: toText(taskId) || null
+        taskId: toText(taskId) || null,
+        providerId: toText(providerId) || null,
+        workspacePartition: toText(workspacePartition) || null,
+        requestMethod: toText(requestMethod) || null,
+        failureClass: toText(failureClass) || null,
+        preflightId: toText(preflightId) || null,
+        preflightClass: toText(preflightClass) || null,
+        preflightState: toText(preflightState) || null,
+        reuseSurface: toText(reuseSurface) || null,
+        reuseSource: toText(reuseSource) || null,
+        qualityImpact: toText(qualityImpact) || null,
+        timeCostMs: Number.isFinite(Number(timeCostMs)) ? Math.max(0, Math.floor(Number(timeCostMs))) : null,
+        requestedCount: Number.isFinite(Number(requestedCount)) ? Math.max(0, Math.floor(Number(requestedCount))) : null,
+        reusedCount: Number.isFinite(Number(reusedCount)) ? Math.max(0, Math.floor(Number(reusedCount))) : null,
+        fetchedCount: Number.isFinite(Number(fetchedCount)) ? Math.max(0, Math.floor(Number(fetchedCount))) : null,
+        chunkCount: Number.isFinite(Number(chunkCount)) ? Math.max(0, Math.floor(Number(chunkCount))) : null,
+        timeoutKind: toText(timeoutKind) || null,
+        phase: toText(phase) || null,
+        resourceClass: toText(resourceClass) || null,
+        failureMode: toText(failureMode) || null,
+        decisionReason: toText(decisionReason) || null,
+        outcome: toText(outcome) || null,
+        effectiveBudgetMs: Number.isFinite(Number(effectiveBudgetMs)) ? Math.max(0, Math.floor(Number(effectiveBudgetMs))) : null,
+        skippedWork: Array.isArray(skippedWork)
+          ? skippedWork.map((entry) => toText(entry)).filter(Boolean)
+          : null,
+        partialSuccess: typeof partialSuccess === 'boolean' ? partialSuccess : null,
+        suppressedCount: Number.isFinite(Number(suppressedCount)) ? Math.max(0, Math.floor(Number(suppressedCount))) : null,
+        suppressionPolicy: toText(suppressionPolicy) || null,
+        omittedSampleClasses: Array.isArray(omittedSampleClasses)
+          ? omittedSampleClasses.map((entry) => toText(entry)).filter(Boolean)
+          : null,
+        degradedRun: typeof degradedRun === 'boolean' ? degradedRun : null,
+        visibleSampleCount: Number.isFinite(Number(visibleSampleCount)) ? Math.max(0, Math.floor(Number(visibleSampleCount))) : null,
+        actionableCount: Number.isFinite(Number(actionableCount)) ? Math.max(0, Math.floor(Number(actionableCount))) : null,
+        totalCount: Number.isFinite(Number(totalCount)) ? Math.max(0, Math.floor(Number(totalCount))) : null
       };
+      const summaryKey = buildDiagnosticSummaryKey({
+        eventType,
+        providerId,
+        requestMethod,
+        failureClass,
+        preflightClass,
+        workspacePartition,
+        reuseSurface,
+        reuseSource,
+        qualityImpact
+      });
+      const priorSummary = diagnosticSummaryBySignal.get(summaryKey) || {
+        eventType,
+        providerId: toText(providerId) || null,
+        requestMethod: toText(requestMethod) || null,
+        failureClass: toText(failureClass) || null,
+        preflightClass: toText(preflightClass) || null,
+        workspacePartition: toText(workspacePartition) || null,
+        reuseSurface: toText(reuseSurface) || null,
+        reuseSource: toText(reuseSource) || null,
+        qualityImpact: toText(qualityImpact) || null,
+        count: 0,
+        message: '',
+        severity: resolvedSeverity,
+        timeCostMs: 0,
+        requestedCount: 0,
+        reusedCount: 0,
+        fetchedCount: 0,
+        chunkCount: 0
+      };
+      diagnosticSummaryBySignal.set(summaryKey, {
+        ...priorSummary,
+        count: priorSummary.count + 1,
+        message: priorSummary.message || truncateForDisplay(message, 140),
+        severity: priorSummary.severity || resolvedSeverity,
+        timeCostMs: (priorSummary.timeCostMs || 0) + (payload.timeCostMs || 0),
+        requestedCount: (priorSummary.requestedCount || 0) + (payload.requestedCount || 0),
+        reusedCount: (priorSummary.reusedCount || 0) + (payload.reusedCount || 0),
+        fetchedCount: (priorSummary.fetchedCount || 0) + (payload.fetchedCount || 0),
+        chunkCount: (priorSummary.chunkCount || 0) + (payload.chunkCount || 0)
+      });
       for (const filePath of diagnosticStreams) {
         appendJsonLineQueued(telemetryWriteQueues, telemetryWriteFailures, filePath, payload);
       }
-      maybeEmitInteractiveDiagnostic({ eventType, eventId, message: payload.message });
+      maybeEmitInteractiveDiagnostic({
+        eventType,
+        eventId,
+        message: payload.message,
+        severity: resolvedSeverity
+      });
       if (eventType === 'queue_delay_hotspot' || eventType === 'artifact_tail_stall') {
         noteStallEvent({
           source: payload.source,
@@ -1033,20 +1879,124 @@ export const createProcessRunner = ({
       }
     };
 
+    const emitRuntimeTimeoutEvent = ({
+      eventType,
+      message,
+      timeoutKind = null,
+      timeoutDecision: timeoutDetails = null,
+      severity = null
+    }) => {
+      emitDiagnostic({
+        eventType,
+        message,
+        source: 'bench-runtime',
+        level: 'warn',
+        stage: 'watchdog',
+        taskId: label,
+        failureClass: timeoutDetails?.timeoutClass || null,
+        qualityImpact: Array.isArray(timeoutDetails?.qualityDelta?.skippedWork) && timeoutDetails.qualityDelta.skippedWork.length
+          ? 'partial-bench-runtime-coverage'
+          : 'none',
+        timeoutKind,
+        phase: timeoutDetails?.phase || null,
+        resourceClass: timeoutDetails?.resourceClass || null,
+        failureMode: timeoutDetails?.failureMode || null,
+        decisionReason: timeoutDetails?.decisionReason || null,
+        outcome: timeoutDetails?.outcome || null,
+        effectiveBudgetMs: timeoutDetails?.effectiveBudgetMs || timeoutDetails?.budget?.budgetMs || null,
+        skippedWork: timeoutDetails?.qualityDelta?.skippedWork || null,
+        partialSuccess: timeoutDetails?.qualityDelta?.partialSuccess ?? null,
+        severity
+      });
+    };
+
     const inspectDiagnostic = ({ line, event, source }) => {
       const text = event && typeof event.message === 'string' && event.message.trim()
         ? event.message
         : line;
-      const eventType = resolveDiagnosticType(text, event);
-      if (!eventType) return;
-      emitDiagnostic({
-        eventType,
-        message: text,
-        source: event ? 'progress-event' : source,
-        level: event?.level || null,
-        stage: event?.stage || null,
-        taskId: event?.taskId || null
+      const eventSource = event ? 'progress-event' : source;
+      const legacyEventType = resolveLegacyDiagnosticType(text, event);
+      if (legacyEventType) {
+        const legacyFields = resolveLegacyDiagnosticFields(legacyEventType, text);
+        noteOwnedPhaseProgress({
+          phase: resolveBenchRuntimePhaseForDiagnostic({
+            eventType: legacyEventType,
+            message: text,
+            phase: legacyFields.phase || null,
+            stage: event?.stage || null,
+            taskId: event?.taskId || null
+          }, event),
+          source: eventSource,
+          text,
+          kind: 'legacy-diagnostic'
+        });
+        emitDiagnostic({
+          eventType: legacyEventType,
+          message: text,
+          source: eventSource,
+          level: event?.level || null,
+          stage: event?.stage || null,
+          taskId: event?.taskId || null,
+          failureClass: legacyFields.failureClass || null,
+          phase: legacyFields.phase || null,
+          severity: resolveBenchDiagnosticSeverity({
+            eventType: legacyEventType
+          })
+        });
+      }
+      const structuredSignals = diagnosticClassifier.classify({
+        line,
+        event,
+        source: eventSource
       });
+      for (const signal of structuredSignals) {
+        noteOwnedPhaseProgress({
+          phase: resolveBenchRuntimePhaseForDiagnostic(signal, event),
+          source: signal.source || eventSource,
+          text: signal.message,
+          kind: 'diagnostic'
+        });
+        emitDiagnostic({
+          eventType: signal.eventType,
+          message: signal.message,
+          source: signal.source || eventSource,
+          level: signal.level ?? event?.level ?? null,
+          stage: signal.stage ?? event?.stage ?? null,
+          taskId: signal.taskId ?? event?.taskId ?? null,
+          providerId: signal.providerId || null,
+          workspacePartition: signal.workspacePartition || null,
+          requestMethod: signal.requestMethod || null,
+          failureClass: signal.failureClass || null,
+          preflightId: signal.preflightId || null,
+          preflightClass: signal.preflightClass || null,
+          preflightState: signal.preflightState || null,
+          reuseSurface: signal.reuseSurface || null,
+          reuseSource: signal.reuseSource || null,
+          qualityImpact: signal.qualityImpact || null,
+          timeCostMs: signal.timeCostMs,
+          requestedCount: signal.requestedCount,
+          reusedCount: signal.reusedCount,
+          fetchedCount: signal.fetchedCount,
+          chunkCount: signal.chunkCount,
+          timeoutKind: signal.timeoutKind || null,
+          phase: signal.phase || null,
+          resourceClass: signal.resourceClass || null,
+          failureMode: signal.failureMode || null,
+          decisionReason: signal.decisionReason || null,
+          outcome: signal.outcome || null,
+          effectiveBudgetMs: signal.effectiveBudgetMs,
+          skippedWork: signal.skippedWork || null,
+          partialSuccess: signal.partialSuccess ?? null,
+          suppressedCount: signal.suppressedCount,
+          suppressionPolicy: signal.suppressionPolicy,
+          omittedSampleClasses: signal.omittedSampleClasses,
+          degradedRun: signal.degradedRun ?? null,
+          visibleSampleCount: signal.visibleSampleCount,
+          actionableCount: signal.actionableCount,
+          totalCount: signal.totalCount,
+          severity: signal.severity || null
+        });
+      }
     };
 
     const pushSchedulerEvent = ({ message = '', source = 'stream', level = null, stage = null, taskId = null } = {}) => {
@@ -1069,6 +2019,17 @@ export const createProcessRunner = ({
       const textLine = String(line || '');
       const parsedEvent = event || (textLine ? parseProgressEventLine(textLine, { strict: true }) : null);
       if (parsedEvent) {
+        const eventTimeoutOwnerPolicy = noteTimeoutOwnerPolicy(
+          parsedEvent.timeoutPolicy || parsedEvent?.meta?.timeoutPolicy,
+          resolveBenchRuntimePhaseForProgressEvent(parsedEvent)
+        );
+        noteOwnedPhaseProgress({
+          phase: normalizeBenchRuntimePhase(eventTimeoutOwnerPolicy?.phase)
+            || resolveBenchRuntimePhaseForProgressEvent(parsedEvent),
+          source: parsedEvent.event || 'progress-event',
+          text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine,
+          kind: parsedEvent.event || 'progress-event'
+        });
         markActivity({
           source: parsedEvent.event || 'progress-event',
           text: parsedEvent.message || parsedEvent.taskId || parsedEvent.name || textLine
@@ -1117,8 +2078,18 @@ export const createProcessRunner = ({
         ...spawnOptions,
         signal: spawnSignal,
         onSpawn: (child) => setActiveChild(child, label),
-        onStdout: (chunk) => stdoutDecoder.push(chunk),
-        onStderr: (chunk) => stderrDecoder.push(chunk)
+        onStdout: (chunk) => {
+          if (chunk && String(chunk).length > 0) {
+            markByteProgress({ source: 'stdout-bytes', text: `stdout+${String(chunk).length}` });
+          }
+          stdoutDecoder.push(chunk);
+        },
+        onStderr: (chunk) => {
+          if (chunk && String(chunk).length > 0) {
+            markByteProgress({ source: 'stderr-bytes', text: `stderr+${String(chunk).length}` });
+          }
+          stderrDecoder.push(chunk);
+        }
       });
       cleanupIdleWatchdog();
       stdoutDecoder.flush();
@@ -1161,13 +2132,23 @@ export const createProcessRunner = ({
         logExit('failure', code ?? 1);
         exitLikeCommandResult({ status: code, signal });
       }
+      const crashAttribution = buildBenchCrashAttribution({
+        code,
+        signal,
+        activeLabel: label,
+        activeChildPid: result.pid,
+        activePhase: resolveActiveOwnedPhase(),
+        logHistory
+      });
+      const diagnosticsSummary = buildDiagnosticsSummary();
+      if (crashAttribution) diagnosticsSummary.crashAttribution = crashAttribution;
       await flushTelemetryWrites('failure-return');
       return {
         ok: false,
         code: code ?? 1,
         signal,
         schedulerEvents: getSchedulerEvents(),
-        diagnostics: buildDiagnosticsSummary(),
+        diagnostics: diagnosticsSummary,
         progressConfidence: buildProgressConfidenceSummary()
       };
     } catch (err) {
@@ -1175,6 +2156,39 @@ export const createProcessRunner = ({
       stdoutDecoder.flush();
       stderrDecoder.flush();
       const message = err?.message || err;
+      if (!timeoutDecision && err?.timeoutDecision && err?.code !== 'SUBPROCESS_TIMEOUT') {
+        timeoutDecision = err.timeoutDecision;
+      }
+      if (err?.code === 'SUBPROCESS_TIMEOUT') {
+        const activePhase = resolveActiveOwnedPhase();
+        const ownerPolicy = resolveActiveTimeoutOwnerPolicy(activePhase);
+        const phaseExpectations = resolveBenchPhaseExpectations({
+          phase: activePhase,
+          ownerPolicy,
+          hasOwnedProgress,
+          lastInFlight,
+          lastQueueAgeMs
+        });
+        timeoutDecision = {
+          ...evaluateProgressTimeout({
+            budget: buildProgressTimeoutBudget({
+              phase: phaseExpectations.phase,
+              baseTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
+              maxTimeoutMs: Number(spawnOptions.timeoutMs) || DEFAULT_IDLE_TIMEOUT_WATCHDOG_POLL_MS,
+              wallClockCapMs: Number(spawnOptions.timeoutMs) || null,
+              activeBatchCount: Math.max(0, Number(lastInFlight) || 0),
+              completedUnits: Math.max(0, Number(lastProgressCurrent) || 0),
+              totalUnits: Math.max(0, Number(lastProgressTotal) || 0),
+              elapsedMs: Math.max(0, Date.now() - processStartedAtMs)
+            }),
+            wallClockElapsedMs: Math.max(0, Date.now() - processStartedAtMs),
+            queueExpected: phaseExpectations.queueExpected,
+            byteProgressExpected: phaseExpectations.byteProgressExpected,
+            optionalPhase: phaseExpectations.optionalPhase
+          }),
+          ...(ownerPolicy ? { ownerPolicy } : {})
+        };
+      }
       const failureStatus = Number.isInteger(err?.result?.exitCode)
         ? Number(err.result.exitCode)
         : (Number.isInteger(err?.exitCode) ? Number(err.exitCode) : null);
@@ -1188,14 +2202,75 @@ export const createProcessRunner = ({
         || err?.code === 'ERR_BENCH_IDLE_TIMEOUT'
         || spawnSignal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT'
         || idleAbortController?.signal?.reason?.code === 'ERR_BENCH_IDLE_TIMEOUT';
-      if (idleTimeoutFailure) {
-        appendLog(
-          `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`,
-          'warn'
-        );
-      } else if (err?.code === 'SUBPROCESS_TIMEOUT') {
-        appendLog(`[run] timeout: ${label} (${message})`, 'warn');
+      const initialDiagnosticsSummary = buildDiagnosticsSummary();
+      const progressConfidenceSummary = buildProgressConfidenceSummary();
+      const enrichedTimeoutDecision = timeoutDecision
+        ? {
+          ...timeoutDecision,
+          phase: resolveTimeoutPhase({
+            timeoutDecision,
+            ownerPolicy: timeoutDecision?.ownerPolicy || null,
+            ownedPhase: resolveActiveOwnedPhase(),
+            diagnostics: initialDiagnosticsSummary,
+            lastActivitySource,
+            lastActivityText
+          }),
+          failureMode: resolveTimeoutFailureMode({
+            timeoutDecision,
+            hasOwnedProgress,
+            ownedPhase: resolveActiveOwnedPhase(),
+            lastOwnedProgressAtMs,
+            diagnostics: initialDiagnosticsSummary,
+            lastActivityAtMs,
+            lastActivitySource,
+            lastHeartbeatAtMs,
+            lastQueueMovementAtMs,
+            lastByteProgressAtMs,
+            lastProgressCurrent
+          })
+        }
+        : null;
+      if (enrichedTimeoutDecision) {
+        enrichedTimeoutDecision.resourceClass = resolveTimeoutResourceClass({
+          phase: enrichedTimeoutDecision.phase
+        });
+        enrichedTimeoutDecision.qualityDelta = resolveTimeoutQualityDelta({
+          phase: enrichedTimeoutDecision.phase,
+          ownerPolicy: enrichedTimeoutDecision.ownerPolicy || null,
+          diagnostics: initialDiagnosticsSummary
+        });
       }
+      if (idleTimeoutFailure) {
+        const timeoutMessage =
+          hasOwnedProgress
+            ? `[run] idle timeout: ${label} (no owned progress for ${resolvedIdleTimeoutMs}ms; last=${lastOwnedProgressSource}${lastOwnedProgressText ? `: ${lastOwnedProgressText}` : ''})`
+            : `[run] idle timeout: ${label} (no activity for ${resolvedIdleTimeoutMs}ms; last=${lastActivitySource}${lastActivityText ? `: ${lastActivityText}` : ''})`;
+        appendLog(timeoutMessage, 'warn');
+        emitRuntimeTimeoutEvent({
+          eventType: 'runtime_timeout',
+          message: timeoutMessage,
+          timeoutKind: 'idle',
+          timeoutDecision: enrichedTimeoutDecision,
+          severity: 'error'
+        });
+      } else if (err?.code === 'SUBPROCESS_TIMEOUT') {
+        const timeoutMessage =
+          `[run] timeout: ${label} (${message})`
+          + (enrichedTimeoutDecision
+            ? ` phase=${enrichedTimeoutDecision.phase || 'unknown'}`
+              + ` resource=${enrichedTimeoutDecision.resourceClass || 'unknown'}`
+              + ` mode=${enrichedTimeoutDecision.failureMode || 'unknown'}`
+            : '');
+        appendLog(timeoutMessage, 'warn');
+        emitRuntimeTimeoutEvent({
+          eventType: 'runtime_timeout',
+          message: timeoutMessage,
+          timeoutKind: 'hard',
+          timeoutDecision: enrichedTimeoutDecision,
+          severity: 'error'
+        });
+      }
+      const diagnosticsSummary = buildDiagnosticsSummary();
       emitLogPaths('[error]');
       if (logHistory.length) {
         appendLog('[run] tail:');
@@ -1214,23 +2289,38 @@ export const createProcessRunner = ({
         interactive: false
       });
       await flushTelemetryWrites('spawn-error-return');
+      const crashAttribution = buildBenchCrashAttribution({
+        code: failureStatus,
+        signal: failureSignal,
+        activeLabel: label,
+        activeChildPid: err?.result?.pid ?? processActivityState.childPid,
+        activePhase: resolveActiveOwnedPhase(),
+        timeoutDecision: enrichedTimeoutDecision,
+        logHistory
+      });
+      if (crashAttribution) diagnosticsSummary.crashAttribution = crashAttribution;
       return {
         ok: false,
         code: failureStatus ?? 1,
         signal: failureSignal,
         schedulerEvents: getSchedulerEvents(),
-        diagnostics: buildDiagnosticsSummary(),
-        progressConfidence: buildProgressConfidenceSummary(),
+        diagnostics: diagnosticsSummary,
+        progressConfidence: progressConfidenceSummary,
+        ...((idleTimeoutFailure || err?.code === 'SUBPROCESS_TIMEOUT')
+          ? {
+            timeoutKind: idleTimeoutFailure ? 'idle' : 'hard'
+          }
+          : {}),
         ...(idleTimeoutFailure
           ? {
-            timeoutKind: 'idle',
             lastActivity: {
               source: lastActivitySource,
               message: lastActivityText,
               atMs: lastActivityAtMs
             }
           }
-          : {})
+          : {}),
+        ...(enrichedTimeoutDecision ? { timeoutDecision: enrichedTimeoutDecision } : {})
       };
     }
   };

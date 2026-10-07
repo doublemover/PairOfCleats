@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'lexicon', 'report.js');
+const env = applyTestEnv({ syncProcess: false });
 
-const result = spawnSync(process.execPath, [scriptPath, '--json'], {
-  cwd: root,
-  encoding: 'utf8'
+const result = runNode([scriptPath, '--json'], 'lexicon report json', root, env, {
+  stdio: 'pipe'
 });
 
 assert.equal(result.status, 0, `expected report script success: ${result.stderr || result.stdout}`);

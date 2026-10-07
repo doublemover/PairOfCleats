@@ -1,3 +1,4 @@
+import { preserveScmMetadataFailure, normalizeScmMetadataDiagnostics } from './metadata-diagnostics.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
 
 const REQUIRED_METHODS = [
@@ -132,13 +133,13 @@ export const assertScmProvider = (provider) => {
   };
   const normalizeFileMeta = (result) => {
     if (result && result.ok === false) {
-      return normalizeReason(result, FILE_META_UNAVAILABLE_REASONS);
+      return { ...normalizeReason(result, FILE_META_UNAVAILABLE_REASONS), ...preserveScmMetadataFailure(result) };
     }
     return normalizeFileMetaValue(result);
   };
   const normalizeFileMetaBatch = (result) => {
     if (result && result.ok === false) {
-      return normalizeReason(result, FILE_META_BATCH_UNAVAILABLE_REASONS);
+      return { ...normalizeReason(result, FILE_META_BATCH_UNAVAILABLE_REASONS), ...preserveScmMetadataFailure(result) };
     }
     const source = result?.fileMetaByPath;
     const entries = source && typeof source === 'object'
@@ -150,7 +151,7 @@ export const assertScmProvider = (provider) => {
       if (!key) continue;
       fileMetaByPath[key] = normalizeFileMetaValue(rawMeta);
     }
-    return { fileMetaByPath };
+    return { fileMetaByPath, ...(result?.diagnostics ? { diagnostics: normalizeScmMetadataDiagnostics(result.diagnostics) } : {}) };
   };
   const normalizeProvenance = (result, input) => {
     const root = typeof result?.root === 'string'
@@ -245,8 +246,8 @@ export const assertScmProvider = (provider) => {
       try {
         const result = await Promise.resolve(provider.getFileMeta(input));
         return normalizeFileMeta(result);
-      } catch {
-        return { ok: false, reason: 'unavailable' };
+      } catch (error) {
+        return { ok: false, reason: 'unavailable', ...preserveScmMetadataFailure(null, error, 'getFileMeta') };
       }
     }
   };
@@ -275,8 +276,8 @@ export const assertScmProvider = (provider) => {
       try {
         const result = await Promise.resolve(provider.getFileMetaBatch(input));
         return normalizeFileMetaBatch(result);
-      } catch {
-        return { ok: false, reason: 'unavailable' };
+      } catch (error) {
+        return { ok: false, reason: 'unavailable', ...preserveScmMetadataFailure(null, error, 'getFileMetaBatch') };
       }
     };
   }

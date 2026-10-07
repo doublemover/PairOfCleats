@@ -1,6 +1,6 @@
 # USR Schema Index
 
-Last updated: 2026-02-12T05:45:00Z
+Last updated: 2026-05-21T00:00:00Z
 
 This directory contains JSON schemas for USR artifacts, reports, and gate evidence payloads.
 
@@ -19,4 +19,7 @@ Schema policy:
 - Shared envelope schema stays extension-safe for composed artifacts; strict unknown-key rejection is enforced at artifact schemas via `unevaluatedProperties: false`.
 - Evidence envelope is required to carry run metadata (`runId`, `lane`, `buildId`, `status`) in addition to producer and scope identity fields.
 - Report schemas MUST require payload fields (`summary`, `rows`) so envelope-only artifacts cannot validate.
-- Rollout outputs (`usr-release-train-readiness`, `usr-no-cut-decision-log`, `usr-post-cutover-stabilization-report`) must remain schema-backed for phase-gate governance.
+- Every report in `USR_REPORT_SCHEMA_DEFS` must have a matching `usr-*.schema.json` file here with the same `artifactId` const.
+- `usr-evidence-envelope.schema.json` is the registry alias for the shared `evidence-envelope.schema.json` base used by report schemas.
+- `usr-capability-transition.schema.json` covers the non-report capability transition schema in the USR registry.
+- Gate evaluation, registry validation, evidence freshness, feature/lane policy, and governance outputs required by the USR core specs must remain schema-backed in both `src/contracts/schemas/usr.js` and this directory.

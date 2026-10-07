@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { coerceAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
-import { runWithConcurrency } from '../../../../shared/concurrency.js';
+import { runWithConcurrency } from '../../../../shared/concurrency/run-with-queue.js';
 import { toArray } from '../../../../shared/iterables.js';
 
 const INDEX_LOAD_RETRY_ATTEMPTS = 8;

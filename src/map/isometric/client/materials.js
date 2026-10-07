@@ -80,14 +80,42 @@ export const applyHeightFog = (material) => {
   material.needsUpdate = true;
 };
 
+const resolveGlassTransmission = (glass) => {
+  const transmission = clamp(glass.transmission ?? 0, 0, 1);
+  const tCurve = Math.pow(transmission, 2.2);
+  return {
+    transmission,
+    tCurve,
+    envScale: 0.35 + 0.65 * tCurve
+  };
+};
+
+const updateHeightFogUniforms = (material, visuals) => {
+  if (!material?.userData?.fogUniforms) return;
+  material.userData.fogUniforms.fogHeight.value = visuals.fogHeight;
+  material.userData.fogUniforms.fogHeightRange.value = visuals.fogHeightRange;
+  if ('fogHeightEnabled' in material.userData.fogUniforms) {
+    material.userData.fogUniforms.fogHeightEnabled.value = visuals.enableHeightFog ? 1 : 0;
+  }
+};
+
+const setMaterialOpacity = (material, opacity, { ensureUserData = false } = {}) => {
+  if (!material) return;
+  material.opacity = opacity;
+  if (ensureUserData) material.userData = material.userData || {};
+  if (material.userData) material.userData.baseOpacity = opacity;
+};
+
+const setShellInnerOpacity = (mesh, opacity) => {
+  const inner = mesh?.userData?.shellInner;
+  if (!inner?.material) return;
+  setMaterialOpacity(inner.material, clamp(opacity * 0.9, 0.05, 1));
+};
+
 export const createGlassMaterial = (color, opacity) => {
   const { THREE, visuals, normalMapState, glassMaterials, glowMaterials } = state;
   const glass = visuals.glass || state.visualDefaults.glass;
-
-  const transmission = clamp(glass.transmission ?? 0, 0, 1);
-  // Perceptual curve: prevents the slider from behaving like "all or nothing".
-  const tCurve = Math.pow(transmission, 2.2);
-  const envScale = 0.35 + 0.65 * tCurve;
+  const { tCurve, envScale } = resolveGlassTransmission(glass);
 
   const material = new THREE.MeshPhysicalMaterial({
     color,
@@ -289,9 +317,7 @@ export const applyGlassSettings = () => {
     normalMapState
   } = state;
   const glass = visuals.glass || visualDefaults.glass;
-  const transmission = clamp(glass.transmission ?? 0, 0, 1);
-  const tCurve = Math.pow(transmission, 2.2);
-  const envScale = 0.35 + 0.65 * tCurve;
+  const { tCurve, envScale } = resolveGlassTransmission(glass);
   for (const material of glassMaterials) {
     material.metalness = glass.metalness;
     material.roughness = glass.roughness;
@@ -309,13 +335,7 @@ export const applyGlassSettings = () => {
       material.normalScale = new THREE.Vector2(glass.normalScale, glass.normalScale);
       material.clearcoatNormalScale = new THREE.Vector2(glass.clearcoatNormalScale, glass.clearcoatNormalScale);
     }
-    if (material.userData?.fogUniforms) {
-      material.userData.fogUniforms.fogHeight.value = visuals.fogHeight;
-      material.userData.fogUniforms.fogHeightRange.value = visuals.fogHeightRange;
-      if ('fogHeightEnabled' in material.userData.fogUniforms) {
-        material.userData.fogUniforms.fogHeightEnabled.value = visuals.enableHeightFog ? 1 : 0;
-      }
-    }
+    updateHeightFogUniforms(material, visuals);
     material.needsUpdate = true;
   }
   const thicknessScale = clamp(1 - glass.thickness * 0.03, 0.75, 0.98);
@@ -328,29 +348,14 @@ export const updateFileOpacity = () => {
   const { visuals, visualDefaults, fileMeshes, fileInstancedMeshes, fileInstancedInnerMeshes } = state;
   const opacity = clamp(numberValue(visuals.fileOpacity, visualDefaults.fileOpacity), 0.1, 1);
   for (const mesh of fileMeshes) {
-    if (mesh.material) {
-      mesh.material.opacity = opacity;
-      if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
-    }
-    const inner = mesh.userData?.shellInner;
-    if (inner?.material) {
-      const innerOpacity = clamp(opacity * 0.9, 0.05, 1);
-      inner.material.opacity = innerOpacity;
-      if (inner.material.userData) inner.material.userData.baseOpacity = innerOpacity;
-    }
+    setMaterialOpacity(mesh.material, opacity);
+    setShellInnerOpacity(mesh, opacity);
   }
   for (const mesh of toArray(fileInstancedMeshes)) {
-    if (mesh?.material) {
-      mesh.material.opacity = opacity;
-      if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
-    }
+    setMaterialOpacity(mesh?.material, opacity);
   }
   for (const mesh of toArray(fileInstancedInnerMeshes)) {
-    if (mesh?.material) {
-      const innerOpacity = clamp(opacity * 0.9, 0.05, 1);
-      mesh.material.opacity = innerOpacity;
-      if (mesh.material.userData) mesh.material.userData.baseOpacity = innerOpacity;
-    }
+    setMaterialOpacity(mesh?.material, clamp(opacity * 0.9, 0.05, 1));
   }
 };
 
@@ -361,30 +366,18 @@ export const updateMemberOpacity = () => {
   // Instanced members/chunks use shared materials (huge perf win). Update those directly.
   const instancedMemberMat = instancedMemberMaterials?.member || null;
   if (instancedMemberMat) {
-    instancedMemberMat.opacity = opacity;
-    instancedMemberMat.userData = instancedMemberMat.userData || {};
-    instancedMemberMat.userData.baseOpacity = opacity;
+    setMaterialOpacity(instancedMemberMat, opacity, { ensureUserData: true });
   }
   if (instancedChunkMaterial) {
     const chunkOpacity = clamp(opacity, 0.1, 1);
-    instancedChunkMaterial.opacity = chunkOpacity;
-    instancedChunkMaterial.userData = instancedChunkMaterial.userData || {};
-    instancedChunkMaterial.userData.baseOpacity = chunkOpacity;
+    setMaterialOpacity(instancedChunkMaterial, chunkOpacity, { ensureUserData: true });
   }
 
   // Legacy (non-instanced) meshes still get updated for compatibility.
   for (const mesh of [...toArray(memberMeshes), ...toArray(chunkMeshes)]) {
     if (!mesh) continue;
-    if (mesh.material) {
-      mesh.material.opacity = opacity;
-      if (mesh.material.userData) mesh.material.userData.baseOpacity = opacity;
-    }
-    const inner = mesh.userData?.shellInner;
-    if (inner?.material) {
-      const innerOpacity = clamp(opacity * 0.9, 0.05, 1);
-      inner.material.opacity = innerOpacity;
-      if (inner.material.userData) inner.material.userData.baseOpacity = innerOpacity;
-    }
+    setMaterialOpacity(mesh.material, opacity);
+    setShellInnerOpacity(mesh, opacity);
   }
 };
 
@@ -456,17 +449,9 @@ export const updateFog = (maxSpanOverride) => {
   const fogNear = maxSpan * 0.9;
   const fogFar = maxSpan * Math.max(1.1, distance);
   scene.fog = new THREE.Fog(fogColor.getHex(), fogNear, fogFar);
-  const updateFogUniforms = (material) => {
-    if (!material?.userData?.fogUniforms) return;
-    material.userData.fogUniforms.fogHeight.value = visuals.fogHeight;
-    material.userData.fogUniforms.fogHeightRange.value = visuals.fogHeightRange;
-    if ('fogHeightEnabled' in material.userData.fogUniforms) {
-      material.userData.fogUniforms.fogHeightEnabled.value = visuals.enableHeightFog ? 1 : 0;
-    }
-  };
   [...glassMaterials, ...labelMaterials, ...flowMaterials, ...wireMaterials, ...gridLineMaterials]
-    .forEach(updateFogUniforms);
-  if (grid?.material) updateFogUniforms(grid.material);
+    .forEach((material) => updateHeightFogUniforms(material, visuals));
+  if (grid?.material) updateHeightFogUniforms(grid.material, visuals);
 };
 
 export const updateFlowLights = () => {

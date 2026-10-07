@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { loadChunkMeta, readJsonFile } from '../../../src/shared/artifact-io.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -29,15 +29,25 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig: {
     indexing: {
-      scm: { provider: 'none' }
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
     }
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [path.join(root, 'build_index.js'), '--repo', repoRoot, '--stage', 'stage2', '--mode', 'all', '--stub-embeddings'],
-  { env, encoding: 'utf8' }
+  'records exclusion build index',
+  repoRoot,
+  env,
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 if (buildResult.status !== 0) {
   console.error('records exclusion test failed: build_index error.');

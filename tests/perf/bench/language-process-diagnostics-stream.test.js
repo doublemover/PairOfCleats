@@ -39,7 +39,19 @@ const script = [
   "progress({ level: 'error', stage: 'parse', taskId: 'stage:parse', message: 'tree-sitter parser crash while parsing src/main.c' });",
   "console.error('[scm] timeout while collecting git metadata');",
   "progress({ level: 'warn', stage: 'watchdog', taskId: 'stage:watchdog', message: '[tree-sitter:schedule] queue delay hotspot 1450ms' });",
-  "console.log('artifact tail stalled for 32000ms while writing shard');",
+  "console.log('[perf] artifact write stall critical: chunk_meta.binary-columnar.bundle in-flight for 32s (threshold=30s, family=chunk-meta, lane=massive, phase=materialize:chunk-meta-binary-columnar)');",
+  "console.log('[tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000');",
+  "console.log('[tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked');",
+  "console.log('[tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol workspacePartition=. class=timeout');",
+  "console.log('[tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens workspacePartition=swift-package class=request_failed');",
+  "console.log('[tooling] pyright circuit breaker tripped.');",
+  "console.log('[tooling] pyright degraded mode active (fail-open).');",
+  "console.log('[tooling] pyright degraded mode cleared.');",
+  "console.log('[tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via compile_commands.json.');",
+  "console.log('[imports] suppression: policy=live count=4 degraded=1 visible=1 total=7 actionable=3 omittedFailureCauses=resolver_gap,parser_artifact');",
+  "console.log('[tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete workspacePartition=multiple partitionCount=2 unmatchedDocuments=1 unmatchedTargets=1');",
+  "progress({ level: 'info', stage: 'watchdog', taskId: 'stage:watchdog', message: 'structured watchdog budget extension', benchDiagnostic: { eventType: 'runtime_timeout_budget_extended', message: 'watchdog budget extended for healthy progress', timeoutKind: 'idle', phase: 'execute', resourceClass: 'cpu-bound', failureMode: 'budget_exhausted_with_progress', decisionReason: 'healthy_progress', outcome: 'extend_budget', effectiveBudgetMs: 1200, skippedWork: ['provider-enrichment'], partialSuccess: true } });",
+  "progress({ level: 'warn', stage: 'watchdog', taskId: 'stage:watchdog', message: 'structured watchdog timeout', benchDiagnostic: { eventType: 'runtime_timeout', message: 'watchdog timeout after progress-aware budget', timeoutKind: 'hard', phase: 'provider_bootstrap', resourceClass: 'provider-bound', failureMode: 'budget_exhausted_with_progress', decisionReason: 'progress_budget_exhausted', outcome: 'terminate', effectiveBudgetMs: 1600, skippedWork: ['provider-requests', 'workspace-preflight'], partialSuccess: true } });",
   "const fallback = JSON.stringify({ proto: 'poc.progress@2', event: 'log', ts: new Date().toISOString(), level: 'warn', stage: 'parse', taskId: 'stage:parse', message: 'using fallback parser for unsupported grammar' });",
   'console.log(fallback);',
   'console.log(fallback);',
@@ -60,8 +72,13 @@ assert.equal(
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   'expected diagnostics schema version'
 );
-assert.equal(result.diagnostics.eventCount, 6, 'expected six diagnostic events including fallback duplicate');
+assert.equal(result.diagnostics.eventCount, 19, 'expected structured diagnostics to include tooling/runtime events');
 assert.equal(result.diagnostics.countsByType.fallback_used, 2, 'expected fallback duplicate count in full stream');
+assert.deepEqual(
+  result.diagnostics.countsBySeverity,
+  { error: 2, info: 3, warn: 14 },
+  'expected consequence-based severity counts in process diagnostics summary'
+);
 
 for (const type of BENCH_DIAGNOSTIC_EVENT_TYPES) {
   assert.equal(
@@ -82,7 +99,7 @@ assert.equal(
 const streamLines = (await fsPromises.readFile(diagnosticsPath, 'utf8'))
   .split(/\r?\n/)
   .filter((line) => line.trim());
-assert.equal(streamLines.length, 6, 'expected full JSON event stream with all occurrences');
+assert.equal(streamLines.length, 19, 'expected full JSON event stream with all occurrences');
 
 const streamEvents = streamLines.map((line) => JSON.parse(line));
 const fallbackEvents = streamEvents.filter((entry) => entry.eventType === 'fallback_used');
@@ -97,6 +114,47 @@ assert.deepEqual(
   [1, 2],
   'expected fallback occurrence counter to increment'
 );
+const requestTimeoutEvent = streamEvents.find((entry) => entry.eventType === 'provider_request_timeout');
+assert.equal(requestTimeoutEvent?.providerId, 'pyright', 'expected provider correlation on request timeout');
+assert.equal(requestTimeoutEvent?.requestMethod, 'textDocument/documentSymbol', 'expected request method on timeout event');
+const preflightBlockedEvent = streamEvents.find((entry) => entry.eventType === 'provider_preflight_blocked');
+assert.equal(preflightBlockedEvent?.providerId, 'gopls', 'expected provider correlation on preflight blocked event');
+assert.equal(preflightBlockedEvent?.preflightState, 'blocked', 'expected blocked preflight state on stream event');
+const workspacePartitionEvent = streamEvents.find((entry) => entry.eventType === 'workspace_partition_decision');
+assert.equal(workspacePartitionEvent?.providerId, 'gopls', 'expected provider correlation on workspace routing event');
+assert.equal(workspacePartitionEvent?.workspacePartition, 'multiple', 'expected workspace partition identifier on routing event');
+const warningSuppressedEvent = streamEvents.find((entry) => entry.eventType === 'warning_suppressed');
+assert.equal(warningSuppressedEvent?.providerId, 'clangd', 'expected provider correlation on warning suppression');
+assert.equal(warningSuppressedEvent?.severity, 'warn', 'expected warning suppression to surface at warn severity');
+const importSuppressionEvent = streamEvents.find((entry) => entry.eventType === 'warning_suppressed' && entry.failureClass === 'imports_live:4');
+assert.equal(importSuppressionEvent?.suppressionPolicy, 'live', 'expected import suppression policy on structured warning event');
+assert.equal(importSuppressionEvent?.suppressedCount, 4, 'expected import suppression count on structured warning event');
+assert.equal(importSuppressionEvent?.degradedRun, true, 'expected degraded-run flag on structured warning event');
+assert.equal(importSuppressionEvent?.visibleSampleCount, 1, 'expected retained visible-sample count on structured warning event');
+assert.equal(importSuppressionEvent?.actionableCount, 3, 'expected actionable unresolved count on structured warning event');
+assert.equal(importSuppressionEvent?.totalCount, 7, 'expected total unresolved count on structured warning event');
+assert.deepEqual(importSuppressionEvent?.omittedSampleClasses, ['resolver_gap', 'parser_artifact'], 'expected omitted sample classes on structured warning event');
+const parserCrashEvent = streamEvents.find((entry) => entry.eventType === 'parser_crash');
+assert.equal(parserCrashEvent?.severity, 'error', 'expected parser crash to surface at error severity');
+const preflightStartEvent = streamEvents.find((entry) => entry.eventType === 'provider_preflight_start');
+assert.equal(preflightStartEvent?.severity, 'info', 'expected preflight start to remain informational');
+const runtimeTimeoutEvent = streamEvents.find((entry) => entry.eventType === 'runtime_timeout');
+assert.equal(runtimeTimeoutEvent?.timeoutKind, 'hard', 'expected runtime timeout kind on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.phase, 'provider_bootstrap', 'expected timeout phase on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.resourceClass, 'provider-bound', 'expected timeout resource class on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.failureMode, 'budget_exhausted_with_progress', 'expected timeout failure mode on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.decisionReason, 'progress_budget_exhausted', 'expected timeout decision reason on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.outcome, 'terminate', 'expected timeout outcome on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.effectiveBudgetMs, 1600, 'expected timeout budget on structured stream entry');
+assert.deepEqual(runtimeTimeoutEvent?.skippedWork, ['provider-requests', 'workspace-preflight'], 'expected skipped work on structured stream entry');
+assert.equal(runtimeTimeoutEvent?.partialSuccess, true, 'expected partial success flag on structured stream entry');
+const runtimeBudgetExtendedEvent = streamEvents.find((entry) => entry.eventType === 'runtime_timeout_budget_extended');
+assert.equal(runtimeBudgetExtendedEvent?.timeoutKind, 'idle', 'expected runtime timeout extension kind on structured stream entry');
+assert.equal(runtimeBudgetExtendedEvent?.decisionReason, 'healthy_progress', 'expected timeout extension decision reason on structured stream entry');
+assert.equal(runtimeBudgetExtendedEvent?.outcome, 'extend_budget', 'expected timeout extension outcome on structured stream entry');
+const artifactTailStallEvent = streamEvents.find((entry) => entry.eventType === 'artifact_tail_stall');
+assert.equal(artifactTailStallEvent?.failureClass, 'family:chunk-meta', 'expected artifact stall family classification in stream entry');
+assert.equal(artifactTailStallEvent?.phase, 'materialize:chunk-meta-binary-columnar', 'expected artifact stall phase classification in stream entry');
 for (const entry of streamEvents) {
   assert.match(entry.eventId, /^ub050:v1:[a-z_]+:[a-f0-9]{12}$/);
   assert.equal(entry.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected schema version on stream entry');
@@ -106,17 +164,44 @@ const interactiveDiagnostics = captured
   .filter((line) => line.startsWith('[diagnostics]'))
   .map((line) => line.replace(/ub050:v1:[a-z_]+:[a-f0-9]{12}/g, '<eventId>'))
   .sort();
-assert.deepEqual(
-  interactiveDiagnostics,
-  [
-    '[diagnostics] artifact_tail_stall <eventId> artifact tail stalled for 32000ms while writing shard',
-    '[diagnostics] fallback_used <eventId> using fallback parser for unsupported grammar',
-    '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
-    '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
-    '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata'
-  ],
-  'expected concise interactive diagnostics snapshot (deduped)'
-);
+const expectedInteractivePrefixes = [
+  '[diagnostics] artifact_tail_stall <eventId> [perf] artifact write stall critical: chunk_meta.binary-columnar.bundle in-flight for 32s (threshold=30s, fam...',
+  '[diagnostics] warning_suppressed <eventId> [imports] suppression: policy=live count=4 degraded=1 visible=1 total=7 actionable=3 omittedFailureCauses=res...',
+  '[diagnostics] parser_crash <eventId> tree-sitter parser crash while parsing src/main.c',
+  '[diagnostics] provider_circuit_breaker <eventId> [tooling] pyright circuit breaker tripped.',
+  '[diagnostics] provider_degraded_mode_cleared <eventId> [tooling] pyright degraded mode cleared.',
+  '[diagnostics] provider_degraded_mode_entered <eventId> [tooling] pyright degraded mode active (fail-open).',
+  '[diagnostics] provider_preflight_blocked <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
+  '[diagnostics] provider_request_failed <eventId> [tooling] request:failed provider=sourcekit method=textDocument/semanticTokens/full stage=semantic_tokens wor...',
+  '[diagnostics] provider_request_timeout <eventId> [tooling] request:timeout provider=pyright method=textDocument/documentSymbol stage=documentSymbol workspaceP...',
+  '[diagnostics] queue_delay_hotspot <eventId> [tree-sitter:schedule] queue delay hotspot 1450ms',
+  '[diagnostics] scm_timeout <eventId> [scm] timeout while collecting git metadata',
+  '[diagnostics] warning_suppressed <eventId> [tooling] clangd suppressed 2 IncludeCleaner stderr line(s); missing include roots should be configured via c...'
+];
+assert.equal(interactiveDiagnostics.length, expectedInteractivePrefixes.length, 'expected one concise interactive line per unique diagnostic');
+for (const prefix of expectedInteractivePrefixes) {
+  assert.equal(
+    interactiveDiagnostics.some((line) => line.startsWith(prefix)),
+    true,
+    `expected interactive diagnostics to include prefix: ${prefix}`
+  );
+}
+const unexpectedInteractivePrefixes = [
+  '[diagnostics] fallback_used <eventId> using fallback parser for unsupported grammar',
+  '[diagnostics] provider_preflight_finish <eventId> [tooling] preflight:blocked provider=gopls id=gopls.workspace-model durationMs=87 state=blocked',
+  '[diagnostics] provider_preflight_start <eventId> [tooling] preflight:start provider=gopls id=gopls.workspace-model class=workspace timeoutMs=20000',
+  '[diagnostics] workspace_partition_decision <eventId> [tooling] workspace:partition provider=gopls state=degraded reason=gopls_workspace_partition_incomplete'
+  ,
+  '[diagnostics] runtime_timeout <eventId> watchdog timeout after progress-aware budget',
+  '[diagnostics] runtime_timeout_budget_extended <eventId> watchdog budget extended for healthy progress'
+];
+for (const prefix of unexpectedInteractivePrefixes) {
+  assert.equal(
+    interactiveDiagnostics.some((line) => line.startsWith(prefix)),
+    false,
+    `expected interactive diagnostics to suppress prefix: ${prefix}`
+  );
+}
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 

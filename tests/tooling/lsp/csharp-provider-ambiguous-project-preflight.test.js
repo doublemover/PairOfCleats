@@ -1,12 +1,9 @@
 #!/usr/bin/env node
-import assert from 'node:assert/strict';
 import {
   buildSingleSymbolInputs,
-  createLspProviderTempRepo,
-  resolveLspFixtureCommand,
-  runDedicatedProviderFixture
+  createLspProviderTempRepo
 } from '../../helpers/lsp-provider-fixture.js';
-import { withLspTestPath } from '../../helpers/lsp-runtime.js';
+import { runDedicatedProviderDegradedPreflightCase } from './helpers/degraded-preflight-case.js';
 
 const root = process.cwd();
 const tempRoot = await createLspProviderTempRepo({
@@ -18,7 +15,6 @@ const tempRoot = await createLspProviderTempRepo({
     { path: 'AppB.csproj', content: '<Project/>' }
   ]
 });
-const fixtureCsharpCmd = resolveLspFixtureCommand('csharp-ls', { repoRoot: root });
 const docText = 'class App { string Greet(string name) => name; }\n';
 const inputs = buildSingleSymbolInputs({
   scenarioName: 'csharp-ambiguous-project-preflight',
@@ -29,31 +25,21 @@ const inputs = buildSingleSymbolInputs({
   symbolName: 'Greet'
 });
 
-await withLspTestPath({ repoRoot: root }, async () => {
-  const result = await runDedicatedProviderFixture({
-    tempRoot,
-    providerId: 'csharp-ls',
-    providerConfigKey: 'csharp',
-    providerConfig: {
-      cmd: fixtureCsharpCmd
-    },
-    inputs
-  });
-
-  assert.equal(result.byChunkUid.has(inputs.chunkUid), true, 'expected csharp provider to continue with ambiguous project roots');
-  const diagnostics = result.diagnostics?.['csharp-ls'] || {};
-  assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected csharp preflight degraded state');
-  assert.equal(
-    diagnostics?.preflight?.reasonCode,
-    'csharp_workspace_ambiguous_project',
-    'expected csharp ambiguous project reason code'
-  );
-  const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
-  assert.equal(
-    checks.some((check) => check?.name === 'csharp_workspace_ambiguous_project'),
-    true,
-    'expected csharp ambiguous project warning check'
-  );
+await runDedicatedProviderDegradedPreflightCase({
+  root,
+  repo: tempRoot,
+  providerId: 'csharp-ls',
+  providerConfigKey: 'csharp',
+  fixtureCommand: 'csharp-ls',
+  inputs,
+  expectedEnrichment: true,
+  expectedReasonCode: 'csharp_workspace_ambiguous_project',
+  expectedCheckName: 'csharp_workspace_ambiguous_project',
+  messages: {
+    enrichment: 'expected csharp provider to continue with ambiguous project roots',
+    reasonCode: 'expected csharp ambiguous project reason code',
+    check: 'expected csharp ambiguous project warning check'
+  }
 });
 
 console.log('csharp provider ambiguous project preflight test passed');

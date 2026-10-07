@@ -1,7 +1,7 @@
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import { resolveWindowsCmdInvocation } from '../../src/shared/subprocess/windows-cmd.js';
-
-const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|bat)$/i.test(String(command || ''));
+import {
+  spawnResolvedSubprocessSync
+} from '../../src/shared/subprocess/command-invocation.js';
+import { exitLikeChildResult } from '../../src/shared/subprocess/exit-semantics.js';
 
 /**
  * Exit current process using child-command exit semantics.
@@ -10,25 +10,7 @@ const shouldUseCmdShell = (command) => process.platform === 'win32' && /\.(cmd|b
  * @param {{exit:(code?:number)=>void,kill:(pid:number,signal:string)=>void,pid:number}} [proc=process]
  * @returns {void}
  */
-export function exitLikeCommandResult(result, proc = process) {
-  const status = Number.isInteger(result?.status) ? Number(result.status) : null;
-  if (status !== null) {
-    proc.exit(status);
-    return;
-  }
-
-  const signal = typeof result?.signal === 'string' && result.signal.trim().length > 0
-    ? result.signal.trim()
-    : null;
-  if (signal) {
-    try {
-      proc.kill(proc.pid, signal);
-      return;
-    } catch {}
-  }
-
-  proc.exit(1);
-}
+export const exitLikeCommandResult = exitLikeChildResult;
 
 /**
  * Run a command and return a normalized result.
@@ -39,20 +21,16 @@ export function exitLikeCommandResult(result, proc = process) {
  */
 export function runCommand(cmd, args, options = {}) {
   const resolvedArgs = Array.isArray(args) ? args : [];
-  const invocation = shouldUseCmdShell(cmd)
-    ? resolveWindowsCmdInvocation(cmd, resolvedArgs)
-    : { command: cmd, args: resolvedArgs };
+  const effectiveEnv = options.env || process.env;
   const maxOutputBytes = Number.isFinite(Number(options.maxOutputBytes))
     ? Number(options.maxOutputBytes)
     : (Number.isFinite(Number(options.maxBuffer)) ? Number(options.maxBuffer) : undefined);
   const timeoutMs = Number.isFinite(Number(options.timeoutMs))
     ? Math.max(100, Math.floor(Number(options.timeoutMs)))
     : null;
-  const result = spawnSubprocessSync(invocation.command, invocation.args, {
+  const result = spawnResolvedSubprocessSync(cmd, resolvedArgs, {
     cwd: options.cwd,
-    env: invocation.env
-      ? { ...(options.env || process.env), ...invocation.env }
-      : options.env,
+    env: effectiveEnv,
     stdio: options.stdio,
     input: options.input,
     shell: options.shell,
@@ -82,6 +60,39 @@ export function runCommand(cmd, args, options = {}) {
  */
 export function canRunCommand(cmd, args = ['--version'], options = {}) {
   return probeCommand(cmd, args, options).ok === true;
+}
+
+/**
+ * Build minimal flag and option readers for small tool scripts.
+ *
+ * This intentionally preserves simple legacy parsing behavior: `--name value`
+ * returns the next token as-is, and `--name=value` returns the raw suffix.
+ *
+ * @param {string[]} [argv=process.argv.slice(2)]
+ * @returns {{args:string[],hasFlag:(flag:string)=>boolean,readOption:(name:string,fallback?:string)=>string}}
+ */
+export function createArgReader(argv = process.argv.slice(2)) {
+  const args = Array.isArray(argv) ? argv.map((arg) => String(arg)) : [];
+  return {
+    args,
+    hasFlag(flag) {
+      return args.includes(flag);
+    },
+    readOption(name, fallback = '') {
+      const flag = name.startsWith('--') ? name : `--${name}`;
+      for (let i = 0; i < args.length; i += 1) {
+        const arg = args[i];
+        if (arg === flag) {
+          const next = args[i + 1];
+          return typeof next === 'string' ? next : fallback;
+        }
+        if (typeof arg === 'string' && arg.startsWith(`${flag}=`)) {
+          return arg.slice(flag.length + 1);
+        }
+      }
+      return fallback;
+    }
+  };
 }
 
 const isMissingCommandText = (stderr = '', stdout = '') => {
@@ -204,7 +215,7 @@ export function runSubprocessOrExit(options) {
     logError = console.error,
     onFailure
   } = options || {};
-  const result = spawnSubprocessSync(command, Array.isArray(args) ? args : [], {
+  const result = spawnResolvedSubprocessSync(command, Array.isArray(args) ? args : [], {
     cwd,
     env,
     stdio,
@@ -226,7 +237,9 @@ export function runSubprocessOrExit(options) {
  * Emit JSON to stdout with a trailing newline.
  * @param {unknown} payload
  * @param {NodeJS.WritableStream} [stream]
+ * @param {{spaces?:number}} [options]
  */
-export function emitJson(payload, stream = process.stdout) {
-  stream.write(`${JSON.stringify(payload, null, 2)}\n`);
+export function emitJson(payload, stream = process.stdout, options = {}) {
+  const spaces = Number.isInteger(options?.spaces) ? options.spaces : 2;
+  stream.write(`${JSON.stringify(payload, null, spaces)}\n`);
 }

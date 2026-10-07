@@ -1,90 +1,41 @@
 #!/usr/bin/env node
-import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runSingleSymbolDegradedPreflightCase } from './helpers/degraded-preflight-case.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const tempRoot = resolveTestCachePath(root, `pyright-preflight-workspace-scan-outlier-${process.pid}-${Date.now()}`);
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
-await fs.mkdir(path.join(tempRoot, 'pkg-a'), { recursive: true });
-await fs.mkdir(path.join(tempRoot, 'pkg-b'), { recursive: true });
-await fs.writeFile(path.join(tempRoot, 'src', 'one.py'), 'def alpha() -> int:\n    return 1\n', 'utf8');
-await fs.writeFile(path.join(tempRoot, 'pkg-a', 'a.py'), 'A = 1\n', 'utf8');
-await fs.writeFile(path.join(tempRoot, 'pkg-b', 'b.py'), 'B = 2\n', 'utf8');
-
-const fixtureCmd = path.join(
-  root,
-  'tests',
-  'fixtures',
-  'lsp',
-  'bin',
-  process.platform === 'win32' ? 'pyright-langserver.cmd' : 'pyright-langserver'
-);
-await fs.access(fixtureCmd);
-
-registerDefaultToolingProviders();
-
-const chunkUid = 'ck:test:pyright-workspace-scan-outlier:1';
 const docText = 'def alpha() -> int:\n    return 1\n';
-const result = await runToolingProviders({
-  strict: true,
-  repoRoot: tempRoot,
-  buildRoot: tempRoot,
-  toolingConfig: {
-    enabledTools: ['pyright'],
-    pyright: {
-      cmd: fixtureCmd,
-      workspaceScanOutlierEntryThreshold: 1,
-      workspaceScanOutlierDurationMs: 1_000_000
-    }
+await runSingleSymbolDegradedPreflightCase({
+  root,
+  name: `pyright-preflight-workspace-scan-outlier-${process.pid}-${Date.now()}`,
+  directories: ['src', 'pkg-a', 'pkg-b'],
+  files: [
+    { path: 'src/one.py', content: docText },
+    { path: 'pkg-a/a.py', content: 'A = 1\n' },
+    { path: 'pkg-b/b.py', content: 'B = 2\n' }
+  ],
+  providerId: 'pyright',
+  providerConfigKey: 'pyright',
+  fixtureCommand: 'pyright-langserver',
+  providerConfig: {
+    workspaceScanOutlierEntryThreshold: 1,
+    workspaceScanOutlierDurationMs: 1_000_000
   },
-  cache: {
-    enabled: false
-  }
-}, {
-  documents: [{
+  input: {
+    scenarioName: 'pyright-workspace-scan-outlier',
     virtualPath: 'src/one.py',
     text: docText,
     languageId: 'python',
     effectiveExt: '.py',
-    docHash: 'hash-pyright-workspace-scan-outlier'
-  }],
-  targets: [{
-    chunkRef: {
-      docId: 0,
-      chunkUid,
-      chunkId: 'chunk_pyright_workspace_scan_outlier',
-      file: 'src/one.py',
-      segmentUid: null,
-      segmentId: null,
-      range: { start: 0, end: docText.length }
-    },
-    virtualPath: 'src/one.py',
-    virtualRange: { start: 0, end: docText.length },
-    symbolHint: { name: 'alpha', kind: 'function' },
-    languageId: 'python'
-  }],
-  kinds: ['types']
+    symbolName: 'alpha'
+  },
+  expectedReasonCode: 'pyright_workspace_scan_outlier',
+  expectedCheckName: 'pyright_workspace_scan_outlier',
+  messages: {
+    enrichment: 'expected pyright output even with scan-outlier warning',
+    reasonCode: 'expected pyright scan-outlier reason code',
+    check: 'expected pyright scan-outlier warning check'
+  }
 });
-
-assert.equal(result.byChunkUid.has(chunkUid), true, 'expected pyright output even with scan-outlier warning');
-const diagnostics = result.diagnostics?.pyright || {};
-assert.equal(diagnostics?.preflight?.state, 'degraded', 'expected pyright preflight degraded state');
-assert.equal(
-  diagnostics?.preflight?.reasonCode,
-  'pyright_workspace_scan_outlier',
-  'expected pyright scan-outlier reason code'
-);
-const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
-assert.equal(
-  checks.some((check) => check?.name === 'pyright_workspace_scan_outlier'),
-  true,
-  'expected pyright scan-outlier warning check'
-);
 
 console.log('pyright preflight workspace scan outlier test passed');

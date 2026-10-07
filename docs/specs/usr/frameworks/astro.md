@@ -57,7 +57,7 @@ Normative framework contract for `astro` under USR.
 
 ## 8. Required fixtures and evidence
 
-- `edgeCaseCaseIds`: `astro-frontmatter-template-bridge`, `astro-island-hydration`, `astro-route-collection`
+- `edgeCaseCaseIds`: `astro-component-style-scope`, `astro-frontmatter-template-bridge`, `astro-island-hydration`, `astro-route-collection`, `astro-template-slot-props`
 - `blockingFixtureIds`: `astro::framework-overlay::baseline-001`, `astro::hydration::island-001`
 - `requiredConformance`: `C4`
 
@@ -65,9 +65,9 @@ Normative framework contract for `astro` under USR.
 
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against framework profile and edge-case registries.
-- [ ] Required framework fixture families assigned with concrete fixture IDs.
-- [ ] Required C4 conformance checks mapped to executable lanes.
+- [x] Matrix linkage verified against framework profile and edge-case registries.
+- [x] Required framework fixture families assigned with concrete fixture IDs.
+- [x] Required C4 conformance checks mapped to executable lanes.
 
 ## 10. Completion evidence artifacts
 

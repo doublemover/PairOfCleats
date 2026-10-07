@@ -1,0 +1,400 @@
+import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { readJsonFileSafe } from '../../shared/file-read.js';
+import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import {
+  buildProviderFidelityContract,
+  PROVIDER_FIDELITY_STATE
+} from './provider-contract.js';
+import {
+  normalizeVirtualWorkspacePath,
+  normalizeWorkspaceRootRel
+} from './workspace-model.js';
+
+const DEFAULT_HARD_COOLDOWN_MS = 10 * 60 * 1000;
+const DEFAULT_SOFT_COOLDOWN_MS = 2 * 60 * 1000;
+const testHooks = {
+  hardCooldownMs: null,
+  softCooldownMs: null
+};
+
+export const PYRIGHT_RUNTIME_HEALTH_STATE = Object.freeze({
+  HEALTHY: 'healthy',
+  WARMING: 'warming',
+  DEGRADED_SOFT: 'degraded_soft',
+  DEGRADED_HARD: 'degraded_hard',
+  QUARANTINED_FOR_RUN: 'quarantined_for_run'
+});
+
+const buildHealthFingerprint = ({ repoRoot, workspaceRootRel }) => crypto.createHash('sha1')
+  .update(path.resolve(String(repoRoot || process.cwd())).toLowerCase())
+  .update('|')
+  .update(normalizeWorkspaceRootRel(workspaceRootRel))
+  .digest('hex');
+
+const resolveRuntimeHealthPath = ({ repoRoot, cacheRoot = null, workspaceRootRel }) => {
+  const rootHash = buildHealthFingerprint({ repoRoot, workspaceRootRel });
+  if (typeof cacheRoot === 'string' && cacheRoot.trim()) {
+    return path.join(path.resolve(cacheRoot), 'tooling', 'pyright-runtime', `${rootHash}.json`);
+  }
+  return path.join(
+    path.resolve(String(repoRoot || process.cwd())),
+    '.build',
+    'pairofcleats',
+    'tooling',
+    'pyright-runtime',
+    `${rootHash}.json`
+  );
+};
+
+const normalizeStoredState = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return Object.values(PYRIGHT_RUNTIME_HEALTH_STATE).includes(normalized)
+    ? normalized
+    : PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
+};
+
+const resolveHardCooldownMs = () => {
+  const parsed = Number(testHooks.hardCooldownMs);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_HARD_COOLDOWN_MS;
+};
+
+const resolveSoftCooldownMs = () => {
+  const parsed = Number(testHooks.softCooldownMs);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_SOFT_COOLDOWN_MS;
+};
+
+export const buildPyrightRuntimeFingerprint = ({
+  workspaceRootRel,
+  selectedDocumentSummaries
+} = {}) => {
+  const docs = Array.isArray(selectedDocumentSummaries)
+    ? selectedDocumentSummaries
+      .map((entry) => normalizeVirtualWorkspacePath(entry?.virtualPath))
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right))
+    : [];
+  return crypto.createHash('sha1')
+    .update(normalizeWorkspaceRootRel(workspaceRootRel))
+    .update('\0')
+    .update(JSON.stringify(docs))
+    .digest('hex');
+};
+
+const readRuntimeHealth = async ({ repoRoot, cacheRoot = null, workspaceRootRel }) => {
+  const healthPath = resolveRuntimeHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
+  const payload = await readJsonFileSafe(healthPath, {
+    fallback: null,
+    maxBytes: 32 * 1024
+  });
+  if (!payload || typeof payload !== 'object') {
+    return { healthPath, state: null };
+  }
+  return {
+    healthPath,
+    state: {
+      workspaceRootRel: normalizeWorkspaceRootRel(payload.workspaceRootRel),
+      state: normalizeStoredState(payload.state),
+      reasonCode: String(payload.reasonCode || '').trim() || null,
+      fingerprint: String(payload.fingerprint || '').trim() || null,
+      cooldownUntil: Number(payload.cooldownUntil) || 0,
+      updatedAt: String(payload.updatedAt || '').trim() || null,
+      timeoutStormCount: Number(payload.timeoutStormCount) || 0,
+      degradationCount: Number(payload.degradationCount) || 0,
+      recoveryCount: Number(payload.recoveryCount) || 0
+    }
+  };
+};
+
+export const resolvePyrightRuntimeHealth = async ({
+  repoRoot,
+  cacheRoot = null,
+  workspaceRootRel,
+  selectedDocumentSummaries,
+  now = Date.now()
+} = {}) => {
+  const normalizedWorkspaceRootRel = normalizeWorkspaceRootRel(workspaceRootRel);
+  const fingerprint = buildPyrightRuntimeFingerprint({
+    workspaceRootRel: normalizedWorkspaceRootRel,
+    selectedDocumentSummaries
+  });
+  const { healthPath, state: persistedState } = await readRuntimeHealth({
+    repoRoot,
+    cacheRoot,
+    workspaceRootRel: normalizedWorkspaceRootRel
+  });
+  const fingerprintChanged = Boolean(
+    persistedState?.fingerprint
+    && persistedState.fingerprint !== fingerprint
+  );
+  let effectiveState = persistedState?.state || PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
+  let reasonCode = persistedState?.reasonCode || null;
+  let cooldownRemainingMs = 0;
+  if (!persistedState) {
+    effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
+  } else if (fingerprintChanged) {
+    effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.WARMING;
+    reasonCode = 'fingerprint_changed';
+  } else if (
+    (
+      persistedState.state === PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_HARD
+      || persistedState.state === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+    )
+    && persistedState.cooldownUntil > now
+  ) {
+    effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN;
+    cooldownRemainingMs = Math.max(0, persistedState.cooldownUntil - now);
+  } else if (
+    (
+      persistedState.state === PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_SOFT
+      || persistedState.state === PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_HARD
+      || persistedState.state === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+    )
+    && persistedState.cooldownUntil <= now
+  ) {
+    effectiveState = PYRIGHT_RUNTIME_HEALTH_STATE.WARMING;
+    reasonCode = 'cooldown_elapsed';
+  }
+  return {
+    healthPath,
+    fingerprint,
+    workspaceRootRel: normalizedWorkspaceRootRel,
+    persistedState,
+    effectiveState,
+    reasonCode,
+    cooldownRemainingMs,
+    shouldShortCircuit: effectiveState === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+  };
+};
+
+export const resolvePyrightRuntimeOverrides = ({
+  documentSymbolConcurrency
+} = {}) => ({
+  documentSymbolConcurrency: 1,
+  plannedDocumentSymbolConcurrency: Number(documentSymbolConcurrency) || 0
+});
+
+export const buildPyrightFallbackContract = ({
+  state,
+  reasonCode,
+  workspaceRootRel,
+  fingerprint,
+  captureDiagnostics = false,
+  runtime = null,
+  checks = [],
+  byChunkUid = null
+} = {}) => {
+  const normalizedState = normalizeStoredState(state);
+  const degraded = normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY
+    && normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.WARMING;
+  const fidelityState = (
+    normalizedState === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+      ? PROVIDER_FIDELITY_STATE.QUARANTINED
+      : (degraded ? PROVIDER_FIDELITY_STATE.DEGRADED : PROVIDER_FIDELITY_STATE.HEALTHY)
+  );
+  const runtimeIssueClasses = new Set();
+  if (String(reasonCode || '').trim() === 'pyright_timeout_storm') {
+    runtimeIssueClasses.add('timeout_storm_truncated');
+  }
+  if (normalizedState === PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN) {
+    runtimeIssueClasses.add('workspace_quarantined');
+  }
+  if (hasNamedCheck(checks, 'pyright_workspace_scan_outlier')) {
+    runtimeIssueClasses.add('workspace_scan_outlier');
+  }
+  if (hasNamedCheck(checks, 'pyright_workspace_config_invalid')) {
+    runtimeIssueClasses.add('workspace_config_invalid');
+  }
+  if (hasNamedCheck(checks, 'pyright_workspace_config_unreadable')) {
+    runtimeIssueClasses.add('workspace_config_unreadable');
+  }
+  if (hasNamedCheck(checks, 'pyright_timeout_storm_truncated')) {
+    runtimeIssueClasses.add('timeout_storm_truncated');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/documentSymbol']?.timedOut || 0) > 0) {
+    runtimeIssueClasses.add('document_symbol_timeout');
+  }
+  if (Number(runtime?.requests?.byMethod?.['textDocument/hover']?.timedOut || 0) > 0) {
+    runtimeIssueClasses.add('hover_timeout');
+  }
+  const fidelity = buildProviderFidelityContract({
+    providerId: 'pyright',
+    state: fidelityState,
+    reasonCode,
+    workspaceRootRel: normalizeWorkspaceRootRel(workspaceRootRel),
+    fingerprint,
+    runtime,
+    checks,
+    captureDiagnostics,
+    runtimeIssueClasses: Array.from(runtimeIssueClasses).sort((left, right) => left.localeCompare(right)),
+    byChunkUid,
+    skippedRequestClasses: degraded
+      ? [
+        'documentSymbol',
+        'hover',
+        'signatureHelp',
+        'definition',
+        'typeDefinition',
+        'references',
+        'semanticTokens',
+        'inlayHints'
+      ]
+      : [],
+    contributes: {
+      typeEnrichment: degraded !== true,
+      diagnostics: captureDiagnostics === true
+        && normalizedState !== PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN
+    },
+    downstreamMergeInterpretation: degraded
+      ? 'Treat missing Pyright output as explicit provider degradation, not as negative symbol evidence.'
+      : 'Pyright output is healthy and may participate in normal merge scoring.'
+  });
+  return {
+    ...fidelity,
+    fidelityState: fidelity.state,
+    state: normalizedState
+  };
+};
+
+const hasNamedCheck = (checks, name) => (
+  Array.isArray(checks) && checks.some((check) => check?.name === name)
+);
+
+const resolveRequestClassFromRuntime = (runtime) => {
+  const documentSymbol = runtime?.requests?.byMethod?.['textDocument/documentSymbol'] || {};
+  const hover = runtime?.requests?.byMethod?.['textDocument/hover'] || {};
+  return {
+    documentSymbol: {
+      timedOut: Number(documentSymbol?.timedOut || 0),
+      failed: Number(documentSymbol?.failed || 0)
+    },
+    hover: {
+      timedOut: Number(hover?.timedOut || 0),
+      failed: Number(hover?.failed || 0)
+    }
+  };
+};
+
+export const derivePyrightRuntimeOutcome = ({
+  healthContext,
+  runtime,
+  checks,
+  captureDiagnostics = false,
+  now = Date.now()
+} = {}) => {
+  const requestClasses = resolveRequestClassFromRuntime(runtime);
+  const timedOut = requestClasses.documentSymbol.timedOut;
+  const failed = requestClasses.documentSymbol.failed;
+  const hoverTimedOut = requestClasses.hover.timedOut;
+  const hoverFailed = requestClasses.hover.failed;
+  const circuitOpened = hasNamedCheck(checks, 'tooling_circuit_open');
+  const documentSymbolFailed = hasNamedCheck(checks, 'tooling_document_symbol_failed');
+  const hoverStageTimedOut = hasNamedCheck(checks, 'tooling_hover_timeout');
+  const providerQuarantined = hasNamedCheck(checks, 'tooling_provider_quarantined');
+  const timeoutStormDetected = timedOut >= 1;
+  const hoverTimeoutStormDetected = hoverTimedOut >= 1 || hoverStageTimedOut;
+  const hardFailureDetected = providerQuarantined || timeoutStormDetected || hoverTimeoutStormDetected || circuitOpened;
+  let state = healthContext?.effectiveState || PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
+  let nextState = state;
+  let reasonCode = healthContext?.reasonCode || null;
+  let cooldownUntil = 0;
+  if (providerQuarantined) {
+    state = PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN;
+    nextState = PYRIGHT_RUNTIME_HEALTH_STATE.QUARANTINED_FOR_RUN;
+    reasonCode = reasonCode || 'provider_quarantined';
+    cooldownUntil = now + resolveHardCooldownMs();
+  } else if (hardFailureDetected) {
+    state = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_SOFT;
+    nextState = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_HARD;
+    reasonCode = timeoutStormDetected
+      ? 'document_symbol_timeout'
+      : (
+        hoverTimeoutStormDetected
+          ? 'hover_timeout'
+          : (circuitOpened ? 'document_symbol_circuit_open' : 'document_symbol_failed')
+      );
+    cooldownUntil = now + resolveHardCooldownMs();
+  } else if (documentSymbolFailed || failed > 0 || hoverFailed > 0) {
+    state = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_SOFT;
+    nextState = PYRIGHT_RUNTIME_HEALTH_STATE.DEGRADED_SOFT;
+    reasonCode = hoverFailed > 0 && !(documentSymbolFailed || failed > 0)
+      ? 'hover_failed'
+      : 'document_symbol_failed';
+    cooldownUntil = now + resolveSoftCooldownMs();
+  } else {
+    state = state === PYRIGHT_RUNTIME_HEALTH_STATE.WARMING
+      ? PYRIGHT_RUNTIME_HEALTH_STATE.WARMING
+      : PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
+    nextState = PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY;
+    reasonCode = state === PYRIGHT_RUNTIME_HEALTH_STATE.WARMING ? 'warming_success' : null;
+    cooldownUntil = 0;
+  }
+  const persistedState = healthContext?.persistedState || null;
+  return {
+    state,
+    nextState,
+    reasonCode,
+    cooldownUntil,
+    summary: {
+      state,
+      nextState,
+      reasonCode,
+      workspaceRootRel: healthContext?.workspaceRootRel || '.',
+      fingerprint: healthContext?.fingerprint || null,
+      priorState: persistedState?.state || null,
+      cooldownRemainingMs: Math.max(0, cooldownUntil - now),
+      documentSymbolTimedOut: timedOut,
+      documentSymbolFailed: failed,
+      hoverTimedOut,
+      hoverFailed
+    },
+    fallback: buildPyrightFallbackContract({
+      state,
+      reasonCode,
+      workspaceRootRel: healthContext?.workspaceRootRel || '.',
+      fingerprint: healthContext?.fingerprint || null,
+      captureDiagnostics
+    }),
+    record: {
+      schemaVersion: 1,
+      updatedAt: new Date(now).toISOString(),
+      workspaceRootRel: healthContext?.workspaceRootRel || '.',
+      fingerprint: healthContext?.fingerprint || null,
+      state: nextState,
+      reasonCode,
+      cooldownUntil,
+      timeoutStormCount: Number(persistedState?.timeoutStormCount || 0) + (timeoutStormDetected ? 1 : 0),
+      hoverTimeoutStormCount: Number(persistedState?.hoverTimeoutStormCount || 0) + (hoverTimeoutStormDetected ? 1 : 0),
+      degradationCount: Number(persistedState?.degradationCount || 0) + (nextState !== PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY ? 1 : 0),
+      recoveryCount: Number(persistedState?.recoveryCount || 0) + (nextState === PYRIGHT_RUNTIME_HEALTH_STATE.HEALTHY ? 1 : 0)
+    }
+  };
+};
+
+export const persistPyrightRuntimeHealth = async ({
+  repoRoot,
+  cacheRoot = null,
+  workspaceRootRel,
+  record
+} = {}) => {
+  const healthPath = resolveRuntimeHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
+  await fs.promises.mkdir(path.dirname(healthPath), { recursive: true });
+  await atomicWriteJson(healthPath, withGeneratedCacheMetadata(record, 'pyright-runtime-health'), {
+    spaces: 0,
+    newline: false
+  });
+  return healthPath;
+};
+
+export const __testPyrightRuntimeHealth = {
+  setCooldowns({ hardMs = null, softMs = null } = {}) {
+    testHooks.hardCooldownMs = hardMs;
+    testHooks.softCooldownMs = softMs;
+  },
+  reset() {
+    testHooks.hardCooldownMs = null;
+    testHooks.softCooldownMs = null;
+  }
+};

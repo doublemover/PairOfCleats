@@ -1,4 +1,4 @@
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { loadBranchFromMetrics } from './options.js';
 
 export const resolveRepoBranch = async ({ root, metricsDir, runCode, runProse }) => {

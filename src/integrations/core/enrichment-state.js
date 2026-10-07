@@ -1,8 +1,8 @@
+import { withGeneratedCacheMetadata, withoutGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../../shared/locks/file-lock.js';
-import { readJsonFileSafe } from '../../shared/files.js';
+import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
+import { readJsonFileSafe } from '../../shared/file-read.js';
 
 const resolveEnrichmentStatePath = (repoCacheRoot) => path.join(repoCacheRoot, 'enrichment_state.json');
 const resolveEnrichmentStateLockPath = (repoCacheRoot) => path.join(repoCacheRoot, 'locks', 'enrichment-state.lock');
@@ -10,6 +10,13 @@ const ENRICHMENT_STATE_LOCK_WAIT_MS = 5000;
 const ENRICHMENT_STATE_LOCK_POLL_MS = 100;
 const ENRICHMENT_STATE_LOCK_STALE_MS = 30 * 60 * 1000;
 const ENRICHMENT_STATE_MAX_BYTES = 2 * 1024 * 1024;
+
+let fileLockModulePromise = null;
+
+const loadFileLockModule = () => {
+  fileLockModulePromise ??= import('../../shared/locks/file-lock.js');
+  return fileLockModulePromise;
+};
 
 const logEnrichmentWarning = (log, message) => {
   if (typeof log === 'function') {
@@ -34,7 +41,7 @@ const readEnrichmentState = async (statePath) => {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Enrichment state must be a JSON object.');
   }
-  return parsed;
+  return withoutGeneratedCacheMetadata(parsed);
 };
 
 export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) => {
@@ -42,6 +49,10 @@ export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) 
   const statePath = resolveEnrichmentStatePath(repoCacheRoot);
   const lockPath = resolveEnrichmentStateLockPath(repoCacheRoot);
   await fs.mkdir(repoCacheRoot, { recursive: true });
+  const {
+    acquireFileLock,
+    releaseFileLockOrThrow
+  } = await loadFileLockModule();
   const lock = await acquireFileLock({
     lockPath,
     waitMs: ENRICHMENT_STATE_LOCK_WAIT_MS,
@@ -69,7 +80,7 @@ export const updateEnrichmentState = async (repoCacheRoot, patch, { log } = {}) 
       updatedAt: new Date().toISOString()
     };
     try {
-      await writeJsonObjectFile(statePath, { fields: next, atomic: true, trailingNewline: true });
+      await writeJsonObjectFile(statePath, { fields: withGeneratedCacheMetadata(next, 'enrichment-state'), atomic: true, trailingNewline: true });
     } catch (err) {
       logEnrichmentWarning(log, `[enrichment] Failed to write state: ${err?.message || err}`);
       throw err;

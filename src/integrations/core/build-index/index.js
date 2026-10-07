@@ -1,26 +1,31 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import os from 'node:os';
 import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import { watchIndex } from '../../../index/build/watch.js';
-import { log as defaultLog, logError as defaultLogError } from '../../../shared/progress.js';
-import { observeIndexDuration } from '../../../shared/metrics.js';
-import { buildAutoPolicy } from '../../../shared/auto-policy.js';
-import { resolveRuntimeEnvelope, resolveRuntimeEnv } from '../../../shared/runtime-envelope.js';
+import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress-runtime.js';
+import { observeIndexDuration } from '../../../shared/metrics/core.js';
+import { buildAutoPolicy } from '../../../shared/auto-policy/build.js';
+import {
+  applyObservabilityContextEnv,
+  attachObservability,
+  buildChildObservability,
+  normalizeObservability
+} from '../../../shared/observability.js';
+import { resolveRuntimeEnv } from '../../../shared/runtime-envelope/env-patch.js';
+import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-envelope/resolve-current-process-envelope.js';
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
-import { spawnSubprocess } from '../../../shared/subprocess.js';
+import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
 import { buildRawArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
+import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
 import {
   getCacheRoot,
-  getRepoCacheRoot,
-  getRepoRoot,
   getToolVersion,
   loadUserConfig,
   resolveToolRoot
-} from '../../../../tools/shared/dict-utils.js';
+} from '../../../shared/dict-utils.js';
 import { ensureQueueDir, enqueueJob } from '../../../../tools/service/queue.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { teardownRuntime } from './runtime.js';
@@ -50,6 +55,7 @@ export const buildStreamedStage3Result = ({
   const queuedModeCount = perMode.filter((entry) => entry?.embeddings?.queued === true).length;
   const inlineModeCount = perMode.filter((entry) => entry?.embeddings?.inline === true).length;
   const mixedMode = queuedModeCount > 0 && inlineModeCount > 0;
+  const cancelledMode = perMode.find((entry) => entry?.embeddings?.cancelled === true)?.embeddings;
   return {
     modes: Array.isArray(embedModes) ? embedModes : [],
     embeddings: {
@@ -58,6 +64,7 @@ export const buildStreamedStage3Result = ({
       mixed: mixedMode,
       streamedFromStage2: true,
       cancelled: streamedCancelled === true,
+      ...(cancelledMode ? { code: cancelledMode.code ?? null, signal: cancelledMode.signal ?? null } : {}),
       queuedModeCount,
       inlineModeCount,
       perMode
@@ -87,8 +94,21 @@ export async function buildIndex(repoRoot, options = {}) {
   const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
-  const warn = typeof options.warn === 'function' ? options.warn : ((message) => log(`[warn] ${message}`));
+  const warn = typeof options.warn === 'function'
+    ? options.warn
+    : ((message, meta = null) => logLine(message, { kind: 'warning', ...(meta || {}) }));
   const abortSignal = coerceAbortSignal(options.abortSignal || null);
+  const observability = normalizeObservability(options.observability, {
+    surface: 'build',
+    operation: 'build_index',
+    phase: options.stage || null,
+    context: {
+      repoRoot: root,
+      mode,
+      watch: argv.watch === true,
+      requestedStage: explicitStage || null
+    }
+  });
   const sqliteLogger = { log, warn, error: logError };
   const metricsMode = mode || 'all';
   const recordIndexMetric = (stage, status, start) => {
@@ -103,36 +123,28 @@ export async function buildIndex(repoRoot, options = {}) {
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log });
-  const envelope = resolveRuntimeEnvelope({
+  const envelope = resolveCurrentProcessRuntimeEnvelope({
     argv,
     rawArgv,
     userConfig,
     autoPolicy: policy,
     env: process.env,
-    execArgv: process.execArgv,
-    cpuCount: os.cpus().length,
-    processInfo: {
-      pid: process.pid,
-      argv: process.argv,
-      execPath: process.execPath,
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      cpuCount: os.cpus().length
-    },
     toolVersion: getToolVersion()
   });
-  const runtimeEnv = resolveRuntimeEnv(envelope, process.env);
+  const runtimeEnv = applyObservabilityContextEnv(
+    resolveRuntimeEnv(envelope, process.env),
+    observability
+  );
   throwIfAborted(abortSignal);
 
   if (argv.watch) {
-    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy });
+    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy, observability });
     computeCompatibilityKey({ runtime, modes, sharedDiscovery: null });
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
-      await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal });
-      return { modes, watch: true };
+      const watchState = await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal });
+      return attachObservability({ modes, watch: true, watchState: watchState || runtime.watchState || null }, observability);
     } finally {
       await teardownRuntime(runtime);
     }
@@ -169,6 +181,7 @@ export async function buildIndex(repoRoot, options = {}) {
     policy,
     modes,
     options,
+    observability,
     abortSignal,
     log,
     overallProgressOptions,
@@ -180,7 +193,7 @@ export async function buildIndex(repoRoot, options = {}) {
   };
 
   if (explicitStage === 'stage3') {
-    return runEmbeddingsStage({
+    return attachObservability(await runEmbeddingsStage({
       root,
       argv,
       embedModes,
@@ -194,10 +207,10 @@ export async function buildIndex(repoRoot, options = {}) {
       runtimeEnv,
       recordIndexMetric,
       buildEmbeddingsPath
-    });
+    }), observability);
   }
   if (explicitStage === 'stage4') {
-    return runSqliteStage({
+    return attachObservability(await runSqliteStage({
       root,
       argv,
       rawArgv,
@@ -210,14 +223,15 @@ export async function buildIndex(repoRoot, options = {}) {
       log,
       abortSignal,
       recordIndexMetric,
+      observability,
       options,
       sqliteLogger
-    });
+    }), observability);
   }
 
   if (explicitStage) {
     const allowSqlite = explicitStage !== 'stage1' && explicitStage !== 'stage2';
-    return runStage(explicitStage, stageContext, { allowSqlite });
+    return attachObservability(await runStage(explicitStage, stageContext, { allowSqlite }), observability);
   }
 
   if (!twoStageEnabled) {
@@ -278,7 +292,7 @@ export async function buildIndex(repoRoot, options = {}) {
         buildEmbeddingsPath
       });
     if (stage3Result?.embeddings?.cancelled) {
-      return { modes, stage2: stage2Result, stage3: stage3Result, repo: root };
+      return attachObservability({ modes, stage2: stage2Result, stage3: stage3Result, repo: root }, observability);
     }
     const sqliteArgv = stage2Result?.buildRoot
       ? { ...argv, 'index-root': stage2Result.buildRoot }
@@ -296,13 +310,17 @@ export async function buildIndex(repoRoot, options = {}) {
       log,
       abortSignal,
       recordIndexMetric,
+      observability,
       options,
       sqliteLogger
     });
     if (overallProgressRef.current?.finish) {
       overallProgressRef.current.finish();
     }
-    return { modes, stage2: stage2Result, stage3: stage3Result, stage4: stage4Result, repo: root };
+    return attachObservability(
+      { modes, stage2: stage2Result, stage3: stage3Result, stage4: stage4Result, repo: root },
+      observability
+    );
   }
 
   const stage1Result = await runStage('stage1', stageContext, { allowSqlite: false });
@@ -316,6 +334,16 @@ export async function buildIndex(repoRoot, options = {}) {
       const maxQueuedRaw = Number(userConfig?.indexing?.embeddings?.queue?.maxQueued);
       const maxQueued = Number.isFinite(maxQueuedRaw) ? Math.max(0, Math.floor(maxQueuedRaw)) : null;
       const jobId = crypto.randomUUID();
+      const queuedObservability = buildChildObservability(observability, {
+        surface: 'service',
+        operation: 'queue_stage2_background',
+        phase: 'stage2',
+        context: {
+          repoRoot: root,
+          queueName: 'index',
+          jobId
+        }
+      });
       await ensureQueueDir(queueDir);
       const result = await enqueueJob(
         queueDir,
@@ -326,7 +354,8 @@ export async function buildIndex(repoRoot, options = {}) {
           mode: argv.mode || 'all',
           reason: 'stage2',
           stage: 'stage2',
-          args: stage2Args
+          args: stage2Args,
+          observability: queuedObservability
         },
         maxQueued,
         'index'
@@ -337,13 +366,24 @@ export async function buildIndex(repoRoot, options = {}) {
           queueId: jobId
         });
         log('Two-stage indexing: stage2 queued for background enrichment.');
-        return { modes, stage1: stage1Result, stage2: { queued: true, queueId: jobId }, repo: root };
+        return attachObservability(
+          { modes, stage1: stage1Result, stage2: { queued: true, queueId: jobId }, repo: root },
+          observability
+        );
       }
     }
     const stage2ArgsWithScript = [path.join(toolRoot, 'build_index.js'), ...stage2Args];
+    const backgroundObservability = buildChildObservability(observability, {
+      surface: 'build',
+      operation: 'build_index_background_stage2',
+      phase: 'stage2',
+      context: {
+        repoRoot: root
+      }
+    });
     void spawnSubprocess(process.execPath, stage2ArgsWithScript, {
       stdio: 'ignore',
-      env: runtimeEnv,
+      env: applyObservabilityContextEnv(runtimeEnv, backgroundObservability),
       detached: false,
       unref: true,
       rejectOnNonZeroExit: false,
@@ -352,11 +392,14 @@ export async function buildIndex(repoRoot, options = {}) {
     }).catch((err) => {
       log(`[stage2] background spawn failed: ${err?.message || err}`);
     });
-    return { modes, stage1: stage1Result, stage2: { background: true }, repo: root };
+    return attachObservability(
+      { modes, stage1: stage1Result, stage2: { background: true }, repo: root },
+      observability
+    );
   }
 
   const stage2Result = await runStage('stage2', stageContext, { allowSqlite: true });
-  return { modes, stage1: stage1Result, stage2: stage2Result, repo: root };
+  return attachObservability({ modes, stage1: stage1Result, stage2: stage2Result, repo: root }, observability);
 }
 
 export { buildSqliteIndex };

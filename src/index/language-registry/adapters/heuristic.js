@@ -18,23 +18,30 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '..
 import { buildSimpleRelations } from '../simple-relations.js';
 import { collectCmakeImports } from '../import-collectors/cmake.js';
 import { collectDartImports } from '../import-collectors/dart.js';
-import { collectDockerfileImports } from '../import-collectors/dockerfile.js';
-import { collectGraphqlImports } from '../import-collectors/graphql.js';
+import { createDockerfileImportCollector } from '../import-collectors/dockerfile.js';
+import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
+import { createGraphqlImportCollector } from '../import-collectors/graphql.js';
+import { parseGraphqlStructure } from '../../../shared/graphql-ast.js';
 import { collectGroovyImports } from '../import-collectors/groovy.js';
-import { collectHandlebarsImports } from '../import-collectors/handlebars.js';
-import { collectJinjaImports } from '../import-collectors/jinja.js';
+import { createHandlebarsImportCollector } from '../import-collectors/handlebars.js';
+import { parseHandlebarsStructure } from '../../../shared/handlebars-ast.js';
+import { createJinjaImportCollector } from '../import-collectors/jinja.js';
+import { parseJinjaTemplateStructure } from '../../../shared/jinja-template-structure.js';
 import { collectJuliaImports } from '../import-collectors/julia.js';
 import { collectMakefileImports } from '../import-collectors/makefile.js';
-import { collectMustacheImports } from '../import-collectors/mustache.js';
+import { createMustacheImportCollector } from '../import-collectors/mustache.js';
+import { parseMustacheStructure } from '../../../shared/mustache-structure.js';
 import { collectNixImportEntries, collectNixImports } from '../import-collectors/nix.js';
-import { collectProtoImports } from '../import-collectors/proto.js';
+import { createProtoImportCollector } from '../import-collectors/proto.js';
+import { parseProtoStructure } from '../../../shared/proto-structure.js';
 import { collectRazorImports } from '../import-collectors/razor.js';
 import { collectRImports } from '../import-collectors/r.js';
 import { collectScalaImports } from '../import-collectors/scala.js';
 import { collectStarlarkImportEntries, collectStarlarkImports } from '../import-collectors/starlark.js';
 import {
   collectorImportEntriesToSpecifiers,
-  createCollectorBudgetContext
+  createCollectorBudgetContext,
+  addBudgetedCollectorImport
 } from '../import-collectors/utils.js';
 import { flowOptions, normalizeRelPath } from './managed.js';
 
@@ -136,13 +143,7 @@ const HANDLEBARS_SYMBOL_PATTERNS = Object.freeze([
   /\{\{#\*inline\s+["']([^"']+)["']/g
 ]);
 
-const MUSTACHE_SYMBOL_PATTERNS = Object.freeze([
-  /\{\{#\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g
-]);
 
-const JINJA_SYMBOL_PATTERNS = Object.freeze([
-  /\{%\s*(?:block|macro)\s+([A-Za-z_][A-Za-z0-9_]*)/g
-]);
 
 const RAZOR_SYMBOL_PATTERNS = Object.freeze([
   /@section\s+([A-Za-z_][A-Za-z0-9_]*)/g,
@@ -152,11 +153,6 @@ const RAZOR_SYMBOL_PATTERNS = Object.freeze([
 const GRAPHQL_SYMBOL_PATTERNS = Object.freeze([
   /\b(?:type|interface|enum|union|input|scalar)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
   /\bfragment\s+([A-Za-z_][A-Za-z0-9_]*)\s+on\s+[A-Za-z_][A-Za-z0-9_]*/g
-]);
-
-const PROTO_SYMBOL_PATTERNS = Object.freeze([
-  /\b(?:message|enum|service)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
-  /\brpc\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g
 ]);
 
 const CMAKE_SYMBOL_PATTERNS = Object.freeze([
@@ -215,31 +211,6 @@ const GRAPHQL_USAGE_SKIP = new Set([
   'input',
   'scalar',
   'implements'
-]);
-
-const PROTO_USAGE_SKIP = new Set([
-  'double',
-  'float',
-  'int32',
-  'int64',
-  'uint32',
-  'uint64',
-  'sint32',
-  'sint64',
-  'fixed32',
-  'fixed64',
-  'sfixed32',
-  'sfixed64',
-  'bool',
-  'string',
-  'bytes',
-  'map',
-  'oneof',
-  'optional',
-  'required',
-  'repeated',
-  'returns',
-  'rpc'
 ]);
 
 const BUILD_DSL_USAGE_SKIP = new Set([
@@ -306,88 +277,11 @@ const collectHeuristicCallees = (text, scanBudget = null) => {
   return sortUnique(out);
 };
 
-const collectTemplateUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const matches = [];
-  const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
-  const jinjaRef = /\{%\s*(?:include|extends|import|from|call|macro|block)\s+['"]?([A-Za-z_][A-Za-z0-9_.-]*)/g;
-  const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
-  const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-  for (const matcher of [moustacheRef, jinjaRef, razorPartialRef, razorCallRef]) {
-    if (scanBudget && !scanBudget.consumeTime()) break;
-    if (scanBudget?.exhausted) break;
-    let match;
-    while (!scanBudget?.exhausted) {
-      if (scanBudget && !scanBudget.consumeTime()) break;
-      match = matcher.exec(source);
-      if (match === null) break;
-      if (scanBudget && !scanBudget.consumeMatch()) break;
-      const name = String(match[1] || '').trim();
-      if (name && !TEMPLATE_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) matches.push(name);
-      if (!match[0]) matcher.lastIndex += 1;
-    }
-  }
-  return sortUnique(matches);
-};
-
-const collectGraphqlUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
+const collectRegexUsageCandidates = (source, matchers, scanBudget, {
+  skip = null,
+  candidatesForMatch = (match) => [match[1]]
+} = {}) => {
   const values = [];
-  const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
-  const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
-  const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-  for (const matcher of [typeRef, fragmentRef, implRef]) {
-    if (scanBudget && !scanBudget.consumeTime()) break;
-    if (scanBudget?.exhausted) break;
-    let match;
-    while (!scanBudget?.exhausted) {
-      if (scanBudget && !scanBudget.consumeTime()) break;
-      match = matcher.exec(source);
-      if (match === null) break;
-      if (scanBudget && !scanBudget.consumeMatch()) break;
-      const name = String(match[1] || '').trim();
-      if (name && !GRAPHQL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
-      if (!match[0]) matcher.lastIndex += 1;
-    }
-  }
-  return sortUnique(values);
-};
-
-const collectProtoUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const values = [];
-  const rpcTypes = /\brpc\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s+returns\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g;
-  const fieldTypes = /\b(?:optional|required|repeated)?\s*([A-Za-z_][A-Za-z0-9_.]*)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*\d+/g;
-  for (const matcher of [rpcTypes, fieldTypes]) {
-    if (scanBudget && !scanBudget.consumeTime()) break;
-    if (scanBudget?.exhausted) break;
-    let match;
-    while (!scanBudget?.exhausted) {
-      if (scanBudget && !scanBudget.consumeTime()) break;
-      match = matcher.exec(source);
-      if (match === null) break;
-      if (scanBudget && !scanBudget.consumeMatch()) break;
-      const candidates = matcher === rpcTypes ? [match[1], match[2]] : [match[1]];
-      for (const candidate of candidates) {
-        const name = String(candidate || '').trim();
-        if (name && !PROTO_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
-      }
-      if (!match[0]) matcher.lastIndex += 1;
-    }
-  }
-  return sortUnique(values);
-};
-
-const collectBuildDslUsages = (text, scanBudget = null) => {
-  const source = String(text || '');
-  const values = [];
-  const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
-  const starlarkCalls = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-  const makeDeps = /^[A-Za-z0-9_.-]+\s*:\s*([^\n#]+)/gm;
-  const dockerFrom = /^\s*FROM\s+([^\s]+)(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_-]*)?/gim;
-  const dockerCopyFrom = /--from=([A-Za-z_][A-Za-z0-9_-]*)/g;
-  const nixOps = /\b(import|callPackage)\b/g;
-  const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
   for (const matcher of matchers) {
     if (scanBudget && !scanBudget.consumeTime()) break;
     if (scanBudget?.exhausted) break;
@@ -397,11 +291,56 @@ const collectBuildDslUsages = (text, scanBudget = null) => {
       match = matcher.exec(source);
       if (match === null) break;
       if (scanBudget && !scanBudget.consumeMatch()) break;
-      const name = String(match[1] || '').trim();
-      if (name && !BUILD_DSL_USAGE_SKIP.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
+      for (const candidate of candidatesForMatch(match, matcher)) {
+        const name = String(candidate || '').trim();
+        if (name && !skip?.has(name) && (!scanBudget || scanBudget.consumeToken())) values.push(name);
+        if (scanBudget?.exhausted) break;
+      }
       if (!match[0]) matcher.lastIndex += 1;
     }
   }
+  return values;
+};
+
+const collectTemplateUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const moustacheRef = /\{\{\s*[#/>]?\s*([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const jinjaRef = /\{%\s*(?:include|extends|import|from|call|macro|block)\s+['"]?([A-Za-z_][A-Za-z0-9_.-]*)/g;
+  const razorPartialRef = /@(?:Html\.)?Partial(?:Async)?\s*\(\s*["']([^"']+)["']/g;
+  const razorCallRef = /@([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const matches = collectRegexUsageCandidates(
+    source,
+    [moustacheRef, jinjaRef, razorPartialRef, razorCallRef],
+    scanBudget,
+    { skip: TEMPLATE_USAGE_SKIP }
+  );
+  return sortUnique(matches);
+};
+
+const collectGraphqlUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const typeRef = /:\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const fragmentRef = /\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  const implRef = /\b(?:on|implements)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  const values = collectRegexUsageCandidates(
+    source,
+    [typeRef, fragmentRef, implRef],
+    scanBudget,
+    { skip: GRAPHQL_USAGE_SKIP }
+  );
+  return sortUnique(values);
+};
+
+const collectBuildDslUsages = (text, scanBudget = null) => {
+  const source = String(text || '');
+  const cmakeCalls = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
+  const starlarkCalls = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  const makeDeps = /^[A-Za-z0-9_.-]+\s*:\s*([^\n#]+)/gm;
+  const dockerFrom = /^\s*FROM\s+([^\s]+)(?:\s+AS\s+[A-Za-z_][A-Za-z0-9_-]*)?/gim;
+  const dockerCopyFrom = /--from=([A-Za-z_][A-Za-z0-9_-]*)/g;
+  const nixOps = /\b(import|callPackage)\b/g;
+  const matchers = [cmakeCalls, starlarkCalls, dockerFrom, dockerCopyFrom, nixOps];
+  const values = collectRegexUsageCandidates(source, matchers, scanBudget, { skip: BUILD_DSL_USAGE_SKIP });
   let depMatch;
   while (!scanBudget?.exhausted) {
     if (scanBudget && !scanBudget.consumeTime()) break;
@@ -561,6 +500,347 @@ const matchProto = (ext, relPath) => matchByExtension.proto(ext, relPath) || mat
 const matchMakefile = (_ext, relPath) => isMakefilePath(relPath);
 const matchDockerfile = (_ext, relPath) => isDockerfilePath(relPath);
 
+export const createDockerfileManagedAdapter = ({ parseStructure = parseDockerfileStructure } = {}) => {
+  const collectDockerfileImports = createDockerfileImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'dockerfile', match: matchDockerfile,
+    collectImports: collectDockerfileImports, symbolPatterns: DOCKERFILE_SYMBOL_PATTERNS,
+    usageCollector: collectBuildDslUsages, capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE });
+  const fallbackRelations = adapter.buildRelations;
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'dockerfile-ast' ? 'managed-dockerfile-ast' : 'managed-heuristic-adapter' });
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:dockerfile', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    try {
+      const structure = parseStructure(budgetContext.source);
+      if (structure.parser !== 'dockerfile-ast') return fallbackRelations({ text, options });
+      const imports = new Set();
+      const exports = new Set();
+      const usages = new Set();
+      for (const instruction of structure.instructions) {
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeTime()
+          || !budgetContext.scanBudget.consumeMatch()) break;
+        let lineBudgetAllowed = true;
+        for (let line = instruction.line; line <= instruction.endLine; line += 1) {
+          if (!budgetContext.scanBudget.consumeLine()) { lineBudgetAllowed = false; break; }
+        }
+        if (!lineBudgetAllowed) break;
+        if (instruction.stage && budgetContext.scanBudget.consumeToken()) {
+          exports.add(instruction.stage);
+          imports.add(instruction.stage);
+        }
+        for (const value of instruction.dependencies) {
+          if (!budgetContext.scanBudget.consumeToken()) break;
+          imports.add(value);
+          usages.add(value);
+        }
+      }
+      const symbols = sortUnique([...exports]);
+      const callees = sortUnique([...usages]);
+      const calls = [];
+      for (const caller of symbols.length ? symbols : ['<module>']) {
+        for (const callee of callees) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: [...imports] }), exports: symbols, usages: callees, calls };
+    } finally {
+      budgetContext.finalize();
+    }
+  };
+  return adapter;
+};
+
+export const createGraphqlManagedAdapter = ({ parseStructure = parseGraphqlStructure } = {}) => {
+  const collectGraphqlImports = createGraphqlImportCollector({ parseStructure });
+  const capabilityProfile = { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+    reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'graphql-syntax-only-relations' }] };
+  const adapter = createHeuristicManagedAdapter({ id: 'graphql', match: matchByExtension.graphql,
+    collectImports: collectGraphqlImports, symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
+    usageCollector: collectGraphqlUsages, capabilityProfile });
+  const fallbackRelations = adapter.buildRelations;
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:graphql', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(budgetContext.source);
+      if (structure.parser !== 'graphql-js') return fallbackRelations({ text, options });
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      for (const definition of structure.definitions) {
+        if (budgetContext.budget.maxLines > 0 && definition.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()) break;
+        if (definition.name && budgetContext.scanBudget.consumeToken()) symbols.push(definition.name);
+      }
+      for (const reference of structure.referenceEntries) {
+        if (budgetContext.budget.maxLines > 0 && reference.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        references.push(reference.value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: collectGraphqlImports(budgetContext.source, options) }),
+        exports, usages, calls };
+    } finally {
+      if (lineLimited) {
+        for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+          if (!budgetContext.scanBudget.consumeLine()) break;
+        }
+      }
+      budgetContext.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'graphql-js' ? 'managed-graphql-syntax' : 'managed-heuristic-adapter' });
+  return adapter;
+};
+
+export const createHandlebarsManagedAdapter = ({ parseStructure = parseHandlebarsStructure } = {}) => {
+  const collectHandlebarsImports = createHandlebarsImportCollector({ parseStructure });
+  const capabilityProfile = { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+    reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'handlebars-syntax-only-relations' }] };
+  const adapter = createHeuristicManagedAdapter({ id: 'handlebars', match: matchByExtension.handlebars,
+    collectImports: collectHandlebarsImports, symbolPatterns: HANDLEBARS_SYMBOL_PATTERNS,
+    usageCollector: collectTemplateUsages, capabilityProfile });
+  const fallbackRelations = adapter.buildRelations;
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:handlebars', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(budgetContext.source);
+      if (structure.parser !== 'handlebars-parser') return fallbackRelations({ text, options });
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      for (const definition of structure.definitions) {
+        if (budgetContext.budget.maxLines > 0 && definition.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        symbols.push(definition.name);
+      }
+      for (const reference of structure.referenceEntries) {
+        if (budgetContext.budget.maxLines > 0 && reference.line >= budgetContext.budget.maxLines) continue;
+        if (TEMPLATE_USAGE_SKIP.has(reference.value) || reference.value === '@partial-block') continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        references.push(reference.value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: collectHandlebarsImports(budgetContext.source, options) }),
+        exports, usages, calls };
+    } finally {
+      if (lineLimited) {
+        for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+          if (!budgetContext.scanBudget.consumeLine()) break;
+        }
+      }
+      budgetContext.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'handlebars-parser' ? 'managed-handlebars-syntax' : 'managed-heuristic-adapter' });
+  return adapter;
+};
+
+export const createProtoManagedAdapter = ({ parseStructure = parseProtoStructure } = {}) => {
+  const collectProtoImports = createProtoImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'proto', match: matchProto,
+    collectImports: collectProtoImports, symbolPatterns: [], usageCollector: () => [],
+    capabilityProfile: { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'proto-reflection-with-application-lexical-ranges' }] } });
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const budgetContext = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:proto', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(budgetContext.source, { remainingMs: () => budgetContext.budget.maxMs > 0
+        ? Math.max(0, budgetContext.budget.maxMs - budgetContext.scanBudget.elapsedMs) : Infinity });
+      if (structure.reason) return buildSimpleRelations({ imports: [] });
+      lineLimited = budgetContext.budget.maxLines > 0 && structure.sourceLines > budgetContext.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      for (const definition of structure.definitions) {
+        if (budgetContext.budget.maxLines > 0 && definition.line >= budgetContext.budget.maxLines) continue;
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        symbols.push(definition.name);
+      }
+      // Reflection type strings have no library source positions. A partial line
+      // window conservatively omits these references rather than inventing ranges.
+      if (!lineLimited) for (const value of structure.references) {
+        if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
+          || !budgetContext.scanBudget.consumeToken()) break;
+        references.push(value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { ...buildSimpleRelations({ imports: collectProtoImports(budgetContext.source, options) }), exports, usages, calls };
+    } finally {
+      if (lineLimited) for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
+        if (!budgetContext.scanBudget.consumeLine()) break;
+      }
+      budgetContext.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'protobufjs-reflection' ? 'managed-proto-reflection+lexical' : 'managed-proto-unavailable' });
+  return adapter;
+};
+
+export const createMustacheManagedAdapter = ({ parseStructure = parseMustacheStructure } = {}) => {
+  const collectMustacheImports = createMustacheImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'mustache', match: matchByExtension.mustache,
+    collectImports: collectMustacheImports, symbolPatterns: [], usageCollector: () => [],
+    capabilityProfile: { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'mustache-parse-token-syntax-only-relations' }] } });
+  adapter.buildRelations = ({ text, options }) => {
+    parseStructure.initialize?.();
+    const context = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:mustache', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(context.source, { remainingMs: () => context.budget.maxMs > 0
+        ? Math.max(0, context.budget.maxMs - context.scanBudget.elapsedMs) : Infinity });
+      if (structure.reason) return buildSimpleRelations({ imports: [] });
+      lineLimited = context.budget.maxLines > 0 && structure.sourceLines > context.budget.maxLines;
+      const inWindow = (entry) => !context.budget.maxLines || entry.line < context.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      const imports = new Set();
+      for (const entry of structure.sections) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        symbols.push(entry.name);
+      }
+      for (const entry of structure.referenceEntries) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        references.push(entry.value);
+      }
+      for (const entry of structure.partials) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
+        addBudgetedCollectorImport(imports, entry.name, context.scanBudget,
+          { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      // Preserve the managed relation shape, but these are bounded lookup/section
+      // associations, not resolved template helpers or executable call edges.
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { imports: [...imports], exports, usages, calls };
+    } finally {
+      if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
+        if (!context.scanBudget.consumeLine()) break;
+      }
+      context.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'mustache-parse-tokens' ? 'managed-mustache-syntax' : 'managed-mustache-unavailable' });
+  return adapter;
+};
+
+export const createJinjaManagedAdapter = ({ parseStructure = parseJinjaTemplateStructure } = {}) => {
+  const collectJinjaImports = createJinjaImportCollector({ parseStructure });
+  const adapter = createHeuristicManagedAdapter({ id: 'jinja', match: matchByExtension.jinja,
+    collectImports: collectJinjaImports, symbolPatterns: [], usageCollector: () => [],
+    capabilityProfile: { state: 'partial', diagnostics: [{ code: 'USR-W-CAPABILITY-DOWNGRADED',
+      reasonCode: 'USR-R-HEURISTIC-ONLY', detail: 'jinja-django-lexical-heuristic-relations' }] } });
+  adapter.buildRelations = ({ text, ext, relPath, options }) => {
+    const context = createCollectorBudgetContext({ text, options,
+      collectorId: 'heuristic-adapter:jinja', defaults: HEURISTIC_RELATION_SCAN_BUDGET });
+    let lineLimited = false;
+    try {
+      const structure = parseStructure(context.source, { ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath,
+        remainingMs: () => context.budget.maxMs > 0 ? Math.max(0, context.budget.maxMs - context.scanBudget.elapsedMs) : Infinity });
+      if (structure.reason) return buildSimpleRelations({ imports: [] });
+      lineLimited = context.budget.maxLines > 0 && structure.sourceLines > context.budget.maxLines;
+      const inWindow = (entry) => !context.budget.maxLines || entry.line < context.budget.maxLines;
+      const symbols = [];
+      const references = [];
+      const imports = new Set();
+      for (const entry of structure.definitions) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        symbols.push(entry.name);
+      }
+      for (const entry of structure.importEntries) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
+        addBudgetedCollectorImport(imports, entry.value, context.scanBudget,
+          { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+      }
+      for (const entry of structure.referenceEntries) {
+        if (!inWindow(entry)) continue;
+        if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
+        references.push(entry.value);
+      }
+      const exports = sortUnique(symbols);
+      const usages = sortUnique(references);
+      const calls = [];
+      for (const caller of exports.length ? exports : ['<module>']) {
+        for (const callee of usages) {
+          if (callee !== caller) calls.push([caller, callee]);
+          if (calls.length >= 96) break;
+        }
+        if (calls.length >= 96) break;
+      }
+      return { imports: [...imports], exports, usages, calls };
+    } finally {
+      if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
+        if (!context.scanBudget.consumeLine()) break;
+      }
+      context.finalize();
+    }
+  };
+  adapter.extractDocMeta = ({ chunk }) => ({ ...extractHeuristicManagedDocMeta(chunk),
+    source: chunk?.meta?.parser === 'heuristic-template-lexical' ? 'managed-template-lexical-heuristic' : 'managed-template-unavailable' });
+  return adapter;
+};
+
 export const buildHeuristicAdapters = () => [
   createHeuristicManagedAdapter({
     id: 'cmake',
@@ -604,7 +884,15 @@ export const buildHeuristicAdapters = () => [
     id: 'groovy',
     match: matchByExtension.groovy,
     collectImports: collectGroovyImports,
-    symbolPatterns: GROOVY_SYMBOL_PATTERNS
+    symbolPatterns: GROOVY_SYMBOL_PATTERNS,
+    capabilityProfile: {
+      state: 'partial',
+      diagnostics: [{
+        code: 'USR-W-CAPABILITY-DOWNGRADED',
+        reasonCode: 'USR-R-HEURISTIC-ONLY',
+        detail: 'groovy-heuristic-relations'
+      }]
+    }
   }),
   createHeuristicManagedAdapter({
     id: 'r',
@@ -618,27 +906,9 @@ export const buildHeuristicAdapters = () => [
     collectImports: collectJuliaImports,
     symbolPatterns: JULIA_SYMBOL_PATTERNS
   }),
-  createHeuristicManagedAdapter({
-    id: 'handlebars',
-    match: matchByExtension.handlebars,
-    collectImports: collectHandlebarsImports,
-    symbolPatterns: HANDLEBARS_SYMBOL_PATTERNS,
-    usageCollector: collectTemplateUsages
-  }),
-  createHeuristicManagedAdapter({
-    id: 'mustache',
-    match: matchByExtension.mustache,
-    collectImports: collectMustacheImports,
-    symbolPatterns: MUSTACHE_SYMBOL_PATTERNS,
-    usageCollector: collectTemplateUsages
-  }),
-  createHeuristicManagedAdapter({
-    id: 'jinja',
-    match: matchByExtension.jinja,
-    collectImports: collectJinjaImports,
-    symbolPatterns: JINJA_SYMBOL_PATTERNS,
-    usageCollector: collectTemplateUsages
-  }),
+  createHandlebarsManagedAdapter(),
+  createMustacheManagedAdapter(),
+  createJinjaManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'razor',
     match: matchByExtension.razor,
@@ -646,13 +916,7 @@ export const buildHeuristicAdapters = () => [
     symbolPatterns: RAZOR_SYMBOL_PATTERNS,
     usageCollector: collectTemplateUsages
   }),
-  createHeuristicManagedAdapter({
-    id: 'proto',
-    match: matchProto,
-    collectImports: collectProtoImports,
-    symbolPatterns: PROTO_SYMBOL_PATTERNS,
-    usageCollector: collectProtoUsages
-  }),
+  createProtoManagedAdapter(),
   createHeuristicManagedAdapter({
     id: 'makefile',
     match: matchMakefile,
@@ -661,19 +925,6 @@ export const buildHeuristicAdapters = () => [
     usageCollector: collectBuildDslUsages,
     capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
   }),
-  createHeuristicManagedAdapter({
-    id: 'dockerfile',
-    match: matchDockerfile,
-    collectImports: collectDockerfileImports,
-    symbolPatterns: DOCKERFILE_SYMBOL_PATTERNS,
-    usageCollector: collectBuildDslUsages,
-    capabilityProfile: IMPORT_COLLECTOR_CAPABILITY_PROFILE
-  }),
-  createHeuristicManagedAdapter({
-    id: 'graphql',
-    match: matchByExtension.graphql,
-    collectImports: collectGraphqlImports,
-    symbolPatterns: GRAPHQL_SYMBOL_PATTERNS,
-    usageCollector: collectGraphqlUsages
-  })
+  createDockerfileManagedAdapter(),
+  createGraphqlManagedAdapter()
 ];

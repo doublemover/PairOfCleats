@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { isAbsolutePathNative, isRelativePathEscape } from '../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../shared/file-paths.js';
 
 export const normalizeIdentityPath = (value, { platform = process.platform } = {}) => {
   const resolved = value ? path.resolve(String(value)) : '';
@@ -13,6 +13,14 @@ const realpathSyncCompat = (value) => (
     ? fs.realpathSync.native(value)
     : fs.realpathSync(value)
 );
+
+const appendMissingPathSuffix = (realAncestor, suffix) => {
+  let resolved = realAncestor;
+  for (let i = suffix.length - 1; i >= 0; i -= 1) {
+    resolved = path.join(resolved, suffix[i]);
+  }
+  return resolved;
+};
 
 /**
  * Resolve a path by realpathing the nearest existing ancestor and appending any
@@ -31,11 +39,7 @@ const resolveRealPathWithExistingAncestorSync = (value) => {
   while (true) {
     try {
       const realAncestor = realpathSyncCompat(current);
-      let resolved = realAncestor;
-      for (let i = suffix.length - 1; i >= 0; i -= 1) {
-        resolved = path.join(resolved, suffix[i]);
-      }
-      return resolved;
+      return appendMissingPathSuffix(realAncestor, suffix);
     } catch {
       const parent = path.dirname(current);
       if (parent === current) break;
@@ -60,11 +64,7 @@ const resolveRealPathWithExistingAncestor = async (value) => {
   while (true) {
     try {
       const realAncestor = await fsPromises.realpath(current);
-      let resolved = realAncestor;
-      for (let i = suffix.length - 1; i >= 0; i -= 1) {
-        resolved = path.join(resolved, suffix[i]);
-      }
-      return resolved;
+      return appendMissingPathSuffix(realAncestor, suffix);
     } catch {
       const parent = path.dirname(current);
       if (parent === current) break;

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { normalizePositiveInt } from '../shared/limits.js';
-import { sortAndTrimEntriesByNewest } from './cache-trim.js';
+import { sortEntriesByNewest, sortAndTrimEntriesByNewest } from './cache-trim.js';
 import { loadBoundedJsonFileSync } from '../shared/cache/json-file.js';
 
 const QUERY_CACHE_VERSION = 1;
@@ -160,10 +160,10 @@ const trimHotCache = (state) => {
   if (!state?.entries || !(state.entries instanceof Map)) return;
   const maxEntries = normalizeHotCacheMaxEntries(state.maxEntries, HOT_CACHE_MAX_ENTRIES_DEFAULT);
   if (state.entries.size <= maxEntries) return;
-  const sorted = sortAndTrimEntriesByNewest(Array.from(state.entries.entries()), {
-    maxEntries,
-    selectTimestamp: (entry) => entry?.[1]?.ts
-  });
+  const sorted = sortEntriesByNewest(Array.from(state.entries.entries()), (entry) => entry?.[1]?.ts);
+  // This independent snapshot is consumed synchronously by Map construction;
+  // cap it without a second prefix array. No borrowed or retained array is cut.
+  sorted.length = maxEntries;
   state.entries = new Map(sorted);
 };
 

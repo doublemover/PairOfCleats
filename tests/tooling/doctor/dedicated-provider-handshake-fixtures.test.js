@@ -9,6 +9,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { skip } from '../../helpers/skip.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `tooling-doctor-dedicated-handshake-${process.pid}-${Date.now()}`);
@@ -19,6 +20,7 @@ await fs.mkdir(cacheRoot, { recursive: true });
 applyTestEnv({ cacheRoot });
 
 const restorePath = prependLspTestPath({ repoRoot: root });
+const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
 let skipReason = null;
 
 try {
@@ -78,6 +80,7 @@ try {
     skipReason = 'Skipping dedicated provider handshake test; no provider completed initialize handshake.';
   }
 } finally {
+  restoreExecution();
   await restorePath();
 }
 
@@ -86,4 +89,3 @@ if (skipReason) {
 }
 
 console.log('tooling doctor dedicated provider handshake fixtures test passed');
-

@@ -1,6 +1,9 @@
-# Spec: VFS IO batching (draft)
+# Spec: VFS IO batching
 
-Status: Draft (Milestone A). Optional performance layer.
+Status: Active bounded-provider batching with queued-write coalescing.
+Last audited: 2026-05-22
+Implementation anchors: `src/integrations/tooling/providers/lsp/vfs-batching.js`.
+Contract coverage: `tests/tooling/vfs/io-batch-consistency.test.js`.
 
 Goal: reduce disk IO churn when writing VFS-backed documents and avoid excessive parallel writes during tooling runs.
 
@@ -10,9 +13,25 @@ Non-goals:
 
 ---
 
-## 1) Batching model
+## 1) Live batching model
 
-A VFS IO batcher collects pending writes and flushes them with bounded concurrency.
+The live implementation batches LSP VFS document materialization/open work with
+bounded concurrency and bounded queue length. It preserves document content,
+`docHash`, routing identity, and provider-visible ordering while avoiding
+unbounded write/open pressure during tooling runs.
+
+Live rules:
+- Concurrency is capped by `maxInflight`.
+- Queue length is capped by `maxQueueEntries`.
+- Pending writes are keyed by final disk path.
+- Multiple writes to the same final disk path coalesce before filesystem write;
+  the last queued write wins.
+- Flushes happen when `maxQueueEntries`, `maxBatchBytes`, or `flushIntervalMs`
+  is reached, and always on explicit drain.
+- The final on-disk content MUST match the result of sequential document
+  materialization for the same input set.
+
+## 1.1) Queued write request
 
 Each queued entry:
 
@@ -25,15 +44,12 @@ type VfsIoWriteRequest = {
 };
 ```
 
-Rules:
-- Requests are keyed by `path`.
-- If multiple writes target the same `path` in one batch, the last write wins.
-- Flush when `maxBatchBytes` or `flushIntervalMs` is reached.
-- Concurrency is capped by `maxInflight`.
+The final write primitive remains `ensureVfsDiskDocument()`, so doc-hash cache
+semantics and safe path resolution stay centralized.
 
 ---
 
-## 2) Configuration (draft)
+## 2) Configuration
 
 ```json
 {
@@ -52,9 +68,11 @@ Rules:
 }
 ```
 
-`writeMode`:
-- `atomic`: write temp file + rename.
-- `direct`: write directly to final path.
+`maxInflight`, `maxQueueEntries`, `maxBatchBytes`, and `flushIntervalMs` are
+live provider-batching controls.
+
+`writeMode` is normalized as a forward-compatible setting. The active
+implementation still writes through `ensureVfsDiskDocument()`.
 
 ---
 
@@ -83,14 +101,15 @@ Tooling targets include a `virtualRange` mapping into virtual document text. Imp
 
 ## 4) Failure handling
 
-- If a batch write fails, retry that entry individually once.
-- If retry fails, log a warning and continue (do not corrupt existing disk cache).
+- If a batch write fails, retry that entry once.
+- If retry fails, surface the failure with queued-write warnings attached and do
+  not mutate unrelated pending entries or corrupt existing disk cache.
 
 ---
 
 ## 5) Observability
 
-Emit counters:
+Queued-write counters to expose in future runtime telemetry:
 - `vfs_io_batches`
 - `vfs_io_bytes`
 - `vfs_io_coalesced`
@@ -117,7 +136,7 @@ Benchmarks:
 
 Tests:
 - `tests/indexing/vfs/merge-core-integration.test.js`
-- `tests/shared/merge/merge-cleanup-regression.test.js`
+- `tests/tooling/vfs/io-batch-consistency.test.js`
 
 ---
 

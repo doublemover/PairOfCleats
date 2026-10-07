@@ -3,6 +3,23 @@ const hasProviderCapability = (value) => {
   return Boolean(value && typeof value === 'object');
 };
 
+const CAPABILITY_KEYS = Object.freeze([
+  'documentSymbol',
+  'hover',
+  'signatureHelp',
+  'definition',
+  'typeDefinition',
+  'references',
+  'semanticTokens',
+  'inlayHints'
+]);
+
+const createCapabilityRecord = () => {
+  const out = Object.create(null);
+  for (const key of CAPABILITY_KEYS) out[key] = false;
+  return out;
+};
+
 /**
  * Normalize initialize-result capability surface into a deterministic mask.
  *
@@ -13,7 +30,9 @@ const hasProviderCapability = (value) => {
  *   signatureHelp:boolean,
  *   definition:boolean,
  *   typeDefinition:boolean,
- *   references:boolean
+ *   references:boolean,
+ *   semanticTokens:boolean,
+ *   inlayHints:boolean
  * }}
  */
 export const probeLspCapabilities = (initializeResult) => {
@@ -23,18 +42,112 @@ export const probeLspCapabilities = (initializeResult) => {
   const textDocument = capabilities && typeof capabilities === 'object'
     ? capabilities.textDocument
     : null;
+  const mask = createCapabilityRecord();
+  mask.documentSymbol = hasProviderCapability(capabilities?.documentSymbolProvider)
+    || hasProviderCapability(textDocument?.documentSymbol);
+  mask.hover = hasProviderCapability(capabilities?.hoverProvider)
+    || hasProviderCapability(textDocument?.hover);
+  mask.signatureHelp = hasProviderCapability(capabilities?.signatureHelpProvider)
+    || hasProviderCapability(textDocument?.signatureHelp);
+  mask.definition = hasProviderCapability(capabilities?.definitionProvider)
+    || hasProviderCapability(textDocument?.definition);
+  mask.typeDefinition = hasProviderCapability(capabilities?.typeDefinitionProvider)
+    || hasProviderCapability(textDocument?.typeDefinition);
+  mask.references = hasProviderCapability(capabilities?.referencesProvider)
+    || hasProviderCapability(textDocument?.references);
+  mask.semanticTokens = hasProviderCapability(capabilities?.semanticTokensProvider)
+    || hasProviderCapability(textDocument?.semanticTokens);
+  mask.inlayHints = hasProviderCapability(capabilities?.inlayHintProvider)
+    || hasProviderCapability(capabilities?.inlayHint)
+    || hasProviderCapability(textDocument?.inlayHint);
+  return mask;
+};
+
+export const buildLspCapabilityGate = ({
+  capabilityMask,
+  cmd,
+  collectTypes = true,
+  hoverEnabled = true,
+  signatureHelpEnabled = true,
+  definitionEnabled = true,
+  typeDefinitionEnabled = true,
+  referencesEnabled = true,
+  semanticTokensEnabled = true,
+  inlayHintsEnabled = true
+}) => {
+  const command = String(cmd || 'LSP provider');
+  const mask = capabilityMask && typeof capabilityMask === 'object'
+    ? capabilityMask
+    : createCapabilityRecord();
+  const requested = createCapabilityRecord();
+  requested.documentSymbol = collectTypes !== false;
+  requested.hover = collectTypes !== false && hoverEnabled !== false;
+  requested.signatureHelp = collectTypes !== false && signatureHelpEnabled !== false;
+  requested.definition = collectTypes !== false && definitionEnabled !== false;
+  requested.typeDefinition = collectTypes !== false && typeDefinitionEnabled !== false;
+  requested.references = collectTypes !== false && referencesEnabled !== false;
+  requested.semanticTokens = collectTypes !== false && semanticTokensEnabled !== false;
+  requested.inlayHints = collectTypes !== false && inlayHintsEnabled !== false;
+
+  const effective = createCapabilityRecord();
+  const missing = [];
+  const checks = [];
+
+  const addMissing = (key, status, message) => {
+    missing.push(key);
+    checks.push({
+      name: `tooling_capability_missing_${key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`)}`,
+      status,
+      message
+    });
+  };
+
+  effective.documentSymbol = requested.documentSymbol && mask.documentSymbol;
+  if (requested.documentSymbol && !mask.documentSymbol) {
+    addMissing('documentSymbol', 'warn', `${command} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`);
+  }
+
+  effective.hover = requested.hover && mask.hover;
+  if (requested.hover && !mask.hover) {
+    addMissing('hover', 'warn', `${command} does not advertise textDocument/hover; hover enrichment disabled.`);
+  }
+
+  effective.signatureHelp = requested.signatureHelp && mask.signatureHelp;
+  if (requested.signatureHelp && !mask.signatureHelp) {
+    addMissing('signatureHelp', 'info', `${command} does not advertise textDocument/signatureHelp.`);
+  }
+
+  effective.definition = requested.definition && mask.definition;
+  if (requested.definition && !mask.definition) {
+    addMissing('definition', 'info', `${command} does not advertise textDocument/definition.`);
+  }
+
+  effective.typeDefinition = requested.typeDefinition && mask.typeDefinition;
+  if (requested.typeDefinition && !mask.typeDefinition) {
+    addMissing('typeDefinition', 'info', `${command} does not advertise textDocument/typeDefinition.`);
+  }
+
+  effective.references = requested.references && mask.references;
+  if (requested.references && !mask.references) {
+    addMissing('references', 'info', `${command} does not advertise textDocument/references.`);
+  }
+
+  effective.semanticTokens = requested.semanticTokens && mask.semanticTokens;
+  if (requested.semanticTokens && !mask.semanticTokens) {
+    addMissing('semanticTokens', 'info', `${command} does not advertise textDocument/semanticTokens/full.`);
+  }
+
+  effective.inlayHints = requested.inlayHints && mask.inlayHints;
+  if (requested.inlayHints && !mask.inlayHints) {
+    addMissing('inlayHints', 'info', `${command} does not advertise textDocument/inlayHint.`);
+  }
+
   return {
-    documentSymbol: hasProviderCapability(capabilities?.documentSymbolProvider)
-      || hasProviderCapability(textDocument?.documentSymbol),
-    hover: hasProviderCapability(capabilities?.hoverProvider)
-      || hasProviderCapability(textDocument?.hover),
-    signatureHelp: hasProviderCapability(capabilities?.signatureHelpProvider)
-      || hasProviderCapability(textDocument?.signatureHelp),
-    definition: hasProviderCapability(capabilities?.definitionProvider)
-      || hasProviderCapability(textDocument?.definition),
-    typeDefinition: hasProviderCapability(capabilities?.typeDefinitionProvider)
-      || hasProviderCapability(textDocument?.typeDefinition),
-    references: hasProviderCapability(capabilities?.referencesProvider)
-      || hasProviderCapability(textDocument?.references)
+    capabilities: mask,
+    requested,
+    effective,
+    missing: missing.sort((left, right) => left.localeCompare(right)),
+    checks,
+    skipSymbolCollection: requested.documentSymbol && !effective.documentSymbol
   };
 };

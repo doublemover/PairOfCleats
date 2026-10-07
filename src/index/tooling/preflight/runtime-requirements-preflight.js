@@ -2,23 +2,29 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
 
 /**
  * Resolve runtime prerequisite checks as a preflight classification.
  *
- * This is fail-open by design: missing/inconclusive runtime probes produce
- * degraded warnings but do not block provider execution.
+ * Missing/inconclusive runtime probes produce degraded warnings. An explicit
+ * workspace execution denial is different and must remain blocking.
  */
 export const resolveRuntimeRequirementsPreflight = ({
   ctx,
   providerId,
   requirements
 }) => {
+  const executionAuthority = resolveWorkspaceExecutionAuthority({
+    repoRoot: ctx?.repoRoot || process.cwd(), providerId
+  });
+  if (executionAuthority) return { ...executionAuthority, checks: [executionAuthority.check] };
   const runtimeRequirements = Array.isArray(requirements) ? requirements : [];
   if (!runtimeRequirements.length) {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+    return { state: 'ready', reasonCode: null, message: '', checks: [], profiles: [] };
   }
   const checks = [];
+  const profiles = [];
   for (const requirement of runtimeRequirements) {
     const requirementId = String(requirement?.id || '').trim().toLowerCase();
     const requirementCmd = String(requirement?.cmd || '').trim();
@@ -34,6 +40,7 @@ export const resolveRuntimeRequirementsPreflight = ({
       repoRoot: ctx?.repoRoot || process.cwd(),
       toolingConfig: ctx?.toolingConfig || {}
     });
+    profiles.push({ id: requirementId, commandProfile });
     const probeOk = commandProfile?.probe?.ok === true;
     if (probeOk) continue;
     const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile?.probe);
@@ -46,7 +53,7 @@ export const resolveRuntimeRequirementsPreflight = ({
     });
   }
   if (!checks.length) {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
+    return { state: 'ready', reasonCode: null, message: '', checks: [], profiles };
   }
   const firstMissing = checks.find((entry) => String(entry?.name || '').endsWith('_missing')) || null;
   return {
@@ -55,6 +62,7 @@ export const resolveRuntimeRequirementsPreflight = ({
     message: firstMissing
       ? 'one or more runtime requirements are unavailable.'
       : 'one or more runtime requirement probes were inconclusive.',
-    checks
+    checks,
+    profiles
   };
 };

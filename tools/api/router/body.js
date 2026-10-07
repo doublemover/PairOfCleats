@@ -5,6 +5,12 @@ export const createBodyParser = ({ maxBodyBytes }) => {
    * @returns {Promise<Buffer>}
   */
   const parseBody = (req) => new Promise((resolve, reject) => {
+    // Route preparation can yield before parsing begins. A closed request will
+    // not replay its aborted/end events, so do not attach listeners and wait.
+    if (req.aborted || req.destroyed) {
+      reject(new Error('Request aborted.'));
+      return;
+    }
     const chunks = [];
     let total = 0;
     let done = false;

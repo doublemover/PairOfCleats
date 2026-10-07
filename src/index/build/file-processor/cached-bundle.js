@@ -1,9 +1,13 @@
-import { normalizeBundleFormat, resolveBundleShardFilename, resolveManifestBundleNames } from '../../../shared/bundle-io.js';
+import {
+  normalizeBundleFormat,
+  resolveBundleShardFilename,
+  resolveManifestBundleNames
+} from '../../../shared/bundle-io-paths.js';
 import { buildMetaV2 } from '../../metadata-v2.js';
 import { applyStructuralMatchesToChunks } from './chunk.js';
 import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
-import { log } from '../../../shared/progress.js';
+import { log } from '../../../shared/progress-runtime.js';
 import { buildPostingsPayloadMetadata } from '../postings-payload.js';
 
 /**
@@ -96,6 +100,12 @@ export function reuseCachedBundle({
   const resolvedEncodingFallback = typeof cachedBundle.encodingFallback === 'boolean'
     ? cachedBundle.encodingFallback
     : (typeof cachedEntry?.encodingFallback === 'boolean' ? cachedEntry.encodingFallback : null);
+  const resolvedEncodingFallbackClass = typeof cachedBundle.encodingFallbackClass === 'string'
+    ? cachedBundle.encodingFallbackClass
+    : (typeof cachedEntry?.encodingFallbackClass === 'string' ? cachedEntry.encodingFallbackClass : null);
+  const resolvedEncodingFallbackRisk = typeof cachedBundle.encodingFallbackRisk === 'string'
+    ? cachedBundle.encodingFallbackRisk
+    : (typeof cachedEntry?.encodingFallbackRisk === 'string' ? cachedEntry.encodingFallbackRisk : null);
   const resolvedEncodingConfidence = Number.isFinite(cachedBundle.encodingConfidence)
     ? cachedBundle.encodingConfidence
     : (Number.isFinite(cachedEntry?.encodingConfidence) ? cachedEntry.encodingConfidence : null);
@@ -105,6 +115,8 @@ export function reuseCachedBundle({
     hashAlgo: resolvedHashAlgo,
     encoding: resolvedEncoding,
     encodingFallback: resolvedEncodingFallback,
+    encodingFallbackClass: resolvedEncodingFallbackClass,
+    encodingFallbackRisk: resolvedEncodingFallbackRisk,
     encodingConfidence: resolvedEncodingConfidence
   };
   const manifestBundleNames = resolveManifestBundleNames(cachedEntry);
@@ -118,6 +130,8 @@ export function reuseCachedBundle({
       : [resolveBundleShardFilename(relKey, manifestBundleFormat, 0)],
     encoding: resolvedEncoding,
     encodingFallback: resolvedEncodingFallback,
+    encodingFallbackClass: resolvedEncodingFallbackClass,
+    encodingFallbackRisk: resolvedEncodingFallbackRisk,
     encodingConfidence: resolvedEncodingConfidence
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;

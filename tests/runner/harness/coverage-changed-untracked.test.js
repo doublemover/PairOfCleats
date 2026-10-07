@@ -16,7 +16,7 @@ try {
     root,
     entries: [
       { path: relPath, coveredRanges: 1, totalRanges: 1 },
-      { path: 'src/shared/files.js', coveredRanges: 1, totalRanges: 2 }
+      { path: 'src/shared/file-paths.js', coveredRanges: 1, totalRanges: 2 }
     ]
   });
 

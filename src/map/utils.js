@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix } from '../shared/files.js';
+import { toPosix } from '../shared/file-paths.js';
 import { toArray } from '../shared/iterables.js';
 import { FILE_CATEGORY_RULES } from './constants.js';
 

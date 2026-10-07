@@ -1,37 +1,33 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { runNode } from '../../helpers/run-node.js';
 import { repoRoot } from '../../helpers/root.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const ROOT = repoRoot();
 
-const runSnippet = (envOverrides) => spawnSync(
-  process.execPath,
+const runSnippet = (envOverrides) => runNode(
   [
     '--input-type=module',
     '-e',
     "import('./tests/helpers/require-or-skip.js').then(({ requireOrSkip }) => { requireOrSkip({ capability: 'missing-cap', reason: 'missing-capability', requiredInCi: true }); });"
   ],
-  {
-    cwd: ROOT,
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false, extraEnv: envOverrides })
-  }
+  'required optional dependency policy snippet',
+  ROOT,
+  applyTestEnv({ syncProcess: false, extraEnv: envOverrides }),
+  { stdio: 'pipe', allowFailure: true }
 );
 
-const optionalResult = spawnSync(
-  process.execPath,
+const optionalResult = runNode(
   [
     '--input-type=module',
     '-e',
     "import('./tests/helpers/require-or-skip.js').then(({ requireOrSkip }) => { requireOrSkip({ capability: 'missing-cap', reason: 'missing-capability' }); });"
   ],
-  {
-    cwd: ROOT,
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false })
-  }
+  'optional dependency policy snippet',
+  ROOT,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe', allowFailure: true }
 );
 
 if (optionalResult.status !== 77) {

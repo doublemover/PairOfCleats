@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { runSearchCli } from '../../../src/retrieval/cli.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { ensureTestingEnv } from '../../helpers/test-env.js';
 
-applyTestEnv();
+ensureTestingEnv(process.env);
 
 const envConfig = getEnvConfig();
 const HEARTBEAT_MS = Number.isFinite(Number(envConfig.tests?.benchQueryWorkerHeartbeatMs))

@@ -14,13 +14,14 @@ const root = process.cwd();
 const tempRoot = await createLspProviderTempRepo({
   repoRoot: root,
   name: 'solargraph-provider-runtime-toolchain-missing-bundle-preflight',
-  directories: ['lib', '.runtime-bin'],
+  directories: ['lib', '.runtime-tooling/bin'],
   files: [
     { path: 'Gemfile', content: "source 'https://rubygems.org'\n" },
     { path: 'Gemfile.lock', content: 'GEM\n  specs:\n\nPLATFORMS\n  ruby\n\nDEPENDENCIES\n\n' }
   ]
 });
-const runtimeBinDir = path.join(tempRoot, '.runtime-bin');
+const runtimeToolingRoot = path.join(tempRoot, '.runtime-tooling');
+const runtimeBinDir = path.join(runtimeToolingRoot, 'bin');
 await writeRuntimeCommandFixture({
   binDir: runtimeBinDir,
   name: 'ruby',
@@ -52,6 +53,8 @@ const inputs = buildSingleSymbolInputs({
 await withLspTestPath({ repoRoot: root, extraPrepend: [runtimeBinDir] }, async () => {
   const result = await runDedicatedProviderFixture({
     tempRoot,
+    authorizeFixtureExecution: true,
+    toolingConfig: { dir: runtimeToolingRoot },
     providerId: 'solargraph',
     providerConfigKey: 'solargraph',
     providerConfig: {

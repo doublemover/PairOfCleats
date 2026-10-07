@@ -1,8 +1,10 @@
 import path from 'node:path';
-import { DEFAULT_MODEL_ID, getModelConfig, loadUserConfig } from '../../../shared/dict-utils.js';
-import { resolveRepoPath } from '../../repo.js';
+import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
+import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
 import { parseCountSummary, parseExtensionPath, runNodeAsync, runNodeSync, runToolWithProgress } from '../../runner.js';
-import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
+import { parseNameUrlSources } from '../../../shared/input-parsers.js';
+import { isMcpNativeLoadEnabled } from '../../../../src/shared/env/runtime.js';
 
 /**
  * Handle the MCP download_models tool call.
@@ -10,29 +12,21 @@ import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
  * @returns {{model:string,output:string}}
  */
 export async function downloadModels(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const userConfig = loadUserConfig(repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, userConfig);
+  const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const modelConfig = getModelConfig(repoPath, userConfig);
   const model = args.model || modelConfig.id || DEFAULT_MODEL_ID;
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'models.js'), '--model', model, '--repo', repoPath];
   if (args.cacheDir) scriptArgs.push('--cache-dir', args.cacheDir);
-  const progress = typeof context.progress === 'function' ? context.progress : null;
-  const progressLine = progress
-    ? ({ stream, line }) => progress({ message: line, stream })
-    : null;
-  if (progress) {
-    progress({ message: `Downloading model ${model}.`, phase: 'start' });
-  }
+  const reporter = createProgressReporter(context);
+  const progressLine = createStreamLineProgressForwarder(context);
+  reporter?.start(`Downloading model ${model}.`);
   const { stdout } = await runNodeAsync(repoPath, scriptArgs, {
     streamOutput: true,
     onLine: progressLine,
     env: runtimeEnv,
     signal: context.signal
   });
-  if (progress) {
-    progress({ message: `Model download complete (${model}).`, phase: 'done' });
-  }
+  reporter?.done(`Model download complete (${model}).`);
   return { model, output: stdout.trim() };
 }
 
@@ -42,8 +36,14 @@ export async function downloadModels(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function downloadDictionaries(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  if (args.dir != null) throw new Error('MCP dictionary downloads use user-owned storage configuration.');
+  const { repoPath, runtimeEnv, userConfig } = resolveMcpRepoContext(args.repoPath);
+  const approved = userConfig.security?.downloads?.allowlist || {};
+  for (const source of parseNameUrlSources(args.url, { fileNameFromName: (name) => `${name}.txt` })) {
+    if (!/^[a-f0-9]{64}$/i.test(String(approved[source.url] || ''))) {
+      throw new Error('MCP custom dictionary sources require an exact URL/digest in user-owned download policy.');
+    }
+  }
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--repo', repoPath];
   if (args.lang) scriptArgs.push('--lang', String(args.lang));
   const urls = Array.isArray(args.url) ? args.url : (args.url ? [args.url] : []);
@@ -73,8 +73,10 @@ export async function downloadDictionaries(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function downloadExtensions(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  for (const key of ['url', 'dir', 'out', 'provider', 'platform', 'arch']) {
+    if (args[key] != null) throw new Error('MCP native downloads use the launching user’s configured source and storage only.');
+  }
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
@@ -109,8 +111,13 @@ export async function downloadExtensions(args = {}, context = {}) {
  * @returns {object}
  */
 export function verifyExtensions(args = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  for (const key of ['path', 'dir', 'provider', 'platform', 'arch']) {
+    if (args[key] != null) throw new Error('MCP native verification uses the launching user’s configured artifact only.');
+  }
+  if (args.load === true && !isMcpNativeLoadEnabled()) {
+    throw new Error('MCP native loading requires explicit launch-time authorization. Verification is non-loading by default.');
+  }
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const scriptArgs = [path.join(toolRoot, 'tools', 'sqlite', 'verify-extensions.js'), '--json', '--repo', repoPath];
   if (args.provider) scriptArgs.push('--provider', String(args.provider));
   if (args.dir) scriptArgs.push('--dir', String(args.dir));
@@ -123,7 +130,7 @@ export function verifyExtensions(args = {}) {
   if (args.encoding) scriptArgs.push('--encoding', String(args.encoding));
   if (args.options) scriptArgs.push('--options', String(args.options));
   if (args.annMode) scriptArgs.push('--ann-mode', String(args.annMode));
-  if (args.load === false) scriptArgs.push('--no-load');
+  scriptArgs.push(args.load === true ? '--load' : '--no-load');
   const stdout = runNodeSync(repoPath, scriptArgs, { env: runtimeEnv });
   try {
     return JSON.parse(stdout || '{}');

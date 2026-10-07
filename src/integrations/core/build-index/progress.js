@@ -1,4 +1,4 @@
-import { showProgress } from '../../../shared/progress.js';
+import { showProgress } from '../../../shared/progress-runtime.js';
 
 /**
  * Create overall progress tracker spanning requested modes/stages.

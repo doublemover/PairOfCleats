@@ -1,17 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { runScmCommand } from './scm/runner.js';
 import { getScmRuntimeConfig } from './scm/runtime.js';
 import {
-  createLruCache,
+  createLruCache
+} from '../shared/cache/lru.js';
+import {
   DEFAULT_CACHE_MB,
   DEFAULT_CACHE_TTL_MS,
   estimateJsonBytes
-} from '../shared/cache.js';
+} from '../shared/cache/size.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
-import { isAbsolutePathNative, toPosix } from '../shared/files.js';
-import { log } from '../shared/progress.js';
+import { isAbsolutePathNative, toPosix } from '../shared/file-paths.js';
+import { log } from '../shared/progress-runtime.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
 
 let gitMetaCache = createLruCache({

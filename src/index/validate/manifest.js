@@ -1,37 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadPiecesManifest } from '../../shared/artifact-io.js';
+import { loadPiecesManifestWithReadPlan } from '../../shared/artifact-io/manifest.js';
 import { existsOrBak } from '../../shared/artifact-io/fs.js';
 import { checksumFile, sha1File } from '../../shared/hash.js';
-import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/files.js';
+import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue } from './issues.js';
 import { validateManifestEntries, validateSchema } from './schema.js';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const loadPiecesManifestWithRetry = async (dir, { strict }) => {
-  if (!strict) return loadPiecesManifest(dir, { strict: false });
-  const maxAttempts = 3;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      return loadPiecesManifest(dir, { strict: true });
-    } catch (err) {
-      if (err?.code !== 'ERR_MANIFEST_MISSING' || attempt >= maxAttempts) {
-        throw err;
-      }
-      await sleep(25 * attempt);
-    }
-  }
-  return null;
-};
-
 export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeReport }) => {
   let manifest = null;
 
   try {
-    manifest = await loadPiecesManifestWithRetry(dir, { strict });
+    manifest = await loadPiecesManifestWithReadPlan(dir, { strict });
     validateSchema(
       report,
       mode,

@@ -1,0 +1,955 @@
+{
+  "issueId": "410",
+  "title": "Review shared core primitives and root-level contracts in src/shared",
+  "reviewDate": "2026-03-25",
+  "scope": "Primary ownership for root-level src/shared helpers and root contracts assigned to #410 in the shared-module ledger.",
+  "summary": {
+    "ownedFileCount": 78,
+    "overallAssessment": "The root shared surface is mostly useful, but it is still carrying too many neighboring responsibilities in a few high-consumer files. The biggest remaining cleanup opportunities are env/runtime policy composition, numeric normalization overlap, keeping the new helper leaf splits from collapsing back into broad buckets, and continuing the metrics and ops family deflation work.",
+    "clusterFindings": [
+      {
+        "cluster": "env-runtime-policy",
+        "files": [
+          "src/shared/auto-policy/build.js",
+          "src/shared/auto-policy/profile.js",
+          "src/shared/auto-policy/repo-scan.js",
+          "src/shared/env.js",
+          "src/shared/env/core.js",
+          "src/shared/env/runtime.js",
+          "src/shared/runtime-envelope/resolve-current-process-envelope.js",
+          "src/shared/runtime-envelope/resolve.js"
+        ],
+        "assessment": "This is still the weakest root-level cluster. The facades are slimmer now, runtime-envelope.js and auto-policy.js root facades have been removed, and env.js remains the main broad family that needs to keep its leaf splits stable instead of regrowing monolithic behavior."
+      },
+      {
+        "cluster": "numeric-path-ordering-primitives",
+        "files": [
+          "src/shared/invariants.js",
+          "src/shared/limits.js",
+          "src/shared/number-coerce.js",
+          "src/shared/order.js",
+          "src/shared/path-normalize.js",
+          "src/shared/sort.js"
+        ],
+        "assessment": "These helpers are individually useful, but limits.js and number-coerce.js overlap enough to create duplicate entry points for the same coercion decisions. sort.js and order.js are fine together, but their boundary should stay explicit. path-normalize.js is coherent and should remain the canonical repo-relative and platform path layer."
+      },
+      {
+        "cluster": "observability-and-ops",
+        "files": [
+          "src/shared/metrics/core.js",
+          "src/shared/observability.js",
+          "src/shared/ops/failure-injection.js",
+          "src/shared/ops/health.js",
+          "src/shared/ops/resource-visibility.js",
+          "src/shared/reuse-diagnostics.js"
+        ],
+        "assessment": "metrics/core.js and observability.js have a healthy conceptual split, but the metric registry family still needs to resist becoming a new monolith. The ops helpers are finally under an explicit family path; the remaining work is keeping them there and not reintroducing flat root-level operational helpers."
+      },
+      {
+        "cluster": "narrow-promoted-leaves",
+        "files": [
+          "src/shared/bundle-io-checksum.js",
+          "src/shared/direct-execution.js",
+          "src/shared/file-paths.js",
+          "src/shared/file-read.js",
+          "src/shared/json-file.js",
+          "src/shared/progress-events.js",
+          "src/shared/repo-cache-config.js",
+          "src/shared/search-request.js",
+          "src/shared/native-accel.js"
+        ],
+        "assessment": "The recent hard cutovers created several good narrow shared helpers. The important follow-up is to keep these leaf modules explicit and prevent them from being absorbed back into broad root utility buckets."
+      }
+    ],
+    "highestPriorityFollowUps": [
+      {
+        "priority": "high",
+        "target": "src/shared/env.js",
+        "action": "split",
+        "reason": "The file is the de facto env registry for runtime, testing, bench, extractor stubs, TUI, and misc feature flags. Its size and consumer count make boundary drift likely."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/runtime-envelope/resolve.js",
+        "action": "keep",
+        "reason": "The root facade is gone; keep resolution, current-process derivation, env patching, and parsing in the runtime-envelope leaf modules instead of recreating a broad facade."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/auto-policy/build.js",
+        "action": "keep",
+        "reason": "The root auto-policy facade has been removed; keep policy assembly, repo scanning, and profile selection in the existing narrow auto-policy leaves."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/metrics/core.js",
+        "action": "keep",
+        "reason": "The split happened, but the registry core still needs to stay narrow while additional metric families are pushed into dedicated leaves."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/limits.js",
+        "action": "merge",
+        "reason": "Its API surface overlaps heavily with number-coerce.js. One module should become the canonical numeric-normalization entry point."
+      },
+      {
+        "priority": "high",
+        "target": "src/shared/search-request.js",
+        "action": "keep",
+        "reason": "New narrow shared helpers like search-request.js and repo-paths.js should stay explicit and should not be reabsorbed into broad root utility modules."
+      }
+    ]
+  },
+  "entries": [
+    {
+      "path": "src/shared/auto-policy/build.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Leaf auto-policy helper created by the root-surface split so repo scanning, profiling, and policy assembly no longer live in one monolith.",
+      "recommendation": "Keep this responsibility narrow and avoid recreating the old root auto-policy facade."
+    },
+    {
+      "path": "src/shared/auto-policy/profile.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Leaf auto-policy helper created by the root-surface split so repo scanning, profiling, and policy assembly no longer live in one monolith.",
+      "recommendation": "Keep this responsibility narrow and avoid recreating the old root auto-policy facade."
+    },
+    {
+      "path": "src/shared/auto-policy/repo-scan.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Leaf auto-policy helper created by the root-surface split so repo scanning, profiling, and policy assembly no longer live in one monolith.",
+      "recommendation": "Keep this responsibility narrow and avoid recreating the old root auto-policy facade."
+    },
+    {
+      "path": "src/shared/bundle-io-checksum.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/bundle-io-constants.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/bundle-io-paths.js",
+      "consumerCount": 18,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/bundle-patch.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/cli-option-sets.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 5 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/cli-option-validators.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/comma-list.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 5 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/command-registry-data.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 3 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/command-registry-query.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 6 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/config.js",
+      "consumerCount": 9,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Used mainly by runtime configuration assembly and a few build-time filters as a plain-object and recursive-merge utility.",
+      "recommendation": "Keep this module tiny and focused on config-shape primitives; do not let it absorb generic merge or coercion helpers."
+    },
+    {
+      "path": "src/shared/context-pack-request.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared request projection helper for API, MCP, and CLI context-pack callers.",
+      "recommendation": "Keep this as a pure projection boundary; leave transport validation, progress, error mapping, and workspace trust checks in the owning surfaces."
+    },
+    {
+      "path": "src/shared/dense-vector-binary.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/dense-vector-meta.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/direct-execution.js",
+      "consumerCount": 33,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/disk-space.js",
+      "consumerCount": 14,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Artifact writers and index-space checks use this for free-space enforcement and size estimation before expensive writes.",
+      "recommendation": "Keep the module, but document that it is the canonical disk-capacity helper and avoid duplicating byte-formatting and size-estimation logic elsewhere."
+    },
+    {
+      "path": "src/shared/embedding-adapter-helpers.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/embedding-provider-adapters.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/embedding-quantization.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/embedding-vector-utils.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/env-path.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Command resolution and tooling install flows rely on it for PATH key normalization and de-duplication across Windows and POSIX environments.",
+      "recommendation": "Keep it separate from generic path normalization, but document the boundary against path-normalize.js and toolchain-env.js."
+    },
+    {
+      "path": "src/shared/env.js",
+      "consumerCount": 42,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "This is one of the highest-consumer shared modules in the repo, spanning CLI, indexing, retrieval, bench, TUI, test stubs, and provider/runtime behavior.",
+      "recommendation": "Split into focused surfaces such as runtime env, testing env, bench env, and feature-specific env helpers while keeping one stable public import surface if needed."
+    },
+    {
+      "path": "src/shared/env/bench.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Focused environment helper extracted from the oversized root env surface so runtime, bench, testing, and TUI concerns are owned explicitly.",
+      "recommendation": "Keep these env leaves specialized and route new env flags to the narrowest surface instead of widening env.js again."
+    },
+    {
+      "path": "src/shared/env/core.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Focused environment helper extracted from the oversized root env surface so runtime, bench, testing, and TUI concerns are owned explicitly.",
+      "recommendation": "Keep these env leaves specialized and route new env flags to the narrowest surface instead of widening env.js again."
+    },
+    {
+      "path": "src/shared/env/runtime.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Focused environment helper extracted from the oversized root env surface so runtime, bench, testing, and TUI concerns are owned explicitly.",
+      "recommendation": "Keep these env leaves specialized and route new env flags to the narrowest surface instead of widening env.js again."
+    },
+    {
+      "path": "src/shared/env/testing.js",
+      "consumerCount": 19,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Focused environment helper extracted from the oversized root env surface so runtime, bench, testing, and TUI concerns are owned explicitly.",
+      "recommendation": "Keep these env leaves specialized and route new env flags to the narrowest surface instead of widening env.js again."
+    },
+    {
+      "path": "src/shared/env/tui.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Focused environment helper extracted from the oversized root env surface so runtime, bench, testing, and TUI concerns are owned explicitly.",
+      "recommendation": "Keep these env leaves specialized and route new env flags to the narrowest surface instead of widening env.js again."
+    },
+    {
+      "path": "src/shared/error-codes.js",
+      "consumerCount": 45,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "CLI, API, context-pack, diffs, and other surfaces consume it as the canonical error-code registry and payload builder.",
+      "recommendation": "Keep the error code registry centralized, but split heuristic hint resolution from the canonical code constants and payload builder so machine contracts stay clean."
+    },
+    {
+      "path": "src/shared/file-paths.js",
+      "consumerCount": 10,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/file-read.js",
+      "consumerCount": 14,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/identity.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Identity reconciliation, symbol handling, and a few language-provider paths depend on this for chunk and symbol envelopes.",
+      "recommendation": "Keep the module, but document the intended boundary between chunk identity, symbol identity, and artifact-row normalization to avoid ad hoc helpers elsewhere."
+    },
+    {
+      "path": "src/shared/index-state-utils.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/invariants.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Validation, artifact helpers, and ordering checks use it for deterministic hashing and invariant enforcement.",
+      "recommendation": "Keep it small; if more invariant types accumulate, split deterministic hashing from assertion helpers rather than widening the bucket indefinitely."
+    },
+    {
+      "path": "src/shared/iterables.js",
+      "consumerCount": 37,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Graph, contracts, indexing, and retrieval code use these list-normalization helpers broadly as low-level input coercion.",
+      "recommendation": "Keep this as the canonical iterable-to-array normalization surface and avoid adding unrelated collection transforms."
+    },
+    {
+      "path": "src/shared/json-file.js",
+      "consumerCount": 18,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/jsonrpc.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "LSP, MCP, CLI display, and MCP transport flows use it for framed parsing and serialized JSON-RPC writing.",
+      "recommendation": "Keep the writer/parser pairing together, but document that this module owns framing and closed-stream handling, not higher-level protocol semantics."
+    },
+    {
+      "path": "src/shared/kill-tree/posix.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Platform-specific kill-tree leaf extracted from the root facade so POSIX traversal and termination details no longer live in the generic root file.",
+      "recommendation": "Keep platform behavior isolated here and prevent POSIX-specific process-tree logic from drifting back into the shared kill-tree facade."
+    },
+    {
+      "path": "src/shared/kill-tree/shared.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared kill-tree leaf extracted so platform-agnostic orchestration, delays, and normalization can stay separate from Windows and POSIX behavior.",
+      "recommendation": "Keep generic kill-tree orchestration here and let platform modules own process enumeration and termination details."
+    },
+    {
+      "path": "src/shared/kill-tree/windows.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Platform-specific kill-tree leaf extracted from the root facade so Windows process discovery and fallback behavior remain isolated.",
+      "recommendation": "Keep Windows-specific kill-tree behavior local to this file and avoid pushing cmd/tasklist details back into the generic kill-tree facade."
+    },
+    {
+      "path": "src/shared/limits.js",
+      "consumerCount": 40,
+      "classifications": [
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Context-pack, graph, retrieval, and several budget/cap surfaces import this as one of the main numeric normalization entry points.",
+      "recommendation": "Collapse this surface into number-coerce.js or re-export from there so the repo has one obvious home for cap, limit, depth, and numeric coercion behavior."
+    },
+    {
+      "path": "src/shared/lines.js",
+      "consumerCount": 31,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Chunking, file processing, and tree-sitter execution use it for line-index and offset conversion logic.",
+      "recommendation": "Keep it as a narrow text-offset primitive module and resist adding broader text-processing helpers."
+    },
+    {
+      "path": "src/shared/logging/config.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared logging configuration parser used by runtime env and logging setup code.",
+      "recommendation": "Keep this limited to logging-specific config normalization and avoid expanding it into a general env/config facade."
+    },
+    {
+      "path": "src/shared/logging/warn-once.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "SCM, embeddings, LanceDB, and JSON-stream runtime paths use it to suppress duplicate warnings without central logger coupling.",
+      "recommendation": "Keep it focused on warn-once semantics and document it as the preferred duplicate-warning suppressor."
+    },
+    {
+      "path": "src/shared/merge.js",
+      "consumerCount": 16,
+      "classifications": [
+        "split",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Artifact writers, graph-relations assembly, and validation paths use it as the repo's external-run merge and JSONL merge toolkit.",
+      "recommendation": "Split heap/planner primitives from JSONL run manifest and file-writing behavior so merge mechanics are reusable without dragging file-format concerns with them."
+    },
+    {
+      "path": "src/shared/metrics/core.js",
+      "consumerCount": 15,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Shared metric registry core extracted from the former root metrics monolith.",
+      "recommendation": "Keep the registry stable here and add metric-family growth around it rather than rebuilding a wide root metrics bucket."
+    },
+    {
+      "path": "src/shared/native-accel.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Capabilities and native-build tooling use it as the current no-go native-acceleration contract surface.",
+      "recommendation": "Keep the deterministic contract, but document that this is a feasibility and ABI decision module rather than a general runtime helper."
+    },
+    {
+      "path": "src/shared/number-coerce.js",
+      "consumerCount": 33,
+      "classifications": [
+        "keep",
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Artifact write control, pipeline checkpoints, and several concurrency/runtime paths already use this as a canonical numeric coercion helper.",
+      "recommendation": "Make this the primary numeric coercion surface and absorb or re-export overlapping limits.js helpers from here."
+    },
+    {
+      "path": "src/shared/observability.js",
+      "consumerCount": 13,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Core API, search, build-index integration, and router flows use it for correlation envelopes and observability propagation.",
+      "recommendation": "Keep this boundary distinct from metrics.js; it should continue to own correlation envelopes, context propagation, and transport headers."
+    },
+    {
+      "path": "src/shared/ops/failure-injection.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Operational diagnostics helper moved under an explicit ops family so health, failure injection, and resource visibility are no longer anonymous root files.",
+      "recommendation": "Keep the dedicated ops family and avoid reintroducing flat root-level operational helper files."
+    },
+    {
+      "path": "src/shared/ops/health.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Operational diagnostics helper moved under an explicit ops family so health, failure injection, and resource visibility are no longer anonymous root files.",
+      "recommendation": "Keep the dedicated ops family and avoid reintroducing flat root-level operational helper files."
+    },
+    {
+      "path": "src/shared/ops/resource-visibility.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Operational diagnostics helper moved under an explicit ops family so health, failure injection, and resource visibility are no longer anonymous root files.",
+      "recommendation": "Keep the dedicated ops family and avoid reintroducing flat root-level operational helper files."
+    },
+    {
+      "path": "src/shared/optional-deps.js",
+      "consumerCount": 17,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Compression, watchers, document extractors, and other optional-tool integrations rely on it for consistent dependency probing.",
+      "recommendation": "Keep it as the canonical optional dependency probe layer and document when callers should prefer tryRequire versus tryImport."
+    },
+    {
+      "path": "src/shared/order.js",
+      "consumerCount": 12,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Artifact publication and repo-map style ordered outputs use it for stable ordering and deterministic ordering hashes.",
+      "recommendation": "Keep it as the higher-level ordering surface above sort.js, and document that compareStrings remains the low-level primitive comparator."
+    },
+    {
+      "path": "src/shared/path-normalize.js",
+      "consumerCount": 34,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Context-pack, graph, incremental indexing, and repo-path handling use this heavily for repo-relative and platform-safe path normalization.",
+      "recommendation": "Keep it as the canonical repo/path normalization layer; document the boundary against env-path.js and files.js to prevent duplicate path helpers."
+    },
+    {
+      "path": "src/shared/progress-events.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/progress-runtime.js",
+      "consumerCount": 58,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Leaf helper extracted from progress.js so structured logging, ring-buffer capture, and TTY progress state are isolated from env-context helpers.",
+      "recommendation": "Keep runtime progress and logging behavior in this leaf and resist rebuilding a single broad root progress utility."
+    },
+    {
+      "path": "src/shared/repo-cache-config.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/repo-paths.js",
+      "consumerCount": 17,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/reuse-diagnostics.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Indexer process-files, SCM snapshots, and tooling orchestrators use it to normalize and summarize reuse observations.",
+      "recommendation": "Keep it together as the reuse diagnostics surface, but document the distinction between observation normalization and summary aggregation."
+    },
+    {
+      "path": "src/shared/risk-explain-model.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/risk-explain-summary.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 3 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/runtime-capability-specs.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/runtime-envelope/env-patch.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime-envelope leaf module extracted from the main facade so parsing, env patching, and resolution logic can evolve independently.",
+      "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
+    },
+    {
+      "path": "src/shared/runtime-envelope/parse.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime-envelope leaf module extracted from the main facade so parsing, env patching, and resolution logic can evolve independently.",
+      "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
+    },
+    {
+      "path": "src/shared/runtime-envelope/resolve-current-process-envelope.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime-envelope leaf for deriving the current process envelope without importing broader runtime resolution policy.",
+      "recommendation": "Keep current-process derivation as a narrow runtime-envelope leaf and avoid reintroducing the deleted root runtime-envelope facade."
+    },
+    {
+      "path": "src/shared/runtime-envelope/resolve.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Runtime-envelope leaf module extracted from the main facade so parsing, env patching, and resolution logic can evolve independently.",
+      "recommendation": "Keep resolveRuntimeEnvelope as the public facade and let these internals own the detailed runtime-resolution behavior."
+    },
+    {
+      "path": "src/shared/search-request.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Narrow shared helper promoted out of broader shared surfaces during the hard-cutover cleanup to make ownership and reuse explicit.",
+      "recommendation": "Keep this helper narrowly scoped and prefer direct imports here over rebuilding broader mixed-responsibility utility buckets."
+    },
+    {
+      "path": "src/shared/sort.js",
+      "consumerCount": 37,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Context-pack, graph, retrieval ranking, and many other surfaces use this as the default lexical comparator.",
+      "recommendation": "Keep it intentionally tiny as the primitive comparator and do not let it turn into a broader sorting utility bucket."
+    },
+    {
+      "path": "src/shared/stats.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/time-format.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Bench and service progress-monitor surfaces use it for compact duration text rendering.",
+      "recommendation": "Keep it as a tiny display helper unless more time-format variants accumulate, in which case create a dedicated formatting family."
+    },
+    {
+      "path": "src/shared/token-hash.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 2 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/tokenize-dictionary.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/tokenize-identifiers.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/tokenize-query-features.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/toolchain-env.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "LSP client/provider startup and benchmark run loops use it to enforce Gradle daemon-off defaults.",
+      "recommendation": "Keep it small and explicit; document it as a toolchain-specific environment patch helper rather than a generic env utility."
+    },
+    {
+      "path": "src/shared/typed-token-posting-map.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
+      "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    }
+  ]
+}

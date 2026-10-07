@@ -1,30 +1,29 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
 import { createCli } from '../../src/shared/cli.js';
-import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { resolveEnvPath } from '../../src/shared/env-path.js';
+import fs from 'node:fs';
 import path from 'node:path';
+import { TOOLING_INSTALL_OPTIONS } from '../../src/shared/cli-options.js';
+import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
 import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-utils.js';
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
-import { splitPathEntries } from '../../src/index/tooling/binary-utils.js';
-import { getToolingConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
+import { buildToolInstallReadiness } from '../setup/readiness.js';
+import { invalidateToolingCommandProbeCache } from '../../src/index/tooling/command-resolver.js';
+import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
+import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
+import { ensureManagedGoSdk } from './install-go-sdk.js';
+import { applyManagedGoEnvironment, resolveManagedGoSdk } from '../../src/shared/managed-go.js';
+import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
 const argv = createCli({
-  scriptName: 'tooling-install',
-  options: {
-    json: { type: 'boolean', default: false },
-    'dry-run': { type: 'boolean', default: false },
-    'no-fallback': { type: 'boolean', default: false },
-    root: { type: 'string' },
-    repo: { type: 'string' },
-    scope: { type: 'string' },
-    languages: { type: 'string' },
-    tools: { type: 'string' }
-  }
+  scriptName: 'pairofcleats tooling install',
+  options: TOOLING_INSTALL_OPTIONS
 }).parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);
+const installationCwd = resolveToolRoot();
 const toolingConfig = getToolingConfig(root);
 const scope = argv.scope || toolingConfig.installScope || 'cache';
 const allowFallback = argv['no-fallback'] ? false : toolingConfig.allowGlobalFallback !== false;
@@ -34,31 +33,7 @@ const stdoutGuard = createStdoutGuard({
   label: 'tooling-install stdout'
 });
 const languageOverride = normalizeLanguageList(argv.languages);
-const toolOverride = normalizeLanguageList(argv.tools);
-const WINDOWS_EXEC_EXTS = ['.exe', '.cmd', '.bat', '.com'];
-
-const resolveSpawnCommand = (cmd) => {
-  const value = String(cmd || '').trim();
-  if (!value || process.platform !== 'win32') return value;
-  if (path.extname(value) || value.includes(path.sep) || value.includes('/')) return value;
-  const pathEntries = splitPathEntries(resolveEnvPath(process.env));
-  for (const ext of WINDOWS_EXEC_EXTS) {
-    for (const dir of pathEntries) {
-      const candidate = path.join(dir, `${value}${ext}`);
-      if (fs.existsSync(candidate)) return candidate;
-    }
-  }
-  return value;
-};
-
-const resolveRequirementCheckArgCandidates = (commandName) => {
-  const normalized = String(commandName || '').trim().toLowerCase();
-  if (normalized === 'go') return [['version'], ['--version']];
-  if (normalized === 'dotnet') return [['--info'], ['--version']];
-  if (normalized === 'composer') return [['--version']];
-  if (normalized === 'gem') return [['--version']];
-  return [['--version'], ['version']];
-};
+const toolOverride = [...new Set(normalizeLanguageList(argv.tools))];
 
 const runInstallCommand = (command, args, options = {}) => {
   try {
@@ -89,14 +64,41 @@ const tools = toolOverride.length
 
 const actions = [];
 const results = [];
+let managedGoSdk = resolveManagedGoSdk(toolingConfig.dir);
+let goBootstrapFailure = null;
+for (const id of toolOverride) {
+  if (!tools.some((tool) => tool.id === id)) results.push({
+    id, status: 'unavailable', error: 'Requested tool is unknown or disabled by configuration.'
+  });
+}
+
+const resolveVerifiedPath = (status) => {
+  if (!status?.found || status.probe?.ok !== true || !status.path) return null;
+  const candidate = path.isAbsolute(status.path) ? status.path : findBinaryOnPath(status.path);
+  if (!candidate) return null;
+  try { return fs.realpathSync(candidate); }
+  catch { return null; }
+};
+
+const isAllowedRequirementCommand = (command) => {
+  if (isRepoTrusted(root)) return true;
+  try {
+    const insideRepo = isPathWithinRoot(fs.realpathSync(command), fs.realpathSync(root))
+      || isPathWithinRoot(path.resolve(command), root);
+    return !insideRepo || isApplicationOwnedCommand({ commandPath: command, repoRoot: root, toolRoot: installationCwd });
+  } catch {
+    return false;
+  }
+};
 
 for (const tool of tools) {
   const status = detectTool(tool);
-  if (status.found) {
+  const verifiedPath = resolveVerifiedPath(status);
+  if (verifiedPath && !['gopls', 'sqls'].includes(tool.id)) {
     results.push({
       id: tool.id,
       status: 'already-installed',
-      path: status.path,
+      path: verifiedPath,
       probe: status.probe || null
     });
     continue;
@@ -112,27 +114,76 @@ for (const tool of tools) {
     continue;
   }
   const { cmd, args, env, requires } = selection.plan;
+  let requirementCommand = requires;
+  let goPrerequisite = null;
   if (requires) {
-    const requirementCommand = resolveSpawnCommand(requires);
-    const requirementArgCandidates = resolveRequirementCheckArgCandidates(requires);
+    const requirementArgCandidates = resolveInstallerRequirementProbeArgs(requires);
     let requirementSatisfied = false;
     const requirementChecks = [];
-    for (const requirementArgs of requirementArgCandidates) {
-      const requireCheck = probeCommand(requirementCommand, requirementArgs, {
-        stdio: 'ignore',
-        timeoutMs: 4000,
-        outputEncoding: 'utf8'
-      });
-      requirementChecks.push({
-        args: requirementArgs,
-        outcome: requireCheck?.outcome || 'inconclusive',
-        status: Number.isInteger(requireCheck?.status) ? Number(requireCheck.status) : null,
-        signal: typeof requireCheck?.signal === 'string' ? requireCheck.signal : null,
-        errorCode: typeof requireCheck?.errorCode === 'string' ? requireCheck.errorCode : null
-      });
-      if (requireCheck?.ok === true) {
+    const requirementCommands = requires === 'go'
+      ? [...new Set([managedGoSdk?.command, findBinaryOnPath('go')].filter(Boolean))]
+      : [findBinaryOnPath(requires)].filter(Boolean);
+    for (const candidate of requirementCommands) {
+      if (!isAllowedRequirementCommand(candidate)) {
+        requirementChecks.push({ command: candidate, outcome: 'blocked', reason: 'installer_requirement_unavailable_or_repo_untrusted' });
+        continue;
+      }
+      for (const requirementArgs of requirementArgCandidates) {
+        const requireCheck = probeCommand(candidate, requirementArgs, {
+          cwd: installationCwd,
+          env: candidate === managedGoSdk?.command
+            ? applyManagedGoEnvironment(process.env, { toolingRoot: toolingConfig.dir, sdk: managedGoSdk }) : process.env,
+          stdio: 'pipe',
+          timeoutMs: 4000,
+          maxOutputBytes: 64 * 1024,
+          outputEncoding: 'utf8'
+        });
+        const verification = verifyInstallerRequirementProbe(requires, requireCheck);
+        requirementChecks.push({
+          command: candidate,
+          args: requirementArgs,
+          outcome: requireCheck?.outcome || 'inconclusive',
+          status: Number.isInteger(requireCheck?.status) ? Number(requireCheck.status) : null,
+          signal: typeof requireCheck?.signal === 'string' ? requireCheck.signal : null,
+          errorCode: typeof requireCheck?.errorCode === 'string' ? requireCheck.errorCode : null,
+          verificationLevel: verification.verificationLevel || null,
+          identity: verification.identity || null,
+          reason: verification.reason || null
+        });
+        if (verification.ok === true) {
+          requirementSatisfied = true;
+          requirementCommand = candidate;
+          if (requires === 'go' && candidate === managedGoSdk?.command) {
+            goPrerequisite = { id: 'go-sdk', state: 'available-and-verified',
+              version: managedGoSdk.version, platform: managedGoSdk.os, arch: managedGoSdk.arch,
+              sourceUrl: managedGoSdk.sourceUrl, archiveSha256: managedGoSdk.archiveSha256,
+              reused: true, verificationLevel: managedGoSdk.verificationLevel };
+          }
+          break;
+        }
+      }
+      if (requirementSatisfied) break;
+    }
+    if (!requirementSatisfied && requires === 'go') {
+      if (argv['dry-run']) {
+        goPrerequisite = { id: 'go-sdk', state: 'planned', recipe: 'official-portable-archive',
+          verificationLevel: 'official-release-sha256-and-executable-version' };
         requirementSatisfied = true;
-        break;
+      } else {
+        try {
+          if (goBootstrapFailure) throw goBootstrapFailure;
+          managedGoSdk = await ensureManagedGoSdk({ toolingRoot: path.resolve(toolingConfig.dir), cwd: installationCwd });
+          requirementCommand = managedGoSdk.command;
+          requirementSatisfied = true;
+          goPrerequisite = { id: 'go-sdk', state: 'available-and-verified',
+            version: managedGoSdk.version, platform: managedGoSdk.os, arch: managedGoSdk.arch,
+            sourceUrl: managedGoSdk.sourceUrl, archiveSha256: managedGoSdk.archiveSha256,
+            reused: managedGoSdk.reused, verificationLevel: managedGoSdk.verificationLevel };
+        } catch (error) {
+          goBootstrapFailure = error;
+          goPrerequisite = { id: 'go-sdk', state: 'failed', reason: error.reason || error.code || 'go_sdk_install_failed',
+            error: String(error.message || error).slice(0, 4096) };
+        }
       }
     }
     if (!requirementSatisfied) {
@@ -141,19 +192,31 @@ for (const tool of tools) {
         status: 'missing-requirement',
         requires,
         requirementChecks,
+        ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
+        ...(requirementChecks.some((check) => check.reason === 'unrecognized_go_sdk_version')
+          ? { error: 'The go command did not emit a recognized Go SDK version.' } : {}),
         docs: tool.docs || null,
         probe: status.probe || null
       });
       continue;
     }
   }
-  actions.push({ id: tool.id, cmd, args, env, scope: selection.scope, fallback: selection.fallback || false, docs: tool.docs || null });
+  if (verifiedPath) {
+    results.push({ id: tool.id, status: 'already-installed', path: verifiedPath, probe: status.probe || null,
+      ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}) });
+    continue;
+  }
+  actions.push({ id: tool.id, cmd: requires === 'go' && cmd === 'go' ? requirementCommand : cmd,
+    args, env, requires, ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
+    scope: selection.scope, fallback: selection.fallback || false, docs: tool.docs || null });
 }
 
 if (argv['dry-run']) {
-  const payload = { root, scope, allowFallback, actions, results };
+  const readiness = buildToolInstallReadiness([...results, ...actions.map((action) => ({ id: action.id, status: 'planned' }))], { dryRun: true });
+  const payload = { root, scope, allowFallback, actions, results, readiness };
   if (argv.json) {
     stdoutGuard.writeJson(payload);
+    await new Promise((resolve) => process.stdout.write('', resolve));
   } else {
     console.error('[tooling-install] Dry run. Planned actions:');
     for (const action of actions) {
@@ -164,16 +227,29 @@ if (argv['dry-run']) {
 }
 
 for (const action of actions) {
+  if (action.requires === 'go' && !isAllowedRequirementCommand(action.cmd)) {
+    results.push({ id: action.id, status: 'failed', error: 'Go installer command is unavailable or no longer authorized for this repository.',
+      ...(action.prerequisite ? { prerequisite: action.prerequisite } : {}) });
+    continue;
+  }
   console.error(`[tooling-install] Installing ${action.id} (${action.scope})...`);
-  const env = action.env ? { ...process.env, ...action.env } : process.env;
-  const command = resolveSpawnCommand(action.cmd);
+  let env = action.env ? { ...process.env, ...action.env } : process.env;
+  if (action.requires === 'go') {
+    if (managedGoSdk && action.cmd === managedGoSdk.command) {
+      env = applyManagedGoEnvironment(env, { toolingRoot: toolingConfig.dir, sdk: managedGoSdk });
+    }
+    env = { ...env, GOENV: 'off', GOWORK: 'off', GOMAXPROCS: env.GOMAXPROCS || '1',
+      GOTOOLCHAIN: env.GOTOOLCHAIN || 'local' };
+    if (!/(?:^|\s)-p(?:=|\s)/.test(env.GOFLAGS || '')) env.GOFLAGS = `${env.GOFLAGS || ''} -p=1`.trim();
+  }
   const spawnOpts = {
+    cwd: installationCwd,
     env,
     // Keep JSON mode machine-parseable: suppress child stdout and stream
     // installer diagnostics through stderr only.
     stdio: argv.json ? ['inherit', 'ignore', 'inherit'] : 'inherit'
   };
-  const result = runInstallCommand(command, action.args, spawnOpts);
+  const result = runInstallCommand(action.cmd, action.args, spawnOpts);
   if (typeof result.signal === 'string' && result.signal.trim()) {
     exitLikeCommandResult({ status: null, signal: result.signal });
   }
@@ -190,24 +266,35 @@ for (const action of actions) {
       status: 'failed',
       exitCode,
       ...(error ? { error } : {}),
-      docs: action.docs
+      docs: action.docs,
+      ...(action.prerequisite ? { prerequisite: action.prerequisite } : {})
     });
     continue;
   }
-  results.push({ id: action.id, status: 'installed' });
+  // An installer can exit successfully while leaving a missing executable or
+  // broken package layout. Re-check from the future runtime environment.
+  invalidateToolingCommandProbeCache({ providerId: action.id });
+  const tool = tools.find((entry) => entry.id === action.id);
+  const verified = detectTool(tool);
+  const verifiedPath = resolveVerifiedPath(verified);
+  results.push(verifiedPath
+    ? { id: action.id, status: 'installed', path: verifiedPath, source: verified.source, probe: verified.probe,
+      ...(action.prerequisite ? { prerequisite: action.prerequisite } : {}) }
+    : { id: action.id, status: 'verification-failed', path: verified.path, probe: verified.probe,
+      error: 'Installer exited successfully, but the executable probe or package layout check failed.', docs: action.docs,
+      ...(action.prerequisite ? { prerequisite: action.prerequisite } : {}) });
 }
 
-const payload = { root, scope, allowFallback, actions, results };
-const hasFailedInstalls = results.some((entry) => (
-  entry?.status === 'failed' || entry?.status === 'missing-requirement'
-));
+const readiness = buildToolInstallReadiness(results);
+const payload = { root, scope, allowFallback, actions, results, readiness };
+const hasFailedInstalls = readiness.state === 'blocked';
 if (argv.json) {
   stdoutGuard.writeJson(payload);
 } else {
   if (hasFailedInstalls) {
-    console.error('[tooling-install] Some installs failed.');
+    console.error(`[tooling-install] Required tools are not ready: ${readiness.blockedIds.join(', ')}.`);
   } else {
     console.error('[tooling-install] Completed.');
   }
 }
-process.exit(hasFailedInstalls ? 1 : 0);
+process.exitCode = hasFailedInstalls ? 1 : 0;

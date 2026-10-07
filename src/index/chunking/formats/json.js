@@ -1,22 +1,5 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
-import { getTreeSitterOptions } from '../tree-sitter.js';
-
-const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
-  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  const name = rawName || 'section';
-  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
-  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
-  return {
-    ...chunk,
-    name,
-    kind: chunk?.kind || 'ConfigSection',
-    meta: {
-      ...existingMeta,
-      format,
-      title: rawTitle || name
-    }
-  };
-});
+import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
+import { isJsoncFile, parseJsoncStructure } from '../../../shared/jsonc-structure.js';
 
 const JSON_ESCAPE_MAP = {
   '"': '"',
@@ -161,6 +144,36 @@ export const shouldBypassJsonTreeSitter = (text) => {
   return false;
 };
 
+const consumeJsonFrameValue = (text, start, frame, stack) => {
+  const ch = text[start];
+  if (ch === '{' || ch === '[') {
+    frame.state = 'commaOrEnd';
+    stack.push({
+      type: ch === '{' ? 'object' : 'array',
+      state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
+      collectKeys: false
+    });
+    return start + 1;
+  }
+  const parsed = parseJsonPrimitive(text, start);
+  if (!parsed) return null;
+  frame.state = 'commaOrEnd';
+  return parsed.end;
+};
+
+const consumeJsonCommaOrEnd = (text, start, frame, stack, { nextState, endToken }) => {
+  if (text[start] === ',') {
+    frame.state = nextState;
+    frame.allowEnd = false;
+    return start + 1;
+  }
+  if (text[start] === endToken) {
+    stack.pop();
+    return start + 1;
+  }
+  return null;
+};
+
 /**
  * Parse a JSON value and collect top-level object key offsets without recursive descent.
  *
@@ -173,7 +186,7 @@ export const shouldBypassJsonTreeSitter = (text) => {
  * @param {Array<{name:string,index:number}>} topLevelKeys
  * @returns {{end:number,type:'primitive'|'array'|'object'}|null}
  */
-const parseJsonValue = (text, start, topLevelKeys) => {
+const parseJsonValue = (text, start, topLevelKeys, checkTime = null) => {
   let i = skipWhitespace(text, start);
   const rootChar = text[i];
   if (rootChar !== '{' && rootChar !== '[') {
@@ -190,6 +203,7 @@ const parseJsonValue = (text, start, topLevelKeys) => {
   i += 1;
 
   while (stack.length) {
+    checkTime?.();
     const frame = stack[stack.length - 1];
     i = skipWhitespace(text, i);
 
@@ -221,36 +235,19 @@ const parseJsonValue = (text, start, topLevelKeys) => {
         continue;
       }
       if (frame.state === 'value') {
-        const ch = text[i];
-        if (ch === '{' || ch === '[') {
-          frame.state = 'commaOrEnd';
-          stack.push({
-            type: ch === '{' ? 'object' : 'array',
-            state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
-            collectKeys: false
-          });
-          i += 1;
-          continue;
-        }
-        const parsed = parseJsonPrimitive(text, i);
-        if (!parsed) return null;
-        frame.state = 'commaOrEnd';
-        i = parsed.end;
+        const next = consumeJsonFrameValue(text, i, frame, stack);
+        if (next === null) return null;
+        i = next;
         continue;
       }
       if (frame.state === 'commaOrEnd') {
-        if (text[i] === ',') {
-          frame.state = 'keyOrEnd';
-          frame.allowEnd = false;
-          i += 1;
-          continue;
-        }
-        if (text[i] === '}') {
-          stack.pop();
-          i += 1;
-          continue;
-        }
-        return null;
+        const next = consumeJsonCommaOrEnd(text, i, frame, stack, {
+          nextState: 'keyOrEnd',
+          endToken: '}'
+        });
+        if (next === null) return null;
+        i = next;
+        continue;
       }
       return null;
     }
@@ -261,36 +258,19 @@ const parseJsonValue = (text, start, topLevelKeys) => {
         i += 1;
         continue;
       }
-      const ch = text[i];
-      if (ch === '{' || ch === '[') {
-        frame.state = 'commaOrEnd';
-        stack.push({
-          type: ch === '{' ? 'object' : 'array',
-          state: ch === '{' ? 'keyOrEnd' : 'valueOrEnd',
-          collectKeys: false
-        });
-        i += 1;
-        continue;
-      }
-      const parsed = parseJsonPrimitive(text, i);
-      if (!parsed) return null;
-      frame.state = 'commaOrEnd';
-      i = parsed.end;
+      const next = consumeJsonFrameValue(text, i, frame, stack);
+      if (next === null) return null;
+      i = next;
       continue;
     }
     if (frame.state === 'commaOrEnd') {
-      if (text[i] === ',') {
-        frame.state = 'valueOrEnd';
-        frame.allowEnd = false;
-        i += 1;
-        continue;
-      }
-      if (text[i] === ']') {
-        stack.pop();
-        i += 1;
-        continue;
-      }
-      return null;
+      const next = consumeJsonCommaOrEnd(text, i, frame, stack, {
+        nextState: 'valueOrEnd',
+        endToken: ']'
+      });
+      if (next === null) return null;
+      i = next;
+      continue;
     }
     return null;
   }
@@ -298,23 +278,67 @@ const parseJsonValue = (text, start, topLevelKeys) => {
   return { end: i, type: rootType };
 };
 
-export function chunkJson(text, context) {
-  if (
-    context?.treeSitter?.configChunking === true
-    && shouldBypassJsonTreeSitter(text) !== true
-  ) {
-    const treeChunks = buildTreeSitterChunks({
-      text,
-      languageId: 'json',
-      ext: '.json',
-      options: getTreeSitterOptions(context)
-    });
-    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, 'json');
+export const createJsoncChunker = ({ parseStructure = parseJsoncStructure } = {}) => (text, context = {}) => {
+  const source = String(text || '');
+  const structure = parseStructure(source, { maxMs: context?.treeSitter?.byLanguage?.json?.maxParseMs ?? context?.treeSitter?.maxParseMs });
+  const meta = { format: 'json', jsonDialect: 'jsonc', parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (structure.reason === 'depth-limit') {
+    const started = performance.now();
+    const captureCompatibilityCost = () => {
+      const compatibilityElapsedMs = Math.max(0, performance.now() - started);
+      const elapsedMs = structure.metrics.elapsedMs + compatibilityElapsedMs;
+      meta.parseMetrics = { ...structure.metrics, elapsedMs, compatibilityElapsedMs,
+        measuredOverrunMs: Math.max(0, elapsedMs - structure.metrics.localLimitMs) };
+    };
+    const checkTime = () => {
+      if (structure.metrics.elapsedMs + performance.now() - started >= structure.metrics.localLimitMs) {
+        throw new Error('compatibility-time-limit');
+      }
+    };
+    try {
+      checkTime();
+      const legacy = buildStrictJsonChunks(source, checkTime);
+      checkTime();
+      captureCompatibilityCost();
+      if (legacy) return legacy.map((chunk) => ({ ...chunk, meta: { ...chunk.meta, ...meta,
+        parser: 'legacy-strict-json', parserCoverage: 'heuristic', parserFallbackReason: 'jsonc-depth-limit',
+        strictCompatibilityFallback: true } }));
+    } catch (error) {
+      if (error.message !== 'compatibility-time-limit') throw error;
+      captureCompatibilityCost();
+      meta.parserFallbackReason = 'time-limit';
+    }
   }
+  if (!structure.properties.length) return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
+  return structure.properties.map((property, index) => ({ start: property.keyRange.start,
+    end: structure.properties[index + 1]?.keyRange.start ?? source.length, name: property.name || 'section', kind: 'ConfigSection',
+    meta: { ...meta, title: property.name || 'section', rangeSource: structure.rangeSource,
+      astRange: { start: property.start, end: property.end },
+      keyRange: { start: property.keyRange.start, end: property.keyRange.end }, effectiveProperty: true } }));
+};
+
+const chunkJsonc = createJsoncChunker();
+
+export function chunkJson(text, context) {
+  if (isJsoncFile(context || {})) return chunkJsonc(text, context);
+  const treeChunks = buildConfigTreeSitterChunks({
+    text,
+    context,
+    languageId: 'json',
+    ext: '.json',
+    format: 'json',
+    enabled: shouldBypassJsonTreeSitter(text) !== true
+  });
+  if (treeChunks) return treeChunks;
+  return buildStrictJsonChunks(text);
+}
+
+function buildStrictJsonChunks(text, checkTime = null) {
   const topLevelKeys = [];
   const start = findNextNonWhitespace(text, 0);
   if (start < 0) return null;
-  const parsed = parseJsonValue(text, start, topLevelKeys);
+  const parsed = parseJsonValue(text, start, topLevelKeys, checkTime);
   if (!parsed) return null;
   if (findNextNonWhitespace(text, parsed.end) >= 0) return null;
   if (parsed.type !== 'object') {

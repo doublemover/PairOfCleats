@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
-import { runSubprocessOrExit } from '../shared/cli-utils.js';
+import { emitJson, runSubprocessOrExit } from '../shared/cli-utils.js';
 import { DEFAULT_MODEL_ID, bootstrapRuntime, resolveSqlitePaths, resolveToolRoot } from '../shared/dict-utils.js';
 import { ensureParityArtifacts } from '../shared/parity-indexes.js';
 
 const rawArgs = process.argv.slice(2);
 const argv = createCli({
-  scriptName: 'summary-report',
+  scriptName: 'pairofcleats report summary',
   options: {
     json: { type: 'boolean', default: false },
     build: { type: 'boolean', default: true },
@@ -26,11 +26,11 @@ const argv = createCli({
     mode: { type: 'string' },
     repo: { type: 'string' }
   }
-}).parse();
+}).strictOptions().parse();
 
 const exitWithSummaryError = (message, code = 1) => {
   if (argv.json) {
-    console.log(JSON.stringify({ ok: false, error: message }, null, 2));
+    emitJson({ ok: false, error: message });
   } else {
     console.error(message);
   }
@@ -152,7 +152,9 @@ function buildCompareArgs({ backend, outPath, buildIndex, buildSqlite }) {
  */
 function buildParityArgs({ backend, outPath }) {
   const args = [
-    path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity.test.js'),
+    path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'equivalence.test.js'),
+    '--repo',
+    root,
     '--search',
     path.join(scriptRoot, 'search.js'),
     '--sqlite-backend',
@@ -236,11 +238,10 @@ const combined = {
 };
 
 const outPath = argv.out ? path.resolve(argv.out) : reportPaths.combined;
-await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
-await fsPromises.writeFile(outPath, JSON.stringify(combined, null, 2));
+await writeJsonFileResolved(outPath, combined);
 
 if (argv.json) {
-  console.log(JSON.stringify(combined, null, 2));
+  emitJson(combined);
 } else {
   console.error(`Combined summary written to ${outPath}`);
 }

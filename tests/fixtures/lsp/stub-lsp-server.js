@@ -46,6 +46,12 @@ const symbolsByMode = {
     detail: 'def greet(name: str) -> str',
     kind: 12
   },
+  'pyright-hover-timeout': {
+    name: 'greet',
+    detail: 'def greet(name)',
+    hoverDetail: 'def greet(name: str) -> str',
+    kind: 12
+  },
   'pyright-parameter-shadow': {
     name: 'greet',
     detail: 'def greet(name: str) -> str',
@@ -55,6 +61,12 @@ const symbolsByMode = {
     name: 'add',
     detail: 'int add(int a, int b)',
     kind: 12
+  },
+  'java-qualified': {
+    name: 'App.add(int, int)',
+    detail: ' : int',
+    hoverDetail: 'public static int App.add(int a, int b)',
+    kind: 6
   },
   csharp: {
     name: 'Greet',
@@ -101,6 +113,11 @@ const symbolsByMode = {
     detail: 'fn add(a: i32, b: i32) -> i32',
     kind: 12
   },
+  'rust-workspace-noise': {
+    name: 'add',
+    detail: 'fn add(a: i32, b: i32) -> i32',
+    kind: 12
+  },
   'rust-diagnostics-proc-macro': {
     name: 'add',
     detail: 'fn add(a: i32, b: i32) -> i32',
@@ -109,6 +126,12 @@ const symbolsByMode = {
   lua: {
     name: 'greet',
     detail: 'function greet(name: string): string',
+    kind: 12
+  },
+  'lua-hover-timeout': {
+    name: 'greet',
+    detail: 'function greet(name: string)',
+    hoverDetail: 'function greet(name: string): string',
     kind: 12
   },
   'lua-requires-workspace-library': {
@@ -198,6 +221,13 @@ const symbolsByMode = {
     signatureHelpDetail: 'add',
     kind: 12
   },
+  'semantic-inlay': {
+    name: 'add',
+    detail: 'add',
+    hoverDetail: 'add',
+    signatureHelpDetail: 'add',
+    kind: 12
+  },
   'stall-references': {
     name: 'add',
     detail: 'add',
@@ -265,6 +295,12 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
       documentSymbolProvider: true
     };
   }
+  if (mode === 'capability-drift-hover') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true
+    };
+  }
   if (mode === 'signature-help') {
     return {
       documentSymbolProvider: true,
@@ -322,10 +358,45 @@ const resolveInitializeCapabilities = (initializeParams = null) => {
     return {
       documentSymbolProvider: true,
       hoverProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: ['namespace', 'class', 'function', 'parameter', 'variable'],
+          tokenModifiers: ['declaration']
+        },
+        full: true
+      },
       signatureHelpProvider: true,
+      inlayHintProvider: true,
       definitionProvider: true,
       typeDefinitionProvider: true,
       referencesProvider: true
+    };
+  }
+  if (mode === 'stall-semantic-tokens') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: ['namespace', 'class', 'function', 'parameter', 'variable'],
+          tokenModifiers: ['declaration', 'definition', 'readonly']
+        },
+        full: true
+      }
+    };
+  }
+  if (mode === 'semantic-inlay') {
+    return {
+      documentSymbolProvider: true,
+      hoverProvider: true,
+      semanticTokensProvider: {
+        legend: {
+          tokenTypes: ['namespace', 'class', 'function', 'parameter', 'variable'],
+          tokenModifiers: ['declaration']
+        },
+        full: true
+      },
+      inlayHintProvider: true
     };
   }
   if (mode === 'references-richer') {
@@ -408,7 +479,7 @@ const lineColForIndex = (text, index) => {
 };
 
 const buildSymbol = (text) => {
-  if (mode === 'pyright') {
+  if (mode === 'pyright' || mode === 'stall-document-symbol') {
     const match = text.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][\w]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?\s*:/m);
     if (match) {
       const name = match[1];
@@ -444,6 +515,59 @@ const buildSymbol = (text) => {
 const respond = (id, result) => send({ jsonrpc: '2.0', id, result });
 const respondError = (id, message) => send({ jsonrpc: '2.0', id, error: { code: -32601, message } });
 
+const buildSemanticTokenData = (text) => {
+  const tokens = [];
+  const addToken = (needle, tokenType, { afterIndex = 0, length = null } = {}) => {
+    const idx = text.indexOf(needle, afterIndex);
+    if (idx < 0) return idx;
+    const start = lineColForIndex(text, idx);
+    tokens.push({
+      line: start.line,
+      character: start.character,
+      length: length || needle.length,
+      tokenType,
+      modifiers: 1
+    });
+    return idx;
+  };
+  const fnIdx = addToken('add', 2);
+  addToken('a', 3, { afterIndex: fnIdx >= 0 ? fnIdx + 3 : 0, length: 1 });
+  addToken('b', 3, { afterIndex: fnIdx >= 0 ? fnIdx + 5 : 0, length: 1 });
+  tokens.sort((left, right) => (
+    (left.line - right.line)
+    || (left.character - right.character)
+  ));
+  let lastLine = 0;
+  let lastChar = 0;
+  const encoded = [];
+  for (const token of tokens) {
+    const deltaLine = token.line - lastLine;
+    const deltaStart = deltaLine === 0
+      ? token.character - lastChar
+      : token.character;
+    encoded.push(deltaLine, deltaStart, token.length, token.tokenType, token.modifiers);
+    lastLine = token.line;
+    lastChar = token.character;
+  }
+  return encoded;
+};
+
+const buildInlayHints = (text) => {
+  const findPos = (needle, afterIndex = 0) => {
+    const idx = text.indexOf(needle, afterIndex);
+    return idx >= 0 ? { idx, pos: lineColForIndex(text, idx) } : null;
+  };
+  const fn = findPos('add');
+  const aPos = findPos('a', fn ? fn.idx + 3 : 0);
+  const bPos = findPos('b', aPos ? aPos.idx + 1 : 0);
+  const closeParen = findPos(')', fn ? fn.idx : 0);
+  return [
+    aPos ? { position: aPos.pos, kind: 1, label: 'a: integer' } : null,
+    bPos ? { position: bPos.pos, kind: 1, label: 'b: integer' } : null,
+    closeParen ? { position: closeParen.pos, kind: 1, label: '-> integer' } : null
+  ].filter(Boolean);
+};
+
 const handleRequest = (message) => {
   recordEvent('request', message);
   const { id, method, params } = message;
@@ -478,6 +602,9 @@ const handleRequest = (message) => {
   if (method === 'textDocument/documentSymbol') {
     if (mode === 'disconnect-on-document-symbol') {
       process.exit(1);
+      return;
+    }
+    if (mode === 'stall-document-symbol') {
       return;
     }
     if (mode === 'malformed-document-symbol') {
@@ -548,12 +675,49 @@ const handleRequest = (message) => {
       ]);
       return;
     }
+    if (mode === 'inconsistent-document-symbol' && symbol) {
+      respond(id, [{
+        ...symbol,
+        kind: '12',
+        detail: { label: symbol.detail },
+        selectionRange: null
+      }]);
+      return;
+    }
+    if (mode === 'delayed-partial-document-symbol') {
+      send({
+        jsonrpc: '2.0',
+        method: '$/progress',
+        params: {
+          token: `docsymbol-${id}`,
+          value: {
+            kind: 'report',
+            message: 'partial documentSymbol'
+          }
+        }
+      });
+      setTimeout(() => {
+        respond(id, symbol ? [symbol] : []);
+      }, 20);
+      return;
+    }
     respond(id, symbol ? [symbol] : []);
     return;
   }
   if (method === 'textDocument/hover') {
+    if (mode === 'disconnect-on-hover') {
+      process.exit(1);
+      return;
+    }
+    if (mode === 'pyright-hover-timeout' || mode === 'lua-hover-timeout') {
+      return;
+    }
     if (mode === 'malformed-hover') {
       sendMalformedFrame('{"jsonrpc":"2.0","id":3,"result":');
+      return;
+    }
+    if (mode === 'capability-drift-hover') {
+      respondError(id, 'hover provider disabled after initialize');
       return;
     }
     respond(id, {
@@ -571,6 +735,21 @@ const handleRequest = (message) => {
       activeSignature: 0,
       activeParameter: 0
     });
+    return;
+  }
+  if (method === 'textDocument/semanticTokens/full') {
+    if (mode === 'stall-semantic-tokens') {
+      return;
+    }
+    const uri = params?.textDocument?.uri;
+    const text = documents.get(uri) || '';
+    respond(id, { data: buildSemanticTokenData(text) });
+    return;
+  }
+  if (method === 'textDocument/inlayHint') {
+    const uri = params?.textDocument?.uri;
+    const text = documents.get(uri) || '';
+    respond(id, buildInlayHints(text));
     return;
   }
   if (method === 'textDocument/definition') {
@@ -640,7 +819,7 @@ const handleNotification = (message) => {
     const uri = message.params?.textDocument?.uri;
     const text = message.params?.textDocument?.text || '';
     if (uri) documents.set(uri, text);
-    if (uri && mode === 'pyright') {
+    if (uri && (mode === 'pyright' || mode === 'stall-document-symbol')) {
       send({
         jsonrpc: '2.0',
         method: 'textDocument/publishDiagnostics',
@@ -652,6 +831,11 @@ const handleNotification = (message) => {
         method: 'textDocument/publishDiagnostics',
         params: { uri, diagnostics: [rustProcMacroWarningDiagnostic, rustErrorDiagnostic] }
       });
+    } else if (uri && mode === 'rust-workspace-noise') {
+      process.stderr.write('rust-analyzer: failed to find a workspace root for examples/broken/Cargo.toml\n');
+      process.stderr.write('rust-analyzer: failed to find a workspace root for examples/broken/Cargo.toml\n');
+      process.stderr.write('rust-analyzer: cargo metadata failed for C:\\toolchains\\rustlib\\src\\rust\\library\\std\\Cargo.toml\n');
+      process.stderr.write('rust-analyzer: cargo metadata failed for C:\\toolchains\\rustlib\\src\\rust\\library\\std\\Cargo.toml\n');
     }
   } else if (message.method === 'textDocument/didClose') {
     const uri = message.params?.textDocument?.uri;

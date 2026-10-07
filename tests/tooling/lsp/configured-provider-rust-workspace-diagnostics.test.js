@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -9,6 +10,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-diags-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
 const docText = 'fn add(a: i32, b: i32) -> i32 { a + b }\n';

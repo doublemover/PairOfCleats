@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -274,7 +275,7 @@ export const writeEmbeddingsAutoTuneRecommendation = async ({
   if (!normalizedProfile) return null;
   try {
     await fsPromises.mkdir(path.dirname(profilePath), { recursive: true });
-    await fsPromises.writeFile(profilePath, `${JSON.stringify(normalizedProfile, null, 2)}\n`, 'utf8');
+    await fsPromises.writeFile(profilePath, `${JSON.stringify(withGeneratedCacheMetadata(normalizedProfile, 'embeddings-autotune'), null, 2)}\n`, 'utf8');
     return normalizedProfile.byIdentity[key] || null;
   } catch (err) {
     if (typeof log === 'function') {

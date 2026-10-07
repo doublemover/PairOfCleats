@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
-import { getMetricsText } from '../../../../src/shared/metrics.js';
+import { getMetricsText } from '../../../../src/shared/metrics/core.js';
 
 const config = {
   enabled: true,

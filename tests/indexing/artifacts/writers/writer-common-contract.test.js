@@ -10,6 +10,7 @@ import {
   buildJsonlVariantPaths,
   buildJsonVariantPaths,
   buildShardedPartEntries,
+  buildShardedJsonlMetaFields,
   writeShardedJsonlMeta
 } from '../../../../src/index/build/artifacts/writers/_common.js';
 
@@ -84,5 +85,20 @@ assert.equal(meta.artifact, 'symbols');
 assert.equal(meta.format, 'jsonl-sharded');
 assert.equal(meta.totalRecords, 3);
 assert.equal(meta.parts.length, 2);
+assert.equal(Object.keys(meta)[0], 'extensions');
+assert.equal(Object.keys(meta.extensions)[0], '__poc_generated');
+assert.equal(meta.extensions.__poc_generated.kind, 'sharded-meta');
+assert.deepEqual(meta.extensions.offsets, { suffix: 'offsets.bin' });
+
+const merged = buildShardedJsonlMetaFields({
+  artifact: 'symbols',
+  result,
+  parts,
+  extensions: { first: true, __poc_generated: { invalid: true } },
+  extraFields: { extensions: { second: true, __poc_generated: { invalid: true } } }
+});
+assert.equal(merged.extensions.first, true);
+assert.equal(merged.extensions.second, true);
+assert.equal(merged.extensions.__poc_generated.kind, 'sharded-meta');
 
 console.log('writer common contract test passed');

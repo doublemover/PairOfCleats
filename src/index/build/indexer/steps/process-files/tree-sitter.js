@@ -1,6 +1,6 @@
 import { compareStrings } from '../../../../../shared/sort.js';
-import { fileExt } from '../../../../../shared/files.js';
-import { log } from '../../../../../shared/progress.js';
+import { fileExt } from '../../../../../shared/file-paths.js';
+import { log } from '../../../../../shared/progress-runtime.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../../../lang/tree-sitter.js';
 import { isDocsPath, shouldPreferInfraProse } from '../../../mode-routing.js';

@@ -1,7 +1,7 @@
 import { shutdownPythonAstPool } from '../../../lang/python.js';
 import { shutdownTreeSitterWorkerPool } from '../../../lang/tree-sitter.js';
-import { log as defaultLog } from '../../../shared/progress.js';
-import { terminateTrackedSubprocesses } from '../../../shared/subprocess.js';
+import { log as defaultLog } from '../../../shared/progress-runtime.js';
+import { terminateTrackedSubprocesses } from '../../../shared/subprocess/tracking-terminate.js';
 import {
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout

@@ -1,5 +1,5 @@
 import { sha1 } from '../../shared/hash.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { toArray } from '../../shared/iterables.js';
 
 const ROW_SCHEMA_VERSION = 1;

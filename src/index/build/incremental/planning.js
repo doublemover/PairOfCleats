@@ -1,9 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  BUNDLE_CHECKSUM_SCHEMA_VERSION,
-  normalizeBundleFormat
-} from '../../../shared/bundle-io.js';
+import { BUNDLE_CHECKSUM_SCHEMA_VERSION } from '../../../shared/bundle-io-constants.js';
+import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
+import { isIndexBuildStageAtLeast } from '../../../shared/indexing/stages.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 import { SIGNATURE_VERSION } from '../indexer/signatures.js';
 import { pathExists } from './shared.js';
@@ -196,13 +195,6 @@ export async function loadIncrementalState({
   };
 }
 
-const STAGE_ORDER = {
-  stage1: 1,
-  stage2: 2,
-  stage3: 3,
-  stage4: 4
-};
-
 /**
  * Check whether existing manifest stage is at least as complete as requested.
  *
@@ -211,10 +203,7 @@ const STAGE_ORDER = {
  * @returns {boolean}
  */
 const stageSatisfied = (requested, existing) => {
-  if (!requested) return true;
-  const target = STAGE_ORDER[requested] || 0;
-  const current = STAGE_ORDER[existing] || 0;
-  return current >= target;
+  return isIndexBuildStageAtLeast({ requested, existing });
 };
 
 /**

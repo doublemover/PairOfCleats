@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
@@ -49,16 +50,13 @@ await fsPromises.writeFile(
 );
 
 const outPath = path.join(tempRoot, 'dashboard.json');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [path.join(root, 'tools', 'reports', 'metrics-dashboard.js'), '--json', '--out', outPath],
-  { cwd: repoRoot, env, encoding: 'utf8' }
+  'metrics dashboard report',
+  repoRoot,
+  env,
+  { stdio: 'pipe' }
 );
-if (result.status !== 0) {
-  console.error('metrics dashboard test failed: script error.');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
 if (!fs.existsSync(outPath)) {
   console.error('metrics dashboard test failed: output JSON missing.');
   process.exit(1);
@@ -68,6 +66,8 @@ if (!payload.search || !payload.files || !payload.index) {
   console.error('metrics dashboard test failed: missing fields.');
   process.exit(1);
 }
+const stdoutPayload = JSON.parse(result.stdout);
+assert.deepEqual(stdoutPayload, payload);
 
 console.log('metrics dashboard test passed');
 

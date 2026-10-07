@@ -50,6 +50,8 @@ export const runRankStage = ({
   blendEnabled
 }) => {
   const topkStats = {};
+  const queryGate = { evaluated: 0, annEvaluated: 0, rejected: 0, annRejected: 0 };
+  rankMetrics.queryGate = queryGate;
   const reducer = createTopKReducer({
     k: searchTopN,
     slack: topkSlack,
@@ -90,7 +92,15 @@ export const runRankStage = ({
     const blendInfo = entry.blendInfo;
     const chunk = meta[idxVal];
     if (!chunk) return;
-    if (!matchesQueryAst(idx, idxVal, chunk)) return;
+    const annCandidate = Number.isFinite(annScore);
+    const semanticCandidate = annCandidate && entry.annSource !== 'minhash';
+    queryGate.evaluated += 1;
+    if (annCandidate) queryGate.annEvaluated += 1;
+    if (!matchesQueryAst(idx, idxVal, chunk, semanticCandidate)) {
+      queryGate.rejected += 1;
+      if (annCandidate) queryGate.annRejected += 1;
+      return;
+    }
 
     const filePath = chunk.file || '';
     let fileRelations = null;

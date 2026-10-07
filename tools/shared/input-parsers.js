@@ -3,6 +3,16 @@
  * @param {string|string[]|undefined|null} metaArg
  * @returns {Record<string,string>}
  */
+export const assertDownloadFileName = (value) => {
+  const text = String(value || '');
+  if (!text || text === '.' || text === '..' || /[\\/\x00-\x1f:]/.test(text)
+    || /^[. ]+$/.test(text) || /[. ]$/.test(text)
+    || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(text)) {
+    throw new Error('Download names must be a single safe filename.');
+  }
+  return text;
+};
+
 export function parseMetaArgs(metaArg) {
   const entries = Array.isArray(metaArg) ? metaArg : (metaArg ? [metaArg] : []);
   const meta = {};
@@ -34,10 +44,10 @@ export function parseNameUrlSources(input, options) {
   for (const item of items) {
     const eq = item.indexOf('=');
     if (eq <= 0 || eq >= item.length - 1) continue;
-    const name = item.slice(0, eq);
+    const name = assertDownloadFileName(item.slice(0, eq));
     const url = item.slice(eq + 1);
     const sha256 = hashes && hashes[name] ? hashes[name] : null;
-    sources.push({ name, url, file: fileNameFromName(name), sha256 });
+    sources.push({ name, url, file: assertDownloadFileName(fileNameFromName(name)), sha256 });
   }
   return sources;
 }

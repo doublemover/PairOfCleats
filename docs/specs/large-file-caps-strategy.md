@@ -34,7 +34,7 @@ Language-aware defaults are derived from calibration artifacts and committed in-
 - Inputs: `docs/config/caps-calibration-inputs.json`
 - Results: `docs/config/caps-calibration-results.json`
 - Runtime baseline source: `src/index/build/runtime/caps-calibration.js`
-- Regeneration command: `npm run caps:calibrate`
+- Regeneration command: `node tools/index/caps-calibration-artifacts.js`
 
 These artifacts are deterministic and versioned; cap updates must update both files in the same change.
 

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { isAbsolutePathNative, isRelativePathEscape } from '../../src/shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../src/shared/file-paths.js';
 
 /**
  * Resolve a triage record id to an artifact path under recordsDir.

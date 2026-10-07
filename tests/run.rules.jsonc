@@ -11,13 +11,14 @@
     "suggest-tests"
   ],
   "excludedFiles": ["run.js"],
-  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "iq", "ci", "gate", "backcompat", "diagnostics-summary", "decomposed-drift"],
+  "knownLanes": ["smoke", "unit", "ci-lite", "ci-long", "integration", "services", "api", "storage", "perf", "mcp", "iq", "ci", "gate", "backcompat", "diagnostics-summary", "decomposed-drift", "usr-full-conformance"],
   "laneRules": [
     { "lane": "perf", "match": ["^perf/"] },
     { "lane": "iq", "match": ["^retrieval/eval/"] },
     {
       "lane": "ci-long",
       "match": [
+        "^services/soak/",
         "^lang/contracts/(go|javascript|misc-buildfiles|python|sql|typescript)$",
         "^indexing/contracts/golden-surface-suite$"
       ]
@@ -62,6 +63,7 @@
     {
       "lane": "unit",
       "match": [
+        "^unit/",
         "^shared/",
         "^tooling/",
         "^lang/",
@@ -94,6 +96,7 @@
     {
       "tag": "long",
       "match": [
+        "^services/soak/",
         "(^|/)parity$",
         "(^|/)fixture-parity$",
         "(^|/)fixture-eval$",

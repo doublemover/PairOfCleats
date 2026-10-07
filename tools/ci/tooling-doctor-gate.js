@@ -5,7 +5,7 @@ import { getToolingConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { registerDefaultToolingProviders } from '../../src/index/tooling/providers/index.js';
 import { runToolingDoctor } from '../../src/index/tooling/doctor.js';
 import { resolveScmConfig } from '../../src/index/scm/registry.js';
-import { readJsonFileResolvedSafe } from '../shared/json-utils.js';
+import { readJsonFileResolvedSafe } from '../../src/shared/json-file.js';
 import { emitGateResult, mapProvidersById, normalizeProviderId } from '../shared/tooling-gate-utils.js';
 
 const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';

@@ -35,7 +35,9 @@ export const createBaseIndex = async ({
     const safeEntry = entry && typeof entry === 'object' ? { ...entry } : {};
     const file = safeEntry.file || `src/file-${index}.js`;
     const chunkId = safeEntry.chunkId || `chunk_${index}`;
-    const chunkUid = safeEntry.chunkUid || safeEntry.metaV2?.chunkUid || `ck:test:${chunkId}`;
+    const chunkUid = safeEntry.chunkUid
+      || safeEntry.metaV2?.chunkUid
+      || `ck64:v1:test:${file}:${String(index + 1).padStart(16, '0')}`;
     const virtualPath = safeEntry.virtualPath || safeEntry.metaV2?.virtualPath || file;
     let metaV2 = safeEntry.metaV2 && typeof safeEntry.metaV2 === 'object' ? { ...safeEntry.metaV2 } : null;
     if (metaV2) {

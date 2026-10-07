@@ -3,9 +3,9 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { loadTokenPostings } from '../../../src/shared/artifact-io/loaders.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -41,8 +41,7 @@ const baseEnv = {
   })
 };
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'build_index.js'),
     '--stub-embeddings',
@@ -55,7 +54,10 @@ const result = spawnSync(
     '--repo',
     repoRoot
   ],
-  { cwd: repoRoot, env: baseEnv, stdio: 'inherit' }
+  'build_index (packed artifact fastpath)',
+  repoRoot,
+  baseEnv,
+  { stdio: 'inherit', allowFailure: true }
 );
 if (result.status !== 0) {
   console.error('Failed: build_index (packed artifact fastpath)');

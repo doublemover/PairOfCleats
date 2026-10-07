@@ -10,23 +10,26 @@ const normalizeScalarForJson = (value, { inArray = false } = {}) => {
   return value;
 };
 
-const canonicalizeJsonLike = (value, { inArray = false } = {}) => {
+const canonicalizeJsonLike = (value, { inArray = false, typedArraysBeforeToJSON = false } = {}) => {
   const scalar = normalizeScalarForJson(value, { inArray });
   if (scalar === OMIT) return OMIT;
   if (scalar === null || typeof scalar !== 'object') return scalar;
 
-  if (typeof scalar.toJSON === 'function') {
+  // JSON streaming writes byte views as arrays, including Node Buffers. Keep
+  // the default Buffer.toJSON shape for existing MessagePack checksums.
+  const preferTypedArray = typedArraysBeforeToJSON && ArrayBuffer.isView(scalar) && !(scalar instanceof DataView);
+  if (!preferTypedArray && typeof scalar.toJSON === 'function') {
     try {
-      return canonicalizeJsonLike(scalar.toJSON(), { inArray });
+      return canonicalizeJsonLike(scalar.toJSON(), { inArray, typedArraysBeforeToJSON });
     } catch {
-      return canonicalizeJsonLike(null, { inArray });
+      return canonicalizeJsonLike(null, { inArray, typedArraysBeforeToJSON });
     }
   }
 
   if (ArrayBuffer.isView(scalar) && !(scalar instanceof DataView)) {
     const out = new Array(scalar.length);
     for (let i = 0; i < scalar.length; i += 1) {
-      const next = canonicalizeJsonLike(scalar[i], { inArray: true });
+      const next = canonicalizeJsonLike(scalar[i], { inArray: true, typedArraysBeforeToJSON });
       out[i] = next === OMIT ? null : next;
     }
     return out;
@@ -35,7 +38,7 @@ const canonicalizeJsonLike = (value, { inArray = false } = {}) => {
   if (Array.isArray(scalar)) {
     const out = new Array(scalar.length);
     for (let i = 0; i < scalar.length; i += 1) {
-      const next = canonicalizeJsonLike(scalar[i], { inArray: true });
+      const next = canonicalizeJsonLike(scalar[i], { inArray: true, typedArraysBeforeToJSON });
       out[i] = next === OMIT ? null : next;
     }
     return out;
@@ -43,7 +46,7 @@ const canonicalizeJsonLike = (value, { inArray = false } = {}) => {
 
   const out = {};
   for (const key of Object.keys(scalar).sort()) {
-    const next = canonicalizeJsonLike(scalar[key], { inArray: false });
+    const next = canonicalizeJsonLike(scalar[key], { inArray: false, typedArraysBeforeToJSON });
     if (next === OMIT) continue;
     out[key] = next;
   }
@@ -60,9 +63,9 @@ const canonicalizeJsonLike = (value, { inArray = false } = {}) => {
  * - Sorts object keys recursively for stable hashing independent of insertion.
  *
  * @param {unknown} payload
+ * @param {{typedArraysBeforeToJSON?:boolean}} [options] Match JSON stream byte-view precedence when true.
  * @returns {unknown}
  */
-export const canonicalizeBundlePayloadForChecksum = (payload) => (
-  canonicalizeJsonLike(payload, { inArray: false })
+export const canonicalizeBundlePayloadForChecksum = (payload, options = {}) => (
+  canonicalizeJsonLike(payload, { inArray: false, typedArraysBeforeToJSON: options.typedArraysBeforeToJSON === true })
 );
-

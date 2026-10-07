@@ -5,7 +5,7 @@ import {
   getTrackedSubprocessCount,
   registerChildProcessForCleanup,
   terminateTrackedSubprocesses
-} from '../../../src/shared/subprocess.js';
+} from '../../../src/shared/subprocess/tracking.js';
 
 const isAlive = (pid) => {
   if (!Number.isFinite(pid) || pid <= 0) return false;

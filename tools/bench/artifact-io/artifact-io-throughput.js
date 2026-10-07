@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesShardedAsync } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesShardedAsync } from '../../../src/shared/json-stream/jsonl-sharded.js';
 import { readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
 
 const parseArgs = (argv) => {

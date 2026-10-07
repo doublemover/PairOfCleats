@@ -2,10 +2,11 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
+import { buildQueryCacheKey } from '../../../src/retrieval/cli-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -14,11 +15,18 @@ const tempRoot = resolveTestCachePath(root, 'query-cache-retrieval-knobs');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 const cacheRootResolved = resolveVersionedCacheRoot(cacheRoot);
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
 await rmDirRecursive(tempRoot, { retries: 6, delayMs: 120 });
-await fsPromises.mkdir(repoRoot, { recursive: true });
-await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
+await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fsPromises.writeFile(
+  path.join(repoRoot, 'src', 'cache-knobs.js'),
+  [
+    'export function greet(name = "world") {',
+    '  return `greet ${name}`;',
+    '}',
+    ''
+  ].join('\n')
+);
 
 const buildTestConfig = ({
   relationBoostEnabled,
@@ -26,9 +34,16 @@ const buildTestConfig = ({
   sqliteTailLatencyTuning = false,
   sqliteFtsOverfetchRowCap = null
 }) => ({
-  quality: 'max',
   indexing: {
+    typeInference: false,
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false,
     scm: { provider: 'none' }
+  },
+  tooling: {
+    autoEnableOnDetect: false,
+    lsp: { enabled: false }
   },
   retrieval: {
     relationBoost: {
@@ -50,58 +65,35 @@ const buildTestConfig = ({
 const envA = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
-  testConfig: buildTestConfig({ relationBoostEnabled: false, annCandidateCap: 20000 })
-});
-const envB = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: buildTestConfig({ relationBoostEnabled: true, annCandidateCap: 20000 })
-});
-const envC = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: buildTestConfig({ relationBoostEnabled: true, annCandidateCap: 100 })
-});
-const envD = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: buildTestConfig({
-    relationBoostEnabled: false,
-    annCandidateCap: 20000,
-    sqliteTailLatencyTuning: true,
-    sqliteFtsOverfetchRowCap: 4096
-  })
-});
-const envE = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: buildTestConfig({
-    relationBoostEnabled: false,
-    annCandidateCap: 20000,
-    sqliteTailLatencyTuning: true,
-    sqliteFtsOverfetchRowCap: 2048
-  })
+  testConfig: buildTestConfig({ relationBoostEnabled: false, annCandidateCap: 20000 }),
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  },
+  syncProcess: false
 });
 
 const run = (args, label, env) => {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    encoding: 'utf8'
-  });
-  if (result.status !== 0) {
-    console.error(`Failed: ${label}`);
-    if (result.stderr) console.error(result.stderr.trim());
-    process.exit(result.status ?? 1);
-  }
+  const result = runNode(args, label, repoRoot, env, { stdio: 'pipe' });
   return result.stdout || '';
 };
 
-run([path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot], 'build index', envA);
+run([
+  path.join(root, 'build_index.js'),
+  '--stub-embeddings',
+  '--repo',
+  repoRoot,
+  '--stage',
+  'stage1',
+  '--mode',
+  'code',
+  '--no-sqlite'
+], 'build index', envA);
 
 const searchArgs = [
   path.join(root, 'search.js'),
   'greet',
+  '--mode',
+  'code',
   '--json',
   '--stats',
   '--backend',
@@ -109,6 +101,65 @@ const searchArgs = [
   '--repo',
   repoRoot
 ];
+
+const makeCacheKey = (overrides = {}) => buildQueryCacheKey({
+  query: 'greet',
+  backend: 'memory',
+  mode: 'code',
+  topN: null,
+  sqliteFtsRequested: false,
+  ann: false,
+  annBackend: null,
+  annMode: null,
+  annProvider: null,
+  annExtension: false,
+  annAdaptiveProviders: null,
+  relationBoost: { enabled: false, perCall: 0.5, perUse: 0.2, maxBoost: 2.0 },
+  annCandidatePolicy: { cap: 20000, minDocCount: 100, maxDocCount: 20000 },
+  bm25: { k1: null, b: null },
+  scoreBlend: null,
+  rrf: null,
+  fieldWeights: null,
+  symbolBoost: null,
+  denseVectorMode: null,
+  intent: null,
+  minhashMaxDocs: null,
+  maxCandidates: null,
+  sparseBackend: null,
+  explain: false,
+  sqliteFtsNormalize: null,
+  sqliteFtsProfile: null,
+  sqliteFtsWeights: null,
+  sqliteFtsVariant: { trigram: false, stemming: false },
+  sqliteFtsTuning: {
+    tailLatencyTuning: false,
+    overfetch: { rowCap: null, timeBudgetMs: null, chunkSize: null }
+  },
+  comments: { enabled: false },
+  models: null,
+  embeddings: null,
+  contextExpansion: null,
+  graphRanking: null,
+  filters: null,
+  asOf: null,
+  ...overrides
+}).key;
+
+const baseKey = makeCacheKey();
+const relationKey = makeCacheKey({
+  relationBoost: { enabled: true, perCall: 0.5, perUse: 0.2, maxBoost: 2.0 }
+});
+const bm25Key = makeCacheKey({ bm25: { k1: 1.7, b: 0.75 } });
+const sqliteTuningKey = makeCacheKey({
+  sqliteFtsTuning: {
+    tailLatencyTuning: true,
+    overfetch: { rowCap: 4096, timeBudgetMs: null, chunkSize: null }
+  }
+});
+if (new Set([baseKey, relationKey, bm25Key, sqliteTuningKey]).size !== 4) {
+  console.error('query cache retrieval knobs invalidation test failed: retrieval knobs did not produce distinct cache keys.');
+  process.exit(1);
+}
 
 const runSearch = (env, label, expectedHit, args = searchArgs) => {
   const payload = JSON.parse(run(args, label, env));
@@ -121,17 +172,6 @@ const runSearch = (env, label, expectedHit, args = searchArgs) => {
 
 runSearch(envA, 'search config A first', false);
 runSearch(envA, 'search config A second', true);
-runSearch(envB, 'search config B first', false);
-runSearch(envB, 'search config B second', true);
-runSearch(envC, 'search config C first', false);
-runSearch(envC, 'search config C second', true);
-const bm25ArgsA = [
-  ...searchArgs,
-  '--bm25-k1',
-  '1.2',
-  '--bm25-b',
-  '0.75'
-];
 const bm25ArgsB = [
   ...searchArgs,
   '--bm25-k1',
@@ -139,14 +179,7 @@ const bm25ArgsB = [
   '--bm25-b',
   '0.75'
 ];
-runSearch(envA, 'search bm25 A first', false, bm25ArgsA);
-runSearch(envA, 'search bm25 A second', true, bm25ArgsA);
 runSearch(envA, 'search bm25 B first', false, bm25ArgsB);
-runSearch(envA, 'search bm25 B second', true, bm25ArgsB);
-runSearch(envD, 'search sqlite tail tuning A first', false);
-runSearch(envD, 'search sqlite tail tuning A second', true);
-runSearch(envE, 'search sqlite tail tuning B first', false);
-runSearch(envE, 'search sqlite tail tuning B second', true);
 
 const repoCacheDirs = await fsPromises.readdir(path.join(cacheRootResolved, 'repos'));
 if (!repoCacheDirs.length) {

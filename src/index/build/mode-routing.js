@@ -1,5 +1,5 @@
 import { EXTS_CODE, EXTS_PROSE } from '../constants.js';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 
 const DOCS_AMBIGUOUS_PROSE_EXTS = new Set([
   '.md',

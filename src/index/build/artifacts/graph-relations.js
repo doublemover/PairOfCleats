@@ -1,12 +1,10 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  writeJsonLinesSharded,
-  writeJsonLinesShardedAsync,
-  writeJsonObjectFile
-} from '../../../shared/json-stream.js';
+import { writeJsonLinesSharded, writeJsonLinesShardedAsync } from '../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
-import { fromPosix } from '../../../shared/files.js';
+import { fromPosix } from '../../../shared/file-paths.js';
 import { createOrderingHasher, stableOrder } from '../../../shared/order.js';
 import { normalizeCap } from '../../../shared/limits.js';
 import { mergeSortedRuns } from '../../../shared/merge.js';
@@ -511,7 +509,7 @@ export async function enqueueGraphRelationsArtifacts({
     });
 
     await schedule(() => writeJsonObjectFile(graphMetaPath, {
-      fields: {
+      fields: withGeneratedArtifactMetadata({
         schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
         artifact: 'graph_relations',
         format: 'jsonl-sharded',
@@ -553,7 +551,7 @@ export async function enqueueGraphRelationsArtifacts({
           ...(offsetsMeta ? { offsets: offsetsMeta } : {}),
           ...(Number.isFinite(maxRowBytes) ? { maxRowBytes } : {})
         }
-      },
+      }, 'sharded-meta', 'graph_relations'),
       atomic: true
     }));
 
@@ -661,7 +659,7 @@ export async function enqueueGraphRelationsArtifacts({
           compression: 'none'
         });
         await writeJsonObjectFile(graphMetaPath, {
-          fields: {
+          fields: withGeneratedArtifactMetadata({
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
             artifact: 'graph_relations',
             format: 'jsonl-sharded',
@@ -680,7 +678,7 @@ export async function enqueueGraphRelationsArtifacts({
               ...(capStats ? { byteCaps: capStats } : {}),
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
-          },
+          }, 'sharded-meta', 'graph_relations'),
           atomic: true
         });
         for (let i = 0; i < result.parts.length; i += 1) {

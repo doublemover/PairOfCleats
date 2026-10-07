@@ -34,6 +34,7 @@ import {
 import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
 import { shouldSkipPhrasePostingsForChunk } from '../../state.js';
+import { createFileProcessorCrashStageUpdater } from '../crash-stage.js';
 
 /**
  * Verify chunk byte bounds align exactly to the requested line window so token
@@ -241,22 +242,7 @@ export const processChunks = async (context) => {
 
   const containerExt = ext;
   const containerLanguageId = fileLanguageId || lang?.id || null;
-  const updateCrashStage = (substage, extra = {}) => {
-    if (!crashLogger?.enabled) return;
-    const entry = {
-      phase: 'processing',
-      mode,
-      stage: buildStage || null,
-      fileIndex: Number.isFinite(fileIndex) ? fileIndex : null,
-      file: relKey,
-      substage,
-      ...extra
-    };
-    crashLogger.updateFile(entry);
-    if (typeof crashLogger.traceFileStage === 'function') {
-      crashLogger.traceFileStage(entry);
-    }
-  };
+  const updateCrashStage = createFileProcessorCrashStageUpdater(context);
   const sourceChunks = Array.isArray(sc) ? sc : [];
   const processChunksStartedAt = Date.now();
   updateCrashStage('process-chunks:start', { totalChunks: sourceChunks.length, languageId: containerLanguageId });
@@ -687,23 +673,32 @@ export const processChunks = async (context) => {
     if (
       chunkMode === 'code'
       && chunkLanguageId === 'sql'
-      && (!docmeta?.dialect || typeof docmeta.dialect !== 'string')
     ) {
       // Scheduler/fallback chunk paths can skip SQL dialect propagation from
-      // language prepare context; enforce deterministic dialect metadata here.
+      // language prepare context, or can stamp generic metadata for dialect-
+      // specific containers like `.psql`; enforce deterministic dialect
+      // metadata here.
       const resolveSqlDialect = typeof languageOptions?.resolveSqlDialect === 'function'
         ? languageOptions.resolveSqlDialect
         : null;
+      const sqlDialectExt = containerExt || c?.ext || effectiveExt || '';
       const resolvedSqlDialect = resolveSqlDialect
-        ? resolveSqlDialect(effectiveExt || containerExt || '')
+        ? resolveSqlDialect(sqlDialectExt)
         : (languageOptions?.sql?.dialect || 'generic');
       const normalizedSqlDialect = typeof resolvedSqlDialect === 'string' && resolvedSqlDialect.trim()
         ? resolvedSqlDialect.trim().toLowerCase()
         : 'generic';
-      docmeta = {
-        ...docmeta,
-        dialect: normalizedSqlDialect
-      };
+      const currentSqlDialect = typeof docmeta?.dialect === 'string'
+        ? docmeta.dialect.trim().toLowerCase()
+        : '';
+      const shouldStampSqlDialect = !currentSqlDialect
+        || (currentSqlDialect === 'generic' && normalizedSqlDialect !== 'generic');
+      if (shouldStampSqlDialect) {
+        docmeta = {
+          ...docmeta,
+          dialect: normalizedSqlDialect
+        };
+      }
     }
     const parserMetadata = {
       ...(docmeta?.parser && typeof docmeta.parser === 'object' ? docmeta.parser : {}),

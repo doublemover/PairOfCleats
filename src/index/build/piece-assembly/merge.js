@@ -7,6 +7,204 @@ import {
 } from './helpers.js';
 import { materializeDenseVectorRows } from '../../../shared/dense-vector-artifacts.js';
 
+const CHUNK_UID_ORDINAL_SUFFIX_RE = /:ord[1-9][0-9]*$/;
+
+const remapChunkUid = (value, chunkUidRemap) => (
+  typeof value === 'string' && value && chunkUidRemap.has(value)
+    ? chunkUidRemap.get(value)
+    : value
+);
+
+const allocateMergedChunkUid = (chunkUid, usedChunkUids) => {
+  if (typeof chunkUid !== 'string' || !chunkUid) return chunkUid;
+  if (!usedChunkUids.has(chunkUid)) {
+    usedChunkUids.add(chunkUid);
+    return chunkUid;
+  }
+  const baseChunkUid = chunkUid.replace(CHUNK_UID_ORDINAL_SUFFIX_RE, '');
+  let ordinal = 2;
+  let candidate = `${baseChunkUid}:ord${ordinal}`;
+  while (usedChunkUids.has(candidate)) {
+    ordinal += 1;
+    candidate = `${baseChunkUid}:ord${ordinal}`;
+  }
+  usedChunkUids.add(candidate);
+  return candidate;
+};
+
+const remapSymbolEndpoint = (endpoint, chunkUidRemap) => {
+  if (!endpoint || typeof endpoint !== 'object') return endpoint;
+  const nextChunkUid = remapChunkUid(endpoint.chunkUid, chunkUidRemap);
+  if (nextChunkUid === endpoint.chunkUid) return endpoint;
+  return {
+    ...endpoint,
+    chunkUid: nextChunkUid
+  };
+};
+
+const remapSymbolRef = (ref, chunkUidRemap) => {
+  if (!ref || typeof ref !== 'object') return ref;
+  let changed = false;
+  const next = { ...ref };
+  if (ref.resolved && typeof ref.resolved === 'object') {
+    const resolved = remapSymbolEndpoint(ref.resolved, chunkUidRemap);
+    changed = changed || resolved !== ref.resolved;
+    next.resolved = resolved;
+  }
+  if (Array.isArray(ref.candidates)) {
+    const candidates = ref.candidates.map((candidate) => remapSymbolEndpoint(candidate, chunkUidRemap));
+    changed = changed || candidates.some((candidate, index) => candidate !== ref.candidates[index]);
+    next.candidates = candidates;
+  }
+  return changed ? next : ref;
+};
+
+const remapCodeRelations = (relations, chunkUidRemap) => {
+  if (!relations || typeof relations !== 'object') return relations;
+  let changed = false;
+  const next = { ...relations };
+  const remapLinks = (links) => {
+    if (!Array.isArray(links)) return links;
+    let linksChanged = false;
+    const rows = links.map((link) => {
+      if (!link || typeof link !== 'object') return link;
+      let linkChanged = false;
+      const remappedTo = remapSymbolRef(link.to, chunkUidRemap);
+      const remappedRef = remapSymbolRef(link.ref, chunkUidRemap);
+      if (remappedTo !== link.to) linkChanged = true;
+      if (remappedRef !== link.ref) linkChanged = true;
+      if (!linkChanged) return link;
+      linksChanged = true;
+      return {
+        ...link,
+        ...(Object.prototype.hasOwnProperty.call(link, 'to') ? { to: remappedTo } : {}),
+        ...(Object.prototype.hasOwnProperty.call(link, 'ref') ? { ref: remappedRef } : {})
+      };
+    });
+    changed = changed || linksChanged;
+    return rows;
+  };
+  next.callLinks = remapLinks(relations.callLinks);
+  next.usageLinks = remapLinks(relations.usageLinks);
+  if (Array.isArray(relations.callDetails)) {
+    let detailsChanged = false;
+    next.callDetails = relations.callDetails.map((detail) => {
+      if (!detail || typeof detail !== 'object') return detail;
+      const remappedTargetChunkUid = remapChunkUid(detail.targetChunkUid, chunkUidRemap);
+      const remappedCalleeRef = remapSymbolRef(detail.calleeRef, chunkUidRemap);
+      const remappedSymbolRef = remapSymbolRef(detail.symbolRef, chunkUidRemap);
+      const detailChanged = remappedTargetChunkUid !== detail.targetChunkUid
+        || remappedCalleeRef !== detail.calleeRef
+        || remappedSymbolRef !== detail.symbolRef;
+      if (!detailChanged) return detail;
+      detailsChanged = true;
+      return {
+        ...detail,
+        targetChunkUid: remappedTargetChunkUid,
+        ...(Object.prototype.hasOwnProperty.call(detail, 'calleeRef') ? { calleeRef: remappedCalleeRef } : {}),
+        ...(Object.prototype.hasOwnProperty.call(detail, 'symbolRef') ? { symbolRef: remappedSymbolRef } : {})
+      };
+    });
+    changed = changed || detailsChanged;
+  }
+  return changed ? next : relations;
+};
+
+const remapRiskEvidence = (evidence, chunkUidRemap) => {
+  if (!evidence || typeof evidence !== 'object') return evidence;
+  if (!Array.isArray(evidence.callSitesByStep)) return evidence;
+  let changed = false;
+  const callSitesByStep = evidence.callSitesByStep.map((step) => {
+    if (!Array.isArray(step)) return step;
+    let stepChanged = false;
+    const nextStep = step.map((entry) => {
+      if (!entry || typeof entry !== 'object') return entry;
+      const remappedTargetChunkUid = remapChunkUid(entry.targetChunkUid, chunkUidRemap);
+      const details = entry.details && typeof entry.details === 'object'
+        ? {
+          ...entry.details,
+          targetChunkUid: remapChunkUid(entry.details.targetChunkUid, chunkUidRemap)
+        }
+        : entry.details;
+      const entryChanged = remappedTargetChunkUid !== entry.targetChunkUid
+        || details !== entry.details;
+      if (!entryChanged) return entry;
+      stepChanged = true;
+      return {
+        ...entry,
+        targetChunkUid: remappedTargetChunkUid,
+        details
+      };
+    });
+    changed = changed || stepChanged;
+    return nextStep;
+  });
+  return changed
+    ? {
+      ...evidence,
+      callSitesByStep
+    }
+    : evidence;
+};
+
+const remapRiskSummary = (summary, chunkUidRemap) => {
+  if (!summary || typeof summary !== 'object') return summary;
+  const nextChunkUid = remapChunkUid(summary.chunkUid, chunkUidRemap);
+  return nextChunkUid === summary.chunkUid
+    ? summary
+    : {
+      ...summary,
+      chunkUid: nextChunkUid
+    };
+};
+
+const remapRiskFlow = (flow, chunkUidRemap, { partial = false } = {}) => {
+  if (!flow || typeof flow !== 'object') return flow;
+  const nextSource = flow.source && typeof flow.source === 'object'
+    ? {
+      ...flow.source,
+      chunkUid: remapChunkUid(flow.source.chunkUid, chunkUidRemap)
+    }
+    : flow.source;
+  const frontierKey = partial ? 'frontier' : 'sink';
+  const nextFrontier = flow[frontierKey] && typeof flow[frontierKey] === 'object'
+    ? {
+      ...flow[frontierKey],
+      chunkUid: remapChunkUid(flow[frontierKey].chunkUid, chunkUidRemap)
+    }
+    : flow[frontierKey];
+  const nextPath = flow.path && typeof flow.path === 'object'
+    ? {
+      ...flow.path,
+      chunkUids: Array.isArray(flow.path.chunkUids)
+        ? flow.path.chunkUids.map((chunkUid) => remapChunkUid(chunkUid, chunkUidRemap))
+        : flow.path.chunkUids
+    }
+    : flow.path;
+  const nextEvidence = remapRiskEvidence(flow.evidence, chunkUidRemap);
+  return {
+    ...flow,
+    source: nextSource,
+    [frontierKey]: nextFrontier,
+    path: nextPath,
+    evidence: nextEvidence
+  };
+};
+
+const remapCallSite = (site, chunkUidRemap) => {
+  if (!site || typeof site !== 'object') return site;
+  const nextCallerChunkUid = remapChunkUid(site.callerChunkUid, chunkUidRemap);
+  const nextTargetChunkUid = remapChunkUid(site.targetChunkUid, chunkUidRemap);
+  if (nextCallerChunkUid === site.callerChunkUid && nextTargetChunkUid === site.targetChunkUid) {
+    return site;
+  }
+  return {
+    ...site,
+    callerChunkUid: nextCallerChunkUid,
+    targetChunkUid: nextTargetChunkUid
+  };
+};
+
 export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
   if (Array.isArray(input.fileList) && input.fileList.length) {
     const fileSet = new Set(Array.isArray(state.discoveredFiles) ? state.discoveredFiles : []);
@@ -22,9 +220,26 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
     : [];
   validateLengths('docLengths', docLengths, chunks.length, dir);
   const docOffset = state.chunks.length;
+  const usedChunkUids = mergeState.usedChunkUids || (mergeState.usedChunkUids = new Set());
+  const chunkUidRemap = new Map();
   for (let i = 0; i < chunks.length; i += 1) {
     const chunk = { ...chunks[i] };
     chunk.id = docOffset + i;
+    const originalChunkUid = chunk.chunkUid || chunk.metaV2?.chunkUid || null;
+    if (originalChunkUid) {
+      const nextChunkUid = allocateMergedChunkUid(originalChunkUid, usedChunkUids);
+      if (nextChunkUid !== originalChunkUid) {
+        chunkUidRemap.set(originalChunkUid, nextChunkUid);
+      }
+      chunk.chunkUid = nextChunkUid;
+      if (chunk.metaV2 && typeof chunk.metaV2 === 'object') {
+        chunk.metaV2 = {
+          ...chunk.metaV2,
+          chunkUid: nextChunkUid
+        };
+      }
+    }
+    chunk.codeRelations = remapCodeRelations(chunk.codeRelations, chunkUidRemap);
     if (chunk.fileId != null) delete chunk.fileId;
     state.chunks.push(chunk);
   }
@@ -34,19 +249,19 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
   }
 
   if (Array.isArray(input.callSites) && input.callSites.length) {
-    mergeState.mergedCallSites.push(...input.callSites);
+    mergeState.mergedCallSites.push(...input.callSites.map((site) => remapCallSite(site, chunkUidRemap)));
   }
   if (Array.isArray(input.riskSummaries) && input.riskSummaries.length) {
     if (!Array.isArray(state.riskSummaries)) state.riskSummaries = [];
-    state.riskSummaries.push(...input.riskSummaries);
+    state.riskSummaries.push(...input.riskSummaries.map((summary) => remapRiskSummary(summary, chunkUidRemap)));
   }
   if (Array.isArray(input.riskFlows) && input.riskFlows.length) {
     if (!Array.isArray(state.riskFlows)) state.riskFlows = [];
-    state.riskFlows.push(...input.riskFlows);
+    state.riskFlows.push(...input.riskFlows.map((flow) => remapRiskFlow(flow, chunkUidRemap)));
   }
   if (Array.isArray(input.riskPartialFlows) && input.riskPartialFlows.length) {
     if (!Array.isArray(state.riskPartialFlows)) state.riskPartialFlows = [];
-    state.riskPartialFlows.push(...input.riskPartialFlows);
+    state.riskPartialFlows.push(...input.riskPartialFlows.map((flow) => remapRiskFlow(flow, chunkUidRemap, { partial: true })));
   }
   if (
     input.riskInterproceduralStats

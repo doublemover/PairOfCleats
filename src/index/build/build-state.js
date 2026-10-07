@@ -141,13 +141,16 @@ export async function initBuildState({
  *
  * @param {string} buildRoot
  * @param {object} patch
- * @param {{durabilityClass?:'required'|'best_effort'}} [options]
- * @returns {Promise<{status:'flushed'|'timed_out',value:object|null}>}
+ * @param {{durabilityClass?:'required'|'best_effort',waitForFlush?:boolean}} [options]
+ * @returns {Promise<{status:'flushed'|'timed_out',value:object|null,queued?:boolean,pendingLagMs?:number,pendingSinceMs?:number,pendingPatchBytes?:number,pendingWaiterCount?:number,coalescedPatches?:number,lastFlushDurationMs?:number}>}
  */
 export async function updateBuildStateOutcome(
   buildRoot,
   patch,
-  { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
+  {
+    durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
+    waitForFlush = true
+  } = {}
 ) {
   if (!buildRoot || !patch) {
     return {
@@ -163,7 +166,8 @@ export async function updateBuildStateOutcome(
     events,
     {
       durabilityClass: resolvedDurabilityClass,
-      flushNow: isRequiredBuildStateDurability(resolvedDurabilityClass)
+      flushNow: isRequiredBuildStateDurability(resolvedDurabilityClass),
+      waitForFlush
     }
   ));
 }

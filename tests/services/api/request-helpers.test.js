@@ -1,0 +1,172 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { IncomingMessage } from 'node:http';
+import { PassThrough } from 'node:stream';
+
+import { ERROR_CODES } from '../../../src/shared/error-codes.js';
+import {
+  classifyBodyParseError,
+  classifyRepoResolveError,
+  classifyWorkspaceRequestError,
+  decodeRoutePathSegment,
+  parseJsonBodyOrSendError,
+  resolveRepoOrSendError
+} from '../../../tools/api/router/request-helpers.js';
+import { createResponseCapture } from './response-capture.js';
+import { createBodyParser } from '../../../tools/api/router/body.js';
+
+const createIncomingFixture = () => {
+  const socket = new PassThrough();
+  const req = new IncomingMessage(socket);
+  req.headers = { 'content-type': 'application/json' };
+  // Do not add an error listener: actual IncomingMessage destruction suppresses
+  // otherwise-unhandled request errors once the parser removes its listener.
+  const closed = new Promise((resolve) => req.once('close', resolve));
+  return { req, closed, dispose: () => { req.destroy(); socket.destroy(); } };
+};
+const assertParserListenersRemoved = (req) => {
+  for (const event of ['data', 'end', 'error', 'aborted']) {
+    assert.equal(req.listenerCount(event), 0, `parser must not retain ${event} listeners`);
+  }
+};
+
+{
+  const fixture = createIncomingFixture();
+  try {
+    fixture.req.destroy();
+    await fixture.closed;
+    assert.equal(fixture.req.aborted, true);
+    const body = createBodyParser({ maxBodyBytes: 32 }).parseJsonBody(fixture.req);
+    body.catch(() => {});
+    assertParserListenersRemoved(fixture.req);
+    await assert.rejects(body, /Request aborted/);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+for (const [input, expected] of [['{"ok":true}', { ok: true }], ['', null]]) {
+  const fixture = createIncomingFixture();
+  try {
+    const body = createBodyParser({ maxBodyBytes: 32 }).parseJsonBody(fixture.req);
+    fixture.req.complete = true;
+    if (input) fixture.req.push(Buffer.from(input));
+    fixture.req.push(null);
+    assert.deepEqual(await body, expected);
+    await fixture.closed;
+    assertParserListenersRemoved(fixture.req);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+{
+  const fixture = createIncomingFixture();
+  try {
+    const body = createBodyParser({ maxBodyBytes: 8 }).parseJsonBody(fixture.req);
+    fixture.req.push(Buffer.from('123456789'));
+    await assert.rejects(body, (error) => {
+      assert.equal(error.code, 'ERR_BODY_TOO_LARGE');
+      assert.equal(classifyBodyParseError(error).status, 413);
+      return true;
+    });
+    await fixture.closed;
+    assert.equal(fixture.req.destroyed, true);
+    assertParserListenersRemoved(fixture.req);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+{
+  const fixture = createIncomingFixture();
+  try {
+    const body = createBodyParser({ maxBodyBytes: 32 }).parseJsonBody(fixture.req);
+    fixture.req.push(Buffer.from('{'));
+    fixture.req.destroy();
+    await assert.rejects(body, /Request aborted/);
+    await fixture.closed;
+    assertParserListenersRemoved(fixture.req);
+  } finally {
+    fixture.dispose();
+  }
+}
+
+const oversized = new Error('too large');
+oversized.code = 'ERR_BODY_TOO_LARGE';
+assert.deepEqual(
+  classifyBodyParseError(oversized),
+  { status: 413, code: ERROR_CODES.INVALID_REQUEST, message: 'too large' },
+  'expected body-too-large to map to 413 INVALID_REQUEST'
+);
+
+const unsupported = new Error('bad type');
+unsupported.code = 'ERR_UNSUPPORTED_MEDIA_TYPE';
+assert.deepEqual(
+  classifyBodyParseError(unsupported),
+  { status: 415, code: ERROR_CODES.INVALID_REQUEST, message: 'bad type' },
+  'expected unsupported media type to map to 415 INVALID_REQUEST'
+);
+
+const forbiddenRepo = new Error('repo forbidden');
+forbiddenRepo.code = ERROR_CODES.FORBIDDEN;
+assert.deepEqual(
+  classifyRepoResolveError(forbiddenRepo),
+  { status: 403, code: ERROR_CODES.FORBIDDEN, message: 'repo forbidden' },
+  'expected forbidden repo resolution to map to 403 FORBIDDEN'
+);
+
+const invalidWorkspace = new Error('Workspace path not permitted by server configuration.');
+assert.deepEqual(
+  classifyWorkspaceRequestError(invalidWorkspace),
+  {
+    status: 403,
+    code: ERROR_CODES.FORBIDDEN,
+    message: 'Workspace path not permitted by server configuration.'
+  },
+  'expected workspace allowlist violations to map to 403 FORBIDDEN'
+);
+
+assert.equal(
+  decodeRoutePathSegment('snapshot%201', 'snapshot id'),
+  'snapshot 1',
+  'expected route path segment helper to decode valid URI segments'
+);
+assert.throws(
+  () => decodeRoutePathSegment('%E0%A4%A', 'diff id'),
+  (err) => err?.code === ERROR_CODES.INVALID_REQUEST
+    && err?.message === 'Invalid diff id: malformed URI encoding.',
+  'expected malformed route path segment encoding to map to INVALID_REQUEST'
+);
+
+{
+  const { capture, response } = createResponseCapture();
+  const result = await parseJsonBodyOrSendError(
+    {},
+    response,
+    async () => {
+      throw unsupported;
+    },
+    {}
+  );
+  assert.equal(result.ok, false, 'expected parse helper to stop on parse error');
+  assert.equal(capture.statusCode, 415, 'expected parse helper to emit 415');
+  assert.equal(JSON.parse(String(capture.body || '{}')).code, ERROR_CODES.INVALID_REQUEST);
+}
+
+{
+  const { capture, response } = createResponseCapture();
+  const result = await resolveRepoOrSendError(
+    response,
+    async () => {
+      throw forbiddenRepo;
+    },
+    'repo',
+    {}
+  );
+  assert.equal(result.ok, false, 'expected repo helper to stop on repo resolution error');
+  assert.equal(capture.statusCode, 403, 'expected repo helper to emit 403');
+  assert.equal(JSON.parse(String(capture.body || '{}')).code, ERROR_CODES.FORBIDDEN);
+}
+
+console.log('API request helpers test passed');

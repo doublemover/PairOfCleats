@@ -1,27 +1,23 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { log } from '../../../../../shared/progress.js';
+import { log } from '../../../../../shared/progress-runtime.js';
 import {
   CHUNK_META_PART_PREFIX,
   CHUNK_META_PARTS_DIR,
-  expandMetaPartPaths,
-  MAX_JSON_BYTES
-} from '../../../../../shared/artifact-io.js';
+  expandMetaPartPaths
+} from '../../../../../shared/artifact-io/manifest.js';
+import { MAX_JSON_BYTES } from '../../../../../shared/artifact-io/constants.js';
 import { writeBinaryRowFrames } from '../../../../../shared/artifact-io/binary-columnar.js';
 import { ensureDiskSpace, formatBytes } from '../../../../../shared/disk-space.js';
 import {
   extractChunkMetaColdFields,
   stripChunkMetaColdFields
 } from '../../../../../shared/chunk-meta-cold.js';
-import {
-  replaceFile,
-  writeJsonArrayFile,
-  writeJsonLinesFileAsync,
-  writeJsonLinesSharded,
-  writeJsonLinesShardedAsync,
-  writeJsonObjectFile
-} from '../../../../../shared/json-stream.js';
-import { isTestingEnv } from '../../../../../shared/env.js';
+import { replaceFile } from '../../../../../shared/json-stream/atomic.js';
+import { writeJsonLinesFileAsync } from '../../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesSharded, writeJsonLinesShardedAsync } from '../../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../../../shared/json-stream/json-writers.js';
+import { isTestingEnv } from '../../../../../shared/env/testing.js';
 import { mergeSortedRuns } from '../../../../../shared/merge.js';
 import {
   createOffsetsMeta,
@@ -339,6 +335,9 @@ export const enqueueChunkMetaArtifacts = async ({
   const binaryLengthsPath = path.join(outDir, 'chunk_meta.binary-columnar.lengths.varint');
   const binaryMetaPath = path.join(outDir, 'chunk_meta.binary-columnar.meta.json');
   const binaryTaskLabel = 'chunk_meta.binary-columnar.bundle';
+  const hotShardsTaskLabel = 'chunk_meta.parts.bundle';
+  const coldShardsTaskLabel = 'chunk_meta_cold.parts.bundle';
+  const optionalBinaryColumnarEnabled = chunkMetaBinaryColumnar === true;
   const removeJsonlVariants = async () => removeArtifacts(
     buildJsonlVariantPaths({ outDir, baseName: 'chunk_meta', includeOffsets: true })
   );
@@ -391,7 +390,7 @@ export const enqueueChunkMetaArtifacts = async ({
       await removeArtifact(columnarPath);
     }
   }
-  if (!chunkMetaBinaryColumnar) {
+  if (!optionalBinaryColumnarEnabled) {
     await removeArtifact(binaryDataPath);
     await removeArtifact(binaryOffsetsPath);
     await removeArtifact(binaryLengthsPath);
@@ -521,8 +520,9 @@ export const enqueueChunkMetaArtifacts = async ({
     if (resolvedUseShards) {
       const metaPath = path.join(outDir, 'chunk_meta.meta.json');
       enqueueWrite(
-        formatArtifactLabel(metaPath),
-        async () => {
+        hotShardsTaskLabel,
+        async ({ setPhase } = {}) => {
+          setPhase?.('write:chunk-meta-shards');
           const { items, itemsAsync } = createHotItemsSource();
           const result = itemsAsync
             ? await writeJsonLinesShardedAsync({
@@ -605,6 +605,7 @@ export const enqueueChunkMetaArtifacts = async ({
               ...(offsetsMeta ? { offsets: offsetsMeta } : {})
             }
           });
+          setPhase?.('publish:chunk-meta-meta');
           const chunkMetaPartPaths = expandPartPaths(result.parts);
           for (let i = 0; i < result.parts.length; i += 1) {
             const absPath = chunkMetaPartPaths[i];
@@ -633,13 +634,18 @@ export const enqueueChunkMetaArtifacts = async ({
           // Sharded outputs should never leave a chunk_meta.json alias behind.
           await removeArtifact(compatJsonPath);
           await cleanupCollected();
+        },
+        {
+          estimatedBytes: jsonlScan?.totalJsonlBytes || null,
+          priority: 275
         }
       );
       if (enableHotColdSplit) {
         const coldMetaPath = path.join(outDir, 'chunk_meta_cold.meta.json');
         enqueueWrite(
-          formatArtifactLabel(coldMetaPath),
-          async () => {
+          coldShardsTaskLabel,
+          async ({ setPhase } = {}) => {
+            setPhase?.('write:chunk-meta-cold-shards');
             const { items, itemsAsync } = createColdItemsSource();
             const result = itemsAsync
               ? await writeJsonLinesShardedAsync({
@@ -682,6 +688,7 @@ export const enqueueChunkMetaArtifacts = async ({
                 ...(offsetsMeta ? { offsets: offsetsMeta } : {})
               }
             });
+            setPhase?.('publish:chunk-meta-cold-meta');
             const chunkMetaColdPartPaths = expandPartPaths(result.parts);
             for (let i = 0; i < result.parts.length; i += 1) {
               const absPath = chunkMetaColdPartPaths[i];
@@ -708,6 +715,10 @@ export const enqueueChunkMetaArtifacts = async ({
             }
             addPieceFile({ type: 'chunks', name: 'chunk_meta_cold_meta', format: 'json' }, coldMetaPath);
             await cleanupCollected();
+          },
+          {
+            estimatedBytes: jsonlScan?.coldJsonlBytes || null,
+            priority: 260
           }
         );
       }
@@ -818,7 +829,7 @@ export const enqueueChunkMetaArtifacts = async ({
       piece: { type: 'chunks', name: 'chunk_meta', count: chunkMetaCount }
     });
   }
-  if (chunkMetaBinaryColumnar) {
+  if (optionalBinaryColumnarEnabled) {
     const binaryColumnarEstimatedBytes = Number.isFinite(Number(chunkMetaEstimatedJsonlBytes))
       ? Math.max(0, Math.floor(Number(chunkMetaEstimatedJsonlBytes)))
       : null;
@@ -836,6 +847,7 @@ export const enqueueChunkMetaArtifacts = async ({
         };
         const fileTable = [];
         const fileRefByPath = new Map();
+        let serializationMs = 0;
         let sourceRows = Array.isArray(preparedColumnarHotRows)
           ? preparedColumnarHotRows
           : mapRows(chunkMetaIterator(0, chunkMetaCount, false), (entry) => projectHotEntry(entry));
@@ -862,7 +874,10 @@ export const enqueueChunkMetaArtifacts = async ({
               next.fileRef = fileRef;
               delete next.file;
             }
-            yield JSON.stringify(next);
+            const serializationStartedAt = Date.now();
+            const payload = JSON.stringify(next);
+            serializationMs += Math.max(0, Date.now() - serializationStartedAt);
+            yield payload;
           }
         })();
         const frames = await writeBinaryRowFrames({
@@ -871,8 +886,10 @@ export const enqueueChunkMetaArtifacts = async ({
           offsetsPath: binaryOffsetsPath,
           lengthsPath: binaryLengthsPath
         });
+        const framePhaseTimings = typeof frames?.phaseTimings === 'object' ? frames.phaseTimings : {};
         setPhase?.('publish:chunk-meta-binary-meta');
-        await writeJsonObjectFile(binaryMetaPath, {
+        const publishStartedAt = Date.now();
+        const metaWriteResult = await writeJsonObjectFile(binaryMetaPath, {
           fields: {
             format: 'binary-columnar-v1',
             rowEncoding: 'json-rows',
@@ -888,13 +905,36 @@ export const enqueueChunkMetaArtifacts = async ({
           },
           atomic: true
         });
+        const publishMs = (Number(framePhaseTimings.publishMs) || 0) + Math.max(0, Date.now() - publishStartedAt);
+        return {
+          bytes: Number.isFinite(Number(metaWriteResult?.bytes)) ? Number(metaWriteResult.bytes) : null,
+          checksum: typeof metaWriteResult?.checksum === 'string' ? metaWriteResult.checksum : null,
+          checksumAlgo: typeof metaWriteResult?.checksumAlgo === 'string' ? metaWriteResult.checksumAlgo : null,
+          serializationMs,
+          diskMs: (Number(framePhaseTimings.flushMs) || 0)
+            + (Number(framePhaseTimings.fsyncMs) || 0)
+            + publishMs,
+          phaseTimings: {
+            computeMs: 0,
+            serializationMs,
+            compressionMs: Number(framePhaseTimings.compressionMs) || 0,
+            flushMs: Number(framePhaseTimings.flushMs) || 0,
+            fsyncMs: Number(framePhaseTimings.fsyncMs) || 0,
+            publishMs,
+            manifestWaitMs: Number(framePhaseTimings.manifestWaitMs) || 0,
+            backpressureWaitMs: Number(framePhaseTimings.backpressureWaitMs) || 0
+          },
+          directFdStreaming: true
+        };
       },
       {
         // Start binary-columnar generation early so it overlaps other long
-        // artifact writes instead of becoming the final tail.
-        priority: 225,
+        // artifact writes instead of becoming the final tail. When sharded
+        // JSONL is already required, keep the optional binary bundle behind
+        // the required shard publish path.
+        priority: resolvedUseShards ? 75 : 225,
         estimatedBytes: binaryColumnarEstimatedBytes,
-        eagerStart: true,
+        eagerStart: resolvedUseShards !== true,
         laneHint: 'massive'
       }
     );

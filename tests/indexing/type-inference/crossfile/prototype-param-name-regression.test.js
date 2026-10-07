@@ -1,71 +1,27 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { applyCrossFileInference } from '../../../../src/index/type-inference-crossfile/pipeline.js';
-import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import {
+  cleanupSinkCallFixture,
+  createSinkCallChunks,
+  prepareSinkCallFixture
+} from './sink-call-fixture.js';
 
 applyTestEnv({ testing: '1' });
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'crossfile-prototype-param-name-regression');
-const srcDir = path.join(tempRoot, 'src');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(srcDir, { recursive: true });
-
-const calleeText = 'export function sinkFn(toString) { return toString; }\n';
-const callerText = 'export function caller(input) { return sinkFn("abc"); }\n';
-await fs.writeFile(path.join(srcDir, 'callee.js'), calleeText, 'utf8');
-await fs.writeFile(path.join(srcDir, 'caller.js'), callerText, 'utf8');
-
-const chunks = [
-  {
-    chunkUid: 'uid:callee',
-    file: 'src/callee.js',
-    name: 'sinkFn',
-    kind: 'function',
-    start: 0,
-    end: calleeText.length,
-    metaV2: {
-      symbol: {
-        symbolId: 'sym:callee',
-        symbolKey: 'src/callee.js::sinkFn',
-        chunkUid: 'uid:callee'
-      }
-    },
-    codeRelations: {},
-    docmeta: {
-      paramNames: ['toString']
-    }
-  },
-  {
-    chunkUid: 'uid:caller',
-    file: 'src/caller.js',
-    name: 'caller',
-    kind: 'function',
-    start: 0,
-    end: callerText.length,
-    metaV2: {
-      symbol: {
-        symbolId: 'sym:caller',
-        symbolKey: 'src/caller.js::caller',
-        chunkUid: 'uid:caller'
-      }
-    },
-    codeRelations: {
-      calls: [[0, 'sinkFn']],
-      callDetails: [
-        {
-          callee: 'sinkFn',
-          args: ['"abc"']
-        }
-      ]
-    },
-    docmeta: {}
-  }
-];
+const { tempRoot } = await prepareSinkCallFixture(
+  root,
+  'crossfile-prototype-param-name-regression',
+  { paramName: 'toString' }
+);
+const chunks = createSinkCallChunks({
+  paramName: 'toString',
+  calleeRisk: null,
+  callerDocmeta: {}
+});
 
 const stats = await applyCrossFileInference({
   rootDir: tempRoot,
@@ -89,6 +45,6 @@ assert.ok(
   'expected flow inference to support prototype-key param names'
 );
 
-await fs.rm(tempRoot, { recursive: true, force: true });
+await cleanupSinkCallFixture(tempRoot);
 
 console.log('crossfile prototype-key param name regression test passed');

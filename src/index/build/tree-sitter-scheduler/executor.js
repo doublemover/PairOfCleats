@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { throwIfAborted } from '../../../shared/abort.js';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { buildLineIndex, offsetToLine } from '../../../shared/lines.js';
 import { sha1 } from '../../../shared/hash.js';
 import { stringifyJsonValue } from '../../../shared/json-stream/encode.js';
@@ -10,6 +10,8 @@ import { createJsonWriteStream, writeChunk } from '../../../shared/json-stream/s
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getNativeTreeSitterParser } from '../../../lang/tree-sitter/native-runtime.js';
+import { attachSegmentMeta } from '../../segments/chunk-meta.js';
+import { assertTreeSitterScheduledGroupsContract, assertTreeSitterScheduledJobContract } from './contracts.js';
 import { resolveTreeSitterSchedulerPaths } from './paths.js';
 import {
   createTreeSitterFileVersionSignature,
@@ -35,62 +37,6 @@ const formatMemoryUsage = () => {
   const usage = process.memoryUsage();
   const toMb = (value) => (Number(value) / (1024 * 1024)).toFixed(1);
   return `rss=${toMb(usage.rss)}MB heapUsed=${toMb(usage.heapUsed)}MB ext=${toMb(usage.external)}MB ab=${toMb(usage.arrayBuffers)}MB`;
-};
-
-/**
- * Rebase chunk offsets/line metadata to container-file coordinates.
- *
- * @param {{
- *  chunk:object,
- *  segment?:object|null,
- *  segmentUid?:string|null,
- *  segmentExt?:string,
- *  segmentStart:number,
- *  segmentEnd:number,
- *  segmentStartLine:number,
- *  segmentEndLine:number,
- *  embeddingContext?:object|null
- * }} input
- * @returns {object}
- */
-const attachSegmentMeta = ({
-  chunk,
-  segment,
-  segmentUid,
-  segmentExt,
-  segmentStart,
-  segmentEnd,
-  segmentStartLine,
-  segmentEndLine,
-  embeddingContext
-}) => {
-  const adjusted = { ...chunk };
-  adjusted.start = chunk.start + segmentStart;
-  adjusted.end = chunk.end + segmentStart;
-  if (adjusted.meta && typeof adjusted.meta === 'object') {
-    if (Number.isFinite(adjusted.meta.startLine)) {
-      adjusted.meta.startLine = segmentStartLine + adjusted.meta.startLine - 1;
-    }
-    if (Number.isFinite(adjusted.meta.endLine)) {
-      adjusted.meta.endLine = segmentStartLine + adjusted.meta.endLine - 1;
-    }
-  }
-  if (segment && segmentUid) {
-    adjusted.segment = {
-      segmentId: segment.segmentId,
-      segmentUid,
-      type: segment.type,
-      languageId: segment.languageId || null,
-      ext: segmentExt,
-      start: segmentStart,
-      end: segmentEnd,
-      startLine: segmentStartLine,
-      endLine: segmentEndLine,
-      parentSegmentId: segment.parentSegmentId || null,
-      embeddingContext
-    };
-  }
-  return adjusted;
 };
 
 /**
@@ -261,6 +207,7 @@ export const executeTreeSitterSchedulerPlan = async ({
       stats: { grammarKeys: 0, jobs: 0 }
     };
   }
+  assertTreeSitterScheduledGroupsContract(groups, { phase: 'scheduler-executor:groups' });
 
   const treeSitterConfig = runtime?.languageOptions?.treeSitter || null;
   const schedulerConfig = treeSitterConfig?.scheduler || {};
@@ -414,14 +361,15 @@ export const executeTreeSitterSchedulerPlan = async ({
     try {
       for (const job of jobs) {
         throwIfAborted(abortSignal);
-        const virtualPath = job?.virtualPath || null;
-        const containerPath = job?.containerPath || null;
+        const identity = assertTreeSitterScheduledJobContract(job, { phase: 'scheduler-executor:job' });
+        const virtualPath = identity.virtualPath;
+        const containerPath = identity.containerPath;
         const containerExt = job?.containerExt || null;
-        const languageId = job?.languageId || null;
-        const segmentStart = Number(job?.segmentStart);
-        const segmentEnd = Number(job?.segmentEnd);
+        const languageId = identity.languageId;
+        const segmentStart = identity.segmentStart;
+        const segmentEnd = identity.segmentEnd;
         const segment = job?.segment || null;
-        const segmentUid = segment?.segmentUid || null;
+        const segmentUid = identity.segmentUid;
         const segmentExt = job?.effectiveExt || segment?.ext || containerExt || '';
         const embeddingContext = segment?.embeddingContext || segment?.meta?.embeddingContext || null;
         const expectedSignature = normalizeTreeSitterFileVersionSignature(job?.fileVersionSignature);
@@ -430,14 +378,6 @@ export const executeTreeSitterSchedulerPlan = async ({
             `[tree-sitter:schedule] stale-plan signature missing for ${containerPath}.`
           );
         }
-
-        if (!virtualPath || !containerPath || !languageId) {
-          throw new Error(`[tree-sitter:schedule] invalid job in ${grammarKey}: missing fields`);
-        }
-        if (!Number.isFinite(segmentStart) || !Number.isFinite(segmentEnd) || segmentEnd < segmentStart) {
-          throw new Error(`[tree-sitter:schedule] invalid segment range for ${containerPath}`);
-        }
-
         if (currentFile !== containerPath) {
           currentFile = containerPath;
           currentText = null;
@@ -445,7 +385,7 @@ export const executeTreeSitterSchedulerPlan = async ({
           currentFileVersionSignature = null;
           const abs = path.join(runtime.root, containerPath);
           const stat = await fs.stat(abs);
-          const decoded = await readTextFileWithHash(abs, { stat });
+          const decoded = await readTextFileWithHash(abs, { stat, repoRoot: runtime.root });
           currentText = decoded?.text || '';
           currentFileVersionSignature = createTreeSitterFileVersionSignature({
             size: stat?.size,
@@ -509,7 +449,7 @@ export const executeTreeSitterSchedulerPlan = async ({
 
         const adjusted = chunks.map((chunk) => attachSegmentMeta({
           chunk,
-          segment,
+          segment: segmentUid ? segment : null,
           segmentUid,
           segmentExt,
           segmentStart,

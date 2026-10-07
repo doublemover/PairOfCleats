@@ -1,0 +1,71 @@
+{
+  "issueId": 428,
+  "title": "Shared test harness, fixture, and surface-parity helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "tests/helpers/json-gate.js"
+  ],
+  "problemStatement": "Several CI smoke tests were repeating the same harness logic: create a temp root, reserve a --json output path, run a Node gate script with a test env, read the JSON payload back, and clean up. The repo already had lower-level helpers like tests/helpers/run-node.js and tests/helpers/test-env.js, but no cohesive helper for this recurring JSON gate harness pattern.",
+  "duplicateClusters": [
+    {
+      "name": "CI gate smoke tests with tempRoot/jsonPath/spawn/read/cleanup repetition",
+      "files": [
+        "tests/ci/capability-gate.smoke.test.js",
+        "tests/ci/tooling-doctor-gate.smoke.test.js",
+        "tests/ci/tooling-doctor-gate-require-provider-scope.test.js",
+        "tests/ci/tooling-lsp-replay-gate.smoke.test.js"
+      ],
+      "bestFix": "Create one small JSON gate harness that composes the existing run-node, test-env, and JSON-file helpers instead of letting each smoke test rebuild the same lifecycle."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "tests/helpers/run-node.js handled process execution but not temp-root/json-path lifecycle or payload loading.",
+    "tests/helpers/test-env.js handled env shaping but not script execution or payload capture.",
+    "src/shared/json-file.js handled JSON file IO but not the test-side orchestration around gate scripts."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "tests/helpers/json-gate.js",
+      "action": "created",
+      "notes": "Owns temp JSON gate harness creation, execution, payload loading, and cleanup."
+    },
+    {
+      "path": "tests/ci/capability-gate.smoke.test.js",
+      "action": "migrated",
+      "notes": "Now uses the shared JSON gate harness."
+    },
+    {
+      "path": "tests/ci/tooling-doctor-gate.smoke.test.js",
+      "action": "migrated",
+      "notes": "Now uses the shared JSON gate harness plus shared JSON file write for repo config."
+    },
+    {
+      "path": "tests/ci/tooling-doctor-gate-require-provider-scope.test.js",
+      "action": "migrated",
+      "notes": "Now uses the shared JSON gate harness while preserving the .testLogs temp-root location."
+    },
+    {
+      "path": "tests/ci/tooling-lsp-replay-gate.smoke.test.js",
+      "action": "migrated",
+      "notes": "Now uses the shared JSON gate harness."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [],
+    "testsToKeepGreen": [
+      "tests/ci/capability-gate.smoke.test.js",
+      "tests/ci/tooling-doctor-gate.smoke.test.js",
+      "tests/ci/tooling-doctor-gate-require-provider-scope.test.js",
+      "tests/ci/tooling-lsp-replay-gate.smoke.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Wrap every test process launch in a new framework abstraction.",
+    "Replace high-signal local helpers where sharing would reduce clarity.",
+    "Absorb fixture builders, API harnesses, and parity harnesses into one giant helper."
+  ],
+  "followOnDeletionTargets": [
+    "Migrate other gate-style smoke tests that match the same JSON harness shape.",
+    "Keep more specialized parity and fixture harnesses separate unless a similarly tight repeated family appears."
+  ]
+}

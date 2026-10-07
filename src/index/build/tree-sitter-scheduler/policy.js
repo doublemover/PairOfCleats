@@ -1,4 +1,4 @@
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { isDocsPath, shouldPreferInfraProse } from '../mode-routing.js';
 
 const DOC_TREE_SITTER_SKIP_LANGUAGES = new Set([

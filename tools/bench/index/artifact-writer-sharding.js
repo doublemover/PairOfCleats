@@ -2,27 +2,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonArrayFile, writeJsonLinesSharded } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile } from '../../../src/shared/json-stream/json-writers.js';
+import { parseSimpleBenchArgs } from '../shared.js';
+import {
+  printThroughputResult,
+  runComparedThroughputBenchmarks
+} from './throughput-compare.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const rows = Number(args.rows) || 200000;
 const payloadBytes = Number(args.payloadBytes) || 128;
 const maxBytes = Number(args.maxBytes) || 4 * 1024 * 1024;
@@ -74,48 +62,15 @@ const runCurrent = async (items) => {
   };
 };
 
-const formatThroughput = (durationMs) => (
-  durationMs > 0 ? (rows / (durationMs / 1000)) : 0
-);
-
 const printResult = (result) => {
-  const throughput = formatThroughput(result.durationMs);
   const extras = result.parts != null ? ` parts=${result.parts}` : '';
-  console.log(
-    `[bench] ${result.label} rows=${rows} ms=${result.durationMs.toFixed(1)} ` +
-    `throughput=${throughput.toFixed(1)}/s bytes=${result.bytes}${extras}`
-  );
-  return throughput;
-};
-
-const printDelta = (baseline, current, baselineThroughput, currentThroughput) => {
-  const deltaMs = current.durationMs - baseline.durationMs;
-  const deltaPct = baseline.durationMs > 0 ? (deltaMs / baseline.durationMs) * 100 : 0;
-  const deltaThroughput = currentThroughput - baselineThroughput;
-  const deltaBytes = current.bytes - baseline.bytes;
-  console.log(
-    `[bench] delta ms=${deltaMs.toFixed(1)} (${deltaPct.toFixed(1)}%) ` +
-    `throughput=${currentThroughput.toFixed(1)}/s Δ=${deltaThroughput.toFixed(1)}/s ` +
-    `bytes=${current.bytes} Δ=${deltaBytes}`
-  );
+  return printThroughputResult(result, { itemLabel: 'rows', items: rows, extras });
 };
 
 const items = buildRows();
-let baseline = null;
-let current = null;
-let baselineThroughput = 0;
-let currentThroughput = 0;
-
-if (mode !== 'current') {
-  baseline = await runBaseline(items);
-  baselineThroughput = printResult(baseline);
-}
-
-if (mode !== 'baseline') {
-  current = await runCurrent(items);
-  currentThroughput = printResult(current);
-}
-
-if (baseline && current) {
-  printDelta(baseline, current, baselineThroughput, currentThroughput);
-}
+await runComparedThroughputBenchmarks({
+  mode,
+  runBaseline: () => runBaseline(items),
+  runCurrent: () => runCurrent(items),
+  printResult
+});

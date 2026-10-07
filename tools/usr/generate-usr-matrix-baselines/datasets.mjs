@@ -79,95 +79,42 @@ const familyEdgeKinds = {
   'config-data': ['contains', 'references']
 };
 
+function familyCapabilityProfile(overrides = {}) {
+  return Object.fromEntries(CAPABILITIES.map((capability) => [capability, overrides[capability] || 'supported']));
+}
+
+const MARKUP_LIKE_CAPABILITY_OVERRIDES = {
+  imports: 'partial',
+  relations: 'partial',
+  ast: 'partial',
+  controlFlow: 'unsupported',
+  dataFlow: 'unsupported',
+  graphRelations: 'partial',
+  riskLocal: 'partial',
+  riskInterprocedural: 'unsupported',
+  symbolGraph: 'partial'
+};
+
 const familyCapabilities = {
-  'js-ts': {
-    imports: 'supported',
-    relations: 'supported',
-    docmeta: 'supported',
-    ast: 'supported',
-    controlFlow: 'supported',
-    dataFlow: 'supported',
-    graphRelations: 'supported',
-    riskLocal: 'supported',
-    riskInterprocedural: 'partial',
-    symbolGraph: 'supported'
-  },
-  systems: {
-    imports: 'supported',
-    relations: 'supported',
-    docmeta: 'supported',
-    ast: 'supported',
-    controlFlow: 'supported',
-    dataFlow: 'supported',
-    graphRelations: 'supported',
-    riskLocal: 'supported',
-    riskInterprocedural: 'partial',
-    symbolGraph: 'supported'
-  },
-  managed: {
-    imports: 'supported',
-    relations: 'supported',
-    docmeta: 'supported',
-    ast: 'supported',
-    controlFlow: 'supported',
-    dataFlow: 'supported',
-    graphRelations: 'supported',
-    riskLocal: 'supported',
-    riskInterprocedural: 'partial',
-    symbolGraph: 'supported'
-  },
-  dynamic: {
-    imports: 'supported',
-    relations: 'supported',
-    docmeta: 'supported',
-    ast: 'supported',
-    controlFlow: 'supported',
-    dataFlow: 'partial',
-    graphRelations: 'supported',
-    riskLocal: 'supported',
-    riskInterprocedural: 'partial',
-    symbolGraph: 'supported'
-  },
-  markup: {
+  'js-ts': familyCapabilityProfile({ riskInterprocedural: 'partial' }),
+  systems: familyCapabilityProfile({ riskInterprocedural: 'partial' }),
+  managed: familyCapabilityProfile({ riskInterprocedural: 'partial' }),
+  dynamic: familyCapabilityProfile({ dataFlow: 'partial', riskInterprocedural: 'partial' }),
+  markup: familyCapabilityProfile(MARKUP_LIKE_CAPABILITY_OVERRIDES),
+  style: familyCapabilityProfile({
+    ...MARKUP_LIKE_CAPABILITY_OVERRIDES,
+    imports: 'unsupported'
+  }),
+  'data-interface': familyCapabilityProfile({
     imports: 'partial',
-    relations: 'partial',
-    docmeta: 'supported',
-    ast: 'partial',
     controlFlow: 'unsupported',
     dataFlow: 'unsupported',
-    graphRelations: 'partial',
     riskLocal: 'partial',
-    riskInterprocedural: 'unsupported',
-    symbolGraph: 'partial'
-  },
-  style: {
+    riskInterprocedural: 'unsupported'
+  }),
+  'build-dsl': familyCapabilityProfile({
     imports: 'unsupported',
     relations: 'partial',
-    docmeta: 'supported',
-    ast: 'partial',
-    controlFlow: 'unsupported',
-    dataFlow: 'unsupported',
-    graphRelations: 'partial',
-    riskLocal: 'partial',
-    riskInterprocedural: 'unsupported',
-    symbolGraph: 'partial'
-  },
-  'data-interface': {
-    imports: 'partial',
-    relations: 'supported',
-    docmeta: 'supported',
-    ast: 'supported',
-    controlFlow: 'unsupported',
-    dataFlow: 'unsupported',
-    graphRelations: 'supported',
-    riskLocal: 'partial',
-    riskInterprocedural: 'unsupported',
-    symbolGraph: 'supported'
-  },
-  'build-dsl': {
-    imports: 'unsupported',
-    relations: 'partial',
-    docmeta: 'supported',
     ast: 'partial',
     controlFlow: 'partial',
     dataFlow: 'partial',
@@ -175,19 +122,8 @@ const familyCapabilities = {
     riskLocal: 'partial',
     riskInterprocedural: 'unsupported',
     symbolGraph: 'partial'
-  },
-  'config-data': {
-    imports: 'partial',
-    relations: 'partial',
-    docmeta: 'supported',
-    ast: 'partial',
-    controlFlow: 'unsupported',
-    dataFlow: 'unsupported',
-    graphRelations: 'partial',
-    riskLocal: 'partial',
-    riskInterprocedural: 'unsupported',
-    symbolGraph: 'partial'
-  }
+  }),
+  'config-data': familyCapabilityProfile(MARKUP_LIKE_CAPABILITY_OVERRIDES)
 };
 
 const parserFallbackByPreference = {
@@ -211,36 +147,92 @@ const customEmbeddingPolicies = {
   proto: { canHostEmbedded: false, canBeEmbedded: true, embeddedLanguageAllowlist: [] }
 };
 
+const FRAMEWORK_SEGMENTATION_ORDER = [
+  'container-segmentation',
+  'virtual-documents',
+  'parse-blocks',
+  'emit-local-entities',
+  'emit-bridge-edges',
+  'route-style-hydration-enrichment'
+];
+const FRAMEWORK_ROUTE_RUNTIME_SIDES = ['client', 'server', 'universal', 'unknown'];
+const ROUTED_FRAMEWORK_EDGE_KINDS = [
+  'template_binds',
+  'template_emits',
+  'style_scopes',
+  'route_maps_to',
+  'hydration_boundary'
+];
+const EMBEDDED_FRAMEWORK_EDGE_KINDS = [
+  'template_binds',
+  'template_emits',
+  'style_scopes',
+  'hydration_boundary'
+];
+const ROUTED_FRAMEWORK_REQUIRED_ATTRS = {
+  template_binds: ['bindingKind'],
+  template_emits: ['eventKind'],
+  style_scopes: ['scopeKind'],
+  route_maps_to: ['routePattern', 'runtimeSide'],
+  hydration_boundary: ['runtimeSide']
+};
+const EMBEDDED_FRAMEWORK_REQUIRED_ATTRS = {
+  template_binds: ['bindingKind'],
+  template_emits: ['eventKind'],
+  style_scopes: ['scopeKind'],
+  hydration_boundary: ['runtimeSide']
+};
+
+function cloneRequiredAttrs(attrs) {
+  return Object.fromEntries(Object.entries(attrs).map(([key, value]) => [key, [...value]]));
+}
+
+function frameworkSegmentationRules({ blocks, crossBlockLinking }) {
+  return {
+    blocks: [...blocks],
+    ordering: [...FRAMEWORK_SEGMENTATION_ORDER],
+    crossBlockLinking: [...crossBlockLinking]
+  };
+}
+
+function frameworkBindingSemantics({ route = true } = {}) {
+  return {
+    requiredEdgeKinds: route ? [...ROUTED_FRAMEWORK_EDGE_KINDS] : [...EMBEDDED_FRAMEWORK_EDGE_KINDS],
+    requiredAttrs: cloneRequiredAttrs(route ? ROUTED_FRAMEWORK_REQUIRED_ATTRS : EMBEDDED_FRAMEWORK_REQUIRED_ATTRS)
+  };
+}
+
+function frameworkRouteSemantics(enabled) {
+  return {
+    enabled,
+    patternCanon: 'bracket-form',
+    runtimeSides: [...FRAMEWORK_ROUTE_RUNTIME_SIDES]
+  };
+}
+
+function frameworkHydrationSemantics({ boundarySignals, ssrCsrModes }) {
+  return {
+    required: true,
+    boundarySignals: [...boundarySignals],
+    ssrCsrModes: [...ssrCsrModes]
+  };
+}
+
 const frameworkProfiles = [
   {
     id: 'angular',
     detectionPrecedence: ['config-override', 'angular-decorator-signals', 'angular-workspace-config', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['html', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['script', 'template', 'style'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['component-template-bindings', 'template-style-scope-ownership']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['ng-hydrate', 'universal-handoff'],
       ssrCsrModes: ['ssr', 'csr', 'hybrid']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'script', targetBlock: 'template', edgeKinds: ['template_binds', 'template_emits'] },
       { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -252,31 +244,16 @@ const frameworkProfiles = [
     id: 'astro',
     detectionPrecedence: ['config-override', 'astro-file-signature', 'astro-config', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['frontmatter', 'template', 'style', 'island'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['frontmatter-template-bridge', 'island-hydration-bridge']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['client:load', 'client:idle', 'client:visible', 'client:media', 'client:only'],
       ssrCsrModes: ['ssr', 'island', 'hybrid']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'frontmatter', targetBlock: 'template', edgeKinds: ['template_binds'] },
       { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -288,31 +265,16 @@ const frameworkProfiles = [
     id: 'next',
     detectionPrecedence: ['config-override', 'next-app-pages-conventions', 'next-config-signals', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['script', 'template', 'style', 'route'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['server-client-boundary', 'route-component-binding']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['use client', 'server-component-boundary'],
       ssrCsrModes: ['ssr', 'csr', 'rsc', 'hybrid']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'route', targetBlock: 'script', edgeKinds: ['route_maps_to'] },
       { sourceBlock: 'script', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -324,31 +286,16 @@ const frameworkProfiles = [
     id: 'nuxt',
     detectionPrecedence: ['config-override', 'nuxt-config-signature', 'pages-server-conventions', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['template', 'script', 'style', 'route'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['template-script-bridge', 'route-component-binding']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['nuxt-client-only', 'suspense-boundary'],
       ssrCsrModes: ['ssr', 'csr', 'universal']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'template', targetBlock: 'script', edgeKinds: ['template_binds', 'template_emits'] },
       { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -360,31 +307,16 @@ const frameworkProfiles = [
     id: 'react',
     detectionPrecedence: ['config-override', 'jsx-tsx-signals', 'jsx-runtime-signals', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['script', 'template', 'style', 'route'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['jsx-prop-binding', 'router-component-binding']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['hydrateRoot', 'createRoot', 'server-render-boundary'],
       ssrCsrModes: ['csr', 'ssr', 'hybrid']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'script', targetBlock: 'template', edgeKinds: ['template_binds', 'template_emits'] },
       { sourceBlock: 'script', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -396,30 +328,16 @@ const frameworkProfiles = [
     id: 'svelte',
     detectionPrecedence: ['config-override', 'svelte-file-signature', 'compiler-signals', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['module-script', 'instance-script', 'template', 'style'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['template-script-bridge', 'template-style-bridge']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: false,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics({ route: false }),
+    routeSemantics: frameworkRouteSemantics(false),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['hydrate', 'svelte-component-boundary'],
       ssrCsrModes: ['ssr', 'csr', 'hybrid']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'template', targetBlock: 'instance-script', edgeKinds: ['template_binds', 'template_emits'] },
       { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -431,31 +349,16 @@ const frameworkProfiles = [
     id: 'sveltekit',
     detectionPrecedence: ['config-override', 'sveltekit-route-conventions', 'kit-config-signals', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['module-script', 'instance-script', 'template', 'style', 'route'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['route-load-binding', 'template-script-bridge']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['csr', 'ssr', 'prerender'],
       ssrCsrModes: ['ssr', 'csr', 'hybrid']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'route', targetBlock: 'instance-script', edgeKinds: ['route_maps_to', 'template_binds'] },
       { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -467,31 +370,16 @@ const frameworkProfiles = [
     id: 'vue',
     detectionPrecedence: ['config-override', 'vue-sfc-signature', 'vue-compiler-metadata', 'package-signatures', 'heuristic'],
     appliesToLanguages: ['css', 'html', 'javascript', 'typescript'],
-    segmentationRules: {
+    segmentationRules: frameworkSegmentationRules({
       blocks: ['template', 'script', 'script-setup', 'style', 'custom'],
-      ordering: ['container-segmentation', 'virtual-documents', 'parse-blocks', 'emit-local-entities', 'emit-bridge-edges', 'route-style-hydration-enrichment'],
       crossBlockLinking: ['template-script-bridge', 'template-style-bridge']
-    },
-    bindingSemantics: {
-      requiredEdgeKinds: ['template_binds', 'template_emits', 'style_scopes', 'route_maps_to', 'hydration_boundary'],
-      requiredAttrs: {
-        template_binds: ['bindingKind'],
-        template_emits: ['eventKind'],
-        style_scopes: ['scopeKind'],
-        route_maps_to: ['routePattern', 'runtimeSide'],
-        hydration_boundary: ['runtimeSide']
-      }
-    },
-    routeSemantics: {
-      enabled: true,
-      patternCanon: 'bracket-form',
-      runtimeSides: ['client', 'server', 'universal', 'unknown']
-    },
-    hydrationSemantics: {
-      required: true,
+    }),
+    bindingSemantics: frameworkBindingSemantics(),
+    routeSemantics: frameworkRouteSemantics(true),
+    hydrationSemantics: frameworkHydrationSemantics({
       boundarySignals: ['suspense', 'teleport', 'async-component'],
       ssrCsrModes: ['ssr', 'csr', 'universal']
-    },
+    }),
     embeddedLanguageBridges: [
       { sourceBlock: 'template', targetBlock: 'script-setup', edgeKinds: ['template_binds', 'template_emits'] },
       { sourceBlock: 'template', targetBlock: 'style', edgeKinds: ['style_scopes'] }
@@ -750,9 +638,8 @@ const configLanguageFixtureSuffixById = {
  * @returns {string[]}
  */
 function fixtureFamiliesForLanguage(base) {
-  const families = ['language-baseline', 'golden'];
+  const families = ['language-baseline', 'golden', 'normalization', 'resolution', 'risk'];
   if (base.requiredConformance.includes('C2')) families.push('semantic-flow');
-  if (base.requiredConformance.includes('C3')) families.push('risk');
   if (base.requiredConformance.includes('C4')) families.push('framework-overlay');
   return [...new Set(families)].sort();
 }
@@ -810,9 +697,10 @@ const generatedFrameworkFixtureGovernance = frameworkProfiles
   .map((profile) => {
     const requiredEdgeKinds = new Set(profile?.bindingSemantics?.requiredEdgeKinds || []);
     const families = ['framework-overlay'];
+    if ((profile.embeddedLanguageBridges || []).length > 0) families.push('embedded-bridge');
     if (requiredEdgeKinds.has('template_binds') || requiredEdgeKinds.has('template_emits')) families.push('template-binding');
     if (requiredEdgeKinds.has('style_scopes')) families.push('style-scope');
-    if (requiredEdgeKinds.has('route_maps_to')) families.push('route-semantics');
+    if (requiredEdgeKinds.has('route_maps_to')) families.push('route-canonicalization', 'route-semantics');
     if (requiredEdgeKinds.has('hydration_boundary')) families.push('hydration');
 
     return {

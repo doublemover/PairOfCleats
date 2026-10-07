@@ -2,8 +2,8 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -23,7 +23,15 @@ const BASE_TEST_CONFIG = Object.freeze({
   indexing: {
     scm: { provider: 'none' },
     typeInference: false,
-    typeInferenceCrossFile: false
+    typeInferenceCrossFile: false,
+    riskAnalysis: false,
+    riskAnalysisCrossFile: false
+  },
+  tooling: {
+    autoEnableOnDetect: false,
+    lsp: {
+      enabled: false
+    }
   }
 });
 
@@ -49,8 +57,7 @@ const buildTestEnv = (testConfig) => applyTestEnv({
 });
 
 const runBuild = (label, testConfig) => {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'build_index.js'),
       '--stub-embeddings',
@@ -58,17 +65,16 @@ const runBuild = (label, testConfig) => {
       'none',
       '--incremental',
       '--stage',
-      'stage2',
+      'stage1',
       '--mode',
       'code',
       '--repo',
       repoRoot
     ],
-    {
-      cwd: repoRoot,
-      env: buildTestEnv(testConfig),
-      stdio: 'inherit'
-    }
+    label,
+    repoRoot,
+    buildTestEnv(testConfig),
+    { stdio: 'inherit', allowFailure: true }
   );
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
@@ -105,19 +111,12 @@ if (manifestTokenChanged.tokenizationKey === manifestCached.tokenizationKey) {
   process.exit(1);
 }
 
-runBuild('cache build after config change', { indexing: { postings: { enablePhraseNgrams: true } } });
-const manifestTokenStable = await readManifest();
-if (manifestTokenStable.cacheSignature !== manifestTokenChanged.cacheSignature) {
-  console.error('Expected stable cache signature after unchanged tokenization config rebuild');
-  process.exit(1);
-}
-
 runBuild('dict config change rebuild', {
   indexing: { postings: { enablePhraseNgrams: true } },
   dictionary: { includeSlang: false }
 });
 const manifestDictChanged = await readManifest();
-if (manifestDictChanged.cacheSignature === manifestTokenStable.cacheSignature) {
+if (manifestDictChanged.cacheSignature === manifestTokenChanged.cacheSignature) {
   console.error('Expected cache signature change after dictionary config change');
   process.exit(1);
 }

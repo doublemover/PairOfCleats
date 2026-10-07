@@ -1,18 +1,62 @@
+import { minifyMinhashSignature, normalizeMinhashSampling } from '../../minhash.js';
+
+const resolveChunkSampling = (sampling) => {
+  if (sampling == null) return null;
+  // Keep the existing in-memory two-field sampling descriptor compatible.
+  // Persisted descriptors still use the complete strict metadata validator.
+  if (sampling.mode == null && sampling.signatureLength == null
+    && Number.isSafeInteger(sampling.sampledSignatureLength) && sampling.sampledSignatureLength > 0
+    && Number.isSafeInteger(sampling.hashStride) && sampling.hashStride > 0) return sampling;
+  const resolved = normalizeMinhashSampling(sampling);
+  if (!resolved) throw new Error('Invalid minhash sampling metadata');
+  return resolved;
+};
+
+/** Repeatable rows for JSON measurement/writing; only the current sampled row is allocated. */
+export const createMinhashSignatureIterable = ({ signatures, chunks, sampling } = {}) => {
+  if (Array.isArray(signatures) && signatures.length) return signatures;
+  if (!Array.isArray(chunks) || !chunks.length) return [];
+  const plan = resolveChunkSampling(sampling);
+  return {
+    *[Symbol.iterator]() {
+      for (const chunk of chunks) {
+        yield plan ? minifyMinhashSignature(chunk?.minhashSig, plan) : chunk?.minhashSig;
+      }
+    }
+  };
+};
+
+/** Yield one owned sampled row at a time, or borrow an unchanged ordinary row.
+ * Chunks must remain stable until the artifact writer has consumed the stream. */
+export function* iterateMinhashSignatures({ chunks, sampling = null }) {
+  for (const chunk of chunks) {
+    yield sampling
+      ? minifyMinhashSignature(chunk?.minhashSig, sampling)
+      : chunk?.minhashSig;
+  }
+}
+
+
 /**
  * Pack minhash signatures into a dense u32 buffer.
  *
- * @param {{signatures?:Array<Array<number>>,chunks?:Array<object>}} input
+ * Sampling applies only to chunk input; explicit signatures are already transformed.
+ *
+ * @param {{signatures?:Array<Array<number>>,chunks?:Array<object>,sampling?:object}} input
  * @returns {{buffer:Buffer,dims:number,count:number,coercedRows:number}|null}
  */
-export const packMinhashSignatures = ({ signatures, chunks }) => {
+export const packMinhashSignatures = ({ signatures, chunks, sampling }) => {
   const source = Array.isArray(signatures) && signatures.length ? signatures : null;
   const sourceChunks = Array.isArray(chunks) && chunks.length ? chunks : null;
   if (!source && !sourceChunks) return null;
+  const plan = source ? null : resolveChunkSampling(sampling);
   const resolveDims = () => {
     const values = source || sourceChunks;
     for (const entry of values) {
       const sig = source ? entry : entry?.minhashSig;
-      if (Array.isArray(sig) && sig.length) return sig.length;
+      if (Array.isArray(sig) && sig.length) {
+        return plan ? Math.min(sig.length, plan.sampledSignatureLength) : sig.length;
+      }
     }
     return 0;
   };
@@ -33,9 +77,15 @@ export const packMinhashSignatures = ({ signatures, chunks }) => {
       }
       return;
     }
-    if (sig.length !== dims) coercedRows += 1;
+    const rowDims = plan ? Math.min(sig.length, plan.sampledSignatureLength) : sig.length;
+    if (rowDims !== dims) coercedRows += 1;
     for (let i = 0; i < dims; i += 1) {
-      const value = sig[i];
+      // Match minifyMinhashSignature, including short rows and value coercion,
+      // directly in the final buffer instead of allocating a sampled row first.
+      const sampledValue = plan && i < rowDims ? Number(sig[i * plan.hashStride]) : null;
+      const value = plan
+        ? (Number.isFinite(sampledValue) && sampledValue >= 0 ? Math.floor(sampledValue) >>> 0 : 0)
+        : sig[i];
       view[offset] = Number.isFinite(value) ? value : 0;
       offset += 1;
     }
@@ -51,4 +101,3 @@ export const packMinhashSignatures = ({ signatures, chunks }) => {
   }
   return { buffer, dims, count, coercedRows };
 };
-

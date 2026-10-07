@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
-const sourcePath = path.join(root, 'src', 'shared', 'artifact-io', 'json.js');
+const sourcePath = path.join(root, 'src', 'shared', 'artifact-io', 'json', 'read-jsonl-stream.js');
 const source = await fs.readFile(sourcePath, 'utf8');
 
 assert.match(

@@ -1,4 +1,5 @@
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
+import { createBackendDisposer } from './cli/backend-disposal.js';
 import {
   decodeLmdbValue,
   hasLmdbStore,
@@ -23,9 +24,12 @@ export async function createLmdbBackend(options) {
   let useLmdb = useLmdbInput;
   let dbCode = null;
   let dbProse = null;
+  const disposers = new Set();
+  const dispose = createBackendDisposer(disposers);
+  const closeByDb = new Map();
 
   if (!useLmdb) {
-    return { useLmdb, dbCode, dbProse, isAvailable: false };
+    return { useLmdb, dbCode, dbProse, isAvailable: false, dispose };
   }
 
   if (!open) {
@@ -35,7 +39,7 @@ export async function createLmdbBackend(options) {
     }
     console.warn(message);
     useLmdb = false;
-    return { useLmdb, dbCode, dbProse, isAvailable: false };
+    return { useLmdb, dbCode, dbProse, isAvailable: false, dispose };
   }
 
   const isLmdbReady = (mode) => {
@@ -54,12 +58,17 @@ export async function createLmdbBackend(options) {
     }
     console.warn(message);
     useLmdb = false;
-    return { useLmdb, dbCode, dbProse, isAvailable: false };
+    return { useLmdb, dbCode, dbProse, isAvailable: false, dispose };
   }
 
-  const openStore = (storePath, label) => {
+  const openStore = async (storePath, label) => {
     if (!hasLmdbStore(storePath)) return null;
     const db = open({ path: storePath, readOnly: true });
+    if (!closeByDb.has(db)) {
+      const close = createBackendDisposer(new Set([() => db.close()]));
+      closeByDb.set(db, close);
+      disposers.add(close);
+    }
     const validation = validateLmdbSchemaAndMode({
       db,
       label,
@@ -68,7 +77,7 @@ export async function createLmdbBackend(options) {
       schemaVersion: LMDB_SCHEMA_VERSION
     });
     if (!validation.ok) {
-      db.close();
+      await closeByDb.get(db)();
       const reason = validation.issues.map((issue) => `lmdb ${issue}`).join('; ');
       if (backendForcedLmdb) {
         throw new Error(`LMDB ${label} invalid: ${reason}`);
@@ -79,15 +88,18 @@ export async function createLmdbBackend(options) {
     return db;
   };
 
-  if (needsCode) dbCode = openStore(lmdbCodePath, 'code');
-  if (needsProse) dbProse = openStore(lmdbProsePath, 'prose');
-  if ((needsCode && !dbCode) || (needsProse && !dbProse)) {
-    if (dbCode) dbCode.close();
-    if (dbProse) dbProse.close();
-    dbCode = null;
-    dbProse = null;
-    useLmdb = false;
+  try {
+    if (needsCode) dbCode = await openStore(lmdbCodePath, 'code');
+    if (needsProse) dbProse = await openStore(lmdbProsePath, 'prose');
+    if ((needsCode && !dbCode) || (needsProse && !dbProse)) {
+      await dispose();
+      dbCode = null;
+      dbProse = null;
+      useLmdb = false;
+    }
+    return { useLmdb, dbCode, dbProse, isAvailable: Boolean(dbCode || dbProse), dispose };
+  } catch (error) {
+    try { await dispose(); } catch {}
+    throw error;
   }
-
-  return { useLmdb, dbCode, dbProse, isAvailable: Boolean(dbCode || dbProse) };
 }

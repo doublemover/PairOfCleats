@@ -1,6 +1,11 @@
-# Spec: VFS manifest index (.vfsidx) (draft)
+# Spec: VFS manifest index (.vfsidx) (active contract)
 
-Status: Draft (Milestone A). Optional derived artifact.
+Status: Active implemented optional derived artifact.
+Last audited: 2026-05-21
+Implementation anchors: `src/index/build/artifacts/writers/vfs-manifest.js`,
+`src/index/tooling/vfs/lookup.js`.
+Contract coverage: `tests/tooling/vfs/fastpath-telemetry-contract.test.js`
+and VFS manifest/index lookup tests.
 
 Goal: provide a lookup-friendly index keyed by `virtualPath` to avoid scanning `vfs_manifest` when resolving tooling virtual documents.
 

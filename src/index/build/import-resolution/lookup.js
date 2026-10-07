@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { sha1 } from '../../../shared/hash.js';
 import { toArray } from '../../../shared/iterables.js';
 import { resolveRelativeImportCandidate } from '../../shared/import-candidates.js';

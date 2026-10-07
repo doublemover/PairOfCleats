@@ -1,6 +1,6 @@
 # Phase 0.5 Execution Contract
 
-This guide defines the mandatory implementation contract for `AINTKNOWMAP.md` subphase `0.5.0` and all `0.5.x` language/framework passes.
+This guide defines the mandatory implementation contract for the `docs/roadmap.md` Phase 0.5 language/framework pass family and all `0.5.x` language/framework passes.
 
 ## Canonical sequence
 

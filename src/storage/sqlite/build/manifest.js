@@ -1,6 +1,6 @@
 import { normalizeFilePath } from '../utils.js';
 import { toArray } from '../../../shared/iterables.js';
-import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io.js';
+import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io-paths.js';
 
 export function getFileManifest(db, mode) {
   const rows = db.prepare('SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?')

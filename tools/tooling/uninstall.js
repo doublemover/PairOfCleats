@@ -4,15 +4,19 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { createCli } from '../../src/shared/cli.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
+import { isRootPath } from '../../src/shared/file-paths.js';
+import { isPathUnderDir } from '../../src/shared/path-normalize.js';
+import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
+import { getCacheRootBase } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, getDictConfig, getExtensionsDir, getModelsDir, resolveRepoConfig } from '../shared/dict-utils.js';
-import { isInside, isRootPath } from '../shared/path-utils.js';
 
 const argv = createCli({
-  scriptName: 'uninstall',
+  scriptName: 'pairofcleats tooling uninstall',
   options: {
     yes: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'allow-unmarked-cache': { type: 'boolean', default: false },
     repo: { type: 'string' }
   }
 }).parse();
@@ -32,19 +36,25 @@ const targets = [];
 for (const cacheRoot of cacheRoots) targets.push(cacheRoot);
 
 const dictDir = dictConfig.dir;
-if (dictDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPath, dictDir))) {
+if (dictDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(rootPath, dictDir))) {
   targets.push(dictDir);
 }
 
-if (modelsDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPath, modelsDir))) {
+if (modelsDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(rootPath, modelsDir))) {
   targets.push(modelsDir);
 }
 
-if (extensionsDir && !Array.from(cacheRoots).some((rootPath) => isInside(rootPath, extensionsDir))) {
+if (extensionsDir && !Array.from(cacheRoots).some((rootPath) => isPathUnderDir(rootPath, extensionsDir))) {
   targets.push(extensionsDir);
 }
 
 const uniqueTargets = Array.from(new Set(targets.map((target) => path.resolve(target))));
+const authorizedRoots = [getCacheRootBase(), ...cacheRoots,
+  envConfig.dictDir, envConfig.modelsDir, envConfig.extensionsDir];
+const deletionPolicy = { allowUnmarked: argv['allow-unmarked-cache'] === true || argv['dry-run'] === true };
+for (const target of uniqueTargets) {
+  if (fs.existsSync(target)) assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
+}
 if (!uniqueTargets.length) {
   console.error('No uninstall targets found.');
   process.exit(0);
@@ -78,6 +88,7 @@ for (const target of uniqueTargets) {
     continue;
   }
 
+  assertSafeCacheDeletion(target, authorizedRoots, deletionPolicy);
   await fsPromises.rm(target, { recursive: true, force: true });
   console.error(`deleted: ${target}`);
 }

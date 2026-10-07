@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -23,6 +24,17 @@ class _Result:
 class _Handle:
     def cancel(self):
         return None
+
+
+def _trace_enabled():
+    value = os.environ.get('PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE', '1')
+    return str(value).strip().lower() not in ('0', 'false', 'no')
+
+
+def _trace(message):
+    if not _trace_enabled():
+        return
+    print('[package-harness] {0}'.format(message), flush=True)
 
 
 class PackageHarnessTests(unittest.TestCase):
@@ -118,7 +130,7 @@ class PackageHarnessTests(unittest.TestCase):
             'map_prompt_options': False,
             'map_show_report_panel': True,
             'map_stream_output': False,
-            'map_type_default': 'combined',
+            'map_type_default': 'imports',
             'map_format_default': 'json',
             'map_output_dir': self.map_dir,
             'map_index_mode': 'code',
@@ -256,7 +268,9 @@ class PackageHarnessTests(unittest.TestCase):
         full_env = dict(os.environ)
         if env:
             full_env.update(env)
-        completed = subprocess.run(
+        _trace('run start: {0} {1}'.format(command, ' '.join(args)))
+        started = time.monotonic()
+        process = subprocess.Popen(
             [command] + list(args),
             cwd=cwd or None,
             env=full_env,
@@ -265,6 +279,14 @@ class PackageHarnessTests(unittest.TestCase):
             text=True,
             encoding='utf-8',
         )
+        while True:
+            try:
+                stdout, stderr = process.communicate(timeout=10)
+                break
+            except subprocess.TimeoutExpired:
+                _trace('stage={0} status=running elapsed={1:.1f}s'.format(title or args[0], time.monotonic() - started))
+        completed = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
+        _trace('run done: status={0} title={1}'.format(completed.returncode, title or ''))
         stdout_output = completed.stdout or ''
         stderr_output = completed.stderr or ''
         output = stdout_output + stderr_output
@@ -288,26 +310,34 @@ class PackageHarnessTests(unittest.TestCase):
         return _Handle()
 
     def test_package_harness_exercises_real_search_index_map_and_advanced_workflows(self):
-        self.index.PairOfCleatsIndexBuildCodeCommand(self.window).run()
+        _trace('step index-build start')
+        self.index.PairOfCleatsIndexBuildCodeCommand(self.window).run(stage='stage1')
+        _trace('step index-build done')
         last_build = self.index_state.get_last_build(self.window)
         self.assertEqual(last_build['last_mode'], 'code')
         index_panel = self.window.panels['pairofcleats-index']
         self.assertIn('indexing', index_panel.appended.lower())
 
+        _trace('step search start')
         self.search.PairOfCleatsSearchCommand(self.window).run(query='greet')
+        _trace('step search done')
         search_panel = self.window.panels['pairofcleats-results']
         self.assertIn('PairOfCleats results', search_panel.appended)
         self.assertIn('src/index.js', search_panel.appended)
         last_results = self.results_state.get_last_results(self.window)
         self.assertEqual(last_results['query'], 'greet')
 
+        _trace('step reopen-results start')
         self.window.panels['pairofcleats-results'].appended = ''
         self.search.PairOfCleatsReopenLastResultsCommand(self.window).run()
+        _trace('step reopen-results done')
         reopened_panel = self.window.panels['pairofcleats-results']
         self.assertIn('PairOfCleats results', reopened_panel.appended)
         self.assertIn('src/index.js', reopened_panel.appended)
 
+        _trace('step map start')
         self.map_commands.PairOfCleatsMapCurrentFileCommand(self.window).run()
+        _trace('step map done')
         last_map = self.map_state.get_last_map(self.window)
         self.assertEqual(last_map['outPath'], self.map_out)
         self.assertEqual(last_map['modelPath'], self.map_model)
@@ -328,43 +358,61 @@ class PackageHarnessTests(unittest.TestCase):
         )
         self.assertGreaterEqual(target_index, 0)
 
+        _trace('step jump-to-node start')
         self.map_commands.PairOfCleatsMapJumpToNodeCommand(self.window).run()
         self.window.quick_panel_callback(target_index)
+        _trace('step jump-to-node done')
         opened = self.window.opened_files[-1]['path']
         self.assertIn('src/index.js', opened.replace('\\', '/'))
 
+        _trace('step architecture-check start')
         self.analysis.PairOfCleatsArchitectureCheckCommand(self.window).run(rules_path=self.rules_path)
+        _trace('step architecture-check done')
         analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
         self.assertIn('PairOfCleats architecture check', analysis_panel.appended)
         architecture_session = self.results_state.get_last_analysis(self.window, 'architecture-check')
         self.assertEqual(architecture_session['analysisKind'], 'architecture-check')
 
+        _trace('step impact start')
         self.analysis.PairOfCleatsImpactCommand(self.window).run(
             changed=['src/index.js'],
             direction='downstream',
             depth=2,
         )
+        _trace('step impact done')
         analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
         self.assertIn('PairOfCleats impact analysis', analysis_panel.appended)
         impact_session = self.results_state.get_last_analysis(self.window, 'impact')
         self.assertEqual(impact_session['analysisKind'], 'impact')
 
+        _trace('step suggest-tests start')
         self.analysis.PairOfCleatsSuggestTestsCommand(self.window).run(
             changed=['src/index.js'],
             max=5,
         )
+        _trace('step suggest-tests done')
         analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
         self.assertIn('PairOfCleats suggest tests', analysis_panel.appended)
         suggest_session = self.results_state.get_last_analysis(self.window, 'suggest-tests')
         self.assertEqual(suggest_session['analysisKind'], 'suggest-tests')
 
+        _trace('step workspace-manifest start')
         self.analysis.PairOfCleatsWorkspaceManifestCommand(self.window).run(workspace_path=self.workspace_path)
+        _trace('step workspace-manifest done')
+        _trace('step workspace-status start')
         self.analysis.PairOfCleatsWorkspaceStatusCommand(self.window).run(workspace_path=self.workspace_path)
+        _trace('step workspace-status done')
+        _trace('step workspace-catalog start')
         self.analysis.PairOfCleatsWorkspaceCatalogCommand(self.window).run(workspace_path=self.workspace_path)
+        _trace('step workspace-catalog done')
+        _trace('step workspace-build start')
         self.analysis.PairOfCleatsWorkspaceBuildCommand(self.window).run(
             workspace_path=self.workspace_path,
             concurrency=1,
+            mode='code',
+            stage='stage1',
         )
+        _trace('step workspace-build done')
         analysis_panel = self.window.panels[self.analysis.results.RESULTS_PANEL]
         self.assertIn('PairOfCleats workspace build', analysis_panel.appended)
         workspace_session = self.results_state.get_last_analysis(self.window, 'workspace-build')

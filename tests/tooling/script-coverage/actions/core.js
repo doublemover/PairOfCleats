@@ -12,14 +12,9 @@ export const buildCoreActions = ({ root, runNode }) => [
     covers: ['download-extensions', 'verify-extensions', 'download-extensions-test']
   },
   {
-    label: 'vector-extension-sanitize-test',
-    run: () => runNode('vector-extension-sanitize-test', path.join(root, 'tests', 'storage', 'vector-extension', 'sanitize.test.js')),
-    covers: ['vector-extension-sanitize-test']
-  },
-  {
-    label: 'vector-extension-missing-test',
-    run: () => runNode('vector-extension-missing-test', path.join(root, 'tests', 'storage', 'vector-extension', 'missing.test.js')),
-    covers: ['vector-extension-missing-test']
+    label: 'vector-extension-contract-matrix-test',
+    run: () => runNode('vector-extension-contract-matrix-test', path.join(root, 'tests', 'storage', 'vector-extension', 'contract-matrix.test.js')),
+    covers: ['vector-extension-sanitize-test', 'vector-extension-missing-test', 'vector-extension-contract-matrix-test']
   },
   {
     label: 'xxhash-backends-test',
@@ -27,14 +22,14 @@ export const buildCoreActions = ({ root, runNode }) => [
     covers: ['xxhash-backends-test']
   },
   {
-    label: 'safe-regex-engine-test',
-    run: () => runNode('safe-regex-engine-test', path.join(root, 'tests', 'shared', 'safe-regex', 'engine.test.js')),
-    covers: ['safe-regex-engine-test']
+    label: 'safe-regex-contract-matrix-test',
+    run: () => runNode('safe-regex-contract-matrix-test', path.join(root, 'tests', 'shared', 'safe-regex', 'contract-matrix.test.js')),
+    covers: ['safe-regex-engine-test', 'safe-regex-contract-matrix-test']
   },
   {
-    label: 'tooling-detect-test',
-    run: () => runNode('tooling-detect-test', path.join(root, 'tests', 'tooling', 'install', 'tooling-detect.test.js')),
-    covers: ['tooling-detect', 'tooling-detect-test']
+    label: 'detect-and-plan-contract-matrix-test',
+    run: () => runNode('detect-and-plan-contract-matrix-test', path.join(root, 'tests', 'tooling', 'install', 'detect-and-plan-contract-matrix.test.js')),
+    covers: ['tooling-detect', 'tooling-detect-test', 'detect-and-plan-contract-matrix-test']
   },
   {
     label: 'tooling-install-test',

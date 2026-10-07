@@ -1,0 +1,62 @@
+{
+  "checkedAt": "2026-10-02T02:41:21Z",
+  "scope": "Rust lockfile remediation, offline security validation and Linux Rust 1.88 compile compatibility",
+  "auditTool": "cargo-audit 0.22.2",
+  "rustsecDatabase": {
+    "commit": "6de4455103aced2cba86e3b86e5c090b22827cf1",
+    "committedAt": "2026-10-01T20:25:27Z",
+    "advisoryCount": 1279,
+    "source": "https://github.com/RustSec/advisory-db/tree/6de4455103aced2cba86e3b86e5c090b22827cf1"
+  },
+  "originalLock": {
+    "packageCount": 196,
+    "vulnerabilities": 0,
+    "unsoundWarnings": 3,
+    "advisories": ["RUSTSEC-2026-0190", "RUSTSEC-2026-0253", "RUSTSEC-2026-0097"]
+  },
+  "updatedLock": {
+    "packageCount": 206,
+    "sha256": "b5c3a951f02e5f39b7de3b56956bf99deae855612691092774a6bcdd15ab7e73",
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "denyWarnings": true,
+    "ignoredAdvisories": []
+  },
+  "fixedPackages": {
+    "anyhow": "1.0.104",
+    "ratatui": "0.30.2",
+    "ratatui-core": "0.1.2",
+    "lru": "0.18.5",
+    "rand": "0.8.8"
+  },
+  "cargoResolution": {
+    "resolver": "Cargo 1.99.0",
+    "incompatibleRustVersions": "fallback",
+    "declaredMsrv": "1.88",
+    "cargo188LockedOfflineManifestMetadata": "passed",
+    "toolchainAndWorkflowPinContract": "passed",
+    "registryChecksumsMatched": 205,
+    "registryEntriesMissing": 0,
+    "registrySnapshotYankedOrUnknown": 0,
+    "declaredDependencyMsrvAbove188": 0,
+    "dependenciesWithoutDeclaredMsrv": 65,
+    "registrySource": "Official crates.io sparse-index cache fetched during Cargo resolution; no fresh live refresh"
+  },
+  "nativeValidation": {
+    "platform": "Linux x64",
+    "rustc": "1.88.0 (6b00bc388 2025-06-23)",
+    "cargo": "1.88.0 (873a06493 2025-05-10)",
+    "cpuAffinityCount": 1,
+    "cargoJobs": 1,
+    "debugInfo": false,
+    "lockedAllTargetsCheck": { "exitCode": 0, "seconds": 37.627, "peakAggregateRssMiB": 366.1 },
+    "lockedTestCompilation": { "exitCode": 0, "seconds": 13.8, "peakAggregateRssMiB": 285.86 },
+    "lockedTestExecution": { "exitCode": 0, "seconds": 0.251, "unitTestsDefined": 0 },
+    "resourceLimitsTriggered": false
+  },
+  "remaining": [
+    "Interactive TUI behavioral validation and Rust formatting/clippy",
+    "Windows and macOS build validation",
+    "Local CodeQL extraction and analysis"
+  ]
+}

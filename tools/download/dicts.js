@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { replaceFile } from '../../src/shared/json-stream.js';
+import { replaceFile } from '../../src/shared/json-stream/atomic.js';
 import { getDictConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { fetchDownloadUrl } from './shared-fetch.js';
 import {
@@ -13,8 +13,9 @@ import {
   resolveExpectedHash,
   verifyDownloadHash
 } from '../shared/download-utils.js';
-import { parseNameUrlSources } from '../shared/input-parsers.js';
-import { readJsonFileSafe, writeJsonFile } from '../shared/json-utils.js';
+import { assertDownloadFileName, parseNameUrlSources } from '../shared/input-parsers.js';
+import { readJsonFileSafe } from '../../src/shared/file-read.js';
+import { writeJsonFile } from '../../src/shared/json-file.js';
 
 const DEFAULT_MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 
@@ -101,7 +102,7 @@ const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) =>
  * @returns {Promise<{name:string,skipped:boolean}>}
  */
 async function downloadSource(source) {
-  const outputPath = path.join(dictDir, source.file);
+  const outputPath = path.join(dictDir, assertDownloadFileName(source.file));
   const entry = manifest[source.name] || {};
 
   if (!argv.force && !argv.update && fsSync.existsSync(outputPath)) {

@@ -1,12 +1,14 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES, loadPiecesManifest, readJsonFile } from '../../../src/shared/artifact-io.js';
-import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/shared/artifact-schemas.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
+import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
+import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/contracts/artifact-schemas.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../../src/shared/hash.js';
-import { fromPosix } from '../../../src/shared/files.js';
+import { fromPosix } from '../../../src/shared/file-paths.js';
+import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 
 /**
  * Update pieces manifest with embedding artifacts for a given mode.
@@ -20,6 +22,7 @@ import { fromPosix } from '../../../src/shared/files.js';
 export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
   const piecesDir = path.join(indexDir, 'pieces');
   const manifestPath = path.join(piecesDir, 'manifest.json');
+  const manifestBakPath = `${manifestPath}.bak`;
   const loadMeta = (metaFile, fallback) => {
     const metaPath = path.join(indexDir, metaFile);
     let meta = null;
@@ -41,7 +44,8 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   let existing = null;
   if (manifestExists) {
     try {
-      existing = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true }) || null;
+      const sourcePath = fsSync.existsSync(manifestPath) ? manifestPath : manifestBakPath;
+      existing = readJsonFile(sourcePath, { maxBytes: MAX_JSON_BYTES }) || null;
     } catch {
       existing = null;
     }
@@ -150,7 +154,8 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     });
   }
   const now = new Date().toISOString();
-  const manifest = {
+  const manifest = withGeneratedArtifactMetadata({
+    extensions: existing.extensions,
     version: existing.version || 2,
     artifactSurfaceVersion: existing.artifactSurfaceVersion || ARTIFACT_SURFACE_VERSION,
     compatibilityKey: existing.compatibilityKey ?? null,
@@ -161,7 +166,7 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
     repoId: existing.repoId ?? null,
     buildId: existing.buildId ?? null,
     pieces: [...retained, ...enriched]
-  };
+  }, 'pieces-manifest');
   await fs.mkdir(piecesDir, { recursive: true });
   await writeJsonObjectFile(manifestPath, { fields: manifest, atomic: true });
 };

@@ -176,8 +176,17 @@ const clampedUtf16Offsets = rangeToOffsets(lineIndex, {
 }, {
   text
 });
-assert.equal(clampedUtf16Offsets.start, lineIndex[1]);
-assert.equal(clampedUtf16Offsets.end, lineIndex[2]);
+assert.equal(clampedUtf16Offsets.start, lineIndex[1] - 1);
+assert.equal(clampedUtf16Offsets.end, lineIndex[2] - 1);
+
+for (const positionEncoding of ['utf-8', 'utf-16', 'utf-32']) {
+  const clamped = rangeToOffsets(crlfIndex, {
+    start: { line: 0, character: 999 },
+    end: { line: 1, character: 999 }
+  }, { text: crlfText, positionEncoding });
+  assert.deepEqual(clamped, { start: 5, end: 11 },
+    `${positionEncoding} positions must clamp before CRLF line terminators`);
+}
 
 assert.equal(
   resolveLspPositionEncoding(['utf-x-custom', 'utf-8']),
@@ -194,5 +203,21 @@ assert.equal(
   'utf-32',
   'expected initialize result fallback to recognized offsetEncoding when positionEncoding is unknown'
 );
+
+for (const initializeResult of [
+  { offsetEncoding: 'utf-8' },
+  { capabilities: {}, offsetEncoding: ['unsupported', 'utf-8'] },
+  { capabilities: { offsetEncoding: ['unsupported'] }, positionEncoding: 'utf-8' },
+  { capabilities: { positionEncoding: 'unsupported' }, positionEncoding: 'utf-8' }
+]) {
+  assert.equal(resolveInitializeResultPositionEncoding(initializeResult), 'utf-8',
+    'absent or unknown capability fields must not mask a supported top-level encoding');
+}
+assert.equal(resolveInitializeResultPositionEncoding({
+  capabilities: { positionEncoding: 'utf-32', offsetEncoding: 'utf-8' },
+  positionEncoding: 'utf-16'
+}), 'utf-32', 'standard capability encoding takes precedence');
+assert.equal(resolveInitializeResultPositionEncoding({ capabilities: {} }), 'utf-16');
+assert.equal(resolveInitializeResultPositionEncoding(null), 'utf-16');
 
 console.log('tooling LSP utils test passed');

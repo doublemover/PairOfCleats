@@ -214,22 +214,22 @@
       ]
     },
     {
-      "package": "@xenova/transformers",
+      "package": "@huggingface/transformers",
       "area": "Embeddings and transformer inference (Transformers.js)",
       "sheet": "deps/xenova-transformers.md",
       "links": [
         {
-          "package": "@xenova/transformers",
+          "package": "@huggingface/transformers",
           "desc": "README and usage overview",
-          "url": "https://github.com/xenova/transformers.js#readme"
+          "url": "https://github.com/huggingface/transformers.js#readme"
         },
         {
-          "package": "@xenova/transformers",
+          "package": "@huggingface/transformers",
           "desc": "API reference (pipelines, model loading)",
-          "url": "https://xenova.github.io/transformers.js/"
+          "url": "https://huggingface.co/docs/transformers.js/api/pipelines"
         },
         {
-          "package": "@xenova/transformers",
+          "package": "@huggingface/transformers",
           "desc": "Model catalog (Xenova namespace)",
           "url": "https://huggingface.co/Xenova"
         }

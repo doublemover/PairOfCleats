@@ -1,4 +1,5 @@
 import { compareGraphEdges } from '../graph/ordering.js';
+import { buildGraphNodeIndex } from '../graph/indexes.js';
 import { createWorkBudget } from '../graph/work-budget.js';
 import { normalizeLimit, normalizeOptionalLimit } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
@@ -60,24 +61,14 @@ const buildNameRef = (name) => ({
   resolved: null
 });
 
-const buildGraphIndex = (graph) => {
-  const map = new Map();
-  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  for (const node of nodes) {
-    if (!node || typeof node.id !== 'string' || !node.id) continue;
-    map.set(node.id, node);
-  }
-  return map;
-};
-
 const resolveGraphIndexes = (graphRelations) => {
   if (!graphRelations || typeof graphRelations !== 'object') return null;
   const cached = GRAPH_INDEX_CACHE.get(graphRelations);
   if (cached) return cached;
   const next = {
-    callGraph: buildGraphIndex(graphRelations.callGraph),
-    usageGraph: buildGraphIndex(graphRelations.usageGraph),
-    importGraph: buildGraphIndex(graphRelations.importGraph)
+    callGraph: buildGraphNodeIndex(graphRelations.callGraph),
+    usageGraph: buildGraphNodeIndex(graphRelations.usageGraph),
+    importGraph: buildGraphNodeIndex(graphRelations.importGraph)
   };
   GRAPH_INDEX_CACHE.set(graphRelations, next);
   return next;

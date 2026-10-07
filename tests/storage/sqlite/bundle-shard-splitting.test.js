@@ -4,25 +4,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { writeIncrementalBundle } from '../../../src/index/build/incremental.js';
-import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
+import {
+  buildBundleDatabase,
+  loadSqliteBundleDatabase,
+  prepareBundleBuildFixture
+} from './helpers/bundle-fixture.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
-
-let Database;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {
-  console.error('better-sqlite3 is required for sqlite bundle shard tests.');
-  process.exit(1);
-}
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-bundle-shard-splitting');
-const bundleDir = path.join(tempRoot, 'bundles');
-const dbPath = path.join(tempRoot, 'index-code.db');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(bundleDir, { recursive: true });
+const Database = await loadSqliteBundleDatabase('sqlite bundle shard tests');
+const { tempRoot, bundleDir, dbPath } = await prepareBundleBuildFixture({
+  label: 'sqlite-bundle-shard-splitting',
+  dbName: 'index-code.db'
+});
 
 const relKey = 'src/very-large-file.js';
 const chunkCount = 24;
@@ -63,24 +55,12 @@ for (const bundleName of manifestEntry.bundles) {
   );
 }
 
-const manifest = {
-  files: {
-    [relKey]: manifestEntry
-  }
-};
-
-const result = await buildDatabaseFromBundles({
+const result = await buildBundleDatabase({
   Database,
-  outPath: dbPath,
+  dbPath,
   mode: 'code',
-  incrementalData: { manifest, bundleDir },
-  envConfig: { bundleThreads: 1 },
-  threadLimits: { fileConcurrency: 1 },
-  emitOutput: false,
-  validateMode: 'off',
-  vectorConfig: { enabled: false },
-  modelConfig: { id: null },
-  workerPath: null
+  manifest: { files: { [relKey]: manifestEntry } },
+  bundleDir
 });
 
 assert.equal(result.reason || null, null, `expected no bundle failure, got: ${result.reason || 'none'}`);

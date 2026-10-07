@@ -1,0 +1,352 @@
+{
+  "apiDiffFiltered": {
+    "request": {
+      "eventsPath": "/index/diffs/<diff-id>/events?mode=code&kind=file.modified&maxEvents=1",
+      "showPath": "/index/diffs/<diff-id>?format=jsonl&mode=code&kind=file.modified&max-events=1"
+    },
+    "response": {
+      "body": {
+        "diff": {
+          "entry": {
+            "from": {
+              "ref": "snap:snap-20260212000000-goldena",
+              "snapshotId": "snap-20260212000000-goldena"
+            },
+            "id": "<diff-id>",
+            "modes": [
+              "code"
+            ],
+            "to": {
+              "ref": "snap:snap-20260212000000-goldenb",
+              "snapshotId": "snap-20260212000000-goldenb"
+            }
+          },
+          "events": [
+            {
+              "chunkId": null,
+              "file": "src/phase14-advanced-surface.js",
+              "kind": "file.modified"
+            }
+          ],
+          "summary": {
+            "from": {
+              "ref": "snap:snap-20260212000000-goldena",
+              "snapshotId": "snap-20260212000000-goldena"
+            },
+            "id": "<diff-id>",
+            "limits": {
+              "maxBytes": 2097152,
+              "maxEvents": 20000,
+              "reason": null
+            },
+            "modes": [
+              "code"
+            ],
+            "to": {
+              "ref": "snap:snap-20260212000000-goldenb",
+              "snapshotId": "snap-20260212000000-goldenb"
+            },
+            "totals": {
+              "allEvents": 3,
+              "byKind": {
+                "chunk.added": 1,
+                "chunk.removed": 1,
+                "file.modified": 1
+              },
+              "emittedEvents": 3
+            },
+            "truncated": false
+          }
+        },
+        "ok": true
+      },
+      "status": 200
+    },
+    "streamedEvents": [
+      {
+        "chunkId": null,
+        "file": "src/phase14-advanced-surface.js",
+        "kind": "file.modified"
+      }
+    ]
+  },
+  "apiSearchAsOf": {
+    "request": {
+      "args": [
+        "--json",
+        "--as-of",
+        "snap:snap-20260212000000-goldenb",
+        "--mode",
+        "code",
+        "--top",
+        "50"
+      ],
+      "payload": {
+        "asOf": "snap:snap-20260212000000-goldenb",
+        "mode": "code",
+        "query": "phase14beta",
+        "top": 50
+      },
+      "queryString": "q=phase14beta&mode=code&top=50&asOf=snap%3Asnap-20260212000000-goldenb"
+    },
+    "response": {
+      "body": {
+        "ok": true,
+        "result": {
+          "asOf": {
+            "ref": "snap:snap-20260212000000-goldenb"
+          },
+          "code": [
+            {
+              "end": 45,
+              "file": "src/phase14-advanced-surface.js",
+              "repoAlias": null,
+              "start": 0
+            }
+          ]
+        }
+      },
+      "status": 200
+    }
+  },
+  "federatedRisk": {
+    "degradedRequest": {
+      "args": [
+        "--json",
+        "--compact",
+        "--mode",
+        "code",
+        "--risk-tag",
+        "security",
+        "--risk-category",
+        "injection",
+        "--risk-flow",
+        "request.body->eval",
+        "--top",
+        "4"
+      ],
+      "payload": {
+        "limits": {
+          "concurrency": 1,
+          "perRepoTop": 4
+        },
+        "query": "risky-degraded",
+        "search": {
+          "mode": "code",
+          "riskCategory": "injection",
+          "riskFlow": "request.body->eval",
+          "riskTag": "security",
+          "top": 3
+        }
+      }
+    },
+    "degradedResponse": {
+      "backend": "federated",
+      "code": [
+        {
+          "end": 1,
+          "file": "src/beta.js",
+          "repoAlias": "beta",
+          "start": 1
+        }
+      ],
+      "meta": {
+        "limits": {
+          "concurrency": 1,
+          "merge": "rrf",
+          "perRepoTop": 4,
+          "rrfK": 60,
+          "top": 3
+        },
+        "selection": {
+          "selectedRepos": [
+            {
+              "alias": "alpha",
+              "enabled": true,
+              "priority": 10
+            },
+            {
+              "alias": "beta",
+              "enabled": true,
+              "priority": 5
+            }
+          ]
+        },
+        "workspace": {
+          "name": "",
+          "workspaceId": "<workspace-id>"
+        }
+      },
+      "ok": true,
+      "repos": [
+        {
+          "error": {
+            "code": "NO_INDEX",
+            "message": "simulated missing index"
+          },
+          "status": "missing_index"
+        },
+        {
+          "error": null,
+          "status": "ok"
+        }
+      ],
+      "warnings": []
+    },
+    "request": {
+      "args": [
+        "--json",
+        "--compact",
+        "--mode",
+        "code",
+        "--risk-tag",
+        "security",
+        "--risk-category",
+        "injection",
+        "--risk-flow",
+        "request.body->eval",
+        "--top",
+        "4"
+      ],
+      "payload": {
+        "limits": {
+          "concurrency": 1,
+          "perRepoTop": 4
+        },
+        "query": "risky",
+        "search": {
+          "mode": "code",
+          "riskCategory": "injection",
+          "riskFlow": "request.body->eval",
+          "riskTag": "security",
+          "top": 3
+        }
+      }
+    },
+    "successResponse": {
+      "backend": "federated",
+      "code": [
+        {
+          "end": 1,
+          "file": "src/alpha.js",
+          "repoAlias": "alpha",
+          "start": 1
+        },
+        {
+          "end": 1,
+          "file": "src/beta.js",
+          "repoAlias": "beta",
+          "start": 1
+        }
+      ],
+      "meta": {
+        "limits": {
+          "concurrency": 1,
+          "merge": "rrf",
+          "perRepoTop": 4,
+          "rrfK": 60,
+          "top": 3
+        },
+        "selection": {
+          "selectedRepos": [
+            {
+              "alias": "alpha",
+              "enabled": true,
+              "priority": 10
+            },
+            {
+              "alias": "beta",
+              "enabled": true,
+              "priority": 5
+            }
+          ]
+        },
+        "workspace": {
+          "name": "",
+          "workspaceId": "<workspace-id>"
+        }
+      },
+      "ok": true,
+      "repos": [
+        {
+          "error": null,
+          "status": "ok"
+        },
+        {
+          "error": null,
+          "status": "ok"
+        }
+      ],
+      "warnings": []
+    }
+  },
+  "federatedWorkspace": {
+    "request": {
+      "args": [
+        "--json",
+        "--compact",
+        "--mode",
+        "code",
+        "--top",
+        "4"
+      ],
+      "payload": {
+        "limits": {
+          "concurrency": 1,
+          "perRepoTop": 4
+        },
+        "query": "workspace-risk",
+        "search": {
+          "mode": "code",
+          "top": 3
+        },
+        "select": {
+          "tag": [
+            "team-a"
+          ]
+        }
+      }
+    },
+    "response": {
+      "backend": "federated",
+      "code": [
+        {
+          "end": 1,
+          "file": "src/alpha.js",
+          "repoAlias": "alpha",
+          "start": 1
+        }
+      ],
+      "meta": {
+        "limits": {
+          "concurrency": 1,
+          "merge": "rrf",
+          "perRepoTop": 4,
+          "rrfK": 60,
+          "top": 3
+        },
+        "selection": {
+          "selectedRepos": [
+            {
+              "alias": "alpha",
+              "enabled": true,
+              "priority": 10
+            }
+          ]
+        },
+        "workspace": {
+          "name": "",
+          "workspaceId": "<workspace-id>"
+        }
+      },
+      "ok": true,
+      "repos": [
+        {
+          "error": null,
+          "status": "ok"
+        }
+      ],
+      "warnings": []
+    }
+  }
+}

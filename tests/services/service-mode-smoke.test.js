@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
+import { runNode } from '../helpers/run-node.js';
+import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
 const root = process.cwd();
 
-const run = spawnSync(
-  process.execPath,
+const run = runNode(
   [path.join(root, 'tools', 'service', 'indexer-service.js'), 'smoke', '--json'],
-  {
-    cwd: root,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      PAIROFCLEATS_CACHE_ROOT: resolveTestCachePath(root, 'service-mode-smoke')
-    }
-  }
+  'indexer service smoke',
+  root,
+  applyTestEnv({
+    cacheRoot: resolveTestCachePath(root, 'service-mode-smoke'),
+    syncProcess: false
+  }),
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
 );
 
 if (run.status !== 0) {

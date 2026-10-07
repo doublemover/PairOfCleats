@@ -6,6 +6,7 @@
  */
 export { loadIncrementalState, shouldReuseIncrementalIndex } from './incremental/planning.js';
 export { readCachedBundle, readCachedImports } from './incremental/state-reconciliation.js';
+export { normalizeIncrementalEmbeddingCoverageManifest } from './incremental/shared.js';
 export {
   writeIncrementalBundle,
   pruneIncrementalManifest,

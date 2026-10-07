@@ -3,39 +3,14 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
-import { readJsonLinesArray } from '../../../src/shared/artifact-io.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { readJsonlRowAt } from '../../../src/shared/artifact-io/offsets.js';
-import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
+import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
 import { readShardFiles } from '../../../src/shared/artifact-io/fs.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
+import { parseSimpleBenchArgs, percentile } from '../shared.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const percentile = (values, pct) => {
-  if (!values.length) return 0;
-  const sorted = values.slice().sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * pct)));
-  return sorted[idx];
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const rows = Number(args.rows) || 100000;
 const lookups = Number(args.lookups) || 200;
 const indexDir = args.index ? path.resolve(String(args.index)) : null;

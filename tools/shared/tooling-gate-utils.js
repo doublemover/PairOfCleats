@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { normalizeProviderId } from '../../src/index/tooling/provider-contract.js';
-import { readJsonFileResolved, writeJsonFileResolved } from './json-utils.js';
+import { readJsonFileResolved, writeJsonFileResolved } from '../../src/shared/json-file.js';
 
 export { normalizeProviderId };
 

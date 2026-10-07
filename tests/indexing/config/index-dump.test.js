@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const buildIndexPath = path.join(repoRoot, 'build_index.js');
 const env = applyTestEnv({ syncProcess: false });
 
-const result = spawnSync(process.execPath, [buildIndexPath, '--config-dump', '--json'], {
-  cwd: repoRoot,
+const result = runNode(
+  [buildIndexPath, '--config-dump', '--json'],
+  'index config dump',
+  repoRoot,
   env,
-  encoding: 'utf8'
-});
+  { stdio: 'pipe' }
+);
 
 assert.strictEqual(result.status, 0, `config dump exited with ${result.status}: ${result.stderr || ''}`);
 const output = String(result.stdout || '').trim();

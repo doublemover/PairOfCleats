@@ -22,7 +22,8 @@ def find_repo_root(start_path):
     while True:
         if os.path.isfile(os.path.join(path, '.pairofcleats.json')):
             return path
-        if os.path.isdir(os.path.join(path, '.git')):
+        git_marker = os.path.join(path, '.git')
+        if os.path.isdir(git_marker) or os.path.isfile(git_marker):
             return path
 
         parent = os.path.dirname(path)
@@ -204,15 +205,6 @@ def resolve_cli(settings, repo_root):
     if configured:
         resolved = resolve_path(repo_root, configured)
         return _cli_for_path(resolved, node_path, 'settings')
-
-    local_bin = _find_local_binary(repo_root)
-    if local_bin:
-        return _cli_for_path(local_bin, node_path, 'node_modules')
-
-    if repo_root:
-        local_js = os.path.join(repo_root, 'bin', 'pairofcleats.js')
-        if os.path.exists(local_js):
-            return _cli_for_path(local_js, node_path, 'repo-bin')
 
     return {
         'command': 'pairofcleats',

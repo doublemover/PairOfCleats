@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { getAtomicWriteDurabilityStatus } from '../../src/shared/io/atomic-write.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import {
   getCacheRoot,
   getDictConfig,
@@ -22,7 +23,7 @@ import {
   resolveSqlitePaths
 } from '../shared/dict-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
-import { createRepoCacheManager } from '../shared/repo-cache-config.js';
+import { createRepoCacheManager } from '../../src/shared/repo-cache-config.js';
 
 const repoCacheManager = createRepoCacheManager({
   defaultRepo: process.cwd(),
@@ -238,6 +239,12 @@ function listArtifacts(repoPath, userConfig) {
   };
 }
 
+const buildDurabilityStatus = ({ repoPath, cacheRoot, repoCacheRoot }) => getAtomicWriteDurabilityStatus({
+  repoPath,
+  cacheRoot,
+  repoCacheRoot
+});
+
 /**
  * Stat a path if it exists.
  * @param {string} target
@@ -255,6 +262,25 @@ function statIfExists(target) {
     return { exists: false, mtime: null, bytes: 0 };
   }
 }
+
+const readWatchState = (repoCacheRoot) => {
+  const watchStatePath = path.join(repoCacheRoot, 'watch-state.json');
+  try {
+    const raw = fs.readFileSync(watchStatePath, 'utf8');
+    const parsed = JSON.parse(raw);
+    return {
+      path: watchStatePath,
+      exists: true,
+      state: parsed && typeof parsed === 'object' ? parsed : null
+    };
+  } catch {
+    return {
+      path: watchStatePath,
+      exists: false,
+      state: null
+    };
+  }
+};
 
 /**
  * Fetch lightweight git status info for a repo.
@@ -310,6 +336,8 @@ export async function indexStatus(args = {}) {
   const artifacts = listArtifacts(repoPath, userConfig);
   const git = await getGitInfo(repoPath);
   const incrementalRoot = path.join(repoCacheRoot, 'incremental');
+  const durability = buildDurabilityStatus({ repoPath, cacheRoot, repoCacheRoot });
+  const watch = readWatchState(repoCacheRoot);
   const report = {
     repoPath,
     repoId,
@@ -362,7 +390,9 @@ export async function indexStatus(args = {}) {
       indexProse: statIfExists(artifacts.metrics.indexProse),
       indexRecords: statIfExists(artifacts.metrics.indexRecords),
       queryCache: statIfExists(artifacts.metrics.queryCache)
-    }
+    },
+    watch,
+    durability
   };
 
   return report;
@@ -391,6 +421,7 @@ export async function configStatus(args = {}) {
   const vectorConfig = getVectorExtensionConfig(repoPath, userConfig);
   const vectorPath = resolveVectorExtensionPath(vectorConfig);
   const capabilities = getCapabilities();
+  const durability = buildDurabilityStatus({ repoPath, cacheRoot, repoCacheRoot });
 
   const warnings = [];
   if (!dictionaryPathsConfigured.length && (dictConfig.languages.length || dictConfig.files.length || dictConfig.includeSlang || dictConfig.enableRepoDictionary)) {
@@ -478,6 +509,18 @@ export async function configStatus(args = {}) {
       message: 'mcp.mode=sdk requested but @modelcontextprotocol/sdk is not available.'
     });
   }
+  if (durability.runtime?.degradedDurability) {
+    warnings.push({
+      code: 'atomic_write_exdev_fallback',
+      message: `Atomic persistence used EXDEV fallback ${durability.runtime.exdevRenameFallbackCount} time(s); durability is degraded until restart.`
+    });
+  }
+  if (durability.layout?.crossDeviceRisk) {
+    warnings.push({
+      code: 'atomic_write_layout_risk',
+      message: 'Cache and repo persistence paths span different filesystem devices; EXDEV fallback risk is elevated.'
+    });
+  }
 
   return {
     repoPath,
@@ -514,6 +557,7 @@ export async function configStatus(args = {}) {
         available: !!(vectorPath && fs.existsSync(vectorPath))
       }
     },
+    durability,
     warnings
   };
 }

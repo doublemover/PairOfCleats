@@ -1,6 +1,7 @@
 import path from 'node:path';
-import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../../src/shared/cache.js';
-import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
+import { DEFAULT_CACHE_MB, DEFAULT_CACHE_TTL_MS } from '../../../src/shared/cache/size.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 import { getCacheRootBase, getDefaultCacheRoot } from '../cache.js';
 import { getRepoCacheRoot } from './repo.js';
@@ -62,7 +63,7 @@ export function getToolingDir(repoRoot, userConfig = null) {
   const envConfig = getEnvConfig();
   const homeRoot = envConfig.homeRoot || getCacheRootBase();
   const tooling = cfg.tooling || {};
-  return tooling.dir || path.join(homeRoot, 'tooling');
+  return envConfig.toolingDir || tooling.dir || path.join(homeRoot, 'tooling');
 }
 
 /**
@@ -91,7 +92,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const timeoutMs = Number(tooling.timeoutMs);
   const maxRetries = Number(tooling.maxRetries);
   const breakerThreshold = Number(tooling.circuitBreakerThreshold);
-  const logDir = typeof tooling.logDir === 'string' ? tooling.logDir : '';
+  const logDir = getEnvConfig().toolingLogDir || (typeof tooling.logDir === 'string' ? tooling.logDir : '');
   const installScope = (tooling.installScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {
     if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);

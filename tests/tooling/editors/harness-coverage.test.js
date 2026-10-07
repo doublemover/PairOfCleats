@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadLaneManifestConfig, loadOrderedLaneManifest } from '../../runner/lane-manifests.js';
+
+const root = process.cwd();
+
+const readText = (filePath) => fs.readFileSync(filePath, 'utf8');
+
+const toLaneId = (testPath) => testPath
+  .replace(/\\/g, '/')
+  .replace(/^tests\//, '')
+  .replace(/\.test\.js$/, '');
+
+const manifestConfig = await loadLaneManifestConfig({ root });
+const ciLiteManifest = await loadOrderedLaneManifest({ root, lane: 'ci-lite', config: manifestConfig });
+const ciManifest = await loadOrderedLaneManifest({ root, lane: 'ci', config: manifestConfig });
+const ciLongManifest = await loadOrderedLaneManifest({ root, lane: 'ci-long', config: manifestConfig });
+const ciLiteEntries = new Set(Array.isArray(ciLiteManifest?.tests) ? ciLiteManifest.tests.map((entry) => entry.id) : []);
+const ciEntries = new Set(Array.isArray(ciManifest?.tests) ? ciManifest.tests.map((entry) => entry.id) : []);
+const ciLongEntries = new Set(Array.isArray(ciLongManifest?.tests) ? ciLongManifest.tests.map((entry) => entry.id) : []);
+
+const matrix = [
+  {
+    editor: 'vscode',
+    flow: 'search smoke harness',
+    testPath: 'tests/tooling/vscode/integration-harness.test.js',
+    requiredContent: [
+      'pairofcleats.search',
+      'nested symbol',
+      'searchHistory'
+    ],
+    requiredLanes: ['ci-lite']
+  },
+  {
+    editor: 'vscode',
+    flow: 'index and validate harness',
+    testPath: 'tests/tooling/vscode/operations-runtime.test.js',
+    requiredContent: [
+      'pairofcleats.indexValidate',
+      'Index Validate completed.'
+    ],
+    requiredLanes: ['ci-lite']
+  },
+  {
+    editor: 'vscode',
+    flow: 'context-pack and risk-explain harness',
+    testPath: 'tests/tooling/vscode/context-risk-runtime.test.js',
+    requiredContent: [
+      'pairofcleats.contextPack',
+      'pairofcleats.riskExplain',
+      'Context Pack completed.',
+      'Risk Explain completed.'
+    ],
+    requiredLanes: ['ci-lite']
+  },
+  {
+    editor: 'sublime',
+    flow: 'search harness',
+    testPath: 'tests/tooling/sublime/behavior-contract-matrix.test.js',
+    requiredContent: [
+      "['search', 'search_behavior.py']"
+    ],
+    requiredLanes: ['ci-lite']
+  },
+  {
+    editor: 'sublime',
+    flow: 'index harness',
+    testPath: 'tests/tooling/sublime/behavior-contract-matrix.test.js',
+    requiredContent: [
+      "['index', 'index_behavior.py']"
+    ],
+    requiredLanes: ['ci-lite']
+  },
+  {
+    editor: 'sublime',
+    flow: 'context-pack and risk-explain harness',
+    testPath: 'tests/tooling/sublime/behavior-contract-matrix.test.js',
+    requiredContent: [
+      "['analysis', 'analysis_behavior.py']"
+    ],
+    requiredLanes: ['ci-lite']
+  },
+  {
+    editor: 'sublime',
+    flow: 'fixture-backed package harness',
+    testPath: 'tests/tooling/sublime/package-harness.test.js',
+    requiredContent: [
+      'sublime package harness test passed'
+    ],
+    requiredLanes: ['ci']
+  },
+  {
+    editor: 'sublime',
+    flow: 'real package harness implementation',
+    testPath: 'tests/helpers/sublime/package_harness.py',
+    requiredContent: [
+      'test_package_harness_exercises_real_search_index_map_and_advanced_workflows',
+      'PairOfCleatsIndexBuildCodeCommand',
+      'PairOfCleatsSearchCommand',
+      'PairOfCleatsArchitectureCheckCommand'
+    ],
+    requiredLanes: []
+  }
+];
+
+for (const entry of matrix) {
+  const absolutePath = path.join(root, entry.testPath);
+  if (!fs.existsSync(absolutePath)) {
+    console.error(`missing ${entry.editor} ${entry.flow} harness: ${absolutePath}`);
+    process.exit(1);
+  }
+  const source = readText(absolutePath);
+  for (const required of entry.requiredContent) {
+    if (!source.includes(required)) {
+      console.error(`${entry.editor} ${entry.flow} harness missing expected marker "${required}" in ${entry.testPath}`);
+      process.exit(1);
+    }
+  }
+  const laneId = toLaneId(entry.testPath);
+  for (const lane of entry.requiredLanes) {
+    const targetSet = lane === 'ci-lite'
+      ? ciLiteEntries
+      : lane === 'ci'
+        ? ciEntries
+        : ciLongEntries;
+    if (!targetSet.has(laneId)) {
+      console.error(`${entry.editor} ${entry.flow} harness is not registered in ${lane}: ${laneId}`);
+      process.exit(1);
+    }
+  }
+}
+
+console.log('editor harness coverage contract test passed');

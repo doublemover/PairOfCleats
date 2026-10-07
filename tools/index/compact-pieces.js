@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { writeJsonLinesFile, writeJsonObjectFile } from '../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../src/shared/json-stream/jsonl-write.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../src/shared/hash.js';
+import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
 import {
   CHUNK_META_PART_PREFIX,
   CHUNK_META_PARTS_DIR,
@@ -12,8 +14,8 @@ import {
   TOKEN_POSTINGS_SHARDS_DIR,
   expandMetaPartPaths,
   listShardFiles
-} from '../../src/shared/artifact-io.js';
-import { fromPosix } from '../../src/shared/files.js';
+} from '../../src/shared/artifact-io/manifest.js';
+import { fromPosix } from '../../src/shared/file-paths.js';
 import {
   iterateChunkMetaSources,
   readJson,
@@ -37,6 +39,16 @@ const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const modeArg = (argv.mode || 'code').toLowerCase();
 const modes = modeArg === 'all' ? ['code', 'prose', 'extracted-prose', 'records'] : [modeArg];
 const dryRun = argv['dry-run'] === true;
+
+// Keep caller extension data, but never carry old shard/offset layout forward.
+const preserveCompactedExtensions = (extensions) => {
+  if (!extensions || typeof extensions !== 'object' || Array.isArray(extensions)) return {};
+  const preserved = { ...extensions };
+  for (const key of ['__poc_generated', 'offsets', 'orderBuckets', 'predictedSerializeMs', 'preallocatePartBytes']) {
+    delete preserved[key];
+  }
+  return preserved;
+};
 
 const resolveTokenPostingsParts = async (indexDir) => {
   const metaPath = path.join(indexDir, 'token_postings.meta.json');
@@ -155,7 +167,7 @@ const compactChunkMeta = async (indexDir, targetSize) => {
   if (!dryRun) {
     await replaceDirAtomic(tmpDir, partsDir);
     await writeJsonObjectFile(metaPath, {
-      fields: {
+      fields: withGeneratedArtifactMetadata({
         schemaVersion: '0.0.1',
         artifact: 'chunk_meta',
         format: 'jsonl-sharded',
@@ -166,12 +178,13 @@ const compactChunkMeta = async (indexDir, targetSize) => {
         maxPartRecords: newCounts.length ? Math.max(...newCounts) : 0,
         maxPartBytes: newBytes.length ? Math.max(...newBytes) : 0,
         targetMaxBytes: null,
+        extensions: preserveCompactedExtensions(metaFields?.extensions),
         parts: newParts.map((part, index) => ({
           path: part,
           records: newCounts[index] || 0,
           bytes: newBytes[index] || 0
         }))
-      },
+      }, 'sharded-meta', 'chunk_meta'),
       atomic: true
     });
   }
@@ -205,7 +218,9 @@ const compactTokenPostings = async (indexDir, targetSize) => {
   const newCounts = [];
   const startedAt = Date.now();
   let vocabBuffer = [];
+  let vocabIdsBuffer = [];
   let postingsBuffer = [];
+  let hasVocabIds = null;
   let partIndex = 0;
   const flush = async () => {
     if (!vocabBuffer.length) return;
@@ -214,13 +229,18 @@ const compactTokenPostings = async (indexDir, targetSize) => {
     const outPath = path.join(tmpDir, name);
     if (!dryRun) {
       await writeJsonObjectFile(outPath, {
-        arrays: { vocab: vocabBuffer, postings: postingsBuffer },
+        arrays: {
+          vocab: vocabBuffer,
+          postings: postingsBuffer,
+          ...(hasVocabIds ? { vocabIds: vocabIdsBuffer } : {})
+        },
         atomic: true
       });
     }
     newParts.push(relPath);
     newCounts.push(vocabBuffer.length);
     vocabBuffer = [];
+    vocabIdsBuffer = [];
     postingsBuffer = [];
     partIndex += 1;
   };
@@ -229,8 +249,17 @@ const compactTokenPostings = async (indexDir, targetSize) => {
     const shard = await readJson(partPath);
     const vocab = Array.isArray(shard?.vocab) ? shard.vocab : (Array.isArray(shard?.arrays?.vocab) ? shard.arrays.vocab : []);
     const postings = Array.isArray(shard?.postings) ? shard.postings : (Array.isArray(shard?.arrays?.postings) ? shard.arrays.postings : []);
+    const vocabIds = shard?.vocabIds ?? shard?.arrays?.vocabIds;
+    const shardHasVocabIds = Array.isArray(vocabIds);
+    if ((hasVocabIds !== null && hasVocabIds !== shardHasVocabIds)
+      || (shardHasVocabIds && vocabIds.length !== vocab.length)
+      || (metaFields?.extensions?.tokenId && !shardHasVocabIds)) {
+      throw new Error('token_postings vocabIds mismatch during compaction');
+    }
+    hasVocabIds = shardHasVocabIds;
     for (let i = 0; i < vocab.length; i++) {
       vocabBuffer.push(vocab[i]);
+      if (hasVocabIds) vocabIdsBuffer.push(vocabIds[i]);
       postingsBuffer.push(postings[i] || []);
       if (vocabBuffer.length >= target) {
         await flush();
@@ -252,14 +281,15 @@ const compactTokenPostings = async (indexDir, targetSize) => {
   if (!dryRun) {
     await replaceDirAtomic(tmpDir, shardsDir);
     await writeJsonObjectFile(metaPath, {
-      fields: {
+      fields: withGeneratedArtifactMetadata({
         avgDocLen,
         totalDocs,
         format: 'sharded',
         shardSize: target,
         vocabCount,
+        extensions: preserveCompactedExtensions(metaFields?.extensions),
         parts: newParts
-      },
+      }, 'token-postings-meta'),
       arrays: { docLengths },
       atomic: true
     });
@@ -287,9 +317,14 @@ const updateManifest = async (indexDir, updates) => {
   updates.forEach((update) => {
     removeNames.add(update.name);
     removeNames.add(update.metaName);
+    if (update.type === 'chunks') removeNames.add(`${update.name}_offsets`);
   });
   const retained = pieces.filter((piece) => !removeNames.has(piece?.name));
   const newPieces = [...retained];
+  const priorPiecesByKey = new Map(pieces.map((piece) => [`${piece?.name}|${piece?.path}`, piece]));
+  const priorExtensions = (name, relPath) => preserveCompactedExtensions(
+    priorPiecesByKey.get(`${name}|${relPath}`)?.extensions
+  );
   for (const update of updates) {
     for (let i = 0; i < update.parts.length; i++) {
       const relPath = update.parts[i];
@@ -299,6 +334,7 @@ const updateManifest = async (indexDir, updates) => {
       const checksum = result?.value || null;
       const checksumAlgo = result?.algo || null;
       newPieces.push({
+        extensions: priorExtensions(update.name, relPath),
         type: update.type,
         name: update.name,
         format: update.type === 'chunks' ? 'jsonl' : 'json',
@@ -316,6 +352,7 @@ const updateManifest = async (indexDir, updates) => {
       const checksum = result?.value || null;
       const checksumAlgo = result?.algo || null;
       newPieces.push({
+        extensions: priorExtensions(update.metaName, metaRel),
         type: update.type,
         name: update.metaName,
         format: 'json',
@@ -330,7 +367,10 @@ const updateManifest = async (indexDir, updates) => {
   fields.generatedAt = new Date().toISOString();
   if (!dryRun) {
     await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
-    await writeJsonObjectFile(manifestPath, { fields, atomic: true });
+    await writeJsonObjectFile(manifestPath, {
+      fields: withGeneratedArtifactMetadata(fields, 'pieces-manifest'),
+      atomic: true
+    });
   }
 };
 

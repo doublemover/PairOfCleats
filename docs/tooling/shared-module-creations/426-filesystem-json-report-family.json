@@ -1,0 +1,92 @@
+{
+  "issueId": 426,
+  "title": "Shared filesystem, JSON, and report-writing helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "src/shared/json-file.js"
+  ],
+  "problemStatement": "Low-level JSON config loading and report emission were repeatedly hand-rolled across the usr CI gates and multiple parity/smoke tests with the same mkdir+JSON.stringify+newline+writeFile sequence and repeated JSON.parse(readFile()) helpers. Those call sites were small but numerous, making changes to formatting or directory-creation behavior noisy and inconsistent.",
+  "duplicateClusters": [
+    {
+      "name": "USR guardrail scripts reading config and writing JSON reports",
+      "files": [
+        "tools/ci/usr/item35-framework-canonicalization-gate.js",
+        "tools/ci/usr/item36-backcompat-matrix-gate.js",
+        "tools/ci/usr/item37-governance-drift-gate.js",
+        "tools/ci/usr/item38-catalog-contract-gate.js",
+        "tools/ci/usr/item39-normalization-linking-identity-gate.js",
+        "tools/ci/usr/item40-pipeline-incremental-transforms-gate.js"
+      ],
+      "bestFix": "Use one shared async JSON file helper for config loads and report writes so the gates stop duplicating directory creation and pretty-print rules."
+    },
+    {
+      "name": "Parity and smoke tests with bespoke JSON fixture/report writers",
+      "files": [
+        "tests/analysis/risk-delta-surface-parity.test.js",
+        "tests/ci/bench-language-rollout-gate.smoke.test.js",
+        "tests/ci/import-resolution-slo-gate.smoke.test.js",
+        "tests/perf/indexing/validate/stage-usage-checklist.test.js"
+      ],
+      "bestFix": "Replace local helpers with the same shared JSON read/write module where the behavior is generic and not artifact-specific."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "src/shared/files.js includes safe JSON reads for specific consumers, but not a small general-purpose async read/write helper for ordinary config and report files.",
+    "src/shared/json-stream.js is oriented around artifact and JSONL emission rather than ordinary JSON file persistence."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "src/shared/json-file.js",
+      "action": "created",
+      "notes": "Now owns small async JSON file reads and pretty JSON file writes with parent-directory creation."
+    },
+    {
+      "path": "tools/ci/usr/item35-framework-canonicalization-gate.js",
+      "action": "migrated",
+      "notes": "Now uses shared JSON config/report helpers."
+    },
+    {
+      "path": "tools/ci/usr/item36-backcompat-matrix-gate.js",
+      "action": "migrated",
+      "notes": "Now uses shared JSON config/report helpers."
+    },
+    {
+      "path": "tools/ci/usr/item37-governance-drift-gate.js",
+      "action": "migrated",
+      "notes": "Now uses shared JSON config/report helpers."
+    },
+    {
+      "path": "tools/ci/usr/item38-catalog-contract-gate.js",
+      "action": "migrated",
+      "notes": "Now uses shared JSON config/report helpers."
+    },
+    {
+      "path": "tools/ci/usr/item39-normalization-linking-identity-gate.js",
+      "action": "migrated",
+      "notes": "Now uses shared JSON config/report helpers."
+    },
+    {
+      "path": "tools/ci/usr/item40-pipeline-incremental-transforms-gate.js",
+      "action": "migrated",
+      "notes": "Now uses shared JSON config/report helpers."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/shared/json-file.test.js"
+    ],
+    "testsToKeepGreen": [
+      "tests/ci/bench-language-rollout-gate.smoke.test.js",
+      "tests/ci/import-resolution-slo-gate.smoke.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Replace artifact-oriented JSONL or atomic persistence helpers.",
+    "Create one universal filesystem utility module.",
+    "Rewrite every test fixture writer in the repo in one pass."
+  ],
+  "followOnDeletionTargets": [
+    "Continue migrating other repeated JSON fixture/report helpers to src/shared/json-file.js where the behavior is truly generic.",
+    "Leave artifact-specific writers on src/shared/json-stream.js and related persistence helpers."
+  ]
+}

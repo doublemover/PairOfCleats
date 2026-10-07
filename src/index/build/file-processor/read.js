@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveSpecialCodeExt } from '../../constants.js';
-import { fileExt } from '../../../shared/files.js';
+import { fileExt } from '../../../shared/file-paths.js';
 import { decodeTextBuffer } from '../../../shared/encoding.js';
 import { pickMinLimit } from '../runtime/limits.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
@@ -39,8 +39,16 @@ export const resolveFileCaps = (fileCaps, ext, languageId = null, mode = null) =
 export const truncateByBytes = (value, maxBytes) => {
   const text = typeof value === 'string' ? value : '';
   const limit = Number.isFinite(Number(maxBytes)) ? Number(maxBytes) : 0;
-  if (!limit || Buffer.byteLength(text, 'utf8') <= limit) {
-    return { text, truncated: false, bytes: Buffer.byteLength(text, 'utf8') };
+  const textBytes = Buffer.byteLength(text, 'utf8');
+  if (!limit || textBytes <= limit) {
+    return { text, truncated: false, bytes: textBytes };
+  }
+  if (Number.isSafeInteger(limit) && limit > 0) {
+    // Buffer.write retains only complete UTF-8 characters. Allocate for the
+    // admitted prefix rather than encoding the full oversized source first.
+    const prefix = Buffer.allocUnsafe(limit);
+    const bytes = prefix.write(text, 0, limit, 'utf8');
+    return { text: prefix.toString('utf8', 0, bytes), truncated: true, bytes };
   }
   const buffer = Buffer.from(text, 'utf8');
   const resolveUtf8Boundary = (buf, end) => {
@@ -84,7 +92,7 @@ export const readTextFileWithStreamingCap = async ({
   const cap = Number.isFinite(Number(maxBytes)) ? Math.max(0, Math.floor(Number(maxBytes))) : 0;
   if (!cap) {
     const buffer = await fs.readFile(absPath);
-    const decoded = decodeTextBuffer(buffer);
+    const decoded = decodeTextBuffer(buffer, { filePath: absPath });
     return {
       ...decoded,
       buffer,
@@ -112,7 +120,7 @@ export const readTextFileWithStreamingCap = async ({
       if (bytesRead < nextSize) break;
     }
     const buffer = buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, total);
-    const decoded = decodeTextBuffer(buffer);
+    const decoded = decodeTextBuffer(buffer, { filePath: absPath });
     let truncated = false;
     if (total >= cap) {
       if (Number.isFinite(stat?.size)) {

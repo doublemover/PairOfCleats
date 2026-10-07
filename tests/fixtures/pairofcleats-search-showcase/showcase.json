@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 1,
+  "tool": "pairofcleats",
+  "repoTarget": "self",
+  "description": "Repo-self search showcase corpus for PairOfCleats. Stable cases focus on the real product entrypoints and docs; optional cases extend coverage with checked-in language and risk fixtures that exercise richer search metadata.",
+  "executionDefaults": {
+    "searchArgs": ["--json", "--top", "5"],
+    "logsFolderName": "search-showcase"
+  },
+  "featureSets": [
+    {
+      "id": "repo-entrypoints",
+      "title": "Repo entrypoints and docs",
+      "description": "High-signal searches against the PairOfCleats codebase and its user-facing docs.",
+      "caseIds": [
+        "code-parse-search-args",
+        "code-resolve-search-mode",
+        "code-with-lsp-session",
+        "code-capture-search-debug-run",
+        "path-cli-args-file",
+        "mixed-parse-search-args-plus-import",
+        "prose-minimal-api-server",
+        "prose-search-pipeline",
+        "prose-core-api",
+        "extracted-prose-lsp-collection-comment"
+      ]
+    },
+    {
+      "id": "query-syntax-and-scoping",
+      "title": "Query syntax and scoping",
+      "description": "Phrase, negation, case-sensitive, path, and file-scoped queries.",
+      "caseIds": [
+        "query-negated-context-pack-docs",
+        "query-case-sensitive-brand",
+        "filter-file-regex-javascript-advanced",
+        "filter-case-sensitive-fixture-file"
+      ]
+    },
+    {
+      "id": "core-filters",
+      "title": "Core code filters",
+      "description": "Extension, language, type, signature, decorator, import, inheritance, and behavioral filters.",
+      "caseIds": [
+        "filter-ext-typescript",
+        "filter-lang-typescript",
+        "filter-type-swift-method",
+        "filter-signature-swift-method",
+        "filter-decorator-swift-available",
+        "filter-import-yargs",
+        "filter-extends-base-widget",
+        "filter-async-javascript-load",
+        "filter-generator-javascript-iter",
+        "filter-returns-javascript-update"
+      ]
+    },
+    {
+      "id": "output-and-backends",
+      "title": "Output and backend routing",
+      "description": "JSON shaping, explain/stats, and backend-specific probes.",
+      "caseIds": [
+        "output-json-compact-score-breakdown",
+        "output-stats-explain-score-breakdown",
+        "backend-memory-parser",
+        "backend-sqlite-parser",
+        "backend-sqlite-fts-doc-explain"
+      ]
+    },
+    {
+      "id": "enriched-metadata",
+      "title": "Enriched metadata filters",
+      "description": "Risk, inferred type, return type, and exploratory metadata filters when those artifacts exist.",
+      "caseIds": [
+        "type-return-type-widget",
+        "type-inferred-widget",
+        "risk-command-exec",
+        "risk-flow-req-body-to-exec",
+        "filter-param-widget-name",
+        "filter-awaits-fetch-data",
+        "filter-throws-value-error",
+        "filter-mutates-count"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "code-parse-search-args",
+      "title": "Search CLI parser entrypoint",
+      "stability": "stable",
+      "category": "core-code",
+      "mode": "code",
+      "query": "parseSearchArgs",
+      "why": "Best single search to land on the CLI search surface. It anchors the full flag matrix.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js", "name": "parseSearchArgs" }
+      ]
+    },
+    {
+      "id": "code-resolve-search-mode",
+      "title": "Search mode resolution",
+      "stability": "stable",
+      "category": "core-code",
+      "mode": "code",
+      "query": "resolveSearchMode",
+      "why": "Useful for understanding mode routing and default search behavior.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js", "name": "resolveSearchMode" }
+      ]
+    },
+    {
+      "id": "code-with-lsp-session",
+      "title": "LSP session pooling anchor",
+      "stability": "stable",
+      "category": "core-code",
+      "mode": "code",
+      "query": "withLspSession",
+      "why": "High-signal tooling entrypoint with rich cross-references in the repo.",
+      "expectAny": [
+        { "file": "src/integrations/tooling/providers/lsp/session-pool.js", "name": "withLspSession" }
+      ]
+    },
+    {
+      "id": "code-capture-search-debug-run",
+      "title": "Search debug capture helper",
+      "stability": "stable",
+      "category": "core-code",
+      "mode": "code",
+      "query": "captureSearchDebugRun",
+      "why": "Useful when debugging search runs; points at the raw-output capture utility.",
+      "expectAny": [
+        { "file": "tools/testing/search-debug-capture.js", "name": "captureSearchDebugRun" }
+      ]
+    },
+    {
+      "id": "path-cli-args-file",
+      "title": "Literal path query",
+      "stability": "stable",
+      "category": "query-syntax",
+      "mode": "code",
+      "query": "src/retrieval/cli-args.js",
+      "why": "Exercises path intent and is an easy self-repo sanity check.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js" }
+      ]
+    },
+    {
+      "id": "mixed-parse-search-args-plus-import",
+      "title": "Mixed symbol plus import query",
+      "stability": "stable",
+      "category": "query-syntax",
+      "mode": "code",
+      "query": "parseSearchArgs yargs",
+      "why": "Combines an exported symbol with a distinctive import token to tighten ranking.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js", "name": "parseSearchArgs" }
+      ]
+    },
+    {
+      "id": "prose-minimal-api-server",
+      "title": "API server docs heading",
+      "stability": "stable",
+      "category": "core-docs",
+      "mode": "prose",
+      "query": "\"Minimal API Server\"",
+      "why": "Strong prose anchor for the HTTP surface.",
+      "expectAny": [
+        { "file": "docs/api/server.md", "name": "Minimal API Server" }
+      ]
+    },
+    {
+      "id": "prose-search-pipeline",
+      "title": "Search pipeline docs heading",
+      "stability": "stable",
+      "category": "core-docs",
+      "mode": "prose",
+      "query": "\"Search Pipeline\"",
+      "why": "Best prose anchor for ranking, filters, explain output, and routing behavior.",
+      "expectAny": [
+        { "file": "docs/guides/search.md", "name": "Search Pipeline" }
+      ]
+    },
+    {
+      "id": "prose-core-api",
+      "title": "Core API overview",
+      "stability": "stable",
+      "category": "core-docs",
+      "mode": "prose",
+      "query": "\"PairOfCleats exposes a lightweight programmatic API\"",
+      "why": "Strong prose anchor for build/search/status API entrypoints.",
+      "expectAny": [
+        { "file": "docs/api/core-api.md", "name": "Core API" }
+      ]
+    },
+    {
+      "id": "extracted-prose-lsp-collection-comment",
+      "title": "Extracted prose from LSP collector comments",
+      "stability": "stable",
+      "category": "extracted-prose",
+      "mode": "extracted-prose",
+      "query": "\"Collect LSP-derived signature/hover metadata\"",
+      "why": "Shows extracted-prose search on code comments rather than standalone docs.",
+      "expectAny": [
+        { "file": "src/integrations/tooling/providers/lsp.js" }
+      ]
+    },
+    {
+      "id": "query-negated-context-pack-docs",
+      "title": "Negated context-pack docs query",
+      "stability": "stable",
+      "category": "query-syntax",
+      "mode": "prose",
+      "query": "context-pack -risk",
+      "args": ["--path", "docs/"],
+      "why": "Exercises negation while staying scoped to the repo documentation tree.",
+      "expectAny": [
+        { "file": "docs/guides/search.md" },
+        { "file": "docs/api/server.md" }
+      ]
+    },
+    {
+      "id": "query-case-sensitive-brand",
+      "title": "Case-sensitive brand token",
+      "stability": "stable",
+      "category": "query-syntax",
+      "mode": "prose",
+      "query": "PairOfCleats",
+      "args": ["--path", "docs/", "--case-tokens"],
+      "why": "Checks a precise case-sensitive brand token across docs.",
+      "expectAny": [
+        { "file": "docs/api/core-api.md" },
+        { "file": "docs/api/server.md" }
+      ]
+    },
+    {
+      "id": "filter-file-regex-javascript-advanced",
+      "title": "Regex file filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "buildAliases",
+      "args": ["--path", "tests/fixtures/languages/src", "--file", "/javascript_advanced\\.js$/"],
+      "why": "Demonstrates regex file scoping against checked-in language fixtures.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "buildAliases" }
+      ]
+    },
+    {
+      "id": "filter-case-sensitive-fixture-file",
+      "title": "Case-sensitive file-name filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "Widget",
+      "args": ["--path", "tests/fixtures/vscode/workspace-root/bin", "--file", "pairofcleats.js", "--case-file"],
+      "why": "Shows file-name filtering separate from token matching.",
+      "expectAny": [
+        { "file": "tests/fixtures/vscode/workspace-root/bin/pairofcleats.js" }
+      ]
+    },
+    {
+      "id": "filter-ext-typescript",
+      "title": "Extension filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "Widget",
+      "args": ["--path", "tests/fixtures/languages/src", "--ext", ".ts"],
+      "why": "A concise extension-scoped code search.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/typescript_advanced.ts", "name": "Widget" }
+      ]
+    },
+    {
+      "id": "filter-lang-typescript",
+      "title": "Language filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "Widget",
+      "args": ["--path", "tests/fixtures/languages/src", "--lang", "typescript"],
+      "why": "Shows language-aware filtering independent of extension.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/typescript_advanced.ts", "name": "Widget" }
+      ]
+    },
+    {
+      "id": "filter-type-swift-method",
+      "title": "AST type filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "sayHello",
+      "args": ["--path", "tests/fixtures/sample/src/sample.swift", "--type", "MethodDeclaration"],
+      "why": "One of the clearest declaration-type filters in the repo fixtures.",
+      "expectAny": [
+        { "file": "tests/fixtures/sample/src/sample.swift", "name": "Greeter.sayHello" }
+      ]
+    },
+    {
+      "id": "filter-signature-swift-method",
+      "title": "Signature filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "sayHello",
+      "args": ["--path", "tests/fixtures/sample/src/sample.swift", "--signature", "func sayHello"],
+      "why": "Exercises signature search on a simple, stable fixture method.",
+      "expectAny": [
+        { "file": "tests/fixtures/sample/src/sample.swift", "name": "Greeter.sayHello" }
+      ]
+    },
+    {
+      "id": "filter-decorator-swift-available",
+      "title": "Decorator or attribute filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "sayHello",
+      "args": ["--path", "tests/fixtures/sample/src/sample.swift", "--decorator", "available"],
+      "why": "Shows attribute-aware filtering on a fixture with a stable annotation.",
+      "expectAny": [
+        { "file": "tests/fixtures/sample/src/sample.swift", "name": "Greeter.sayHello" }
+      ]
+    },
+    {
+      "id": "filter-import-yargs",
+      "title": "Import filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "yargs",
+      "args": ["--path", "src/retrieval/cli-args.js", "--import", "yargs/yargs"],
+      "why": "Useful for import-driven code navigation in the real source tree.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js" }
+      ]
+    },
+    {
+      "id": "filter-extends-base-widget",
+      "title": "Inheritance filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "Widget",
+      "args": ["--path", "tests/fixtures/languages/src/typescript_advanced.ts", "--extends", "BaseWidget"],
+      "why": "Stable `extends` example using a checked-in TypeScript fixture.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/typescript_advanced.ts", "name": "Widget" }
+      ]
+    },
+    {
+      "id": "filter-async-javascript-load",
+      "title": "Async filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "load",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--async"],
+      "why": "Simple async-method probe on a stable JavaScript fixture.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "Widget.load" }
+      ]
+    },
+    {
+      "id": "filter-generator-javascript-iter",
+      "title": "Generator filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "iter",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--generator"],
+      "why": "Exercises generator detection using a compact fixture method.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "Widget.iter" }
+      ]
+    },
+    {
+      "id": "filter-returns-javascript-update",
+      "title": "Returns filter",
+      "stability": "stable",
+      "category": "filter",
+      "mode": "code",
+      "query": "update",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--returns"],
+      "why": "Behavioral filter for return-bearing functions.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "Widget.update" }
+      ]
+    },
+    {
+      "id": "output-json-compact-score-breakdown",
+      "title": "Compact JSON output",
+      "stability": "stable",
+      "category": "output",
+      "mode": "code",
+      "query": "scoreBreakdown",
+      "args": ["--path", "src/retrieval", "--json", "--compact", "--top", "3"],
+      "why": "Useful for inspecting the stable compact hit shape.",
+      "expectAny": [
+        { "file": "src/retrieval/output/explain.js" },
+        { "file": "src/retrieval/output/score-breakdown.js" }
+      ]
+    },
+    {
+      "id": "output-stats-explain-score-breakdown",
+      "title": "Stats and explain output",
+      "stability": "stable",
+      "category": "output",
+      "mode": "code",
+      "query": "scoreBreakdown",
+      "args": ["--path", "src/retrieval", "--json", "--stats", "--explain", "--top", "3"],
+      "why": "Best default search for inspecting pipeline stats and score explanations together.",
+      "expectAny": [
+        { "file": "src/retrieval/output/explain.js" },
+        { "file": "src/retrieval/output/score-breakdown.js" }
+      ]
+    },
+    {
+      "id": "backend-memory-parser",
+      "title": "Memory backend probe",
+      "stability": "stable",
+      "category": "backend",
+      "mode": "code",
+      "query": "parseSearchArgs",
+      "args": ["--backend", "memory"],
+      "why": "Fast backend-specific sanity check.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js", "name": "parseSearchArgs" }
+      ]
+    },
+    {
+      "id": "type-return-type-widget",
+      "title": "Declared return-type filter",
+      "stability": "optional",
+      "category": "metadata",
+      "mode": "code",
+      "query": "makeWidget",
+      "args": ["--path", "tests/fixtures/languages/src", "--backend", "memory", "--return-type", "Widget"],
+      "requires": ["type-inference"],
+      "why": "Exercises type-enriched filtering when type metadata is available.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/typescript_advanced.ts", "name": "makeWidget" }
+      ]
+    },
+    {
+      "id": "type-inferred-widget",
+      "title": "Inferred-type filter",
+      "stability": "optional",
+      "category": "metadata",
+      "mode": "code",
+      "query": "makeWidget",
+      "args": ["--path", "tests/fixtures/languages/src", "--backend", "memory", "--inferred-type", "widget"],
+      "requires": ["type-inference"],
+      "why": "Useful when type inference artifacts are enabled.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/typescript_advanced.ts", "name": "makeWidget" }
+      ]
+    },
+    {
+      "id": "risk-command-exec",
+      "title": "Risk tag filter",
+      "stability": "optional",
+      "category": "risk",
+      "mode": "code",
+      "query": "exec",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_risk.js", "--risk", "command-exec"],
+      "requires": ["risk-analysis"],
+      "why": "Most direct risk-tag showcase case in the repo fixtures.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_risk.js", "name": "runCommand" }
+      ]
+    },
+    {
+      "id": "risk-flow-req-body-to-exec",
+      "title": "Risk flow filter",
+      "stability": "optional",
+      "category": "risk",
+      "mode": "code",
+      "query": "req",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_risk.js", "--risk-flow", "req.body->exec"],
+      "requires": ["risk-analysis", "risk-flows"],
+      "why": "Shows flow-aware risk filtering when interprocedural risk artifacts exist.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_risk.js", "name": "runCommand" }
+      ]
+    },
+    {
+      "id": "backend-sqlite-parser",
+      "title": "SQLite backend probe",
+      "stability": "optional",
+      "category": "backend",
+      "mode": "code",
+      "query": "parseSearchArgs",
+      "args": ["--backend", "sqlite"],
+      "requires": ["sqlite-index"],
+      "why": "Checks the SQLite-backed sparse path against a strong repo anchor.",
+      "expectAny": [
+        { "file": "src/retrieval/cli-args.js", "name": "parseSearchArgs" }
+      ]
+    },
+    {
+      "id": "backend-sqlite-fts-doc-explain",
+      "title": "SQLite FTS prose explain probe",
+      "stability": "optional",
+      "category": "backend",
+      "mode": "prose",
+      "query": "scoreBreakdown",
+      "args": ["--path", "docs/", "--backend", "sqlite-fts", "--json", "--explain", "--top", "3"],
+      "requires": ["sqlite-prose-index"],
+      "why": "Good place to inspect FTS explain output on prose-heavy content.",
+      "expectAny": [
+        { "file": "docs/guides/search.md" },
+        { "file": "docs/contracts/search-cli.md" }
+      ]
+    },
+    {
+      "id": "filter-param-widget-name",
+      "title": "Parameter-name filter",
+      "stability": "exploratory",
+      "category": "metadata",
+      "mode": "code",
+      "query": "makeWidget",
+      "args": ["--path", "tests/fixtures/languages/src", "--param", "name"],
+      "requires": ["param-metadata"],
+      "why": "Worth probing when parameter metadata is available.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/typescript_advanced.ts", "name": "makeWidget" },
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "makeWidget" }
+      ]
+    },
+    {
+      "id": "filter-awaits-fetch-data",
+      "title": "Awaits filter",
+      "stability": "exploratory",
+      "category": "metadata",
+      "mode": "code",
+      "query": "load",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--awaits", "fetchData"],
+      "requires": ["await-metadata"],
+      "why": "Useful for debugging async relation metadata.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "Widget.load" }
+      ]
+    },
+    {
+      "id": "filter-throws-value-error",
+      "title": "Throws filter",
+      "stability": "exploratory",
+      "category": "metadata",
+      "mode": "code",
+      "query": "update_state",
+      "args": ["--path", "tests/fixtures/languages/src/python_advanced.py", "--throws", "ValueError"],
+      "requires": ["throw-metadata"],
+      "why": "Useful when exception metadata is available in the active index.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/python_advanced.py", "name": "update_state" }
+      ]
+    },
+    {
+      "id": "filter-mutates-count",
+      "title": "Mutates filter",
+      "stability": "exploratory",
+      "category": "metadata",
+      "mode": "code",
+      "query": "update",
+      "args": ["--path", "tests/fixtures/languages/src/javascript_advanced.js", "--mutates", "count"],
+      "requires": ["dataflow-metadata"],
+      "why": "Good exploratory case for stateful dataflow search.",
+      "expectAny": [
+        { "file": "tests/fixtures/languages/src/javascript_advanced.js", "name": "Widget.update" }
+      ]
+    }
+  ]
+}

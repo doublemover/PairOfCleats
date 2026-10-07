@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
-import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { writeFederationRepoFixture } from './repo-fixture.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-basic-'));
 const cacheRoot = path.join(tempRoot, 'cache');
@@ -14,33 +14,9 @@ const repoB = path.join(tempRoot, 'repo-b');
 const repoMissing = path.join(tempRoot, 'repo-missing');
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 
-const writeRepo = async (repoRoot, modes = ['code']) => {
-  await fs.mkdir(repoRoot, { recursive: true });
-  await fs.writeFile(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({
-    cache: { root: cacheRoot }
-  }, null, 2), 'utf8');
-  const repoCacheRoot = getRepoCacheRoot(repoRoot);
-  const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
-  await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
-    buildId: 'test-build',
-    buildRoot,
-    modes
-  }, null, 2), 'utf8');
-  for (const mode of modes) {
-    const indexDir = path.join(buildRoot, `index-${mode}`);
-    await fs.mkdir(indexDir, { recursive: true });
-    await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
-    await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
-    await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
-      compatibilityKey: `compat-${mode}`
-    }, null, 2), 'utf8');
-  }
-};
-
-await writeRepo(repoA);
-await writeRepo(repoB);
-await writeRepo(repoMissing);
+await writeFederationRepoFixture({ repoRoot: repoA, cacheRoot });
+await writeFederationRepoFixture({ repoRoot: repoB, cacheRoot });
+await writeFederationRepoFixture({ repoRoot: repoMissing, cacheRoot });
 
 await fs.writeFile(workspacePath, `{
   "schemaVersion": 1,
@@ -83,6 +59,12 @@ const response = await runFederatedSearch({
 
 assert.equal(response.ok, true);
 assert.equal(response.backend, 'federated');
+assert.equal(response.status, 'partial');
+assert.equal(response.partialSuccess, true);
+assert.equal(response.meta?.completeness?.status, 'partial');
+assert.equal(response.meta?.policy?.acceptPartialResults, true);
+assert.equal(response.meta?.policy?.responseStatus, 'partial');
+assert.equal(typeof response.meta?.manifestGeneratedAt, 'string');
 assert.equal(Array.isArray(response.code), true);
 assert.equal(response.code.length, 2, 'expected successful repos to contribute merged hits');
 assert.deepEqual(
@@ -106,5 +88,14 @@ assert.ok(
   diagnostics.some((entry) => entry.status === 'missing_index'),
   'missing indexes should be non-fatal diagnostics'
 );
+const alphaRepo = diagnostics.find((entry) => entry.repoId && entry.status === 'ok');
+assert.equal(alphaRepo?.completeness, 'complete');
+assert.equal(alphaRepo?.freshness?.buildId, 'test-build');
+assert.ok(alphaRepo?.freshness?.generationKey, 'expected repo freshness to expose generation key');
+assert.equal(alphaRepo?.modes?.requested?.includes('code'), true);
+assert.equal(alphaRepo?.modes?.fulfilled?.includes('code'), true);
+const missingRepo = diagnostics.find((entry) => entry.status === 'missing_index');
+assert.equal(missingRepo?.completeness, 'partial');
+assert.equal(missingRepo?.modes?.executionFailures?.length, 1);
 
 console.log('federated search multi-repo basic test passed');

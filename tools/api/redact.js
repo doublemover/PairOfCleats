@@ -1,4 +1,4 @@
-import { isAbsolutePathAny } from '../../src/shared/files.js';
+import { isAbsolutePathAny } from '../../src/shared/file-paths.js';
 
 const REDACTED_ABSOLUTE_PATH = '<redacted:absolute-path>';
 const REDACTED_PATH_REF = 'path:<redacted>';
@@ -24,3 +24,9 @@ export const redactAbsolutePaths = (value) => {
   return output;
 };
 
+/** Remove server paths from diagnostic metadata without changing source content. */
+export const redactSearchResponseMetadata = (result) => ({
+  ...result,
+  observability: redactAbsolutePaths(result?.observability),
+  retrieval: redactAbsolutePaths(result?.retrieval)
+});

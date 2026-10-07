@@ -51,9 +51,9 @@ Any Tier 2/Tier 3 change must update this file and synchronized matrix/fixture e
 
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against language/version/embedding registries.
-- [ ] Required fixture families assigned with concrete fixture IDs.
-- [ ] Required conformance levels mapped to executable lanes.
+- [x] Matrix linkage verified against language/version/embedding registries.
+- [x] Required fixture families assigned with concrete fixture IDs.
+- [x] Required conformance levels mapped to executable lanes.
 
 ## Completion evidence artifacts
 

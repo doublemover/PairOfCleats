@@ -1,4 +1,4 @@
-import { spawnSubprocess } from '../../shared/subprocess.js';
+import { spawnSubprocess } from '../../shared/subprocess/runner.js';
 
 const defaultRunner = (command, args, options = {}) => (
   spawnSubprocess(command, args, { ...options, shell: false })

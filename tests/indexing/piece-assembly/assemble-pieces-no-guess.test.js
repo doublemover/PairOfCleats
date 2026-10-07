@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -31,8 +31,7 @@ await fs.writeFile(
 
 const outDir = path.join(cacheRoot, 'out', 'index-code');
 const assemblePath = path.join(root, 'tools', 'index', 'assemble-pieces.js');
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     assemblePath,
     '--repo',
@@ -45,7 +44,10 @@ const result = spawnSync(
     inputDir,
     '--force'
   ],
-  { encoding: 'utf8' }
+  'assemble-pieces missing manifest',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 
 assert.notEqual(result.status, 0, 'expected assemble-pieces to fail without manifest');

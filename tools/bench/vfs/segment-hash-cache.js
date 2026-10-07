@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { checksumString } from '../../../src/shared/hash.js';
 import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
+import { clampInt, createRng, randomAlphaText } from './shared.js';
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({
@@ -69,29 +70,6 @@ if (argv.json) {
   printBench('with-cache', cachedBench);
 }
 
-function clampInt(value, min, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
-}
-
-function createRng(seedValue) {
-  let state = (seedValue >>> 0) || 1;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function randomText(bytes, rng) {
-  const chars = new Array(bytes);
-  for (let i = 0; i < bytes; i += 1) {
-    const code = 97 + Math.floor(rng() * 26);
-    chars[i] = String.fromCharCode(code);
-  }
-  return chars.join('');
-}
-
 function buildSegments({ uniqueCount, segmentSize, seed }) {
   const rng = createRng(seed);
   const segments = new Array(uniqueCount);
@@ -103,7 +81,7 @@ function buildSegments({ uniqueCount, segmentSize, seed }) {
     const ext = lang === 'typescript' ? 'ts' : 'py';
     segments[i] = {
       key: `file-${fileIndex}|${rangeStart}-${rangeEnd}|${ext}|${lang}`,
-      text: randomText(segmentSize, rng)
+      text: randomAlphaText(segmentSize, rng)
     };
   }
   return segments;

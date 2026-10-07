@@ -3,7 +3,7 @@ import {
   INTEGER_MIN_ZERO_FLAG_FIELDS,
   REPEATED_LIST_FIELDS,
   STRING_FLAG_FIELDS
-} from '../shared/search-request.js';
+} from '../../src/shared/search-request.js';
 
 const stringListSchema = {
   anyOf: [
@@ -153,6 +153,13 @@ const federatedSearchSchema = {
   }
 };
 
+const contextPackSelectSchema = {
+  anyOf: [
+    stringListSchema,
+    federatedSelectionSchema
+  ]
+};
+
 const riskFiltersSchema = {
   type: 'object',
   additionalProperties: false,
@@ -165,10 +172,13 @@ const riskFiltersSchema = {
     sink: stringListSchema,
     flowId: stringListSchema,
     flow_id: stringListSchema,
+    'flow-id': stringListSchema,
     sourceRule: stringListSchema,
     source_rule: stringListSchema,
+    'source-rule': stringListSchema,
     sinkRule: stringListSchema,
-    sink_rule: stringListSchema
+    sink_rule: stringListSchema,
+    'sink-rule': stringListSchema
   }
 };
 
@@ -187,6 +197,21 @@ const riskExplainSchema = {
   }
 };
 
+const riskDeltaSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['seed', 'from', 'to'],
+  properties: {
+    repoPath: { type: 'string' },
+    repo: { type: 'string' },
+    seed: { type: 'string', minLength: 1 },
+    from: { type: 'string', minLength: 1 },
+    to: { type: 'string', minLength: 1 },
+    includePartialFlows: { type: 'boolean' },
+    filters: riskFiltersSchema
+  }
+};
+
 const contextPackSchema = {
   type: 'object',
   additionalProperties: false,
@@ -194,6 +219,11 @@ const contextPackSchema = {
   properties: {
     repoPath: { type: 'string' },
     repo: { type: 'string' },
+    workspacePath: { type: 'string', minLength: 1 },
+    workspaceId: { type: 'string', minLength: 1 },
+    select: contextPackSelectSchema,
+    includeDisabled: { type: 'boolean' },
+    maxFederatedRepos: { type: 'integer', minimum: 1 },
     seed: { type: 'string', minLength: 1 },
     hops: { type: 'integer', minimum: 0 },
     includeGraph: { type: 'boolean' },
@@ -201,6 +231,7 @@ const contextPackSchema = {
     includeRisk: { type: 'boolean' },
     includeRiskPartialFlows: { type: 'boolean' },
     strictRisk: { type: 'boolean' },
+    strictEvidence: { type: 'boolean' },
     includeImports: { type: 'boolean' },
     includeUsages: { type: 'boolean' },
     includeCallersCallees: { type: 'boolean' },
@@ -258,6 +289,16 @@ export const createRiskExplainValidator = () => {
     const valid = validateRiskExplain(payload);
     if (valid) return { ok: true };
     return { ok: false, errors: formatValidationErrors(validateRiskExplain.errors || []) };
+  };
+};
+
+export const createRiskDeltaValidator = () => {
+  const ajv = createAjv({ allErrors: false, strict: false });
+  const validateRiskDelta = compileSchema(ajv, riskDeltaSchema);
+  return (payload) => {
+    const valid = validateRiskDelta(payload);
+    if (valid) return { ok: true };
+    return { ok: false, errors: formatValidationErrors(validateRiskDelta.errors || []) };
   };
 };
 

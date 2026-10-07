@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
-
-applyTestEnv({ testing: '1' });
+import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const fixtureDir = path.join(root, 'tests', 'fixtures', 'tree-sitter', 'perl-reset-regression');
@@ -43,11 +41,13 @@ for (const filePath of files) {
 console.log('perl-native-reset-ok');
 `;
 
-const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
-  cwd: root,
-  env: applyTestEnv({ testing: '1', syncProcess: false }),
-  encoding: 'utf8'
-});
+const result = runNode(
+  ['--input-type=module', '-e', script],
+  'perl native tree-sitter reset regression',
+  root,
+  applyTestEnv({ syncProcess: false }),
+  { stdio: 'pipe' }
+);
 
 assert.equal(
   result.status,

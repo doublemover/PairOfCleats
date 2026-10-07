@@ -1,8 +1,7 @@
 import fsSync from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { getEnvConfig } from '../../../../shared/env.js';
-import { resolveRuntimeEnvelope } from '../../../../shared/runtime-envelope.js';
+import { getEnvConfig } from '../../../../shared/env/runtime.js';
+import { resolveCurrentProcessRuntimeEnvelope } from '../../../../shared/runtime-envelope/resolve-current-process-envelope.js';
 import { resolveBuildStatePath } from '../../../../index/build/build-state.js';
 import {
   getMetricsDir,
@@ -22,11 +21,11 @@ import {
 } from '../../../../../tools/sqlite/vector-extension.js';
 import { loadIndexPieces } from '../from-artifacts.js';
 import { resolveOutputPaths } from '../output-paths.js';
+import { resolveExpectedDenseCount } from '../../utils.js';
 import { createAdaptiveBatchPlanner, probeSqliteTargetRuntime } from './build.js';
 import { resolveChunkMetaTotalRecords, resolveChunkMetaTotalRecordsFromSources } from './chunk-meta.js';
 import { loadSqliteBundleWorkerProfile } from './config.js';
 import { resolveModeExecutionPlan } from './mode-plan.js';
-import { resolveExpectedDenseCount } from './sqlite-probes.js';
 
 const resolveThreadLimits = (envelope) => ({
   cpuCount: envelope.concurrency.cpuCount,
@@ -132,22 +131,11 @@ export const resolveRunnerSelectionPlan = async ({
   } = modePlan;
   const buildStatePath = resolveBuildStatePath(indexRoot);
   const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
-  const envelope = options.envelope || runtime?.envelope || resolveRuntimeEnvelope({
+  const envelope = options.envelope || runtime?.envelope || resolveCurrentProcessRuntimeEnvelope({
     argv,
     rawArgv: parsedRawArgs,
     userConfig,
     env: process.env,
-    execArgv: process.execArgv,
-    cpuCount: os.cpus().length,
-    processInfo: {
-      pid: process.pid,
-      argv: process.argv,
-      execPath: process.execPath,
-      nodeVersion: process.version,
-      platform: process.platform,
-      arch: process.arch,
-      cpuCount: os.cpus().length
-    },
     toolVersion: getToolVersion()
   });
   const threadLimits = options.threadLimits || resolveThreadLimits(envelope);

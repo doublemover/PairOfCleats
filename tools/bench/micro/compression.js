@@ -5,7 +5,7 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { tryRequire } from '../../../src/shared/optional-deps.js';
-import { formatStats, summarizeDurations } from './utils.js';
+import { formatStats, runSampledBench } from './utils.js';
 
 const argv = yargs(hideBin(process.argv))
   .option('sizes', {
@@ -153,11 +153,9 @@ function loadZstd() {
 async function runBench(backend, payload, { iterations, samples, warmup }) {
   const baseCompressed = await backend.compress(payload);
   const ratio = baseCompressed.length / payload.length;
-  await warmupRun(backend.compress, payload, warmup);
-  await warmupRun(backend.decompress, baseCompressed, warmup);
 
-  const compress = await runTimed(() => backend.compress(payload), { iterations, samples });
-  const decompress = await runTimed(() => backend.decompress(baseCompressed), { iterations, samples });
+  const compress = await runSampledBench(() => backend.compress(payload), { iterations, samples, warmup });
+  const decompress = await runSampledBench(() => backend.decompress(baseCompressed), { iterations, samples, warmup });
 
   return {
     payloadBytes: payload.length,
@@ -165,32 +163,5 @@ async function runBench(backend, payload, { iterations, samples, warmup }) {
     ratio,
     compress,
     decompress
-  };
-}
-
-async function warmupRun(fn, payload, iterations) {
-  for (let i = 0; i < iterations; i += 1) {
-    await fn(payload);
-  }
-}
-
-async function runTimed(fn, { iterations, samples }) {
-  const timings = [];
-  const perSample = Math.max(1, Math.floor(iterations / samples));
-  const remainder = iterations - (perSample * samples);
-  let totalMs = 0;
-  for (let i = 0; i < samples; i += 1) {
-    const loops = perSample + (i < remainder ? 1 : 0);
-    const start = process.hrtime.bigint();
-    for (let j = 0; j < loops; j += 1) {
-      await fn();
-    }
-    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-    timings.push(elapsed);
-    totalMs += elapsed;
-  }
-  return {
-    totalMs,
-    stats: summarizeDurations(timings)
   };
 }

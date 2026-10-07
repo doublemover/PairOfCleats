@@ -2,20 +2,22 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { createCli } from '../../src/shared/cli.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import {
   getRuntimeConfig,
   resolveRepoConfig,
   resolveRuntimeEnv,
   resolveToolRoot
 } from '../shared/dict-utils.js';
-import { parseCommaList } from '../shared/text-utils.js';
+import { parseCommaList } from '../../src/shared/comma-list.js';
 import { readQueryFile } from '../shared/query-file-utils.js';
 
 const argv = createCli({
-  scriptName: 'parity-matrix',
+  scriptName: 'pairofcleats report parity',
   options: {
+    repo: { type: 'string' },
     backend: { type: 'string' },
     backends: { type: 'string' },
     'ann-modes': { type: 'string' },
@@ -29,12 +31,12 @@ const argv = createCli({
     'dry-run': { type: 'boolean', default: false },
     'fail-fast': { type: 'boolean', default: false }
   }
-}).parse();
+}).strictOptions().parse();
 
 const scriptRoot = resolveToolRoot();
-const { repoRoot, userConfig } = resolveRepoConfig(null);
+const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(repoRoot, userConfig), process.env);
-const parityScript = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity.test.js');
+const parityScript = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'equivalence.test.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(
   argv.results || path.join(scriptRoot, 'benchmarks', 'results')
@@ -140,6 +142,7 @@ async function resolveQueryFile() {
 
 const configToArgs = (config, queryFile, outFile, top, limit) => {
   const args = [parityScript];
+  appendArgs(args, '--repo', repoRoot);
   appendArgs(args, '--sqlite-backend', config.backend);
   appendArgs(args, '--queries', queryFile);
   appendArgs(args, '--top', top);
@@ -196,6 +199,8 @@ async function main() {
     }
 
     try {
+      // An interrupted or incomplete rerun cannot borrow the previous receipt.
+      await fsPromises.rm(outFile, { force: true });
       const outputChunks = [];
       const recordChunk = (chunk) => {
         if (chunk) outputChunks.push(chunk);
@@ -218,12 +223,19 @@ async function main() {
       let summary = null;
       try {
         const report = JSON.parse(await fsPromises.readFile(outFile, 'utf8'));
-        summary = report.summary || null;
+        const candidate = report?.summary;
+        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+          && Number.isInteger(candidate.queries) && candidate.queries > 0
+          && Array.isArray(report.results) && report.results.length === candidate.queries
+          && candidate.sqliteBackend === config.backend
+          && candidate.annEnabled === (config.annMode === 'on')) {
+          summary = candidate;
+        }
       } catch {
         summary = null;
       }
 
-      if (result.exitCode === 0) {
+      if (result.exitCode === 0 && summary) {
         results.push({ ...config, outFile, logFile, status: 'ok', summary });
       } else {
         results.push({
@@ -232,7 +244,9 @@ async function main() {
           logFile,
           status: 'failed',
           exitCode: result.exitCode ?? null,
-          error: `exit ${result.exitCode ?? 'unknown'}`
+          error: result.exitCode === 0
+            ? 'Missing or invalid fresh parity report.'
+            : `exit ${result.exitCode ?? 'unknown'}`
         });
         if (argv['fail-fast']) break;
       }
@@ -265,8 +279,9 @@ async function main() {
     results
   };
   const matrixPath = path.join(runRoot, 'matrix.json');
-  await fsPromises.writeFile(matrixPath, JSON.stringify(matrix, null, 2));
+  await writeJsonFileResolved(matrixPath, matrix);
   console.error(`\n[parity-matrix] summary written to ${matrixPath}`);
+  if (results.some((result) => result.status === 'failed')) process.exitCode = 1;
 }
 
 main().catch((err) => {

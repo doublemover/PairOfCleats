@@ -9,7 +9,7 @@ ensureTestingEnv(process.env);
 const root = process.cwd();
 const requestPathFiles = [
   'src/retrieval/cli/load-indexes.js',
-  'src/retrieval/cli/run-search.js',
+  'src/retrieval/cli/run-search/plan-runner.js',
   'src/retrieval/cli/index-loader.js',
   'src/retrieval/cli/run-search-session.js'
 ];

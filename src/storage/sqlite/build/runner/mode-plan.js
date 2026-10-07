@@ -1,6 +1,10 @@
 import path from 'node:path';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../../../index/as-of.js';
-import { getIndexDir, resolveIndexRoot } from '../../../../shared/dict-utils.js';
+import {
+  getIndexDir,
+  resolveCurrentBuildModeRoot,
+  resolveIndexRoot
+} from '../../../../shared/dict-utils.js';
 
 const SQLITE_MODE_ORDER = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
 const MODE_PLAN_CACHE_LIMIT = 64;
@@ -78,9 +82,21 @@ export const resolveModeExecutionPlan = ({
   userConfig
 }) => {
   const modeList = resolveModeList(modeArg);
-  const defaultIndexRoot = runtime?.buildRoot
-    ? path.resolve(runtime.buildRoot)
-    : resolveIndexRoot(root, userConfig);
+  const preferredMode = modeArg === 'all' ? modeList[0] || null : modeArg;
+  const activeGenerationResolution = runtime?.buildRoot
+    ? {
+      ok: true,
+      root: path.resolve(runtime.buildRoot)
+    }
+    : resolveCurrentBuildModeRoot(root, userConfig, {
+      mode: preferredMode,
+      requireArtifacts: true,
+      disallowRepoRootFallback: true,
+      allowLegacyRepoRootFallback: false
+    });
+  const defaultIndexRoot = activeGenerationResolution.ok && activeGenerationResolution.root
+    ? activeGenerationResolution.root
+    : null;
   const asOfRequested = (
     (typeof argv?.['as-of'] === 'string' && argv['as-of'].trim())
     || (typeof argv?.snapshot === 'string' && argv.snapshot.trim())
@@ -123,11 +139,18 @@ export const resolveModeExecutionPlan = ({
   const asOfIndexRoot = asOfContext?.provided && asOfRootSelection.root
     ? path.resolve(asOfRootSelection.root)
     : null;
+  if (!asOfContext?.provided && !argv['index-root'] && !options.indexRoot && !defaultIndexRoot) {
+    return {
+      errorMessage: activeGenerationResolution?.context?.buildId
+        ? `[sqlite] active build root for ${preferredMode || 'selected modes'} is unavailable; same-run consumers will not fall back to repo-root manifests.`
+        : '[sqlite] missing active build root. Run stage2 first or pass --index-root.'
+    };
+  }
   const indexRoot = argv['index-root']
     ? path.resolve(argv['index-root'])
     : (options.indexRoot
       ? path.resolve(options.indexRoot)
-      : (asOfIndexRoot || defaultIndexRoot));
+      : (asOfIndexRoot || defaultIndexRoot || resolveIndexRoot(root, userConfig)));
   const explicitDirs = {
     code: argv['code-dir']
       ? path.resolve(argv['code-dir'])

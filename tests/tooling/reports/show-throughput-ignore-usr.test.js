@@ -3,13 +3,8 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { runShowThroughputReport } from './show-throughput-report-fixture.js';
 
-ensureTestingEnv(process.env);
-
-const root = process.cwd();
-const scriptPath = path.join(root, 'tools', 'reports', 'show-throughput.js');
 const tmpRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'show-throughput-filter-'));
 const runRoot = path.join(tmpRoot, 'workspace');
 const resultsRoot = path.join(runRoot, 'benchmarks', 'results');
@@ -55,22 +50,20 @@ await fsPromises.writeFile(
 
 const stripAnsi = (value) => String(value || '').replace(/\u001b\[[0-9;]*m/g, '');
 
-const runReport = (args = []) => spawnSync(
-  process.execPath,
-  [scriptPath, ...args],
-  { cwd: runRoot, encoding: 'utf8' }
-);
+const runReport = (args = []) => runShowThroughputReport(args, { cwd: runRoot });
 
 const hiddenUsr = runReport();
 assert.equal(hiddenUsr.status, 0, hiddenUsr.stderr || hiddenUsr.stdout);
-const hiddenOutput = stripAnsi(hiddenUsr.stderr);
+assert.equal(stripAnsi(hiddenUsr.stderr).trim(), '', 'expected overview text on stdout only');
+const hiddenOutput = stripAnsi(hiddenUsr.stdout);
 const hiddenLines = hiddenOutput.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 assert.equal(hiddenLines.includes('javascript'), true, 'expected javascript folder in report output');
 assert.equal(hiddenLines.includes('usr'), false, 'USR guardrail folder should be excluded by default');
 
 const shownUsr = runReport(['--include-usr']);
 assert.equal(shownUsr.status, 0, shownUsr.stderr || shownUsr.stdout);
-const shownOutput = stripAnsi(shownUsr.stderr);
+assert.equal(stripAnsi(shownUsr.stderr).trim(), '', 'expected overview text on stdout only');
+const shownOutput = stripAnsi(shownUsr.stdout);
 const shownLines = shownOutput.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 assert.equal(shownLines.includes('usr'), true, 'USR guardrail folder should be included when explicitly requested');
 

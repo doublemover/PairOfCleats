@@ -9,6 +9,7 @@ indexing/contracts/semver-policy-enforced
 indexing/contracts/index-state-dense-sidecars-present
 contracts/manifest-max-bytes-validation
 indexing/policy/repo-inventory
+indexing/policy/shared-module-cycle-guard
 indexing/contracts/loader-matrix-parity
 indexing/policy/analysis-schema
 indexing/contracts/snapshots

@@ -33,6 +33,25 @@ const resolveWorkerClose = (worker) => {
   return null;
 };
 
+const runLifecycleHooks = async (entries, hook, errors) => {
+  for (const entry of entries) {
+    if (!entry[hook]) continue;
+    try {
+      await entry[hook]();
+    } catch (err) {
+      errors.push(err);
+    }
+  }
+};
+
+const collectPendingErrors = async (pending, errors) => {
+  if (!pending.size) return;
+  const settled = await awaitWithKeepalive(Promise.allSettled(Array.from(pending)));
+  for (const result of settled) {
+    if (result.status === 'rejected') errors.push(result.reason);
+  }
+};
+
 /**
  * Create a lifecycle registry for timers/workers/promises.
  * Supports explicit register + drain + close.
@@ -127,20 +146,8 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
 
   const drain = async () => {
     const errors = [];
-    for (const entry of Array.from(resources)) {
-      if (!entry.drain) continue;
-      try {
-        await entry.drain();
-      } catch (err) {
-        errors.push(err);
-      }
-    }
-    if (pending.size) {
-      const settled = await awaitWithKeepalive(Promise.allSettled(Array.from(pending)));
-      for (const result of settled) {
-        if (result.status === 'rejected') errors.push(result.reason);
-      }
-    }
+    await runLifecycleHooks(Array.from(resources), 'drain', errors);
+    await collectPendingErrors(pending, errors);
     const error = toLifecycleError(name, 'drain', errors);
     if (error) throw error;
   };
@@ -151,28 +158,9 @@ export const createLifecycleRegistry = ({ name = 'lifecycle', onError = null } =
     const errors = [];
     const entries = Array.from(resources).reverse();
     resources.clear();
-    for (const entry of entries) {
-      if (!entry.close) continue;
-      try {
-        await entry.close();
-      } catch (err) {
-        errors.push(err);
-      }
-    }
-    for (const entry of entries) {
-      if (!entry.drain) continue;
-      try {
-        await entry.drain();
-      } catch (err) {
-        errors.push(err);
-      }
-    }
-    if (pending.size) {
-      const settled = await awaitWithKeepalive(Promise.allSettled(Array.from(pending)));
-      for (const result of settled) {
-        if (result.status === 'rejected') errors.push(result.reason);
-      }
-    }
+    await runLifecycleHooks(entries, 'close', errors);
+    await runLifecycleHooks(entries, 'drain', errors);
+    await collectPendingErrors(pending, errors);
     const error = toLifecycleError(name, 'close', errors);
     if (error) throw error;
   };

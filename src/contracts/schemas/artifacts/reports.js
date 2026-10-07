@@ -1,9 +1,50 @@
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
+const nullableNumber = { type: ['number', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
 const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
 const modeName = { type: 'string', enum: ['code', 'prose', 'extracted-prose', 'records'] };
+
+const extractedProseQualityBudgetCost = ({
+  includeQualityImpact = false
+} = {}) => ({
+  type: 'object',
+  required: [
+    'class',
+    ...(includeQualityImpact ? ['qualityImpact', 'downgradedRecall'] : []),
+    'estimatedSuppressedFiles',
+    'estimatedRecallLossRatio',
+    'estimatedRecallLossClass',
+    'estimatedRecallLossConfidence',
+    'skippedFiles',
+    'estimatedAvoidedChunkSamples',
+    'suppressedCohortCount',
+    'protectedCohortCount',
+    'protectedHighValueCohortCount',
+    'strategyMismatchRiskCount'
+  ],
+  properties: {
+    class: nullableString,
+    ...(includeQualityImpact
+      ? {
+        qualityImpact: nullableString,
+        downgradedRecall: { type: 'boolean' }
+      }
+      : {}),
+    estimatedSuppressedFiles: intId,
+    estimatedRecallLossRatio: { type: 'number' },
+    estimatedRecallLossClass: nullableString,
+    estimatedRecallLossConfidence: nullableString,
+    skippedFiles: intId,
+    estimatedAvoidedChunkSamples: intId,
+    suppressedCohortCount: intId,
+    protectedCohortCount: intId,
+    protectedHighValueCohortCount: intId,
+    strategyMismatchRiskCount: intId
+  },
+  additionalProperties: false
+});
 
 const fileListBucket = {
   type: 'object',
@@ -37,6 +78,46 @@ const extractionReportExtractor = {
   additionalProperties: false
 };
 
+const extractionReportPolicy = {
+  type: 'object',
+  required: ['maxBytesPerFile', 'maxPages', 'extractTimeoutMs', 'fidelityMode', 'qualitySensitive'],
+  properties: {
+    maxBytesPerFile: { type: 'number' },
+    maxPages: { type: 'number' },
+    extractTimeoutMs: { type: 'number' },
+    fidelityMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
+    qualitySensitive: { type: 'boolean' }
+  },
+  additionalProperties: false
+};
+
+const extractionReportFidelity = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'sourceType',
+    'state',
+    'status',
+    'reasonCode',
+    'policyMode',
+    'qualitySensitive',
+    'policyViolation',
+    'warningCount'
+  ],
+  properties: {
+    schemaVersion: posInt,
+    sourceType: { type: 'string', enum: ['pdf', 'docx'] },
+    state: { type: 'string', enum: ['complete', 'coverage_gap'] },
+    status: { type: 'string', enum: ['ok', 'skipped'] },
+    reasonCode: nullableString,
+    policyMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
+    qualitySensitive: { type: 'boolean' },
+    policyViolation: { type: 'boolean' },
+    warningCount: intId
+  },
+  additionalProperties: false
+};
+
 const extractionReportFile = {
   type: 'object',
   required: [
@@ -52,7 +133,9 @@ const extractionReportFile = {
     'extractionConfigDigest',
     'extractionIdentityHash',
     'unitCounts',
-    'warnings'
+    'warnings',
+    'policy',
+    'fidelity'
   ],
   properties: {
     file: { type: 'string' },
@@ -81,7 +164,9 @@ const extractionReportFile = {
         { type: 'null' }
       ]
     },
-    warnings: { type: 'array', items: { type: 'string' } }
+    warnings: { type: 'array', items: { type: 'string' } },
+    policy: extractionReportPolicy,
+    fidelity: extractionReportFidelity
   },
   additionalProperties: false
 };
@@ -98,6 +183,7 @@ const extractionReportLowYieldBailout = {
     'triggered',
     'reason',
     'qualityImpact',
+    'repoYieldClass',
     'seed',
     'warmupWindowSize',
     'warmupSampleSize',
@@ -107,9 +193,22 @@ const extractionReportLowYieldBailout = {
     'observedYieldRatio',
     'minYieldRatio',
     'minYieldedFiles',
+    'suppressedCohortCount',
+    'protectedCohortCount',
+    'strategyMismatchRiskCount',
+    'estimatedSuppressedFiles',
+    'estimatedRecallLossRatio',
+    'estimatedRecallLossClass',
+    'estimatedRecallLossConfidence',
+    'opportunityCost',
+    'recallCost',
     'skippedFiles',
     'decisionAtOrderIndex',
     'decisionAt',
+    'repoFingerprint',
+    'suppressedCohorts',
+    'protectedCohorts',
+    'strategyMismatchRiskCohorts',
     'deterministic',
     'downgradedRecall'
   ],
@@ -118,6 +217,7 @@ const extractionReportLowYieldBailout = {
     triggered: { type: 'boolean' },
     reason: nullableString,
     qualityImpact: nullableString,
+    repoYieldClass: nullableString,
     seed: nullableString,
     warmupWindowSize: intId,
     warmupSampleSize: intId,
@@ -127,9 +227,100 @@ const extractionReportLowYieldBailout = {
     observedYieldRatio: { type: 'number' },
     minYieldRatio: { type: 'number' },
     minYieldedFiles: intId,
+    suppressedCohortCount: intId,
+    protectedCohortCount: intId,
+    strategyMismatchRiskCount: intId,
+    estimatedSuppressedFiles: intId,
+    estimatedRecallLossRatio: { type: 'number' },
+    estimatedRecallLossClass: nullableString,
+    estimatedRecallLossConfidence: nullableString,
+    opportunityCost: extractedProseQualityBudgetCost(),
+    recallCost: extractedProseQualityBudgetCost({ includeQualityImpact: true }),
     skippedFiles: intId,
     decisionAtOrderIndex: nullableInt,
     decisionAt: nullableString,
+    repoFingerprint: {
+      type: 'object',
+      required: ['totalEntries', 'docLikeEntries', 'dominantCohort', 'cohortCounts'],
+      properties: {
+        totalEntries: intId,
+        docLikeEntries: intId,
+        dominantCohort: nullableString,
+        cohortCounts: {
+          type: 'object',
+          additionalProperties: intId
+        }
+      },
+      additionalProperties: false
+    },
+    suppressedCohorts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'key',
+          'suppressionClass',
+          'expectedYieldClass',
+          'warmupFiles',
+          'sampledFiles',
+          'sampledObservedFiles',
+          'sampledYieldedFiles',
+          'sampledChunkCount',
+          'repoFiles',
+          'estimatedSuppressedFiles',
+          'estimatedRecallLossRatio'
+        ],
+        properties: {
+          key: { type: 'string' },
+          suppressionClass: nullableString,
+          expectedYieldClass: { type: 'string' },
+          warmupFiles: intId,
+          sampledFiles: intId,
+          sampledObservedFiles: intId,
+          sampledYieldedFiles: intId,
+          sampledChunkCount: intId,
+          repoFiles: intId,
+          estimatedSuppressedFiles: intId,
+          estimatedRecallLossRatio: { type: 'number' }
+        },
+        additionalProperties: false
+      }
+    },
+    protectedCohorts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'key',
+          'expectedYieldClass',
+          'strategyMismatchRisk',
+          'protectedBySample',
+          'protectedByHistory',
+          'protectedByPriority'
+        ],
+        properties: {
+          key: { type: 'string' },
+          expectedYieldClass: { type: 'string' },
+          strategyMismatchRisk: { type: 'boolean' },
+          protectedBySample: { type: 'boolean' },
+          protectedByHistory: { type: 'boolean' },
+          protectedByPriority: { type: 'boolean' }
+        },
+        additionalProperties: false
+      }
+    },
+    strategyMismatchRiskCohorts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['key', 'expectedYieldClass'],
+        properties: {
+          key: { type: 'string' },
+          expectedYieldClass: { type: 'string' }
+        },
+        additionalProperties: false
+      }
+    },
     deterministic: { type: 'boolean' },
     downgradedRecall: { type: 'boolean' }
   },
@@ -159,6 +350,8 @@ const extractionReportSchema = {
     'generatedAt',
     'chunkerVersion',
     'extractionConfigDigest',
+    'policy',
+    'coverage',
     'quality',
     'counts',
     'extractors',
@@ -170,6 +363,44 @@ const extractionReportSchema = {
     generatedAt: { type: 'string' },
     chunkerVersion: { type: 'string' },
     extractionConfigDigest: { type: 'string' },
+    policy: extractionReportPolicy,
+    coverage: {
+      type: 'object',
+      required: ['state', 'coverageLossCount', 'qualitySensitiveFailures', 'bySourceType'],
+      properties: {
+        state: { type: 'string', enum: ['complete', 'partial', 'missing'] },
+        coverageLossCount: intId,
+        qualitySensitiveFailures: intId,
+        bySourceType: {
+          type: 'object',
+          required: ['pdf', 'docx'],
+          properties: {
+            pdf: {
+              type: 'object',
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: intId,
+                ok: intId,
+                skipped: intId
+              },
+              additionalProperties: false
+            },
+            docx: {
+              type: 'object',
+              required: ['total', 'ok', 'skipped'],
+              properties: {
+                total: intId,
+                ok: intId,
+                skipped: intId
+              },
+              additionalProperties: false
+            }
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    },
     quality: extractionReportQuality,
     counts: {
       type: 'object',
@@ -303,9 +534,378 @@ const boilerplateCatalogSchema = {
   additionalProperties: false
 };
 
+const scanProfileCountMap = {
+  type: 'object',
+  additionalProperties: intId
+};
+
+const scanProfileLanguageLines = {
+  type: 'object',
+  additionalProperties: intId
+};
+
+const reuseGenerationSchema = {
+  type: 'object',
+  required: ['mode', 'repoRoot', 'buildRoot', 'buildId'],
+  properties: {
+    mode: nullableString,
+    repoRoot: nullableString,
+    buildRoot: nullableString,
+    buildId: nullableString
+  },
+  additionalProperties: false
+};
+
+const reuseCostSchema = {
+  type: 'object',
+  required: ['timeCostMs', 'requestedCount', 'reusedCount', 'fetchedCount', 'chunkCount'],
+  properties: {
+    timeCostMs: intId,
+    requestedCount: intId,
+    reusedCount: intId,
+    fetchedCount: intId,
+    chunkCount: intId
+  },
+  additionalProperties: false
+};
+
+const reuseSummarySchema = {
+  anyOf: [
+    { type: 'null' },
+    {
+      type: 'object',
+      required: [
+        'observationCount',
+        'generationAware',
+        'generation',
+        'countsByCause',
+        'countsBySurface',
+        'countsBySurfaceAndSource',
+        'countsByQualityImpact',
+        'scmSnapshotSources',
+        'providerResultSources',
+        'cost',
+        'observations'
+      ],
+      properties: {
+        observationCount: intId,
+        generationAware: { type: 'boolean' },
+        generation: reuseGenerationSchema,
+        countsByCause: scanProfileCountMap,
+        countsBySurface: scanProfileCountMap,
+        countsBySurfaceAndSource: scanProfileCountMap,
+        countsByQualityImpact: scanProfileCountMap,
+        scmSnapshotSources: scanProfileCountMap,
+        providerResultSources: scanProfileCountMap,
+        cost: reuseCostSchema,
+        observations: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: [
+              'kind',
+              'providerId',
+              'reuseSurface',
+              'reuseSource',
+              'causeClass',
+              'qualityImpact',
+              'requestedCount',
+              'reusedCount',
+              'fetchedCount',
+              'chunkCount',
+              'timeCostMs',
+              'generation'
+            ],
+            properties: {
+              kind: nullableString,
+              providerId: nullableString,
+              reuseSurface: nullableString,
+              reuseSource: nullableString,
+              causeClass: nullableString,
+              qualityImpact: nullableString,
+              requestedCount: nullableInt,
+              reusedCount: nullableInt,
+              fetchedCount: nullableInt,
+              chunkCount: nullableInt,
+              timeCostMs: nullableInt,
+              generation: reuseGenerationSchema
+            },
+            additionalProperties: false
+          }
+        }
+      },
+      additionalProperties: false
+    }
+  ]
+};
+
+const scanProfileModeSchema = {
+  type: 'object',
+  required: [
+    'mode',
+    'indexDir',
+    'cache',
+    'files',
+    'chunks',
+    'tokens',
+    'lines',
+    'bytes',
+    'artifacts',
+    'timings',
+    'throughput',
+    'queues',
+    'quality',
+    'reuse'
+  ],
+  properties: {
+    mode: modeName,
+    indexDir: nullableString,
+    cache: {
+      type: 'object',
+      required: ['hits', 'misses', 'hitRate'],
+      properties: {
+        hits: nullableInt,
+        misses: nullableInt,
+        hitRate: nullableNumber
+      },
+      additionalProperties: false
+    },
+    files: {
+      type: 'object',
+      required: ['candidates', 'scanned', 'skipped', 'skippedByReason'],
+      properties: {
+        candidates: nullableInt,
+        scanned: nullableInt,
+        skipped: nullableInt,
+        skippedByReason: scanProfileCountMap
+      },
+      additionalProperties: false
+    },
+    chunks: {
+      type: 'object',
+      required: ['total', 'avgTokens'],
+      properties: {
+        total: nullableInt,
+        avgTokens: nullableNumber
+      },
+      additionalProperties: false
+    },
+    tokens: {
+      type: 'object',
+      required: ['total', 'vocab'],
+      properties: {
+        total: nullableInt,
+        vocab: nullableInt
+      },
+      additionalProperties: false
+    },
+    lines: {
+      type: 'object',
+      required: ['total', 'byLanguage'],
+      properties: {
+        total: nullableInt,
+        byLanguage: scanProfileLanguageLines
+      },
+      additionalProperties: false
+    },
+    bytes: {
+      type: 'object',
+      required: ['source', 'artifact'],
+      properties: {
+        source: nullableInt,
+        artifact: nullableInt
+      },
+      additionalProperties: false
+    },
+    artifacts: {
+      type: 'object',
+      required: ['filterIndex'],
+      properties: {
+        filterIndex: {
+          anyOf: [
+            { type: 'null' },
+            {
+              type: 'object',
+              additionalProperties: true
+            }
+          ]
+        }
+      },
+      additionalProperties: false
+    },
+    timings: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          additionalProperties: {
+            anyOf: [
+              { type: 'number' },
+              { type: 'integer' },
+              { type: 'boolean' },
+              { type: 'string' },
+              {
+                type: 'object',
+                additionalProperties: true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    throughput: {
+      type: 'object',
+      required: [
+        'totalMs',
+        'writeMs',
+        'filesPerSec',
+        'chunksPerSec',
+        'tokensPerSec',
+        'bytesPerSec',
+        'linesPerSec',
+        'writeBytesPerSec'
+      ],
+      properties: {
+        totalMs: nullableNumber,
+        writeMs: nullableNumber,
+        filesPerSec: nullableNumber,
+        chunksPerSec: nullableNumber,
+        tokensPerSec: nullableNumber,
+        bytesPerSec: nullableNumber,
+        linesPerSec: nullableNumber,
+        writeBytesPerSec: nullableNumber
+      },
+      additionalProperties: false
+    },
+    queues: {
+      type: 'object',
+      required: ['postings'],
+      properties: {
+        postings: {
+          anyOf: [
+            { type: 'null' },
+            {
+              type: 'object',
+              additionalProperties: true
+            }
+          ]
+        }
+      },
+      additionalProperties: false
+    },
+    quality: {
+      type: 'object',
+      required: ['lowYieldBailout'],
+      properties: {
+        observation: { type: 'string', enum: ['observed', 'unknown', 'not-applicable'] },
+        source: nullableString,
+        lowYieldBailout: {
+          anyOf: [
+            { type: 'null' },
+            extractionReportLowYieldBailout
+          ]
+        }
+      },
+      additionalProperties: false
+    },
+    reuse: reuseSummarySchema
+  },
+  additionalProperties: false
+};
+
+const scanProfileSchema = {
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'generatedAt',
+    'source',
+    'repo',
+    'modes',
+    'totals',
+    'languageLines',
+    'reuse'
+  ],
+  properties: {
+    schemaVersion: posInt,
+    generatedAt: { type: 'string' },
+    source: { type: 'string', const: 'report-artifacts' },
+    repo: {
+      type: 'object',
+      required: ['root', 'cacheRoot'],
+      properties: {
+        root: nullableString,
+        cacheRoot: nullableString
+      },
+      additionalProperties: false
+    },
+    modes: {
+      type: 'object',
+      required: ['code', 'prose', 'extracted-prose', 'records'],
+      properties: {
+        code: scanProfileModeSchema,
+        prose: scanProfileModeSchema,
+        'extracted-prose': scanProfileModeSchema,
+        records: scanProfileModeSchema
+      },
+      additionalProperties: false
+    },
+    totals: {
+      type: 'object',
+      required: [
+        'files',
+        'chunks',
+        'tokens',
+        'lines',
+        'bytes',
+        'durationMs',
+        'filesPerSec',
+        'chunksPerSec',
+        'tokensPerSec',
+        'bytesPerSec',
+        'linesPerSec'
+      ],
+      properties: {
+        files: {
+          type: 'object',
+          required: ['candidates', 'scanned', 'skipped'],
+          properties: {
+            candidates: intId,
+            scanned: intId,
+            skipped: intId
+          },
+          additionalProperties: false
+        },
+        chunks: intId,
+        tokens: intId,
+        lines: nullableInt,
+        bytes: {
+          type: 'object',
+          required: ['source', 'artifact'],
+          properties: {
+            source: nullableInt,
+            artifact: intId
+          },
+          additionalProperties: false
+        },
+        durationMs: nullableNumber,
+        filesPerSec: nullableNumber,
+        chunksPerSec: nullableNumber,
+        tokensPerSec: nullableNumber,
+        bytesPerSec: nullableNumber,
+        linesPerSec: nullableNumber
+      },
+      additionalProperties: false
+    },
+    languageLines: scanProfileLanguageLines,
+    reuse: reuseSummarySchema
+  },
+  additionalProperties: false
+};
+
 export const REPORT_ARTIFACT_SCHEMA_DEFS = {
   filelists: fileListsSchema,
   extraction_report: extractionReportSchema,
+  scan_profile: scanProfileSchema,
   lexicon_relation_filter_report: lexiconRelationFilterReportSchema,
   boilerplate_catalog: boilerplateCatalogSchema,
   determinism_report: {

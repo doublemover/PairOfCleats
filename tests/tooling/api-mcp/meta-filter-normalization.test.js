@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { normalizeMetaFilters } from '../../../tools/shared/search-request.js';
+import { normalizeMetaFilters } from '../../../src/shared/search-request.js';
 import { buildSearchParams } from '../../../tools/api/router/search.js';
 import { buildMcpSearchArgs } from '../../../tools/mcp/tools/search-args.js';
 

@@ -1,7 +1,8 @@
 import os from 'node:os';
-import { createSchedulerQueueAdapter, createTaskQueues } from '../../../shared/concurrency.js';
+import { createSchedulerQueueAdapter } from '../../../shared/concurrency/queue-adapter.js';
+import { createTaskQueues } from '../../../shared/concurrency/task-queues.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
-import { logLine } from '../../../shared/progress.js';
+import { logLine } from '../../../shared/progress-runtime.js';
 import { SCHEDULER_QUEUE_NAMES } from './scheduler.js';
 import { resolveThreadLimits } from '../../../shared/threads.js';
 import { createIndexerWorkerPools, resolveWorkerPoolConfig } from '../worker-pool.js';
@@ -113,6 +114,7 @@ const resolvePerWorkerCacheAndWriteBudget = ({
  * @param {object} input.envConfig
  * @param {object} input.indexingConfig
  * @param {(line:string)=>void} [input.log]
+ * @param {(line:string,meta?:object|null)=>void} [input.warn]
  * @returns {{
  *   threadLimits:object,
  *   cpuCount:number,
@@ -123,7 +125,7 @@ const resolvePerWorkerCacheAndWriteBudget = ({
  *   cpuConcurrency:number
  * }}
  */
-export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log }) => {
+export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingConfig, log, warn }) => {
   const configConcurrency = Number(indexingConfig.concurrency);
   const importConcurrencyConfig = Number(indexingConfig.importConcurrency);
   const ioConcurrencyCapConfig = Number(indexingConfig.ioConcurrencyCap);
@@ -153,13 +155,13 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
     const warning =
       `[threads] ioConcurrency=${ioConcurrency} exceeds UV_THREADPOOL_SIZE=${effectiveUvThreadpoolSize}. `
       + 'Consider aligning runtime.uvThreadpoolSize/UV_THREADPOOL_SIZE with your I/O concurrency for best throughput.';
-    if (typeof log === 'function') log(`[warn] ${warning}`);
+    if (typeof warn === 'function') warn(warning, { source: 'thread-limits' });
     else logLine(warning, { kind: 'warning' });
   } else if (!effectiveUvThreadpoolSize && envConfig.verbose && ioConcurrency >= 16) {
     const warning =
       `[threads] ioConcurrency=${ioConcurrency} with default UV threadpool. `
       + 'Consider setting runtime.uvThreadpoolSize (or UV_THREADPOOL_SIZE) for I/O-heavy indexing.';
-    if (typeof log === 'function') log(`[warn] ${warning}`);
+    if (typeof warn === 'function') warn(warning, { source: 'thread-limits' });
     else logLine(warning, { kind: 'warning' });
   }
 
@@ -469,6 +471,7 @@ export const createRuntimeQueues = ({
     const ioQueue = createSchedulerQueueAdapter({
       scheduler,
       queueName: SCHEDULER_QUEUE_NAMES.stage1Io,
+      backpressure: true,
       tokens: { io: 1 },
       maxPending: maxIoPending,
       maxPendingBytes: maxIoPendingBytes,

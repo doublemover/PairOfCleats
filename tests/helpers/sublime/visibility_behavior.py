@@ -1,12 +1,11 @@
 import importlib
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeRegion, FakeView, FakeWindow, install_fake_modules
+from runtime_harness import isolated_temp_directory, FakeRegion, FakeView, FakeWindow, install_fake_modules
 
 
 class _RunningProcess:
@@ -90,7 +89,7 @@ class VisibilityBehaviorTests(unittest.TestCase):
         self.assertFalse(jump.is_visible())
         self.assertFalse(report.is_visible())
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             node_path = os.path.join(tmp, 'nodes.json')
             with open(node_path, 'w', encoding='utf8') as handle:
                 handle.write('{"nodes": []}')
@@ -111,7 +110,7 @@ class VisibilityBehaviorTests(unittest.TestCase):
         self.assertFalse(start.is_visible())
         self.assertFalse(stop.is_visible())
 
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo = os.path.join(tmp, 'repo')
             os.makedirs(os.path.join(repo, '.git'))
             self.window.set_folders([repo])

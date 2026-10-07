@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { mergeConfig } from '../../../shared/config.js';
-import { resolveSubprocessFanoutPreset } from '../../../shared/subprocess.js';
+import { resolveSubprocessFanoutPreset } from '../../../shared/subprocess/options.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
 const INDEX_OPTIMIZATION_PROFILE_IDS = Object.freeze(['default', 'throughput', 'memory-saver']);

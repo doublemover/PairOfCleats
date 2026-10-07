@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 import {
   buildDeterminismReport,
   stripIndexStateNondeterministicFields
 } from '../../../src/index/build/artifacts/reporting.js';
 
-const sharedState = {
+const sharedState = withGeneratedArtifactMetadata({
   mode: 'code',
   artifactSurfaceVersion: '2.0.0',
   compatibilityKey: 'compat-test',
   profile: { id: 'default' }
-};
+}, 'index-state');
 
 const reportA = buildDeterminismReport({
   mode: 'code',
@@ -49,5 +50,10 @@ const stripped = stripIndexStateNondeterministicFields({
 assert.ok(!('generatedAt' in stripped), 'generatedAt should be removed for stable hash');
 assert.ok(!('updatedAt' in stripped), 'updatedAt should be removed for stable hash');
 assert.ok(!('buildId' in stripped), 'buildId should be removed for stable hash');
+assert.deepEqual(stripped.extensions.__poc_generated, sharedState.extensions.__poc_generated);
+const changed = structuredClone(sharedState);
+changed.extensions.__poc_generated.format = 'poc.generated@2';
+assert.notEqual(buildDeterminismReport({ indexState: changed }).normalizedStateHash,
+  reportA.normalizedStateHash, 'marker protocol changes must deliberately invalidate stable hashes');
 
 console.log('determinism report stable hash exclusions test passed');

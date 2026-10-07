@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { getToolCatalog } from '../../src/integrations/mcp/defs.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import {
   DEFAULT_MODEL_ID,
   getToolVersion,

@@ -55,7 +55,80 @@ export const formatLastModified = (value) => {
   return `${month}/${day}/${year} ${hours}:${minutes}${period}`;
 };
 
-export const INDENT = '     ';
+export const INDENT = '  ';
+
+let graphemeSegmenter = null;
+const segmentGraphemes = (text) => (
+  (graphemeSegmenter ||= new Intl.Segmenter('en', { granularity: 'grapheme' })).segment(text)
+);
+
+// Existing label budgets count UTF-16 units, not terminal display cells. Keep
+// cuts at grapheme boundaries without materializing every segment of a long path.
+const takeGraphemePrefix = (text, limit) => {
+  if (limit <= 0) return '';
+  if (text.length <= limit) return text;
+  let end = 0;
+  for (const { segment, index } of segmentGraphemes(text)) {
+    if (index + segment.length > limit) break;
+    end = index + segment.length;
+  }
+  return text.slice(0, end);
+};
+
+const takeGraphemeSuffix = (text, limit) => {
+  if (limit <= 0) return '';
+  if (text.length <= limit) return text;
+  const segments = segmentGraphemes(text);
+  let start = text.length;
+  while (start > 0) {
+    const segment = segments.containing(start - 1);
+    if (text.length - segment.index > limit) break;
+    start = segment.index;
+  }
+  return text.slice(start);
+};
+
+export const truncateVisibleText = (text, maxWidth, { ellipsis = '...' } = {}) => {
+  const raw = String(text ?? '');
+  const limit = Number.isFinite(maxWidth) ? Math.max(0, Math.floor(maxWidth)) : 0;
+  if (!limit) return '';
+  if (raw.length <= limit) return raw;
+  if (limit <= ellipsis.length) return takeGraphemePrefix(ellipsis, limit);
+  return `${takeGraphemePrefix(raw, limit - ellipsis.length)}${ellipsis}`;
+};
+
+const truncateTextMiddle = (text, limit) => {
+  if (text.length <= limit) return text;
+  const marker = '...';
+  if (limit <= marker.length) return takeGraphemePrefix(marker, limit);
+  const available = limit - marker.length;
+  const suffix = takeGraphemeSuffix(text, Math.ceil(available / 2));
+  const prefix = takeGraphemePrefix(text, available - suffix.length);
+  return `${prefix}${marker}${suffix}`;
+};
+
+export const truncatePathMiddle = (value, maxWidth, { ellipsis = '.../' } = {}) => {
+  const raw = String(value ?? '');
+  const limit = Number.isFinite(maxWidth) ? Math.max(0, Math.floor(maxWidth)) : 0;
+  if (!limit) return '';
+  if (raw.length <= limit) return raw;
+  if (limit <= ellipsis.length + 8) {
+    return truncateVisibleText(raw, limit, { ellipsis: '...' });
+  }
+  const normalized = raw.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
+  if (parts.length <= 1) return truncateTextMiddle(normalized, limit);
+  let suffix = parts.pop() || '';
+  if (ellipsis.length + suffix.length > limit) {
+    return `${ellipsis}${truncateTextMiddle(suffix, limit - ellipsis.length)}`;
+  }
+  while (parts.length) {
+    const next = `${parts.pop()}/${suffix}`;
+    if (`${ellipsis}${next}`.length > limit) break;
+    suffix = next;
+  }
+  return `${ellipsis}${suffix}`;
+};
 
 /**
  * Locale-neutral comparator for deterministic ordering across environments.
@@ -126,7 +199,8 @@ export const buildFormatCacheKey = ({
   mode,
   queryHash,
   matched,
-  explain
+  explain,
+  layoutSignature = ''
 }) => buildLocalCacheKey({
   namespace: 'format',
   payload: {
@@ -138,6 +212,7 @@ export const buildFormatCacheKey = ({
     matched: Boolean(matched),
     explain: Boolean(explain),
     queryHash,
+    layoutSignature,
     chunkVersion: resolveFormatChunkVersion(chunk)
   }
 }).key;

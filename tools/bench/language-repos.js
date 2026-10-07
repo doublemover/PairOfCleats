@@ -2,7 +2,11 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getBenchMirrorRefreshMs } from '../../src/shared/env.js';
+import { randomUUID } from 'node:crypto';
+import { getBenchMirrorRefreshMs } from '../../src/shared/env/bench.js';
+import { setCacheRootEnv } from '../../src/shared/env/runtime.js';
+import { getBenchTestEnvConfig } from '../../src/shared/env/testing.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
 import { parseBenchLanguageArgs } from './language/cli.js';
 import { loadBenchConfig } from './language/config.js';
@@ -16,7 +20,11 @@ import {
 import { createProcessRunner } from './language/process.js';
 import { buildBenchEnvironmentMetadata } from './language/logging.js';
 import { validateEncodingFixtures } from './language/metrics.js';
-import { buildReportOutput, printSummary } from './language/report.js';
+import {
+  createBenchMethodologyPolicy,
+  filterTasksToControlSlice
+} from './language/policy.js';
+import { buildBenchRunDiagnosticsSummaryLines, buildReportOutput, printSummary } from './language/report.js';
 import { createToolDisplay } from '../shared/cli-display.js';
 import {
   assignRepoLogMetadata,
@@ -26,7 +34,15 @@ import {
 } from './language-repos/planning.js';
 import { createBenchLogger } from './language-repos/logging.js';
 import { createRepoLifecycle } from './language-repos/lifecycle.js';
+import {
+  buildBenchRunSummaryFromLedgerEvents,
+  createBenchRunLedger,
+  readBenchRunLedger
+} from './language-repos/run-ledger.js';
 import { createBenchProgressRuntime, runBenchExecutionLoop } from './language-repos/run-loop.js';
+import { applyBenchmarkResourceRoots, resolveBenchmarkResourceRoots } from './language/resource-roots.js';
+import { prepareBenchmarkPrerequisites } from './language/prerequisites.js';
+import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
 
 const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
   {
@@ -71,14 +87,19 @@ const {
   argv,
   scriptRoot,
   runSuffix,
+  mode,
   configPath,
   reposRoot,
   cacheRoot,
+  resourceRoot,
   resultsRoot,
+  corpusVersion,
+  waiverFile,
   logPath: masterLogPath,
   cloneEnabled,
   dryRun,
   keepCache,
+  strictSubmodules,
   logWindowSize,
   lockMode,
   lockWaitMs,
@@ -87,6 +108,12 @@ const {
   backendList,
   wantsSqlite
 } = parseBenchLanguageArgs();
+
+// The launch-selected storage root must reach config resolution and subprocesses;
+// repository-local config cannot authorize a storage location.
+const resourceRoots = resolveBenchmarkResourceRoots({ root: scriptRoot, resourceRoot, cacheRoot });
+Object.assign(process.env, applyBenchmarkResourceRoots(process.env, resourceRoots));
+setCacheRootEnv(cacheRoot);
 
 const mirrorCacheRoot = resolveMirrorCacheRoot({ reposRoot });
 const mirrorRefreshMs = resolveMirrorRefreshMs(getBenchMirrorRefreshMs());
@@ -126,6 +153,7 @@ const {
   closeMasterLog,
   closeLogsSync,
   appendLog,
+  appendLogSync,
   writeListLine,
   writeLog,
   writeLogSync,
@@ -135,6 +163,9 @@ const {
   getLogPaths,
   logHistory
 } = logger;
+let runLedger = null;
+let finalizedRunSummary = null;
+let runCloseoutFinalized = false;
 
 const progressRuntime = createBenchProgressRuntime({
   display,
@@ -156,16 +187,121 @@ const closeLogs = async () => {
   await closeMasterLog();
 };
 
+const emitRunFooterToOperatorLog = async (summary, { sync = false } = {}) => {
+  if (!runLedger || !summary) return [];
+  const lines = sync
+    ? await runLedger.writeFooterArtifact(summary, { sync: true })
+    : await runLedger.writeFooterArtifact(summary);
+  for (const line of lines) {
+    writeLogSync(line);
+    if (!quietMode && argv.json !== true) {
+      display.log(line, { forceOutput: true });
+    }
+  }
+  return lines;
+};
+
+const rebuildRunSummary = async (output = null) => {
+  if (!runLedger) return null;
+  const events = await readBenchRunLedger(runLedger.ledgerPath);
+  return await buildBenchRunSummaryFromLedgerEvents({
+    events,
+    diagnosticsRoot: runDiagnosticsRoot,
+    output,
+    runSuffix,
+    logPaths: {
+      masterLogPath,
+      footerPath: runLedger.footerPath,
+      ledgerPath: runLedger.ledgerPath,
+      summaryPath: runLedger.summaryPath
+    }
+  });
+};
+
+const finalizeRunCloseout = async ({
+  endState,
+  endReason = null,
+  signal = null,
+  exitCode = null,
+  output = null
+}) => {
+  if (!runLedger) return null;
+  if (runCloseoutFinalized && finalizedRunSummary) return finalizedRunSummary;
+  let stage = 'closeout.start';
+  try {
+    runLedger.recordCloseoutEvent('closeout.started', {
+      state: endState,
+      reason: endReason,
+      signal,
+      exitCode
+    });
+    stage = 'summary.build';
+    let summary = await runLedger.buildSummary({
+      output,
+      endState,
+      endReason,
+      signal,
+      exitCode
+    });
+    stage = 'summary.write';
+    await runLedger.writeSummaryArtifact(summary);
+    runLedger.recordCloseoutEvent('closeout.summary_written', {
+      summaryPath: runLedger.summaryPath
+    });
+    await runLedger.flush();
+    summary = await rebuildRunSummary(output);
+    if (summary) {
+      await runLedger.writeSummaryArtifact(summary);
+    }
+    stage = 'footer.write';
+    const footerLines = await emitRunFooterToOperatorLog(summary);
+    runLedger.recordCloseoutEvent('closeout.footer_written', {
+      footerPath: runLedger.footerPath,
+      lineCount: footerLines.length
+    });
+    await runLedger.flush();
+    summary = await rebuildRunSummary(output);
+    if (summary) {
+      await runLedger.writeSummaryArtifact(summary);
+    }
+    finalizedRunSummary = summary;
+    runCloseoutFinalized = true;
+    await runLedger.close();
+    return summary;
+  } catch (error) {
+    try {
+      runLedger.recordCloseoutEvent('closeout.failed', {
+        stage,
+        message: error?.message || String(error)
+      }, { sync: true });
+      const fallbackSummary = runLedger.buildSummarySync({
+        endState,
+        endReason: endReason || 'closeout_failed',
+        signal,
+        exitCode
+      });
+      runLedger.writeSummaryArtifactSync(fallbackSummary);
+      await emitRunFooterToOperatorLog(fallbackSummary, { sync: true });
+      finalizedRunSummary = fallbackSummary;
+      runCloseoutFinalized = true;
+    } catch {}
+    try {
+      runLedger.closeSync();
+    } catch {}
+    throw error;
+  }
+};
+
 const reportFatal = (label, err) => {
   try {
     initMasterLog();
   } catch {}
   try {
     const details = err?.stack || String(err);
-    display.error(`[bench-language] Fatal: ${label}`);
-    display.error(details);
     const names = getLogPaths().map((entry) => path.basename(entry));
-    display.error(`[bench-language] Details logged (${names.join(', ')})`);
+    appendLogSync(`[bench-language] Fatal: ${label}`, 'error', { forceOutput: true });
+    appendLogSync(details, 'error', { forceOutput: true });
+    appendLogSync(`[bench-language] Details logged (${names.join(', ')})`, 'error', { forceOutput: true });
   } catch {}
 };
 
@@ -216,6 +352,20 @@ const gracefulShutdown = ({
         );
       }
     }
+    try {
+      await finalizeRunCloseout({
+        endState: normalizedReason === 'SIGINT' || normalizedReason === 'SIGTERM'
+          ? 'interrupted'
+          : 'fatal',
+        endReason: normalizedReason,
+        signal: normalizedReason === 'SIGINT' || normalizedReason === 'SIGTERM'
+          ? normalizedReason
+          : null,
+        exitCode
+      });
+    } catch (closeoutError) {
+      writeLogSync(`[closeout] failed during ${normalizedReason}: ${closeoutError?.message || closeoutError}`);
+    }
     processRunner.logExit(normalizedReason, exitCode);
     await closeLogs();
     display.close();
@@ -226,6 +376,7 @@ const gracefulShutdown = ({
 
 process.on('exit', (code) => {
   processRunner.logExit('exit', code);
+  runLedger?.closeSync?.();
   closeLogsSync();
 });
 process.on('SIGINT', () => {
@@ -347,12 +498,26 @@ try {
     scriptRoot
   });
 } catch (err) {
-  display.error(err?.message || String(err));
+  appendLog(err?.message || String(err), 'error', { forceOutput: true });
   exitWithDisplay(1);
 }
 
 if (argv.random) {
   shuffleInPlace(tasks);
+}
+const methodology = createBenchMethodologyPolicy({
+  argv: {
+    ...argv,
+    mode,
+    'control-slice-max': argv['control-slice-max']
+  },
+  tasks,
+  configPath,
+  waiverFile,
+  corpusVersion
+});
+if (argv['control-slice'] === true) {
+  tasks = filterTasksToControlSlice(tasks, methodology);
 }
 assignRepoLogMetadata({
   plannedTasks: tasks,
@@ -370,6 +535,7 @@ if (argv.list) {
     logsRoot: path.dirname(masterLogPath),
     diagnosticsRoot: runDiagnosticsRoot,
     runSuffix,
+    methodology,
     randomizedOrder: argv.random === true,
     masterLog: masterLogPath,
     languages: Object.keys(config),
@@ -401,7 +567,7 @@ if (argv.list) {
 }
 
 if (!tasks.length) {
-  display.error('No benchmark targets match the requested filters.');
+  appendLog('No benchmark targets match the requested filters.', 'error', { forceOutput: true });
   exitWithDisplay(1);
 }
 
@@ -423,7 +589,6 @@ if (cloneEnabled && !dryRun && cloneTool?.supportsMirrorClone) {
   appendLog(`[clone] mirror cache=${mirrorCacheRoot} refresh-ms=${mirrorRefreshMs}`);
 }
 
-const usrGuardrailBenchmarks = await runUsrGuardrailBenchmarks();
 const { executionPlans, precreateDirs } = buildExecutionPlans({
   tasks,
   reposRoot,
@@ -431,6 +596,36 @@ const { executionPlans, precreateDirs } = buildExecutionPlans({
   cacheRoot
 });
 await Promise.all(precreateDirs.map((dir) => fsPromises.mkdir(dir, { recursive: true })));
+runLedger = createBenchRunLedger({
+  logsRoot: path.dirname(masterLogPath),
+  runSuffix,
+  diagnosticsRoot: runDiagnosticsRoot,
+  configPath,
+  reposRoot,
+  cacheRoot,
+  resultsRoot,
+  masterLogPath,
+  waiverFile,
+  methodology
+});
+runLedger.recordRunStarted({
+  plannedRepoCount: executionPlans.length,
+  taskCount: tasks.length,
+  environment: benchEnvironmentMetadata
+});
+const testEnvConfig = getBenchTestEnvConfig();
+const testInterruptAfterMs = testEnvConfig.selfInterruptAfterMs;
+if (
+  testEnvConfig.testing
+  && Number.isFinite(testInterruptAfterMs)
+  && testInterruptAfterMs > 0
+) {
+  setTimeout(() => {
+    try {
+      process.kill(process.pid, 'SIGINT');
+    } catch {}
+  }, Math.floor(testInterruptAfterMs)).unref?.();
+}
 
 const lifecycle = createRepoLifecycle({
   appendLog,
@@ -439,6 +634,7 @@ const lifecycle = createRepoLifecycle({
   cloneEnabled,
   dryRun,
   keepCache,
+  strictSubmodules,
   cloneTool,
   cloneCommandEnv,
   mirrorCacheRoot,
@@ -447,9 +643,41 @@ const lifecycle = createRepoLifecycle({
   runDiagnosticsRoot,
   runSuffix,
   benchEnvironmentMetadata,
-  logHistory,
-  exitWithDisplay
+  logHistory
 });
+
+const prerequisites = await prepareBenchmarkPrerequisites({
+  executionPlans, lifecycle, dryRun, autoInstall: argv.provision !== false,
+  strict: argv['strict-prerequisites'] === true, onLog: appendLog,
+  checkPrerequisites: async ({ plan, autoInstall, strict }) => {
+    const receiptPath = path.join(runDiagnosticsRoot, 'prerequisites', `${plan.fallbackLogSlug}-${randomUUID()}`, 'receipt.json');
+    await fsPromises.mkdir(path.dirname(receiptPath), { recursive: true });
+    const args = [path.join(scriptRoot, 'tools/bench/language/prerequisite-check.js'),
+      '--repo', plan.repoPath, '--out', receiptPath, '--timeout-ms', String(benchTimeoutMs)];
+    if (!autoInstall) args.push('--no-install');
+    if (strict) args.push('--strict');
+    if (argv['stub-embeddings']) args.push('--stub-embeddings');
+    if (wantsSqlite) args.push('--sqlite');
+    const runtimeEnv = resolveRuntimeEnv(getRuntimeConfig(plan.repoPath, loadUserConfig(plan.repoPath)), baseEnv);
+    const result = await processRunner.runProcess(`prerequisites ${plan.repoLabel}`, process.execPath, args,
+      { cwd: scriptRoot, env: runtimeEnv, timeoutMs: benchTimeoutMs, continueOnError: true });
+    try {
+      const receipt = JSON.parse(await fsPromises.readFile(receiptPath, 'utf8'));
+      if (receipt.repoRoot !== path.resolve(plan.repoPath) || !receipt.readiness || !Array.isArray(receipt.readiness.items)
+        || (!result.ok && receipt.readiness.state !== 'blocked')) throw new Error('Inconsistent prerequisite receipt.');
+      return { ...receipt, receiptPath };
+    } catch (error) {
+      return { receiptPath, readiness: { state: 'blocked', ready: false, exitCode: 1,
+        blockedIds: ['prerequisite-check'], omittedIds: [], items: [{ id: 'prerequisite-check', required: true,
+          state: 'failed', reason: result.signal || error.message, exitCode: result.code ?? null }] } };
+    }
+  }
+});
+await writeJsonFileResolved(path.join(runDiagnosticsRoot, 'prerequisites.json'), prerequisites.report);
+// Prerequisite installation and initialization finish before benchmark children or guardrail timing.
+const canMeasure = !prerequisites.report.campaignBlocked && [...prerequisites.preparedRepos.values()]
+  .some((prepared) => prepared.presence.ok && prepared.workspace?.ok && prepared.prerequisite?.readiness?.state !== 'blocked');
+const usrGuardrailBenchmarks = canMeasure ? await runUsrGuardrailBenchmarks() : [];
 
 progressRuntime.setTotal(tasks.length);
 const results = await runBenchExecutionLoop({
@@ -467,8 +695,11 @@ const results = await runBenchExecutionLoop({
   getRepoLogPath,
   clearLogHistory,
   hasDiskFullMessageInHistory,
+  runLedger,
   progressRuntime,
   lifecycle,
+  preparedRepos: prerequisites.preparedRepos,
+  prerequisiteCampaignBlocked: prerequisites.report.campaignBlocked,
   wantsSqlite,
   backendList,
   lockMode,
@@ -477,16 +708,19 @@ const results = await runBenchExecutionLoop({
   benchTimeoutMs
 });
 
-await closeLogs();
-
 const output = await buildReportOutput({
   configPath,
   cacheRoot,
   resultsRoot,
   results,
   config,
-  runSuffix
+  environmentMetadata: benchEnvironmentMetadata,
+  runLabel: runSuffix,
+  runSuffix,
+  waiverFile,
+  methodology
 });
+output.prerequisites = prerequisites.report;
 if (usrGuardrailBenchmarks.length) {
   output.usrGuardrails = {
     generatedAt: new Date().toISOString(),
@@ -505,29 +739,46 @@ if (!quietMode) {
   printSummary('Overall', output.overallSummary, results.length, quietMode, {
     writeLine: (line) => appendLog(line)
   });
-  const retainedCount = Number(output?.diagnostics?.crashRetention?.retainedCount) || 0;
-  if (retainedCount > 0) {
-    appendLog(`[diagnostics] retained crash bundles: ${retainedCount}`);
+  for (const line of buildBenchRunDiagnosticsSummaryLines(output)) {
+    appendLog(line);
+  }
+  if (output?.run?.aggregateResultClass) {
+    appendLog(
+      `[verdict] ${output.run.aggregateResultClass} `
+        + `(unwaived=${Number(output?.run?.issues?.unwaivedCount || 0)} waived=${Number(output?.run?.issues?.waivedCount || 0)})`
+    );
   }
 }
 
 const outputPath = argv.out ? path.resolve(argv.out) : null;
 if (outputPath) {
-  await fsPromises.mkdir(path.dirname(outputPath), { recursive: true });
-  await fsPromises.writeFile(outputPath, JSON.stringify(output, null, 2));
+  await writeJsonFileResolved(outputPath, output);
 }
+appendLog(`Completed ${results.length} benchmark runs.`);
+if (outputPath) {
+  appendLog(`[summary] written (${path.basename(outputPath)})`, 'info', {
+    fileOnlyLine: `Summary written to ${outputPath}`
+  });
+}
+
+finalizedRunSummary = await finalizeRunCloseout({
+  endState: 'completed',
+  endReason: 'completed',
+  exitCode: Number.isFinite(Number(output?.run?.exitCode))
+    ? Number(output.run.exitCode)
+    : 0,
+  output
+});
 
 if (argv.json) {
   await closeLogs();
   display.close();
   console.log(JSON.stringify(output, null, 2));
 } else {
-  appendLog(`Completed ${results.length} benchmark runs.`);
-  if (outputPath) {
-    appendLog(`[summary] written (${path.basename(outputPath)})`, 'info', {
-      fileOnlyLine: `Summary written to ${outputPath}`
-    });
-  }
   await closeLogs();
   display.close();
 }
+
+process.exitCode = Number.isFinite(Number(output?.run?.exitCode))
+  ? Number(output.run.exitCode)
+  : 0;

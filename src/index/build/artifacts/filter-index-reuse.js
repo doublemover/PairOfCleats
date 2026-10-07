@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { readJsonFile } from '../../../shared/artifact-io.js';
+import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { buildSerializedFilterIndex } from './filter-index.js';
 import { summarizeFilterIndex, formatBytes } from './helpers.js';
 

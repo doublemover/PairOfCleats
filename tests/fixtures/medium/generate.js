@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..', '..');

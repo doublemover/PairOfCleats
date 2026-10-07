@@ -14,6 +14,12 @@ compared using the following tie-break rules:
 These invariants ensure that tie cases produce consistent output across runs and across different
 ANN/sparse providers.
 
+Comparators work on scalar values without constructing intermediate normalized-ID
+records or small-list sorting records. Mixed numeric/string ID order, duplicate
+ties, selector evaluation and ID coercion behavior remain compatible. Focused
+parity fixtures cover both heap and full-sort paths; end-to-end allocation or
+latency gains have not been measured.
+
 ## Top-K Selection
 
 Top-K selection uses a heap-based reducer when the candidate list is large enough relative to `k`
@@ -24,14 +30,113 @@ compose results (fusion + ranking). The `slack` is bounded to keep memory usage 
 
 ## Buffers and Pools
 
+Fusion owns one mutable accumulator for each distinct document across sparse and
+ANN contributions. Updates reuse that private record instead of constructing an
+update object and replacement record for every hit. Input hits remain immutable;
+first-seen document order, duplicate last-value behavior, plain/RRF/blended scores
+and explanation fields retain their existing output. Ten pre-change snapshots
+and pooled-result controls verify parity. A tiny 128-contribution overlap fixture
+observes 64 accumulator records instead of 128 replacements; end-to-end heap and
+latency have not been measured.
+
 Candidate sets and score buffers use small pools to avoid repeated allocations inside a single query.
 Pools are capped and drop oversized buffers to avoid unbounded growth.
 
+Score-buffer fallback growth is geometric and stays within the configured
+retention ceiling while the requested size fits. The main search pipeline
+already supplies a capacity hint; fallback growth is an API safety improvement,
+not evidence of a normal-query latency gain. Reset and release clear only the
+previous active prefix's nonnumeric references, including oversized drops.
+Released buffers have no active lease and duplicate release cannot pool one
+buffer twice. Retained output objects must be independent of borrowed entry views.
+
+Top-K comparators use primitive ID/type values and selector locals, avoiding
+temporary comparison records while retaining numeric-before-string ordering,
+string coercion, selector evaluation order and stable source-rank ties. No timing
+gain is implied by this source-level allocation reduction.
+Resetting a score buffer retires nonnumeric values in its active rows, including
+the transient blend/RRF explanations created during fusion. Entry objects and
+numeric arrays remain reusable; unused capacity is not scanned. Ranking returns
+independent result objects before the pipeline releases the buffer, so previously
+returned results survive later reuse. Borrowed buffer entries are valid only until
+reset or release. This is a reference-lifetime improvement; no throughput or RSS
+reduction has been measured.
+
+Output file-text and body-summary caches honor their configured byte budgets
+when no entry-count environment override is supplied. A missing override is
+distinct from an explicit zero, which disables the cache; explicit positive
+entry limits retain their existing precedence. Repeated summaries and different
+chunks from the same file reuse the admitted text within the configured search
+session. A tiny fixture counts actual reads rather than claiming a throughput
+improvement. This caller correction is independent of the shared dual-cap LRU policy.
+
+## MinHash Signature Work
+
+For ordinary string tokens and unsigned integer seeds, MinHash factors its
+existing polynomial recurrence into one UTF-16 scan and a short arithmetic update
+per signature component. It preserves the original 32-bit signature values, seed
+order, reset behavior and query ranking, including compatibility with existing
+indexes. Empty tokens, unusual seeds, nonstring token-like inputs and custom hash
+methods retain their prior hash behavior. The focused test compares the original
+recurrence and counts character reads; it does not measure end-to-end speed.
+
 ## ANN Fallbacks
+
+Post-load vocabulary indexes build their Map directly for ordinary arrays,
+without retaining a temporary array of `[term, position]` pairs. Duplicate terms
+still keep their last position and first insertion order; existing indexes are
+reused. Sparse vocabularies retain their native rejection, and custom mapping or
+array constructors use the previous route. A tiny actual hydration fixture covers
+phrase, character and field postings indexes. It verifies the omitted pair-array
+input; whole-query peak memory and latency remain unmeasured.
+
+The same pure helper serves lazy BM25, candidate and phrase-constraint owners,
+so indexes entering without a prebuilt vocabulary Map avoid those temporary
+pairs too. Tiny actual-owner fixtures retain exact BM25 scores, ordered candidate
+IDs and authoritative phrase matches against prebuilt-Map controls. Cache reuse,
+mapping fallback and sparse rejection rules are shared rather than duplicated.
+
+Hot query-cache overflow retains an independent sorted snapshot, caps that
+temporary snapshot, then consumes it synchronously into the replacement Map.
+It avoids another capped-prefix array while preserving timestamp normalization,
+stable ties, entry references, upserts and signature isolation. A tiny five-trim
+fixture reduces owner copy arrays10→5 and copied references45→25. The sorted
+array is not retained after Map construction; disk/prewarm policy and entry
+limits are unchanged. This is an operation count, not a heap or latency result.
 
 Vector ANN backends are queried only when vectors are present and an embedding has been computed for
 the query. If no provider is available, the pipeline logs a single warning and continues with sparse
 ranking.
+
+## Sampled MinHash
+
+Sampled signatures are compared using the same recorded stride and component
+indices for the query, with similarity divided by the sampled width. JSON,
+packed artifacts and streamed rows retain that descriptor. SQLite stores it in
+an optional per-mode metadata table, while full-width legacy schema-12 stores
+remain readable. The LMDB producer accepts packed-only artifacts and preserves
+numeric values through its existing codec. Unknown sampling plans and shortened
+rows without metadata are unavailable rather than guessed. Older sampled SQLite
+stores and packed-only LMDB stores need a backend rebuild to restore those data;
+there is no automatic store migration.
+
+With `minhashStream` enabled, oversized-corpus emission retains the sampling
+descriptor and borrows the existing chunk signatures instead of retaining a
+second array of transformed rows. JSON measurement/writing uses a repeatable
+iterator that allocates only the current sampled row. Packed emission reads the
+recorded indices directly into its final buffer, preserving the bytes and row
+coercion behavior of materialized sampling. Explicit `minhashStream: false`
+retains materialized rows. This removes the additional document-count-sized JS
+row collection; the existing full chunk signatures and complete packed buffer
+are still retained. No whole-index peak-memory or throughput gain is measured.
+
+After the packed binary and its metadata are successfully written, publication
+reuses the SHA-1 checksum already computed for those exact binary bytes. The
+pieces manifest still checks that the file exists; it avoids an additional full
+read/hash of that packed file. The packed metadata sidecar also carries its committed writer checksum;
+other artifact families retain their existing checksum paths. A tiny actual-writer fixture verifies the digest
+independently and counts the avoided reread. This does not change packed bytes,
+checksum validation or atomic write/failure boundaries.
 
 ## Graph/Context Pack Caches
 
@@ -42,12 +147,43 @@ Cache keys include `indexSignature`, `repoRoot`, requested graph set, and the CS
 `graph_relations_csr` is loaded and validated (ordering/offsets/bounds); invalid CSR falls back to a legacy
 `graph_relations` representation (and may derive CSR from it).
 
+After required artifact loads complete, concurrent graph requests recheck the
+existing index cache before building another synchronous copy. Six same-key
+callers build once in a tiny fixture, including legacy/CSR traversal parity;
+separate request stores can share that completed index too. Keyless calls remain
+uncached, selected graphs and the existing three-entry limit remain unchanged,
+and a failed artifact load still fails its request. This avoids duplicate index
+construction without a new pending-promise cache. Separate stores still perform
+their own artifact loads. The internal recheck preserves LRU order without adding
+another public request hit/miss observation; end-to-end timing and peak memory
+are unmeasured.
+
 Callers should pass either a prebuilt `graphIndex` (preferred) or raw `graphRelations` (baseline). When CSR is enabled,
 some graphIndex variants store a trimmed graph_relations representation (no adjacency lists); passing both `graphIndex` and
 raw `graphRelations` will trigger `GRAPH_INDEX_MISMATCH` and disable cache reuse.
 
 When CSR is available, incoming traversal (`direction=in|both`) should use a reverse-edge CSR derived once per graphIndex,
 instead of materializing full `in`/`both` adjacency lists.
+
+Neighborhood traversal consumes raw call/usage CSR rows through iterators,
+including the sorted union of incoming and outgoing IDs. It avoids per-node
+neighbor arrays while retaining direction, duplicate removal and deterministic
+ordering. Import normalization and legacy adjacency retain their existing
+materialized sorting paths; the default direct resolver API still returns arrays.
+The synchronous traversal borrows the immutable graph index for the iterator's
+lifetime. Tiny fixtures verify output/path/cap parity and prefix-only CSR reads.
+The traversal still retains admitted candidates and visited/witness state;
+total allocation, peak RSS and latency changes remain unmeasured.
+
+When a fanout cap is present, candidate objects and call-site evidence are built
+only for that existing ordered prefix. Traversal still counts all eligible
+neighbors to preserve exact observed/omitted metadata and bucket priority, and
+records symbol-candidate notices even when fanout discards their edges. The
+uncapped route retains its prior full output. A tiny 64-call-neighbor fixture
+with a cap of three performs three evidence lookups instead of 64 and matches
+the previous nodes, edges, paths, counts and truncation metadata. This bounds
+candidate retention by the selected cap; it does not eliminate the scan required
+for complete omission counts or claim whole-query peak-memory/latency gains.
 
 Some traversal results may be cached per graphIndex, keyed by the traversal query signature (seeds, filters, depth/direction, caps, includePaths)
 and `indexSignature`. Cache hits must preserve deterministic ordering.

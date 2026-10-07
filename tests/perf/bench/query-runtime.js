@@ -1,10 +1,11 @@
 import fsSync from 'node:fs';
 import os from 'node:os';
 import { fork } from 'node:child_process';
-import { readIndexArtifactBytes } from '../../../src/shared/ops-resource-visibility.js';
+import { readIndexArtifactBytes } from '../../../src/shared/ops/resource-visibility.js';
 import { killProcessTree } from '../../../src/shared/kill-tree.js';
 import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { attachSilentLogging } from '../../helpers/test-env.js';
+import { resolveBenchQueryByteEstimate } from '../../../tools/bench/language/query-byte-estimate.js';
 
 export const DEFAULT_QUERY_WORKER_HEARTBEAT_MS = 5000;
 export const DEFAULT_QUERY_WORKER_STALL_WARN_MS = 30000;
@@ -95,19 +96,15 @@ export const resolveAdaptiveQueryWorkerCount = async ({
     };
   }
 
-  const codeBytes = Number.isFinite(Number(codeArtifactBytes))
-    ? Number(codeArtifactBytes)
-    : (runtimeRoot ? await readIndexArtifactBytes(getIndexDir(runtimeRoot, 'code', userConfig) || '') : null);
-  const proseBytes = Number.isFinite(Number(proseArtifactBytes))
-    ? Number(proseArtifactBytes)
-    : (runtimeRoot ? await readIndexArtifactBytes(getIndexDir(runtimeRoot, 'prose', userConfig) || '') : null);
+  const codeBytes = await resolveBenchQueryByteEstimate(codeArtifactBytes, () => (
+    runtimeRoot ? readIndexArtifactBytes(getIndexDir(runtimeRoot, 'code', userConfig) || '') : null
+  ));
+  const proseBytes = await resolveBenchQueryByteEstimate(proseArtifactBytes, () => (
+    runtimeRoot ? readIndexArtifactBytes(getIndexDir(runtimeRoot, 'prose', userConfig) || '') : null
+  ));
   const sqlitePaths = runtimeRoot ? resolveSqlitePaths(runtimeRoot, userConfig) : null;
-  const sqliteCode = Number.isFinite(Number(sqliteCodeBytes))
-    ? Number(sqliteCodeBytes)
-    : statSizeSync(sqlitePaths?.codePath);
-  const sqliteProse = Number.isFinite(Number(sqliteProseBytes))
-    ? Number(sqliteProseBytes)
-    : statSizeSync(sqlitePaths?.prosePath);
+  const sqliteCode = await resolveBenchQueryByteEstimate(sqliteCodeBytes, () => statSizeSync(sqlitePaths?.codePath));
+  const sqliteProse = await resolveBenchQueryByteEstimate(sqliteProseBytes, () => statSizeSync(sqlitePaths?.prosePath));
 
   const totalArtifactBytes = toFiniteNonNegative(codeBytes) + toFiniteNonNegative(proseBytes);
   const totalSqliteBytes = toFiniteNonNegative(sqliteCode) + toFiniteNonNegative(sqliteProse);
@@ -431,6 +428,7 @@ const createSearchWorker = ({
       }
       if (message?.type === 'run-complete') {
         if (!ownsActiveRequest(session, id)) return;
+        activeRequest.lastHeartbeatAt = now();
         emitEvent({
           type: 'run-complete',
           id,

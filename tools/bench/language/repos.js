@@ -1,11 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { runCommand } from '../../shared/cli-utils.js';
 import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { emitBenchLog } from './logging.js';
+import { readRepoSubmoduleMetadata, recoverRepoSubmodules } from './submodule-recovery.js';
+import {
+  classifyRepoPreflightBlock,
+  classifySubmoduleContractState,
+  resolveRepoPreflightContract
+} from './repo-preflight-contracts.js';
 
 let gitCommandRunner = runCommand;
+const repoPreflightFailureCache = new Map();
 
 const canRun = (cmd, args) => {
   try {
@@ -32,6 +39,10 @@ export const __setGitCommandRunnerForTests = (runner) => {
   gitCommandRunner = typeof runner === 'function' ? runner : runCommand;
 };
 
+export const __resetRepoPreflightFailureCacheForTests = () => {
+  repoPreflightFailureCache.clear();
+};
+
 const trimToFirstLine = (value) => (
   String(value || '')
     .split(/\r?\n/)
@@ -49,7 +60,8 @@ const normalizeStatusCode = (value) => {
 const isTimeoutFailure = (error) => {
   if (!error || typeof error !== 'object') return false;
   if (error.timedOut === true) return true;
-  if (String(error.code || '').toUpperCase() === 'ETIMEDOUT') return true;
+  if (['ETIMEDOUT', 'SUBPROCESS_TIMEOUT'].includes(String(error.code || '').toUpperCase())) return true;
+  if (error.name === 'SubprocessTimeoutError') return true;
   const text = [
     error.shortMessage,
     error.message,
@@ -64,27 +76,31 @@ const isTimeoutFailure = (error) => {
 
 const buildGitFailureResult = (error, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS } = {}) => {
   const timeout = isTimeoutFailure(error);
+  const commandResult = error?.result || error;
   const stderr = timeout
     ? `timed out after ${timeoutMs}ms`
-    : trimToFirstLine(error?.stderr || error?.stdout || error?.shortMessage || error?.message || error)
+    : trimToFirstLine(commandResult?.stderr || commandResult?.stdout || error?.shortMessage || error?.message || error)
       || 'command failed';
-  const rawStatus = error?.exitCode ?? error?.status;
+  const rawStatus = commandResult?.exitCode ?? commandResult?.status;
   const status = normalizeStatusCode(rawStatus);
   return {
     ok: false,
     status,
-    stdout: typeof error?.stdout === 'string' ? error.stdout : '',
+    stdout: typeof commandResult?.stdout === 'string' ? commandResult.stdout : '',
     stderr,
-    timedOut: timeout
+    timedOut: timeout,
+    cancelled: error?.name === 'AbortError' || error?.code === 'ABORT_ERR',
+    signal: typeof commandResult?.signal === 'string' ? commandResult.signal : null
   };
 };
 
-const runGitCommand = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, repoPath = null } = {}) => {
+const runGitCommand = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, repoPath = null, input } = {}) => {
   const fullArgs = repoPath ? ['-C', repoPath, ...args] : args;
   try {
     const result = gitCommandRunner('git', fullArgs, {
       encoding: 'utf8',
       timeoutMs,
+      input,
       env: buildNonInteractiveGitEnv()
     });
     return {
@@ -92,15 +108,17 @@ const runGitCommand = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, repoPat
       status: normalizeStatusCode(result?.status),
       stdout: typeof result?.stdout === 'string' ? result.stdout : '',
       stderr: typeof result?.stderr === 'string' ? result.stderr : '',
-      timedOut: result?.timedOut === true
+      timedOut: result?.timedOut === true,
+      cancelled: result?.cancelled === true,
+      signal: typeof result?.signal === 'string' ? result.signal : null
     };
   } catch (error) {
     return buildGitFailureResult(error, { timeoutMs });
   }
 };
 
-const runGitInRepo = (repoPath, args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS } = {}) => {
-  return runGitCommand(args, { timeoutMs, repoPath });
+const runGitInRepo = (repoPath, args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS, input } = {}) => {
+  return runGitCommand(args, { timeoutMs, repoPath, input });
 };
 
 const firstOutputLine = (result) => {
@@ -130,6 +148,33 @@ const summarizeFailureTail = (result, { maxLines = 4 } = {}) => {
     prefix.length > 0 ? `${prefix.join(' ')}` : null,
     selected.join(' | ')
   ].filter(Boolean).join(' ');
+};
+
+const clonePreflightCacheEntry = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  try {
+    return JSON.parse(JSON.stringify(entry));
+  } catch {
+    return null;
+  }
+};
+
+const readRepoPreflightFailureCache = ({ repoPath, fingerprint } = {}) => {
+  const key = `${path.resolve(String(repoPath || ''))}::${String(fingerprint || '')}`;
+  return clonePreflightCacheEntry(repoPreflightFailureCache.get(key) || null);
+};
+
+const writeRepoPreflightFailureCache = ({ repoPath, fingerprint, summary } = {}) => {
+  if (!repoPath || !fingerprint || !summary || typeof summary !== 'object') return;
+  const key = `${path.resolve(String(repoPath || ''))}::${String(fingerprint || '')}`;
+  repoPreflightFailureCache.set(key, clonePreflightCacheEntry(summary));
+};
+
+const clearRepoPreflightFailureCache = ({ repoPath } = {}) => {
+  const repoPrefix = `${path.resolve(String(repoPath || ''))}::`;
+  for (const key of Array.from(repoPreflightFailureCache.keys())) {
+    if (key.startsWith(repoPrefix)) repoPreflightFailureCache.delete(key);
+  }
 };
 
 const runGit = (args, { timeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS } = {}) => {
@@ -345,7 +390,9 @@ export const ensureRepoBenchmarkReady = ({
   repoPath,
   onLog = null,
   preflightTimeoutMs = DEFAULT_PREFLIGHT_TIMEOUT_MS,
-  pullLfs = true
+  pullLfs = true,
+  repoContract = null,
+  strictSubmodules = false
 }) => {
   const log = (message, level = 'info') => {
     if (typeof onLog !== 'function') return;
@@ -356,6 +403,18 @@ export const ensureRepoBenchmarkReady = ({
     failureReason: null,
     failureCode: null,
     failureDetail: null,
+    preflight: {
+      state: 'not_applicable',
+      stage: null,
+      blockedClass: null,
+      cacheHit: false,
+      cachedFingerprint: null,
+      failingSubmodule: null,
+      partialReady: false,
+      discoveryComplete: true,
+      submodulePolicy: strictSubmodules === true ? 'strict-required' : 'best-effort',
+      contract: null
+    },
     gitRepo: false,
     submodules: {
       detected: 0,
@@ -364,7 +423,12 @@ export const ensureRepoBenchmarkReady = ({
       missing: 0,
       dirty: 0,
       updated: false,
-      rewriteGithubSshToHttps: false
+      rewriteGithubSshToHttps: false,
+      optionalMissingPaths: [],
+      optionalDirtyPaths: [],
+      requiredMissingPaths: [],
+      requiredDirtyPaths: [],
+      warnings: []
     },
     lfs: {
       supported: false,
@@ -375,7 +439,10 @@ export const ensureRepoBenchmarkReady = ({
   const markFailure = ({
     reason,
     code = null,
-    detail = null
+    detail = null,
+    state = 'blocked_repo_contract',
+    stage = null,
+    failingSubmodule = null
   }) => {
     summary.ok = false;
     summary.failureReason = typeof reason === 'string' && reason.trim()
@@ -384,6 +451,16 @@ export const ensureRepoBenchmarkReady = ({
     summary.failureCode = normalizeStatusCode(code);
     summary.failureDetail = typeof detail === 'string' && detail.trim()
       ? detail.trim()
+      : null;
+    const blocked = classifyRepoPreflightBlock({
+      detail: summary.failureDetail,
+      timedOut: state === 'blocked_timeout'
+    });
+    summary.preflight.state = state || blocked.state;
+    summary.preflight.stage = stage || null;
+    summary.preflight.blockedClass = blocked.blockedClass;
+    summary.preflight.failingSubmodule = typeof failingSubmodule === 'string' && failingSubmodule.trim()
+      ? failingSubmodule.trim()
       : null;
   };
   if (!repoPath || !fs.existsSync(repoPath)) return summary;
@@ -397,9 +474,94 @@ export const ensureRepoBenchmarkReady = ({
     return summary;
   }
   summary.gitRepo = true;
+  summary.preflight.state = 'ready';
+  summary.preflight.stage = 'git_repo_ready';
+  const contract = resolveRepoPreflightContract({ repoPath, repoContract });
+  summary.preflight.contract = {
+    schemaVersion: contract.schemaVersion,
+    key: contract.key,
+    optionalSubmodules: contract.optionalSubmodules,
+    requiredSubmodules: contract.requiredSubmodules,
+    notes: contract.notes
+  };
+  const failureFingerprint = `${contract.fingerprint}|submodules=strict-required`;
+  const cachedFailure = strictSubmodules === true ? readRepoPreflightFailureCache({
+    repoPath,
+    fingerprint: failureFingerprint
+  }) : null;
+  if (cachedFailure?.ok === false) {
+    cachedFailure.preflight = {
+      ...(cachedFailure.preflight || {}),
+      cacheHit: true,
+      cachedFingerprint: contract.fingerprint
+    };
+    return {
+      ...summary,
+      ...cachedFailure,
+      preflight: {
+        ...summary.preflight,
+        ...(cachedFailure.preflight || {}),
+        cacheHit: true,
+        cachedFingerprint: contract.fingerprint,
+        contract: summary.preflight.contract
+      }
+    };
+  }
 
   const gitmodulesPath = path.join(repoPath, '.gitmodules');
-  if (fs.existsSync(gitmodulesPath)) {
+  let hasGitmodules = false;
+  try { hasGitmodules = !!fs.lstatSync(gitmodulesPath); }
+  catch (error) {
+    if (error.code !== 'ENOENT') {
+      summary.preflight.discoveryComplete = false;
+      markFailure({ reason: 'preflight-submodule-metadata-unavailable', detail: error.message,
+        stage: 'submodule_discovery' });
+      return summary;
+    }
+  }
+  if (hasGitmodules && strictSubmodules !== true) {
+    const recovery = recoverRepoSubmodules({
+      repoPath, runGit: runGitInRepo, timeoutMs: preflightTimeoutMs, onLog: log
+    });
+    const entries = recovery.entries;
+    const contractState = classifySubmoduleContractState(entries, contract);
+    Object.assign(summary.submodules, {
+      detected: entries.length,
+      initialMissing: entries.filter((entry) => entry.initialMissing).length,
+      initialDirty: entries.filter((entry) => entry.initialDirty).length,
+      missing: entries.filter((entry) => entry.missing).length,
+      dirty: entries.filter((entry) => entry.dirty).length,
+      updated: recovery.updated,
+      rewriteGithubSshToHttps: recovery.rewriteGithubSshToHttps,
+      optionalMissingPaths: contractState.optionalMissingPaths,
+      optionalDirtyPaths: contractState.optionalDirtyPaths,
+      requiredMissingPaths: contractState.requiredMissingPaths,
+      requiredDirtyPaths: contractState.requiredDirtyPaths,
+      warnings: recovery.warnings
+    });
+    summary.preflight.discoveryComplete = recovery.discoveryComplete;
+    summary.preflight.stage = 'submodule_verify';
+    if (!recovery.ok) {
+      markFailure({ reason: `preflight-submodule-${recovery.fatal.reason}`,
+        code: recovery.fatal.code, detail: recovery.fatal.detail,
+        stage: 'submodule_discovery', failingSubmodule: recovery.fatal.path });
+      return summary;
+    }
+    summary.preflight.partialReady = recovery.partialReady;
+    summary.preflight.state = recovery.partialReady
+      ? contractState.hasRequiredFailures || !recovery.discoveryComplete
+        ? 'ready_partial_submodules' : 'ready_partial_optional_submodules'
+      : 'ready';
+    if (entries.length && !recovery.partialReady) log(`[repo-preflight] submodules verified (${repoName}, count=${entries.length}).`);
+  } else if (hasGitmodules) {
+    summary.preflight.stage = 'submodule_discovery';
+    let gitmodulesRaw;
+    try { gitmodulesRaw = readRepoSubmoduleMetadata(repoPath, gitmodulesPath); }
+    catch (error) {
+      markFailure({ reason: 'preflight-submodule-unsafe-metadata', detail: error.message,
+        stage: 'submodule_discovery' });
+      return summary;
+    }
     const statusResult = runGitInRepo(repoPath, ['submodule', 'status', '--recursive'], {
       timeoutMs: preflightTimeoutMs
     });
@@ -412,7 +574,14 @@ export const ensureRepoBenchmarkReady = ({
       markFailure({
         reason: 'preflight-submodule-status',
         code: statusResult.status,
-        detail
+        detail,
+        state: classifyRepoPreflightBlock({ detail, timedOut: statusResult.timedOut === true }).state,
+        stage: 'submodule_discovery'
+      });
+      writeRepoPreflightFailureCache({
+        repoPath,
+        fingerprint: failureFingerprint,
+        summary
       });
       return summary;
     } else {
@@ -424,13 +593,18 @@ export const ensureRepoBenchmarkReady = ({
       summary.submodules.initialDirty = initialDirty;
       summary.submodules.missing = initialMissing;
       summary.submodules.dirty = initialDirty;
+      const initialContractState = classifySubmoduleContractState(entries, contract);
+      summary.submodules.optionalMissingPaths = initialContractState.optionalMissingPaths;
+      summary.submodules.optionalDirtyPaths = initialContractState.optionalDirtyPaths;
+      summary.submodules.requiredMissingPaths = initialContractState.requiredMissingPaths;
+      summary.submodules.requiredDirtyPaths = initialContractState.requiredDirtyPaths;
       if (initialMissing > 0 || initialDirty > 0) {
+        summary.preflight.stage = 'submodule_sync';
         runGitInRepo(repoPath, ['submodule', 'sync', '--recursive'], {
           timeoutMs: Math.min(preflightTimeoutMs, 45000)
         });
-        let updateArgs = ['submodule', 'update', '--init', '--recursive', '--jobs', '8'];
+        let updateArgs = ['submodule', 'update', '--init', '--checkout', '--recursive', '--jobs', '1'];
         try {
-          const gitmodulesRaw = fs.readFileSync(gitmodulesPath, 'utf8');
           if (/git@github\.com:/i.test(gitmodulesRaw)) {
             summary.submodules.rewriteGithubSshToHttps = true;
             updateArgs = [
@@ -441,6 +615,7 @@ export const ensureRepoBenchmarkReady = ({
             log(`[repo-preflight] rewriting GitHub SSH submodule URLs to HTTPS (${repoName}).`);
           }
         } catch {}
+        summary.preflight.stage = 'submodule_update';
         const updateResult = runGitInRepo(
           repoPath,
           updateArgs,
@@ -455,10 +630,21 @@ export const ensureRepoBenchmarkReady = ({
           markFailure({
             reason: 'preflight-submodule-init',
             code: updateResult.status,
-            detail
+            detail,
+            state: classifyRepoPreflightBlock({ detail, timedOut: updateResult.timedOut === true }).state,
+            stage: 'submodule_update',
+            failingSubmodule: summary.submodules.requiredMissingPaths[0]
+              || summary.submodules.optionalMissingPaths[0]
+              || null
+          });
+          writeRepoPreflightFailureCache({
+            repoPath,
+            fingerprint: failureFingerprint,
+            summary
           });
           return summary;
         } else {
+          summary.preflight.stage = 'submodule_verify';
           const verifyResult = runGitInRepo(repoPath, ['submodule', 'status', '--recursive'], {
             timeoutMs: preflightTimeoutMs
           });
@@ -471,22 +657,65 @@ export const ensureRepoBenchmarkReady = ({
             markFailure({
               reason: 'preflight-submodule-verify',
               code: verifyResult.status,
-              detail
+              detail,
+              state: classifyRepoPreflightBlock({ detail, timedOut: verifyResult.timedOut === true }).state,
+              stage: 'submodule_verify'
+            });
+            writeRepoPreflightFailureCache({
+              repoPath,
+              fingerprint: failureFingerprint,
+              summary
             });
             return summary;
           }
           const verifiedEntries = parseSubmoduleStatusLines(verifyResult.stdout);
           summary.submodules.missing = verifiedEntries.filter((entry) => entry.missing).length;
           summary.submodules.dirty = verifiedEntries.filter((entry) => entry.dirty).length;
-          if (summary.submodules.missing > 0 || summary.submodules.dirty > 0) {
-            const detail = `remaining missing=${summary.submodules.missing}, dirty=${summary.submodules.dirty}`;
-            log(`[repo-preflight] submodule initialization incomplete (${repoName}): ${detail}.`, 'warn');
-            markFailure({
-              reason: 'preflight-submodule-incomplete',
-              code: null,
-              detail
-            });
-            return summary;
+          const verifiedContractState = classifySubmoduleContractState(verifiedEntries, contract);
+          summary.submodules.optionalMissingPaths = verifiedContractState.optionalMissingPaths;
+          summary.submodules.optionalDirtyPaths = verifiedContractState.optionalDirtyPaths;
+          summary.submodules.requiredMissingPaths = verifiedContractState.requiredMissingPaths;
+          summary.submodules.requiredDirtyPaths = verifiedContractState.requiredDirtyPaths;
+          if (verifiedContractState.hasRequiredFailures || verifiedContractState.hasOptionalFailures) {
+            const detail = [
+              `remaining missing=${summary.submodules.missing}`,
+              `dirty=${summary.submodules.dirty}`,
+              verifiedContractState.requiredMissingPaths.length > 0
+                ? `requiredMissing=${verifiedContractState.requiredMissingPaths.join(',')}`
+                : null,
+              verifiedContractState.requiredDirtyPaths.length > 0
+                ? `requiredDirty=${verifiedContractState.requiredDirtyPaths.join(',')}`
+                : null,
+              verifiedContractState.optionalMissingPaths.length > 0
+                ? `optionalMissing=${verifiedContractState.optionalMissingPaths.join(',')}`
+                : null,
+              verifiedContractState.optionalDirtyPaths.length > 0
+                ? `optionalDirty=${verifiedContractState.optionalDirtyPaths.join(',')}`
+                : null
+            ].filter(Boolean).join(', ');
+            if (verifiedContractState.hasRequiredFailures) {
+              log(`[repo-preflight] submodule initialization incomplete (${repoName}): ${detail}.`, 'warn');
+              markFailure({
+                reason: 'preflight-submodule-incomplete',
+                code: null,
+                detail,
+                state: 'blocked_repo_contract',
+                stage: 'submodule_verify',
+                failingSubmodule: verifiedContractState.requiredMissingPaths[0]
+                  || verifiedContractState.requiredDirtyPaths[0]
+                  || null
+              });
+              writeRepoPreflightFailureCache({
+                repoPath,
+                fingerprint: failureFingerprint,
+                summary
+              });
+              return summary;
+            }
+            summary.preflight.state = 'ready_partial_optional_submodules';
+            summary.preflight.stage = 'submodule_verify';
+            summary.preflight.partialReady = true;
+            log(`[repo-preflight] optional submodules unavailable (${repoName}): ${detail}.`, 'warn');
           }
           summary.submodules.updated = true;
           const initialStateText = `initialMissing=${summary.submodules.initialMissing}, initialDirty=${summary.submodules.initialDirty}`;
@@ -499,6 +728,8 @@ export const ensureRepoBenchmarkReady = ({
       }
     }
   }
+
+  clearRepoPreflightFailureCache({ repoPath });
 
   if (pullLfs) {
     const lfsVersion = runCommand('git', ['lfs', 'version'], {

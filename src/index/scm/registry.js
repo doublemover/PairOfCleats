@@ -3,7 +3,7 @@ import {
   isSyncCommandTimedOut,
   runSyncCommandWithTimeout,
   toSyncCommandExitCode
-} from '../../shared/subprocess.js';
+} from '../../shared/subprocess/sync-command.js';
 import { assertScmProvider, normalizeProviderName } from './provider.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
 import { gitProvider } from './providers/git.js';

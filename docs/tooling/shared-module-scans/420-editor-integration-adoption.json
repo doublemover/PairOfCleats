@@ -1,0 +1,232 @@
+{
+  "issueId": "420",
+  "title": "Scan editor, extension, and integration surfaces for missed shared-module adoption",
+  "scanDate": "2026-03-26",
+  "scope": "H31 editor/integration scan across extensions/**, sublime/**, src/integrations/**, editor tooling under tools/tui/**, and packaging entrypoints tools/package-vscode.js and tools/package-sublime.js.",
+  "summary": {
+    "overallAssessment": "These surfaces already share some of the right low-level primitives, but there are still three clear adoption seams: the VS Code extension retains a vendored Windows wrapper implementation that should track the shared wrapper policy more deliberately, several integration CLI entrypoints repeat direct-execution and repo-root/index bootstrap patterns that can converge on existing shared helpers, and TUI packaging/supervisor surfaces still have partially separate runtime/config/artifact conventions that should reuse shared low-level helpers while keeping UI/session behavior local.",
+    "highestPriorityHotspots": [
+      {
+        "category": "editor-side Windows wrapper logic",
+        "whyItMatters": "The extension launches the CLI on Windows and already carries a mirrored wrapper implementation. Drift here reintroduces the same wrapper bugs that have already been fixed centrally.",
+        "bestExistingSharedModule": "src/shared/subprocess/windows-cmd.js"
+      },
+      {
+        "category": "integration CLI bootstrap and direct execution",
+        "whyItMatters": "Integration entrypoints build user-facing payloads and should not each re-derive repo-root/index-dir/bootstrap rules or direct-entry guards.",
+        "bestExistingSharedModules": [
+          "src/shared/direct-execution.js",
+          "src/integrations/tooling/cli-helpers.js",
+          "tools/shared/dict-utils.js"
+        ]
+      },
+      {
+        "category": "TUI runtime and artifact baseline",
+        "whyItMatters": "The TUI is an editor-adjacent surface with its own packaging and supervisor layer. Drift here affects release verification, artifact collection, and runtime behavior.",
+        "bestExistingSharedModules": [
+          "tools/shared/dict-utils.js",
+          "src/shared/runtime-envelope.js",
+          "src/shared/stable-json.js",
+          "src/shared/subprocess/windows-cmd.js"
+        ]
+      }
+    ]
+  },
+  "hotspotMatrix": [
+    {
+      "name": "VS Code extension carries a vendored Windows wrapper implementation",
+      "sharedModule": "src/shared/subprocess/windows-cmd.js",
+      "localImplementations": [
+        "extensions/vscode/windows-cmd.js",
+        "extensions/vscode/windows-cmd-core.cjs",
+        "extensions/vscode/extension.js"
+      ],
+      "recommendedAction": "Treat the extension wrapper implementation as a vendored mirror of the shared Windows wrapper policy and keep it synchronized with the shared version rather than evolving it independently.",
+      "whyThisWayIsBest": "The extension package needs local files, but it should not own an independent wrapper policy. The shared module is already the canonical bug-fix point.",
+      "testsToRequire": [
+        "VS Code windows-cmd parity tests against the shared implementation",
+        "extension packaging tests that ensure the vendored wrapper files remain present and aligned"
+      ]
+    },
+    {
+      "name": "Integration CLI entrypoints repeat repo-root/index bootstrap and direct-execution logic",
+      "sharedModules": [
+        "src/shared/direct-execution.js",
+        "src/integrations/tooling/cli-helpers.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "localImplementations": [
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js"
+      ],
+      "recommendedAction": "Use the shared direct-execution helper for entrypoint gating, keep shared repo-relative changed-input parsing in cli-helpers.js, and only hoist additional bootstrap pieces when the semantic fit is exact.",
+      "whyThisWayIsBest": "These CLIs are structurally similar, but not identical. Reusing the exact low-level helpers removes drift without flattening each tool into one generic wrapper.",
+      "testsToRequire": [
+        "CLI parity tests for graph/context-pack/impact/API-contract surfaces",
+        "symlink or launcher-entry regressions if direct-execution logic is migrated"
+      ]
+    },
+    {
+      "name": "Integration surfaces still depend on tool-side dict-utils for repo-root/index bootstrap",
+      "sharedModules": [
+        "tools/shared/dict-utils.js"
+      ],
+      "localImplementations": [
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js",
+        "src/integrations/mcp/defs.js",
+        "src/integrations/mcp/validate.js",
+        "src/integrations/triage/index-records.js",
+        "src/integrations/core/build-index/sqlite.js"
+      ],
+      "recommendedAction": "Do not deepen this dependency. Record it as a migration target for a later proper src-shared repo/workspace/cache-root helper family rather than broadening tools/shared imports further.",
+      "whyThisWayIsBest": "The cross-layer seam is already known to be imperfect. Increasing adoption now would make later extraction harder.",
+      "testsToRequire": [
+        "No direct migration under #420 unless a replacement shared surface exists",
+        "Follow-on extraction should be covered by integration/core parity tests"
+      ]
+    },
+    {
+      "name": "TUI runtime/config/artifact surfaces partially duplicate low-level helper behavior",
+      "sharedModules": [
+        "tools/shared/dict-utils.js",
+        "src/shared/runtime-envelope.js",
+        "src/shared/stable-json.js",
+        "src/shared/subprocess/windows-cmd.js"
+      ],
+      "localImplementations": [
+        "tools/tui/build.js",
+        "tools/tui/install.js",
+        "tools/tui/targets.js",
+        "tools/tui/build-support.js",
+        "tools/tui/supervisor.js",
+        "tools/tui/supervisor/artifacts.js",
+        "tools/tui/supervisor/protocol-flow.js"
+      ],
+      "recommendedAction": "Share low-level runtime/config/wrapper/serialization behavior where it cleanly matches existing modules, but keep session protocol, UI lifecycle, and capture semantics local to the TUI surface.",
+      "whyThisWayIsBest": "The TUI has real product-specific behavior. The right cleanup is at the helper boundary, not by forcing the supervisor or protocol model into generic shared modules.",
+      "testsToRequire": [
+        "TUI wrapper behavior, startup handshake, and artifact collection regressions whenever low-level helpers change",
+        "release verify-surface tests where TUI packaging/runtime behavior is affected"
+      ]
+    },
+    {
+      "name": "Sublime plugin surfaces are largely API-client and UI specific",
+      "sharedModules": [
+        "tools/api contracts and response payload conventions"
+      ],
+      "localImplementations": [
+        "sublime/PairOfCleats/lib/api_client.py",
+        "sublime/PairOfCleats/lib/results.py",
+        "sublime/PairOfCleats/lib/tasks.py",
+        "sublime/PairOfCleats/commands/*.py"
+      ],
+      "recommendedAction": "Treat this as a mostly no-adopt zone from the JavaScript shared-module perspective. Keep Sublime-specific Python UI/task behavior local and only align payload conventions with the API/editor contract surfaces.",
+      "whyThisWayIsBest": "Cross-language plugin code should not be forced into JS shared-module patterns. The real shared contract here is payload shape and command semantics, not implementation reuse."
+    }
+  ],
+  "mappings": [
+    {
+      "problemSurface": "Windows wrapper policy in editor tooling",
+      "adoptSharedModules": [
+        "src/shared/subprocess/windows-cmd.js"
+      ],
+      "preferredMigrationTargets": [
+        "extensions/vscode/windows-cmd.js",
+        "extensions/vscode/windows-cmd-core.cjs",
+        "extensions/vscode/extension.js"
+      ]
+    },
+    {
+      "problemSurface": "Integration CLI direct execution and repo-relative helper reuse",
+      "adoptSharedModules": [
+        "src/shared/direct-execution.js",
+        "src/integrations/tooling/cli-helpers.js"
+      ],
+      "preferredMigrationTargets": [
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js"
+      ]
+    },
+    {
+      "problemSurface": "TUI low-level runtime/config/wrapper behavior",
+      "adoptSharedModules": [
+        "tools/shared/dict-utils.js",
+        "src/shared/runtime-envelope.js",
+        "src/shared/stable-json.js",
+        "src/shared/subprocess/windows-cmd.js"
+      ],
+      "preferredMigrationTargets": [
+        "tools/tui/build.js",
+        "tools/tui/install.js",
+        "tools/tui/targets.js",
+        "tools/tui/build-support.js",
+        "tools/tui/supervisor/artifacts.js",
+        "tools/tui/supervisor/protocol-flow.js"
+      ]
+    },
+    {
+      "problemSurface": "Integration code importing tool-side dict-utils",
+      "adoptSharedModules": [],
+      "preferredMigrationTargets": [
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js",
+        "src/integrations/triage/index-records.js",
+        "src/integrations/core/build-index/sqlite.js"
+      ],
+      "noAdoptRationale": "Do not expand the tools/shared dependency from integration/core surfaces; handle this through later H32 extraction work."
+    }
+  ],
+  "localExceptions": [
+    {
+      "path": "extensions/vscode/extension.js",
+      "reasonToRemainMostlyLocal": "Editor session UX, command registration, and process orchestration are VS Code specific even when wrapper/runtime helpers should align."
+    },
+    {
+      "path": "tools/tui/supervisor/**",
+      "reasonToRemainMostlyLocal": "Supervisor state machine, session protocol, and artifact semantics are TUI-product specific."
+    },
+    {
+      "path": "sublime/PairOfCleats/**",
+      "reasonToRemainLocal": "Python plugin implementation should stay local; the real shared contract is payload and command semantics, not code reuse."
+    },
+    {
+      "path": "src/integrations/tooling/providers/lsp/**",
+      "reasonToRemainMostlyLocal": "Provider/session logic already uses many shared low-level primitives and remains domain specific beyond that point."
+    },
+    {
+      "path": "src/integrations/core/build-index/**",
+      "reasonToRemainSelective": "Core orchestration should keep its product-specific stage model while adopting low-level shared helpers where exact fit exists."
+    }
+  ],
+  "recommendedFollowUps": [
+    {
+      "issueId": "423",
+      "why": "The integration-to-tools/shared dict-utils seam should be replaced by a real shared repo/workspace/cache-root/generation family."
+    },
+    {
+      "issueId": "424",
+      "why": "If VS Code/TUI wrapper and runtime cleanup still feels fragmented after H31, formalize the broader subprocess/toolchain helper family."
+    },
+    {
+      "issueId": "425",
+      "why": "If integration payload builders for search/risk/context-pack still repeat too much after selective adoption, create the dedicated shared helper family there."
+    },
+    {
+      "issueId": "428",
+      "why": "Editor/API/CLI parity helpers and fixture-driven harnesses may belong in the shared test-harness issue once the adoption patterns are clearer."
+    }
+  ]
+}

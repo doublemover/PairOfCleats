@@ -144,7 +144,19 @@ export function getCapabilities(options = {}) {
     opts,
     { allowEsm: true }
   );
-  cached.mcp.sdk = check('@modelcontextprotocol/sdk', opts, { allowEsm: true });
+  cached.mcp.sdk = checkCandidates(
+    ['@modelcontextprotocol/sdk/server/index.js', '@modelcontextprotocol/sdk/server'],
+    opts,
+    { allowEsm: true, validate: (mod) => typeof (mod?.Server || mod?.McpServer) === 'function' }
+  ) && checkCandidates(
+    ['@modelcontextprotocol/sdk/server/stdio.js', '@modelcontextprotocol/sdk/server/stdio'],
+    opts,
+    { allowEsm: true, validate: (mod) => typeof mod?.StdioServerTransport === 'function' }
+  ) && checkCandidates(
+    ['@modelcontextprotocol/sdk/types.js', '@modelcontextprotocol/sdk/types'],
+    opts,
+    { allowEsm: true, validate: (mod) => Boolean(mod?.CallToolRequestSchema && mod?.ListToolsRequestSchema) }
+  );
   cached.externalBackends.tantivy = check('tantivy', opts);
   cached.externalBackends.lancedb = check('@lancedb/lancedb', opts, { allowEsm: true });
   const nativeAccel = getNativeAccelCapabilities();

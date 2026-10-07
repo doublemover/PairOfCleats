@@ -1,4 +1,4 @@
-import { runWithConcurrency } from '../../shared/concurrency.js';
+import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { buildLineAuthors, getChunkAuthorsFromLines } from '../../index/scm/annotate.js';
 import { toRepoPosixPath } from '../../index/scm/paths.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../../index/scm/registry.js';
@@ -90,16 +90,24 @@ const normalizeChunkAuthorList = (authors) => {
   return out;
 };
 
+const resolveExistingChunkAuthors = (chunk) => (
+  Array.isArray(chunk?.chunk_authors)
+    ? chunk.chunk_authors
+    : (Array.isArray(chunk?.chunkAuthors) ? chunk.chunkAuthors : null)
+);
+
+const hasExistingChunkAuthors = (chunk) => {
+  const existingAuthors = resolveExistingChunkAuthors(chunk);
+  return Array.isArray(existingAuthors) && existingAuthors.length > 0;
+};
+
 const countResolvableMissingChunkAuthors = (chunkMeta) => {
   if (!Array.isArray(chunkMeta) || !chunkMeta.length) return 0;
   let count = 0;
   for (let index = 0; index < chunkMeta.length; index += 1) {
     const chunk = chunkMeta[index];
     if (!chunk) continue;
-    const existingAuthors = Array.isArray(chunk?.chunk_authors)
-      ? chunk.chunk_authors
-      : (Array.isArray(chunk?.chunkAuthors) ? chunk.chunkAuthors : null);
-    if (Array.isArray(existingAuthors) && existingAuthors.length) continue;
+    if (hasExistingChunkAuthors(chunk)) continue;
     if (!String(chunk?.file || '').trim()) continue;
     if (!resolveChunkLineRange(chunk)) continue;
     if (!resolveChunkAuthorChunkKey(chunk, index)) continue;
@@ -115,10 +123,7 @@ const resolveMissingChunkAuthorRefs = (chunkMeta, repoRoot) => {
   for (let index = 0; index < chunkMeta.length; index += 1) {
     const chunk = chunkMeta[index];
     if (!chunk) continue;
-    const existingAuthors = Array.isArray(chunk?.chunk_authors)
-      ? chunk.chunk_authors
-      : (Array.isArray(chunk?.chunkAuthors) ? chunk.chunkAuthors : null);
-    if (Array.isArray(existingAuthors) && existingAuthors.length) continue;
+    if (hasExistingChunkAuthors(chunk)) continue;
     const filePosix = toRepoPosixPath(chunk?.file, repoRoot);
     const lineRange = resolveChunkLineRange(chunk);
     const chunkKey = resolveChunkAuthorChunkKey(chunk, index);
@@ -146,10 +151,7 @@ const applyChunkAuthorMapToChunks = ({ chunkMeta, chunkAuthorsByKey }) => {
     if (!key) continue;
     const authors = chunkAuthorsByKey.get(key);
     if (!Array.isArray(authors) || !authors.length) continue;
-    const existingAuthors = Array.isArray(chunk?.chunk_authors)
-      ? chunk.chunk_authors
-      : (Array.isArray(chunk?.chunkAuthors) ? chunk.chunkAuthors : null);
-    if (Array.isArray(existingAuthors) && existingAuthors.length) continue;
+    if (hasExistingChunkAuthors(chunk)) continue;
     const nextAuthors = Array.from(authors);
     chunk.chunk_authors = nextAuthors;
     chunk.chunkAuthors = nextAuthors;

@@ -1,0 +1,745 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
+import { buildRiskDeltaPayload } from '../../src/context-pack/risk-delta.js';
+import { getRepoCacheRoot } from '../../src/shared/dict-utils.js';
+import { writeJsonFile } from '../../src/shared/json-file.js';
+import { createAnalysisSurfaceHarness } from '../helpers/analysis-surface-parity.js';
+import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
+import { resolveTestCachePath } from '../helpers/test-cache.js';
+
+applyTestEnv();
+
+const root = process.cwd();
+const tempRoot = resolveTestCachePath(root, 'risk-delta-surface-parity');
+const repoRoot = path.join(tempRoot, 'repo');
+const cacheRoot = path.join(tempRoot, 'cache');
+const userConfig = {
+  cache: { root: cacheRoot },
+  sqlite: { use: false },
+  lmdb: { use: false }
+};
+const env = applyTestEnv({ cacheRoot });
+
+const writeJson = (filePath, value) => writeJsonFile(filePath, value);
+
+const sha1Value = (value) => crypto.createHash('sha1').update(String(value)).digest('hex');
+
+const sha1File = async (filePath) => {
+  const content = await fs.readFile(filePath);
+  return crypto.createHash('sha1').update(content).digest('hex');
+};
+
+const writePiecesManifest = async (indexDir, files) => {
+  const pieces = [];
+  for (const entry of files) {
+    const absolute = path.join(indexDir, entry.path);
+    const stat = await fs.stat(absolute);
+    pieces.push({
+      type: entry.type,
+      name: entry.name,
+      format: 'json',
+      path: entry.path,
+      bytes: Number(stat.size || 0),
+      checksum: `sha1:${await sha1File(absolute)}`
+    });
+  }
+  await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
+    version: 2,
+    artifactSurfaceVersion: '0.2.0',
+    pieces
+  });
+};
+
+const RISK_ARTIFACT_MANIFEST_ENTRIES = Object.freeze([
+  { type: 'meta', name: 'file_meta', path: 'file_meta.json' },
+  { type: 'chunks', name: 'chunk_meta', path: 'chunk_meta.json' },
+  { type: 'analysis', name: 'risk_summaries', path: 'risk_summaries.json' },
+  { type: 'analysis', name: 'risk_flows', path: 'risk_flows.json' },
+  { type: 'analysis', name: 'risk_partial_flows', path: 'risk_partial_flows.json' },
+  { type: 'analysis', name: 'risk_interprocedural_stats', path: 'risk_interprocedural_stats.json' }
+]);
+
+const writeRiskPiecesManifest = (indexDir) => writePiecesManifest(indexDir, RISK_ARTIFACT_MANIFEST_ENTRIES);
+
+const writeCurrentBuildPointer = (repoCacheRoot, buildId) => writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  buildId,
+  buildRoot: `builds/${buildId}`,
+  buildRoots: { code: `builds/${buildId}` }
+});
+
+const buildFlow = ({
+  flowId,
+  confidence,
+  chunkUid,
+  sinkChunkUid = chunkUid,
+  sinkRuleId,
+  pathChunkUids,
+  callSiteId,
+  semanticKinds
+}) => ({
+  flowId,
+  confidence,
+  source: {
+    chunkUid,
+    ruleId: 'source.req.body',
+    ruleName: 'req.body',
+    ruleType: 'source',
+    ruleRole: 'source',
+    category: 'input',
+    severity: 'medium',
+    tags: ['http']
+  },
+  sink: {
+    chunkUid: sinkChunkUid,
+    ruleId: sinkRuleId,
+    ruleName: sinkRuleId,
+    ruleType: 'sink',
+    ruleRole: 'sink',
+    category: 'execution',
+    severity: 'critical',
+    tags: ['exec']
+  },
+  path: {
+    chunkUids: pathChunkUids,
+    callSiteIdsByStep: [[callSiteId]],
+    watchByStep: [{
+      semanticKinds,
+      confidenceBefore: confidence,
+      confidenceAfter: Math.max(0, confidence - 0.1)
+    }]
+  },
+  notes: {
+    hopCount: Math.max(0, pathChunkUids.length - 1),
+    strictness: 'conservative'
+  }
+});
+
+const buildPartialFlow = ({
+  partialFlowId,
+  confidence,
+  chunkUid,
+  frontierChunkUid,
+  terminalReason
+}) => ({
+  partialFlowId,
+  confidence,
+  source: {
+    chunkUid,
+    ruleId: 'source.req.body',
+    ruleName: 'req.body',
+    ruleType: 'source',
+    ruleRole: 'source',
+    category: 'input',
+    severity: 'medium',
+    tags: ['http']
+  },
+  frontier: {
+    chunkUid: frontierChunkUid,
+    terminalReason,
+    blockedExpansions: []
+  },
+  path: {
+    chunkUids: [chunkUid, frontierChunkUid],
+    callSiteIdsByStep: [['call-frontier']],
+    watchByStep: [{
+      semanticKinds: ['callback'],
+      confidenceBefore: confidence,
+      confidenceAfter: Math.max(0, confidence - 0.05)
+    }]
+  },
+  notes: {
+    terminalReason,
+    hopCount: 1
+  }
+});
+
+const createRiskSummary = ({
+  chunkUid,
+  sinkCategory = 'execution',
+  sinkTags = ['exec'],
+  sinkCount,
+  sinkSignals
+}) => {
+  const sinks = Array.isArray(sinkSignals)
+    ? sinkSignals.map((signal) => ({
+      category: signal.category,
+      tags: Array.isArray(signal.tags) ? [...signal.tags] : []
+    }))
+    : Array.from({ length: Number.isFinite(sinkCount) ? sinkCount : 1 }, () => ({
+      category: sinkCategory,
+      tags: [...sinkTags]
+    }));
+
+  return {
+    chunkUid,
+    file: 'src/a.js',
+    languageId: 'javascript',
+    totals: {
+      sources: 1,
+      sinks: Number.isFinite(sinkCount) ? sinkCount : sinks.length,
+      sanitizers: 0,
+      localFlows: 0
+    },
+    truncated: {
+      sources: false,
+      sinks: false,
+      sanitizers: false,
+      localFlows: false,
+      evidence: false
+    },
+    signals: {
+      sources: [{ category: 'input', tags: ['http'] }],
+      sinks,
+      sanitizers: [],
+      localFlows: []
+    }
+  };
+};
+
+const seedBuild = async ({
+  repoCacheRoot,
+  buildId,
+  chunkUid,
+  flows,
+  partialFlows
+}) => {
+  const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
+  const indexDir = path.join(buildRoot, 'index-code');
+  await fs.mkdir(indexDir, { recursive: true });
+
+  const fileMeta = [{
+    id: 1,
+    file: 'src/a.js',
+    hash: sha1Value(buildId),
+    size: 32,
+    ext: '.js'
+  }];
+  const chunkMeta = [{
+    id: 1,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 0,
+    end: 32,
+    startLine: 1,
+    endLine: 2,
+    kind: 'function',
+    name: 'alpha',
+    chunkUid,
+    metaV2: {
+      chunkUid,
+      chunkId: 'alpha',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: {
+        symbolId: 'sym:alpha',
+        name: 'alpha',
+        kind: 'function'
+      }
+    }
+  }];
+  const riskSummary = [createRiskSummary({
+    chunkUid,
+    sinkSignals: flows.map((flow) => ({ category: flow.sink.category, tags: flow.sink.tags }))
+  })];
+  const riskStats = {
+    status: 'ok',
+    counts: {
+      flowsEmitted: flows.length,
+      partialFlowsEmitted: partialFlows.length,
+      summariesEmitted: 1,
+      uniqueCallSitesReferenced: flows.length + partialFlows.length
+    },
+    effectiveConfig: {
+      enabled: true,
+      summaryOnly: false
+    },
+    provenance: {
+      ruleBundle: {
+        version: '1.0.0',
+        fingerprint: `sha1:${sha1Value(`rules-${buildId}`)}`
+      }
+    },
+    artifacts: {
+      stats: 'present',
+      summaries: 'present',
+      flows: 'present',
+      partialFlows: 'present',
+      callSites: 'not_required'
+    }
+  };
+
+  await writeJson(path.join(indexDir, 'file_meta.json'), fileMeta);
+  await writeJson(path.join(indexDir, 'chunk_meta.json'), chunkMeta);
+  await writeJson(path.join(indexDir, 'risk_summaries.json'), riskSummary);
+  await writeJson(path.join(indexDir, 'risk_flows.json'), flows);
+  await writeJson(path.join(indexDir, 'risk_partial_flows.json'), partialFlows);
+  await writeJson(path.join(indexDir, 'risk_interprocedural_stats.json'), riskStats);
+  await writeRiskPiecesManifest(indexDir);
+  await writeJson(path.join(buildRoot, 'build_state.json'), {
+    schemaVersion: 1,
+    buildId,
+    configHash: 'cfg-risk-delta',
+    tool: { version: '1.0.0' },
+    validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] }
+  });
+};
+
+const normalizeDelta = (payload) => ({
+  from: payload?.from?.canonical || null,
+  to: payload?.to?.canonical || null,
+  fromSeedStatus: payload?.from?.seedStatus || null,
+  toSeedStatus: payload?.to?.seedStatus || null,
+  fromTarget: payload?.from?.target?.chunkUid || null,
+  toTarget: payload?.to?.target?.chunkUid || null,
+  fromSummarySinks: payload?.from?.summary?.totals?.sinks ?? null,
+  toSummarySinks: payload?.to?.summary?.totals?.sinks ?? null,
+  fromRuleBundle: payload?.from?.provenance?.ruleBundle?.fingerprint || null,
+  toRuleBundle: payload?.to?.provenance?.ruleBundle?.fingerprint || null,
+  flowSummary: payload?.summary?.flowCounts || null,
+  partialSummary: payload?.summary?.partialFlowCounts || null,
+  added: Array.isArray(payload?.deltas?.flows?.added) ? payload.deltas.flows.added.map((entry) => entry.flowId) : [],
+  removed: Array.isArray(payload?.deltas?.flows?.removed) ? payload.deltas.flows.removed.map((entry) => entry.flowId) : [],
+  changed: Array.isArray(payload?.deltas?.flows?.changed)
+    ? payload.deltas.flows.changed.map((entry) => ({
+      flowId: entry.flowId,
+      changedFields: entry.changedFields
+    }))
+    : [],
+  addedPartial: Array.isArray(payload?.deltas?.partialFlows?.added)
+    ? payload.deltas.partialFlows.added.map((entry) => entry.partialFlowId)
+    : [],
+  removedPartial: Array.isArray(payload?.deltas?.partialFlows?.removed)
+    ? payload.deltas.partialFlows.removed.map((entry) => entry.partialFlowId)
+    : [],
+  changedPartial: Array.isArray(payload?.deltas?.partialFlows?.changed)
+    ? payload.deltas.partialFlows.changed.map((entry) => ({
+      partialFlowId: entry.partialFlowId,
+      changedFields: entry.changedFields
+    }))
+    : []
+});
+
+await fs.rm(tempRoot, { recursive: true, force: true });
+await fs.mkdir(repoRoot, { recursive: true });
+
+const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
+await fs.writeFile(path.join(repoRoot, 'src', 'a.js'), 'export function alpha(input) { return input; }\n', 'utf8').catch(async () => {
+  await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fs.writeFile(path.join(repoRoot, 'src', 'a.js'), 'export function alpha(input) { return input; }\n', 'utf8');
+});
+
+const flowStableA = buildFlow({
+  flowId: 'sha1:1111111111111111111111111111111111111111',
+  confidence: 0.9,
+  chunkUid: 'chunk-alpha-a',
+  sinkRuleId: 'sink.eval',
+  pathChunkUids: ['chunk-alpha-a'],
+  callSiteId: 'call-a',
+  semanticKinds: ['callback']
+});
+const flowRemoved = buildFlow({
+  flowId: 'sha1:2222222222222222222222222222222222222222',
+  confidence: 0.7,
+  chunkUid: 'chunk-alpha-a',
+  sinkRuleId: 'sink.shell',
+  pathChunkUids: ['chunk-alpha-a'],
+  callSiteId: 'call-b',
+  semanticKinds: ['builder']
+});
+const partialStableA = buildPartialFlow({
+  partialFlowId: 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  confidence: 0.6,
+  chunkUid: 'chunk-alpha-a',
+  frontierChunkUid: 'chunk-frontier-a',
+  terminalReason: 'maxDepth'
+});
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-a',
+  chunkUid: 'chunk-alpha-a',
+  flows: [flowStableA, flowRemoved],
+  partialFlows: [partialStableA]
+});
+await writeCurrentBuildPointer(repoCacheRoot, 'build-a');
+await createPointerSnapshot({
+  repoRoot,
+  userConfig,
+  modes: ['code'],
+  snapshotId: 'snap-20260319000000-riska'
+});
+
+const flowStableB = buildFlow({
+  flowId: 'sha1:1111111111111111111111111111111111111111',
+  confidence: 0.5,
+  chunkUid: 'chunk-alpha-b',
+  sinkRuleId: 'sink.eval',
+  pathChunkUids: ['chunk-alpha-b', 'chunk-helper-b'],
+  callSiteId: 'call-a2',
+  semanticKinds: ['callback', 'wrapper']
+});
+const flowAdded = buildFlow({
+  flowId: 'sha1:3333333333333333333333333333333333333333',
+  confidence: 0.8,
+  chunkUid: 'chunk-alpha-b',
+  sinkRuleId: 'sink.exec',
+  pathChunkUids: ['chunk-alpha-b'],
+  callSiteId: 'call-c',
+  semanticKinds: ['asyncHandoff']
+});
+const partialStableB = buildPartialFlow({
+  partialFlowId: 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  confidence: 0.75,
+  chunkUid: 'chunk-alpha-b',
+  frontierChunkUid: 'chunk-frontier-b',
+  terminalReason: 'fanout'
+});
+const partialAdded = buildPartialFlow({
+  partialFlowId: 'sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+  confidence: 0.5,
+  chunkUid: 'chunk-alpha-b',
+  frontierChunkUid: 'chunk-frontier-c',
+  terminalReason: 'budget'
+});
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-b',
+  chunkUid: 'chunk-alpha-b',
+  flows: [flowStableB, flowAdded],
+  partialFlows: [partialStableB, partialAdded]
+});
+await writeCurrentBuildPointer(repoCacheRoot, 'build-b');
+await createPointerSnapshot({
+  repoRoot,
+  userConfig,
+  modes: ['code'],
+  snapshotId: 'snap-20260319000000-riskb'
+});
+
+await withTemporaryEnv(env, async () => {
+  const buildPayload = await buildRiskDeltaPayload({
+    repoRoot,
+    userConfig,
+    from: 'build:build-a',
+    to: 'build:build-b',
+    seed: 'file:src/a.js',
+    includePartialFlows: true
+  });
+  const snapshotPayload = await buildRiskDeltaPayload({
+    repoRoot,
+    userConfig,
+    from: 'snap:snap-20260319000000-riska',
+    to: 'snap:snap-20260319000000-riskb',
+    seed: 'file:src/a.js',
+    includePartialFlows: true
+  });
+
+  const normalizedBuild = normalizeDelta(buildPayload);
+  const normalizedSnapshot = normalizeDelta(snapshotPayload);
+  assert.deepEqual(
+    { ...normalizedBuild, from: 'snap:snap-20260319000000-riska', to: 'snap:snap-20260319000000-riskb' },
+    normalizedSnapshot,
+    'expected snapshot and build ref deltas to match after ref normalization'
+  );
+  assert.deepEqual(normalizedSnapshot.added, ['sha1:3333333333333333333333333333333333333333']);
+  assert.deepEqual(normalizedSnapshot.removed, ['sha1:2222222222222222222222222222222222222222']);
+  assert.deepEqual(normalizedSnapshot.addedPartial, ['sha1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb']);
+  assert.equal(normalizedSnapshot.changed[0]?.flowId, 'sha1:1111111111111111111111111111111111111111');
+  assert.ok(normalizedSnapshot.changed[0]?.changedFields.includes('confidence'), 'expected changed flow to record confidence diff');
+  assert.equal(normalizedSnapshot.changedPartial[0]?.partialFlowId, 'sha1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+  const harness = await createAnalysisSurfaceHarness({ fixtureRoot: repoRoot, env: process.env });
+  try {
+    const cliRun = harness.runCli([
+      'risk',
+      'delta',
+      '--json',
+      '--repo', repoRoot,
+      '--from', 'snap:snap-20260319000000-riska',
+      '--to', 'snap:snap-20260319000000-riskb',
+      '--seed', 'file:src/a.js',
+      '--include-partial-flows'
+    ]);
+    assert.equal(cliRun.status, 0, `expected CLI risk delta call to succeed: ${cliRun.stderr}`);
+
+    const apiRun = await harness.runApi('/analysis/risk-delta', {
+      repoPath: repoRoot,
+      from: 'snap:snap-20260319000000-riska',
+      to: 'snap:snap-20260319000000-riskb',
+      seed: 'file:src/a.js',
+      includePartialFlows: true
+    });
+    assert.equal(apiRun.status, 200, 'expected API risk delta call to succeed');
+
+    const mcpRun = await harness.runMcp('risk_delta', {
+      repoPath: repoRoot,
+      from: 'snap:snap-20260319000000-riska',
+      to: 'snap:snap-20260319000000-riskb',
+      seed: 'file:src/a.js',
+      includePartialFlows: true
+    });
+    assert.equal(mcpRun.ok, true, 'expected MCP risk delta call to succeed');
+
+    const expected = normalizeDelta(cliRun.parsed);
+    assert.deepEqual(normalizeDelta(apiRun.parsed?.result), expected, 'expected API risk delta output to match CLI');
+    assert.deepEqual(normalizeDelta(mcpRun.result), expected, 'expected MCP risk delta output to match CLI');
+
+    const snakeCaseMcp = await harness.runMcp('risk_delta', {
+      repoPath: repoRoot,
+      from: 'snap:snap-20260319000000-riska',
+      to: 'snap:snap-20260319000000-riskb',
+      seed: 'file:src/a.js',
+      includePartialFlows: true,
+      filters: {
+        flow_id: 'sha1:ffffffffffffffffffffffffffffffffffffffff',
+        source_rule: 'source.rule.synthetic',
+        sink_rule: 'sink.rule.synthetic'
+      }
+    });
+    assert.equal(snakeCaseMcp.ok, true, 'expected snake_case MCP risk delta call to succeed');
+
+    const kebabCaseMcp = await harness.runMcp('risk_delta', {
+      repoPath: repoRoot,
+      from: 'snap:snap-20260319000000-riska',
+      to: 'snap:snap-20260319000000-riskb',
+      seed: 'file:src/a.js',
+      includePartialFlows: true,
+      filters: {
+        'flow-id': 'sha1:ffffffffffffffffffffffffffffffffffffffff',
+        'source-rule': 'source.rule.synthetic',
+        'sink-rule': 'sink.rule.synthetic'
+      }
+    });
+    assert.equal(kebabCaseMcp.ok, true, 'expected kebab-case MCP risk delta call to succeed');
+  } finally {
+    await harness.close();
+  }
+});
+
+const multiChunkFlowA = buildFlow({
+  flowId: 'sha1:4444444444444444444444444444444444444444',
+  confidence: 0.65,
+  chunkUid: 'chunk-beta-a',
+  sinkRuleId: 'sink.fs',
+  pathChunkUids: ['chunk-beta-a'],
+  callSiteId: 'call-d',
+  semanticKinds: ['asyncHandoff']
+});
+const multiChunkFlowBStableA = buildFlow({
+  flowId: 'sha1:5555555555555555555555555555555555555555',
+  confidence: 0.4,
+  chunkUid: 'chunk-gamma-a',
+  sinkRuleId: 'sink.net',
+  pathChunkUids: ['chunk-gamma-a', 'chunk-helper-a'],
+  callSiteId: 'call-e',
+  semanticKinds: ['callback']
+});
+const multiChunkFlowBStableB = buildFlow({
+  flowId: 'sha1:5555555555555555555555555555555555555555',
+  confidence: 0.55,
+  chunkUid: 'chunk-gamma-b',
+  sinkRuleId: 'sink.net',
+  pathChunkUids: ['chunk-gamma-b', 'chunk-helper-b'],
+  callSiteId: 'call-e2',
+  semanticKinds: ['callback', 'wrapper']
+});
+const multiChunkFlowAdded = buildFlow({
+  flowId: 'sha1:6666666666666666666666666666666666666666',
+  confidence: 0.9,
+  chunkUid: 'chunk-gamma-b',
+  sinkRuleId: 'sink.exec',
+  pathChunkUids: ['chunk-gamma-b'],
+  callSiteId: 'call-f',
+  semanticKinds: ['builder']
+});
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-multi-a',
+  chunkUid: 'chunk-ignored-a',
+  flows: [],
+  partialFlows: []
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'chunk_meta.json'), [
+  {
+    id: 1,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 0,
+    end: 16,
+    startLine: 1,
+    endLine: 1,
+    kind: 'function',
+    name: 'ignored',
+    chunkUid: 'chunk-ignored-a',
+    metaV2: {
+      chunkUid: 'chunk-ignored-a',
+      chunkId: 'ignored',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:ignored:a', name: 'ignored', kind: 'function' }
+    }
+  },
+  {
+    id: 2,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 17,
+    end: 32,
+    startLine: 2,
+    endLine: 2,
+    kind: 'function',
+    name: 'beta',
+    chunkUid: 'chunk-beta-a',
+    metaV2: {
+      chunkUid: 'chunk-beta-a',
+      chunkId: 'beta',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:beta:a', name: 'beta', kind: 'function' }
+    }
+  },
+  {
+    id: 3,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 33,
+    end: 48,
+    startLine: 3,
+    endLine: 3,
+    kind: 'function',
+    name: 'gamma',
+    chunkUid: 'chunk-gamma-a',
+    metaV2: {
+      chunkUid: 'chunk-gamma-a',
+      chunkId: 'gamma',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:gamma:a', name: 'gamma', kind: 'function' }
+    }
+  }
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'risk_summaries.json'), [
+  createRiskSummary({
+    chunkUid: 'chunk-beta-a',
+    sinkCategory: 'filesystem',
+    sinkTags: ['fs']
+  }),
+  createRiskSummary({
+    chunkUid: 'chunk-gamma-a',
+    sinkCategory: 'network',
+    sinkTags: ['net']
+  })
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code', 'risk_flows.json'), [multiChunkFlowA, multiChunkFlowBStableA]);
+await writeRiskPiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-a', 'index-code'));
+
+await seedBuild({
+  repoCacheRoot,
+  buildId: 'build-multi-b',
+  chunkUid: 'chunk-ignored-b',
+  flows: [],
+  partialFlows: []
+});
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'chunk_meta.json'), [
+  {
+    id: 1,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 0,
+    end: 16,
+    startLine: 1,
+    endLine: 1,
+    kind: 'function',
+    name: 'ignored',
+    chunkUid: 'chunk-ignored-b',
+    metaV2: {
+      chunkUid: 'chunk-ignored-b',
+      chunkId: 'ignored',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:ignored:b', name: 'ignored', kind: 'function' }
+    }
+  },
+  {
+    id: 2,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 17,
+    end: 32,
+    startLine: 2,
+    endLine: 2,
+    kind: 'function',
+    name: 'beta',
+    chunkUid: 'chunk-beta-b',
+    metaV2: {
+      chunkUid: 'chunk-beta-b',
+      chunkId: 'beta',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:beta:b', name: 'beta', kind: 'function' }
+    }
+  },
+  {
+    id: 3,
+    fileId: 1,
+    file: 'src/a.js',
+    start: 33,
+    end: 48,
+    startLine: 3,
+    endLine: 3,
+    kind: 'function',
+    name: 'gamma',
+    chunkUid: 'chunk-gamma-b',
+    metaV2: {
+      chunkUid: 'chunk-gamma-b',
+      chunkId: 'gamma',
+      file: 'src/a.js',
+      virtualPath: 'src/a.js',
+      symbol: { symbolId: 'sym:gamma:b', name: 'gamma', kind: 'function' }
+    }
+  }
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'risk_summaries.json'), [
+  createRiskSummary({
+    chunkUid: 'chunk-beta-b',
+    sinkCategory: 'filesystem',
+    sinkTags: ['fs']
+  }),
+  createRiskSummary({
+    chunkUid: 'chunk-gamma-b',
+    sinkSignals: [
+      { category: 'network', tags: ['net'] },
+      { category: 'execution', tags: ['exec'] }
+    ]
+  })
+]);
+await writeJson(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code', 'risk_flows.json'), [multiChunkFlowBStableB, multiChunkFlowAdded]);
+await writeRiskPiecesManifest(path.join(repoCacheRoot, 'builds', 'build-multi-b', 'index-code'));
+
+await withTemporaryEnv(env, async () => {
+  const multiChunkPayload = await buildRiskDeltaPayload({
+    repoRoot,
+    userConfig,
+    from: 'build:build-multi-a',
+    to: 'build:build-multi-b',
+    seed: 'file:src/a.js',
+    includePartialFlows: false
+  });
+
+  const normalized = normalizeDelta(multiChunkPayload);
+  assert.deepEqual(normalized.added, ['sha1:6666666666666666666666666666666666666666']);
+  assert.deepEqual(normalized.removed, ['sha1:4444444444444444444444444444444444444444']);
+  assert.equal(normalized.changed[0]?.flowId, 'sha1:5555555555555555555555555555555555555555');
+  assert.equal(normalized.fromSummarySinks, 2);
+  assert.equal(normalized.toSummarySinks, 3);
+});
+
+console.log('risk delta surface parity test passed');

@@ -51,6 +51,8 @@ export function createTantivyProvider({ verbose = false, logger } = {}) {
     available: Boolean(adapter),
     search: ({ idx, queryTokens, mode, topN, allowedIds }) => {
       if (!adapter) return { hits: [], type: 'tantivy' };
+      const candidateSet = allowedIds ?? null;
+      if (candidateSet && getBitmapSize(candidateSet) === 0) return { hits: [], type: 'tantivy' };
       const info = idx?.tantivy || null;
       if (!info?.available) return { hits: [], type: 'tantivy' };
       const dir = info.dir;
@@ -59,9 +61,10 @@ export function createTantivyProvider({ verbose = false, logger } = {}) {
       if (!handle) return { hits: [], type: 'tantivy' };
       const query = Array.isArray(queryTokens) ? queryTokens.join(' ') : '';
       if (!query) return { hits: [], type: 'tantivy' };
-      const candidateSet = allowedIds && getBitmapSize(allowedIds) ? allowedIds : null;
+      // The adapter ranks globally and filtering happens below. Eligible-set
+      // cardinality cannot bound the rank of its first eligible document.
       const overfetch = candidateSet
-        ? Math.min(getBitmapSize(candidateSet), Math.max(topN, Math.min(topN * 3, 2000)))
+        ? Math.max(topN, Math.min(topN * 3, 2000))
         : topN;
       let rows = [];
       try {

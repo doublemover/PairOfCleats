@@ -1,21 +1,20 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import assert from 'node:assert/strict';
+import { resolveClangdArchiveTarget } from '../../../src/shared/managed-clangd.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
-const result = spawnSync(process.execPath, [
+const env = applyTestEnv({ syncProcess: false });
+const result = runNode([
   path.join(root, 'tools', 'tooling', 'install.js'),
   '--root', fixtureRoot,
   '--tools', 'clangd',
   '--dry-run',
   '--json'
-], { encoding: 'utf8' });
-
-if (result.status !== 0) {
-  console.error('tooling-install failed');
-  process.exit(result.status ?? 1);
-}
+], 'tooling install dry-run', root, env, { stdio: 'pipe' });
 
 let payload;
 try {
@@ -28,20 +27,22 @@ try {
 const results = payload.results || [];
 const actions = payload.actions || [];
 
-if (actions.some((entry) => entry && entry.id === 'clangd')) {
-  console.error('Expected clangd to not be auto-installable in dry-run');
-  process.exit(1);
-}
-
 const clangdResult = results.find((entry) => entry.id === 'clangd');
-if (!clangdResult) {
-  console.error('Expected clangd result to be reported in dry-run');
-  process.exit(1);
+const clangdAction = actions.find((entry) => entry.id === 'clangd');
+if (clangdResult?.status === 'already-installed') {
+  assert.equal(clangdResult.probe?.ok, true);
+  assert.equal(clangdAction, undefined);
+} else if (resolveClangdArchiveTarget()) {
+  assert.ok(clangdAction, 'supported targets plan the managed standalone recipe');
+  assert.equal(clangdAction.cmd, process.execPath);
+  assert.ok(clangdAction.args[0].endsWith(path.join('tools', 'tooling', 'install-clangd.js')));
+  const rootIndex = clangdAction.args.indexOf('--tooling-root');
+  assert.ok(rootIndex >= 0 && path.isAbsolute(clangdAction.args[rootIndex + 1]));
+} else {
+  assert.equal(clangdResult?.status, 'manual');
+  assert.equal(clangdAction, undefined);
 }
-
-if (!['manual', 'already-installed'].includes(clangdResult.status)) {
-  console.error(`Expected clangd to be manual or already-installed in dry-run (got ${clangdResult.status || 'unknown'})`);
-  process.exit(1);
-}
+assert.equal(payload.readiness.state, 'planned');
+assert.equal(payload.readiness.ready, false, 'dry-run never claims installation readiness');
 
 console.log('tooling install test passed');

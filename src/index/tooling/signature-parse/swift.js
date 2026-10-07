@@ -113,13 +113,9 @@ const parseSwiftParam = (value) => {
 
 const parseFunctionReturnType = (signature, closeParenIndex) => {
   const after = signature.slice(closeParenIndex + 1).trim();
-  const afterArrow = after.lastIndexOf('->');
+  const afterArrow = after.indexOf('->');
   if (afterArrow !== -1) {
     return cleanReturnType(after.slice(afterArrow + 2));
-  }
-  const fullArrow = signature.lastIndexOf('->');
-  if (fullArrow !== -1) {
-    return cleanReturnType(signature.slice(fullArrow + 2));
   }
   if (/\binit[?!]?\s*\(/.test(signature)) {
     return 'Self';
@@ -132,6 +128,11 @@ export const parseSwiftSignature = (detail) => {
 
   const signature = normalizeSignatureLine(selectSignatureLine(detail));
   if (!signature) return null;
+
+  const variableReturnType = parseVariableReturnType(signature);
+  if (variableReturnType) {
+    return { signature, returnType: variableReturnType, paramTypes: {}, paramNames: [] };
+  }
 
   const open = signature.indexOf('(');
   const close = findMatchingParen(signature, open);

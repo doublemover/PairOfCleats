@@ -72,7 +72,7 @@ export default {
     }
   },
   create(context) {
-    const sourceCode = context.getSourceCode();
+    const sourceCode = context.sourceCode;
     return {
       Literal(node) {
         if (!node.regex) return;

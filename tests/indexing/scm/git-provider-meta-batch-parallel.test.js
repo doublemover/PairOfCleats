@@ -4,7 +4,7 @@ import path from 'node:path';
 import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { getScmCommandRunner, setScmCommandRunner } from '../../../src/index/scm/runner.js';
-import { setProgressHandlers } from '../../../src/shared/progress.js';
+import { setProgressHandlers } from '../../../src/shared/progress-runtime.js';
 
 const defaultRunner = getScmCommandRunner();
 const defaultScmConfig = getScmRuntimeConfig();

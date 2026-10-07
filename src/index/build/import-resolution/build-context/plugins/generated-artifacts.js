@@ -2,6 +2,7 @@ import { matchGeneratedExpectationSpecifier } from '../../specifier-hints.js';
 import { toSpecifierCandidatePaths } from '../../candidate-paths.js';
 import { normalizeImportSpecifier, normalizeRelPath } from '../../path-utils.js';
 import { IMPORT_REASON_CODES } from '../../reason-codes.js';
+import { IMPORT_RESOLUTION_TRACE_STAGES } from '../../trace-model.js';
 import { resolveGeneratedPolicyDecision } from '../../../generated-policy.js';
 
 const normalizeTextToken = (value) => (
@@ -112,7 +113,10 @@ export const createGeneratedArtifactsPlugin = ({
       return {
         reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
         pluginId: 'generated-artifacts',
-        match: generatedMatch
+        adapter: 'generated-artifacts',
+        traceStage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
+        match: generatedMatch,
+        details: generatedMatch
       };
     }
     const generatedPolicyMatch = resolveGeneratedPolicyMatch({
@@ -125,7 +129,10 @@ export const createGeneratedArtifactsPlugin = ({
       return {
         reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
         pluginId: 'generated-artifacts',
-        match: generatedPolicyMatch
+        adapter: 'generated-artifacts',
+        traceStage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
+        match: generatedPolicyMatch,
+        details: generatedPolicyMatch
       };
     }
     if (generatedPolicyMatch?.blockedByInclude) {
@@ -141,7 +148,14 @@ export const createGeneratedArtifactsPlugin = ({
       return {
         reasonCode: IMPORT_REASON_CODES.GENERATED_EXPECTED_MISSING,
         pluginId: 'generated-artifacts',
+        adapter: 'generated-artifacts',
+        traceStage: IMPORT_RESOLUTION_TRACE_STAGES.GENERATED_ARTIFACT_INTERPRETATION,
         match: {
+          matched: true,
+          source: 'plugin-config',
+          matchType: 'custom_hint'
+        },
+        details: {
           matched: true,
           source: 'plugin-config',
           matchType: 'custom_hint'

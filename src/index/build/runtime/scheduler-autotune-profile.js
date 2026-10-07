@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
@@ -197,7 +198,7 @@ export async function writeSchedulerAutoTuneProfile({
   });
   if (!payload) return null;
   try {
-    await atomicWriteJson(profilePath, payload, { spaces: 2, newline: true });
+    await atomicWriteJson(profilePath, withGeneratedCacheMetadata(payload, 'scheduler-autotune'), { spaces: 2, newline: true });
     return payload;
   } catch (err) {
     if (typeof log === 'function') {

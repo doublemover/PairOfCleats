@@ -1,0 +1,51 @@
+{
+  "issueId": 431,
+  "title": "Shared-module migration tooling and codemod support",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "tools/testing/shared-module-migration.js",
+    "docs/tooling/shared-module-migration-recipes.json"
+  ],
+  "problemStatement": "The shared-module adoption and hoisting program is producing repeated import-path migrations, especially where temporary tools/shared wrappers now have canonical src/shared owners. Without a reusable codemod, those changes would keep being done by hand and drift in review quality and completeness.",
+  "duplicateClusters": [
+    {
+      "name": "Wrapper-to-canonical import rewrites",
+      "files": [
+        "tools/shared/search-request.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "bestFix": "Create one manifest-driven codemod that rewrites exact shared-module import specifiers and can be run in dry-run, check, or write mode."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "The repo had stable shared destinations for some migrations, but no reusable automation for updating imports consistently.",
+    "The existing review and scan artifacts identified migration seams, but they were not directly executable."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "tools/testing/shared-module-migration.js",
+      "action": "created",
+      "notes": "Manifest-driven codemod for exact-specifier shared-module migrations with dry-run, check, JSON summary, and write modes."
+    },
+    {
+      "path": "docs/tooling/shared-module-migration-recipes.json",
+      "action": "created",
+      "notes": "Defines the first migration recipes for current wrapper-to-canonical shared-module paths."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/tooling/shared-module-migration.test.js"
+    ],
+    "testsToKeepGreen": []
+  },
+  "nonGoals": [
+    "Infer arbitrary semantic rewrites outside exact-specifier migrations.",
+    "Automatically delete local helpers in the same pass without human review.",
+    "Replace manual review for migrations that require argument-shape or behavioral changes."
+  ],
+  "followOnDeletionTargets": [
+    "Add more recipes only when scans prove the migration seam is stable and repeated.",
+    "Use the codemod to retire remaining wrapper imports as H31/H32 reduction work proceeds."
+  ]
+}

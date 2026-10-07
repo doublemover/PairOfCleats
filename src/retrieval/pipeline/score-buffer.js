@@ -2,12 +2,14 @@ const BUFFER_TAG = Symbol('scoreBufferPoolId');
 const DEFAULT_NUMERIC_FIELDS = ['idx', 'score'];
 
 class ScoreBuffer {
-  constructor(fields = ['idx', 'score'], capacity = 0, numericFields = DEFAULT_NUMERIC_FIELDS) {
+  constructor(fields = ['idx', 'score'], capacity = 0, numericFields = DEFAULT_NUMERIC_FIELDS, retainedCapacity = Infinity) {
     this.fields = fields;
     this.numericFields = Array.isArray(numericFields) && numericFields.length
       ? numericFields
       : DEFAULT_NUMERIC_FIELDS;
     this.numericFieldSet = new Set(this.numericFields);
+    this.referenceFields = fields.filter((field) => !this.numericFieldSet.has(field));
+    this.retainedCapacity = retainedCapacity;
     this.numericArrays = {};
     this.entries = new Array(Math.max(0, Math.floor(Number(capacity) || 0)));
     this.count = 0;
@@ -43,6 +45,12 @@ class ScoreBuffer {
   }
 
   reset() {
+    // Entries are reusable views; retire only active nonnumeric references.
+    for (let index = 0; this.referenceFields.length && index < this.count; index += 1) {
+      const entry = this.entries[index];
+      if (!entry) continue;
+      for (const field of this.referenceFields) entry[field] = null;
+    }
     this.count = 0;
     return this;
   }
@@ -50,7 +58,10 @@ class ScoreBuffer {
   push(values) {
     const index = this.count++;
     if (index >= this.entries.length) {
-      this.ensureCapacity(index + 1);
+      this.ensureCapacity(Math.max(index + 1, Math.min(
+        this.retainedCapacity,
+        Math.max(8, this.entries.length * 2)
+      )));
     }
     let entry = this.entries[index];
     if (!entry) {
@@ -105,18 +116,22 @@ export const createScoreBufferPool = ({
       buffer.reset();
     } else {
       stats.allocations += 1;
-      buffer = new ScoreBuffer(fields, capacity, resolvedNumericFields);
+      buffer = new ScoreBuffer(fields, capacity, resolvedNumericFields,
+        Number.isFinite(maxEntries) && maxEntries > 0 ? maxEntries : Infinity);
     }
     buffer[BUFFER_TAG] = poolId;
     buffer.fields = fields;
     buffer.numericFields = resolvedNumericFields;
     buffer.numericFieldSet = new Set(resolvedNumericFields);
+    buffer.referenceFields = fields.filter((field) => !buffer.numericFieldSet.has(field));
     buffer.ensureCapacity(capacity);
     return buffer;
   };
 
   const release = (buffer) => {
     if (!buffer || buffer[BUFFER_TAG] !== poolId) return;
+    buffer[BUFFER_TAG] = null;
+    buffer.reset();
     stats.releases += 1;
     const size = buffer.entries.length;
     if (Number.isFinite(maxEntries) && maxEntries > 0 && size > maxEntries) {
@@ -126,8 +141,6 @@ export const createScoreBufferPool = ({
     const key = keyForFields(buffer.fields, buffer.numericFields);
     const bucket = buffers.get(key) || [];
     if (bucket.length >= maxBuffers) return;
-    buffer.reset();
-    buffer[BUFFER_TAG] = poolId;
     buffers.set(key, bucket);
     bucket.push(buffer);
   };

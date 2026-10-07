@@ -1,7 +1,7 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 import { getIndexDir, resolveRepoConfig } from '../../tools/shared/dict-utils.js';
 import { prepareTestCacheDir } from '../helpers/test-cache.js';
 
@@ -36,7 +36,8 @@ export async function prepareMapBuildFixture({
       indexing: {
         scm: { provider: 'none' },
         typeInference: false,
-        typeInferenceCrossFile: false
+        typeInferenceCrossFile: false,
+        workerPool: { enabled: false }
       },
       tooling: {
         autoEnableOnDetect: false,
@@ -58,10 +59,9 @@ export async function prepareMapBuildFixture({
     ...effectiveBuildArgs
   ];
 
-  const buildResult = spawnSync(process.execPath, buildArgs, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
+  const buildResult = runNode(buildArgs, `build index for ${tempName}`, repoRoot, env, {
+    stdio: 'inherit',
+    allowFailure: true
   });
 
   if (buildResult.status !== 0) {

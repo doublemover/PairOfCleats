@@ -2,7 +2,8 @@
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
+import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
 import {
   getCacheRoot,
   getAutoPolicy,
@@ -11,7 +12,7 @@ import {
 } from '../shared/dict-utils.js';
 
 const argv = createCli({
-  scriptName: 'config-dump',
+  scriptName: 'pairofcleats config dump',
   options: {
     repo: { type: 'string' },
     json: { type: 'boolean', default: false }
@@ -23,6 +24,7 @@ const envConfig = getEnvConfig();
 const policy = await getAutoPolicy(repoRoot, userConfig);
 const cacheRoot = (userConfig.cache && userConfig.cache.root) || getCacheRoot();
 const capabilities = getCapabilities();
+const capabilityManifest = getRuntimeCapabilityManifest({ runtimeCapabilities: capabilities });
 const normalizeSelector = (value) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
 const mcpModeConfig = normalizeSelector(userConfig?.mcp?.mode);
 const mcpModeEnv = normalizeSelector(envConfig.mcpMode);
@@ -39,19 +41,19 @@ const payload = {
       mode: mcpMode,
       modeSource: mcpModeSource,
       sdkAvailable: !!capabilities?.mcp?.sdk
-    }
+    },
+    capabilityManifest
   }
 };
 
 if (argv.json) {
   console.log(JSON.stringify(payload, null, 2));
-  process.exit(0);
+} else {
+  console.error('Config dump');
+  console.error(`- repo: ${repoRoot}`);
+  console.error(`- cache root: ${payload.derived.cacheRoot}`);
+  console.error(`- repo cache: ${payload.derived.repoCacheRoot}`);
+  console.error(`- quality: ${payload.policy.quality.value} (${payload.policy.quality.source})`);
+  console.error(`- mcp mode: ${payload.derived.mcp.mode} (${payload.derived.mcp.modeSource})`);
+  console.error(`- mcp sdk: ${payload.derived.mcp.sdkAvailable ? 'available' : 'missing'}`);
 }
-
-console.error('Config dump');
-console.error(`- repo: ${repoRoot}`);
-console.error(`- cache root: ${payload.derived.cacheRoot}`);
-console.error(`- repo cache: ${payload.derived.repoCacheRoot}`);
-console.error(`- quality: ${payload.policy.quality.value} (${payload.policy.quality.source})`);
-console.error(`- mcp mode: ${payload.derived.mcp.mode} (${payload.derived.mcp.modeSource})`);
-console.error(`- mcp sdk: ${payload.derived.mcp.sdkAvailable ? 'available' : 'missing'}`);

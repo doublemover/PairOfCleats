@@ -86,15 +86,13 @@ Interprocedural mandatory controls:
 3. unresolved high-severity path budget thresholds
 4. deterministic sink classification for unresolved candidates
 
-## Required outputs
+## Required schema-backed outputs
 
 - `usr-threat-model-coverage-report.json`
-- `usr-security-gate-results.json`
-- `usr-redaction-validation.json`
-- `usr-risk-coverage-summary.json`
-- `usr-supply-chain-integrity-report.json`
-- `usr-license-policy-evaluation.json`
-- `usr-interprocedural-gating-report.json`
+- `usr-validation-report.json`
+- `usr-failure-injection-report.json`
+
+Security gate decisions are represented in those report rows, `blockingFindings`, `advisoryFindings`, and `evidenceRefs` using canonical diagnostics such as `USR-E-SECURITY-GATE-FAILED` and reason codes such as `USR-R-SECURITY-GATE-BLOCKED`. Redaction validation, risk coverage, supply-chain integrity, license policy evaluation, and interprocedural gating remain security evidence classes inside the schema-backed reports unless they are promoted to first-class artifact IDs in `docs/specs/usr-core-artifact-schema-catalog.md` and `src/contracts/schemas/usr.js`.
 
 ## References
 

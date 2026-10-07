@@ -17,6 +17,10 @@ import {
 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import { applyBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
+import {
+  loadDenseVectorBinaryFromMetaSync,
+  materializeDenseVectorRows
+} from '../../../src/shared/dense-vector-artifacts.js';
 
 const hasTable = (db, table) => {
   try {
@@ -40,6 +44,34 @@ const ensureDenseMetaSchema = (db) => {
   addColumn('min_val', 'REAL');
   addColumn('max_val', 'REAL');
   addColumn('levels', 'INTEGER');
+};
+
+const resolveSqliteDenseArtifactRows = ({ vectorsPath, modelId = null }) => {
+  if (typeof vectorsPath !== 'string' || !vectorsPath.trim()) return [];
+  const resolvedBasePath = path.resolve(vectorsPath);
+  const metaPath = `${resolvedBasePath}.meta.json`;
+  if (!fsSync.existsSync(metaPath)) return [];
+  try {
+    const meta = JSON.parse(fsSync.readFileSync(metaPath, 'utf8'));
+    const payload = loadDenseVectorBinaryFromMetaSync({
+      dir: path.dirname(resolvedBasePath),
+      baseName: path.basename(resolvedBasePath),
+      meta,
+      modelId
+    });
+    return materializeDenseVectorRows(payload);
+  } catch {
+    return [];
+  }
+};
+
+export const resolveSqliteDenseVectorRows = ({
+  vectors,
+  vectorsPath = null,
+  modelId = null
+} = {}) => {
+  if (Array.isArray(vectors)) return vectors;
+  return resolveSqliteDenseArtifactRows({ vectorsPath, modelId });
 };
 
 const resolveVectorTableDims = (db, table, column) => {
@@ -74,6 +106,7 @@ export const updateSqliteDense = ({
   modelId,
   quantization,
   dbPath,
+  vectorsPath = null,
   sharedDb = false,
   writeBatchSize = 256,
   emitOutput = true,
@@ -191,7 +224,7 @@ export const updateSqliteDense = ({
     );
     const resolvedQuantization = resolveQuantizationParams(quantization);
     const ingestEncoding = resolveVectorIngestEncoding(vectorExtension, { preferQuantized: true });
-    const vectorRows = Array.isArray(vectors) ? vectors : [];
+    const vectorRows = resolveSqliteDenseVectorRows({ vectors, vectorsPath, modelId });
     const toComparableBuffer = (value) => {
       if (Buffer.isBuffer(value)) return value;
       if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
@@ -361,7 +394,7 @@ export const updateSqliteDense = ({
     }
     return {
       skipped: false,
-      count: vectors.length,
+      count: vectorRows.length,
       vectorAnn: vectorAnnState,
       ingestEncoding,
       pragmas: pragmaState?.applied || null

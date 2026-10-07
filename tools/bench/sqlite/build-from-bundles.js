@@ -1,97 +1,35 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
-import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeBundleFile } from '../../../src/shared/bundle-io.js';
-import { setRecordsIncrementalCapability } from '../../../src/storage/sqlite/build/index.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
+import { parseSimpleBenchArgs, resolveCompareMode } from '../shared.js';
+import {
+  createSqliteBenchBundleFixture,
+  createSqliteBenchWorkspace,
+  loadSqliteBenchDatabase,
+  requireSqliteDb
+} from './shared.js';
 
-let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch (err) {
-  console.error(`better-sqlite3 missing: ${err?.message || err}`);
-  process.exit(1);
-}
-
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const Database = await loadSqliteBenchDatabase();
+const args = parseSimpleBenchArgs();
 const fileCount = Number(args.files) || 20;
 const chunksPerFile = Number(args.chunks) || 6;
-const benchMode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
-  ? String(args.mode).toLowerCase()
-  : 'compare';
+const benchMode = resolveCompareMode(args.mode);
 const sqliteMode = ['code', 'prose', 'extracted-prose', 'records'].includes(
   String(args['sqlite-mode'] || '').toLowerCase()
 )
   ? String(args['sqlite-mode']).toLowerCase()
   : 'code';
 
-const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-build-from-bundles');
-const bundleDir = path.join(tempRoot, 'bundles');
-const outPathBaseline = path.join(tempRoot, `index-${sqliteMode}-baseline.db`);
-const outPathCurrent = path.join(tempRoot, `index-${sqliteMode}-current.db`);
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(bundleDir, { recursive: true });
-
-const manifest = { files: {} };
-if (sqliteMode === 'records') {
-  setRecordsIncrementalCapability(manifest, true);
-}
-const chunkKind = sqliteMode === 'records'
-  ? 'Record'
-  : (sqliteMode === 'code' ? 'code' : 'prose');
-const buildChunks = (file, suffix) => {
-  const chunks = [];
-  for (let i = 0; i < chunksPerFile; i += 1) {
-    chunks.push({
-      file,
-      start: i * 10,
-      end: i * 10 + 5,
-      startLine: i + 1,
-      endLine: i + 1,
-      kind: chunkKind,
-      name: `fn${suffix}-${i}`,
-      tokens: [`tok-${suffix}`, `tok-${i}`]
-    });
-  }
-  return chunks;
-};
-
-for (let i = 0; i < fileCount; i += 1) {
-  const file = `src/file-${i}.js`;
-  const bundleName = `bundle-${i}.json`;
-  await writeBundleFile({
-    bundlePath: path.join(bundleDir, bundleName),
-    bundle: { chunks: buildChunks(file, `v1-${i}`) },
-    format: 'json'
-  });
-  manifest.files[file] = {
-    hash: `hash-${i}`,
-    mtimeMs: 1000 + i,
-    size: 10 + i,
-    bundle: bundleName
-  };
-}
+const { bundleDir, outPathBaseline, outPathCurrent } = await createSqliteBenchWorkspace({
+  name: 'sqlite-build-from-bundles',
+  sqliteMode
+});
+const { manifest } = await createSqliteBenchBundleFixture({
+  bundleDir,
+  fileCount,
+  chunksPerFile,
+  sqliteMode
+});
 
 const envConfig = { bundleThreads: 1 };
 const threadLimits = { fileConcurrency: 1 };
@@ -115,10 +53,7 @@ const runBuild = async ({ label, outPath, buildPragmas, optimize }) => {
   });
   const durationMs = performance.now() - start;
 
-  if (!fsSync.existsSync(outPath)) {
-    console.error('Expected sqlite DB to be created.');
-    process.exit(1);
-  }
+  requireSqliteDb(outPath);
 
   console.log(
     `[bench] build-from-bundles ${label} mode=${sqliteMode} files=${fileCount} chunks=${result.count} ms=${durationMs.toFixed(1)}`

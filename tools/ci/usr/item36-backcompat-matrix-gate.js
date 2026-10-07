@@ -1,36 +1,16 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {
+  ensureArray,
+  finishGate,
+  parseGateArgs,
+  readConfig,
+  readJsonFromRoot,
+  repoPath,
+  writeGateReport
+} from './shared.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const CONFIG_PATH = path.join(ROOT, 'docs', 'config', 'usr-guardrails', 'item-36-backcompat-matrix.json');
+const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-36-backcompat-matrix.json');
 const USR_VERSION_PATTERN = /^usr-\d+\.\d+\.\d+$/;
-
-const parseArgs = () => {
-  const args = process.argv.slice(2);
-  const out = { out: '', strict: true };
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (arg === '--out') {
-      out.out = args[i + 1] || '';
-      i += 1;
-      continue;
-    }
-    if (arg === '--no-strict') {
-      out.strict = false;
-    }
-  }
-  return out;
-};
-
-const readJson = async (relativePath) => {
-  const absolutePath = path.join(ROOT, relativePath);
-  const raw = await fs.readFile(absolutePath, 'utf8');
-  return JSON.parse(raw);
-};
-
-const ensureArray = (value) => (Array.isArray(value) ? value : []);
 
 /**
  * Return duplicate values from an array while preserving unique duplicate ids
@@ -50,9 +30,9 @@ const findDuplicates = (values) => {
 };
 
 const main = async () => {
-  const argv = parseArgs();
-  const config = JSON.parse(await fs.readFile(CONFIG_PATH, 'utf8'));
-  const matrix = await readJson(config.inputs.backcompatMatrix);
+  const argv = parseGateArgs();
+  const config = await readConfig(CONFIG_PATH);
+  const matrix = await readJsonFromRoot(config.inputs.backcompatMatrix);
   const rows = ensureArray(matrix.rows);
   const requiredScenarioIds = ensureArray(config.requiredScenarioIds);
   const strictBlockingIds = ensureArray(config.strictBlockingIds);
@@ -205,24 +185,13 @@ const main = async () => {
     warnings
   };
 
-  const defaultOut = path.join(ROOT, '.diagnostics', 'usr', config.report);
-  const outPath = argv.out ? path.resolve(argv.out) : defaultOut;
-  await fs.mkdir(path.dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-
-  if (report.ok) {
-    console.error('item 36 gate passed');
-    return;
-  }
-
-  console.error('item 36 gate failed');
-  for (const error of errors) {
-    console.error(`- ${error}`);
-  }
-
-  if (argv.strict) {
-    process.exit(1);
-  }
+  await writeGateReport({ argv, config, report });
+  finishGate({
+    report,
+    passedMessage: 'item 36 gate passed',
+    failedMessage: 'item 36 gate failed',
+    strict: argv.strict
+  });
 };
 
 main().catch((error) => {

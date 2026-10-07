@@ -1,4 +1,5 @@
 import { sha1 } from './hash.js';
+import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
 
 /** Embedding identity schema version. */
 export const EMBEDDING_IDENTITY_VERSION = 3;
@@ -12,6 +13,8 @@ const normalizeString = (value) => {
 };
 
 const normalizeNumber = (value) => {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   return parsed;
@@ -32,8 +35,10 @@ const normalizeArray = (value) => {
 const normalizeInputFormatting = (value) => {
   if (!value || typeof value !== 'object') return null;
   const family = normalizeString(value.family) || 'default';
-  const queryPrefix = normalizeString(value.queryPrefix);
-  const passagePrefix = normalizeString(value.passagePrefix);
+  // Prefix whitespace is model input, not display formatting. Keep it in the
+  // persisted identity so query replay exactly matches the indexing contract.
+  const queryPrefix = normalizeString(value.queryPrefix) ? value.queryPrefix : null;
+  const passagePrefix = normalizeString(value.passagePrefix) ? value.passagePrefix : null;
   if (!queryPrefix && !passagePrefix && family === 'default') return null;
   return {
     family,
@@ -77,7 +82,8 @@ export const buildEmbeddingIdentity = ({
   maxLength,
   inputFormatting,
   quantization,
-  onnx
+  onnx,
+  modelProfile
 } = {}) => {
   const onnxConfig = onnx && typeof onnx === 'object' ? onnx : {};
   const quant = quantization && typeof quantization === 'object' ? quantization : {};
@@ -111,6 +117,13 @@ export const buildEmbeddingIdentity = ({
       cpuExecutionProviderTuning: onnxConfig.cpuExecutionProviderTuning === false ? false : true
     } : null
   };
+  const profile = resolveEmbeddingModelProfile(modelId, modelProfile);
+  if (profile) {
+    identity.modelProfile = profile;
+    identity.pooling = profile.output;
+    identity.dims = profile.dimensions;
+    identity.maxLength = profile.maxLength;
+  }
   return identity;
 };
 

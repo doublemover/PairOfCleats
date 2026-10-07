@@ -1,5 +1,6 @@
 import { createCollectorBudgetContext, lineHasAnyInsensitive, shouldScanLine } from './utils.js';
 import { parseDockerfileFromClause, parseDockerfileInstruction } from '../../../shared/dockerfile.js';
+import { parseDockerfileStructure } from '../../../shared/dockerfile-ast.js';
 
 const DOCKERFILE_SCAN_BUDGET = Object.freeze({
   maxChars: 786432,
@@ -62,7 +63,8 @@ const toLogicalDockerfileLines = (text) => {
   return out;
 };
 
-export const collectDockerfileImports = (text, options = {}) => {
+export const createDockerfileImportCollector = ({ parseStructure = parseDockerfileStructure } = {}) => (text, options = {}) => {
+  parseStructure.initialize?.();
   const imports = new Set();
   const budgetContext = createCollectorBudgetContext({
     text,
@@ -72,6 +74,21 @@ export const collectDockerfileImports = (text, options = {}) => {
   });
   const { scanBudget } = budgetContext;
   try {
+    const structure = parseStructure(budgetContext.source);
+    if (structure.parser === 'dockerfile-ast') {
+      for (const instruction of structure.instructions) {
+        if (scanBudget.exhausted || !scanBudget.consumeTime() || !scanBudget.consumeMatch()) break;
+        let lineBudgetAllowed = true;
+        for (let line = instruction.line; line <= instruction.endLine; line += 1) {
+          if (!scanBudget.consumeLine()) { lineBudgetAllowed = false; break; }
+        }
+        if (!lineBudgetAllowed) break;
+        for (const value of [...instruction.dependencies, instruction.stage]) {
+          if (value && scanBudget.consumeToken()) imports.add(value);
+        }
+      }
+      return Array.from(imports);
+    }
     const lines = toLogicalDockerfileLines(budgetContext.source);
     const precheck = (value) => lineHasAnyInsensitive(value, ['from', 'copy', 'add', '--mount']);
     for (const line of lines) {
@@ -101,3 +118,5 @@ export const collectDockerfileImports = (text, options = {}) => {
     budgetContext.finalize();
   }
 };
+
+export const collectDockerfileImports = createDockerfileImportCollector();

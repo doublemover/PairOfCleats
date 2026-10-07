@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const cacheRoot = resolveTestCachePath(root, 'setup');
+const env = applyTestEnv({ syncProcess: false, cacheRoot });
 
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'tools', 'setup', 'setup.js'),
     '--non-interactive',
@@ -28,11 +28,10 @@ const result = spawnSync(
     '--skip-sqlite',
     '--skip-artifacts'
   ],
-  {
-    cwd: fixtureRoot,
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false, cacheRoot })
-  }
+  'setup non-interactive skip-all',
+  fixtureRoot,
+  env,
+  { stdio: 'pipe' }
 );
 
 if (result.status !== 0) {
@@ -47,8 +46,7 @@ if (!output.includes('Setup complete.')) {
   process.exit(1);
 }
 
-const jsonResult = spawnSync(
-  process.execPath,
+const jsonResult = runNode(
   [
     path.join(root, 'tools', 'setup', 'setup.js'),
     '--non-interactive',
@@ -62,11 +60,10 @@ const jsonResult = spawnSync(
     '--skip-artifacts',
     '--json'
   ],
-  {
-    cwd: fixtureRoot,
-    encoding: 'utf8',
-    env: applyTestEnv({ syncProcess: false, cacheRoot })
-  }
+  'setup non-interactive json skip-all',
+  fixtureRoot,
+  env,
+  { stdio: 'pipe' }
 );
 
 if (jsonResult.status !== 0) {

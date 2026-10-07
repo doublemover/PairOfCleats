@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { ARTIFACT_SCHEMA_DEFS } from '../../src/contracts/registry.js';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
 
 const ROOT = resolveToolRoot();
 
@@ -30,12 +30,11 @@ const diffSets = (source, doc) => ({
   extraInDocs: toSortedArray(new Set([...doc].filter((item) => !source.has(item))))
 });
 
-const extractOptionsKeys = (text) => {
-  const marker = 'const options = {';
+const extractBalancedObjectBlock = (text, marker) => {
   const start = text.indexOf(marker);
-  if (start < 0) return [];
+  if (start < 0) return null;
   const openIndex = text.indexOf('{', start);
-  if (openIndex < 0) return [];
+  if (openIndex < 0) return null;
   let depth = 0;
   let endIndex = -1;
   for (let i = openIndex; i < text.length; i += 1) {
@@ -49,8 +48,14 @@ const extractOptionsKeys = (text) => {
       }
     }
   }
-  if (endIndex < 0) return [];
-  const block = text.slice(openIndex + 1, endIndex);
+  if (endIndex < 0) return null;
+  return text.slice(openIndex + 1, endIndex);
+};
+
+const extractOptionsKeys = (text) => {
+  const block = extractBalancedObjectBlock(text, 'const options = {')
+    || extractBalancedObjectBlock(text, 'const SEARCH_OPTIONS = {');
+  if (!block) return [];
   const keys = new Set();
   const keyRegex = /(^|\n)\s*(['"]?)([A-Za-z0-9_-]+)\2\s*:\s*\{/g;
   let match = null;
@@ -103,26 +108,8 @@ const extractDocSection = (text, startMarker, endMarker) => {
 };
 
 const extractScoreBreakdownKeysFromCode = (text) => {
-  const marker = 'const scoreBreakdown';
-  const start = text.indexOf(marker);
-  if (start < 0) return new Set();
-  const openIndex = text.indexOf('{', start);
-  if (openIndex < 0) return new Set();
-  let depth = 0;
-  let endIndex = -1;
-  for (let i = openIndex; i < text.length; i += 1) {
-    const char = text[i];
-    if (char === '{') depth += 1;
-    if (char === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        endIndex = i;
-        break;
-      }
-    }
-  }
-  if (endIndex < 0) return new Set();
-  const block = text.slice(openIndex + 1, endIndex);
+  const block = extractBalancedObjectBlock(text, 'const scoreBreakdown');
+  if (!block) return new Set();
   const keys = new Set();
   const lines = block.split('\n');
   const keyLines = lines
@@ -151,7 +138,7 @@ const extractArtifactsFromDoc = (text) => {
   const registrySection = extractDocSection(text, '## Artifact registry', '### Phase 11');
   const artifacts = new Set();
   for (const line of registrySection.split('\n')) {
-    if (!line.trim().startsWith('-')) continue;
+    if (!line.startsWith('- ')) continue;
     const parenIndex = line.indexOf('(');
     const colonIndex = line.indexOf(':');
     let cutIndex = line.length;
@@ -320,9 +307,8 @@ const main = async () => {
     mdLines.push('');
   }
 
-  fs.mkdirSync(path.dirname(outJsonPath), { recursive: true });
-  fs.writeFileSync(outJsonPath, `${JSON.stringify(payload, null, 2)}\n`);
-  fs.writeFileSync(outMdPath, `${mdLines.join('\n')}\n`);
+  await writeStableGeneratedJsonReport(outJsonPath, payload);
+  await writeTextIfChanged(outMdPath, `${mdLines.join('\n')}\n`);
 
   if (argv.fail && hasDrift) {
     process.exit(1);

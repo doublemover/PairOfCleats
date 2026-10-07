@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   getIndexDir,
@@ -36,6 +35,7 @@ import {
   resolveDefaultTestCacheScope,
   resolveTestCachePath
 } from './test-cache.js';
+import { runNode } from './run-node.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -45,7 +45,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 3;
+const FIXTURE_HEALTH_VERSION = 5;
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -219,14 +219,34 @@ const hasMissingSqlDialectMetadata = async (codeDir) => {
       (Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file])
     );
     const isSqlFile = (file) => typeof file === 'string' && /\.(sql|psql|pgsql|mysql|sqlite)$/i.test(file);
+    const sqlFiles = new Set(
+      (Array.isArray(fileMeta) ? fileMeta : [])
+        .map((entry) => entry?.file)
+        .filter((file) => isSqlFile(file))
+    );
+    const sqlFilesWithChunks = new Set();
+    const expectedDialectByExt = new Map([
+      ['.psql', 'postgres'],
+      ['.pgsql', 'postgres'],
+      ['.mysql', 'mysql'],
+      ['.sqlite', 'sqlite']
+    ]);
     for (const entry of chunkMeta) {
       const filePath = entry?.file || fileById.get(entry?.fileId) || null;
       const isSqlChunk = String(entry?.lang || '').toLowerCase() === 'sql' || isSqlFile(filePath);
       if (!isSqlChunk) continue;
-      const dialect = entry?.docmeta?.dialect;
-      if (typeof dialect !== 'string' || !dialect.trim()) {
+      if (filePath) sqlFilesWithChunks.add(filePath);
+      const dialect = typeof entry?.docmeta?.dialect === 'string'
+        ? entry.docmeta.dialect.trim().toLowerCase()
+        : '';
+      if (!dialect) {
         return true;
       }
+      const expectedDialect = expectedDialectByExt.get(path.extname(String(filePath || '')).toLowerCase()) || null;
+      if (expectedDialect && dialect !== expectedDialect) return true;
+    }
+    for (const filePath of sqlFiles) {
+      if (!sqlFilesWithChunks.has(filePath)) return true;
     }
   } catch {}
   return false;
@@ -377,7 +397,12 @@ const canUseFixtureHealthStamp = (
 };
 
 const run = (args, label, options) => {
-  const result = spawnSync(process.execPath, args, options);
+  const result = runNode(args, label, options?.cwd || process.cwd(), options?.env || process.env, {
+    stdio: options?.stdio,
+    encoding: options?.encoding,
+    timeoutMs: options?.timeout,
+    allowFailure: true
+  });
   if (result.status !== 0) {
     const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
     console.error(formatCommandFailure({
@@ -703,24 +728,13 @@ export const runSearch = ({
   args = [],
   mode = 'code'
 }) => {
-  const result = spawnSync(
-    process.execPath,
-    [path.join(root, 'search.js'), query, '--mode', mode, '--json', '--no-ann', '--repo', fixtureRoot, ...args],
-    { cwd: fixtureRoot, env, encoding: 'utf8' }
-  );
+  const searchArgs = [path.join(root, 'search.js'), query, '--mode', mode, '--json', '--no-ann', '--repo', fixtureRoot, ...args];
+  const result = runNode(searchArgs, 'search', fixtureRoot, env, {
+    stdio: 'pipe',
+    allowFailure: true
+  });
   if (result.status !== 0) {
-    const command = [
-      process.execPath,
-      path.join(root, 'search.js'),
-      query,
-      '--mode',
-      mode,
-      '--json',
-      '--no-ann',
-      '--repo',
-      fixtureRoot,
-      ...args
-    ].join(' ');
+    const command = [process.execPath, ...searchArgs].join(' ');
     console.error(formatCommandFailure({
       label: 'search',
       command,

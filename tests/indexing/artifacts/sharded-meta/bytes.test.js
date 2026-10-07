@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createChunkMetaIterator, enqueueChunkMetaArtifacts } from '../../../../src/index/build/artifacts/writers/chunk-meta.js';
-import { fromPosix } from '../../../../src/shared/files.js';
+import { fromPosix } from '../../../../src/shared/file-paths.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 

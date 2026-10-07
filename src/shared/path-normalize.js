@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { isAbsolutePathNative, isRelativePathEscape, toPosix } from './files.js';
+import { isAbsolutePathNative, isRelativePathEscape, toPosix } from './file-paths.js';
 
 const stripDotPrefix = (value) => (
   value.startsWith('./') ? value.slice(2) : value

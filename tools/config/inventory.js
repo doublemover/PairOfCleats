@@ -2,11 +2,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveToolRoot } from '../shared/dict-utils.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 import * as sharedCliOptions from '../../src/shared/cli-options.js';
-import { collectSchemaEntries, getLeafEntries, mergeEntry } from './inventory/schema.js';
+import { collectSchemaDefaults, collectSchemaEntries, getLeafEntries, mergeEntry } from './inventory/schema.js';
 import { listSourceFiles, scanSourceFiles } from './inventory/scan.js';
 import { buildInventoryReportMarkdown } from './inventory/report.js';
+import {
+  writeStableGeneratedJsonReport,
+  writeTextIfChanged
+} from '../shared/generated-report.js';
 
 const defaultRoot = resolveToolRoot();
 const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config', 'schema.json');
@@ -16,32 +20,82 @@ const defaultOutputMdPath = path.join(defaultRoot, 'docs', 'config', 'inventory.
 const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality']);
 const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
 const PUBLIC_CLI_FLAGS = new Set([
-  'repo',
-  'mode',
-  'quality',
-  'watch',
-  'top',
-  'json',
-  'explain',
-  'filter',
-  'backend',
+  'all',
   'allow-unauthenticated',
   'allowed-repo-roots',
   'auth-token',
+  'backend',
+  'category',
   'command',
   'concurrency',
   'config',
   'cors-allow-any',
   'cors-allowed-origins',
+  'dry-run',
+  'explain',
+  'filter',
+  'flow-id',
+  'format',
+  'hops',
   'host',
+  'includeCallersCallees',
+  'includeDisabled',
+  'includeGraph',
+  'includeImports',
+  'includePaths',
+  'includeRisk',
+  'includeRiskPartialFlows',
+  'includeTypes',
+  'includeUsages',
   'interval',
+  'job',
+  'json',
+  'languages',
+  'lock',
   'max-body-bytes',
+  'maxBytes',
+  'maxCandidates',
+  'maxDepth',
+  'maxEdges',
+  'maxFanoutPerNode',
+  'maxFederatedRepos',
+  'maxNodes',
+  'maxPaths',
+  'maxTokens',
+  'maxTypeEntries',
+  'maxWallClockMs',
+  'maxWorkUnits',
+  'mode',
+  'no-fallback',
   'output',
   'port',
+  'quality',
   'queue',
   'quiet',
   'reason',
-  'stage'
+  'repo',
+  'repo-filter',
+  'root',
+  'rule',
+  'scope',
+  'seed',
+  'select',
+  'severity',
+  'shutdown-mode',
+  'sink',
+  'sink-rule',
+  'source',
+  'source-rule',
+  'stage',
+  'strictEvidence',
+  'strictRisk',
+  'tag',
+  'timeout-ms',
+  'tools',
+  'top',
+  'watch',
+  'workspace',
+  'workspaceId'
 ]);
 const KNOWN_CONFIG_KEYS = new Set([
   'cache.root',
@@ -75,11 +129,17 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.embeddings.cache.maxGb',
   'indexing.embeddings.cache.scope',
   'indexing.embeddings.concurrency',
+  'indexing.embeddings.embeddinggemma2.dimensions',
+  'indexing.embeddings.embeddinggemma2.dtype',
+  'indexing.embeddings.embeddinggemma2.revision',
+  'indexing.embeddings.model',
   'indexing.embeddings.onnx.interOpNumThreads',
   'indexing.embeddings.onnx.intraOpNumThreads',
   'indexing.embeddings.provider',
+  'indexing.fileCaps.byExt',
   'indexing.fileCaps.byExt.*.maxBytes',
   'indexing.fileCaps.byExt.*.maxLines',
+  'indexing.fileCaps.byLanguage',
   'indexing.fileCaps.byLanguage.*.maxBytes',
   'indexing.fileCaps.byLanguage.*.maxLines',
   'indexing.fileCaps.byMode.code.maxBytes',
@@ -97,6 +157,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.importConcurrency',
   'indexing.ioConcurrencyCap',
   'indexing.lexicon.enabled',
+  'indexing.lexicon.languageOverrides',
   'indexing.lexicon.languageOverrides.*.relations.drop.builtins',
   'indexing.lexicon.languageOverrides.*.relations.drop.keywords',
   'indexing.lexicon.languageOverrides.*.relations.drop.literals',
@@ -155,6 +216,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.scheduler.ioTokens',
   'indexing.scheduler.lowResourceMode',
   'indexing.scheduler.memoryTokens',
+  'indexing.scheduler.queues',
   'indexing.scheduler.queues.*.maxPending',
   'indexing.scheduler.queues.*.priority',
   'indexing.scheduler.starvationMs',
@@ -225,6 +287,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'search.annDefault',
   'search.denseVectorMode',
   'search.fieldWeights',
+  'search.hyperlinks',
   'search.maxCandidates',
   'search.rrf.enabled',
   'search.rrf.k',
@@ -234,6 +297,33 @@ const KNOWN_CONFIG_KEYS = new Set([
   'search.sqliteAutoArtifactBytes',
   'search.sqliteAutoChunkThreshold',
   'search.sqliteFtsWeights',
+  'security.archives.maxBytes',
+  'security.archives.maxEntries',
+  'security.archives.maxEntryBytes',
+  'security.downloads.allowlist',
+  'security.downloads.maxBytes',
+  'security.downloads.maxRedirects',
+  'security.downloads.requireHash',
+  'security.downloads.timeoutMs',
+  'security.downloads.warnUnsigned',
+  'sqlite.annMode',
+  'sqlite.vectorExtension.annMode',
+  'sqlite.vectorExtension.arch',
+  'sqlite.vectorExtension.column',
+  'sqlite.vectorExtension.dir',
+  'sqlite.vectorExtension.downloads',
+  'sqlite.vectorExtension.enabled',
+  'sqlite.vectorExtension.encoding',
+  'sqlite.vectorExtension.filename',
+  'sqlite.vectorExtension.ingestEncoding',
+  'sqlite.vectorExtension.module',
+  'sqlite.vectorExtension.options',
+  'sqlite.vectorExtension.path',
+  'sqlite.vectorExtension.platform',
+  'sqlite.vectorExtension.provider',
+  'sqlite.vectorExtension.sha256',
+  'sqlite.vectorExtension.table',
+  'sqlite.vectorExtension.url',
   'threads',
   'tooling.allowGlobalFallback',
   'tooling.autoEnableOnDetect',
@@ -308,6 +398,7 @@ const KNOWN_CONFIG_KEYS = new Set([
   'tooling.vfs.tokenMode'
 ]);
 const KNOWN_ENV_VARS = new Set([
+  'PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS',
   'PAIROFCLEATS_ANN_BACKEND',
   'PAIROFCLEATS_API_TOKEN',
   'PAIROFCLEATS_BENCH_ANTIVIRUS_STATE',
@@ -324,6 +415,8 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_CI_USE_LSP_FIXTURES',
   'PAIROFCLEATS_COMPRESSION',
   'PAIROFCLEATS_CRASH_LOG_ANNOUNCE',
+  'PAIROFCLEATS_CRASH_RETENTION_FULL_TRACE',
+  'PAIROFCLEATS_CRASH_RETENTION_PROFILE',
   'PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL',
   'PAIROFCLEATS_CROSSFILE_PROPAGATION_PARALLEL_MIN_BUNDLE',
   'PAIROFCLEATS_DEBUG_ORDERED',
@@ -335,7 +428,9 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB',
   'PAIROFCLEATS_DICT_DIR',
   'PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY',
+  'PAIROFCLEATS_DISPATCH_STRICT',
   'PAIROFCLEATS_DOC_EXTRACT',
+  'PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS',
   'PAIROFCLEATS_EMBEDDINGS',
   'PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES',
   'PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED',
@@ -357,6 +452,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_LOG_FORMAT',
   'PAIROFCLEATS_LOG_LEVEL',
   'PAIROFCLEATS_MAX_OLD_SPACE_MB',
+  'PAIROFCLEATS_MCP_ALLOW_NATIVE_LOAD',
   'PAIROFCLEATS_MCP_MAX_BUFFER_BYTES',
   'PAIROFCLEATS_MCP_MODE',
   'PAIROFCLEATS_MCP_QUEUE_MAX',
@@ -371,6 +467,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_ONNX_PREWARM_TOKENIZER',
   'PAIROFCLEATS_ONNX_TOKENIZATION_CACHE',
   'PAIROFCLEATS_ONNX_TOKENIZATION_CACHE_MAX',
+  'PAIROFCLEATS_OBSERVABILITY_CONTEXT',
   'PAIROFCLEATS_PREFER_MEMORY_BACKEND_ON_CACHE_HIT',
   'PAIROFCLEATS_PROFILE',
   'PAIROFCLEATS_PROGRESS_CONTEXT',
@@ -379,6 +476,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_QUERY_CACHE_PREWARM_MAX_ENTRIES',
   'PAIROFCLEATS_QUERY_CACHE_STRATEGY',
   'PAIROFCLEATS_REGEX_ENGINE',
+  'PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING',
   'PAIROFCLEATS_SKIP_BENCH',
   'PAIROFCLEATS_SKIP_SCRIPT_COVERAGE',
   'PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL',
@@ -407,6 +505,8 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE',
   'PAIROFCLEATS_SQLITE_FTS_OVERFETCH_ROW_CAP',
   'PAIROFCLEATS_SQLITE_FTS_OVERFETCH_TIME_BUDGET_MS',
+  'PAIROFCLEATS_SQLITE_DENSE_CHILD',
+  'PAIROFCLEATS_SQLITE_DENSE_PAYLOAD',
   'PAIROFCLEATS_SQLITE_TAIL_LATENCY_TUNING',
   'PAIROFCLEATS_STAGE',
   'PAIROFCLEATS_STORAGE_TIER',
@@ -428,7 +528,10 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_TEST_LOG_SILENT',
   'PAIROFCLEATS_TEST_ID',
   'PAIROFCLEATS_TEST_LANE',
+  'PAIROFCLEATS_TEST_BENCH_REPO_DELAY_MS',
+  'PAIROFCLEATS_TEST_BENCH_SELF_INTERRUPT_AFTER_MS',
   'PAIROFCLEATS_TEST_MCP_DELAY_MS',
+  'PAIROFCLEATS_TEST_MCP_DELAY_TOOL_NAMES',
   'PAIROFCLEATS_TEST_MAX_JSON_BYTES',
   'PAIROFCLEATS_TEST_MAX_OLD_SPACE_MB',
   'PAIROFCLEATS_TEST_NODE_OPTIONS',
@@ -446,14 +549,28 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_SUBLIME_TEST_CLI',
   'PAIROFCLEATS_SUBLIME_TEST_FIXTURE_REPO',
   'PAIROFCLEATS_SUBLIME_TEST_NODE',
+  'PAIROFCLEATS_SUBLIME_PACKAGE_HARNESS_TRACE',
   'PAIROFCLEATS_THREADS',
+  'PAIROFCLEATS_TRUSTED_CONFIG',
+  'PAIROFCLEATS_TRUSTED_REPOS',
   'PAIROFCLEATS_TUI_ALT_SCREEN',
+  'PAIROFCLEATS_TUI_CAPTURE_FIXTURE',
+  'PAIROFCLEATS_TUI_CAPTURE_OUT_DIR',
+  'PAIROFCLEATS_TUI_CARGO',
   'PAIROFCLEATS_TUI_DIST_DIR',
   'PAIROFCLEATS_TUI_EVENT_LOG_DIR',
   'PAIROFCLEATS_TUI_INSTALL_ROOT',
   'PAIROFCLEATS_TUI_MOUSE',
+  'PAIROFCLEATS_TUI_NODE',
   'PAIROFCLEATS_TUI_RUN_ID',
+  'PAIROFCLEATS_TUI_SUPERVISOR',
   'PAIROFCLEATS_TUI_UNICODE',
+  'PAIROFCLEATS_TUI_WORKSPACE_ROOT',
+  'PAIROFCLEATS_TOOLING_DIR',
+  'PAIROFCLEATS_TOOLING_LOG_DIR',
+  'PAIROFCLEATS_TOOLING_LSP_GUARDRAIL_BASELINE',
+  'PAIROFCLEATS_TOOLING_LSP_REPLAY_BASELINE',
+  'PAIROFCLEATS_TOOLING_LSP_SLO_BASELINE',
   'PAIROFCLEATS_UPDATE_SNAPSHOTS',
   'PAIROFCLEATS_UV_THREADPOOL_SIZE',
   'PAIROFCLEATS_VERBOSE',
@@ -468,7 +585,7 @@ const KNOWN_ENV_VARS = new Set([
 const BUDGETS = {
   configKeys: 2,
   envVars: 1,
-  cliFlags: 32
+  cliFlags: 71
 };
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',
@@ -562,12 +679,6 @@ export const buildInventory = async (options = {}) => {
     entry.flags.forEach((flag) => publicFlagsDetected.add(flag));
   }
 
-  let existingInventory = null;
-  try {
-    const existingRaw = await fs.readFile(outputJsonPath, 'utf8');
-    existingInventory = JSON.parse(existingRaw);
-  } catch {}
-
   const knownConfigLeafKeys = [
     ...new Set([
       ...Array.from(KNOWN_CONFIG_KEYS),
@@ -659,47 +770,22 @@ export const buildInventory = async (options = {}) => {
     }
   };
 
-  let preservedGeneratedAt = nowIso;
-  if (existingInventory && typeof existingInventory.generatedAt === 'string') {
-    const candidate = { ...inventory, generatedAt: existingInventory.generatedAt };
-    if (JSON.stringify(candidate) === JSON.stringify(existingInventory)) {
-      preservedGeneratedAt = existingInventory.generatedAt;
-      inventory.generatedAt = preservedGeneratedAt;
-    }
-  }
-
-  const jsonOutput = JSON.stringify(inventory, null, 2);
-  const mdOutput = buildInventoryReportMarkdown(inventory);
+  const savedInventory = await writeStableGeneratedJsonReport(outputJsonPath, inventory);
+  const mdOutput = buildInventoryReportMarkdown(savedInventory);
   const applyLineEndings = (text, eol) => (
     typeof text === 'string' ? text.replace(/\r?\n/g, eol) : text
   );
-  let writeJson = true;
-  let writeMd = true;
-  if (existingInventory && typeof existingInventory.generatedAt === 'string') {
-    if (JSON.stringify(inventory) === JSON.stringify(existingInventory)) {
-      writeJson = false;
-    }
-  }
   let mdOutputFinal = mdOutput;
-  if (!writeJson) {
-    // Keep md in sync when json hasn't changed.
-    try {
-      const existingMd = await fs.readFile(outputMdPath, 'utf8');
-      const hasBom = existingMd.charCodeAt(0) === 0xfeff;
-      const eol = existingMd.includes('\r\n') ? '\r\n' : '\n';
-      mdOutputFinal = applyLineEndings(mdOutput, eol);
-      if (hasBom && !mdOutputFinal.startsWith('\ufeff')) {
-        mdOutputFinal = `\ufeff${mdOutputFinal}`;
-      }
-      if (existingMd === mdOutputFinal) writeMd = false;
-    } catch {}
-  }
-  if (writeJson) {
-    await fs.writeFile(outputJsonPath, jsonOutput);
-  }
-  if (writeMd) {
-    await fs.writeFile(outputMdPath, mdOutputFinal);
-  }
+  try {
+    const existingMd = await fs.readFile(outputMdPath, 'utf8');
+    const hasBom = existingMd.charCodeAt(0) === 0xfeff;
+    const eol = existingMd.includes('\r\n') ? '\r\n' : '\n';
+    mdOutputFinal = applyLineEndings(mdOutput, eol);
+    if (hasBom && !mdOutputFinal.startsWith('\ufeff')) {
+      mdOutputFinal = `\ufeff${mdOutputFinal}`;
+    }
+  } catch {}
+  await writeTextIfChanged(outputMdPath, mdOutputFinal, { encoding: 'utf8' });
 
   if (checkBudget) {
     const errors = [];
@@ -734,8 +820,6 @@ export const buildInventory = async (options = {}) => {
   }
 };
 
-export { collectSchemaEntries, getLeafEntries, mergeEntry };
+export { collectSchemaDefaults, collectSchemaEntries, getLeafEntries, mergeEntry };
 
 await buildInventory();
-
-

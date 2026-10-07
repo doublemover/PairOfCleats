@@ -101,10 +101,9 @@ const providerCases = [
 ];
 
 const runCase = async (providerCase) => {
-  const profile = probeLspCommandForTest({
-    providerId: providerCase.providerId,
-    repoRoot: tempRoot
-  });
+  const profile = await withTemporaryEnv(providerCase.providerId === 'jdtls'
+    ? { PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([tempRoot]) } : {},
+  async () => probeLspCommandForTest({ providerId: providerCase.providerId, repoRoot: tempRoot }));
   if (!profile?.probe?.ok) {
     return { skipped: true, validated: false };
   }
@@ -127,7 +126,8 @@ const runCase = async (providerCase) => {
     }
   };
 
-  const result = await withTemporaryEnv({ POC_LSP_COUNTER: counterPath }, async () => runToolingProviders({
+  const result = await withTemporaryEnv({ POC_LSP_COUNTER: counterPath,
+    ...(providerCase.providerId === 'jdtls' ? { PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([caseRoot]) } : {}) }, async () => runToolingProviders({
     strict: true,
     repoRoot: caseRoot,
     buildRoot: caseRoot,

@@ -100,13 +100,17 @@ export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
   const {
     timeoutMs: rawTimeoutMs,
     killTree = true,
-    detached = false,
+    detached: requestedDetached,
     ...spawnOptions
   } = options || {};
   const timeoutMs = resolveSyncCommandTimeoutMs(rawTimeoutMs, DEFAULT_SYNC_COMMAND_TIMEOUT_MS);
+  const detached = typeof requestedDetached === 'boolean'
+    ? requestedDetached
+    : timeoutMs !== null && killTree !== false && process.platform !== 'win32';
   try {
     const result = spawnSync(command, Array.isArray(args) ? args : [], {
       ...spawnOptions,
+      detached,
       timeout: timeoutMs === null ? undefined : timeoutMs
     });
     if (isSyncCommandTimedOut(result)) {

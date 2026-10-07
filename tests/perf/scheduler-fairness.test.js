@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createBuildScheduler } from '../../src/shared/concurrency.js';
+import { createBuildScheduler } from '../../src/shared/concurrency/scheduler-core.js';
 import { treeSitterSchedulerPlannerInternals } from '../../src/index/build/tree-sitter-scheduler/plan.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

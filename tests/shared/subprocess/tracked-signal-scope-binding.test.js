@@ -4,10 +4,10 @@ import { spawn } from 'node:child_process';
 import {
   getTrackedSubprocessCount,
   registerChildProcessForCleanup,
-  spawnSubprocess,
   terminateTrackedSubprocesses,
   withTrackedSubprocessSignalScope
-} from '../../../src/shared/subprocess.js';
+} from '../../../src/shared/subprocess/tracking.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 const waitFor = async (predicate, timeoutMs = 5000) => {
   const startedAt = Date.now();

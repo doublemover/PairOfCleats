@@ -34,6 +34,28 @@ function readSearchOptions(config, settings) {
   };
 }
 
+function normalizeSearchContractOptions(options = {}) {
+  return {
+    mode: normalizeStringSetting(options.mode) || 'both',
+    backend: normalizeStringSetting(options.backend),
+    file: normalizeStringSetting(options.file),
+    pathValue: normalizeStringSetting(options.path),
+    lang: normalizeStringSetting(options.lang),
+    ext: normalizeStringSetting(options.ext),
+    type: normalizeStringSetting(options.type),
+    asOf: normalizeStringSetting(options.asOf),
+    snapshot: normalizeStringSetting(options.snapshot),
+    filter: normalizeStringSetting(options.filter),
+    author: normalizeStringSetting(options.author),
+    modifiedAfter: normalizeStringSetting(options.modifiedAfter),
+    modifiedSince: normalizeStringSetting(options.modifiedSince),
+    churn: normalizeStringSetting(options.churn),
+    contextLines: Number.isFinite(Number(options.contextLines))
+      ? Math.max(0, Number(options.contextLines))
+      : 0
+  };
+}
+
 function buildSearchArgs(query, repoRoot, options = {}) {
   const args = ['search', '--json'];
   const maxResults = Number.isFinite(Number(options.maxResults))
@@ -41,23 +63,23 @@ function buildSearchArgs(query, repoRoot, options = {}) {
     : 25;
   args.push('--top', String(maxResults));
 
-  const mode = normalizeStringSetting(options.mode) || 'both';
-  const backend = normalizeStringSetting(options.backend);
-  const file = normalizeStringSetting(options.file);
-  const pathValue = normalizeStringSetting(options.path);
-  const lang = normalizeStringSetting(options.lang);
-  const ext = normalizeStringSetting(options.ext);
-  const type = normalizeStringSetting(options.type);
-  const asOf = normalizeStringSetting(options.asOf);
-  const snapshot = normalizeStringSetting(options.snapshot);
-  const filter = normalizeStringSetting(options.filter);
-  const author = normalizeStringSetting(options.author);
-  const modifiedAfter = normalizeStringSetting(options.modifiedAfter);
-  const modifiedSince = normalizeStringSetting(options.modifiedSince);
-  const churn = normalizeStringSetting(options.churn);
-  const contextLines = Number.isFinite(Number(options.contextLines))
-    ? Math.max(0, Number(options.contextLines))
-    : 0;
+  const {
+    mode,
+    backend,
+    file,
+    pathValue,
+    lang,
+    ext,
+    type,
+    asOf,
+    snapshot,
+    filter,
+    author,
+    modifiedAfter,
+    modifiedSince,
+    churn,
+    contextLines
+  } = normalizeSearchContractOptions(options);
   const extraArgs = normalizeStringArray(options.extraArgs);
 
   if (asOf && snapshot) {
@@ -89,23 +111,23 @@ function buildSearchArgs(query, repoRoot, options = {}) {
 }
 
 function buildSearchPayload(query, repoRoot, options = {}) {
-  const mode = normalizeStringSetting(options.mode) || 'both';
-  const backend = normalizeStringSetting(options.backend);
-  const file = normalizeStringSetting(options.file);
-  const pathValue = normalizeStringSetting(options.path);
-  const lang = normalizeStringSetting(options.lang);
-  const ext = normalizeStringSetting(options.ext);
-  const type = normalizeStringSetting(options.type);
-  const asOf = normalizeStringSetting(options.asOf);
-  const snapshot = normalizeStringSetting(options.snapshot);
-  const filter = normalizeStringSetting(options.filter);
-  const author = normalizeStringSetting(options.author);
-  const modifiedAfter = normalizeStringSetting(options.modifiedAfter);
-  const modifiedSince = normalizeStringSetting(options.modifiedSince);
-  const churn = normalizeStringSetting(options.churn);
-  const contextLines = Number.isFinite(Number(options.contextLines))
-    ? Math.max(0, Number(options.contextLines))
-    : 0;
+  const {
+    mode,
+    backend,
+    file,
+    pathValue,
+    lang,
+    ext,
+    type,
+    asOf,
+    snapshot,
+    filter,
+    author,
+    modifiedAfter,
+    modifiedSince,
+    churn,
+    contextLines
+  } = normalizeSearchContractOptions(options);
   const payload = {
     query: String(query ?? ''),
     repo: repoRoot || '',

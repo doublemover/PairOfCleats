@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEmbedder } from '../../../src/index/embedding.js';
+import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../src/shared/embedding-model-profile.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
@@ -9,13 +10,14 @@ import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/schedule
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
 import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
   loadChunkMetaRows,
-  loadFileMetaRows,
-  MAX_JSON_BYTES
-} from '../../../src/shared/artifact-io.js';
+  loadFileMetaRows
+} from '../../../src/shared/artifact-io/loaders.js';
 import { readTextFile, readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { replaceFile, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
+import { replaceFile } from '../../../src/shared/json-stream/atomic.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
@@ -31,21 +33,24 @@ import {
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
-import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/files.js';
-import { getEnvConfig, isTestingEnv } from '../../../src/shared/env.js';
-import { createLruCache } from '../../../src/shared/cache.js';
+import { fromPosix, isPathWithinRoot, toPosix } from '../../../src/shared/file-paths.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { isTestingEnv } from '../../../src/shared/env/testing.js';
+import { createLruCache } from '../../../src/shared/cache/lru.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
-import { formatEmbeddingsPerfLine } from '../../../src/shared/embeddings-progress.js';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency.js';
+import { formatEmbeddingsPerfLine } from './perf-progress.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import { coercePositiveIntMinOne } from '../../../src/shared/number-coerce.js';
 import { resolveFdConcurrencyCap } from '../../../src/index/build/workers/config.js';
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
-  readBundleFile,
   resolveManifestBundleNames,
-  resolveBundleFormatFromName,
+  resolveBundleFormatFromName
+} from '../../../src/shared/bundle-io-paths.js';
+import {
+  readBundleFile,
   writeBundleFile
 } from '../../../src/shared/bundle-io.js';
 import {
@@ -96,7 +101,7 @@ import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
-import { updateSqliteDense } from './sqlite-dense.js';
+import { runSqliteDenseWithBoundary } from './sqlite-dense-isolate.js';
 import {
   createDeterministicFileStreamSampler,
   selectDeterministicFileSample
@@ -111,16 +116,8 @@ import {
   deriveEmbeddingsAutoTuneRecommendation,
   writeEmbeddingsAutoTuneRecommendation
 } from './autotune-profile.js';
-import {
-  normalizeExtractedProseLowYieldBailoutConfig,
-} from '../../../src/index/chunking/formats/document-common.js';
-import {
-  buildExtractedProseLowYieldBailoutState,
-  buildExtractedProseLowYieldHistory,
-  buildExtractedProseLowYieldBailoutSummary,
-  observeExtractedProseLowYieldSample
-} from '../../../src/index/build/indexer/steps/process-files/extracted-prose.js';
 import { sortEntriesByOrderIndex } from '../../../src/index/build/indexer/steps/process-files/ordering.js';
+import { summarizeBundleEmbeddingCoverage, stampBundleEmbeddingCoverage } from './runner/bundle-coverage.js';
 import {
   createIncrementalChunkMappingIndex,
   createMappingFailureReasons,
@@ -149,23 +146,6 @@ const DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS = 32768;
 const DEFAULT_EMBEDDINGS_IN_FLIGHT_CLAIMS_MAX_ENTRIES = 200000;
 const DEFAULT_EMBEDDINGS_SQLITE_DENSE_WRITE_BATCH_SIZE = 256;
 const DEFAULT_EMBEDDINGS_ADAPTIVE_PARALLELISM_MULTIPLIER = 2;
-const EXTRACTED_PROSE_RUNTIME_STATE_DIR = 'runtime';
-const EXTRACTED_PROSE_YIELD_PROFILE_FILE = 'extracted-prose-yield-profile.json';
-
-const loadPersistedExtractedProseLowYieldHistory = async ({ repoCacheRoot, scheduleIo, warn = () => {} }) => {
-  if (typeof repoCacheRoot !== 'string' || !repoCacheRoot.trim()) return null;
-  const profilePath = path.join(repoCacheRoot, EXTRACTED_PROSE_RUNTIME_STATE_DIR, EXTRACTED_PROSE_YIELD_PROFILE_FILE);
-  try {
-    const loaded = await scheduleIo(() => fs.readFile(profilePath, 'utf8'));
-    const parsed = JSON.parse(loaded);
-    return buildExtractedProseLowYieldHistory(parsed?.entries?.['extracted-prose'] || null);
-  } catch (err) {
-    if (err?.code !== 'ENOENT') {
-      warn(`[embeddings] extracted-prose: failed to load persisted yield profile: ${err?.message || err}`);
-    }
-    return null;
-  }
-};
 const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
 
 /**
@@ -184,13 +164,8 @@ const CHUNK_META_TOO_LARGE_BYTES_PATTERN = /\((\d+)\s*>\s*(\d+)\)/;
  * @property {object|null} lowYieldBailout
  * @property {boolean} manifestWritten
  * @property {boolean} completeCoverage
+ * @property {object} coverage Counts for examined, unexamined and invalid manifest bundles.
  */
-
-let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {}
-
 /**
  * Resolve max chunk-meta payload size used when loading chunk metadata for
  * embeddings generation.
@@ -989,7 +964,6 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
  *   mergedVectors:Array<Uint8Array|number[]|ArrayBufferView|null>,
  *   embeddingMode:string,
  *   embeddingIdentityKey:string|null,
- *   lowYieldBailout:object,
  *   parallelism?:number,
  *   scheduleIo:(worker:()=>Promise<any>)=>Promise<any>,
  *   log:(line:string)=>void,
@@ -997,15 +971,13 @@ const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) =
  * }} input
  * @returns {Promise<RefreshIncrementalBundlesResult|{attempted:number,rewritten:number,manifestWritten:boolean,completeCoverage:boolean}>}
  */
-const refreshIncrementalBundlesWithEmbeddings = async ({
+export const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
-  repoCacheRoot,
   incremental,
   chunksByFile,
   mergedVectors,
   embeddingMode,
   embeddingIdentityKey,
-  lowYieldBailout,
   parallelism = 1,
   scheduleIo,
   log,
@@ -1044,23 +1016,6 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
 
   const resolvedBundleFormat = normalizeBundleFormat(manifest.bundleFormat);
   const scanned = orderedManifestEntries.length;
-  const lowYieldConfig = normalizeExtractedProseLowYieldBailoutConfig(lowYieldBailout);
-  const lowYieldHistory = mode === 'extracted-prose'
-    ? await loadPersistedExtractedProseLowYieldHistory({ repoCacheRoot, scheduleIo, warn })
-    : null;
-  const lowYieldState = buildExtractedProseLowYieldBailoutState({
-    mode,
-    runtime: {
-      indexingConfig: {
-        extractedProse: {
-          lowYieldBailout: lowYieldConfig
-        }
-      }
-    },
-    entries: orderedManifestEntries,
-    history: lowYieldHistory
-  });
-  let lowYieldBailoutSkipped = 0;
   let processedEntries = 0;
   let eligible = 0;
   let rewritten = 0;
@@ -1075,41 +1030,17 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
   const refreshParallelism = coercePositiveIntMinOne(parallelism) || 1;
 
   /**
-   * Record bundle-refresh mapping yield using the shared extracted-prose
-   * bailout model so stage1 and stage3 make matching low-yield decisions.
-   *
-   * @param {{record:object,chunkMapping:any}} input
-   * @returns {void}
-   */
-  const observeWarmupMapping = ({ record, chunkMapping }) => {
-    if (!lowYieldState?.enabled) return;
-    const orderIndex = Number(record?.orderIndex);
-    const chunkCount = Array.isArray(chunkMapping?.fallbackIndices)
-      ? chunkMapping.fallbackIndices.length
-      : 0;
-    observeExtractedProseLowYieldSample({
-      bailout: lowYieldState,
-      orderIndex,
-      result: {
-        chunks: chunkCount > 0 ? new Array(chunkCount).fill(null) : []
-      }
-    });
-  };
-
-  /**
    * Refresh one manifest bundle entry against stage-3 vectors.
    *
    * @param {{filePath:string,normalizedFile:string,entry:any,orderIndex:number}} record
-   * @param {{trackWarmup?:boolean}} [input]
    * @returns {Promise<void>}
    */
-  const processManifestEntry = async (record, { trackWarmup = false } = {}) => {
+  const processManifestEntry = async (record) => {
     const filePath = String(record?.filePath || '');
     const normalizedFile = String(record?.normalizedFile || toPosix(filePath).trim());
     const entry = record?.entry;
     processedEntries += 1;
     const chunkMapping = resolveChunkFileMapping(mappingIndex, normalizedFile);
-    if (trackWarmup) observeWarmupMapping({ record, chunkMapping });
     const bundleNames = resolveManifestBundleNames(entry);
     if (!bundleNames.length) {
       skippedInvalidBundle += 1;
@@ -1220,57 +1151,24 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
   };
 
-  let nextEntryIndex = 0;
-  if (lowYieldState?.enabled === true && Number(lowYieldState.warmupSampleSize) > 0) {
-    for (; nextEntryIndex < orderedManifestEntries.length; nextEntryIndex += 1) {
-      await processManifestEntry(orderedManifestEntries[nextEntryIndex], { trackWarmup: true });
-      if (lowYieldState.decisionMade === true) {
-        nextEntryIndex += 1;
-        break;
-      }
-    }
+  // Extraction admission belongs to stage 1. Stage 3 synchronizes vectors that
+  // already exist, so another yield sample must not leave late bundles stale.
+  if (refreshParallelism > 1 && orderedManifestEntries.length > 1) {
+    await runWithConcurrency(orderedManifestEntries, refreshParallelism,
+      async (manifestEntry) => processManifestEntry(manifestEntry), { collectResults: false });
+  } else {
+    for (const manifestEntry of orderedManifestEntries) await processManifestEntry(manifestEntry);
   }
 
-  const remainingEntries = lowYieldState?.enabled === true && Number(lowYieldState.warmupSampleSize) > 0
-    ? orderedManifestEntries.slice(nextEntryIndex)
-    : orderedManifestEntries;
-  if (lowYieldState?.triggered !== true && remainingEntries.length) {
-    if (refreshParallelism > 1 && remainingEntries.length > 1) {
-      await runWithConcurrency(
-        remainingEntries,
-        refreshParallelism,
-        async (manifestEntry) => processManifestEntry(manifestEntry),
-        { collectResults: false }
-      );
-    } else {
-      for (const manifestEntry of remainingEntries) {
-        await processManifestEntry(manifestEntry);
-      }
-    }
-  }
-
-  if (lowYieldState?.triggered === true) {
-    lowYieldBailoutSkipped = Math.max(0, scanned - processedEntries);
-    lowYieldState.skippedFiles = lowYieldBailoutSkipped;
-  }
-  const lowYieldBailoutSummary = buildExtractedProseLowYieldBailoutSummary(lowYieldState);
-
-  const missingFiles = Math.max(0, eligible - covered);
-  const missingChunks = Math.max(0, skippedNoMappingChunks);
-  const completeCoverage = eligible > 0
-    ? covered === eligible && missingChunks === 0
-    : skippedInvalidBundle === 0;
+  const coverage = summarizeBundleEmbeddingCoverage({ totalFiles: scanned, processedFiles: processedEntries,
+    eligibleFiles: eligible, coveredFiles: covered, missingChunks: skippedNoMappingChunks, invalidBundles: skippedInvalidBundle });
+  const completeCoverage = coverage.complete;
   let manifestWritten = false;
   if (rewriteFailures === 0) {
-    manifest.bundleEmbeddings = completeCoverage;
+    stampBundleEmbeddingCoverage(manifest, coverage);
     manifest.bundleEmbeddingMode = embeddingMode || null;
     manifest.bundleEmbeddingIdentityKey = embeddingIdentityKey || null;
     manifest.bundleEmbeddingStage = 'stage3';
-    manifest.bundleEmbeddingCoverageEligible = eligible;
-    manifest.bundleEmbeddingCoverageCovered = covered;
-    manifest.bundleEmbeddingCoverageMissingFiles = missingFiles;
-    manifest.bundleEmbeddingCoverageMissingChunks = missingChunks;
-    manifest.bundleEmbeddingCoverageComplete = completeCoverage;
     manifestWritten = await scheduleIo(
       () => writeIncrementalManifest(incremental.manifestPath, manifest)
     );
@@ -1293,7 +1191,6 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     }
     if (skippedEmptyBundle > 0) skippedNotes.push(`empty=${skippedEmptyBundle}`);
     if (skippedInvalidBundle > 0) skippedNotes.push(`invalid=${skippedInvalidBundle}`);
-    if (lowYieldBailoutSkipped > 0) skippedNotes.push(`lowYieldBailout=${lowYieldBailoutSkipped}`);
     if (rewriteFailures > 0) skippedNotes.push(`rewriteFailures=${rewriteFailures}`);
     const skippedSuffix = skippedNotes.length ? ` (skipped ${skippedNotes.join(', ')})` : '';
     const coverageText = eligible > 0 ? `${covered}/${eligible}` : 'n/a';
@@ -1301,16 +1198,6 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
       `[embeddings] ${mode}: refreshed ${rewritten}/${eligible} eligible incremental bundles; ` +
       `embedding coverage ${coverageText}${skippedSuffix}.`
     );
-    if (lowYieldState?.triggered === true) {
-      const ratioPct = ((lowYieldBailoutSummary?.observedYieldRatio || 0) * 100).toFixed(1);
-      warn(
-        `[embeddings] ${mode}: low-yield bailout engaged after ${lowYieldBailoutSummary?.sampledFiles || 0} warmup files `
-          + `(yielded=${lowYieldBailoutSummary?.sampledYieldedFiles || 0}, `
-          + `chunks=${lowYieldBailoutSummary?.sampledChunkCount || 0}, ratio=${ratioPct}%, `
-          + `threshold=${Math.round((lowYieldBailoutSummary?.minYieldRatio || 0) * 100)}%); `
-          + 'quality marker: reduced-extracted-prose-recall.'
-      );
-    }
   }
   return {
     attempted: eligible,
@@ -1323,10 +1210,11 @@ const refreshIncrementalBundlesWithEmbeddings = async ({
     mappingFailureReasons,
     skippedInvalidBundle,
     skippedEmptyBundle,
-    lowYieldBailoutSkipped,
-    lowYieldBailout: lowYieldBailoutSummary,
+    lowYieldBailoutSkipped: 0,
+    lowYieldBailout: null,
     manifestWritten,
     completeCoverage,
+    coverage,
     rewriteFailures
   };
 };
@@ -1392,9 +1280,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
   } = createBuildEmbeddingsContext({ argv });
   const stubFastPathEnabled = useStubEmbeddings === true;
   const embeddingNormalize = embeddingsConfig.normalize !== false;
-  const extractedProseLowYieldBailout = normalizeExtractedProseLowYieldBailoutConfig(
-    indexingConfig?.extractedProse?.lowYieldBailout
-  );
+  const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
+  validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
   const embeddingSampling = resolveEmbeddingSamplingConfig({ embeddingsConfig, env: configEnv });
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
   const binaryDenseVectors = embeddingsConfig.binaryDenseVectors !== false;
@@ -1539,7 +1426,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
-  const cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
+  let cacheDims = modelProfile?.dimensions ?? (useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims);
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
@@ -1552,6 +1439,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   let runtimeEmbeddingProvider = embeddingProvider;
   const buildCacheIdentityForProvider = (provider) => {
     const identityPayload = buildCacheIdentity({
+      modelProfile,
       modelId,
       provider,
       mode: resolvedEmbeddingMode,
@@ -1776,7 +1664,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
       modelsDir,
       provider: embeddingProvider,
       onnx: embeddingOnnx,
-      normalize: embeddingNormalize
+      normalize: embeddingNormalize,
+      modelProfile
     });
   } catch (err) {
     crashLogger.logError({
@@ -1788,9 +1677,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
     throw err;
   }
   const getChunkEmbeddings = embedder.getChunkEmbeddings;
-  if (!useStubEmbeddings && embeddingProvider === 'onnx') {
+  if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims)) {
     try {
-      await getChunkEmbeddings(['pairofcleats-provider-probe']);
+      const probeVectors = await getChunkEmbeddings(['pairofcleats-provider-probe']);
+      assertVectorArrays(probeVectors, 1, 'provider-probe');
+      const probeDims = probeVectors[0].length;
+      if (cacheDims && cacheDims !== probeDims) {
+        throw new Error(`[embeddings] embedding dims mismatch (configured=${cacheDims}, observed=${probeDims}).`);
+      }
+      cacheDims = probeDims;
     } catch (err) {
       crashLogger.logError({
         phase: 'stage3:init',
@@ -1806,16 +1701,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
     if (typeof detectedProvider === 'string' && detectedProvider && detectedProvider !== runtimeEmbeddingProvider) {
       const priorProvider = runtimeEmbeddingProvider;
       runtimeEmbeddingProvider = detectedProvider;
-      ({
-        cacheIdentity,
-        cacheIdentityKey,
-        cacheKeyFlags
-      } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
       log(
         `[embeddings] provider fallback resolved before stage3 cache identity: ` +
         `${priorProvider} -> ${runtimeEmbeddingProvider}.`
       );
     }
+    // Resolve dimensions before any cache keys, pending state, or incremental
+    // bundles are written; a ready identity must never carry unknown dims=0.
+    ({ cacheIdentity, cacheIdentityKey, cacheKeyFlags } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
   }
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const {
@@ -2219,7 +2112,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
           );
         }
-        const sampledChunksByFile = new Map(sampledFileEntries);
         const samplingActive = sampledChunkCount < totalChunks;
 
         stageCheckpoints = createStageCheckpointRecorder({
@@ -2435,7 +2327,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           return pending;
         };
 
-        const dimsValidator = createDimsValidator({ mode, configuredDims });
+        const dimsValidator = createDimsValidator({ mode, configuredDims: cacheDims });
         const assertDims = dimsValidator.assertDims;
 
         if (configuredDims && cacheEligible) {
@@ -3914,7 +3806,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           );
         }
         const finalDims = observedDims
-        || configuredDims
+        || cacheDims
         || (useStubEmbeddings ? resolveStubDims(configuredDims) : DEFAULT_STUB_DIMS);
         fillMissingVectors(codeVectors, finalDims);
         fillMissingVectors(docVectors, finalDims);
@@ -3929,11 +3821,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           mode,
           repoCacheRoot,
           incremental,
-          chunksByFile: sampledChunksByFile,
+          chunksByFile,
           mergedVectors,
           embeddingMode: resolvedEmbeddingMode,
           embeddingIdentityKey: cacheIdentityKey,
-          lowYieldBailout: extractedProseLowYieldBailout,
           parallelism: bundleRefreshParallelism,
           scheduleIo,
           log,
@@ -3942,7 +3833,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         bundleTask.done({
           message: `${refreshedBundles.rewritten || 0}/${refreshedBundles.eligible || 0} rewritten`
         });
-        if (refreshedBundles.attempted > 0 && !refreshedBundles.completeCoverage) {
+        if (refreshedBundles.scanned > 0 && !refreshedBundles.completeCoverage) {
           warn(
             `[embeddings] ${mode}: incremental bundle embedding coverage incomplete; ` +
             'sqlite incremental builds may fall back to artifacts.'
@@ -4060,23 +3951,55 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const sqliteSharedDbForMode = sqlitePathsForMode?.codePath
             && sqlitePathsForMode?.prosePath
             && path.resolve(sqlitePathsForMode.codePath) === path.resolve(sqlitePathsForMode.prosePath);
-          const sqliteResult = await scheduleIo(() => updateSqliteDense({
-            Database,
-            root,
-            userConfig,
-            indexRoot: modeIndexRoot,
-            mode,
-            vectors: mergedVectors,
-            dims: finalDims,
-            scale: denseScale,
-            modelId,
-            quantization,
-            sharedDb: sqliteSharedDbForMode,
-            writeBatchSize: sqliteDenseWriteBatchSize,
-            emitOutput: true,
-            warnOnMissing: false,
-            logger
-          }));
+          let sqliteResult;
+          try {
+            sqliteResult = await scheduleIo(() => runSqliteDenseWithBoundary({
+              root,
+              userConfig,
+              indexRoot: modeIndexRoot,
+              repoCacheRoot,
+              mode,
+              vectorsPath: mergedVectorsBasePath,
+              dims: finalDims,
+              scale: denseScale,
+              modelId,
+              quantization,
+              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+              sharedDb: sqliteSharedDbForMode,
+              writeBatchSize: sqliteDenseWriteBatchSize,
+              emitOutput: true,
+              warnOnMissing: false,
+              crashLogger,
+              buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null,
+              workerIdentity: `stage3-sqlite:${mode}`,
+              logger,
+              enableWindowsCrashCapture: envConfig?.benchRun === true || isTestingEnv()
+            }));
+          } catch (err) {
+            crashLogger.logError({
+              phase: `embeddings:${mode}`,
+              stage: 'sqlite-dense-isolate',
+              tool: 'sqlite-dense',
+              workerId: err?.workerId || `stage3-sqlite:${mode}`,
+              buildId: err?.buildId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+              bundleId: err?.bundleId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+              message: err?.message || String(err),
+              code: err?.code || null,
+              failureClass: err?.failureClass || null,
+              file: mergedVectorsBasePath,
+              indexRoot: modeIndexRoot,
+              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+              replayBundlePath: err?.replayBundlePath || null,
+              nativeCrash: err?.nativeCrash === true,
+              dumpDir: err?.dumpDir || null,
+              dumpFiles: Array.isArray(err?.dumpFiles) ? err.dumpFiles : [],
+              exitCode: Number.isFinite(Number(err?.result?.exitCode)) ? Number(err.result.exitCode) : null,
+              signal: typeof err?.result?.signal === 'string' ? err.result.signal : null,
+              stderrTail: err?.result?.stderr || null,
+              stdoutTail: err?.result?.stdout || null
+            });
+            throw err;
+          }
           const vectorAnn = sqliteResult?.vectorAnn || null;
           sqliteVecState = {
             enabled: vectorAnn?.enabled === true,
@@ -4178,6 +4101,15 @@ export async function runBuildEmbeddingsWithConfig(config) {
         indexState.generatedAt = indexState.generatedAt || now;
         indexState.updatedAt = now;
         indexState.mode = indexState.mode || mode;
+        if (!indexState.extensions || typeof indexState.extensions !== 'object') indexState.extensions = {};
+        indexState.extensions.bundleEmbeddingSynchronization = {
+          schemaVersion: 1, stage: 'stage3-bundle-synchronization',
+          observation: refreshedBundles.coverage ? 'observed' : 'unknown',
+          coverage: refreshedBundles.coverage || null,
+          rewrittenFiles: refreshedBundles.rewritten || 0,
+          rewriteFailures: refreshedBundles.rewriteFailures || 0,
+          manifestWritten: refreshedBundles.manifestWritten === true
+        };
         indexState.embeddings = {
           ...(indexState.embeddings || {}),
           enabled: true,
@@ -4447,4 +4379,3 @@ export async function runBuildEmbeddingsWithConfig(config) {
     finalize();
   }
 }
-

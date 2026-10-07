@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import {
   buildEmbeddingIdentity,
   buildEmbeddingIdentityKey
@@ -32,6 +33,24 @@ const base = {
 };
 
 const baseKey = buildEmbeddingIdentityKey(buildEmbeddingIdentity(base));
+
+const emptyIdentity = buildEmbeddingIdentity({ provider: 'onnx' });
+for (const missing of [null, undefined, '', ' ', false, [], {}]) {
+  const identity = buildEmbeddingIdentity({
+    provider: 'onnx',
+    dims: missing,
+    scale: missing,
+    maxLength: missing,
+    quantization: { version: missing, minVal: missing, maxVal: missing, levels: missing },
+    onnx: { intraOpNumThreads: missing, interOpNumThreads: missing }
+  });
+  assert.deepEqual(identity, emptyIdentity,
+    'missing or nonnumeric numeric fields must retain null/default values instead of coercing to zero');
+}
+assert.equal(buildEmbeddingIdentity(base).maxLength, null);
+assert.equal(buildEmbeddingIdentity({ dims: '384' }).dims, 384);
+assert.equal(buildEmbeddingIdentity({ scale: 0 }).scale, 0,
+  'an explicit numeric zero must remain distinct from an absent value');
 
 const modelPathKey = buildEmbeddingIdentityKey(buildEmbeddingIdentity({
   ...base,

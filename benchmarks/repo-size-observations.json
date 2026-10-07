@@ -1,0 +1,1838 @@
+{
+  "schemaVersion": 1,
+  "measuredAt": "2026-10-04T06:26:55.443108+00:00",
+  "benchmarkHead": "b4628f76aa5b2e3056a275e003c534b71780f78f",
+  "measurementScope": "Filtered full-repository code-mode workload; not unfiltered repository LOC, a nominated-language slice, or a sum of overlapping modes.",
+  "digestScope": "Canonical JSON of the reported code-mode lines and files objects, excluding machine paths and other payload data.",
+  "tierPolicyBlob": "e0009946b02893c6e2b155aea997aa5a5e6fbb89",
+  "sourceConfigBlob": "665feae3521b8038ad722ce353559a2426a2e4b7",
+  "records": [
+    {
+      "language": "swift",
+      "repo": "apple/container",
+      "revision": "38fe2f9a4b14759c60a2fe632c660912bd9d4b1c",
+      "codeModeLoc": 71027,
+      "codeModeFiles": 491,
+      "skippedFiles": 52,
+      "skippedByReason": {
+        "ignored": 8,
+        "binary": 5,
+        "unsupported": 39
+      },
+      "sourcePointer": "/tasks/0/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "85213e208a724660bb4f08d622e793edc1386cb1f345f59bba0de554be5b6bdf"
+    },
+    {
+      "language": "swift",
+      "repo": "onevcat/Kingfisher",
+      "revision": "7bfa0b2f314566bd5ccce60ffe4f4b8f10311f65",
+      "codeModeLoc": 44207,
+      "codeModeFiles": 265,
+      "skippedFiles": 187,
+      "skippedByReason": {
+        "ignored": 5,
+        "symlink": 1,
+        "binary": 71,
+        "unsupported": 110
+      },
+      "sourcePointer": "/tasks/1/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "075d2dcef6211cb0b2e345a31272ab89af7c03bdb4b7fdead252593e4ec717ab"
+    },
+    {
+      "language": "swift",
+      "repo": "rxhanson/Rectangle",
+      "revision": "6ba100238540b8f1404ac3c6a2ba46fffafa8bad",
+      "codeModeLoc": 28182,
+      "codeModeFiles": 309,
+      "skippedFiles": 278,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 133,
+        "unsupported": 142,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/2/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "2f6dc10caef762b2bbc7f018f2386fe0aef7d3bbded936a8242f7e1ddf523fb1"
+    },
+    {
+      "language": "swift",
+      "repo": "twostraws/simple-swiftui",
+      "revision": "e24d0442acf4a1ad7d624e4653bca75485296a10",
+      "codeModeLoc": 2233,
+      "codeModeFiles": 54,
+      "skippedFiles": 202,
+      "skippedByReason": {
+        "ignored": 1,
+        "binary": 91,
+        "unsupported": 110
+      },
+      "sourcePointer": "/tasks/3/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "40791d1c7a1c6144781f3e1a907ca93054fe96ec798cd7ab3c69b5fb1e0ef72e"
+    },
+    {
+      "language": "clike",
+      "repo": "Genymobile/scrcpy",
+      "revision": "19c1261d2e2cbf2b5e6a71a8b64cc1dd3ede06ac",
+      "codeModeLoc": 47484,
+      "codeModeFiles": 308,
+      "skippedFiles": 69,
+      "skippedByReason": {
+        "ignored": 4,
+        "binary": 7,
+        "unsupported": 58
+      },
+      "sourcePointer": "/tasks/4/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "ca278a66bb424d674d0ea40b2f4774eed1aa189cce67b93fea121e9ad0e6b41a"
+    },
+    {
+      "language": "clike",
+      "repo": "madler/zlib",
+      "revision": "767c4c947852e143f582c85f14cf573411df1b35",
+      "codeModeLoc": 53741,
+      "codeModeFiles": 154,
+      "skippedFiles": 123,
+      "skippedByReason": {
+        "ignored": 3,
+        "binary": 7,
+        "unsupported": 112,
+        "records": 1
+      },
+      "sourcePointer": "/tasks/5/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "77696756bfa142e90c389e1fb480e3b753d41080a8ceaab0a5df3ee50202b2da"
+    },
+    {
+      "language": "lua",
+      "repo": "folke/lazy.nvim",
+      "revision": "306a05526ada86a7b30af95c5cc81ffba93fef97",
+      "codeModeLoc": 12051,
+      "codeModeFiles": 84,
+      "skippedFiles": 13,
+      "skippedByReason": {
+        "ignored": 2,
+        "generated": 1,
+        "unsupported": 10
+      },
+      "sourcePointer": "/tasks/6/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "77ac138e35c99fb06ee4fb4cdda2d86a588c5d8dcbfdce71304168a179ea8a3b"
+    },
+    {
+      "language": "lua",
+      "repo": "hrsh7th/nvim-cmp",
+      "revision": "2ffe79f1f021def8dd1fcd81deb16f1bb0d989f3",
+      "codeModeLoc": 9949,
+      "codeModeFiles": 67,
+      "skippedFiles": 6,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 5
+      },
+      "sourcePointer": "/tasks/7/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1af2347737c970056444f2b8bbdd99f74cae4336378185d4ba697f665b12b1b3"
+    },
+    {
+      "language": "lua",
+      "repo": "kikito/inspect.lua",
+      "revision": "a8ca3120dfec48801036eaeff9335ab7a096dd24",
+      "codeModeLoc": 1301,
+      "codeModeFiles": 16,
+      "skippedFiles": 4,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 3
+      },
+      "sourcePointer": "/tasks/8/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "cce5cf070bc57fbd6de4bf9091efa88524f89c66946553115d39b4ee97dca5f2"
+    },
+    {
+      "language": "lua",
+      "repo": "LazyVim/LazyVim",
+      "revision": "999700997f72227187d49d8b92667183dc7fc809",
+      "codeModeLoc": 15957,
+      "codeModeFiles": 173,
+      "skippedFiles": 19,
+      "skippedByReason": {
+        "ignored": 3,
+        "unsupported": 16
+      },
+      "sourcePointer": "/tasks/9/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "e8d390d2f340bee97bcc7bace432c8ecbc7d8fc9ef2d493b34f0f872374c1e5d"
+    },
+    {
+      "language": "lua",
+      "repo": "lunarmodules/luasocket",
+      "revision": "35187983315e3a9bb920e73ca94d19ffe17ba385",
+      "codeModeLoc": 23796,
+      "codeModeFiles": 125,
+      "skippedFiles": 50,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 6,
+        "unsupported": 42
+      },
+      "sourcePointer": "/tasks/10/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "bc8cb88e471dbc69c1c09e7aae6a8a4d4bb9ddeafd6493efd5463b4b47f60ecd"
+    },
+    {
+      "language": "lua",
+      "repo": "NvChad/NvChad",
+      "revision": "add44b952d631981614bbb8cfc6f7002f296dfe6",
+      "codeModeLoc": 648,
+      "codeModeFiles": 13,
+      "skippedFiles": 2,
+      "skippedByReason": {
+        "unsupported": 2
+      },
+      "sourcePointer": "/tasks/11/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "b957de97d7e14dbb846d8bb47dd24e8ded482e7d5d4c8432c21972f20564ed92"
+    },
+    {
+      "language": "lua",
+      "repo": "nvim-lua/kickstart.nvim",
+      "revision": "8e35dbedb7966e3a95e1f26f9fc1179ab6c68db4",
+      "codeModeLoc": 1334,
+      "codeModeFiles": 11,
+      "skippedFiles": 7,
+      "skippedByReason": {
+        "ignored": 2,
+        "unsupported": 5
+      },
+      "sourcePointer": "/tasks/12/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "d4c9f114799264d9eaf1ba51a0caf9875ea354cd43aa45bddc40b54031eef31b"
+    },
+    {
+      "language": "lua",
+      "repo": "torch/torch7",
+      "revision": "814ea4afd6beb110705d2456de03876841fcf1fd",
+      "codeModeLoc": 36326,
+      "codeModeFiles": 139,
+      "skippedFiles": 29,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 1,
+        "unsupported": 26
+      },
+      "sourcePointer": "/tasks/13/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "a2a824a3a27e0b667b740e70872f7e8cd7f8c543d24f2839099db873921c9292"
+    },
+    {
+      "language": "perl",
+      "repo": "AlDanial/cloc",
+      "revision": "2b7f7d20b72d8518a96e46f871f4105117d46844",
+      "codeModeLoc": 26958,
+      "codeModeFiles": 700,
+      "skippedFiles": 386,
+      "skippedByReason": {
+        "ignored": 6,
+        "symlink": 11,
+        "generated": 1,
+        "binary": 17,
+        "unsupported": 351
+      },
+      "sourcePointer": "/tasks/14/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "bb47128e807721eb35b19f687037c37a9ed8cee77600228233e16d799a918e97"
+    },
+    {
+      "language": "perl",
+      "repo": "brendangregg/FlameGraph",
+      "revision": "41fee1f99f9276008b7cd112fca19dc3ea84ac32",
+      "codeModeLoc": 4858,
+      "codeModeFiles": 36,
+      "skippedFiles": 150,
+      "skippedByReason": {
+        "oversize": 1,
+        "binary": 25,
+        "unsupported": 124
+      },
+      "sourcePointer": "/tasks/15/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "d1a3cb603d4d48848804dbe12b9d01d05d6120730cdaaf1d1b8590d94afdbecd"
+    },
+    {
+      "language": "perl",
+      "repo": "gugod/App-perlbrew",
+      "revision": "b5fc972f82f81d59113989afc9472fb3db32b201",
+      "codeModeLoc": 13550,
+      "codeModeFiles": 106,
+      "skippedFiles": 16,
+      "skippedByReason": {
+        "ignored": 3,
+        "binary": 1,
+        "unsupported": 12
+      },
+      "sourcePointer": "/tasks/16/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "10560aaef1c199b9e6fd7720b81d3f7423da5a42e6856a4e3923978a0118b461"
+    },
+    {
+      "language": "perl",
+      "repo": "OpenSCAP/openscap",
+      "revision": "6942b59fc861ad77ebcea93e70f32832d88e20f9",
+      "codeModeLoc": 179917,
+      "codeModeFiles": 1102,
+      "skippedFiles": 1851,
+      "skippedByReason": {
+        "ignored": 6,
+        "oversize": 30,
+        "minified": 4,
+        "binary": 1111,
+        "unsupported": 700
+      },
+      "sourcePointer": "/tasks/17/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "f37f9be15d78033ee5fd6ce6d56b80a877eab2e6500d339bdbbe6f30b6cec7f3"
+    },
+    {
+      "language": "perl",
+      "repo": "perl-carton/carton",
+      "revision": "ce169636657e6e2f42f6fc7a8c02ae3d34281922",
+      "codeModeLoc": 2842,
+      "codeModeFiles": 44,
+      "skippedFiles": 23,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 2,
+        "records": 1,
+        "unsupported": 18
+      },
+      "sourcePointer": "/tasks/18/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "5d1c97933396112c5b47cd73bb22ef405c83719e2f4ad671e6a6cf7c93a3a953"
+    },
+    {
+      "language": "perl",
+      "repo": "so-fancy/diff-so-fancy",
+      "revision": "56a77197f36a9d6f9ff8adda63300b0bb2451e50",
+      "codeModeLoc": 1614,
+      "codeModeFiles": 15,
+      "skippedFiles": 66,
+      "skippedByReason": {
+        "ignored": 3,
+        "symlink": 1,
+        "vendor": 5,
+        "binary": 1,
+        "unsupported": 55,
+        "records": 1
+      },
+      "sourcePointer": "/tasks/19/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "302a2260b20f1acdd54d27642c9266ce74d69aa2eef1a358fc116ddf2524028d"
+    },
+    {
+      "language": "shell",
+      "repo": "acmesh-official/acme.sh",
+      "revision": "807da6498377ee5e0cf43a78091f46f12dc59a89",
+      "codeModeLoc": 59692,
+      "codeModeFiles": 321,
+      "skippedFiles": 11,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 9,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/20/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "d5965560af99ae633d0786ac735cc279d74d3b7e1c3cf5f0f8516b51e9485cbe"
+    },
+    {
+      "language": "shell",
+      "repo": "asdf-vm/asdf",
+      "revision": "cb72590e9f9691b6e651aecfe4b0c9334adff41b",
+      "codeModeLoc": 16926,
+      "codeModeFiles": 122,
+      "skippedFiles": 146,
+      "skippedByReason": {
+        "ignored": 8,
+        "unsupported": 138
+      },
+      "sourcePointer": "/tasks/21/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "7bbcd8a79cef7a2e93ebd7c5e4c8264cdfe88bde3b82be34ce63eace19f78fc1"
+    },
+    {
+      "language": "shell",
+      "repo": "github/gitignore",
+      "revision": "0e5d690153ca3da8a4a1aef2d053406f408f531c",
+      "codeModeLoc": 33,
+      "codeModeFiles": 1,
+      "skippedFiles": 318,
+      "skippedByReason": {
+        "ignored": 1,
+        "symlink": 3,
+        "unsupported": 314
+      },
+      "sourcePointer": "/tasks/22/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "331ec02cafdba62bfcbdedb01cd726ce0dade63c5120a5a284d31d6167c29975"
+    },
+    {
+      "language": "shell",
+      "repo": "nvm-sh/nvm",
+      "revision": "a8bb4974008be929325ae286335702f1a84c5854",
+      "codeModeLoc": 22244,
+      "codeModeFiles": 348,
+      "skippedFiles": 108,
+      "skippedByReason": {
+        "ignored": 17,
+        "binary": 2,
+        "unsupported": 89
+      },
+      "sourcePointer": "/tasks/23/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "7dd0b7b2c9c30eab098a904271979be36848c5550cb7347f56b55249bcaed128"
+    },
+    {
+      "language": "shell",
+      "repo": "ohmybash/oh-my-bash",
+      "revision": "abf846186ab0a8a41ec5888e827ece6277dfe446",
+      "codeModeLoc": 20975,
+      "codeModeFiles": 222,
+      "skippedFiles": 258,
+      "skippedByReason": {
+        "ignored": 17,
+        "binary": 84,
+        "unsupported": 156,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/24/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "5605baff99a206d632d649e43f37b863f051e73f7dc1bd78d838b82cc8832bb9"
+    },
+    {
+      "language": "shell",
+      "repo": "pi-hole/pi-hole",
+      "revision": "f47b8ede5a8e38f9c703202d324a074dbdba4ca9",
+      "codeModeLoc": 10740,
+      "codeModeFiles": 77,
+      "skippedFiles": 17,
+      "skippedByReason": {
+        "ignored": 3,
+        "unsupported": 14
+      },
+      "sourcePointer": "/tasks/25/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1aa21a281750f9cb58e4b8d089b7d7b8047dc29dddec6f92ccc52033b450308a"
+    },
+    {
+      "language": "shell",
+      "repo": "pyenv/pyenv",
+      "revision": "f9d17bfc06ccbda37edd84df99a4f50d8d7d2a4a",
+      "codeModeLoc": 19121,
+      "codeModeFiles": 127,
+      "skippedFiles": 1658,
+      "skippedByReason": {
+        "ignored": 8,
+        "symlink": 27,
+        "binary": 3,
+        "unsupported": 1620
+      },
+      "sourcePointer": "/tasks/26/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "d2c21e15454dcaedc8a9b89910a9474fb09bbe7e7a3ac1c87773a25e9041d4aa"
+    },
+    {
+      "language": "shell",
+      "repo": "rupa/z",
+      "revision": "d37a763a6a30e1b32766fecc3b8ffd6127f8a0fd",
+      "codeModeLoc": 273,
+      "codeModeFiles": 2,
+      "skippedFiles": 3,
+      "skippedByReason": {
+        "unsupported": 3
+      },
+      "sourcePointer": "/tasks/27/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "73984096c27df28dda78d4353323d3937b13a91fea1ea84ade5dcbc3012f467f"
+    },
+    {
+      "language": "ruby",
+      "repo": "heartcombo/devise",
+      "revision": "372b295fe6f63b4af3269f5dcd51a18c0bc2016c",
+      "codeModeLoc": 18532,
+      "codeModeFiles": 216,
+      "skippedFiles": 60,
+      "skippedByReason": {
+        "ignored": 3,
+        "binary": 1,
+        "unsupported": 56
+      },
+      "sourcePointer": "/tasks/28/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "db1bbe63c8fc21ba5cb3f5a50d611de20ad4d2f712beed6124938ff9c8eb79c9"
+    },
+    {
+      "language": "ruby",
+      "repo": "huginn/huginn",
+      "revision": "3a9ee6237c9feb4ebd8bf3450a4b0bd6fc864ce1",
+      "codeModeLoc": 63091,
+      "codeModeFiles": 580,
+      "skippedFiles": 333,
+      "skippedByReason": {
+        "ignored": 4,
+        "vendor": 92,
+        "binary": 49,
+        "unsupported": 188
+      },
+      "sourcePointer": "/tasks/29/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1e468aed2b2721b2543a92eeb1f48dc5a9e466c86868d7bb6a78911b48c00695"
+    },
+    {
+      "language": "ruby",
+      "repo": "ruby/rake",
+      "revision": "009de22b17cf7e1410abd42cd5304419528a77f6",
+      "codeModeLoc": 13622,
+      "codeModeFiles": 111,
+      "skippedFiles": 16,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 15
+      },
+      "sourcePointer": "/tasks/30/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "34b59271ff9f535db9e1bf02b84e69bab265d6ae6ecfc5b0c4865bb9b5680c40"
+    },
+    {
+      "language": "ruby",
+      "repo": "sinatra/sinatra",
+      "revision": "cb22afd7902b566b6eaba6c4ea89739494a65d12",
+      "codeModeLoc": 25366,
+      "codeModeFiles": 172,
+      "skippedFiles": 122,
+      "skippedByReason": {
+        "ignored": 5,
+        "binary": 2,
+        "unsupported": 115
+      },
+      "sourcePointer": "/tasks/31/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "68a49d65f72d0d9d3a18b09c63e667df68f4672261121e680d4c146c74ddbe4a"
+    },
+    {
+      "language": "php",
+      "repo": "guzzle/guzzle",
+      "revision": "93939470950a9b11e2e84204166ef5e048c55fe4",
+      "codeModeLoc": 52760,
+      "codeModeFiles": 146,
+      "skippedFiles": 32,
+      "skippedByReason": {
+        "ignored": 4,
+        "binary": 2,
+        "unsupported": 25,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/32/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "5de403f322886a7f4a0baef6103ff6da5f3c4b7353ed79bba52c3a6694cdd7dc"
+    },
+    {
+      "language": "php",
+      "repo": "nikic/PHP-Parser",
+      "revision": "651e7a90ca616beba2b9070f91d3a92e53b1f034",
+      "codeModeLoc": 33184,
+      "codeModeFiles": 344,
+      "skippedFiles": 325,
+      "skippedByReason": {
+        "ignored": 8,
+        "binary": 1,
+        "unsupported": 316
+      },
+      "sourcePointer": "/tasks/33/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "ede1d94df7e420bd0bd6a94568a7b14c3ba58fe5ce4b02a2148f26e39a925fe6"
+    },
+    {
+      "language": "php",
+      "repo": "Seldaek/monolog",
+      "revision": "d7059e4c691d05ea1222b5124bed0f961be46e15",
+      "codeModeLoc": 32693,
+      "codeModeFiles": 237,
+      "skippedFiles": 28,
+      "skippedByReason": {
+        "ignored": 3,
+        "binary": 3,
+        "unsupported": 22
+      },
+      "sourcePointer": "/tasks/34/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "fbf7eb5f86341390b1dceb11fee94d66d199786b1fda05ba92ff391e04a77f0f"
+    },
+    {
+      "language": "php",
+      "repo": "slimphp/Slim",
+      "revision": "3675bf6baac66b07032575b7bef4200b60b7974b",
+      "codeModeLoc": 16861,
+      "codeModeFiles": 130,
+      "skippedFiles": 17,
+      "skippedByReason": {
+        "ignored": 4,
+        "binary": 3,
+        "unsupported": 10
+      },
+      "sourcePointer": "/tasks/35/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "77f98c7f2d0d54f40be01925ba2beac0b0658e0f8ec67f37b621f259d74a803b"
+    },
+    {
+      "language": "sql",
+      "repo": "ankane/pghero",
+      "revision": "0efe3327aab12e40a53ec4e2bbc90b06499c9a10",
+      "codeModeLoc": 11127,
+      "codeModeFiles": 72,
+      "skippedFiles": 48,
+      "skippedByReason": {
+        "ignored": 5,
+        "generated": 1,
+        "minified": 1,
+        "binary": 1,
+        "unsupported": 40
+      },
+      "sourcePointer": "/tasks/36/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "83910a434999ed66e517e89ee0b2421668dce0af6d4f50225c9215c5157a2acb"
+    },
+    {
+      "language": "sql",
+      "repo": "dbt-labs/dbt-utils",
+      "revision": "2a8f07bcbd02fb7a8c011298a1bdaf3e92759c14",
+      "codeModeLoc": 4568,
+      "codeModeFiles": 134,
+      "skippedFiles": 101,
+      "skippedByReason": {
+        "ignored": 4,
+        "unsupported": 97
+      },
+      "sourcePointer": "/tasks/37/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "97fac2ac9baec78e4276f4bedfb1819c4a7a4a611c53ed3bd2438050239da221"
+    },
+    {
+      "language": "sql",
+      "repo": "dbt-labs/jaffle_shop",
+      "revision": "fd7bfacae4f497ff044a6a0275268676bf1b64c3",
+      "codeModeLoc": 342,
+      "codeModeFiles": 8,
+      "skippedFiles": 12,
+      "skippedByReason": {
+        "ignored": 1,
+        "binary": 1,
+        "unsupported": 10
+      },
+      "sourcePointer": "/tasks/38/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "76e1247f00253dfe6f00b7d9cbdf7fdd40b3b20919ddfa857c677420c2cd4772"
+    },
+    {
+      "language": "sql",
+      "repo": "Graphile/graphile-engine",
+      "revision": "5bc0417ed6f64207a18aba7fb467f26a11cd25c2",
+      "codeModeLoc": 158434,
+      "codeModeFiles": 534,
+      "skippedFiles": 194,
+      "skippedByReason": {
+        "ignored": 28,
+        "generated": 8,
+        "unsupported": 148,
+        "oversize": 10
+      },
+      "sourcePointer": "/tasks/39/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "a9e34368b0a49a4ad1ae862cc649b454a898927e2ab65d2e5c3e6d0c2b6ed4a3"
+    },
+    {
+      "language": "sql",
+      "repo": "Velir/dbt-ga4",
+      "revision": "664be28505018ba6e5409a91e0aa1fce11d321dc",
+      "codeModeLoc": 9272,
+      "codeModeFiles": 141,
+      "skippedFiles": 26,
+      "skippedByReason": {
+        "ignored": 4,
+        "unsupported": 22
+      },
+      "sourcePointer": "/tasks/40/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "71a52e546589bfe94b529ce95fded8dda90b061b4730c09f4077a2c81d75c14d"
+    },
+    {
+      "language": "rust",
+      "repo": "BurntSushi/ripgrep",
+      "revision": "3fce3b5bb0236da2df6d99672afb8a719642eca7",
+      "codeModeLoc": 51410,
+      "codeModeFiles": 138,
+      "skippedFiles": 107,
+      "skippedByReason": {
+        "ignored": 4,
+        "symlink": 1,
+        "binary": 9,
+        "unsupported": 92,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/41/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1703d2af5374abe53117f172af7ce8c4829f2fb477646cfee9112db8cbb991e2"
+    },
+    {
+      "language": "rust",
+      "repo": "rust-lang/rustlings",
+      "revision": "bc8e51115c9304fbd036f5d6fca683e71363468f",
+      "codeModeLoc": 14913,
+      "codeModeFiles": 245,
+      "skippedFiles": 50,
+      "skippedByReason": {
+        "ignored": 5,
+        "symlink": 1,
+        "binary": 2,
+        "unsupported": 42
+      },
+      "sourcePointer": "/tasks/42/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "10fb601211495de102b4431852a1eb08c2d3a57664af413e4e5855f276bffcbc"
+    },
+    {
+      "language": "rust",
+      "repo": "serde-rs/serde",
+      "revision": "6693a89cca77e0151437da1c7f890090b9ebf04c",
+      "codeModeLoc": 43285,
+      "codeModeFiles": 217,
+      "skippedFiles": 144,
+      "skippedByReason": {
+        "ignored": 3,
+        "symlink": 14,
+        "unsupported": 127
+      },
+      "sourcePointer": "/tasks/43/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "5c6c981fdf0d3170de88777a9cf741b6e54b035f9387a38440dfb73caf1729c7"
+    },
+    {
+      "language": "rust",
+      "repo": "sharkdp/fd",
+      "revision": "3460b1e96c3c54ce524dd1763ff361607e323a7f",
+      "codeModeLoc": 10730,
+      "codeModeFiles": 40,
+      "skippedFiles": 22,
+      "skippedByReason": {
+        "ignored": 4,
+        "binary": 2,
+        "unsupported": 16
+      },
+      "sourcePointer": "/tasks/44/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "2c3192df23b2d9a27cd09cefb1b7426589b37df7d7b15a7e5fcbdf490a7414b0"
+    },
+    {
+      "language": "go",
+      "repo": "gorilla/mux",
+      "revision": "db9d1d0073d27a0a2d9a8c1bc52aa0af4374d265",
+      "codeModeLoc": 7729,
+      "codeModeFiles": 23,
+      "skippedFiles": 4,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 3
+      },
+      "sourcePointer": "/tasks/45/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "63d34876d9ce25be6738b5fabd83698bac7190553b4498fec1fddaa5404b55a7"
+    },
+    {
+      "language": "go",
+      "repo": "junegunn/fzf",
+      "revision": "b1be3a8be1b833ce5b92fbbac11637643d60a046",
+      "codeModeLoc": 36920,
+      "codeModeFiles": 131,
+      "skippedFiles": 30,
+      "skippedByReason": {
+        "ignored": 2,
+        "unsupported": 27,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/46/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "ddaf9a136c714cfb91a6c3c7bf53171b7868784be604dfb927f930fda23e94da"
+    },
+    {
+      "language": "go",
+      "repo": "spf13/cobra",
+      "revision": "adbc8813901bba65827259daa8e22ff94ec1f30e",
+      "codeModeLoc": 17131,
+      "codeModeFiles": 44,
+      "skippedFiles": 23,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 1,
+        "unsupported": 20
+      },
+      "sourcePointer": "/tasks/47/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "b8098a5e63322c96af4612128ab1c81b07ffe448a1213d8cc0ba6847510c849f"
+    },
+    {
+      "language": "csharp",
+      "repo": "jbogard/MediatR",
+      "revision": "916ef1b3d68ccdc96db8f914eaf1b32fc7db52c5",
+      "codeModeLoc": 12299,
+      "codeModeFiles": 174,
+      "skippedFiles": 25,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 8,
+        "unsupported": 15
+      },
+      "sourcePointer": "/tasks/48/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "8163f1063ffac3fbc8c60c04785d5e7699f764e8f9d0721ddfd5cdf5fd156cc0"
+    },
+    {
+      "language": "kotlin",
+      "repo": "Kotlin/kotlinx-datetime",
+      "revision": "c73ca374d9b1cc2677eba3747c7e62d1ca1836db",
+      "codeModeLoc": 39140,
+      "codeModeFiles": 253,
+      "skippedFiles": 1276,
+      "skippedByReason": {
+        "ignored": 8,
+        "symlink": 1,
+        "vendor": 4,
+        "binary": 619,
+        "unsupported": 644
+      },
+      "sourcePointer": "/tasks/49/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "bd99c336629d725a7bfac59316ee51a85641850184839feeb5a9953534f466af"
+    },
+    {
+      "language": "javascript",
+      "repo": "expressjs/express",
+      "revision": "7ef98448f8b38099ab1ded55e458538ad47a51e7",
+      "codeModeLoc": 22292,
+      "codeModeFiles": 163,
+      "skippedFiles": 51,
+      "skippedByReason": {
+        "ignored": 2,
+        "unsupported": 49
+      },
+      "sourcePointer": "/tasks/50/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "779c9a2150d91146c5ff13cf6fc7b7aa5bd83e87dd784788238716618bac2bf2"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "devcontainers/images",
+      "revision": "638a7d03aaf428cef5a6e2ff332a77e8cd9bc3eb",
+      "codeModeLoc": 12043,
+      "codeModeFiles": 196,
+      "skippedFiles": 1253,
+      "skippedByReason": {
+        "ignored": 42,
+        "binary": 6,
+        "unsupported": 1205
+      },
+      "sourcePointer": "/tasks/51/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "2132445a4e0d86e6683379fe08805eb0a2579f2d54ea944f73a97145b2d9b750"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "docker-library/hello-world",
+      "revision": "522bcd2faf422c60b9d20e64d7cd6d56600aec97",
+      "codeModeLoc": 432,
+      "codeModeFiles": 17,
+      "skippedFiles": 27,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 9,
+        "unsupported": 16
+      },
+      "sourcePointer": "/tasks/52/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "c2e046a7c86c7137bfb80e488eb0054aa17f881be79684274fe698062eba24c9"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "docker/awesome-compose",
+      "revision": "30f4b7f6a6c3b0c0ecf4d4efb0de203c48d11562",
+      "codeModeLoc": 8646,
+      "codeModeFiles": 274,
+      "skippedFiles": 268,
+      "skippedByReason": {
+        "ignored": 59,
+        "minified": 3,
+        "generated": 1,
+        "binary": 44,
+        "unsupported": 160,
+        "records": 1
+      },
+      "sourcePointer": "/tasks/53/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "3a4f29e3a3aede5abb9e29cc74a92bf5ff6003e0c946e4e639cd60487cf03618"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "actions/runner-images",
+      "revision": "6d942e630479cd99a93dadfc766af11242bfa402",
+      "codeModeLoc": 8160,
+      "codeModeFiles": 73,
+      "skippedFiles": 464,
+      "skippedByReason": {
+        "ignored": 254,
+        "unsupported": 210
+      },
+      "sourcePointer": "/tasks/54/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "22296d79b93b6e8dc2e7ac31195c87791a285b0925fe8aaa551469c9c0b0b643"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "mikeroyal/Self-Hosting-Guide",
+      "revision": "3eaf827bf42ff047b2a0fdf7a6bfbb61b720d9bf",
+      "codeModeLoc": 41,
+      "codeModeFiles": 1,
+      "skippedFiles": 2,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 1
+      },
+      "sourcePointer": "/tasks/55/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "3f858a12df7f9e7dc0c421077c798c5c3cf19880fca420f4322c0c008328864f"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "nginxinc/docker-nginx",
+      "revision": "ef5a25a6314e652a2dcfbce6074bef729f4d9639",
+      "codeModeLoc": 4815,
+      "codeModeFiles": 54,
+      "skippedFiles": 32,
+      "skippedByReason": {
+        "ignored": 2,
+        "unsupported": 30
+      },
+      "sourcePointer": "/tasks/56/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "8afb63a696744fcfb8ce77f5ed46ea93e1bd131f5e546debd3d175b3dee5868c"
+    },
+    {
+      "language": "dockerfile",
+      "repo": "nodejs/docker-node",
+      "revision": "2428fc80ba1b241329831eaed2647485d98380b2",
+      "codeModeLoc": 3593,
+      "codeModeFiles": 61,
+      "skippedFiles": 23,
+      "skippedByReason": {
+        "ignored": 5,
+        "unsupported": 18
+      },
+      "sourcePointer": "/tasks/57/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "831e4fc65c482513fff954539ec03d521f0a373a35de463a659b2cb34691bed3"
+    },
+    {
+      "language": "makefile",
+      "repo": "jqlang/jq",
+      "revision": "f13c1effbf7322e42afcc999d7e3d1509d3f38c9",
+      "codeModeLoc": 30527,
+      "codeModeFiles": 88,
+      "skippedFiles": 353,
+      "skippedByReason": {
+        "ignored": 6,
+        "symlink": 1,
+        "vendor": 34,
+        "binary": 8,
+        "unsupported": 304
+      },
+      "sourcePointer": "/tasks/58/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "588480a12cee1cf3733e344c3af0e1f914b6f035253f02749918aefebfc5f6e4"
+    },
+    {
+      "language": "makefile",
+      "repo": "libcheck/check",
+      "revision": "35d9cc011faa0545bf56d5062ae90bbc2688eba7",
+      "codeModeLoc": 22578,
+      "codeModeFiles": 130,
+      "skippedFiles": 135,
+      "skippedByReason": {
+        "ignored": 5,
+        "symlink": 2,
+        "binary": 2,
+        "unsupported": 126
+      },
+      "sourcePointer": "/tasks/59/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "a9804413737d516e49298667149f28baab234a08673edd7ccf2ba525e381d2e0"
+    },
+    {
+      "language": "makefile",
+      "repo": "madler/zlib",
+      "revision": "767c4c947852e143f582c85f14cf573411df1b35",
+      "codeModeLoc": 53741,
+      "codeModeFiles": 154,
+      "skippedFiles": 123,
+      "skippedByReason": {
+        "ignored": 3,
+        "binary": 7,
+        "unsupported": 112,
+        "records": 1
+      },
+      "sourcePointer": "/tasks/60/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "77696756bfa142e90c389e1fb480e3b753d41080a8ceaab0a5df3ee50202b2da"
+    },
+    {
+      "language": "makefile",
+      "repo": "ninja-build/ninja",
+      "revision": "4e4df1e567eb3c1475a51af261cba2bfff60b4be",
+      "codeModeLoc": 39029,
+      "codeModeFiles": 153,
+      "skippedFiles": 42,
+      "skippedByReason": {
+        "ignored": 2,
+        "vendor": 4,
+        "binary": 1,
+        "unsupported": 35
+      },
+      "sourcePointer": "/tasks/61/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "8c270157af2683e5ec448876835a96c70e5bbd41f5461130dffd6236fee9bb0e"
+    },
+    {
+      "language": "protobuf",
+      "repo": "bufbuild/protovalidate",
+      "revision": "d06a71c9ba254a56c10a7085e1dd44d33cedeb56",
+      "codeModeLoc": 12449,
+      "codeModeFiles": 192,
+      "skippedFiles": 140,
+      "skippedByReason": {
+        "ignored": 116,
+        "generated": 1,
+        "symlink": 3,
+        "unsupported": 19,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/62/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "10ff1d729f1b1a41babf00f83d959614c734fba0409f0a63bad732d0f19ea066"
+    },
+    {
+      "language": "graphql",
+      "repo": "graphql/dataloader",
+      "revision": "65be452f5ffad3eede2d862dc26c96003fa87ef3",
+      "codeModeLoc": 2879,
+      "codeModeFiles": 12,
+      "skippedFiles": 22,
+      "skippedByReason": {
+        "ignored": 7,
+        "unsupported": 15
+      },
+      "sourcePointer": "/tasks/63/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "8b6f4f8980481ed30efde5e2c6d320c6b3ab74ed63e0543a2e9347e299a85bc8"
+    },
+    {
+      "language": "graphql",
+      "repo": "graphql/graphql-spec",
+      "revision": "3f1ef846019884a8c9c3a32b65ea03168f24ecff",
+      "codeModeLoc": 6783,
+      "codeModeFiles": 19,
+      "skippedFiles": 36,
+      "skippedByReason": {
+        "ignored": 4,
+        "oversize": 6,
+        "binary": 2,
+        "unsupported": 24
+      },
+      "sourcePointer": "/tasks/64/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "9ff2875dbce05b70f45f6560c56441442faf9670eeedeccd813be6840dcb01f5"
+    },
+    {
+      "language": "graphql",
+      "repo": "n1ru4l/graphql-live-query",
+      "revision": "fe27595dc6208f07daa36324301e0c964d8f487e",
+      "codeModeLoc": 11228,
+      "codeModeFiles": 129,
+      "skippedFiles": 83,
+      "skippedByReason": {
+        "ignored": 34,
+        "generated": 8,
+        "binary": 9,
+        "unsupported": 32
+      },
+      "sourcePointer": "/tasks/65/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "9628c7758b21488bcbaa59baa3e0b913eabab035b87a6fbcbd435c63a8de96bb"
+    },
+    {
+      "language": "cmake",
+      "repo": "TheLartians/ModernCppStarter",
+      "revision": "72b8957f9eb6971764d3433789b50d9653b7ec80",
+      "codeModeLoc": 759,
+      "codeModeFiles": 21,
+      "skippedFiles": 7,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 6
+      },
+      "sourcePointer": "/tasks/67/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "11b7664eec3136db0adff68e69b88028c9043cb658383712d1cb3b05cc3725c8"
+    },
+    {
+      "language": "cmake",
+      "repo": "ttroy50/cmake-examples",
+      "revision": "2b27fc75c40447c8cf9b371cc21224dd96d6ce45",
+      "codeModeLoc": 2564,
+      "codeModeFiles": 128,
+      "skippedFiles": 58,
+      "skippedByReason": {
+        "ignored": 1,
+        "binary": 1,
+        "unsupported": 55,
+        "oversize": 1
+      },
+      "sourcePointer": "/tasks/68/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1b24cc1010026c842f71af3c9910b20c426485b213c390a8315f6b9d4a21d796"
+    },
+    {
+      "language": "cmake",
+      "repo": "ultralight-ux/Ultralight",
+      "revision": "208d653e872b29234bbd4a5fef6dec403f3dfdbd",
+      "codeModeLoc": 76103,
+      "codeModeFiles": 417,
+      "skippedFiles": 269,
+      "skippedByReason": {
+        "ignored": 2,
+        "oversize": 6,
+        "minified": 177,
+        "binary": 25,
+        "unsupported": 59
+      },
+      "sourcePointer": "/tasks/69/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "ccb064dc33951ccd361a3dae63dcbdbaabb74782c2bf37cd7ece6a96f42436cf"
+    },
+    {
+      "language": "cmake",
+      "repo": "wzpan/cmake-demo",
+      "revision": "aae4a36bf5f9c5f03275ba24a240ab528f1bed80",
+      "codeModeLoc": 856,
+      "codeModeFiles": 36,
+      "skippedFiles": 8,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 7
+      },
+      "sourcePointer": "/tasks/70/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "8988a49978aa38f03fed935defa6cd40d3e43daf4d4cc4e429aa2e5d0cab46b1"
+    },
+    {
+      "language": "starlark",
+      "repo": "bazelbuild/bazel-skylib",
+      "revision": "b34514a91ae798406b6806ddab330dc18f63bfd4",
+      "codeModeLoc": 14156,
+      "codeModeFiles": 164,
+      "skippedFiles": 93,
+      "skippedByReason": {
+        "ignored": 3,
+        "vendor": 3,
+        "symlink": 1,
+        "unsupported": 68,
+        "records": 18
+      },
+      "sourcePointer": "/tasks/71/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "220374ada43812006d3a64d464138e7fae77be81adc57bae7d72ca799c7e997d"
+    },
+    {
+      "language": "starlark",
+      "repo": "bazelbuild/examples",
+      "revision": "45bfd9d9b3d1b8e940890aa90a60483e8179331d",
+      "codeModeLoc": 11620,
+      "codeModeFiles": 437,
+      "skippedFiles": 310,
+      "skippedByReason": {
+        "ignored": 39,
+        "symlink": 19,
+        "generated": 6,
+        "vendor": 4,
+        "binary": 67,
+        "unsupported": 175
+      },
+      "sourcePointer": "/tasks/72/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "5c356e27c9b05d4b49baf0abfebefafa84afd12f93fc60d6421af4cae9612b13"
+    },
+    {
+      "language": "starlark",
+      "repo": "bazelbuild/rules_proto",
+      "revision": "dcd61fec58ad7d9fa49a3736a2afbce29cf927c2",
+      "codeModeLoc": 1151,
+      "codeModeFiles": 34,
+      "skippedFiles": 14,
+      "skippedByReason": {
+        "ignored": 6,
+        "unsupported": 8
+      },
+      "sourcePointer": "/tasks/73/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "6109374ff296ba7aa4a70bebd2b35ab1b060c4ae1bbc8053b25a8b507cae0703"
+    },
+    {
+      "language": "starlark",
+      "repo": "google/cel-spec",
+      "revision": "40a3c9007a9305d1f2638d5f538a4e011732cace",
+      "codeModeLoc": 18291,
+      "codeModeFiles": 51,
+      "skippedFiles": 46,
+      "skippedByReason": {
+        "ignored": 3,
+        "unsupported": 43
+      },
+      "sourcePointer": "/tasks/74/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "c000ff667f521001080412d709700d71604b5f3c6c5f1d47f1772c4c63be04c1"
+    },
+    {
+      "language": "starlark",
+      "repo": "google/tsunami-security-scanner",
+      "revision": "e05fd0a7b25e555ace9f40c5e1aef37334b2bc9c",
+      "codeModeLoc": 45373,
+      "codeModeFiles": 297,
+      "skippedFiles": 52,
+      "skippedByReason": {
+        "ignored": 6,
+        "binary": 1,
+        "unsupported": 45
+      },
+      "sourcePointer": "/tasks/75/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "54a0eb7e00625092e7e4869f53aeab4355ae7c74987c4d3ec3f747682d30c957"
+    },
+    {
+      "language": "starlark",
+      "repo": "GoogleContainerTools/distroless",
+      "revision": "c0901d2626dfc1518fe48aa20aa135f5d15d3814",
+      "codeModeLoc": 11147,
+      "codeModeFiles": 172,
+      "skippedFiles": 47,
+      "skippedByReason": {
+        "ignored": 12,
+        "binary": 3,
+        "unsupported": 32
+      },
+      "sourcePointer": "/tasks/76/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "80a2a90eb45f2a7dc25c576c8b3d91857833700444847b82784b3a0e4b9fb65e"
+    },
+    {
+      "language": "nix",
+      "repo": "cachix/cachix",
+      "revision": "3349ce74ba77f1382814cf611c6f42484956dc41",
+      "codeModeLoc": 433,
+      "codeModeFiles": 13,
+      "skippedFiles": 142,
+      "skippedByReason": {
+        "ignored": 4,
+        "unsupported": 138
+      },
+      "sourcePointer": "/tasks/77/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "d96879083ff9ddf9121efd04b4f2356818f3d08e24c513a6031b1f0e16a7fee7"
+    },
+    {
+      "language": "nix",
+      "repo": "dustinlyons/nixos-config",
+      "revision": "2091b2ff671b9724c0997ff8a966f541b83b1a8e",
+      "codeModeLoc": 18645,
+      "codeModeFiles": 165,
+      "skippedFiles": 53,
+      "skippedByReason": {
+        "ignored": 1,
+        "symlink": 3,
+        "binary": 3,
+        "unsupported": 46
+      },
+      "sourcePointer": "/tasks/78/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "02b4ac01f966888e4e118cacd194296bffec36f896db8423ae2af13ecc8fe131"
+    },
+    {
+      "language": "nix",
+      "repo": "hercules-ci/hercules-ci-agent",
+      "revision": "037a7f91a3156a6132171d90e8be2f96aab32ddc",
+      "codeModeLoc": 5144,
+      "codeModeFiles": 103,
+      "skippedFiles": 411,
+      "skippedByReason": {
+        "ignored": 28,
+        "vendor": 2,
+        "unsupported": 381
+      },
+      "sourcePointer": "/tasks/79/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "81c1cd03e70ab56c54edbcd725382c31861664473ca50f8137f353f90dd2d93d"
+    },
+    {
+      "language": "nix",
+      "repo": "Mic92/sops-nix",
+      "revision": "5efb5a6f4f5ab192817d28557dd4d650fa14d866",
+      "codeModeLoc": 6528,
+      "codeModeFiles": 54,
+      "skippedFiles": 34,
+      "skippedByReason": {
+        "ignored": 1,
+        "symlink": 2,
+        "binary": 7,
+        "unsupported": 24
+      },
+      "sourcePointer": "/tasks/80/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "ddbbf9879ecd5d05e9fcc88d0bbc05b8784735ef88f1f7d6e25910e695e8a1a7"
+    },
+    {
+      "language": "nix",
+      "repo": "Misterio77/nix-starter-configs",
+      "revision": "fe4c4b136e0e073c71d8190a791ba03ccb47c5ac",
+      "codeModeLoc": 544,
+      "codeModeFiles": 13,
+      "skippedFiles": 5,
+      "skippedByReason": {
+        "unsupported": 5
+      },
+      "sourcePointer": "/tasks/81/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "10d77420783ede4044dff5fb7b4160bd027c10770d47574f4222115efd262d5a"
+    },
+    {
+      "language": "nix",
+      "repo": "nix-darwin/nix-darwin",
+      "revision": "4cff07de74b50e64bdd68cd4e722ab5b6b35ee48",
+      "codeModeLoc": 22700,
+      "codeModeFiles": 225,
+      "skippedFiles": 47,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 46
+      },
+      "sourcePointer": "/tasks/82/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1c583759b01ed5bda0fbcb8d3348fedb12d16444d405f9470eb19cf829fa50ab"
+    },
+    {
+      "language": "nix",
+      "repo": "NixOS/nix.dev",
+      "revision": "96935ad718f5c7502cf1f4b4a3a204e090dd18de",
+      "codeModeLoc": 4108,
+      "codeModeFiles": 70,
+      "skippedFiles": 98,
+      "skippedByReason": {
+        "ignored": 8,
+        "generated": 1,
+        "binary": 4,
+        "unsupported": 85
+      },
+      "sourcePointer": "/tasks/83/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "36b1595b23e687203f85430eb0eaa7bd93047790dae66707dd6184326b0c539f"
+    },
+    {
+      "language": "nix",
+      "repo": "NixOS/nixos-hardware",
+      "revision": "0953bb1a609df63013176e3463393f8df993d3ef",
+      "codeModeLoc": 24814,
+      "codeModeFiles": 776,
+      "skippedFiles": 208,
+      "skippedByReason": {
+        "ignored": 2,
+        "symlink": 3,
+        "binary": 3,
+        "unsupported": 200
+      },
+      "sourcePointer": "/tasks/84/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "1214844b7ba4b0953eeb65cce4665366a2f0dbfe61407aadb69d65043388f135"
+    },
+    {
+      "language": "nix",
+      "repo": "numtide/devshell",
+      "revision": "a67c0f87b63bcbdbdcb56785bec0205a2e3d6026",
+      "codeModeLoc": 4337,
+      "codeModeFiles": 66,
+      "skippedFiles": 26,
+      "skippedByReason": {
+        "ignored": 6,
+        "unsupported": 20
+      },
+      "sourcePointer": "/tasks/85/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "dace6502bf701c9aea936830ef8df1616bcbd07ebd57a46eb15dc027f07ecada"
+    },
+    {
+      "language": "nix",
+      "repo": "numtide/flake-utils",
+      "revision": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+      "codeModeLoc": 649,
+      "codeModeFiles": 15,
+      "skippedFiles": 7,
+      "skippedByReason": {
+        "ignored": 1,
+        "binary": 1,
+        "unsupported": 5
+      },
+      "sourcePointer": "/tasks/86/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "0ee0c3bd32d87469376f484afe372311fd2d055fc228c696d0a50fd45fdea252"
+    },
+    {
+      "language": "nix",
+      "repo": "ryantm/agenix",
+      "revision": "3daa710894355fa2fad8243380af373a2b4046ef",
+      "codeModeLoc": 2172,
+      "codeModeFiles": 25,
+      "skippedFiles": 36,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 4,
+        "unsupported": 30
+      },
+      "sourcePointer": "/tasks/87/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "dfa34d1d5605738db9bbbaefa3c38e9a50542a48d049763a29dfc70cf3c653bc"
+    },
+    {
+      "language": "nix",
+      "repo": "the-nix-way/dev-templates",
+      "revision": "6a7eefd8fd910a831de525811393e499bc06dfa1",
+      "codeModeLoc": 2801,
+      "codeModeFiles": 95,
+      "skippedFiles": 7,
+      "skippedByReason": {
+        "ignored": 4,
+        "unsupported": 3
+      },
+      "sourcePointer": "/tasks/88/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "dd76da6c3321ea4b3c51224f3cafa73950387fcafad5188dced82461385843c2"
+    },
+    {
+      "language": "dart",
+      "repo": "dart-lang/http",
+      "revision": "47c57df399bf38927d2c9f047a1a5e3c049c0271",
+      "codeModeLoc": 50496,
+      "codeModeFiles": 454,
+      "skippedFiles": 336,
+      "skippedByReason": {
+        "ignored": 48,
+        "oversize": 3,
+        "binary": 110,
+        "unsupported": 175
+      },
+      "sourcePointer": "/tasks/89/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "eb9b96b55292947c69895a1d67ef6194520429b73459589ec9714dfe1938f9f2"
+    },
+    {
+      "language": "dart",
+      "repo": "google/json_serializable.dart",
+      "revision": "f65cd713ddd22de091ba9b0bd2e86ebac8980b61",
+      "codeModeLoc": 31890,
+      "codeModeFiles": 216,
+      "skippedFiles": 67,
+      "skippedByReason": {
+        "ignored": 6,
+        "generated": 50,
+        "unsupported": 11
+      },
+      "sourcePointer": "/tasks/90/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "8cd22dcf834051748b2e6810bf2a72ce029d011011d250a01fae3d6888e1aa78"
+    },
+    {
+      "language": "dart",
+      "repo": "rrousselGit/provider",
+      "revision": "3ed4c6d6b1700c08256f25a034bb93f943bd7236",
+      "codeModeLoc": 20970,
+      "codeModeFiles": 73,
+      "skippedFiles": 41,
+      "skippedByReason": {
+        "ignored": 7,
+        "binary": 8,
+        "unsupported": 26
+      },
+      "sourcePointer": "/tasks/91/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "5caaf14cbddf3b38dd8d88b6fba10eb75cd4bdf27829077215f4e94c1b19b5fe"
+    },
+    {
+      "language": "scala",
+      "repo": "rtyley/bfg-repo-cleaner",
+      "revision": "1bd9715198dd53cdffa6512a5f3af3f04f82b803",
+      "codeModeLoc": 4095,
+      "codeModeFiles": 66,
+      "skippedFiles": 78,
+      "skippedByReason": {
+        "ignored": 6,
+        "binary": 20,
+        "unsupported": 52
+      },
+      "sourcePointer": "/tasks/92/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "96a2cfe61a0b5e3b0afe3fb18b80818d9d5d959f5a8c0aff14556bf6d7b8483a"
+    },
+    {
+      "language": "groovy",
+      "repo": "google/protobuf-gradle-plugin",
+      "revision": "4d68bdd6c0d5608b00338702f3af8c765b46c150",
+      "codeModeLoc": 10504,
+      "codeModeFiles": 157,
+      "skippedFiles": 77,
+      "skippedByReason": {
+        "ignored": 4,
+        "binary": 29,
+        "unsupported": 44
+      },
+      "sourcePointer": "/tasks/93/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "31bfe31346718ef5d365df4d5f5f6a3050a8ea833ae52b289c15097c967584b0"
+    },
+    {
+      "language": "groovy",
+      "repo": "jenkinsci/pipeline-examples",
+      "revision": "fb9575a8182b51614f5f0df912b46b37d95fbb8d",
+      "codeModeLoc": 1442,
+      "codeModeFiles": 54,
+      "skippedFiles": 36,
+      "skippedByReason": {
+        "unsupported": 36
+      },
+      "sourcePointer": "/tasks/94/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "3b3accc70c5390af3f17bd401e730e40661e1245292adbf2d570c4484be505b5"
+    },
+    {
+      "language": "groovy",
+      "repo": "jenkinsci/pipeline-model-definition-plugin",
+      "revision": "6e7193cec599b402ee79ee9afc5b8a417eb43967",
+      "codeModeLoc": 76197,
+      "codeModeFiles": 957,
+      "skippedFiles": 147,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 61,
+        "unsupported": 84
+      },
+      "sourcePointer": "/tasks/95/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "17049e3aebbed4c71c83e664fa625766104a367236dac55e3e8a15b31defffec"
+    },
+    {
+      "language": "groovy",
+      "repo": "kezong/fat-aar-android",
+      "revision": "513d8d1c6619e80f68f9456af01652f5a395332a",
+      "codeModeLoc": 3379,
+      "codeModeFiles": 45,
+      "skippedFiles": 62,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 27,
+        "unsupported": 33
+      },
+      "sourcePointer": "/tasks/96/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "0d6f62963ab1f2c23fd190bc8a0c1df7933a0cdb8fbf5929beb11019d38f01a3"
+    },
+    {
+      "language": "r",
+      "repo": "hadley/stringr",
+      "revision": "ae054b1d28f630fee22ddb3cb7525396e62af4fe",
+      "codeModeLoc": 8204,
+      "codeModeFiles": 117,
+      "skippedFiles": 77,
+      "skippedByReason": {
+        "ignored": 6,
+        "binary": 13,
+        "unsupported": 58
+      },
+      "sourcePointer": "/tasks/97/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "dddc3131fe4f5e7d449c89d6a60178216444532feb9c1f42ac6574e28a90de07"
+    },
+    {
+      "language": "r",
+      "repo": "yihui/knitr",
+      "revision": "dd30240d32bd7bb670c1cc327a1c7b9f3db1d4be",
+      "codeModeLoc": 21790,
+      "codeModeFiles": 245,
+      "skippedFiles": 73,
+      "skippedByReason": {
+        "ignored": 4,
+        "unsupported": 69
+      },
+      "sourcePointer": "/tasks/98/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "3263dd4f878e1fdfe85647edae3746fde5e57c7072308714f6571ee14c5b4140"
+    },
+    {
+      "language": "julia",
+      "repo": "FluxML/Zygote.jl",
+      "revision": "9003a9ca46a5c5de0c101a3ac69672c0d218d2ec",
+      "codeModeLoc": 11443,
+      "codeModeFiles": 69,
+      "skippedFiles": 21,
+      "skippedByReason": {
+        "ignored": 4,
+        "binary": 2,
+        "unsupported": 15
+      },
+      "sourcePointer": "/tasks/99/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "ebf9bd790711282a3b55b8172e7120c8c7aa4fefa43e1f84bc15f95368af4631"
+    },
+    {
+      "language": "julia",
+      "repo": "JuliaIO/JSON.jl",
+      "revision": "40349ad14549ecf92db734319a2ffde875440cca",
+      "codeModeLoc": 8392,
+      "codeModeFiles": 32,
+      "skippedFiles": 16,
+      "skippedByReason": {
+        "ignored": 1,
+        "vendor": 3,
+        "binary": 2,
+        "unsupported": 10
+      },
+      "sourcePointer": "/tasks/100/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "db385e52e497ca554d35df7252147024c142ad6de5844afd245b6f138f1fec31"
+    },
+    {
+      "language": "julia",
+      "repo": "JuliaLang/IJulia.jl",
+      "revision": "0210ca2b9ffaea9a69161ce4e997c37b20dc2d6b",
+      "codeModeLoc": 6008,
+      "codeModeFiles": 40,
+      "skippedFiles": 36,
+      "skippedByReason": {
+        "ignored": 2,
+        "binary": 11,
+        "unsupported": 23
+      },
+      "sourcePointer": "/tasks/101/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "9232674d25c48faef250a27f17d9177a5ab45ee7c82d22f0ac66e1957ead24f4"
+    },
+    {
+      "language": "julia",
+      "repo": "JuliaLang/PackageCompiler.jl",
+      "revision": "7278184edaa6a362487a2f5738ea6a861d6efbed",
+      "codeModeLoc": 5294,
+      "codeModeFiles": 33,
+      "skippedFiles": 29,
+      "skippedByReason": {
+        "ignored": 9,
+        "binary": 3,
+        "unsupported": 17
+      },
+      "sourcePointer": "/tasks/102/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "898771d600261d7fa803b00b9ea1cd1da5046588416f6d9b7d4b776b835493fd"
+    },
+    {
+      "language": "handlebars",
+      "repo": "assemble/handlebars-helpers",
+      "revision": "5d3405f178a9ec4c90df3c7dc07b4faf9a09dfd7",
+      "codeModeLoc": 8350,
+      "codeModeFiles": 61,
+      "skippedFiles": 15,
+      "skippedByReason": {
+        "ignored": 3,
+        "unsupported": 12
+      },
+      "sourcePointer": "/tasks/103/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "11657b549ae8bd1777a34f17477bd5b35177953ffa4451bc2d6447cd5905f794"
+    },
+    {
+      "language": "handlebars",
+      "repo": "bestony/EasyWordPressBook",
+      "revision": "8e6085f8583eef9bc067741bbf87e421042dc639",
+      "codeModeLoc": 667,
+      "codeModeFiles": 9,
+      "skippedFiles": 48,
+      "skippedByReason": {
+        "ignored": 2,
+        "unsupported": 46
+      },
+      "sourcePointer": "/tasks/104/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "559889702fe4c603e4a3574bb0e456f4223a088a7fd8476b192c48bc28a34fc3"
+    },
+    {
+      "language": "handlebars",
+      "repo": "bigcommerce/paper-handlebars",
+      "revision": "bafbb03577db1abf1cfe38da1a171944609bb97c",
+      "codeModeLoc": 18313,
+      "codeModeFiles": 205,
+      "skippedFiles": 11,
+      "skippedByReason": {
+        "ignored": 3,
+        "unsupported": 8
+      },
+      "sourcePointer": "/tasks/105/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "25f7db4245603eed55a816442593b11aeccda9ae834d9849be352e1bc4d0d201"
+    },
+    {
+      "language": "handlebars",
+      "repo": "express-handlebars/express-handlebars",
+      "revision": "abcf65b966604e285af4a580b53f316f0a8bebc9",
+      "codeModeLoc": 1826,
+      "codeModeFiles": 34,
+      "skippedFiles": 15,
+      "skippedByReason": {
+        "ignored": 6,
+        "generated": 1,
+        "binary": 4,
+        "unsupported": 4
+      },
+      "sourcePointer": "/tasks/106/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "72b3c2144f3d7200514d137c5f7043a7098af01d1bf9f5fe238bfdbdbc38a77d"
+    },
+    {
+      "language": "handlebars",
+      "repo": "handlebars-lang/handlebars.js",
+      "revision": "13a7a679910d2adbfe7f6fad61ce8f98426b0378",
+      "codeModeLoc": 14124,
+      "codeModeFiles": 111,
+      "skippedFiles": 35,
+      "skippedByReason": {
+        "ignored": 13,
+        "generated": 2,
+        "binary": 1,
+        "unsupported": 19
+      },
+      "sourcePointer": "/tasks/107/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "133145ce43f92bfeb7067673ce9a01f29c131fd6b0b811608e00c18254b23ea0"
+    },
+    {
+      "language": "handlebars",
+      "repo": "metalsmith/metalsmith",
+      "revision": "9190ff2b66f4d72c28f417ae4a29146f49af12de",
+      "codeModeLoc": 5329,
+      "codeModeFiles": 73,
+      "skippedFiles": 201,
+      "skippedByReason": {
+        "ignored": 34,
+        "symlink": 2,
+        "generated": 1,
+        "binary": 3,
+        "unsupported": 160,
+        "records": 1
+      },
+      "sourcePointer": "/tasks/108/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "9f6bcbdd27406911b48f5dfffdd1d400474026e36ff6d46082b0576edb49e4cc"
+    },
+    {
+      "language": "handlebars",
+      "repo": "rust-lang/rust-by-example",
+      "revision": "dcc14f912bf8790792a2df082eddc82ab2539229",
+      "codeModeLoc": 207,
+      "codeModeFiles": 5,
+      "skippedFiles": 212,
+      "skippedByReason": {
+        "ignored": 3,
+        "unsupported": 209
+      },
+      "sourcePointer": "/tasks/109/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "b94396cced8ad97099596e2e58c6eb10a1657efd996eb0ccbcf3d6be2783575b"
+    },
+    {
+      "language": "mustache",
+      "repo": "janl/mustache.js",
+      "revision": "972fd2b27a036888acfcb60d6119317744fac7ee",
+      "codeModeLoc": 3148,
+      "codeModeFiles": 154,
+      "skippedFiles": 97,
+      "skippedByReason": {
+        "ignored": 6,
+        "unsupported": 91
+      },
+      "sourcePointer": "/tasks/110/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "41f41aac934e6e9210927a01dfeb5ab73579ac6fe42d997422871153de2eff73"
+    },
+    {
+      "language": "mustache",
+      "repo": "mustache/mustache",
+      "revision": "b015f866942a6eb45ce4d34009f2ba6ff16ce4c1",
+      "codeModeLoc": 5432,
+      "codeModeFiles": 84,
+      "skippedFiles": 16,
+      "skippedByReason": {
+        "ignored": 2,
+        "unsupported": 14
+      },
+      "sourcePointer": "/tasks/111/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "db3c198859b889e8e8a7919d586a1dd5632b29bfefe6232f2a76871dbb4157bb"
+    },
+    {
+      "language": "mustache",
+      "repo": "mustache/spec",
+      "revision": "e8ec001db7f594521e773c34866aca2b5d6b0037",
+      "codeModeLoc": 4524,
+      "codeModeFiles": 19,
+      "skippedFiles": 5,
+      "skippedByReason": {
+        "ignored": 1,
+        "unsupported": 4
+      },
+      "sourcePointer": "/tasks/112/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "87fcfc416fb036561772310c0f7fb938ee6d733abbbca34b854ef91a39714b39"
+    },
+    {
+      "language": "mustache",
+      "repo": "spullara/mustache.java",
+      "revision": "023374b250f41cc303dd9cfcb590ffb2fb375c0b",
+      "codeModeLoc": 20492,
+      "codeModeFiles": 366,
+      "skippedFiles": 112,
+      "skippedByReason": {
+        "ignored": 2,
+        "oversize": 1,
+        "binary": 13,
+        "unsupported": 96
+      },
+      "sourcePointer": "/tasks/113/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "12fe744f9c2195fbe6b420c1e322dd4c9e32d9117980ca678858cc4879035d3e"
+    },
+    {
+      "language": "jinja",
+      "repo": "cookiecutter/cookiecutter",
+      "revision": "c88fbe921c97c58b65f1883ba90a0ab53cc91b34",
+      "codeModeLoc": 13183,
+      "codeModeFiles": 166,
+      "skippedFiles": 180,
+      "skippedByReason": {
+        "ignored": 6,
+        "symlink": 3,
+        "binary": 13,
+        "unsupported": 158
+      },
+      "sourcePointer": "/tasks/114/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "eab6e8a0528b613d7fbd686499a4d2517fde1e191b5a628acf3238db89949d18"
+    },
+    {
+      "language": "jinja",
+      "repo": "netbootxyz/netboot.xyz",
+      "revision": "b1231944b79445919034fc010f47e8cfaaef3b94",
+      "codeModeLoc": 10688,
+      "codeModeFiles": 156,
+      "skippedFiles": 17,
+      "skippedByReason": {
+        "ignored": 3,
+        "binary": 1,
+        "unsupported": 13
+      },
+      "sourcePointer": "/tasks/115/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "7e7b19b8dd3902005729f41dbd5bcb1774ff35585bf37b73b6486b63b8c53d18"
+    },
+    {
+      "language": "jinja",
+      "repo": "pallets/jinja",
+      "revision": "5ef70112a1ff19c05324ff889dd30405b1002044",
+      "codeModeLoc": 24660,
+      "codeModeFiles": 78,
+      "skippedFiles": 33,
+      "skippedByReason": {
+        "ignored": 1,
+        "binary": 4,
+        "unsupported": 28
+      },
+      "sourcePointer": "/tasks/116/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "c3d9a017fca897622a0224e9e81fd8dd92aa26c9c4ebdc4b331683a622854bb4"
+    },
+    {
+      "language": "razor",
+      "repo": "ardalis/CleanArchitecture",
+      "revision": "e7c79be54ba0b001a5b332c1efe935f520b9db4b",
+      "codeModeLoc": 14509,
+      "codeModeFiles": 437,
+      "skippedFiles": 119,
+      "skippedByReason": {
+        "ignored": 58,
+        "minified": 1,
+        "binary": 10,
+        "unsupported": 50
+      },
+      "sourcePointer": "/tasks/117/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "78d07af0cfb95cc016827c62bb028495fc96aa56546048ddcc7db58b695f9e78"
+    },
+    {
+      "language": "razor",
+      "repo": "dotnet-presentations/blazor-workshop",
+      "revision": "e0f5968e7c4699209dc7b5b0b2edc86162287792",
+      "codeModeLoc": 38403,
+      "codeModeFiles": 629,
+      "skippedFiles": 352,
+      "skippedByReason": {
+        "ignored": 105,
+        "minified": 24,
+        "binary": 106,
+        "unsupported": 117
+      },
+      "sourcePointer": "/tasks/118/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "c53b967ff2d03a381795db80ea668ad8d658f61fc43c1835a705854f3c0d5610"
+    },
+    {
+      "language": "razor",
+      "repo": "dotnet/blazor-samples",
+      "revision": "504bb3174749ea691a390bfc4ebed195dd022e3b",
+      "codeModeLoc": 161071,
+      "codeModeFiles": 4978,
+      "skippedFiles": 2493,
+      "skippedByReason": {
+        "ignored": 1732,
+        "minified": 75,
+        "binary": 259,
+        "unsupported": 427
+      },
+      "sourcePointer": "/tasks/119/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "9848b66d8f2e74165ae7b22eaa1501fedbd95049da272c9e01c08d5cd6b535db"
+    },
+    {
+      "language": "razor",
+      "repo": "jasontaylordev/CleanArchitecture",
+      "revision": "5353a9edae000d576eade1a4f2c0d72d3b1c1785",
+      "codeModeLoc": 8078,
+      "codeModeFiles": 209,
+      "skippedFiles": 56,
+      "skippedByReason": {
+        "ignored": 10,
+        "generated": 1,
+        "binary": 7,
+        "unsupported": 38
+      },
+      "sourcePointer": "/tasks/120/payload/artifacts/scanProfile/modes/code",
+      "measurementSha256": "986dcddd59ebcc3aa13184b78900614479ee2407f7ba155864c56e33f4ab39ab"
+    }
+  ],
+  "unknown": [
+    {
+      "language": "cmake",
+      "repo": "dreamworksanimation/openmoonray",
+      "reason": "not-measured"
+    }
+  ]
+}

@@ -9,6 +9,10 @@ import {
 } from './indexes.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import {
+  buildProcessMemoryPeak,
+  snapshotProcessMemory
+} from '../shared/ops/resource-visibility.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
@@ -270,15 +274,15 @@ export const buildGraphNeighborhood = ({
   const edgeWindows = [];
   const paths = [];
   const pathTargets = [];
-  const pathTargetSet = new Set();
-  const parentMap = new Map();
+  let pathTargetsSeen = 0;
+  const parentMap = includePaths ? new Map() : null;
   const queue = [];
   const edgeCandidates = [];
-  const edgeBatches = {
-    callGraph: [],
-    usageGraph: [],
-    importGraph: [],
-    symbolEdges: []
+  let observedCandidateCount = 0;
+  const admitCandidate = () => {
+    observedCandidateCount += 1;
+    return normalizedCaps.maxFanoutPerNode == null
+      || edgeCandidates.length < normalizedCaps.maxFanoutPerNode;
   };
   const EDGE_WINDOW_SIZE = 20000;
 
@@ -374,7 +378,7 @@ export const buildGraphNeighborhood = ({
       message: 'Requested graphs were excluded by filters.'
     });
   }
-  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective });
+  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
 
   const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {
@@ -404,10 +408,7 @@ export const buildGraphNeighborhood = ({
     if (current.distance >= effectiveDepth) continue;
     const currentRef = current.ref;
     edgeCandidates.length = 0;
-    edgeBatches.callGraph.length = 0;
-    edgeBatches.usageGraph.length = 0;
-    edgeBatches.importGraph.length = 0;
-    edgeBatches.symbolEdges.length = 0;
+    observedCandidateCount = 0;
 
     if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size) {
       const neighbors = resolveGraphNeighbors(
@@ -421,10 +422,11 @@ export const buildGraphNeighborhood = ({
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
         if (!allowEdge({ graph: 'callGraph', edgeType, confidence: null })) continue;
+        if (!admitCandidate()) continue;
         const toRef = { type: 'chunk', chunkUid: neighborId };
         const fromRef = { type: 'chunk', chunkUid: currentRef.chunkUid };
         const evidence = formatEvidence(edgeType, fromRef, toRef, callSiteIndex);
-        edgeBatches.callGraph.push({
+        edgeCandidates.push({
           edge: {
             edgeType,
             graph: 'callGraph',
@@ -450,8 +452,9 @@ export const buildGraphNeighborhood = ({
       for (const neighborId of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
         if (!allowEdge({ graph: 'usageGraph', edgeType, confidence: null })) continue;
+        if (!admitCandidate()) continue;
         const toRef = { type: 'chunk', chunkUid: neighborId };
-        edgeBatches.usageGraph.push({
+        edgeCandidates.push({
           edge: {
             edgeType,
             graph: 'usageGraph',
@@ -482,8 +485,9 @@ export const buildGraphNeighborhood = ({
         for (const neighborId of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
           if (!allowEdge({ graph: 'importGraph', edgeType, confidence: null })) continue;
+          if (!admitCandidate()) continue;
           const toRef = { type: 'file', path: neighborId };
-          edgeBatches.importGraph.push({
+          edgeCandidates.push({
             edge: {
               edgeType,
               graph: 'importGraph',
@@ -514,15 +518,20 @@ export const buildGraphNeighborhood = ({
           ? entry.edge.confidence
           : null;
         if (!allowEdge({ graph: 'symbolEdges', edgeType, confidence })) continue;
-        const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
-        const symbolId = entry.symbolId;
-        const nextRef = symbolId ? { type: 'symbol', symbolId } : null;
         const cappedToRef = applyCandidateCap(
           entry.toRef,
           normalizedCaps.maxCandidates,
           recordTruncation
         );
-        edgeBatches.symbolEdges.push({
+        // Candidate-cap notices also describe discarded symbol candidates.
+        if (!admitCandidate()) continue;
+        const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
+        const symbolId = entry.symbolId;
+        const symbolRef = symbolId ? { type: 'symbol', symbolId } : null;
+        // The edge retains its source orientation even when walking incoming
+        // references. The traversal target is the opposite endpoint.
+        const nextRef = currentRef.type === 'symbol' ? fromRef : symbolRef;
+        edgeCandidates.push({
           edge: {
             edgeType,
             graph: 'symbolEdges',
@@ -531,29 +540,18 @@ export const buildGraphNeighborhood = ({
             confidence,
             evidence: entry.edge.reason ? { note: entry.edge.reason } : null
           },
-          nextRef
+          nextRef,
+          witnessEdge: symbolRef ? { from: fromRef, to: symbolRef, edgeType } : null
         });
       }
     }
-    for (const batch of [
-      edgeBatches.callGraph,
-      edgeBatches.usageGraph,
-      edgeBatches.importGraph,
-      edgeBatches.symbolEdges
-    ]) {
-      for (const candidate of batch) {
-        edgeCandidates.push(candidate);
-      }
-    }
-
-    if (normalizedCaps.maxFanoutPerNode != null && edgeCandidates.length > normalizedCaps.maxFanoutPerNode) {
+    if (normalizedCaps.maxFanoutPerNode != null && observedCandidateCount > normalizedCaps.maxFanoutPerNode) {
       recordTruncation('maxFanoutPerNode', {
         limit: normalizedCaps.maxFanoutPerNode,
-        observed: edgeCandidates.length,
-        omitted: edgeCandidates.length - normalizedCaps.maxFanoutPerNode,
+        observed: observedCandidateCount,
+        omitted: observedCandidateCount - normalizedCaps.maxFanoutPerNode,
         at: { node: nodeKey(currentRef) }
       });
-      edgeCandidates.splice(normalizedCaps.maxFanoutPerNode);
     }
 
     for (const candidate of edgeCandidates) {
@@ -583,17 +581,20 @@ export const buildGraphNeighborhood = ({
       if (!nextKey) continue;
       if (!nodeMap.has(nextKey)) {
         const addedNode = addNode(nextRef, current.distance + 1);
-        if (addedNode) {
-          parentMap.set(nextKey, {
-            parentKey: nodeKey(currentRef),
-            edge: {
-              from: edge.from?.type ? edge.from : edge.from?.resolved,
-              to: edge.to?.type ? edge.to : edge.to?.resolved,
-              edgeType: edge.edgeType
-            }
-          });
-          if (includePaths && !pathTargetSet.has(nextKey)) {
-            pathTargetSet.add(nextKey);
+        if (addedNode && includePaths) {
+          pathTargetsSeen += 1;
+          if (normalizedCaps.maxPaths == null || pathTargets.length < normalizedCaps.maxPaths) {
+            // First-discovery order is also the path-admission order. Every
+            // ancestor of an admitted target was discovered earlier (or is a
+            // seed), so retaining only admitted predecessors preserves chains.
+            parentMap.set(nextKey, {
+              parentKey: nodeKey(currentRef),
+              edge: candidate.witnessEdge || {
+                from: edge.from,
+                to: edge.to,
+                edgeType: edge.edgeType
+              }
+            });
             pathTargets.push(nextKey);
           }
         }
@@ -638,16 +639,14 @@ export const buildGraphNeighborhood = ({
     });
   }
   if (includePaths) {
-    let targets = pathTargets;
-    if (normalizedCaps.maxPaths != null && targets.length > normalizedCaps.maxPaths) {
+    if (normalizedCaps.maxPaths != null && pathTargetsSeen > normalizedCaps.maxPaths) {
       recordTruncation('maxPaths', {
         limit: normalizedCaps.maxPaths,
-        observed: targets.length,
-        omitted: targets.length - normalizedCaps.maxPaths
+        observed: pathTargetsSeen,
+        omitted: pathTargetsSeen - normalizedCaps.maxPaths
       });
-      targets = targets.slice(0, normalizedCaps.maxPaths);
     }
-    for (const key of targets) {
+    for (const key of pathTargets) {
       const path = buildPathForNode(key);
       if (path?.to) paths.push(path);
     }
@@ -655,18 +654,7 @@ export const buildGraphNeighborhood = ({
   }
 
   const memoryEnd = process.memoryUsage();
-  const snapshotMemory = (value) => ({
-    heapUsed: value.heapUsed,
-    rss: value.rss,
-    external: value.external,
-    arrayBuffers: value.arrayBuffers
-  });
-  const peakMemory = {
-    heapUsed: Math.max(memoryStart.heapUsed, memoryEnd.heapUsed),
-    rss: Math.max(memoryStart.rss, memoryEnd.rss),
-    external: Math.max(memoryStart.external, memoryEnd.external),
-    arrayBuffers: Math.max(memoryStart.arrayBuffers, memoryEnd.arrayBuffers)
-  };
+  const peakMemory = buildProcessMemoryPeak(memoryStart, memoryEnd);
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
 
   const truncationList = truncation.list.slice();
@@ -691,8 +679,8 @@ export const buildGraphNeighborhood = ({
       cache: cacheState,
       timing: { elapsedMs },
       memory: {
-        start: snapshotMemory(memoryStart),
-        end: snapshotMemory(memoryEnd),
+        start: snapshotProcessMemory(memoryStart),
+        end: snapshotProcessMemory(memoryEnd),
         peak: peakMemory
       },
       artifactsUsed: {

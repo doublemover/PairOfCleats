@@ -12,7 +12,13 @@ import { makeTempDir, rmDirRecursive } from './temp.js';
 import { applyTestEnv } from './test-env.js';
 import { writePiecesManifest } from './artifact-io-fixture.js';
 
-const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
+export const runVfsManifestWriter = async ({
+  outDir,
+  mode,
+  rows,
+  maxJsonBytes = 1000000,
+  hashRouting = false
+}) => {
   const writes = [];
   const pieceFiles = [];
   const enqueueWrite = (label, fn) => {
@@ -30,6 +36,7 @@ const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
     maxJsonBytes,
     compression: null,
     gzipOptions: null,
+    hashRouting,
     enqueueWrite,
     addPieceFile,
     formatArtifactLabel
@@ -45,6 +52,117 @@ const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
     }));
     await writePiecesManifest(outDir, pieces);
   }
+};
+
+export const createSingleSegmentVfsManifestFixture = async ({ tempPrefix }) => {
+  applyTestEnv();
+
+  const tempRoot = await makeTempDir(tempPrefix);
+  const outDir = path.join(tempRoot, 'out');
+  await fs.mkdir(outDir, { recursive: true });
+
+  const fileText = 'console.log(1);\n';
+  const rows = await buildVfsManifestRowsForFile({
+    chunks: [
+      {
+        file: 'a.md',
+        lang: 'javascript',
+        segment: {
+          segmentUid: 'segu:v1:a',
+          segmentId: 'seg-a',
+          start: 0,
+          end: fileText.length,
+          languageId: 'javascript',
+          ext: null
+        },
+        start: 0,
+        end: fileText.length
+      }
+    ],
+    fileText,
+    containerPath: 'a.md',
+    containerExt: '.md',
+    containerLanguageId: 'markdown'
+  });
+
+  const writeManifest = (options = {}) =>
+    runVfsManifestWriter({
+      outDir,
+      mode: 'code',
+      rows,
+      ...options
+    });
+
+  const cleanup = () => rmDirRecursive(tempRoot);
+
+  return {
+    tempRoot,
+    outDir,
+    rows,
+    manifestPath: path.join(outDir, 'vfs_manifest.jsonl'),
+    indexPath: path.join(outDir, 'vfs_manifest.vfsidx'),
+    bloomPath: path.join(outDir, 'vfs_manifest.vfsbloom.json'),
+    mapPath: path.join(outDir, 'vfs_path_map.jsonl'),
+    writeManifest,
+    cleanup
+  };
+};
+
+export const createVfsRowTrimFixture = async ({ tempPrefix }) => {
+  applyTestEnv();
+
+  const tempRoot = await makeTempDir(tempPrefix);
+  const outDir = path.join(tempRoot, 'out');
+  await fs.mkdir(outDir, { recursive: true });
+
+  const containerPath = 'docs/trim.md';
+  const containerExt = '.md';
+  const containerLanguageId = 'markdown';
+  const fileText = 'console.log(1);\n';
+  const chunks = [
+    {
+      file: containerPath,
+      lang: 'javascript',
+      segment: {
+        segmentUid: 'segu:v1:trim',
+        segmentId: 'seg-trim',
+        start: 0,
+        end: fileText.length,
+        languageId: 'javascript',
+        ext: null
+      },
+      start: 0,
+      end: fileText.length
+    }
+  ];
+  const baseRows = await buildVfsManifestRowsForFile({
+    chunks,
+    fileText,
+    containerPath,
+    containerExt,
+    containerLanguageId
+  });
+  const writeOversizedExtensionsAndLoad = async () => {
+    const oversized = {
+      ...baseRows[0],
+      extensions: { blob: 'x'.repeat(40000) }
+    };
+    await runVfsManifestWriter({
+      outDir,
+      mode: 'code',
+      rows: [oversized],
+      maxJsonBytes: 1024 * 1024
+    });
+    return loadJsonArrayArtifact(outDir, 'vfs_manifest', { strict: false });
+  };
+  const cleanup = () => rmDirRecursive(tempRoot);
+  return {
+    tempRoot,
+    outDir,
+    baseRows,
+    writeOversizedExtensionsAndLoad,
+    cleanup
+  };
 };
 
 export const createVfsStreamingFixture = async ({ tempPrefix }) => {
@@ -115,7 +233,7 @@ export const createVfsStreamingFixture = async ({ tempPrefix }) => {
   const totalBytes = jsonlLineBytes.reduce((sum, bytes) => sum + bytes, 0);
 
   const writeAndLoad = async () => {
-    await runWriter({
+    await runVfsManifestWriter({
       outDir,
       mode: 'code',
       rows: collector,

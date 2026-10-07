@@ -17,7 +17,7 @@ export const containsIdentifier = (text, name, options = {}) => {
     ? Math.max(0, Math.floor(Number(options.start)))
     : 0;
   const rawEnd = options.end;
-  const end = Number.isFinite(Number(rawEnd))
+  const end = rawEnd != null && Number.isFinite(Number(rawEnd))
     ? Math.min(hay.length, Math.max(0, Math.floor(Number(rawEnd))))
     : hay.length;
   if (end <= start) return false;

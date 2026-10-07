@@ -310,7 +310,7 @@ export async function buildPostings(input) {
     tokenPostingsList,
     avgDocLen,
     minhashSigs,
-    minhashStream: allowMinhash && minhashStream,
+    minhashStream: (allowMinhash || minhashGuard?.sampled === true) && minhashStream,
     minhashGuard,
     dims,
     quantizedVectors,

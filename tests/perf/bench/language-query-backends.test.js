@@ -32,9 +32,25 @@ const zeroStateSkip = resolveBenchQueryBackends({
     prose: 'C:/cache/index-prose.db'
   }
 });
-assert.deepEqual(zeroStateSkip.backends, ['memory']);
-assert.equal(zeroStateSkip.skippedSqlite, true);
-assert.match(zeroStateSkip.reason, /zero-state/i);
+assert.deepEqual(zeroStateSkip.backends, ['memory', 'sqlite', 'sqlite-fts']);
+assert.equal(zeroStateSkip.skippedSqlite, false);
+assert.equal(zeroStateSkip.reason, null);
+assert.equal(zeroStateSkip.coverage.selectedSearchModeByBackend.sqlite, 'prose');
+assert.equal(zeroStateSkip.coverage.selectedSearchModeByBackend.memory, null);
+const codeOnly = resolveBenchQueryBackends({ requestedBackends: ['memory', 'sqlite'],
+  sqliteModes: { code: { dbExists: true }, prose: { zeroState: true } } });
+assert.deepEqual(codeOnly.backends, ['memory', 'sqlite']);
+assert.equal(codeOnly.coverage.selectedSearchModeByBackend.sqlite, 'code', 'rake-shaped code index remains queryable');
+assert.deepEqual(codeOnly.coverage.emptySqliteModes, ['prose']);
+const allEmpty = resolveBenchQueryBackends({ requestedBackends: ['sqlite', 'fts'],
+  sqliteModes: { code: { zeroState: true }, prose: { zeroState: true } } });
+assert.deepEqual(allEmpty.backends, []);
+assert.equal(allEmpty.emptySqliteWorkload, true);
+assert.match(allEmpty.warning, /not exercised/);
+assert.deepEqual(allEmpty.coverage.skippedSqliteBackends, ['sqlite', 'fts']);
+const explicitCode = resolveBenchQueryBackends({ requestedBackends: ['sqlite'], requestedModes: ['code'],
+  sqliteModes: { code: { dbExists: true } } });
+assert.equal(explicitCode.reason, null, 'an unrequested missing mode is not required');
 
 const hardMissing = resolveBenchQueryBackends({
   requestedBackends: ['memory', 'sqlite'],

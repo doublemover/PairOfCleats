@@ -11,9 +11,22 @@ This document captures the shared JSON streaming and artifact IO performance wor
 - `highWaterMark` is applied to the byte counter transform.
 - The value is clamped to a safe range (16 KB to 8 MB) to prevent unbounded buffers.
 
+Plain `writeChunk` calls honor the same drain/error/timeout handling without
+collecting per-write timings that their callers discard. Writers that consume
+`writeChunkWithTiming` still receive its flush and backpressure measurements.
+A tiny real-encoder fixture preserves exact JSON bytes on both accepted and
+backpressured streams while removing 140 unused clock reads; controlled failures
+retain listener cleanup and the same errors. This removes observer work without
+claiming whole-artifact throughput or memory gains.
+
 ## Zstd Chunk Boundaries
 - Zstd compression chunk sizes are clamped to 64 KB to 4 MB.
 - This reduces repeated buffer concatenations and keeps compression buffers bounded.
+- Compression workers transfer only full, transferable backing buffers. Pooled,
+  sliced, marked-untransferable and shared buffers get an exact-sized owned copy,
+  preserving aliases and avoiding Node 24 pooled-buffer transfer errors.
+- A dispatch error or unexpected worker exit rejects pending work and idle waiters;
+  small shards cannot leave a compression worker permanently busy after a failed transfer.
 
 ## Artifact Read Telemetry
 A lightweight observer can record large artifact reads without tying shared IO to a specific metrics backend.
@@ -41,6 +54,24 @@ Telemetry only fires when:
 - `pieces/manifest.json` and `*.meta.json` reads use a small stat-keyed in-memory cache to avoid repeated JSON parsing in tight loops.
 - Cache entries are keyed by file path + size + mtime; changes invalidate automatically.
 
+## Cache-Key Memo Retention
+The two active module-global cache-key memos each retain at most an 8 MiB
+string/reference proxy, for a 16 MiB aggregate per JavaScript isolate, alongside
+their existing 65,536-entry ceilings. The proxy counts UTF-16 code units at two
+bytes each and declared key/value reference slots at eight bytes; shared strings
+may be counted conservatively twice. Map/object headers, backing-string behavior
+and native/process memory are unmeasured. Worker isolates have independent module
+instances, so these limits do not establish a whole-process or whole-build RSS
+bound.
+
+Reads and replacements retain FIFO order. Oversized entries stay outside the
+memo; eviction falls back to the same serialization and SHA-1 computation without
+changing keys, namespaces or versions. Tiny weighted controls and actual memo
+fixtures verify replacement/eviction, exact digests and both aggregate limits.
+The private single-property builder policy remains unchanged: current source
+inventory finds it only in a benchmark and contract tests, with no production
+caller. No strong registry was added to retain arbitrary builder instances.
+
 ## JSONL Reader Fast Paths
 - JSONL parsing uses a buffer scanner (no readline) to avoid per-line interface overhead.
 - Reader highWaterMark adapts to file size for better throughput on large artifacts.
@@ -62,3 +93,27 @@ Telemetry only fires when:
 ## Offsets Metadata
 - Offsets sidecars use the unified `u64-le` format with an explicit `version`.
 - Sharded JSONL meta records offsets `format`, `version`, `compression`, and `suffix`.
+
+## Shared LRU admission
+
+`createLruCache` applies both an explicitly supplied positive `maxEntries` and
+positive `maxMb`. A byte cap no longer disappears when an entry cap is present.
+`null`/`undefined` entry limits mean absent, matching the cache-policy contract;
+explicit `maxEntries: 0` still disables storage. Entry-only and disabled caches
+never invoke the size calculator. TTL, disposal reasons and callback order remain
+owned by the existing LRU wrapper and library.
+
+Use an inexpensive owner-supplied `sizeCalculation` when actual buffer/string
+bytes are known. The existing sampled JSON estimator is a policy proxy, not an
+exact retained-heap measurement. A cache eviction still does not revoke external
+leases; owners must retire and release resources under their existing lifecycle.
+
+## JSON-RPC writer retirement
+
+Each cached writer owns its stream adapter subscriptions. Closing a writer or
+finishing a stream releases those subscriptions once queued operations settle;
+external stream-owner listeners are preserved. An old handle cannot remove a
+replacement writer from the cache. Writes remain serialized with unchanged
+Content-Length framing and UTF-8 bytes; an in-flight write completes while queued
+writes reject after close. This cleanup does not introduce an outbound queue
+byte cap or cancel an already blocked underlying write.

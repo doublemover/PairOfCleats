@@ -3,27 +3,28 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { createCli } from '../../src/shared/cli.js';
-import { createToolDisplay } from '../shared/cli-display.js';
+import { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';
+import { readJsonFile } from '../../src/shared/artifact-io/json.js';
 import {
   loadChunkMeta,
   loadJsonArrayArtifactSync,
   loadJsonObjectArtifact,
-  loadPiecesManifest,
-  loadTokenPostings,
-  readJsonFile,
-  MAX_JSON_BYTES
-} from '../../src/shared/artifact-io.js';
+  loadTokenPostings
+} from '../../src/shared/artifact-io/loaders.js';
+import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
 import {
   loadDenseVectorBinaryFromMetaAsync,
   resolveDenseVectorBinaryArtifact
 } from '../../src/shared/dense-vector-artifacts.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
-import { writeJsonObjectFile } from '../../src/shared/json-stream.js';
-import { updateIndexStateManifest } from '../shared/index-state-utils.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
+import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
+import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
+import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
+import { loadLmdbMinhashArtifact } from '../../src/storage/lmdb/minhash.js';
 import { getIndexDir, getMetricsDir, resolveIndexRoot, resolveLmdbPaths, resolveRepoConfig } from '../shared/dict-utils.js';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/as-of.js';
+import { createIndexBuildToolCli } from './index-tool-cli.js';
 import { Packr } from 'msgpackr';
 
 const require = createRequire(import.meta.url);
@@ -32,7 +33,7 @@ try {
   ({ open } = require('lmdb'));
 } catch {}
 
-const argv = createCli({
+const { argv, display, log, warn, fail } = createIndexBuildToolCli({
   scriptName: 'build-lmdb-index',
   options: {
     mode: { type: 'string', default: 'all' },
@@ -45,16 +46,7 @@ const argv = createCli({
     verbose: { type: 'boolean', default: false },
     quiet: { type: 'boolean', default: false }
   }
-}).parse();
-
-const display = createToolDisplay({ argv, stream: process.stderr });
-const log = (message) => display.log(message);
-const warn = (message) => display.warn(message);
-const fail = (message, code = 1) => {
-  display.error(message);
-  display.close();
-  process.exit(code);
-};
+});
 
 if (!open) {
   fail('lmdb is required. Run npm install first.');
@@ -151,6 +143,7 @@ const updateLmdbState = async (indexDir, patch) => {
     ...patch,
     updatedAt: now
   };
+  state = withGeneratedArtifactMetadata(state, 'index-state');
   try {
     await writeJsonObjectFile(statePath, { fields: state, atomic: true });
   } catch {
@@ -329,7 +322,7 @@ const loadArtifactsForMode = async (indexDir, mode) => {
   const fieldTokens = readJsonOptional(path.join(indexDir, 'field_tokens.json'));
   const phraseNgrams = readJsonOptional(path.join(indexDir, 'phrase_ngrams.json'));
   const chargramPostings = readJsonOptional(path.join(indexDir, 'chargram_postings.json'));
-  const minhashSignatures = readJsonOptional(path.join(indexDir, 'minhash_signatures.json'));
+  const minhashSignatures = await loadLmdbMinhashArtifact(indexDir);
   const [denseVectors, denseVectorsDoc, denseVectorsCode] = await Promise.all([
     loadDenseVectorArtifact('dense_vectors'),
     loadDenseVectorArtifact('dense_vectors_doc'),

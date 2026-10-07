@@ -1,11 +1,13 @@
+import { withGeneratedCacheMetadata, withoutGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { readJsonFileSafe } from '../../../shared/files.js';
+import { readJsonFileSafe } from '../../../shared/file-read.js';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 
-const WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION = 1;
+const WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION = 2;
 const WORKSPACE_COMMAND_PREFLIGHT_MARKER_MAX_BYTES = 64 * 1024;
+const WORKSPACE_COMMAND_PREFLIGHT_MARKER_MEMORY_CACHE = new Map();
 
 const normalizeRepoHash = (repoRoot) => crypto
   .createHash('sha1')
@@ -66,6 +68,38 @@ const buildFileDigest = async ({ filePath, mode }) => {
   }
 };
 
+const resolveMarkerStateMaxAgeMs = (cacheMaxAgeMsByState, state) => {
+  const normalizedState = String(state || '').trim().toLowerCase() || 'ready';
+  const maxAgeMs = Number(cacheMaxAgeMsByState?.[normalizedState]);
+  return Number.isFinite(maxAgeMs) && maxAgeMs >= 0
+    ? maxAgeMs
+    : null;
+};
+
+const isMarkerFreshForState = (marker, cacheMaxAgeMsByState) => {
+  const state = String(marker?.state || '').trim().toLowerCase() || 'ready';
+  const maxAgeMs = resolveMarkerStateMaxAgeMs(cacheMaxAgeMsByState, state);
+  if (!Number.isFinite(maxAgeMs)) return true;
+  const completedAtMs = Date.parse(String(marker?.completedAt || ''));
+  if (!Number.isFinite(completedAtMs)) return false;
+  return (Date.now() - completedAtMs) <= maxAgeMs;
+};
+
+const isReusableWorkspaceCommandPreflightMarker = ({
+  marker,
+  fingerprint,
+  cacheMaxAgeMsByState
+} = {}) => {
+  if (!marker || typeof marker !== 'object') return false;
+  if (Number(marker.schemaVersion) !== WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION) {
+    return false;
+  }
+  if (String(marker.fingerprint || '') !== String(fingerprint || '')) {
+    return false;
+  }
+  return isMarkerFreshForState(marker, cacheMaxAgeMsByState);
+};
+
 export const resolveWorkspaceCommandPreflightMarkerPath = ({
   repoRoot,
   cacheRoot = null,
@@ -124,26 +158,34 @@ export const readWorkspaceCommandPreflightCacheHit = async ({
   repoRoot,
   cacheRoot = null,
   namespace,
-  fingerprint
+  fingerprint,
+  cacheMaxAgeMsByState = null
 } = {}) => {
   const markerPath = resolveWorkspaceCommandPreflightMarkerPath({
     repoRoot,
     cacheRoot,
     namespace
   });
-  const marker = await readJsonFileSafe(markerPath, {
+  const memoryMarker = WORKSPACE_COMMAND_PREFLIGHT_MARKER_MEMORY_CACHE.get(markerPath) || null;
+  if (isReusableWorkspaceCommandPreflightMarker({
+    marker: memoryMarker,
+    fingerprint,
+    cacheMaxAgeMsByState
+  })) {
+    return { markerPath, hit: true, marker: memoryMarker };
+  }
+  const marker = withoutGeneratedCacheMetadata(await readJsonFileSafe(markerPath, {
     fallback: null,
     maxBytes: WORKSPACE_COMMAND_PREFLIGHT_MARKER_MAX_BYTES
-  });
-  if (!marker || typeof marker !== 'object') {
+  }));
+  if (!isReusableWorkspaceCommandPreflightMarker({
+    marker,
+    fingerprint,
+    cacheMaxAgeMsByState
+  })) {
     return { markerPath, hit: false };
   }
-  if (Number(marker.schemaVersion) !== WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION) {
-    return { markerPath, hit: false };
-  }
-  if (String(marker.fingerprint || '') !== String(fingerprint || '')) {
-    return { markerPath, hit: false };
-  }
+  WORKSPACE_COMMAND_PREFLIGHT_MARKER_MEMORY_CACHE.set(markerPath, marker);
   return { markerPath, hit: true, marker };
 };
 
@@ -154,7 +196,12 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
   fingerprint,
   command,
   args,
-  durationMs
+  durationMs,
+  state = 'ready',
+  reasonCode = null,
+  message = '',
+  check = null,
+  checks = []
 } = {}) => {
   const markerPath = resolveWorkspaceCommandPreflightMarkerPath({
     repoRoot,
@@ -162,7 +209,7 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
     namespace
   });
   await fs.mkdir(path.dirname(markerPath), { recursive: true });
-  await atomicWriteJson(markerPath, {
+  const marker = {
     schemaVersion: WORKSPACE_COMMAND_PREFLIGHT_CACHE_SCHEMA_VERSION,
     completedAt: new Date().toISOString(),
     fingerprint: String(fingerprint || ''),
@@ -170,12 +217,33 @@ export const writeWorkspaceCommandPreflightCacheMarker = async ({
       cmd: String(command || ''),
       args: Array.isArray(args) ? args.map((entry) => String(entry)) : []
     },
+    state: String(state || 'ready').trim() || 'ready',
+    reasonCode: String(reasonCode || '').trim() || null,
+    message: String(message || '').trim() || '',
+    check: check && typeof check === 'object'
+      ? {
+        name: String(check.name || '').trim() || null,
+        status: String(check.status || '').trim() || null,
+        message: String(check.message || '').trim() || ''
+      }
+      : null,
+    checks: Array.isArray(checks)
+      ? checks
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          name: String(entry.name || '').trim() || null,
+          status: String(entry.status || '').trim() || null,
+          message: String(entry.message || '').trim() || ''
+        }))
+      : [],
     durationMs: Number.isFinite(Number(durationMs))
       ? Math.max(0, Math.round(Number(durationMs)))
       : null
-  }, {
+  };
+  await atomicWriteJson(markerPath, withGeneratedCacheMetadata(marker, 'workspace-preflight'), {
     spaces: 0,
     newline: false
   });
+  WORKSPACE_COMMAND_PREFLIGHT_MARKER_MEMORY_CACHE.set(markerPath, marker);
   return markerPath;
 };

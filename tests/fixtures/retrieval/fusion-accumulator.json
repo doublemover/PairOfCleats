@@ -1,0 +1,956 @@
+{
+  "sourceHead": "fd0082d73d484e746cd93d00bb847a1942a8295c",
+  "cases": [
+    {
+      "name": "bm25-plain",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": false,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": true
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 8,
+            "scoreType": "bm25-fielded",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25-fielded",
+            "blendInfo": null
+          },
+          {
+            "idx": 1,
+            "score": -2,
+            "scoreType": "bm25-fielded",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "bm25-fielded",
+            "blendInfo": null
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "bm25-fielded",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "bm25-fielded",
+            "blendInfo": null
+          },
+          {
+            "idx": 2,
+            "score": 1.5,
+            "scoreType": "ann",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": null
+          }
+        ],
+        "useRrf": false
+      }
+    },
+    {
+      "name": "bm25-rrf",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": true,
+        "rrfK": 60,
+        "blendEnabled": false,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 0.015873015873015872,
+            "scoreType": "rrf",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25",
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": 3,
+              "annRank": null,
+              "sparseRrf": 0.015873015873015872,
+              "annRrf": 0,
+              "score": 0.015873015873015872
+            }
+          },
+          {
+            "idx": 1,
+            "score": 0.03200204813108039,
+            "scoreType": "rrf",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "bm25",
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": 2,
+              "annRank": 3,
+              "sparseRrf": 0.016129032258064516,
+              "annRrf": 0.015873015873015872,
+              "score": 0.03200204813108039
+            }
+          },
+          {
+            "idx": 3,
+            "score": 0.03125,
+            "scoreType": "rrf",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "bm25",
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": 4,
+              "annRank": 4,
+              "sparseRrf": 0.015625,
+              "annRrf": 0.015625,
+              "score": 0.03125
+            }
+          },
+          {
+            "idx": 2,
+            "score": 0.016129032258064516,
+            "scoreType": "rrf",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": null,
+              "annRank": 2,
+              "sparseRrf": 0,
+              "annRrf": 0.016129032258064516,
+              "score": 0.016129032258064516
+            }
+          }
+        ],
+        "useRrf": 4
+      }
+    },
+    {
+      "name": "bm25-blend",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": true,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 1,
+            "scoreType": "blend",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25",
+            "blendInfo": {
+              "score": 1,
+              "sparseNormalized": 1,
+              "annNormalized": null,
+              "sparseWeight": 0.7,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 1,
+            "score": 0.012500000000000011,
+            "scoreType": "blend",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "bm25",
+            "blendInfo": {
+              "score": 0.012500000000000011,
+              "sparseNormalized": -0.25,
+              "annNormalized": 0.625,
+              "sparseWeight": 0.7,
+              "annWeight": 0.3
+            }
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "blend",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "bm25",
+            "blendInfo": {
+              "score": 0,
+              "sparseNormalized": 0,
+              "annNormalized": null,
+              "sparseWeight": 0.7,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 2,
+            "score": 1,
+            "scoreType": "blend",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "score": 1,
+              "sparseNormalized": null,
+              "annNormalized": 1,
+              "sparseWeight": 0,
+              "annWeight": 0.3
+            }
+          }
+        ],
+        "useRrf": false
+      }
+    },
+    {
+      "name": "fts-plain",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "fts",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": false,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": true
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 8,
+            "scoreType": "fts",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "fts",
+            "blendInfo": null
+          },
+          {
+            "idx": 1,
+            "score": -2,
+            "scoreType": "fts",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "fts",
+            "blendInfo": null
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "fts",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "fts",
+            "blendInfo": null
+          },
+          {
+            "idx": 2,
+            "score": 1.5,
+            "scoreType": "ann",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": null
+          }
+        ],
+        "useRrf": false
+      }
+    },
+    {
+      "name": "fts-rrf",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "fts",
+        "annSource": "hnsw",
+        "rrfEnabled": true,
+        "rrfK": 60,
+        "blendEnabled": false,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 0.015873015873015872,
+            "scoreType": "rrf",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "fts",
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": 3,
+              "annRank": null,
+              "sparseRrf": 0.015873015873015872,
+              "annRrf": 0,
+              "score": 0.015873015873015872
+            }
+          },
+          {
+            "idx": 1,
+            "score": 0.03200204813108039,
+            "scoreType": "rrf",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "fts",
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": 2,
+              "annRank": 3,
+              "sparseRrf": 0.016129032258064516,
+              "annRrf": 0.015873015873015872,
+              "score": 0.03200204813108039
+            }
+          },
+          {
+            "idx": 3,
+            "score": 0.03125,
+            "scoreType": "rrf",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "fts",
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": 4,
+              "annRank": 4,
+              "sparseRrf": 0.015625,
+              "annRrf": 0.015625,
+              "score": 0.03125
+            }
+          },
+          {
+            "idx": 2,
+            "score": 0.016129032258064516,
+            "scoreType": "rrf",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "k": 60,
+              "sparseRank": null,
+              "annRank": 2,
+              "sparseRrf": 0,
+              "annRrf": 0.016129032258064516,
+              "score": 0.016129032258064516
+            }
+          }
+        ],
+        "useRrf": 4
+      }
+    },
+    {
+      "name": "fts-blend",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "fts",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": true,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 1,
+            "scoreType": "blend",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "fts",
+            "blendInfo": {
+              "score": 1,
+              "sparseNormalized": 1,
+              "annNormalized": null,
+              "sparseWeight": 0.7,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 1,
+            "score": 0.012500000000000011,
+            "scoreType": "blend",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "fts",
+            "blendInfo": {
+              "score": 0.012500000000000011,
+              "sparseNormalized": -0.25,
+              "annNormalized": 0.625,
+              "sparseWeight": 0.7,
+              "annWeight": 0.3
+            }
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "blend",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "fts",
+            "blendInfo": {
+              "score": 0,
+              "sparseNormalized": 0,
+              "annNormalized": null,
+              "sparseWeight": 0.7,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 2,
+            "score": 1,
+            "scoreType": "blend",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "score": 1,
+              "sparseNormalized": null,
+              "annNormalized": 1,
+              "sparseWeight": 0,
+              "annWeight": 0.3
+            }
+          }
+        ],
+        "useRrf": false
+      }
+    },
+    {
+      "name": "empty",
+      "input": {
+        "bmHits": [],
+        "annHits": [],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": false,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [],
+        "useRrf": false
+      }
+    },
+    {
+      "name": "sparse-only",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": true,
+        "rrfK": 60,
+        "blendEnabled": false,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 8,
+            "scoreType": "bm25",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25",
+            "blendInfo": null
+          },
+          {
+            "idx": 1,
+            "score": -2,
+            "scoreType": "bm25",
+            "sparseScore": -2,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25",
+            "blendInfo": null
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "bm25",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25",
+            "blendInfo": null
+          }
+        ],
+        "useRrf": 0
+      }
+    },
+    {
+      "name": "ann-only",
+      "input": {
+        "bmHits": [],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": true,
+        "blendSparseWeight": 0.7,
+        "blendAnnWeight": 0.3,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 1,
+            "score": 0.625,
+            "scoreType": "blend",
+            "sparseScore": null,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "score": 0.625,
+              "sparseNormalized": null,
+              "annNormalized": 0.625,
+              "sparseWeight": 0,
+              "annWeight": 0.3
+            }
+          },
+          {
+            "idx": 2,
+            "score": 1,
+            "scoreType": "blend",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "score": 1,
+              "sparseNormalized": null,
+              "annNormalized": 1,
+              "sparseWeight": 0,
+              "annWeight": 0.3
+            }
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "none",
+            "sparseScore": null,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": null
+          }
+        ],
+        "useRrf": false
+      }
+    },
+    {
+      "name": "blend-zero-weights",
+      "input": {
+        "bmHits": [
+          {
+            "idx": 0,
+            "score": 4
+          },
+          {
+            "idx": 1,
+            "score": -2
+          },
+          {
+            "idx": 0,
+            "score": 8
+          },
+          {
+            "idx": 3,
+            "score": 0
+          }
+        ],
+        "annHits": [
+          {
+            "idx": 1,
+            "sim": -0.5
+          },
+          {
+            "idx": 2,
+            "sim": 1.5
+          },
+          {
+            "idx": 1,
+            "sim": 0.25
+          },
+          {
+            "idx": 3,
+            "sim": null
+          }
+        ],
+        "sparseType": "bm25",
+        "annSource": "hnsw",
+        "rrfEnabled": false,
+        "rrfK": 60,
+        "blendEnabled": true,
+        "blendSparseWeight": 0,
+        "blendAnnWeight": 0,
+        "fieldWeightsEnabled": false
+      },
+      "expected": {
+        "scored": [
+          {
+            "idx": 0,
+            "score": 0,
+            "scoreType": "blend",
+            "sparseScore": 8,
+            "annScore": null,
+            "annSource": null,
+            "sparseType": "bm25",
+            "blendInfo": {
+              "score": 0,
+              "sparseNormalized": 1,
+              "annNormalized": null,
+              "sparseWeight": 0,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 1,
+            "score": 0,
+            "scoreType": "blend",
+            "sparseScore": -2,
+            "annScore": 0.25,
+            "annSource": "hnsw",
+            "sparseType": "bm25",
+            "blendInfo": {
+              "score": 0,
+              "sparseNormalized": -0.25,
+              "annNormalized": 0.625,
+              "sparseWeight": 0,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 3,
+            "score": 0,
+            "scoreType": "blend",
+            "sparseScore": 0,
+            "annScore": null,
+            "annSource": "hnsw",
+            "sparseType": "bm25",
+            "blendInfo": {
+              "score": 0,
+              "sparseNormalized": 0,
+              "annNormalized": null,
+              "sparseWeight": 0,
+              "annWeight": 0
+            }
+          },
+          {
+            "idx": 2,
+            "score": 0,
+            "scoreType": "blend",
+            "sparseScore": null,
+            "annScore": 1.5,
+            "annSource": "hnsw",
+            "sparseType": null,
+            "blendInfo": {
+              "score": 0,
+              "sparseNormalized": null,
+              "annNormalized": 1,
+              "sparseWeight": 0,
+              "annWeight": 0
+            }
+          }
+        ],
+        "useRrf": false
+      }
+    }
+  ]
+}

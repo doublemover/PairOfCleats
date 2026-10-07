@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { clampInt } from '../../../src/shared/limits.js';
+import { getTuiWorkspaceRoot } from '../../../src/shared/env/tui.js';
 
 /** @returns {string} */
 export const nowIso = () => new Date().toISOString();
@@ -31,7 +32,7 @@ export const resolveRunRequest = (request, { root }) => {
   if (typeof request?.command === 'string' && request.command.trim()) {
     const command = request.command.trim();
     const args = Array.isArray(request?.args) ? request.args.map((entry) => String(entry)) : [];
-    const cwd = request?.cwd ? path.resolve(String(request.cwd)) : process.cwd();
+    const cwd = request?.cwd ? path.resolve(String(request.cwd)) : (getTuiWorkspaceRoot() || process.cwd());
     return { command, args, cwd };
   }
   const argv = Array.isArray(request?.argv)
@@ -40,7 +41,7 @@ export const resolveRunRequest = (request, { root }) => {
   if (!argv.length) {
     throw new Error('job:run requires non-empty argv array.');
   }
-  const cwd = request?.cwd ? path.resolve(String(request.cwd)) : process.cwd();
+  const cwd = request?.cwd ? path.resolve(String(request.cwd)) : (getTuiWorkspaceRoot() || process.cwd());
   const command = process.execPath;
   const args = [path.join(root, 'bin', 'pairofcleats.js'), ...argv];
   return { command, args, cwd };

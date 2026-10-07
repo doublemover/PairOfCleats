@@ -5,33 +5,73 @@ Last updated: 2026-02-21T00:00:00Z
 
 ## Commands
 
-- Build manifest/checksums: `pairofcleats tui build`
-- Install target binary: `pairofcleats tui install`
+- Build and stage target artifacts explicitly: `pairofcleats tui build`
+- Install target binary (auto-builds the host target when staging is missing): `pairofcleats tui install`
 - Run supervisor directly: `pairofcleats tui supervisor`
 - Launch native TUI wrapper: `pairofcleats-tui`
 
 ## Typical flow
 
-1. `pairofcleats tui build`
-2. `pairofcleats tui install`
-3. `pairofcleats-tui`
+1. `pairofcleats tui install`
+2. `pairofcleats-tui`
+
+Use `pairofcleats tui build --smoke` when you want to validate or restage the host artifact explicitly without installing it yet.
 
 Runtime controls:
 
 - `[r]` queue job run
 - `[c]` cancel selected job
 - `[q]` graceful shutdown
+- `[Tab]` cycle focus between jobs, tasks, and logs
+- `[1]`, `[2]`, `[3]` focus jobs, tasks, or logs directly
+- `[f]` cycle the active panel filter
+- `[/]` open search for the active panel
+- `[x]` clear the active search
+- `[p]` toggle follow live / pause selection drift
+- `[:]` or `[a]` open the action palette
+- `[?]` open the in-app help overlay
 - `[j]/[k]` log viewport scroll
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
 
+The live UI now exposes an explicit session header so operators can tell:
+
+- attachment mode (`supervised`, `replay`, `external-observability`)
+- source (`local-supervisor`, `event-log`, `passive-stream`)
+- connection state
+- run id and current scope
+- last durable alert
+
+Presentation behavior:
+
+- narrow terminals stack jobs, tasks, and logs vertically instead of squeezing three unreadable columns
+- runtime events are summarized into operator-facing text instead of raw JSON by default
+- workload-specific summaries sit above the main panes so bench, indexing, and service sessions show the active repo, stage/queue state, and degraded conditions without log-reading first
+- logs wrap/truncate to pane width, while job/task rows use concise status summaries
+- no-color mode remains readable without relying on decorative styling
+- filters and search operate on the focused panel so operators can isolate failures, active work, or specific provider text quickly
+- follow mode can be paused so active sessions stop stealing focus while you inspect a failed job or log line
+- the action palette and help overlay expose the available controls without leaving the terminal
+
+Workload summaries:
+
+- `Bench` sessions surface active repo, tier/lane, degraded providers, retained crash count, import/quality pressure, and the latest stall/timeout hints when available
+- `Indexing` sessions surface repo, stage, mode, sqlite/validation/promotion state, heartbeat freshness, and artifact-write progress when available
+- `Service` sessions surface service name, queue depth, active jobs/workers, retries, quarantine state, and shutdown posture when available
+
 ## Install layout
 
-Default install root is repo-local:
+Default install root is under the PairOfCleats cache root:
 
-- `.cache/tui/install-v1/<triple>/bin/<artifactName>`
-- `.cache/tui/install-v1/<triple>/install-manifest.json`
-- `.cache/tui/install-v1/<triple>/logs/`
+- `<cacheRoot>/tui/install-v1/<triple>/bin/<artifactName>`
+- `<cacheRoot>/tui/install-v1/<triple>/install-manifest.json`
+- `<cacheRoot>/tui/install-v1/<triple>/logs/`
+
+Default cache root follows the normal PairOfCleats cache-root policy:
+
+- Windows: `%LOCALAPPDATA%/PairOfCleats/cache`
+- Linux/macOS with `XDG_CACHE_HOME`: `$XDG_CACHE_HOME/pairofcleats/cache`
+- otherwise: `~/.cache/pairofcleats/cache`
 
 Override root with:
 
@@ -49,6 +89,15 @@ Before launch, wrapper verifies:
 - installed checksum vs build manifest (when available)
 
 On failure, wrapper exits non-zero with repair hints.
+
+## Local Rust verification
+
+For source-checkout validation of the TUI crate, run:
+
+- `cargo fmt --check --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo check --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo test --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo clippy --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml -- -D warnings`
 
 ## Observability
 
@@ -70,8 +119,34 @@ Set a custom event log directory with:
 
 Session snapshot restore path:
 
-- default `.cache/tui/last-state.json`
+- default `<cacheRoot>/tui/last-state.json`
 - override with `PAIROFCLEATS_TUI_SNAPSHOT_PATH`
+
+## Frame Capture Harness
+
+For deterministic operator-view snapshots without launching the live TUI, run:
+
+- `node tools/tui/capture-fixtures.js`
+
+By default this replays fixture-backed sessions and writes frame artifacts under:
+
+- `.testLogs/tui/frame-capture/`
+
+Each fixture emits:
+
+- `capture-manifest.json`
+- one `*.frame.txt` file per capture + terminal variant
+- one `*.frame.json` metadata file per capture + terminal variant
+
+The metadata includes:
+
+- terminal width/height
+- color and unicode mode
+- selected job and scroll offsets
+- job/task/log counts
+- style runs for non-default colors/modifiers
+
+Use `node tools/tui/capture-fixtures.js --list` to see the bundled fixtures, or `--fixture <path>` / `--out-dir <path>` to target a specific capture set or output root.
 
 ## Related specs
 

@@ -8,7 +8,7 @@ import { collectYamlImports } from '../import-collectors/yaml.js';
 const createExtensionMatcher = (extensions) => (ext) => extensions.has(ext);
 
 const INI_EXTS = new Set(['.ini', '.cfg', '.conf']);
-const JSON_EXTS = new Set(['.json']);
+const JSON_EXTS = new Set(['.json', '.jsonc', '.resolved']);
 const TOML_EXTS = new Set(['.toml']);
 const XML_EXTS = new Set(['.xml', '.props', '.targets', '.csproj', '.config', '.projitems']);
 const YAML_EXTS = new Set(['.yaml', '.yml']);
@@ -24,17 +24,20 @@ export const createConfigDataAdapter = ({ id, match, collectImports = () => [] }
   attachName: false
 });
 
+export const createJsonConfigAdapter = () => {
+  const adapter = createConfigDataAdapter({ id: 'json', match: createExtensionMatcher(JSON_EXTS), collectImports: collectJsonImports });
+  adapter.buildRelations = ({ text, ext, relPath, options }) => buildSimpleRelations({ imports: collectJsonImports(text,
+    { ...options, ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath }) });
+  return adapter;
+};
+
 export const buildConfigFileAdapters = () => [
   createConfigDataAdapter({
     id: 'ini',
     match: createExtensionMatcher(INI_EXTS),
     collectImports: collectIniImports
   }),
-  createConfigDataAdapter({
-    id: 'json',
-    match: createExtensionMatcher(JSON_EXTS),
-    collectImports: collectJsonImports
-  }),
+  createJsonConfigAdapter(),
   createConfigDataAdapter({
     id: 'toml',
     match: createExtensionMatcher(TOML_EXTS),

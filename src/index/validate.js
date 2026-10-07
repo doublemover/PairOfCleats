@@ -6,12 +6,10 @@ import {
   loadUserConfig
 } from '../shared/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
-import {
-  loadGraphRelations,
-  loadJsonArrayArtifact,
-  readJsonFile
-} from '../shared/artifact-io.js';
-import { isAbsolutePathNative } from '../shared/files.js';
+import { readJsonFile } from '../shared/artifact-io/json.js';
+import { loadJsonArrayArtifact } from '../shared/artifact-io/loaders/core.js';
+import { loadGraphRelations } from '../shared/artifact-io/loaders/graph.js';
+import { isAbsolutePathNative } from '../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { resolveIndexDir } from './validate/paths.js';

@@ -4,9 +4,6 @@
     "queries": "benchmarks/queries/swift.txt",
     "repos": {
       "small": [
-        "apple/container",
-        "onevcat/Kingfisher",
-        "rxhanson/Rectangle",
         "twostraws/simple-swiftui"
       ],
       "medium": [
@@ -14,7 +11,10 @@
         "apple/swift-nio",
         "exelban/stats",
         "MonitorControl/MonitorControl",
-        "utmapp/UTM"
+        "utmapp/UTM",
+        "apple/container",
+        "onevcat/Kingfisher",
+        "rxhanson/Rectangle"
       ],
       "large": [
         "airbnb/lottie-ios",
@@ -29,15 +29,14 @@
     "label": "C / C++ / Objective-C",
     "queries": "benchmarks/queries/clike.txt",
     "repos": {
-      "small": [
-        "Genymobile/scrcpy",
-        "madler/zlib"
-      ],
+      "small": [],
       "medium": [
         "fmtlib/fmt",
         "gabime/spdlog",
         "google/googletest",
-        "tesseract-ocr/tesseract"
+        "tesseract-ocr/tesseract",
+        "Genymobile/scrcpy",
+        "madler/zlib"
       ],
       "large": [
         "curl/curl",
@@ -68,13 +67,13 @@
         "LazyVim/LazyVim",
         "lunarmodules/luasocket",
         "NvChad/NvChad",
-        "nvim-lua/kickstart.nvim",
-        "torch/torch7"
+        "nvim-lua/kickstart.nvim"
       ],
       "medium": [
         "luals/lua-language-server",
         "LunarVim/LunarVim",
-        "openresty/lua-nginx-module"
+        "openresty/lua-nginx-module",
+        "torch/torch7"
       ],
       "large": [
         "jgm/pandoc",
@@ -94,10 +93,8 @@
     "queries": "benchmarks/queries/perl.txt",
     "repos": {
       "small": [
-        "AlDanial/cloc",
         "brendangregg/FlameGraph",
         "gugod/App-perlbrew",
-        "OpenSCAP/openscap",
         "perl-carton/carton",
         "so-fancy/diff-so-fancy"
       ],
@@ -105,7 +102,9 @@
         "major/MySQLTuner-perl",
         "metacpan/metacpan-web",
         "mojolicious/mojo",
-        "Perl-Critic/Perl-Critic"
+        "Perl-Critic/Perl-Critic",
+        "AlDanial/cloc",
+        "OpenSCAP/openscap"
       ],
       "large": [
         "bestpractical/rt",
@@ -123,7 +122,6 @@
     "queries": "benchmarks/queries/shell.txt",
     "repos": {
       "small": [
-        "acmesh-official/acme.sh",
         "asdf-vm/asdf",
         "github/gitignore",
         "nvm-sh/nvm",
@@ -136,7 +134,8 @@
         "anthropics/claude-code",
         "bash-it/bash-it",
         "d3/d3",
-        "ohmyzsh/ohmyzsh"
+        "ohmyzsh/ohmyzsh",
+        "acmesh-official/acme.sh"
       ],
       "large": [
         "Homebrew/brew",
@@ -152,15 +151,15 @@
     "repos": {
       "small": [
         "heartcombo/devise",
-        "huginn/huginn",
-        "ruby/rake",
-        "sinatra/sinatra"
+        "ruby/rake"
       ],
       "medium": [
         "freeCodeCamp/devdocs",
         "rspec/rspec",
         "rubocop/rubocop",
-        "sidekiq/sidekiq"
+        "sidekiq/sidekiq",
+        "huginn/huginn",
+        "sinatra/sinatra"
       ],
       "large": [
         "fastlane/fastlane",
@@ -182,15 +181,15 @@
     "queries": "benchmarks/queries/php.txt",
     "repos": {
       "small": [
-        "guzzle/guzzle",
-        "nikic/PHP-Parser",
-        "Seldaek/monolog",
         "slimphp/Slim"
       ],
       "medium": [
         "composer/composer",
         "coollabsio/coolify",
-        "livewire/livewire"
+        "livewire/livewire",
+        "guzzle/guzzle",
+        "nikic/PHP-Parser",
+        "Seldaek/monolog"
       ],
       "large": [
         "laravel/framework",
@@ -215,7 +214,6 @@
         "ankane/pghero",
         "dbt-labs/dbt-utils",
         "dbt-labs/jaffle_shop",
-        "Graphile/graphile-engine",
         "Velir/dbt-ga4"
       ],
       "medium": [
@@ -224,7 +222,8 @@
         "ClickHouse/NoiSQL",
         "dbt-labs/jaffle-shop",
         "supabase/postgres",
-        "timescale/timescaledb"
+        "timescale/timescaledb",
+        "Graphile/graphile-engine"
       ],
       "large": [
         "brunocampos01/banco-de-dados",
@@ -272,14 +271,14 @@
     "queries": "benchmarks/queries/rust.txt",
     "repos": {
       "small": [
-        "BurntSushi/ripgrep",
         "rust-lang/rustlings",
-        "serde-rs/serde",
         "sharkdp/fd"
       ],
       "medium": [
         "alacritty/alacritty",
-        "tokio-rs/tokio"
+        "tokio-rs/tokio",
+        "BurntSushi/ripgrep",
+        "serde-rs/serde"
       ],
       "large": [
         "astral-sh/uv",
@@ -302,13 +301,13 @@
     "repos": {
       "small": [
         "gorilla/mux",
-        "junegunn/fzf",
         "spf13/cobra"
       ],
       "medium": [
         "caddyserver/caddy",
         "fatedier/frp",
-        "gin-gonic/gin"
+        "gin-gonic/gin",
+        "junegunn/fzf"
       ],
       "large": [
         "etcd-io/etcd",
@@ -390,9 +389,7 @@
     "label": "Kotlin",
     "queries": "benchmarks/queries/kotlin.txt",
     "repos": {
-      "small": [
-        "Kotlin/kotlinx-datetime"
-      ],
+      "small": [],
       "medium": [
         "airbnb/mavericks",
         "android/architecture-samples",
@@ -400,7 +397,8 @@
         "InsertKoinIO/koin",
         "Kotlin/kotlinx.coroutines",
         "Kotlin/kotlinx.serialization",
-        "shadowsocks/shadowsocks-android"
+        "shadowsocks/shadowsocks-android",
+        "Kotlin/kotlinx-datetime"
       ],
       "large": [
         "2dust/v2rayNG",
@@ -481,14 +479,14 @@
     "queries": "benchmarks/queries/makefile.txt",
     "repos": {
       "small": [
-        "jqlang/jq",
-        "libcheck/check",
-        "madler/zlib",
-        "ninja-build/ninja"
+        "libcheck/check"
       ],
       "medium": [
         "libexpat/libexpat",
-        "PostgresApp/PostgresApp"
+        "PostgresApp/PostgresApp",
+        "jqlang/jq",
+        "madler/zlib",
+        "ninja-build/ninja"
       ],
       "large": [
         "bgreenwell/doxx",
@@ -570,7 +568,6 @@
         "dreamworksanimation/openmoonray",
         "TheLartians/ModernCppStarter",
         "ttroy50/cmake-examples",
-        "ultralight-ux/Ultralight",
         "wzpan/cmake-demo"
       ],
       "medium": [
@@ -578,7 +575,8 @@
         "facebook/folly",
         "fmtlib/fmt",
         "gabime/spdlog",
-        "google/googletest"
+        "google/googletest",
+        "ultralight-ux/Ultralight"
       ],
       "large": [
         "Kitware/CMake",
@@ -603,14 +601,14 @@
         "bazelbuild/examples",
         "bazelbuild/rules_proto",
         "google/cel-spec",
-        "google/tsunami-security-scanner",
         "GoogleContainerTools/distroless"
       ],
       "medium": [
         "bazelbuild/rules_docker",
         "bazelbuild/rules_go",
         "bazelbuild/rules_nodejs",
-        "bazelbuild/rules_rust"
+        "bazelbuild/rules_rust",
+        "google/tsunami-security-scanner"
       ],
       "large": [
         "envoyproxy/envoy",
@@ -661,14 +659,14 @@
     "queries": "benchmarks/queries/dart.txt",
     "repos": {
       "small": [
-        "dart-lang/http",
-        "google/json_serializable.dart",
         "rrousselGit/provider"
       ],
       "medium": [
         "ImranR98/Obtainium",
         "localsend/localsend",
-        "rrousselGit/riverpod"
+        "rrousselGit/riverpod",
+        "dart-lang/http",
+        "google/json_serializable.dart"
       ],
       "large": [
         "AppFlowy-IO/AppFlowy",
@@ -723,14 +721,14 @@
       "small": [
         "google/protobuf-gradle-plugin",
         "jenkinsci/pipeline-examples",
-        "jenkinsci/pipeline-model-definition-plugin",
         "kezong/fat-aar-android"
       ],
       "medium": [
         "CodeNarc/CodeNarc",
         "geb/geb",
         "HujiangTechnology/gradle_plugin_android_aspectjx",
-        "spockframework/spock"
+        "spockframework/spock",
+        "jenkinsci/pipeline-model-definition-plugin"
       ],
       "large": [
         "apache/groovy",
@@ -896,14 +894,14 @@
     "repos": {
       "small": [
         "ardalis/CleanArchitecture",
-        "dotnet-presentations/blazor-workshop",
-        "dotnet/blazor-samples",
         "jasontaylordev/CleanArchitecture"
       ],
       "medium": [
         "dotnet/aspnet-api-versioning",
         "MudBlazor/MudBlazor",
-        "radzenhq/radzen-blazor"
+        "radzenhq/radzen-blazor",
+        "dotnet-presentations/blazor-workshop",
+        "dotnet/blazor-samples"
       ],
       "large": [
         "aspnetboilerplate/aspnetboilerplate",

@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const pipelinePath = path.join(root, 'src', 'index', 'build', 'indexer', 'pipeline.js');
-const source = fs.readFileSync(pipelinePath, 'utf8');
+const orchestratorPath = path.join(root, 'src', 'index', 'build', 'indexer', 'pipeline', 'orchestrator.js');
+const source = fs.readFileSync(orchestratorPath, 'utf8');
 
 const writeCall = 'await writeIndexArtifactsForMode(';
 const updateCall = 'await updateIncrementalBundles(';
@@ -13,11 +13,11 @@ const writeIndex = source.indexOf(writeCall);
 const updateIndex = source.indexOf(updateCall);
 
 if (writeIndex < 0) {
-  console.error(`Expected pipeline to contain "${writeCall}".`);
+  console.error(`Expected orchestrator to contain "${writeCall}".`);
   process.exit(1);
 }
 if (updateIndex < 0) {
-  console.error(`Expected pipeline to contain "${updateCall}".`);
+  console.error(`Expected orchestrator to contain "${updateCall}".`);
   process.exit(1);
 }
 if (updateIndex <= writeIndex) {

@@ -6,26 +6,65 @@ import { spawnSync } from 'node:child_process';
 import { createCli } from '../../../src/shared/cli.js';
 import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-options.js';
 import { createDisplay } from '../../../src/shared/cli/display.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
+import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatDurationMs } from '../../helpers/duration-format.js';
-import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
+import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
+import { resolveBenchSqliteModeStatus } from '../../../tools/bench/language/sqlite-mode-status.js';
+import { createBenchQueryCapabilityCollector, formatBenchQueryCapabilityLines } from '../../../tools/bench/language/query-capabilities.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { createSearchWorkerPool, resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 
-applyTestEnv();
+const root = process.cwd();
+const originalRawArgs = process.argv.slice(2);
+const testingDefaultsEnabled = process.env.PAIROFCLEATS_TESTING === '1' && originalRawArgs.length === 0;
+const hasOption = (name) => process.argv.slice(2).some((arg) => arg === name || arg.startsWith(`${name}=`));
+if (testingDefaultsEnabled) {
+  if (!hasOption('--repo')) {
+    process.argv.push('--repo', path.join(root, 'tests', 'fixtures', 'sample'));
+  }
+  if (!hasOption('--queries')) {
+    process.argv.push('--queries', path.join(root, 'tests', 'fixtures', 'sample', 'queries.txt'));
+  }
+  if (!hasOption('--backend')) {
+    process.argv.push('--backend', 'memory');
+  }
+  if (!hasOption('--limit')) {
+    process.argv.push('--limit', '1');
+  }
+  if (!hasOption('--top')) {
+    process.argv.push('--top', '1');
+  }
+  if (!hasOption('--stub-embeddings') && !hasOption('--real-embeddings')) {
+    process.argv.push('--stub-embeddings');
+  }
+  if (!hasOption('--ann') && !hasOption('--no-ann')) {
+    process.argv.push('--no-ann');
+  }
+  if (!hasOption('--quiet')) {
+    process.argv.push('--quiet');
+  }
+}
+if (testingDefaultsEnabled) {
+  applyTestEnv({
+    cacheRoot: path.join(root, '.testCache', 'bench-run'),
+    embeddings: 'stub',
+    testConfig: createFastIndexingTestConfig()
+  });
+}
 
 const rawArgs = process.argv.slice(2);
+const testHarnessSearchMode = testingDefaultsEnabled ? 'code' : null;
 const argv = createCli({
   scriptName: 'bench',
   options: BENCH_OPTIONS,
@@ -70,7 +109,6 @@ if (safeRegex.test('a'.repeat(100))) {
   fatalExit('Safe regex maxInputLength guard failed.');
 }
 
-const root = process.cwd();
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
 const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
@@ -133,21 +171,24 @@ const hasIndex = (mode) => {
   return hasChunkMetaArtifactsSync(dir);
 };
 /**
- * Detect whether sqlite artifacts already exist for a mode.
+ * Resolve existing databases and verified empty-mode receipts.
  *
  * @param {'code'|'prose'} mode
- * @returns {boolean}
+ * @returns {object}
  */
-const hasSqliteIndex = (mode) => {
+const resolveSqliteModeStatus = (mode) => {
   const paths = resolveSqlitePaths(runtimeRoot, userConfig);
-  const target = mode === 'prose' ? paths.prosePath : paths.codePath;
-  return fsSync.existsSync(target);
+  return resolveBenchSqliteModeStatus({ mode, indexDir: getIndexDir(runtimeRoot, mode, userConfig),
+    dbPath: mode === 'prose' ? paths.prosePath : paths.codePath });
 };
 if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
   logBench('[bench] Missing index artifacts; enabling --build-index.');
 }
-if (needsSqlite && !buildSqlite && (!hasSqliteIndex('code') || !hasSqliteIndex('prose'))) {
+if (needsSqlite && !buildSqlite && ['code', 'prose'].some((mode) => {
+  const status = resolveSqliteModeStatus(mode);
+  return !status.dbExists && !status.zeroState;
+})) {
   buildSqlite = true;
   logBench('[bench] Missing sqlite artifacts; enabling --build-sqlite.');
 }
@@ -225,6 +266,7 @@ function buildSearchArgs(query, backend) {
     backend,
     topN,
     annArg,
+    mode: queryBackendDecision.coverage.selectedSearchModeByBackend[backend] || testHarnessSearchMode,
     repo: repoArg,
     extraArgs
   });
@@ -315,7 +357,7 @@ function getRecommendedHeapMb() {
   };
 }
 
-function runBuild(args, label, env) {
+function runBenchChildProcess(args, env, failureLabel) {
   const start = Date.now();
   const result = spawnSync(process.execPath, args, {
     env,
@@ -327,25 +369,18 @@ function runBuild(args, label, env) {
     if (result.stderr) process.stderr.write(result.stderr);
   }
   if (result.status !== 0) {
-    fatalExit(`Build failed: ${label}`, result.status ?? 1);
+    fatalExit(failureLabel, result.status ?? 1);
   }
-  return Date.now() - start;
+  return { durationMs: Date.now() - start };
+}
+
+function runBuild(args, label, env) {
+  return runBenchChildProcess(args, env, `Build failed: ${label}`).durationMs;
 }
 
 function runServiceQueue(queueName, env) {
   const args = [indexerServicePath, 'work', '--queue', queueName, '--concurrency', '1'];
-  const result = spawnSync(process.execPath, args, {
-    env,
-    encoding: 'utf8',
-    stdio: jsonOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
-  });
-  if (jsonOutput) {
-    if (result.stdout) process.stderr.write(result.stdout);
-    if (result.stderr) process.stderr.write(result.stderr);
-  }
-  if (result.status !== 0) {
-    fatalExit(`Service queue failed: ${queueName}`, result.status ?? 1);
-  }
+  runBenchChildProcess(args, env, `Service queue failed: ${queueName}`);
 }
 
 const buildMs = {};
@@ -382,6 +417,7 @@ if (buildIndex || buildSqlite) {
     // of build_index to avoid duplicate sqlite passes and distorted timings.
     args.push('--no-sqlite');
     if (repoArg) args.push('--repo', repoArg);
+    if (testHarnessSearchMode) args.push('--mode', testHarnessSearchMode);
     if (stubEmbeddings) args.push('--stub-embeddings');
     if (buildIncremental) args.push('--incremental');
     if (argv.threads) args.push('--threads', String(argv.threads));
@@ -393,6 +429,7 @@ if (buildIndex || buildSqlite) {
   }
   if (buildSqlite) {
     const sqliteStarted = Date.now();
+    const { runSqliteBuild } = await import('../../helpers/sqlite-builder.js');
     await runSqliteBuild(runtimeRoot, {
       env: buildEnv,
       incremental: buildIncremental,
@@ -410,18 +447,9 @@ if (buildIndex || buildSqlite) {
   }
 }
 
-const resolveSqliteModeStatus = (mode) => {
-  const modeIndexDir = getIndexDir(runtimeRoot, mode, userConfig);
-  const zeroStateManifestPath = path.join(modeIndexDir, 'pieces', 'sqlite-zero-state.json');
-  return {
-    dbExists: hasSqliteIndex(mode),
-    zeroState: fsSync.existsSync(zeroStateManifestPath),
-    zeroStateManifestPath
-  };
-};
-
 const queryBackendDecision = resolveBenchQueryBackends({
   requestedBackends,
+  requestedModes: testHarnessSearchMode ? [testHarnessSearchMode] : ['code', 'prose'],
   sqliteModes: {
     code: resolveSqliteModeStatus('code'),
     prose: resolveSqliteModeStatus('prose')
@@ -435,14 +463,11 @@ const queryBackendDecision = resolveBenchQueryBackends({
   })()
 });
 if (queryBackendDecision.reason) {
-  if (queryBackendDecision.skippedSqlite) {
-    logBench(`[bench] ${queryBackendDecision.reason}`);
-  } else {
-    fatalExit(`[bench] ${queryBackendDecision.reason}`);
-  }
+  fatalExit(`[bench] ${queryBackendDecision.reason}`);
 }
+if (queryBackendDecision.warning) logBench(`[bench] ${queryBackendDecision.warning}`);
 const backends = queryBackendDecision.backends;
-if (!backends.length) {
+if (!backends.length && !queryBackendDecision.emptySqliteWorkload) {
   fatalExit('[bench] No query backends remain after sqlite zero-state filtering.');
 }
 
@@ -461,6 +486,7 @@ const queryConcurrencyList = Number.isFinite(queryConcurrencyRaw) && queryConcur
   : [4];
 
 const runQueries = async (requestedConcurrency) => {
+  const queryCapabilities = createBenchQueryCapabilityCollector({ annRequested: annEnabled });
   const latency = {};
   const memoryRss = {};
   const hitCounts = {};
@@ -607,6 +633,7 @@ const runQueries = async (requestedConcurrency) => {
       );
     }
     const payload = await runSearch(workerPool, task.query, task.backend);
+    queryCapabilities.observe(task.backend, payload);
     queryProgress.count += 1;
     logQueryProgress();
     const elapsedMs = Number(payload.stats?.elapsedMs);
@@ -646,7 +673,7 @@ const runQueries = async (requestedConcurrency) => {
   }
   logQueryProgress(true);
   const queryWallMs = Date.now() - queryProgress.startMs;
-  const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : 0;
+  const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : null;
   const queryWallMsPerQuery = selectedQueries.length ? queryWallMs / selectedQueries.length : 0;
 
   const latencyStats = Object.fromEntries(backends.map((b) => [b, buildStats(latency[b], { scale: 1000 })]));
@@ -663,10 +690,13 @@ const runQueries = async (requestedConcurrency) => {
     annEnabled,
     embeddingProvider,
     backends,
-    queryConcurrency: Object.values(workerPlans).reduce(
+    queryCoverage: { ...queryBackendDecision.coverage,
+      executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
+    queryCapabilities: queryCapabilities.snapshot(),
+    queryConcurrency: backends.length ? Object.values(workerPlans).reduce(
       (max, plan) => Math.max(max, Math.max(1, Number(plan?.effectiveConcurrency) || 1)),
       1
-    ),
+    ) : 0,
     queryConcurrencyRequested: requestedConcurrency,
     queryConcurrencyAutoReason: backends.length === 1
       ? (workerPlans[backends[0]]?.reason || null)
@@ -709,7 +739,8 @@ if (repoArg) reportArgs.push('--repo', repoArg);
 const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8' });
 const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
 const corruption = artifactReport?.corruption || null;
-if (corruption && corruption.ok === false) {
+const shouldCheckArtifactCorruption = !testingDefaultsEnabled || needsSqlite;
+if (shouldCheckArtifactCorruption && corruption && corruption.ok === false) {
   const issues = Array.isArray(corruption.issues) && corruption.issues.length
     ? corruption.issues.join('; ')
     : 'unknown issues';
@@ -761,7 +792,8 @@ if (argv.json) {
     logBench(`Benchmark summary${concurrencyLabel}`);
     logBench(`- Queries: ${runSummary.queries}`);
     logBench(`- TopN: ${runSummary.topN}`);
-    logBench(`- Ann: ${runSummary.annEnabled}`);
+    logBench(`- ANN requested: ${runSummary.annEnabled}`);
+    for (const line of formatBenchQueryCapabilityLines(runSummary.queryCapabilities)) logBench(line);
     if (Number.isFinite(runSummary.queryWallMs)) {
       logBench(
         `- Query wall time: ${formatDuration(runSummary.queryWallMs)} ` +

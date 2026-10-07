@@ -51,15 +51,27 @@ const result = await collectLspTypes({
 assert.ok(result.runtime && typeof result.runtime === 'object', 'expected runtime envelope');
 assert.equal(typeof result.runtime.command, 'string', 'expected runtime command');
 assert.ok(result.runtime.capabilities && typeof result.runtime.capabilities === 'object', 'expected capability mask');
+assert.equal(Object.getPrototypeOf(result.runtime.capabilities), null, 'expected null-prototype capability mask');
+assert.ok(result.runtime.capabilityGate && typeof result.runtime.capabilityGate === 'object', 'expected capability gate envelope');
 assert.equal(result.runtime.capabilities.documentSymbol, true, 'expected documentSymbol capability flag');
 assert.equal(result.runtime.capabilities.hover, true, 'expected hover capability flag');
+assert.equal(result.runtime.capabilities.semanticTokens, false, 'expected semanticTokens capability flag');
 assert.equal(result.runtime.capabilities.signatureHelp, false, 'expected signatureHelp capability flag');
+assert.equal(result.runtime.capabilities.inlayHints, false, 'expected inlayHints capability flag');
 assert.equal(result.runtime.capabilities.definition, false, 'expected definition capability flag');
 assert.equal(result.runtime.capabilities.typeDefinition, false, 'expected typeDefinition capability flag');
 assert.equal(result.runtime.capabilities.references, false, 'expected references capability flag');
+assert.equal(result.runtime.capabilityGate.effective.documentSymbol, true, 'expected effective documentSymbol gate');
+assert.equal(result.runtime.capabilityGate.effective.signatureHelp, false, 'expected effective signatureHelp gate');
+assert.deepEqual(
+  result.runtime.capabilityGate.missing,
+  ['definition', 'inlayHints', 'references', 'semanticTokens', 'signatureHelp', 'typeDefinition']
+);
 assert.ok(result.runtime.lifecycle && typeof result.runtime.lifecycle === 'object', 'expected lifecycle metrics');
 assert.ok(result.runtime.guard && typeof result.runtime.guard === 'object', 'expected guard metrics');
 assert.ok(result.runtime.requests && typeof result.runtime.requests === 'object', 'expected request metrics');
+assert.ok(result.runtime.requestBudgets && typeof result.runtime.requestBudgets === 'object', 'expected request budget envelope');
+assert.ok(result.runtime.requestCache && typeof result.runtime.requestCache === 'object', 'expected request cache envelope');
 assert.ok(result.runtime.pooling && typeof result.runtime.pooling === 'object', 'expected pooling metrics');
 assert.ok(result.runtime.hoverMetrics && typeof result.runtime.hoverMetrics === 'object', 'expected hover metrics');
 assert.equal(result.runtime.pooling.enabled, true, 'expected pooling enabled by default');
@@ -87,6 +99,26 @@ assert.equal(
   Number(result.runtime.requests.byMethod?.initialize?.latencyMs?.count || 0) >= 1,
   true,
   'expected initialize latency sample count'
+);
+assert.equal(
+  Number(result.runtime.requestBudgets?.byKind?.documentSymbol?.maxRequests || 0) >= 1,
+  true,
+  'expected documentSymbol request budget'
+);
+assert.equal(
+  Number(result.runtime.requestBudgets?.byKind?.hover?.maxRequests || 0) >= 1,
+  true,
+  'expected hover request budget'
+);
+assert.equal(
+  Number.isFinite(Number(result.runtime.requestCache?.hits || 0)),
+  true,
+  'expected request cache hit counter'
+);
+assert.equal(
+  Number.isFinite(Number(result.runtime.requestCache?.misses || 0)),
+  true,
+  'expected request cache miss counter'
 );
 assert.equal(
   Number.isFinite(Number(result.runtime.requests.byMethod?.initialize?.latencyMs?.p50)),

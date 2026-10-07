@@ -6,7 +6,10 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
   if (!skipSqliteIncremental) {
     actions.push({
       label: 'sqlite-incremental-test',
-      run: () => runNode('sqlite-incremental-test', path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js')),
+      run: () => runNode(
+        'sqlite-incremental-test',
+        path.join(root, 'tests', 'storage', 'sqlite', 'incremental', 'file-manifest-updates.test.js')
+      ),
       covers: ['sqlite-incremental-test']
     });
     actions.push({
@@ -33,9 +36,16 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
       coversTierB: ['compact-sqlite-index']
     },
     {
-      label: 'sqlite-sidecar-cleanup-test',
-      run: () => runNode('sqlite-sidecar-cleanup-test', path.join(root, 'tests', 'storage', 'sqlite', 'sidecar-cleanup.test.js')),
-      covers: ['sqlite-sidecar-cleanup-test']
+      label: 'sqlite-maintenance-contract-matrix-test',
+      run: () => runNode(
+        'sqlite-maintenance-contract-matrix-test',
+        path.join(root, 'tests', 'storage', 'sqlite', 'maintenance-contract-matrix.test.js')
+      ),
+      covers: [
+        'sqlite-compact-test',
+        'sqlite-sidecar-cleanup-test',
+        'sqlite-maintenance-contract-matrix-test'
+      ]
     },
     {
       label: 'sqlite-ann-extension-test',
@@ -83,14 +93,9 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
       covers: ['hnsw-atomic-test']
     },
     {
-      label: 'hnsw-candidate-set-test',
-      run: () => runNode('hnsw-candidate-set-test', path.join(root, 'tests', 'retrieval', 'ann', 'hnsw-candidate-set.test.js')),
-      covers: ['hnsw-candidate-set-test']
-    },
-    {
-      label: 'hnsw-distance-metrics-test',
-      run: () => runNode('hnsw-distance-metrics-test', path.join(root, 'tests', 'retrieval', 'ann', 'hnsw-distance-metrics.test.js')),
-      covers: ['hnsw-distance-metrics-test']
+      label: 'ann-backend-contract-matrix-test',
+      run: () => runNode('ann-backend-contract-matrix-test', path.join(root, 'tests', 'retrieval', 'ann', 'backend-contract-matrix.test.js')),
+      covers: ['hnsw-candidate-set-test', 'hnsw-distance-metrics-test', 'ann-backend-contract-matrix-test']
     },
     {
       label: 'sqlite-chunk-id-test',
@@ -98,14 +103,16 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
       covers: ['sqlite-chunk-id-test']
     },
     {
-      label: 'sqlite-auto-backend-test',
-      run: () => runNode('sqlite-auto-backend-test', path.join(root, 'tests', 'storage', 'sqlite', 'auto-backend.test.js')),
-      covers: ['sqlite-auto-backend-test']
-    },
-    {
-      label: 'sqlite-missing-dep-test',
-      run: () => runNode('sqlite-missing-dep-test', path.join(root, 'tests', 'storage', 'sqlite', 'missing-dep.test.js')),
-      covers: ['sqlite-missing-dep-test']
+      label: 'sqlite-search-backend-contract-matrix-test',
+      run: () => runNode(
+        'sqlite-search-backend-contract-matrix-test',
+        path.join(root, 'tests', 'storage', 'sqlite', 'search-backend-contract-matrix.test.js')
+      ),
+      covers: [
+        'sqlite-auto-backend-test',
+        'sqlite-missing-dep-test',
+        'sqlite-search-backend-contract-matrix-test'
+      ]
     },
     {
       label: 'sqlite-cache-test',
@@ -123,15 +130,15 @@ export const buildStorageActions = ({ root, runNode, skipSqliteIncremental }) =>
       covers: ['sqlite-chunk-meta-streaming-test']
     },
     {
-      label: 'lmdb-backend-test',
-      run: () => runNode('lmdb-backend-test', path.join(root, 'tests', 'storage', 'lmdb', 'backend.test.js')),
-      covers: ['build-lmdb-index', 'lmdb-backend-test'],
+      label: 'lmdb-contract-matrix-test',
+      run: () => runNode('lmdb-contract-matrix-test', path.join(root, 'tests', 'storage', 'lmdb', 'contract-matrix.test.js')),
+      covers: ['build-lmdb-index', 'lmdb-backend-test', 'lmdb-contract-matrix-test'],
       coversTierB: ['build-lmdb-index']
     },
     {
-      label: 'two-stage-state-test',
-      run: () => runNode('two-stage-state-test', path.join(root, 'tests', 'indexing', 'runtime', 'two-stage-state.test.js')),
-      covers: []
+      label: 'runtime-contract-matrix-test',
+      run: () => runNode('runtime-contract-matrix-test', path.join(root, 'tests', 'indexing', 'runtime', 'contract-matrix.test.js')),
+      covers: ['two-stage-state-test', 'runtime-contract-matrix-test']
     }
   );
 

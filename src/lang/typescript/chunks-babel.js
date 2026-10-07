@@ -1,15 +1,15 @@
 import { parseBabelAst } from '../babel-parser.js';
-import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
-import { collectAttributes, extractDocComment, sliceSignature } from '../shared.js';
 import {
   extractTypeScriptInheritance,
-  extractTypeScriptModifiers,
   extractTypeScriptParamTypes,
   extractTypeScriptParams,
   extractTypeScriptReturns,
-  extractVisibility,
   parseTypeScriptSignature
 } from './signature.js';
+import {
+  createTypeScriptChunkDeclarationSink,
+  qualifyTypeScriptChunkName
+} from './chunk-metadata.js';
 
 function getBabelName(node) {
   if (!node) return null;
@@ -27,26 +27,7 @@ function getBabelName(node) {
 export function buildTypeScriptChunksFromBabel(text, options = {}) {
   const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
   if (!ast || !Array.isArray(ast.body)) return null;
-  const lineIndex = buildLineIndex(text);
-  const lines = text.split('\n');
-  const decls = [];
-
-  const qualify = (prefix, name) => (prefix ? `${prefix}.${name}` : name);
-  const buildSignature = (start, bodyStart) => sliceSignature(text, start, bodyStart);
-  const buildMetaBase = (start, end, signature) => {
-    const startLine = offsetToLine(lineIndex, start);
-    const endLine = offsetToLine(lineIndex, Math.max(start, end - 1));
-    const modifiers = extractTypeScriptModifiers(signature);
-    return {
-      startLine,
-      endLine,
-      signature,
-      modifiers,
-      visibility: extractVisibility(modifiers),
-      docstring: extractDocComment(lines, startLine - 1),
-      attributes: collectAttributes(lines, startLine - 1, signature)
-    };
-  };
+  const { buildSignature, buildMetaBase, addDeclaration, finish } = createTypeScriptChunkDeclarationSink(text);
   const buildFunctionMeta = (start, end, signature) => ({
     ...buildMetaBase(start, end, signature),
     params: extractTypeScriptParams(signature),
@@ -62,11 +43,11 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     if (!node || !name) return;
     const start = Number.isFinite(node.start) ? node.start : 0;
     const end = Number.isFinite(node.end) ? node.end : start;
-    decls.push({ start, end, name, kind, meta });
+    addDeclaration({ start, end, name, kind, meta });
   };
 
   const handleClassMembers = (prefix, className, members) => {
-    const qualified = qualify(prefix, className);
+    const qualified = qualifyTypeScriptChunkName(prefix, className);
     for (const member of members || []) {
       if (member.type === 'ClassMethod' || member.type === 'ClassPrivateMethod') {
         const methodName = getBabelName(member.key) || 'anonymous';
@@ -97,7 +78,7 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     if (stmt.type === 'ClassDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.body?.start ?? -1);
-      addChunk(stmt, qualify(prefix, stmt.id.name), 'ClassDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'ClassDeclaration',
         buildTypeMeta(start, stmt.end ?? start, signature));
       handleClassMembers(prefix, stmt.id.name, stmt.body?.body || []);
       return;
@@ -105,21 +86,21 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     if (stmt.type === 'TSInterfaceDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.body?.start ?? -1);
-      addChunk(stmt, qualify(prefix, stmt.id.name), 'InterfaceDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'InterfaceDeclaration',
         buildTypeMeta(start, stmt.end ?? start, signature));
       return;
     }
     if (stmt.type === 'TSEnumDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.members?.[0]?.start ?? -1);
-      addChunk(stmt, qualify(prefix, stmt.id.name), 'EnumDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'EnumDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
       return;
     }
     if (stmt.type === 'TSTypeAliasDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, -1);
-      addChunk(stmt, qualify(prefix, stmt.id.name), 'TypeAliasDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'TypeAliasDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
       return;
     }
@@ -128,27 +109,27 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
       if (!name) return;
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.body?.start ?? -1);
-      addChunk(stmt, qualify(prefix, name), 'NamespaceDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, name), 'NamespaceDeclaration',
         buildMetaBase(start, stmt.end ?? start, signature));
       const moduleBody = stmt.body?.body;
       if (Array.isArray(moduleBody)) {
-        moduleBody.forEach((child) => handleStatement(child, qualify(prefix, name)));
+        moduleBody.forEach((child) => handleStatement(child, qualifyTypeScriptChunkName(prefix, name)));
       } else if (stmt.body) {
-        handleStatement(stmt.body, qualify(prefix, name));
+        handleStatement(stmt.body, qualifyTypeScriptChunkName(prefix, name));
       }
       return;
     }
     if (stmt.type === 'TSDeclareFunction' && stmt.id?.name) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, -1);
-      addChunk(stmt, qualify(prefix, stmt.id.name), 'FunctionDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'FunctionDeclaration',
         buildFunctionMeta(start, stmt.end ?? start, signature));
       return;
     }
     if (stmt.type === 'FunctionDeclaration' && stmt.id?.name) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.body?.start ?? -1);
-      addChunk(stmt, qualify(prefix, stmt.id.name), 'FunctionDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'FunctionDeclaration',
         buildFunctionMeta(start, stmt.end ?? start, signature));
       return;
     }
@@ -158,7 +139,7 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
           && (decl.init.type === 'FunctionExpression' || decl.init.type === 'ArrowFunctionExpression')) {
           const start = decl.start ?? stmt.start ?? 0;
           const signature = buildSignature(start, decl.init.body?.start ?? -1);
-          addChunk(decl, qualify(prefix, decl.id.name), 'FunctionDeclaration',
+          addChunk(decl, qualifyTypeScriptChunkName(prefix, decl.id.name), 'FunctionDeclaration',
             buildFunctionMeta(start, decl.end ?? start, signature));
         }
       }
@@ -166,13 +147,5 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
   };
 
   ast.body.forEach((stmt) => handleStatement(stmt, ''));
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
-  }));
+  return finish();
 }

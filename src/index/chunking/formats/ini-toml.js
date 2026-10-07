@@ -1,34 +1,36 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
+import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
 import { buildChunksFromLineHeadings } from '../helpers.js';
-import { getTreeSitterOptions } from '../tree-sitter.js';
+import { parseTomlStructure } from '../../../shared/toml-structure.js';
 
-const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
-  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  const name = rawName || 'section';
-  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
-  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
-  return {
-    ...chunk,
-    name,
-    kind: chunk?.kind || 'ConfigSection',
-    meta: {
-      ...existingMeta,
-      format,
-      title: rawTitle || name
-    }
-  };
-});
+export const createTomlChunker = ({ parseStructure = parseTomlStructure } = {}) => (text, context = {}) => {
+  const source = String(text || '');
+  const structure = parseStructure(source, { maxMs: context?.treeSitter?.byLanguage?.toml?.maxParseMs
+    ?? context?.treeSitter?.maxParseMs });
+  const meta = { format: 'toml', parser: structure.parser, parserCoverage: structure.coverage,
+    rangeSource: structure.rangeSource, parserFallbackReason: structure.reason, parseMetrics: structure.metrics };
+  if (structure.reason) return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
+  // Source-line sections are application-owned ranges, not vendor AST nodes.
+  // Semantic values validate the corresponding decoded table path.
+  return structure.headings.length ? structure.headings.map((heading, index) => ({ start: heading.sectionStart,
+    end: structure.headings[index + 1]?.sectionStart ?? source.length, name: heading.name, kind: 'ConfigSection',
+    meta: { title: heading.name, ...meta, tablePath: heading.path, arrayTable: heading.arrayTable,
+      headerRange: { start: heading.start, end: heading.end } } }))
+    : [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
+};
+
+const chunkToml = createTomlChunker();
 
 export function chunkIniToml(text, format = 'ini', context) {
-  if (format === 'toml' && context?.treeSitter?.configChunking === true) {
-    const treeChunks = buildTreeSitterChunks({
-      text,
-      languageId: 'toml',
-      ext: '.toml',
-      options: getTreeSitterOptions(context)
-    });
-    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, format);
-  }
+  const treeChunks = buildConfigTreeSitterChunks({
+    text,
+    context,
+    languageId: 'toml',
+    ext: '.toml',
+    format,
+    enabled: format === 'toml'
+  });
+  if (treeChunks) return treeChunks;
+  if (format === 'toml') return chunkToml(text, context);
   const lines = text.split('\n');
   const headings = [];
   for (let i = 0; i < lines.length; ++i) {

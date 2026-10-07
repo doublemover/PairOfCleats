@@ -8,46 +8,6 @@ from . import paths
 
 SETTINGS_FILE = 'PairOfCleats.sublime-settings'
 
-DEFAULT_EDITOR_CONFIG_CONTRACT = {
-    'schemaVersion': 1,
-    'repoRoot': {
-        'markers': ['.pairofcleats.json', '.git'],
-        'vscode': {
-            'walkUpFromWorkspaceFolder': False
-        },
-        'sublime': {
-            'walkUpFromHints': True
-        }
-    },
-    'cli': {
-        'defaultCommand': 'pairofcleats',
-        'repoRelativeEntrypoint': 'bin/pairofcleats.js',
-        'jsEntrypointExtension': '.js'
-    },
-    'settings': {
-        'vscode': {
-            'namespace': 'pairofcleats',
-            'cliPathKey': 'cliPath',
-            'cliArgsKey': 'cliArgs',
-            'extraSearchArgsKey': 'extraSearchArgs',
-            'modeKey': 'searchMode',
-            'backendKey': 'searchBackend',
-            'annKey': 'searchAnn',
-            'maxResultsKey': 'maxResults',
-            'envKey': 'env'
-        },
-        'sublime': {
-            'cliPathKey': 'pairofcleats_path',
-            'nodePathKey': 'node_path',
-            'envKey': 'env'
-        }
-    },
-    'env': {
-        'mergeOrder': ['process', 'settings'],
-        'stringifyValues': True
-    }
-}
-
 
 def _load_editor_config_contract():
     contract_path = os.path.abspath(
@@ -56,19 +16,16 @@ def _load_editor_config_contract():
             '..',
             '..',
             '..',
-            'docs',
-            'tooling',
+            'src',
+            'contracts',
             'editor-config-contract.json'
         )
     )
-    try:
-        with open(contract_path, 'r', encoding='utf-8') as handle:
-            loaded = json.load(handle)
-        if isinstance(loaded, dict):
-            return loaded
-    except Exception:
-        pass
-    return DEFAULT_EDITOR_CONFIG_CONTRACT
+    with open(contract_path, 'r', encoding='utf-8') as handle:
+        loaded = json.load(handle)
+    if not isinstance(loaded, dict):
+        raise ValueError('editor-config-contract.json must contain an object')
+    return loaded
 
 
 EDITOR_CONFIG_CONTRACT = _load_editor_config_contract()
@@ -89,6 +46,10 @@ _SUBLIME_SETTING_KEYS = _contract_get(['settings', 'sublime'], {})
 CLI_PATH_KEY = str(_SUBLIME_SETTING_KEYS.get('cliPathKey') or 'pairofcleats_path')
 NODE_PATH_KEY = str(_SUBLIME_SETTING_KEYS.get('nodePathKey') or 'node_path')
 ENV_KEY = str(_SUBLIME_SETTING_KEYS.get('envKey') or 'env')
+PROJECT_IGNORED_SETTING_KEYS = frozenset((
+    'pairofcleats_path', 'node_path', 'env', 'cli_args',
+    'extra_search_args', 'api_server_url', 'api_execution_mode',
+))
 
 DEFAULT_SETTINGS = {
     'pairofcleats_path': '',
@@ -288,21 +249,25 @@ def get_setting_groups():
 
 def get_settings(window=None):
     base = _load_base_settings()
-    overrides = extract_project_settings(window)
+    overrides = filter_project_settings(extract_project_settings(window))
     return merge_settings(base, overrides)
+
+
+def filter_project_settings(overrides):
+    if not isinstance(overrides, dict):
+        return {}
+    # Keep the existing project resolution boundary shared with its presentation.
+    return {key: value for key, value in overrides.items()
+            if key not in PROJECT_IGNORED_SETTING_KEYS}
 
 
 def build_project_settings_template():
     overrides = {}
     for _group_name, keys in SETTING_GROUPS:
         for key in keys:
-            if key == 'env':
-                overrides[key] = {'PAIROFCLEATS_API_TOKEN': '...'}
-                continue
-            if key in ('pairofcleats_path', 'node_path', 'index_watch_folder', 'map_three_url'):
+            if key in PROJECT_IGNORED_SETTING_KEYS or key in ('index_watch_folder', 'map_three_url'):
                 continue
             overrides[key] = DEFAULT_SETTINGS.get(key)
-    overrides['api_server_url'] = 'http://127.0.0.1:7464'
     payload = {
         'settings': {
             'pairofcleats': overrides

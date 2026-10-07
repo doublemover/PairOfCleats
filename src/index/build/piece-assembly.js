@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { applyCrossFileInference } from '../type-inference-crossfile.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { log as defaultLog } from '../../shared/progress.js';
+import { log as defaultLog } from '../../shared/progress-runtime.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { hashTokenId } from '../../shared/token-id.js';
 import { createIndexState } from './state.js';

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import PQueue from 'p-queue';
-import { runWithQueue } from '../../../src/shared/concurrency.js';
+import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
 import { isAbortError } from '../../../src/shared/abort.js';
 
 const queue = new PQueue({ concurrency: 1 });

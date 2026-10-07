@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { toPosix } from '../../../../shared/files.js';
+import { toPosix } from '../../../../shared/file-paths.js';
 import { compareStrings } from '../../../../shared/sort.js';
 import { resolveJobEstimatedParseCost } from './metrics.js';
 

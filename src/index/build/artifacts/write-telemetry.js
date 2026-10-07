@@ -4,6 +4,28 @@ import { resolveArtifactWritePhaseClass } from './write-strategy.js';
 const toPosix = (value) => String(value || '').replace(/\\/g, '/');
 const LARGE_STALL_THRESHOLD_BYTES = 128 * 1024 * 1024;
 const HUGE_STALL_THRESHOLD_BYTES = 768 * 1024 * 1024;
+const ARTIFACT_PHASE_TIMING_KEYS = Object.freeze([
+  'computeMs',
+  'serializationMs',
+  'compressionMs',
+  'flushMs',
+  'fsyncMs',
+  'publishMs',
+  'manifestWaitMs',
+  'backpressureWaitMs',
+  'diskMs'
+]);
+
+const toNonNegativeNumberOrNull = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+};
+
+const normalizeArtifactFamilyName = (value) => {
+  const text = String(value || '').trim().toLowerCase();
+  return text || null;
+};
 
 export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
   const hinted = typeof phaseHint === 'string' ? phaseHint.trim() : '';
@@ -30,6 +52,24 @@ export const resolveActiveWritePhaseLabel = (label, phaseHint = null) => {
   if (normalized.includes('determinism_report')) return 'write:determinism';
   if (normalized.includes('metrics')) return 'write:metrics';
   return 'write:artifact';
+};
+
+export const resolveArtifactWriteStallCauseHint = (phase) => {
+  const normalized = String(phase || '').trim().toLowerCase();
+  if (!normalized) return 'unknown';
+  if (normalized.startsWith('closeout:') || normalized.startsWith('publish:')) {
+    return 'publish-or-filesystem-flush';
+  }
+  if (normalized.startsWith('prefetch')) {
+    return 'prefetch-or-upstream-backpressure';
+  }
+  if (normalized.includes('binary-columnar') || normalized.includes('field-postings') || normalized.includes('token-postings')) {
+    return 'heavy-serialization';
+  }
+  if (normalized.startsWith('materialize:') || normalized.startsWith('write:') || normalized.startsWith('write-')) {
+    return 'materialization-or-serialization';
+  }
+  return 'unknown';
 };
 
 /**
@@ -64,6 +104,224 @@ export const resolveArtifactWriteStallThresholds = ({
   return thresholds.map((thresholdSec) => Math.max(1, Math.ceil(Number(thresholdSec) * scale)));
 };
 
+export const normalizeArtifactPhaseTimings = (phaseTimings = null, fallback = {}) => {
+  const input = phaseTimings && typeof phaseTimings === 'object' ? phaseTimings : {};
+  const normalized = {
+    computeMs: toNonNegativeNumberOrNull(input.computeMs ?? input.materializeMs),
+    serializationMs: toNonNegativeNumberOrNull(input.serializationMs),
+    compressionMs: toNonNegativeNumberOrNull(input.compressionMs),
+    flushMs: toNonNegativeNumberOrNull(input.flushMs),
+    fsyncMs: toNonNegativeNumberOrNull(input.fsyncMs),
+    publishMs: toNonNegativeNumberOrNull(input.publishMs),
+    manifestWaitMs: toNonNegativeNumberOrNull(input.manifestWaitMs),
+    backpressureWaitMs: toNonNegativeNumberOrNull(input.backpressureWaitMs),
+    diskMs: toNonNegativeNumberOrNull(input.diskMs)
+  };
+  const fallbackSerializationMs = toNonNegativeNumberOrNull(fallback?.serializationMs);
+  if (normalized.serializationMs == null && fallbackSerializationMs != null) {
+    normalized.serializationMs = fallbackSerializationMs;
+  }
+  const derivedDiskMs = [normalized.flushMs, normalized.fsyncMs, normalized.publishMs]
+    .filter((value) => value != null)
+    .reduce((total, value) => total + value, 0);
+  const fallbackDiskMs = toNonNegativeNumberOrNull(fallback?.diskMs);
+  if (normalized.diskMs == null) {
+    if (derivedDiskMs > 0) {
+      normalized.diskMs = derivedDiskMs;
+    } else if (fallbackDiskMs != null) {
+      normalized.diskMs = fallbackDiskMs;
+    }
+  } else if (derivedDiskMs > 0) {
+    normalized.diskMs = Math.max(normalized.diskMs, derivedDiskMs);
+  }
+  if (normalized.diskMs == null && normalized.serializationMs != null && fallback?.durationMs != null) {
+    const durationMs = toNonNegativeNumberOrNull(fallback.durationMs);
+    if (durationMs != null) {
+      normalized.diskMs = Math.max(0, durationMs - normalized.serializationMs);
+    }
+  }
+  const hasAnyTiming = ARTIFACT_PHASE_TIMING_KEYS.some((key) => normalized[key] != null);
+  return hasAnyTiming ? normalized : null;
+};
+
+export const resolveActiveWriteStallOwner = (entries = []) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const preferredPhaseClasses = ['closeout', 'publish', 'materialize', 'execute'];
+  for (const phaseClass of preferredPhaseClasses) {
+    const match = list.find((entry) => entry?.phaseClass === phaseClass && typeof entry?.phase === 'string');
+    if (!match) continue;
+    if (typeof match.family === 'string' && match.family) {
+      return `${match.family}:${match.phase}`;
+    }
+    return match.phase;
+  }
+  return null;
+};
+
+export const resolveActiveWriteStallFamily = (entries = []) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const preferredPhaseClasses = ['closeout', 'publish', 'materialize', 'execute'];
+  for (const phaseClass of preferredPhaseClasses) {
+    const match = list.find((entry) => entry?.phaseClass === phaseClass);
+    const family = normalizeArtifactFamilyName(match?.family);
+    if (family) return family;
+  }
+  return null;
+};
+
+const resolveArtifactFamilyLedgerEntry = (artifactFamilyLedger, family) => {
+  if (!(artifactFamilyLedger instanceof Map)) return null;
+  const normalizedFamily = normalizeArtifactFamilyName(family) || 'unknown';
+  if (!artifactFamilyLedger.has(normalizedFamily)) {
+    artifactFamilyLedger.set(normalizedFamily, {
+      family: normalizedFamily,
+      started: 0,
+      completed: 0,
+      active: 0,
+      startedBytes: 0,
+      completedBytes: 0,
+      maxQueueDelayMs: 0,
+      maxDurationMs: 0,
+      maxStallElapsedSec: 0,
+      stallCount: 0,
+      lanes: new Set(),
+      phaseClasses: new Set(),
+      labels: new Set(),
+      latencyClasses: new Set()
+    });
+  }
+  return artifactFamilyLedger.get(normalizedFamily);
+};
+
+export const recordArtifactFamilyCloseoutStart = ({
+  artifactFamilyLedger,
+  family,
+  lane = null,
+  phase = null,
+  label = null,
+  estimatedBytes = null
+} = {}) => {
+  const entry = resolveArtifactFamilyLedgerEntry(artifactFamilyLedger, family);
+  if (!entry) return null;
+  entry.started += 1;
+  entry.active += 1;
+  const bytes = toNonNegativeNumberOrNull(estimatedBytes);
+  if (bytes != null) {
+    entry.startedBytes += bytes;
+  }
+  const normalizedLane = String(lane || '').trim();
+  if (normalizedLane) entry.lanes.add(normalizedLane);
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  if (phaseClass && phaseClass !== 'unknown') entry.phaseClasses.add(phaseClass);
+  const normalizedLabel = String(label || '').trim();
+  if (normalizedLabel) entry.labels.add(normalizedLabel);
+  return entry;
+};
+
+export const recordArtifactFamilyCloseoutCompletion = ({
+  artifactFamilyLedger,
+  family,
+  completed = true,
+  queueDelayMs = null,
+  durationMs = null,
+  bytes = null,
+  latencyClass = null,
+  lane = null,
+  phase = null,
+  label = null
+} = {}) => {
+  const entry = resolveArtifactFamilyLedgerEntry(artifactFamilyLedger, family);
+  if (!entry) return null;
+  if (completed !== false) {
+    entry.completed += 1;
+  }
+  entry.active = Math.max(0, entry.active - 1);
+  const normalizedQueueDelayMs = toNonNegativeNumberOrNull(queueDelayMs);
+  if (normalizedQueueDelayMs != null) {
+    entry.maxQueueDelayMs = Math.max(entry.maxQueueDelayMs, normalizedQueueDelayMs);
+  }
+  const normalizedDurationMs = toNonNegativeNumberOrNull(durationMs);
+  if (normalizedDurationMs != null) {
+    entry.maxDurationMs = Math.max(entry.maxDurationMs, normalizedDurationMs);
+  }
+  const normalizedBytes = toNonNegativeNumberOrNull(bytes);
+  if (normalizedBytes != null) {
+    entry.completedBytes += normalizedBytes;
+  }
+  const normalizedLatencyClass = String(latencyClass || '').trim();
+  if (normalizedLatencyClass) entry.latencyClasses.add(normalizedLatencyClass);
+  const normalizedLane = String(lane || '').trim();
+  if (normalizedLane) entry.lanes.add(normalizedLane);
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  if (phaseClass && phaseClass !== 'unknown') entry.phaseClasses.add(phaseClass);
+  const normalizedLabel = String(label || '').trim();
+  if (normalizedLabel) entry.labels.add(normalizedLabel);
+  return entry;
+};
+
+export const recordArtifactFamilyCloseoutStall = ({
+  artifactFamilyLedger,
+  family,
+  elapsedSec = null,
+  lane = null,
+  phase = null,
+  label = null
+} = {}) => {
+  const entry = resolveArtifactFamilyLedgerEntry(artifactFamilyLedger, family);
+  if (!entry) return null;
+  entry.stallCount += 1;
+  const normalizedElapsedSec = toNonNegativeNumberOrNull(elapsedSec);
+  if (normalizedElapsedSec != null) {
+    entry.maxStallElapsedSec = Math.max(entry.maxStallElapsedSec, normalizedElapsedSec);
+  }
+  const normalizedLane = String(lane || '').trim();
+  if (normalizedLane) entry.lanes.add(normalizedLane);
+  const phaseClass = resolveArtifactWritePhaseClass(phase);
+  if (phaseClass && phaseClass !== 'unknown') entry.phaseClasses.add(phaseClass);
+  const normalizedLabel = String(label || '').trim();
+  if (normalizedLabel) entry.labels.add(normalizedLabel);
+  return entry;
+};
+
+export const buildArtifactFamilyCloseoutSummary = (artifactFamilyLedger = null) => {
+  if (!(artifactFamilyLedger instanceof Map) || artifactFamilyLedger.size === 0) return [];
+  return Array.from(artifactFamilyLedger.values())
+    .map((entry) => ({
+      family: entry.family,
+      started: entry.started,
+      completed: entry.completed,
+      active: entry.active,
+      startedBytes: entry.startedBytes,
+      completedBytes: entry.completedBytes,
+      maxQueueDelayMs: entry.maxQueueDelayMs,
+      maxDurationMs: entry.maxDurationMs,
+      maxStallElapsedSec: entry.maxStallElapsedSec,
+      stallCount: entry.stallCount,
+      lanes: Array.from(entry.lanes).sort((left, right) => left.localeCompare(right)),
+      phaseClasses: Array.from(entry.phaseClasses).sort((left, right) => left.localeCompare(right)),
+      latencyClasses: Array.from(entry.latencyClasses).sort((left, right) => left.localeCompare(right)),
+      sampleLabels: Array.from(entry.labels).sort((left, right) => left.localeCompare(right)).slice(0, 3)
+    }))
+    .sort((left, right) => (
+      Number(right.stallCount || 0) - Number(left.stallCount || 0)
+    ) || (
+      Number(right.maxStallElapsedSec || 0) - Number(left.maxStallElapsedSec || 0)
+    ) || left.family.localeCompare(right.family));
+};
+
+export const summarizePendingArtifactFamilies = (laneQueues = {}) => {
+  const counts = new Map();
+  for (const queue of Object.values(laneQueues || {})) {
+    if (!Array.isArray(queue)) continue;
+    for (const entry of queue) {
+      const family = normalizeArtifactFamilyName(entry?.family);
+      if (!family) continue;
+      counts.set(family, (counts.get(family) || 0) + 1);
+    }
+  }
+  return counts;
+};
+
 /**
  * Record one artifact write metric row and update queue-delay histograms.
  *
@@ -84,6 +342,17 @@ export const recordArtifactMetricRow = ({
   if (!label) return;
   const existing = artifactMetrics.get(label) || { path: label };
   const nextMetric = { ...existing, ...metric };
+  const normalizedPhaseTimings = normalizeArtifactPhaseTimings(metric?.phaseTimings, {
+    durationMs: metric?.durationMs,
+    serializationMs: metric?.serializationMs,
+    diskMs: metric?.diskMs
+  });
+  if (normalizedPhaseTimings) {
+    nextMetric.phaseTimings = normalizedPhaseTimings;
+    for (const key of ARTIFACT_PHASE_TIMING_KEYS) {
+      nextMetric[key] = normalizedPhaseTimings[key];
+    }
+  }
   const queueDelayMs = Number(metric?.queueDelayMs);
   if (Number.isFinite(queueDelayMs) && queueDelayMs >= 0) {
     const samples = artifactQueueDelaySamples.get(label) || [];
@@ -111,10 +380,12 @@ export const recordArtifactMetricRow = ({
  *   formatBytes?:(bytes:number)=>string
  * }} input
  * @returns {{
- *   inflight:Array<{label:string,elapsedSec:number,estimatedBytes:number|null,phase:string,lane:string|null}>,
+ *   inflight:Array<{label:string,elapsedSec:number,estimatedBytes:number|null,phase:string,lane:string|null,family:string|null,progressUnit:string|null,estimatedItems:number|null}>,
  *   previewText:string,
  *   phaseSummaryText:string,
- *   phaseByLabel:Map<string,string>
+ *   familySummaryText:string,
+ *   phaseByLabel:Map<string,string>,
+  *   stallOwner:string|null
  * }}
  */
 export const buildActiveWriteTelemetrySnapshot = ({
@@ -135,8 +406,17 @@ export const buildActiveWriteTelemetrySnapshot = ({
         estimatedBytes: Number(activeWriteBytes?.get?.(label)) || null,
         phase,
         phaseClass: resolveArtifactWritePhaseClass(phase),
+        family: typeof meta?.family === 'string' && meta.family.trim()
+          ? meta.family.trim()
+          : null,
         lane: typeof meta?.lane === 'string' && meta.lane.trim()
           ? meta.lane.trim()
+          : null,
+        progressUnit: typeof meta?.progressUnit === 'string' && meta.progressUnit.trim()
+          ? meta.progressUnit.trim()
+          : null,
+        estimatedItems: Number.isFinite(Number(meta?.estimatedItems))
+          ? Math.max(0, Math.floor(Number(meta.estimatedItems)))
           : null
       };
     })
@@ -145,26 +425,41 @@ export const buildActiveWriteTelemetrySnapshot = ({
       || left.label.localeCompare(right.label)
     ));
   const phaseCounts = new Map();
+  const familyCounts = new Map();
   for (const entry of entries) {
     phaseCounts.set(entry.phase, (phaseCounts.get(entry.phase) || 0) + 1);
+    if (entry.family) {
+      familyCounts.set(entry.family, (familyCounts.get(entry.family) || 0) + 1);
+    }
   }
   const phaseByLabel = new Map(entries.map((entry) => [entry.label, entry.phase]));
   const previewText = entries
     .slice(0, Math.max(1, Math.floor(Number(limit) || 3)))
-    .map(({ label, elapsedSec, estimatedBytes, phase, lane }) => (
-      `${label} [${phase}${lane ? `:${lane}` : ''}]`
-      + ` (${elapsedSec}s${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''})`
+    .map(({ label, elapsedSec, estimatedBytes, phase, lane, family, progressUnit, estimatedItems }) => (
+      `${label} [${family ? `${family}|` : ''}${phase}${lane ? `:${lane}` : ''}]`
+      + ` (${elapsedSec}s`
+      + `${Number.isFinite(estimatedBytes) ? `, ~${formatBytes(estimatedBytes)}` : ''}`
+      + `${Number.isFinite(estimatedItems) && progressUnit ? `, ~${estimatedItems} ${progressUnit}` : ''}`
+      + `)`
     ))
     .join(', ');
   const phaseSummaryText = Array.from(phaseCounts.entries())
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .map(([phase, count]) => `${phase}=${count}`)
     .join(', ');
+  const familySummaryText = Array.from(familyCounts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([family, count]) => `${family}=${count}`)
+    .join(', ');
   return {
     inflight: entries,
     previewText,
     phaseSummaryText,
-    phaseByLabel
+    familySummaryText,
+    phaseByLabel,
+    familyCounts,
+    stallOwner: resolveActiveWriteStallOwner(entries),
+    stallFamily: resolveActiveWriteStallFamily(entries)
   };
 };
 
@@ -176,6 +471,7 @@ export const buildActiveWriteTelemetrySnapshot = ({
  *   activeWrites:Map<string, number>,
   *   activeWriteBytes:Map<string, number>,
  *   activeWriteMeta?:Map<string, object>|null,
+ *   artifactFamilyLedger?:Map<string, object>|null,
  *   getCompletedWrites:()=>number,
  *   getTotalWrites:()=>number,
  *   normalizedWriteStallThresholds:number[],
@@ -190,6 +486,7 @@ export const createWriteHeartbeatController = ({
   activeWrites,
   activeWriteBytes,
   activeWriteMeta = null,
+  artifactFamilyLedger = null,
   getCompletedWrites,
   getTotalWrites,
   normalizedWriteStallThresholds,
@@ -218,15 +515,28 @@ export const createWriteHeartbeatController = ({
           normalizedWriteStallThresholds,
           estimatedBytes
         });
+        const meta = activeWriteMeta instanceof Map ? activeWriteMeta.get(label) : null;
+        const family = normalizeArtifactFamilyName(meta?.family);
+        const lane = typeof meta?.lane === 'string' ? meta.lane.trim() : null;
+        const phase = typeof meta?.phase === 'string' ? meta.phase.trim() : null;
+        const causeHint = resolveArtifactWriteStallCauseHint(phase || snapshot.phaseByLabel.get(label) || null);
         for (let thresholdIndex = 0; thresholdIndex < resolvedThresholds.length; thresholdIndex += 1) {
           const thresholdSec = resolvedThresholds[thresholdIndex];
           if (alerts.has(thresholdSec) || elapsedSec < thresholdSec) continue;
           alerts.add(thresholdSec);
           writeStallAlerts.set(label, alerts);
           const levelName = stallThresholdLevelName(thresholdSec, thresholdIndex);
+          recordArtifactFamilyCloseoutStall({
+            artifactFamilyLedger,
+            family,
+            elapsedSec,
+            lane,
+            phase,
+            label
+          });
           logLine(
             `[perf] artifact write stall ${levelName}: ${label} in-flight for ${elapsedSec}s ` +
-            `(threshold=${thresholdSec}s)`,
+            `(threshold=${thresholdSec}s${family ? `, family=${family}` : ''}${lane ? `, lane=${lane}` : ''}${phase ? `, phase=${phase}` : ''}${causeHint ? `, causeHint=${causeHint}` : ''})`,
             { kind: thresholdSec >= 30 ? 'error' : 'warning' }
           );
           if (stageCheckpoints?.record) {
@@ -239,7 +549,8 @@ export const createWriteHeartbeatController = ({
                 thresholdSec,
                 level: levelName,
                 estimatedBytes,
-                phase: snapshot.phaseByLabel.get(label) || resolveActiveWritePhaseLabel(label)
+                phase: snapshot.phaseByLabel.get(label) || resolveActiveWritePhaseLabel(label),
+                causeHint
               }
             });
           }

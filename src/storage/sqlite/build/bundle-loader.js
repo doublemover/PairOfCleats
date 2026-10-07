@@ -2,35 +2,14 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Piscina from 'piscina';
-import {
-  readBundleFile,
-  resolveManifestBundleNamesResult
-} from '../../../shared/bundle-io.js';
+import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io-paths.js';
+import { readBundleFile } from '../../../shared/bundle-io.js';
 import { destroyPiscinaPool } from '../../../shared/piscina-cleanup.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
-
-const buildWorkerExecArgv = () => process.execArgv.filter((arg) => (
-  typeof arg === 'string'
-  && !arg.startsWith('--max-old-space-size')
-  && !arg.startsWith('--max-semi-space-size')
-));
-
-const parseMaxOldSpaceSizeMb = (argv) => {
-  if (!Array.isArray(argv)) return null;
-  for (let i = argv.length - 1; i >= 0; i -= 1) {
-    const arg = argv[i];
-    if (typeof arg !== 'string') continue;
-    if (arg === '--max-old-space-size' && i + 1 < argv.length) {
-      const value = Number(argv[i + 1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
-    }
-    if (arg.startsWith('--max-old-space-size=')) {
-      const value = Number(arg.split('=', 2)[1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
-    }
-  }
-  return null;
-};
+import {
+  buildWorkerExecArgv,
+  parseMaxOldSpaceSizeMb
+} from '../../../shared/workers/node-argv.js';
 
 const resolveWorkerResourceLimits = (maxWorkers) => {
   const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 1));

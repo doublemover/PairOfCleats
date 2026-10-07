@@ -2,8 +2,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -16,6 +17,7 @@ const cacheRoot = path.join(baseDir, 'cache');
 await fsPromises.rm(baseDir, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
 
 const env = applyTestEnv({ cacheRoot });
 
@@ -37,6 +39,7 @@ await fsPromises.writeFile(path.join(cacheSqliteDir, 'index.db.bak'), 'legacy-ba
 
 const legacySqliteDir = path.join(repoRoot, 'index-sqlite');
 await fsPromises.mkdir(legacySqliteDir, { recursive: true });
+await fsPromises.writeFile(path.join(legacySqliteDir, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-code.db'), 'legacy-code');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index-prose.db'), 'legacy-prose');
 await fsPromises.writeFile(path.join(legacySqliteDir, 'index.db'), 'legacy-index');
@@ -52,10 +55,12 @@ await fsPromises.writeFile(path.join(modelsDir, 'model.bin'), 'model');
 await fsPromises.writeFile(path.join(dictDir, 'en.txt'), 'word');
 await fsPromises.writeFile(path.join(extensionsDir, 'ext.bin'), 'ext');
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [path.join(root, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoRoot],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'clean-artifacts',
+  repoRoot,
+  env,
+  { stdio: 'inherit', allowFailure: true }
 );
 
 if (result.status !== 0) {
@@ -79,10 +84,12 @@ if (!fs.existsSync(extensionsDir)) failures.push('extensions dir missing after c
 await fsPromises.mkdir(repoCacheRoot, { recursive: true });
 await fsPromises.writeFile(path.join(repoCacheRoot, 'marker.txt'), 'marker');
 
-const resultAll = spawnSync(
-  process.execPath,
+const resultAll = runNode(
   [path.join(root, 'tools', 'index', 'clean-artifacts.js'), '--repo', repoRoot, '--all'],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'clean-artifacts --all',
+  repoRoot,
+  env,
+  { stdio: 'inherit', allowFailure: true }
 );
 
 if (resultAll.status !== 0) {

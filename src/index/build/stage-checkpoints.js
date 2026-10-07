@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../shared/json-stream.js';
-import { logLine } from '../../shared/progress.js';
+import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
+import { logLine } from '../../shared/progress-runtime.js';
 import { updateBuildState } from './build-state.js';
 import {
   resolveBuildCleanupTimeoutMs,

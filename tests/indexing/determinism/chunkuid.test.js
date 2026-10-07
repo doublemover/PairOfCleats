@@ -2,9 +2,9 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { MAX_JSON_BYTES, loadJsonArrayArtifactSync } from '../../../src/shared/artifact-io.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -31,12 +31,43 @@ await fsPromises.writeFile(
 const buildIndex = (cacheRoot) => {
   const env = applyTestEnv({
     cacheRoot,
-    embeddings: 'stub'
+    embeddings: 'stub',
+    testConfig: {
+      indexing: {
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: {
+          enabled: false
+        }
+      }
+    },
+    extraEnv: {
+      PAIROFCLEATS_WORKER_POOL: 'off'
+    }
   });
-  return spawnSync(
-    process.execPath,
-    [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', repoRoot],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+  return runNode(
+    [
+      path.join(root, 'build_index.js'),
+      '--stub-embeddings',
+      '--stage',
+      'stage1',
+      '--mode',
+      'code',
+      '--scm-provider',
+      'none',
+      '--repo',
+      repoRoot
+    ],
+    'chunkUid determinism build index',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
 };
 

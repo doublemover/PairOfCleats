@@ -1,7 +1,7 @@
 # Spec -- USR Core Rollout, Release, and Migration Contract
 
 Status: Draft v2.1
-Last updated: 2026-02-13T09:58:25Z
+Last updated: 2026-05-20T00:00:00Z
 
 ## Purpose
 
@@ -39,7 +39,7 @@ Each lifecycle phase must define explicit entry and exit criteria plus required 
 
 ## Roadmap mapping
 
-Execution ordering and gate state are authoritative in `TES_LAYN_ROADMAP.md` and `TES_LAYN_GOVERNANCE.md`.
+Execution ordering and gate state are authoritative in `docs/roadmap.md`; rollout and governance policy remain defined by this contract and `docs/specs/usr-core-governance-change.md`.
 
 | Roadmap phase | Lifecycle alignment | Minimum evidence bundle |
 | --- | --- | --- |
@@ -57,11 +57,11 @@ Execution ordering and gate state are authoritative in `TES_LAYN_ROADMAP.md` and
 Rollout promotion must satisfy all of the following:
 
 1. Gate order remains strict: Gate A -> Gate B1-B7 -> Gate B8 -> Gate C.
-2. No rollout authorization while prior gates have unresolved blocking items.
-3. `docs/specs/usr-rollout-approval-lock.md` is `approved` before Gate C rollout authorization.
+2. No rollout authorization while prior gates have unresolved blocking technical items.
+3. Gate C rollout authorization is based on current technical validation evidence, not the archived role-signoff lock.
 4. Traceability approval remains valid in `docs/specs/usr-consolidation-coverage-matrix.md`.
 
-Detailed lock mechanics and reopen rules are defined in `TES_LAYN_GOVERNANCE.md`.
+Detailed governance and reopen rules are defined in `docs/specs/usr-core-governance-change.md`; the former role-signoff lock is archived at `docs/archived/usr-rollout-approval-lock.md`.
 
 ## Compatibility policy
 
@@ -132,10 +132,9 @@ Post-cutover stabilization must track:
 
 ## References
 
-- `TES_LAYN_ROADMAP.md`
-- `TES_LAYN_EXECUTION_PACKS.md`
-- `TES_LAYN_GOVERNANCE.md`
-- `docs/specs/usr-rollout-approval-lock.md`
+- `docs/roadmap.md`
+- `docs/specs/usr-core-governance-change.md`
+- `docs/archived/usr-rollout-approval-lock.md` (historical)
 - `docs/specs/usr-core-evidence-gates-waivers.md`
 - `docs/specs/usr-core-observability-performance-ops.md`
 - `docs/archived/README.md`

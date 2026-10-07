@@ -1,0 +1,402 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { sha1 } from '../shared/hash.js';
+import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { normalizeOptionalNumber } from '../shared/limits.js';
+import { compareStrings } from '../shared/sort.js';
+import { isRelativePathEscape } from '../shared/file-paths.js';
+import { readFileRangeSync } from '../shared/file-read.js';
+import { assertNoSymlinkPath, openContainedFileSync } from '../shared/contained-file.js';
+
+const trimUtf8Buffer = (buffer) => {
+  let end = buffer.length;
+  while (end > 0 && (buffer[end - 1] & 0xC0) === 0x80) {
+    end -= 1;
+  }
+  if (end === 0) return buffer.subarray(0, 0);
+  const lead = buffer[end - 1];
+  let needed = 1;
+  if ((lead & 0x80) === 0) needed = 1;
+  else if ((lead & 0xE0) === 0xC0) needed = 2;
+  else if ((lead & 0xF0) === 0xE0) needed = 3;
+  else if ((lead & 0xF8) === 0xF0) needed = 4;
+  if (end - 1 + needed <= buffer.length) {
+    return buffer;
+  }
+  return buffer.subarray(0, Math.max(0, end - 1));
+};
+
+const EXCERPT_CACHE_MAX = 128;
+const FILE_RANGE_CACHE_MAX = 64;
+const EXCERPT_HASH_CACHE_MAX = 256;
+const UTF8_TRUNCATION_DETECTION_SLACK_BYTES = 4;
+const excerptCache = new Map();
+const fileRangeCache = new Map();
+const excerptHashCache = new Map();
+
+export const clearContextPackCaches = () => {
+  excerptCache.clear();
+  fileRangeCache.clear();
+  excerptHashCache.clear();
+};
+
+const getCachedValue = (cache, key) => {
+  if (!key) return null;
+  if (!cache.has(key)) return null;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+};
+
+const setCachedValue = (cache, key, value, maxSize) => {
+  if (!key) return;
+  if (cache.has(key)) cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > maxSize) {
+    const oldest = cache.keys().next().value;
+    cache.delete(oldest);
+  }
+};
+
+const getFileCacheFingerprint = (filePath) => {
+  try {
+    const stats = fs.statSync(filePath);
+    return `${stats.size}:${Number.isFinite(stats.mtimeMs) ? Math.trunc(stats.mtimeMs) : 0}`;
+  } catch {
+    return 'missing';
+  }
+};
+
+const readFilePrefix = (filePath, maxBytes, repoRoot) => {
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
+  let fd = null;
+  try {
+    fd = openContainedFileSync(repoRoot, filePath);
+    const buffer = Buffer.allocUnsafe(maxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES);
+    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
+    const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
+    return slice.toString('utf8');
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+};
+
+const readFileRangeCached = (filePath, start, end, cacheScope, repoRoot) => {
+  const key = `${filePath}|${cacheScope}|${start}|${end}`;
+  const cached = getCachedValue(fileRangeCache, key);
+  if (cached != null) return cached;
+  const buffer = readFileRangeSync(filePath, start, end, repoRoot);
+  const text = trimUtf8Buffer(buffer).toString('utf8');
+  setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+  return text;
+};
+
+export const prefetchFileRanges = (ranges, cacheScope, repoRoot = null) => {
+  if (!Array.isArray(ranges) || !ranges.length) return;
+  for (const range of ranges) {
+    if (!range?.filePath || !repoRoot) continue;
+    const key = `${range.filePath}|${cacheScope}|${range.start}|${range.end}`;
+    if (fileRangeCache.has(key)) continue;
+    try {
+      const buffer = readFileRangeSync(range.filePath, range.start, range.end, repoRoot);
+      const text = trimUtf8Buffer(buffer).toString('utf8');
+      setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+    } catch {
+      // Best-effort prefetch.
+    }
+  }
+};
+
+export const isPathInsideRepo = (repoRoot, filePath) => {
+  const relative = path.relative(repoRoot, filePath);
+  if (!relative) return true;
+  if (isRelativePathEscape(relative)) return false;
+  return !path.isAbsolute(relative);
+};
+
+const sliceExcerpt = (text, maxBytes, maxTokens) => {
+  let excerpt = text;
+  let truncated = false;
+  let truncatedBytes = false;
+  let truncatedTokens = false;
+  if (maxBytes != null && maxBytes > 0) {
+    const buffer = Buffer.from(excerpt, 'utf8');
+    if (buffer.length > maxBytes) {
+      const safe = trimUtf8Buffer(buffer.subarray(0, maxBytes));
+      excerpt = safe.toString('utf8');
+      truncated = true;
+      truncatedBytes = true;
+    }
+  }
+  if (maxTokens != null && maxTokens > 0) {
+    const tokens = excerpt.split(/\s+/).filter(Boolean);
+    if (tokens.length > maxTokens) {
+      excerpt = tokens.slice(0, maxTokens).join(' ');
+      truncated = true;
+      truncatedTokens = true;
+    }
+  }
+  return { excerpt, truncated, truncatedBytes, truncatedTokens };
+};
+
+export const resolveExcerpt = ({
+  filePath,
+  repoRoot,
+  start,
+  end,
+  maxBytes,
+  maxTokens,
+  indexSignature = null
+}) => {
+  assertNoSymlinkPath(repoRoot, filePath);
+  const cacheScope = indexSignature || getFileCacheFingerprint(filePath);
+  const cacheKeyInfo = buildLocalCacheKey({
+    namespace: 'context-pack-excerpt',
+    payload: {
+      filePath,
+      cacheScope,
+      start: start ?? null,
+      end: end ?? null,
+      maxBytes: maxBytes ?? null,
+      maxTokens: maxTokens ?? null
+    }
+  });
+  const cached = getCachedValue(excerptCache, cacheKeyInfo.key);
+  if (cached) return cached;
+  let text = '';
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    const safeMaxBytes = normalizeOptionalNumber(maxBytes);
+    const readEnd = safeMaxBytes
+      ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
+      : end;
+    prefetchFileRanges([{ filePath, start, end: readEnd }], cacheScope, repoRoot);
+    text = readFileRangeCached(filePath, start, readEnd, cacheScope, repoRoot);
+  } else {
+    text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes), repoRoot);
+  }
+  const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
+  const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
+  let deduped = excerpt;
+  if (excerptHash) {
+    const cached = getCachedValue(excerptHashCache, excerptHash);
+    if (cached) {
+      deduped = cached;
+    } else {
+      setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
+    }
+  }
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens };
+  setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
+  return payload;
+};
+
+export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings }) => {
+  const evidenceWarningCodes = [];
+  const pushWarning = (code, message) => {
+    warnings.push({ code, message });
+    evidenceWarningCodes.push(code);
+  };
+  if (!chunk) {
+    pushWarning('MISSING_PRIMARY', 'Primary chunk not found for seed.');
+    return {
+      excerpt: '',
+      excerptHash: null,
+      file: null,
+      range: null,
+      truncated: false,
+      evidence: {
+        state: 'missing',
+        source: 'missing',
+        fileBacked: false,
+        substituted: false,
+        missing: true,
+        truncated: false,
+        truncatedBytes: false,
+        truncatedTokens: false,
+        warningCodes: evidenceWarningCodes
+      }
+    };
+  }
+  const filePath = chunk.file ? path.resolve(repoRoot, chunk.file) : null;
+  let text = '';
+  let excerpt = '';
+  let excerptHash = null;
+  let truncated = false;
+  let truncatedBytes = false;
+  let truncatedTokens = false;
+  let fileBacked = false;
+  let fallbackSource = null;
+  if (filePath) {
+    if (!isPathInsideRepo(repoRoot, filePath)) {
+      pushWarning('PRIMARY_PATH_OUTSIDE_REPO', 'Primary chunk path resolves outside repo root.');
+    } else if (fs.existsSync(filePath)) {
+      const maxBytesNum = normalizeOptionalNumber(maxBytes);
+      const maxTokensNum = normalizeOptionalNumber(maxTokens);
+      let resolvedExcerpt;
+      try {
+        resolvedExcerpt = resolveExcerpt({
+          filePath,
+          repoRoot,
+          start: Number.isFinite(chunk.start) ? chunk.start : null,
+          end: Number.isFinite(chunk.end) ? chunk.end : null,
+          maxBytes: maxBytesNum,
+          maxTokens: maxTokensNum,
+          indexSignature
+        });
+      } catch {
+        pushWarning('PRIMARY_PATH_UNAVAILABLE', 'Primary path failed current file identity or containment checks.');
+        resolvedExcerpt = { excerpt: '', excerptHash: null, truncated: false, truncatedBytes: false, truncatedTokens: false };
+      }
+      excerpt = resolvedExcerpt.excerpt || '';
+      truncated = resolvedExcerpt.truncated;
+      truncatedBytes = resolvedExcerpt.truncatedBytes === true;
+      truncatedTokens = resolvedExcerpt.truncatedTokens === true;
+      excerptHash = resolvedExcerpt.excerptHash || null;
+      fileBacked = excerpt.length > 0;
+    } else {
+      pushWarning('PRIMARY_PATH_MISSING', 'Primary chunk path not found on disk.');
+    }
+  } else if (chunk.headline) {
+    text = String(chunk.headline);
+    fallbackSource = 'headline';
+  } else if (chunk.docmeta?.doc) {
+    text = String(chunk.docmeta.doc);
+    fallbackSource = 'docmeta';
+  }
+
+  if (!filePath || !excerpt) {
+    const {
+      excerpt: sliced,
+      truncated: slicedTruncated,
+      truncatedBytes: slicedTruncatedBytes,
+      truncatedTokens: slicedTruncatedTokens
+    } = sliceExcerpt(
+      text,
+      normalizeOptionalNumber(maxBytes),
+      normalizeOptionalNumber(maxTokens)
+    );
+    excerpt = sliced;
+    truncated = truncated || slicedTruncated;
+    truncatedBytes = truncatedBytes || slicedTruncatedBytes;
+    truncatedTokens = truncatedTokens || slicedTruncatedTokens;
+    excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
+  }
+  if (truncated) {
+    pushWarning('PRIMARY_EXCERPT_TRUNCATED', 'Primary excerpt truncated due to maxBytes/maxTokens.');
+  }
+  const range = (Number.isFinite(chunk.startLine) || Number.isFinite(chunk.endLine))
+    ? {
+      startLine: Number.isFinite(chunk.startLine) ? chunk.startLine : null,
+      endLine: Number.isFinite(chunk.endLine) ? chunk.endLine : null
+    }
+    : null;
+  const evidenceState = fileBacked
+    ? 'file-backed'
+    : excerpt
+      ? 'fallback'
+      : 'missing';
+  return {
+    excerpt,
+    excerptHash,
+    file: chunk.file || null,
+    range,
+    truncated,
+    evidence: {
+      state: evidenceState,
+      source: fileBacked
+        ? 'file-range'
+        : fallbackSource
+          ? `${fallbackSource}-fallback`
+          : 'missing',
+      fileBacked,
+      substituted: Boolean(!fileBacked && excerpt),
+      missing: !excerpt,
+      truncated,
+      truncatedBytes,
+      truncatedTokens,
+      warningCodes: evidenceWarningCodes
+    }
+  };
+};
+
+export const normalizeTypeFacts = (seedRef, chunk, maxTypeEntries, warnings) => {
+  if (!chunk?.docmeta?.inferredTypes) {
+    warnings.push({
+      code: 'MISSING_TYPES',
+      message: 'No inferred types found for seed.'
+    });
+    return [];
+  }
+  const facts = [];
+  const pushFacts = (role, entries) => {
+    if (!entries || typeof entries !== 'object') return;
+    for (const [name, types] of Object.entries(entries)) {
+      const list = Array.isArray(types) ? types : [];
+      for (const entry of list) {
+        if (!entry?.type) continue;
+        facts.push({
+          subject: seedRef,
+          role: `${role}:${name}`,
+          name,
+          type: entry.type,
+          source: entry.source || null,
+          confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
+        });
+      }
+    }
+  };
+  pushFacts('param', chunk.docmeta.inferredTypes.params);
+  pushFacts('field', chunk.docmeta.inferredTypes.fields);
+  pushFacts('local', chunk.docmeta.inferredTypes.locals);
+  const returns = Array.isArray(chunk.docmeta.inferredTypes.returns)
+    ? chunk.docmeta.inferredTypes.returns
+    : [];
+  for (const entry of returns) {
+    if (!entry?.type) continue;
+    facts.push({
+      subject: seedRef,
+      role: 'return',
+      name: null,
+      type: entry.type,
+      source: entry.source || null,
+      confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
+    });
+  }
+  facts.sort((a, b) => compareStrings(a.role, b.role) || compareStrings(a.type, b.type));
+  if (Number.isFinite(maxTypeEntries) && maxTypeEntries >= 0 && facts.length > maxTypeEntries) {
+    warnings.push({
+      code: 'TYPES_TRUNCATED',
+      message: 'Type facts truncated due to maxTypeEntries.'
+    });
+    return facts.slice(0, maxTypeEntries);
+  }
+  return facts;
+};
+
+export const buildTypeFactsEvidence = ({
+  includeTypes = false,
+  facts = [],
+  warnings = []
+} = {}) => {
+  const warningCodes = Array.from(new Set(
+    (Array.isArray(warnings) ? warnings : [])
+      .map((entry) => String(entry?.code || '').trim())
+      .filter(Boolean)
+  ));
+  const truncated = warningCodes.includes('TYPES_TRUNCATED');
+  const missing = warningCodes.includes('MISSING_TYPES') || !Array.isArray(facts) || facts.length === 0;
+  return {
+    included: includeTypes === true,
+    state: includeTypes !== true
+      ? 'omitted'
+      : missing
+        ? 'missing'
+        : truncated
+          ? 'partial'
+          : 'complete',
+    count: Array.isArray(facts) ? facts.length : 0,
+    truncated,
+    warningCodes
+  };
+};

@@ -36,6 +36,12 @@ try {
   if (missing.length) {
     throw new Error(`config_status missing warnings: ${missing.join(', ')}`);
   }
+  if (!payload.durability || typeof payload.durability !== 'object') {
+    throw new Error('config_status missing durability payload');
+  }
+  if (payload.durability?.runtime?.degradedDurability !== false) {
+    throw new Error('config_status expected clean durability state for empty-repo baseline');
+  }
 
   send({ jsonrpc: '2.0', id: 3, method: 'shutdown' });
   await readMessage();
