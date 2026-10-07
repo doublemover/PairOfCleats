@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
-import { captureProcessSnapshot } from '../../../src/shared/subprocess.js';
+import { captureProcessSnapshot } from '../../../src/shared/subprocess/snapshot.js';
 import {
   resolveStage1HangPolicy,
   resolveStage1StallAction,

@@ -48,6 +48,7 @@ const inputs = buildSingleSymbolInputs({
 await withLspTestPath({ repoRoot: root, extraPrepend: [runtimeBinDir] }, async () => {
   const result = await runDedicatedProviderFixture({
     tempRoot,
+    authorizeFixtureExecution: true,
     providerId: 'elixir-ls',
     providerConfigKey: 'elixir',
     providerConfig: {

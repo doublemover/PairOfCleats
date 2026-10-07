@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 
@@ -68,10 +68,10 @@ async function runCli() {
       repo: { type: 'string' },
       mode: { type: 'string' },
       'index-root': { type: 'string' },
-      strict: { type: 'boolean', default: true },
+      strict: { type: 'boolean', describe: 'Validate strict contracts (default unless --non-strict).' },
       'non-strict': { type: 'boolean', default: false }
     }
-  }).parse();
+  }).strictOptions().parse();
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
@@ -138,7 +138,7 @@ async function runCli() {
   process.exit(report.ok ? 0 : 1);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

@@ -3,40 +3,20 @@
 ## Overview
 Triage records store vulnerability findings and decisions outside the repo (in the cache). Records are indexed separately and searched with metadata-first filters. Context packs bundle a finding, related history, and repo evidence for LLM workflows.
 
-## Configuration
-`.pairofcleats.json` (optional):
-```json
-{
-  "triage": {
-    "recordsDir": "",
-    "storeRawPayload": false,
-    "promoteFields": [
-      "recordType",
-      "source",
-      "recordId",
-      "service",
-      "env",
-      "team",
-      "owner",
-      "vulnId",
-      "cve",
-      "packageName",
-      "packageEcosystem",
-      "severity",
-      "status",
-      "assetId"
-    ],
-    "contextPack": {
-      "maxHistory": 5,
-      "maxEvidencePerQuery": 5
-    }
-  }
-}
-```
+## Record defaults
 
-Defaults:
-- `recordsDir`: `<repoCacheRoot>/triage/records`
-- `storeRawPayload`: false
+Triage tools use the repository cache's `triage/records` directory. Raw-payload
+retention is off by default; context packs use up to five history entries and
+five evidence results per query.
+
+The current repository configuration schema does not expose a top-level `triage`
+namespace. Do not add `triage.*` to `.pairofcleats.json`: the config loader rejects
+it before running the tool. Internal getter options and test-only overrides do
+not establish a supported user-facing configuration path.
+
+Use the commands below with their documented CLI inputs and defaults. Consult
+the [configuration reference](../config/contract.md) for the currently accepted
+repository keys.
 
 ## Ingest findings
 Dependabot:

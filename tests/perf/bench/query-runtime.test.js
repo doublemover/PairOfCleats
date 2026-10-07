@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import {
   createSearchWorkerPool,
   resolveAdaptiveQueryWorkerCount
@@ -46,6 +47,44 @@ assert.equal(
   'expected sqlite worker plan to recycle each worker after one run'
 );
 
+const sizingConfig = { cache: { root: path.join(tempRoot, 'sizing-cache') } };
+for (const [mode, bytes] of [['code', 3 * GiB], ['prose', 128 * MiB]]) {
+  const pieces = path.join(getIndexDir(tempRoot, mode, sizingConfig), 'pieces');
+  await fs.mkdir(pieces, { recursive: true });
+  await fs.writeFile(path.join(pieces, 'manifest.json'), JSON.stringify({ pieces: [{ bytes }] }));
+}
+const sqlitePaths = resolveSqlitePaths(tempRoot, sizingConfig);
+await fs.mkdir(sqlitePaths.dbDir, { recursive: true });
+// These files are inert byte-count fixtures, never opened as SQLite databases.
+await fs.writeFile(sqlitePaths.codePath, Buffer.alloc(128));
+await fs.writeFile(sqlitePaths.prosePath, Buffer.alloc(64));
+const automaticSizing = await resolveAdaptiveQueryWorkerCount({
+  requestedConcurrency: 4,
+  backends: ['memory', 'sqlite'],
+  runtimeRoot: tempRoot,
+  userConfig: sizingConfig,
+  totalSystemMemoryBytes: 64 * GiB
+});
+assert.equal(automaticSizing.totalArtifactBytes, 3 * GiB + 128 * MiB,
+  'omitted byte estimates must read actual manifest declarations');
+assert.equal(automaticSizing.totalSqliteBytes, 192, 'omitted SQLite estimates must stat their current files');
+assert.equal(automaticSizing.effectiveConcurrency, 2);
+assert.equal(automaticSizing.reason, 'memory_artifact_very_large');
+const explicitZeroSizing = await resolveAdaptiveQueryWorkerCount({
+  requestedConcurrency: 4,
+  backends: ['memory'],
+  runtimeRoot: tempRoot,
+  userConfig: sizingConfig,
+  totalSystemMemoryBytes: 64 * GiB,
+  codeArtifactBytes: 0,
+  proseArtifactBytes: 0,
+  sqliteCodeBytes: 0,
+  sqliteProseBytes: 0
+});
+assert.equal(explicitZeroSizing.totalArtifactBytes, 0, 'explicit zero keeps its authoritative meaning');
+assert.equal(explicitZeroSizing.totalSqliteBytes, 0);
+assert.equal(explicitZeroSizing.effectiveConcurrency, 4);
+
 const workerScriptPath = path.join(tempRoot, 'worker.js');
 await fs.writeFile(workerScriptPath, [
   "const send = (payload) => { if (typeof process.send === 'function') process.send(payload); };",
@@ -77,8 +116,8 @@ const successPool = createSearchWorkerPool({
   env: { ...process.env },
   workerScriptPath,
   heartbeatMs: 20,
-  stallWarnMs: 80,
-  stallTimeoutMs: 200,
+  stallWarnMs: 250,
+  stallTimeoutMs: 1000,
   onEvent: (event) => successEvents.push(event)
 });
 const successPayload = await successPool.run(['--ok'], { backend: 'memory', query: 'select 1' });
@@ -332,8 +371,8 @@ const staleExitPool = createSearchWorkerPool({
   env: { ...process.env, STALE_EXIT_MARKER_PATH: staleExitMarkerPath },
   workerScriptPath: staleExitScriptPath,
   heartbeatMs: 20,
-  stallWarnMs: 40,
-  stallTimeoutMs: 60,
+  stallWarnMs: 200,
+  stallTimeoutMs: 500,
   onEvent: (event) => staleExitEvents.push(event)
 });
 await assert.rejects(

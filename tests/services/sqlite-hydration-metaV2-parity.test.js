@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 import { buildSqliteIndex } from '../../src/integrations/core/index.js';
 import { loadChunkMeta } from '../../src/shared/artifact-io.js';
 import { createSqliteHelpers } from '../../src/retrieval/sqlite-helpers.js';
 import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { runNode } from '../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 
@@ -43,10 +43,12 @@ const env = applyTestEnv({
   }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
+const buildResult = runNode(
   [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'extracted-prose', '--stub-embeddings', '--no-sqlite'],
-  { cwd: repoRoot, env, stdio: 'inherit' }
+  'sqlite hydration extracted-prose build',
+  repoRoot,
+  env,
+  { stdio: 'inherit', allowFailure: true }
 );
 assert.equal(buildResult.status, 0, 'expected extracted-prose artifact build to succeed');
 

@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { resolveSqliteIngestPlan } from '../index.js';
-import { resolveManifestBundleNames } from '../../../../shared/bundle-io.js';
+import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
 
 const SQLITE_DEFAULT_PAGE_SIZE = 4096;
 

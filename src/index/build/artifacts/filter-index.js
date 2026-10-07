@@ -3,7 +3,7 @@ import {
   releaseFilterIndexMemory,
   serializeFilterIndex
 } from '../../../retrieval/filter-index.js';
-import { getEnvConfig } from '../../../shared/env.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { buildContentConfigHash } from '../runtime/hash.js';
 
 const FILTER_INDEX_SCHEMA_VERSION = 2;

@@ -7,7 +7,7 @@ import { emitJson } from '../shared/cli-utils.js';
 import { DEFAULT_USER_CONFIG_TEMPLATE } from './default-template.js';
 
 const argv = createCli({
-  scriptName: 'reset-config',
+  scriptName: 'pairofcleats config reset',
   options: {
     repo: { type: 'string' },
     config: { type: 'string' },

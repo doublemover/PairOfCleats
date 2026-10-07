@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { buildPostings } from '../../../src/index/build/postings.js';
 import { writeIndexArtifacts } from '../../../src/index/build/artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { stripIndexStateNondeterministicFields } from '../../../src/index/build/artifacts/reporting.js';
+import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -18,7 +22,7 @@ const outDir = path.join(testRoot, 'out');
 
 await fsPromises.rm(testRoot, { recursive: true, force: true });
 await fsPromises.mkdir(outDir, { recursive: true });
-applyTestEnv({ testing: '1' });
+applyTestEnv({ testing: '1', cacheRoot: path.join(testRoot, 'cache') });
 
 const state = {
   chunks: [],
@@ -63,7 +67,8 @@ const indexState = {
   generatedAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   counts: { files: 0, chunks: 0 },
-  mode: 'code'
+  mode: 'code',
+  extensions: { caller: { retained: true } }
 };
 
 const runWrite = async () => {
@@ -103,6 +108,35 @@ const statAfter = fs.statSync(indexStatePath);
 if (statAfter.mtimeMs !== statBefore.mtimeMs) {
   fail('Expected index_state.json to be skipped when only volatile fields change.');
 }
+
+const readState = () => JSON.parse(fs.readFileSync(indexStatePath, 'utf8'));
+const readMeta = () => JSON.parse(fs.readFileSync(path.join(outDir, 'index_state.meta.json'), 'utf8'));
+const stableText = (value) => stableStringifyForSignature(stripIndexStateNondeterministicFields(value));
+const digest = (value, algorithm) => crypto.createHash(algorithm).update(stableText(value)).digest('hex');
+let saved = readState();
+assert.equal(saved.extensions.__poc_generated.kind, 'index-state');
+assert.deepEqual(saved.extensions.caller, { retained: true });
+assert.equal(Object.keys(saved)[0], 'extensions');
+assert.equal(readMeta().extensions.__poc_generated.kind, 'index-state-meta');
+assert.equal(readMeta().stableHash, digest(saved, 'sha1'));
+assert.equal(readMeta().bytes, fs.statSync(indexStatePath).size);
+const report = JSON.parse(fs.readFileSync(path.join(outDir, 'determinism_report.json'), 'utf8'));
+assert.equal(report.normalizedStateHash, digest(saved, 'sha256'));
+
+// A warm legacy hash must migrate once, even when its application state matches.
+delete saved.extensions.__poc_generated;
+const legacyMeta = readMeta();
+legacyMeta.stableHash = digest(saved, 'sha1');
+fs.writeFileSync(indexStatePath, JSON.stringify(saved));
+fs.writeFileSync(path.join(outDir, 'index_state.meta.json'), JSON.stringify(legacyMeta));
+await runWrite();
+saved = readState();
+assert.equal(saved.extensions.__poc_generated.kind, 'index-state');
+const migratedMtime = fs.statSync(indexStatePath).mtimeMs;
+await new Promise((resolve) => setTimeout(resolve, 25));
+indexState.updatedAt = new Date().toISOString();
+await runWrite();
+assert.equal(fs.statSync(indexStatePath).mtimeMs, migratedMtime, 'migration must reach a stable skip-write fixed point');
 
 fs.rmSync(indexStatePath, { force: true });
 await runWrite();

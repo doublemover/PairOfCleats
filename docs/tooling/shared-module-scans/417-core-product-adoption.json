@@ -1,0 +1,225 @@
+{
+  "issueId": "417",
+  "title": "Scan indexing, retrieval, graph, storage, and context-pack surfaces for missed shared-module adoption",
+  "scanDate": "2026-03-26",
+  "scope": "H31 core product-surface scan across src/index/**, src/retrieval/**, src/graph/**, src/storage/**, src/context-pack/**, and src/map/**.",
+  "summary": {
+    "overallAssessment": "This part of the codebase already makes heavy use of shared modules, especially artifact IO, truncation, limits, sort, provenance, and runtime-envelope helpers. The right outcome here is selective consolidation, not broad flattening. The strongest missed adoption cases are context-pack assembly still managing raw truncation arrays instead of consistently using the shared truncation recorder, repeated local path-normalization wrappers that should collapse onto existing shared path/files helpers, and a problematic cluster of product surfaces still reaching into tools/shared/dict-utils.js where that dependency should not spread further.",
+    "highestPriorityHotspots": [
+      {
+        "category": "context-pack truncation handling",
+        "whyItMatters": "Context-pack assembly is one of the main evidence surfaces, and raw truncation-array handling is easier to drift or under-report than the shared truncation recorder already used by graph and retrieval flows.",
+        "bestExistingSharedModules": [
+          "src/shared/truncation.js",
+          "src/shared/risk-filters.js",
+          "src/shared/risk-explain.js"
+        ]
+      },
+      {
+        "category": "path normalization wrappers",
+        "whyItMatters": "Indexing, map, graph, and storage surfaces still define small local toPosix/path-normalization helpers, which invites subtle casing and relative-path drift.",
+        "bestExistingSharedModules": [
+          "src/shared/files.js",
+          "src/shared/path-normalize.js"
+        ]
+      },
+      {
+        "category": "product code depending on tool-side dict-utils",
+        "whyItMatters": "This is a cross-layer dependency seam that should be reduced, not expanded, because it couples core product code to tool-oriented config/cache helpers.",
+        "bestCurrentHandling": "Treat as a no-adopt / follow-up extraction candidate rather than broadening tools/shared usage."
+      }
+    ]
+  },
+  "hotspotMatrix": [
+    {
+      "name": "Context-pack assembly uses raw truncation arrays instead of the shared recorder",
+      "sharedModules": [
+        "src/shared/truncation.js",
+        "src/shared/risk-filters.js",
+        "src/shared/risk-explain.js"
+      ],
+      "localImplementations": [
+        "src/context-pack/assemble/budgets.js",
+        "src/context-pack/assemble/finalize.js",
+        "src/context-pack/assemble/guidance.js",
+        "src/context-pack/assemble/risk-slice.js"
+      ],
+      "recommendedAction": "Standardize context-pack truncation collection on the shared truncation recorder and keep raw arrays only at the final surface-shaping boundary if needed for schema compatibility.",
+      "whyThisWayIsBest": "Graph and retrieval surfaces already use the recorder successfully. Reusing it here reduces evidence-completeness drift without inventing another truncation contract.",
+      "testsToRequire": [
+        "context-pack strict-evidence and parity tests whenever truncation collection changes",
+        "context-pack output contract tests where truncation payload shape matters"
+      ]
+    },
+    {
+      "name": "Repeated path-normalization wrappers around existing shared helpers",
+      "sharedModules": [
+        "src/shared/files.js",
+        "src/shared/path-normalize.js"
+      ],
+      "localImplementations": [
+        "src/map/utils.js",
+        "src/index/build/tree-sitter-scheduler/executor.js",
+        "src/index/build/indexer/steps/process-files/extracted-prose/cohorts.js",
+        "src/index/build/shards.js",
+        "src/index/build/runtime/normalize.js",
+        "src/index/build/import-resolution/path-utils.js",
+        "src/map/build-map/normalize.js",
+        "src/storage/sqlite/utils.js"
+      ],
+      "recommendedAction": "Collapse trivial toPosix/path wrappers onto the shared files/path-normalize helpers and leave only domain-specific naming or validation wrappers in place.",
+      "whyThisWayIsBest": "Most of these wrappers are not policy-bearing; they are convenience layers over the same canonical normalization behavior.",
+      "testsToRequire": [
+        "path/canonicalization regressions where case-insensitive or escaped-path handling matters",
+        "storage/index/map tests that depend on repo-relative path formatting"
+      ]
+    },
+    {
+      "name": "Core product surfaces still depend on tools/shared/dict-utils.js",
+      "sharedModules": [
+        "tools/shared/dict-utils.js",
+        "src/shared/indexing/build-pointer.js"
+      ],
+      "localImplementations": [
+        "src/index/validate.js",
+        "src/index/build/watch/attempts.js",
+        "src/index/build/runtime/dictionaries.js",
+        "src/index/build/runtime/embeddings.js",
+        "src/index/build/runtime/runtime.js",
+        "src/storage/sqlite/build/index-state.js",
+        "src/retrieval/cli-dictionary.js"
+      ],
+      "recommendedAction": "Do not spread this dependency further. Use this scan result to drive extraction of proper src-shared repo/cache/runtime helpers in later H32 work instead of adopting tools/shared more deeply.",
+      "whyThisWayIsBest": "H30 already showed that dict-utils is the wrong long-term ownership seam. Expanding it would increase the cleanup cost.",
+      "testsToRequire": [
+        "no immediate migration under #417 unless a replacement shared surface exists",
+        "follow-on extraction should preserve current cache-root/build-pointer/runtime behavior through targeted regression tests"
+      ]
+    },
+    {
+      "name": "Graph/context/retrieval surfaces already align well on truncation and provenance",
+      "sharedModules": [
+        "src/shared/truncation.js",
+        "src/shared/provenance.js",
+        "src/shared/limits.js",
+        "src/shared/sort.js"
+      ],
+      "localImplementations": [
+        "src/graph/neighborhood.js",
+        "src/graph/impact.js",
+        "src/graph/architecture.js",
+        "src/retrieval/context-expansion.js",
+        "src/graph/suggest-tests.js"
+      ],
+      "recommendedAction": "Keep the current shared adoption pattern and avoid over-consolidating the domain-specific traversal logic itself.",
+      "whyThisWayIsBest": "These surfaces already share the right primitives while preserving domain-specific semantics. Further hoisting here would risk flattening useful distinctions."
+    },
+    {
+      "name": "Artifact IO adoption is strong; avoid replacing local domain transforms with generic shared IO",
+      "sharedModules": [
+        "src/shared/artifact-io.js",
+        "src/shared/artifact-io/manifest.js",
+        "src/shared/json-stream.js",
+        "src/shared/io/atomic-write.js"
+      ],
+      "localImplementations": [
+        "src/graph/store.js",
+        "src/map/build-map.js",
+        "src/map/build-map/io.js",
+        "src/storage/sqlite/utils.js",
+        "src/storage/sqlite/build/from-artifacts/sources.js",
+        "src/context-pack/risk-delta.js"
+      ],
+      "recommendedAction": "Treat this as a no-adopt zone beyond small helper cleanups. The shared IO layer is already doing its job; keep domain-specific transformation logic local.",
+      "whyThisWayIsBest": "These modules already consume the canonical IO surfaces. Forcing more logic into shared IO would mix domain transforms with low-level storage concerns."
+    }
+  ],
+  "mappings": [
+    {
+      "problemSurface": "Context-pack truncation collection and evidence shaping",
+      "adoptSharedModules": [
+        "src/shared/truncation.js",
+        "src/shared/risk-filters.js",
+        "src/shared/risk-explain.js"
+      ],
+      "preferredMigrationTargets": [
+        "src/context-pack/assemble/budgets.js",
+        "src/context-pack/assemble/finalize.js",
+        "src/context-pack/assemble/guidance.js",
+        "src/context-pack/assemble/risk-slice.js"
+      ]
+    },
+    {
+      "problemSurface": "Small path-normalization helpers and wrappers",
+      "adoptSharedModules": [
+        "src/shared/files.js",
+        "src/shared/path-normalize.js"
+      ],
+      "preferredMigrationTargets": [
+        "src/map/utils.js",
+        "src/index/build/tree-sitter-scheduler/executor.js",
+        "src/index/build/indexer/steps/process-files/extracted-prose/cohorts.js",
+        "src/index/build/runtime/normalize.js",
+        "src/index/build/import-resolution/path-utils.js",
+        "src/storage/sqlite/utils.js"
+      ]
+    },
+    {
+      "problemSurface": "Product code pulling runtime/cache helpers from tool-side dict-utils",
+      "adoptSharedModules": [],
+      "preferredMigrationTargets": [
+        "src/index/validate.js",
+        "src/index/build/runtime/runtime.js",
+        "src/index/build/runtime/dictionaries.js",
+        "src/index/build/runtime/embeddings.js",
+        "src/storage/sqlite/build/index-state.js",
+        "src/retrieval/cli-dictionary.js"
+      ],
+      "noAdoptRationale": "Do not deepen tools/shared/dict-utils adoption here; this seam should be addressed by H32 extraction work instead."
+    }
+  ],
+  "localExceptions": [
+    {
+      "path": "src/graph/neighborhood.js",
+      "reasonToRemainLocal": "Already uses shared limits, truncation, and sort helpers correctly; the traversal semantics themselves are domain-specific."
+    },
+    {
+      "path": "src/graph/impact.js",
+      "reasonToRemainLocal": "Already aligned on shared primitives; additional hoisting would mostly flatten graph-domain behavior."
+    },
+    {
+      "path": "src/graph/architecture.js",
+      "reasonToRemainLocal": "Same rationale as graph impact and neighborhood: shared primitives are already in place."
+    },
+    {
+      "path": "src/storage/sqlite/build/**",
+      "reasonToRemainMostlyLocal": "SQLite build planning, execution, and ingestion are storage-domain specific even when they correctly depend on shared IO and normalization helpers."
+    },
+    {
+      "path": "src/retrieval/pipeline/**",
+      "reasonToRemainMostlyLocal": "Retrieval staging, ranking, and fusion logic should remain local; only the generic helpers around limits, truncation, normalization, and serialization should be shared."
+    },
+    {
+      "path": "src/map/isometric/client/**",
+      "reasonToRemainMostlyLocal": "Client rendering helpers are presentation-domain specific; only low-level iterables/path normalization should be shared."
+    }
+  ],
+  "recommendedFollowUps": [
+    {
+      "issueId": "418",
+      "why": "The tooling/setup/bench scan should handle related path/env/helper seams that sit outside the core product tree."
+    },
+    {
+      "issueId": "423",
+      "why": "The dict-utils cross-layer seam should turn into a real repo/workspace/cache-root/generation helper family instead of spreading further."
+    },
+    {
+      "issueId": "425",
+      "why": "If context-pack/risk/search normalization still feels fragmented after H31 adoption, formalize a shared search/risk/context-pack helper family."
+    },
+    {
+      "issueId": "426",
+      "why": "If path/serialization cleanup reveals more low-level duplication, capture it in the filesystem/JSON/persistence helper issue."
+    }
+  ]
+}

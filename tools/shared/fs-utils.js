@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
 
 /**
  * Copy a directory if the source exists.

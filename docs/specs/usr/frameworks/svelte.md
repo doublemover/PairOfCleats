@@ -64,9 +64,9 @@ Normative framework contract for `svelte` under USR.
 
 - [ ] Owner-role review completed.
 - [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against framework profile and edge-case registries.
-- [ ] Required framework fixture families assigned with concrete fixture IDs.
-- [ ] Required C4 conformance checks mapped to executable lanes.
+- [x] Matrix linkage verified against framework profile and edge-case registries.
+- [x] Required framework fixture families assigned with concrete fixture IDs.
+- [x] Required C4 conformance checks mapped to executable lanes.
 
 ## 10. Completion evidence artifacts
 

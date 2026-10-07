@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -9,6 +10,7 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-zls-workspace-nested-root-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'nested'), { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 await fs.writeFile(path.join(tempRoot, 'nested', 'build.zig'), 'pub fn build() void {}\n', 'utf8');
 
 const serverPath = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');

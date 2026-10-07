@@ -1,0 +1,160 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fsPromises from 'node:fs/promises';
+import path from 'node:path';
+
+import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { buildReportOutput } from '../../../tools/bench/language/report.js';
+
+ensureTestingEnv(process.env);
+
+const output = await buildReportOutput({
+  configPath: '/tmp/repos.json',
+  cacheRoot: '/tmp/cache',
+  resultsRoot: '/tmp/results',
+  methodology: {
+    mode: 'warm',
+    cacheMode: 'warm',
+    toolingMode: 'disabled',
+    corpusVersion: 'repos-fixture',
+    policyVersion: 'bench-language-methodology-v1',
+    controlSlice: { taskIds: ['javascript:small:owner/passed'] }
+  },
+  config: {
+    javascript: { label: 'JavaScript' }
+  },
+  results: [
+    {
+      language: 'javascript',
+      tier: 'small',
+      repo: 'owner/passed',
+      summary: {
+        backends: ['memory'],
+        latencyMsAvg: { memory: 4 },
+        hitRate: { memory: 1 },
+        resultCountAvg: { memory: 3 },
+        memoryRss: { memory: { mean: 1024 } },
+        buildMs: { index: 50 }
+      }
+    },
+    {
+      language: 'javascript',
+      tier: 'small',
+      repo: 'owner/degraded',
+      summary: {
+        backends: ['memory'],
+        latencyMsAvg: { memory: 8 },
+        hitRate: { memory: 0.9 },
+        resultCountAvg: { memory: 2 },
+        memoryRss: { memory: { mean: 1024 } },
+        buildMs: { index: 70 }
+      },
+      diagnostics: {
+        process: {
+          countsByType: {
+            fallback_used: 2,
+            queue_delay_hotspot: 1
+          },
+          countsBySeverity: {
+            warn: 3
+          }
+        }
+      }
+    }
+  ]
+});
+
+assert.ok(Array.isArray(output.tasks), 'expected task list in report output');
+assert.equal(output.run.aggregateResultClass, 'passed_with_degradation', 'expected degradation-aware run verdict');
+assert.equal(output.run.exitCode, 0, 'expected degradations to remain zero-exit by default');
+assert.equal(output.run.productionClean?.status, 'fail', 'expected degraded run to fail production-clean gate');
+assert.equal(output.run.productionClean?.exitCode, 1, 'expected production-clean gate to carry failing exit code');
+assert.equal(output.run.productionClean?.metrics?.degradedRepos, 1, 'expected one degraded repo in clean-gate metrics');
+assert.equal(output.run.productionClean?.metrics?.fallbackRepos, 1, 'expected fallback repo counted for clean gate');
+assert.equal(output.methodology?.mode, 'warm', 'expected methodology payload in report output');
+assert.equal(output.overallSummary?.metricTags?.cacheMode, 'warm', 'expected report metric tags to carry cache mode');
+assert.equal(output.run.repoCounts.passed, 1, 'expected one clean passing repo');
+assert.equal(output.run.repoCounts.passedWithDegradation, 1, 'expected one degraded passing repo');
+assert.equal(output.run.countsByDiagnosticTypeScope, 'repo_presence', 'expected explicit diagnostic count scope');
+assert.equal(output.run.countsByDiagnosticType.fallback_used, 1, 'expected diagnostic type counted once at repo level');
+assert.equal(output.run.countsByDiagnosticType.queue_delay_hotspot, 1, 'expected hotspot diagnostic counted once at repo level');
+assert.equal(output.run.countsByDiagnosticSeverity.warn, 3, 'expected severity counts to aggregate across task diagnostics');
+
+const degradedTask = output.tasks.find((entry) => entry.repo === 'owner/degraded');
+assert.ok(degradedTask, 'expected degraded task payload');
+assert.equal(degradedTask.taskStatus.resultClass, 'passed_with_degradation', 'expected degraded task class');
+assert.equal(degradedTask.benchContext?.metricTags?.policyVersion, 'bench-language-methodology-v1', 'expected task metric tags');
+assert.deepEqual(
+  degradedTask.taskStatus.degradationClasses,
+  ['fallback_used', 'queue_delay_hotspot'],
+  'expected degradation classes to be preserved'
+);
+
+const root = process.cwd();
+const tempRoot = resolveTestCachePath(root, 'bench-language-run-verdict');
+const waiverPath = path.join(tempRoot, 'waivers.json');
+await fsPromises.rm(tempRoot, { recursive: true, force: true });
+await fsPromises.mkdir(tempRoot, { recursive: true });
+await fsPromises.writeFile(
+  waiverPath,
+  JSON.stringify({
+    schemaVersion: 1,
+    policyVersion: 'bench-language-policy-v1',
+    waivers: [
+      {
+        id: 'waive-benchmark-failure',
+        owner: 'bench-owner',
+        justification: 'fixture coverage for waived repo failure verdicts',
+        allowedUntil: '2099-01-01T00:00:00.000Z',
+        resultClass: 'repo_failed',
+        failureClass: 'benchmark_failed',
+        repo: 'owner/waived'
+      }
+    ]
+  }, null, 2)
+);
+
+const waivedOutput = await buildReportOutput({
+  configPath: '/tmp/repos.json',
+  cacheRoot: '/tmp/cache',
+  resultsRoot: '/tmp/results',
+  waiverFile: waiverPath,
+  methodology: {
+    mode: 'reliability',
+    cacheMode: 'warm',
+    toolingMode: 'disabled',
+    corpusVersion: 'repos-fixture',
+    policyVersion: 'bench-language-methodology-v1',
+    controlSlice: { taskIds: [] }
+  },
+  config: {
+    javascript: { label: 'JavaScript' }
+  },
+  results: [
+    {
+      language: 'javascript',
+      tier: 'small',
+      repo: 'owner/waived',
+      failed: true,
+      failureReason: 'bench',
+      failureCode: 1
+    }
+  ]
+});
+
+assert.equal(
+  waivedOutput.run.aggregateResultClass,
+  'passed_with_degradation',
+  'expected waived repo failures to downgrade aggregate result'
+);
+assert.equal(waivedOutput.run.exitCode, 0, 'expected waived repo failures to stay zero-exit');
+assert.equal(waivedOutput.run.productionClean?.status, 'pass', 'expected waived fixture to satisfy zero-threshold clean gate');
+assert.deepEqual(
+  waivedOutput.run.policy.matchedWaiverIds,
+  ['waive-benchmark-failure'],
+  'expected matched waiver id to be recorded'
+);
+assert.equal(waivedOutput.run.issues.waivedCount, 1, 'expected one waived issue');
+
+console.log('bench language run verdict test passed');

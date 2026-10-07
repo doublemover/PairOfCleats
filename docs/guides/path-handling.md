@@ -22,7 +22,7 @@ Use these helpers from `src/shared/path-normalize.js`:
 - `normalizePathForRepo(value, repoRoot)`
 - `joinPathSafe(baseDir, segments)`
 
-Use these helpers from `src/shared/files.js`:
+Use these helpers from `src/shared/file-paths.js`:
 
 - `toPosix()` / `fromPosix()` for canonical storage and IO conversion
 - `isAbsolutePathNative()` for platform-native absolute checks

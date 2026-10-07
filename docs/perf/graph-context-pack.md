@@ -78,3 +78,19 @@ node tools/bench/graph/render-sort.js --size 2000 --mode compare
 ## Validation
 Phase 10 adds deterministic output tests, cache reuse tests, and excerpt
 range/cache tests to ensure correctness and stability under caching.
+
+## CSR neighbor lifetime
+The synchronous neighborhood walker borrows CSR neighbor rows as iterators.
+Unnormalized out/in traversal no longer collects a temporary neighbor-ID array;
+bidirectional traversal merges with constant lookahead instead of retaining out,
+in, and merged ID arrays. The array-returning CSR resolver remains available for
+callers that need a materialized result. CSR data must remain stable until the
+borrowed iterator is consumed or closed.
+
+Import-path normalization can reorder or collapse IDs, so that path still uses
+bounded-by-row sets and sorted lists before merging. Reverse CSR remains cached
+per graph. Candidate edge batches, visited state, paths and traversal result
+caches retain their existing ownership and caps; this change does not bound all
+high-fanout work or claim a timing/RSS improvement. Small high-fanout fixtures
+compare ordered output, paths, warnings, work counts and truncation, and verify
+that early iterator closure does not scan remaining IDs.

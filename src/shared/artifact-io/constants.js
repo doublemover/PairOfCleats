@@ -1,5 +1,5 @@
 import { getHeapStatistics } from 'node:v8';
-import { getTestEnvConfig } from '../env.js';
+import { getTestEnvConfig } from '../env/testing.js';
 
 const DEFAULT_MAX_JSON_BYTES = (() => {
   const fallback = 128 * 1024 * 1024;

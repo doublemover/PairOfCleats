@@ -4,28 +4,21 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
-import { toPosix } from '../../src/shared/files.js';
+import { toPosix } from '../../src/shared/file-paths.js';
+import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
+import { createMapCacheEnvelope, generatedMapCacheIdentity, readMapCacheEnvelope } from '../../src/shared/generated-artifact.js';
 import { buildCodeMap, buildNodeList, buildMapCacheKey } from '../../src/map/build-map.js';
 import { renderDot } from '../../src/map/dot-writer.js';
 import { renderSvgHtml } from '../../src/map/html-writer.js';
 import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
-import { getCurrentBuildInfo, getIndexDir, getRepoId, resolveRepoConfig } from '../shared/dict-utils.js';
+import { MAP_BENCH_BUILD_OPTIONS, resolveLimit } from '../shared/map-build-options.js';
+import { getCurrentBuildInfo, getIndexDir, getRepoCacheRoot, getRepoId, resolveRepoConfig } from '../shared/dict-utils.js';
+import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
   scriptName: 'report map',
   options: {
-    repo: { type: 'string', describe: 'Repo root.' },
-    mode: { type: 'string', default: 'code' },
-    'index-root': { type: 'string' },
-    scope: { type: 'string', default: 'repo' },
-    focus: { type: 'string' },
-    include: { type: 'string' },
-    'only-exported': { type: 'boolean', default: false },
-    collapse: { type: 'string', default: 'none' },
-    'max-files': { type: 'number' },
-    'max-members-per-file': { type: 'number' },
-    'max-edges': { type: 'number' },
-    'top-k-by-degree': { type: 'boolean', default: false },
+    ...MAP_BENCH_BUILD_OPTIONS,
     format: { type: 'string', default: 'json' },
     out: { type: 'string' },
     'model-out': { type: 'string' },
@@ -56,11 +49,6 @@ const formatRaw = String(argv.format || 'json').toLowerCase();
 const format = formatRaw === 'iso' ? 'html-iso' : formatRaw;
 const isIso = format === 'html-iso';
 const isoDisplayLimits = { maxFiles: 60, maxMembersPerFile: 20, maxEdges: 400 };
-
-const resolveLimit = (value, fallback) => {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : fallback;
-};
 
 const resolvedMaxFiles = resolveLimit(argv['max-files'], undefined);
 const resolvedMaxMembers = resolveLimit(argv['max-members-per-file'], undefined);
@@ -108,8 +96,9 @@ const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode });
 const cacheKey = buildMapCacheKey({ buildId: buildInfo?.buildId || null, options: buildOptions });
 const cacheDir = argv['cache-dir']
   ? path.resolve(argv['cache-dir'])
-  : path.join(repoRoot, '.pairofcleats', 'maps', 'cache');
-const cachePath = path.join(cacheDir, `${cacheKey}.json`);
+  : path.join(getRepoCacheRoot(repoRoot, userConfig), 'maps', 'cache');
+const cacheIdentity = generatedMapCacheIdentity(cacheKey);
+const cachePath = path.join(cacheDir, cacheIdentity.fileName);
 
 const ensureDir = (targetPath) => {
   if (!targetPath) return;
@@ -122,7 +111,7 @@ const warnings = [];
 
 if (!argv.refresh && fs.existsSync(cachePath)) {
   try {
-    mapModel = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
+    mapModel = readMapCacheEnvelope(JSON.parse(fs.readFileSync(cachePath, 'utf8')), cacheIdentity.key);
   } catch (err) {
     warnings.push(`cache read failed: ${err?.message || err}`);
   }
@@ -132,8 +121,7 @@ if (!mapModel) {
   mapModel = await buildCodeMap({ repoRoot, indexDir, options: buildOptions });
   mapModel.root.id = getRepoId(repoRoot);
   try {
-    ensureDir(cachePath);
-    fs.writeFileSync(cachePath, JSON.stringify(mapModel, null, 2));
+    writeJsonFileSyncResolved(cachePath, createMapCacheEnvelope(mapModel, cacheIdentity.key), { spaces: 0 });
   } catch (err) {
     warnings.push(`cache write failed: ${err?.message || err}`);
   }
@@ -149,8 +137,7 @@ if (mapModel) {
 const modelOut = argv['model-out'] ? path.resolve(argv['model-out']) : null;
 if (modelOut) {
   try {
-    ensureDir(modelOut);
-    fs.writeFileSync(modelOut, JSON.stringify(mapModel, null, 2));
+    writeJsonFileSyncResolved(modelOut, mapModel);
   } catch (err) {
     warnings.push(`model output failed: ${err?.message || err}`);
   }
@@ -159,9 +146,8 @@ if (modelOut) {
 const nodeListOut = argv['node-list-out'] ? path.resolve(argv['node-list-out']) : null;
 if (nodeListOut) {
   try {
-    ensureDir(nodeListOut);
     const list = buildNodeList(mapModel);
-    fs.writeFileSync(nodeListOut, JSON.stringify(list, null, 2));
+    writeJsonFileSyncResolved(nodeListOut, list);
   } catch (err) {
     warnings.push(`node list output failed: ${err?.message || err}`);
   }
@@ -235,8 +221,12 @@ if (format === 'json') {
 
 if (outputPath) {
   try {
-    ensureDir(outputPath);
-    fs.writeFileSync(outputPath, output);
+    if (resolvedFormat === 'json') {
+      writeJsonFileSyncResolved(outputPath, mapModel, { spaces: argv.pretty ? 2 : 0 });
+    } else {
+      ensureDir(outputPath);
+      fs.writeFileSync(outputPath, output);
+    }
   } catch (err) {
     warnings.push(`output write failed: ${err?.message || err}`);
   }
@@ -254,7 +244,7 @@ const report = {
 };
 
 if (argv.json) {
-  console.log(JSON.stringify(report, null, argv.pretty ? 2 : 0));
+  emitJson(report, process.stdout, { spaces: argv.pretty ? 2 : 0 });
   process.exit(0);
 }
 

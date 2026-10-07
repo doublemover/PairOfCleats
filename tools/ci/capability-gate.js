@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require = createRequire(import.meta.url);
@@ -172,8 +172,7 @@ const main = async () => {
   report.required = required;
   report.requiredMissing = requiredMissing;
 
-  await fsPromises.mkdir(path.dirname(jsonPath), { recursive: true });
-  await fsPromises.writeFile(jsonPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  await writeJsonFileResolved(jsonPath, report, { trailingNewline: true });
 
   renderSummary(report, requiredMissing);
 

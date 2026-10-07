@@ -5,10 +5,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  listCasObjectHashes,
-  readCasMetadata,
   writeCasObject
-} from '../../../src/shared/cache-cas.js';
+} from '../../../src/shared/cache-cas/objects.js';
+import { listCasObjectHashes } from '../../../src/shared/cache-cas/gc.js';
+import { readCasMetadata } from '../../../src/shared/cache-cas/metadata.js';
 
 applyTestEnv();
 

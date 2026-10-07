@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "suites": [
+    {
+      "id": "lang/contracts/language-fixture-contracts",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared language-fixture docmeta contract coverage for Go, JavaScript, Python, SQL, and TypeScript.",
+      "replacementIds": [
+        "lang/contracts/go",
+        "lang/contracts/javascript",
+        "lang/contracts/python",
+        "lang/contracts/sql",
+        "lang/contracts/typescript",
+        "indexing/language-fixture/chunk-meta-exists"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-fixture-index",
+      "processIsolationRequired": false,
+      "notes": "Hero relation/import/boundary suites remain standalone."
+    },
+    {
+      "id": "lang/fixtures-sample/metadata-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared fixture-sample metadata coverage for Python, Rust, and Swift.",
+      "replacementIds": [
+        "lang/fixtures-sample/python-metadata",
+        "lang/fixtures-sample/rust-metadata",
+        "lang/fixtures-sample/swift-metadata"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-search-fixture",
+      "processIsolationRequired": false,
+      "notes": "Language-specific hero diagnostics stay in their dedicated relation/import suites."
+    },
+    {
+      "id": "tooling/vfs/routing-and-token-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared VFS routing, token, effective-language, and deterministic virtual-path coverage.",
+      "replacementIds": [
+        "tooling/vfs/hash-routing",
+        "tooling/vfs/routing-by-effective-language",
+        "tooling/vfs/virtualpath-deterministic"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-vfs-routing-contract",
+      "processIsolationRequired": false,
+      "notes": "Crash-heavy and cache/fallback VFS tests remain standalone."
+    },
+    {
+      "id": "tooling/lsp/configured-provider-preflight-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared configured-provider workspace preflight coverage for multi-root routing, nested-root acceptance, probe failures, and probe timeouts.",
+      "replacementIds": [
+        "tooling/lsp/configured-provider-gopls-workspace-root-ambiguous-preflight",
+        "tooling/lsp/configured-provider-gopls-workspace-root-nested-preflight",
+        "tooling/lsp/configured-provider-go-workspace-module-preflight-failed",
+        "tooling/lsp/configured-provider-go-workspace-module-preflight-timeout"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-configured-provider-preflight-fixture",
+      "processIsolationRequired": false,
+      "notes": "Provider-specific warmup, diagnostics, and cache hero suites remain standalone."
+    },
+    {
+      "id": "tooling/lsp/signature-parse-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared parser-level LSP signature coverage for Python, Ruby, Swift, Haskell, Elixir, and Zig.",
+      "replacementIds": [
+        "tooling/lsp/python-signature-parse",
+        "tooling/lsp/ruby-signature-parse",
+        "tooling/lsp/swift-signature-parse",
+        "tooling/lsp/haskell-signature-parse",
+        "tooling/lsp/elixir-signature-parse",
+        "tooling/lsp/zig-signature-parse"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-language-parser-contract",
+      "processIsolationRequired": false,
+      "notes": "Runtime/provider-backed signature parsing remains in configured-provider hero suites."
+    },
+    {
+      "id": "tooling/lsp/adaptive-timeout-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared adaptive-timeout coverage for signatureHelp, definition, references, and typeDefinition stages.",
+      "replacementIds": [
+        "tooling/lsp/signature-help-timeout-adaptive",
+        "tooling/lsp/definition-timeout-adaptive",
+        "tooling/lsp/references-timeout-adaptive",
+        "tooling/lsp/type-definition-timeout-adaptive"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-provider-timeout-fixture",
+      "processIsolationRequired": false,
+      "notes": "Stage-gating and next-symbol hero cases remain standalone."
+    },
+    {
+      "id": "tooling/lsp/protocol-fail-open-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared malformed-protocol fail-open coverage for hover, documentSymbol, and initialize stages.",
+      "replacementIds": [
+        "tooling/lsp/protocol-malformed-hover-fail-open",
+        "tooling/lsp/protocol-malformed-document-symbol-fail-open",
+        "tooling/lsp/protocol-malformed-initialize-fail-open"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-stub-protocol-fixture",
+      "processIsolationRequired": false,
+      "notes": "Disconnect, fragmented-frame, and delayed-partial hero suites remain standalone."
+    },
+    {
+      "id": "tooling/lsp/session-pool-lifecycle-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared LSP session-pool lifecycle coverage for reuse, poisoned recycle, max lifetime, disposal barrier, and background expiry.",
+      "replacementIds": [
+        "tooling/lsp/session-pool-reuse",
+        "tooling/lsp/session-pool-poisoned-recycle",
+        "tooling/lsp/session-pool-max-lifetime-recycle",
+        "tooling/lsp/session-pool-disposal-barrier",
+        "tooling/lsp/session-pool-background-lifetime-expiry"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-session-pool-lifecycle-fixture",
+      "processIsolationRequired": false,
+      "notes": "Shutdown, stale-process reap, and race-heavy transport hero tests remain standalone."
+    },
+    {
+      "id": "tooling/doctor/command-profile-probe-cache-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared doctor command-profile probe cache coverage for direct gopls resolution, hit/miss behavior, negative caching, and ttl expiry.",
+      "replacementIds": [
+        "tooling/doctor/command-profile-gopls",
+        "tooling/doctor/command-profile-probe-cache",
+        "tooling/doctor/command-profile-probe-cache-negative",
+        "tooling/doctor/command-profile-probe-cache-success-ttl"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-command-profile-cache-fixture",
+      "processIsolationRequired": false,
+      "notes": "Fingerprint invalidation, persistent cache, and launch-failure invalidation remain standalone."
+    },
+    {
+      "id": "retrieval/filters/search-filter-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared search filter coverage for normalization, file-case behavior, semantic filters, and query-syntax negation/phrase scoring.",
+      "replacementIds": [
+        "retrieval/filters/ext-filter",
+        "retrieval/filters/lang-filter",
+        "retrieval/filters/file-case-sensitive",
+        "retrieval/filters/query-syntax/negative-terms",
+        "retrieval/filters/query-syntax/phrases-and-scorebreakdown"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-search-filter-contract",
+      "processIsolationRequired": false,
+      "notes": "Git metadata and backend-specific filter hero suites remain standalone."
+    },
+    {
+      "id": "cli/search/contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared CLI search coverage for payload contract, top-N filtering, and Windows-style path selectors.",
+      "replacementIds": [
+        "cli/search/contract",
+        "cli/search/topn-filters",
+        "cli/search/windows-path-filter"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-search-lifecycle-fixture",
+      "processIsolationRequired": false,
+      "notes": "Help, non-result surfaces, determinism, and startup hero suites remain standalone."
+    },
+    {
+      "id": "services/api/search-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared API search contract coverage for the adapter-neutral compact search corpus plus query-param alias handling.",
+      "replacementIds": [
+        "services/api/search-happy-path"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-search-contract-fixture",
+      "processIsolationRequired": false,
+      "notes": "Validation, stream, auth, and federated API hero suites remain standalone."
+    },
+    {
+      "id": "indexing/map/code-map-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared code-map coverage for output contracts, determinism, graphviz fallback, and symbol identity selection.",
+      "replacementIds": [
+        "indexing/map/build-symbol-identity"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-code-map-builder",
+      "processIsolationRequired": false,
+      "notes": "Isometric rendering helper contracts remain standalone."
+    },
+    {
+      "id": "indexing/validate/index-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared index validation coverage for healthy baselines, manifest safety, missing pieces, unknown artifacts, and checksum mismatch.",
+      "replacementIds": [
+        "indexing/validate/index-load-manifest",
+        "indexing/validate/manifest-checks"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-index-validate-builder",
+      "processIsolationRequired": false,
+      "notes": "Strictness, ledger, and mode-specific artifact hero suites remain standalone."
+    },
+    {
+      "id": "indexing/artifacts/artifact-write-controller-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared artifact write-controller coverage for concurrency policies, writer heuristics, and flattened phase timing telemetry.",
+      "replacementIds": [
+        "indexing/artifacts/artifact-writer-heuristics",
+        "indexing/artifacts/artifact-write-phase-timings"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-artifact-controller-policy",
+      "processIsolationRequired": false,
+      "notes": "Histogram-heavy and artifact publication hero suites remain standalone."
+    },
+    {
+      "id": "shared/fs/atomic-replace-contract-matrix",
+      "suiteCategory": "matrix",
+      "coverageOwner": "Shared atomic replace coverage for success cleanup, missing-temp restore behavior, stale backups, sync collision guards, committed finals, and EXDEV fallback.",
+      "replacementIds": [
+        "shared/fs/atomic-replace-cleans-bak",
+        "shared/fs/atomic-replace-restores-backup-on-missing-temp",
+        "shared/fs/atomic-replace-stale-bak-does-not-mask-missing-temp",
+        "shared/fs/atomic-replace-sync-stale-bak-collision-guard",
+        "shared/fs/atomic-replace-final-committed-missing-temp",
+        "shared/fs/atomic-replace-cross-device-fallback"
+      ],
+      "overlapPolicy": "legacy-removed-after-direct-parity",
+      "matrixStrategy": "shared-atomic-persistence-failure-matrix",
+      "processIsolationRequired": false,
+      "notes": "Higher-level bundle checksum and json-stream atomic directory hero tests remain standalone."
+    }
+  ]
+}

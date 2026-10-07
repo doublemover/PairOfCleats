@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCurrentBuildInfo, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const tempRoot = await makeTempDir('poc-scm-noscm-buildid-');
 const repoRootRaw = path.join(tempRoot, 'repo');
@@ -19,16 +20,16 @@ try {
   const filePath = path.join(repoRoot, 'alpha.js');
   await fsPromises.writeFile(filePath, 'export const alpha = 1;\n');
 
-  const env = {
-    ...process.env,
-    PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-    PAIROFCLEATS_EMBEDDINGS: 'stub',
-    PAIROFCLEATS_THREADS: '1',
-    PAIROFCLEATS_WORKER_POOL: 'auto'
-  };
+  const env = applyTestEnv({
+    cacheRoot,
+    embeddings: 'stub',
+    extraEnv: {
+      PAIROFCLEATS_THREADS: '1',
+      PAIROFCLEATS_WORKER_POOL: 'auto'
+    }
+  });
   const runBuild = async () => {
-    const buildResult = spawnSync(
-      process.execPath,
+    const buildResult = runNode(
       [
         path.join(process.cwd(), 'build_index.js'),
         '--stub-embeddings',
@@ -41,7 +42,10 @@ try {
         '--scm-provider',
         'none'
       ],
-      { cwd: repoRoot, env, stdio: 'inherit' }
+      'no-scm buildId build index',
+      repoRoot,
+      env,
+      { stdio: 'inherit', allowFailure: true }
     );
     if (buildResult.status !== 0) {
       console.error('no-scm buildId test failed: build_index failed');

@@ -5,7 +5,7 @@ import {
   INDEX_CACHE_POLICY_DEFAULTS,
   REPO_CACHE_POLICY_DEFAULTS,
   SQLITE_CACHE_POLICY_DEFAULTS
-} from '../../../tools/shared/repo-cache-config.js';
+} from '../../../src/shared/repo-cache-config.js';
 import { createRepoCacheManager as createApiRepoCacheManager } from '../../../tools/api/router/cache.js';
 import { clearRepoCaches, getRepoCaches, refreshRepoCaches } from '../../../tools/mcp/repo.js';
 

@@ -1,13 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import https from 'node:https';
+import { EventEmitter } from 'node:events';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { fetchDownloadUrl } from '../../../tools/download/shared-fetch.js';
 
 applyTestEnv();
+process.env.PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS = '1';
+let crossOriginUrl = '';
 
 const server = http.createServer((req, res) => {
   switch (req.url) {
+    case '/cross-origin':
+      res.statusCode = 302;
+      res.setHeader('Location', crossOriginUrl);
+      res.end();
+      return;
     case '/ok':
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/plain');
@@ -55,8 +64,31 @@ await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const address = server.address();
 const port = typeof address === 'object' && address ? address.port : 0;
 const baseUrl = `http://127.0.0.1:${port}`;
+let receivedAuthorization = null;
+const second = http.createServer((req, res) => {
+  receivedAuthorization = req.headers.authorization;
+  res.end('cross-origin fixture');
+});
+await new Promise((resolve) => second.listen(0, '127.0.0.1', resolve));
+const secondOrigin = `http://127.0.0.1:${second.address().port}`;
+crossOriginUrl = `${secondOrigin}/fixture`;
 
 try {
+  await assert.rejects(() => fetchDownloadUrl(`${baseUrl}/cross-origin`), /launch-time approval/);
+  process.env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS = JSON.stringify([secondOrigin]);
+  await fetchDownloadUrl(`${baseUrl}/cross-origin`, { headers: { Authorization: 'inert-fixture-header' } });
+  assert.equal(receivedAuthorization, undefined, 'approved origin changes must not forward credentials');
+  delete process.env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS;
+  const originalRequest = https.request;
+  try {
+    https.request = (_url, _options, callback) => {
+      const request = new EventEmitter();
+      request.destroy = () => {};
+      request.end = () => callback({ statusCode: 302, headers: { location: `${baseUrl}/ok` }, resume() { request.emit('close'); } });
+      return request;
+    };
+    await assert.rejects(() => fetchDownloadUrl('https://example.invalid/redirect'), /downgrade/);
+  } finally { https.request = originalRequest; }
   const scheduledTimeouts = [];
   const originalSetTimeout = global.setTimeout;
   global.setTimeout = ((handler, timeout, ...args) => {
@@ -69,8 +101,8 @@ try {
     global.setTimeout = originalSetTimeout;
   }
   assert.ok(
-    !scheduledTimeouts.includes(30000),
-    'undefined timeout should not schedule implicit 30000ms request timeout'
+    scheduledTimeouts.includes(30000),
+    'downloads should have a bounded default request timeout'
   );
 
   const redirected = await fetchDownloadUrl(`${baseUrl}/redirect`);
@@ -107,6 +139,8 @@ try {
   );
 } finally {
   server.close();
+  second.close();
+  delete process.env.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS;
 }
 
 console.log('shared fetch contract test passed');

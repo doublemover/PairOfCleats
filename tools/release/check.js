@@ -3,8 +3,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { escapeRegex } from '../../src/shared/text/escape-regex.js';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { isTestingEnv } from '../../src/shared/env/testing.js';
+import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
+import { resolveRepoContainedOutputPath, resolveRepoContainedPath } from './file-walk.js';
+import { getReleaseCheckSurfacePhases, getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
+import { extractChangelogSection, readPackageVersion, toIso } from './metadata-support.js';
 
 const args = process.argv.slice(2);
 const hasFlag = (flag) => args.includes(flag);
@@ -30,12 +33,16 @@ const readOption = (name) => {
 };
 
 const normalizePath = (value) => String(value || '').replace(/\\/g, '/');
-const toIso = (value = Date.now()) => new Date(value).toISOString();
 const TESTING_ENV_KEY = 'PAIROFCLEATS_TESTING';
 const MAX_OUTPUT_CHARS = 4000;
+const BASELINE_PHASES = ['changelog', 'contracts', 'toolchain'];
+const RELEASE_CHECK_SURFACE_PHASES = ['build', 'install', 'boot', 'smoke'];
 
 const reportPathArg = readOption('report').trim();
 const manifestPathArg = readOption('manifest').trim();
+const surfacesArg = readOption('surfaces').trim();
+const phasesArg = readOption('phases').trim();
+const runtimeTargetArg = readOption('runtime-target').trim();
 const reportPathInput = reportPathArg || 'release_check_report.json';
 const manifestPathInput = manifestPathArg || 'release-manifest.json';
 const requireBreaking = hasFlag('--breaking');
@@ -62,60 +69,32 @@ if (hasFlag('--help') || hasFlag('-h')) {
   console.error('  --breaking                     Require non-empty "### Breaking" notes for current version.');
   console.error('  --report <path>                Release check report output path.');
   console.error('  --manifest <path>              Release manifest output path.');
+  console.error('  --surfaces <ids>               Restrict release-check to selected shipped surface ids.');
+  console.error('  --phases <names>               Restrict release-check to selected phases.');
+  console.error('  --runtime-target <id>          Record the release runtime target for matrix-specific reports.');
   console.error('  --dry-run                      Validate flow/order without executing commands.');
   console.error('  --dry-run-fail-step <id>       Force one named step to fail in --dry-run mode.');
   process.exit(0);
 }
 
 const root = process.cwd();
-const reportPath = path.resolve(root, reportPathInput);
-const manifestPath = path.resolve(root, manifestPathInput);
-
-const SMOKE_STEPS = Object.freeze([
-  {
-    id: 'smoke.version',
-    label: 'pairofcleats --version',
-    command: [process.execPath, 'bin/pairofcleats.js', '--version']
-  },
-  {
-    id: 'smoke.fixture-index-build',
-    label: 'fixture index build',
-    command: [process.execPath, 'build_index.js', '--repo', 'tests/fixtures/sample', '--mode', 'code']
-  },
-  {
-    id: 'smoke.fixture-index-validate-strict',
-    label: 'fixture index validate --strict',
-    command: [process.execPath, 'tools/index/validate.js', '--repo', 'tests/fixtures/sample', '--strict']
-  },
-  {
-    id: 'smoke.fixture-search',
-    label: 'fixture search',
-    command: [process.execPath, 'search.js', 'sample', '--repo', 'tests/fixtures/sample', '--top', '1', '--json']
-  },
-  {
-    id: 'smoke.editor-sublime',
-    label: 'editor package smoke (sublime)',
-    command: [process.execPath, 'tools/package-sublime.js', '--smoke'],
-    artifacts: ['dist/sublime/pairofcleats.sublime-package', 'dist/sublime/pairofcleats.sublime-package.sha256']
-  },
-  {
-    id: 'smoke.editor-vscode',
-    label: 'editor package smoke (vscode)',
-    command: [process.execPath, 'tools/package-vscode.js', '--smoke'],
-    artifacts: ['dist/vscode/pairofcleats.vsix', 'dist/vscode/pairofcleats.vsix.sha256']
-  },
-  {
-    id: 'smoke.tui-build',
-    label: 'tui artifact manifest smoke',
-    command: [process.execPath, 'tools/tui/build.js', '--smoke'],
-    artifacts: ['dist/tui/tui-artifacts-manifest.json', 'dist/tui/tui-artifacts-manifest.json.sha256']
-  },
-  {
-    id: 'smoke.service-mode',
-    label: 'service-mode smoke check',
-    command: [process.execPath, 'tools/service/indexer-service.js', 'smoke', '--json']
-  }
-]);
+const runtimeTarget = runtimeTargetArg ? runtimeTargetArg.toLowerCase() : null;
+if (runtimeTargetArg && !/^[a-z0-9._-]+$/i.test(runtimeTargetArg)) {
+  console.error(`release-check: runtime target is malformed: ${runtimeTargetArg}.`);
+  process.exit(1);
+}
+const reportPathResolution = resolveRepoContainedOutputPath(root, reportPathInput, 'report path');
+const manifestPathResolution = resolveRepoContainedOutputPath(root, manifestPathInput, 'manifest path');
+if (!reportPathResolution.ok) {
+  console.error(`release-check: ${reportPathResolution.error}`);
+  process.exit(1);
+}
+if (!manifestPathResolution.ok) {
+  console.error(`release-check: ${manifestPathResolution.error}`);
+  process.exit(1);
+}
+const reportPath = reportPathResolution.path;
+const manifestPath = manifestPathResolution.path;
 
 const trimOutput = (value) => {
   const text = String(value || '').trim();
@@ -129,9 +108,30 @@ const sha256File = (filePath) => {
   return hash.digest('hex');
 };
 
-const ensureParentDir = (filePath) => {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+const parseSelectorSet = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const entries = text
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return entries.length ? new Set(entries) : null;
 };
+
+const projectReleaseCheckSurfaceFields = (surface) => ({
+  releaseCheckEnabled: surface.releaseCheck.enabled,
+  releaseCheckStepIds: surface.releaseCheck.steps.map((step) => step.id),
+  releaseCheckStepsByPhase: Object.fromEntries(
+    RELEASE_CHECK_SURFACE_PHASES
+      .map((phase) => [
+        phase,
+        surface.releaseCheck.steps
+          .filter((step) => step.phase === phase)
+          .map((step) => step.id)
+      ])
+      .filter(([, ids]) => ids.length > 0)
+  )
+});
 
 /**
  * Execute one release-check step and capture normalized result metadata.
@@ -217,36 +217,8 @@ const recordStep = ({
  * @returns {string}
  */
 const validateChangelog = () => {
-  const packagePath = path.join(root, 'package.json');
-  const changelogPath = path.join(root, 'CHANGELOG.md');
-
-  if (!fs.existsSync(packagePath)) {
-    throw new Error('release-check: package.json not found.');
-  }
-  if (!fs.existsSync(changelogPath)) {
-    throw new Error('release-check: CHANGELOG.md not found.');
-  }
-
-  const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-  const version = pkg?.version ? String(pkg.version).trim() : '';
-  if (!version) {
-    throw new Error('release-check: package.json version missing.');
-  }
-
-  const changelog = fs.readFileSync(changelogPath, 'utf8');
-  const headerRe = new RegExp(`^##\\s+v?${escapeRegex(version)}(\\b|\\s)`, 'm');
-  const match = headerRe.exec(changelog);
-  if (!match) {
-    throw new Error(`release-check: CHANGELOG.md missing section for v${version}.`);
-  }
-
-  const sectionStart = match.index;
-  const nextHeaderMatch = changelog.slice(sectionStart + match[0].length).match(/^##\s+/m);
-  const sectionEnd = nextHeaderMatch
-    ? sectionStart + match[0].length + nextHeaderMatch.index
-    : changelog.length;
-  const section = changelog.slice(sectionStart, sectionEnd);
-
+  const { version } = readPackageVersion(root);
+  const { section } = extractChangelogSection(root, version);
   if (requireBreaking) {
     const breakingHeader = section.match(/^###\s+Breaking\s*$/m);
     if (!breakingHeader) {
@@ -268,46 +240,69 @@ const validateChangelog = () => {
 };
 
 const writeOutputs = (reportPayload, manifestPayload) => {
-  ensureParentDir(reportPath);
-  ensureParentDir(manifestPath);
-  fs.writeFileSync(reportPath, `${JSON.stringify(reportPayload, null, 2)}\n`);
-  fs.writeFileSync(manifestPath, `${JSON.stringify(manifestPayload, null, 2)}\n`);
+  writeJsonFileSyncResolved(reportPath, reportPayload, { trailingNewline: true });
+  writeJsonFileSyncResolved(manifestPath, manifestPayload, { trailingNewline: true });
 };
 
 /**
  * Collect deterministic release-manifest artifact metadata.
  *
  * @param {object[]} steps
- * @returns {Array<{path:string,exists:boolean,sizeBytes:number|null,sha256:string|null}>}
+ * @returns {Array<{path:string,exists:boolean,type:string,sizeBytes:number|null,sha256:string|null}>}
  */
 const collectManifestArtifacts = (steps) => {
   const inventory = new Set([
     normalizePath(path.relative(root, reportPath)),
+    'docs/tooling/shipped-surfaces.json',
+    'docs/guides/release-surfaces.md',
     'docs/tooling/doc-contract-drift.json',
     'docs/tooling/doc-contract-drift.md'
   ]);
   for (const step of steps) {
     for (const artifact of step.artifacts || []) {
-      inventory.add(normalizePath(artifact));
+      const artifactPath = resolveRepoContainedPath(root, artifact, 'manifest artifact path');
+      if (!artifactPath.ok) {
+        throw new Error(`release-check: ${artifactPath.error}`);
+      }
+      inventory.add(artifactPath.relative);
     }
   }
   return Array.from(inventory)
     .sort((a, b) => a.localeCompare(b))
     .map((relPath) => {
-      const absPath = path.resolve(root, relPath);
+      const artifactPath = resolveRepoContainedPath(root, relPath, 'manifest artifact path');
+      if (!artifactPath.ok) {
+        throw new Error(`release-check: ${artifactPath.error}`);
+      }
+      const absPath = artifactPath.path;
       const exists = fs.existsSync(absPath);
       if (!exists) {
         return {
           path: relPath,
           exists: false,
+          type: 'missing',
           sizeBytes: null,
           sha256: null
         };
       }
+      const lstat = fs.lstatSync(absPath);
+      if (lstat.isSymbolicLink()) {
+        throw new Error(`release-check: manifest artifact path must not be a symlink: ${relPath}`);
+      }
       const stat = fs.statSync(absPath);
+      if (stat.isDirectory()) {
+        return {
+          path: relPath,
+          exists: true,
+          type: 'directory',
+          sizeBytes: null,
+          sha256: null
+        };
+      }
       return {
         path: relPath,
         exists: true,
+        type: 'file',
         sizeBytes: stat.size,
         sha256: sha256File(absPath)
       };
@@ -323,85 +318,143 @@ const main = () => {
   const startedAtMs = Date.now();
   const startedAt = toIso(startedAtMs);
   const steps = [];
-  let version = null;
+  const shippedSurfaceRegistry = loadShippedSurfaces(root);
+  const { version: packageVersion } = readPackageVersion(root);
+  const selectedSurfaces = parseSelectorSet(surfacesArg);
+  const selectedPhases = parseSelectorSet(phasesArg);
+  const knownSurfaceIds = new Set(shippedSurfaceRegistry.surfaces.map((surface) => surface.id.toLowerCase()));
+  for (const surfaceId of selectedSurfaces || []) {
+    if (!knownSurfaceIds.has(surfaceId)) {
+      throw new Error(`release-check: unknown surface id ${surfaceId}.`);
+    }
+  }
+  const allSurfacePhases = getReleaseCheckSurfacePhases(root);
+  const knownPhases = new Set([...BASELINE_PHASES, ...allSurfacePhases]);
+  for (const phase of selectedPhases || []) {
+    if (!knownPhases.has(phase)) {
+      throw new Error(`release-check: unknown phase ${phase}.`);
+    }
+  }
+  const selectedSurfacePhases = selectedPhases
+    ? allSurfacePhases.filter((phase) => selectedPhases.has(phase))
+    : null;
+  const releaseSteps = getReleaseCheckSurfaceSteps(root, {
+    surfaceIds: selectedSurfaces ? Array.from(selectedSurfaces) : null,
+    phases: selectedSurfacePhases
+  });
+  const requestedSurfacePhases = selectedPhases
+    ? Array.from(selectedPhases).filter((phase) => allSurfacePhases.includes(phase))
+    : [];
+  const missingRequestedSurfacePhases = requestedSurfacePhases
+    .filter((phase) => !releaseSteps.some((step) => step.phase === phase));
+  if (missingRequestedSurfacePhases.length > 0) {
+    throw new Error(
+      `release-check: selected scope has no executable checks for phase(s): ${missingRequestedSurfacePhases.join(', ')}.`
+    );
+  }
+  if (selectedSurfaces && releaseSteps.length === 0) {
+    throw new Error(
+      `release-check: selected surfaces have no executable release checks: ${Array.from(selectedSurfaces).sort().join(', ')}.`
+    );
+  }
+  const availableSelectedSurfacePhases = Array.from(new Set(releaseSteps.map((step) => step.phase)));
+  const executedPhases = [];
+  const includePhase = (phase) => !selectedPhases || selectedPhases.has(phase);
+  let version = packageVersion;
   let ok = true;
 
-  try {
-    const changelogStepStart = Date.now();
-    version = validateChangelog();
-    const changelogStepEnd = Date.now();
-    steps.push({
-      id: 'changelog.entry',
-      phase: 'changelog',
-      label: 'validate changelog for package version',
-      command: ['internal:changelog-validate'],
-      cwd: '.',
-      status: 'passed',
-      overridden: false,
-      owner: null,
-      startedAt: toIso(changelogStepStart),
-      finishedAt: toIso(changelogStepEnd),
-      durationMs: Math.max(0, changelogStepEnd - changelogStepStart),
-      exitCode: 0,
-      stdoutTail: '',
-      stderrTail: '',
-      artifacts: []
-    });
-  } catch (err) {
-    const finishedAtMs = Date.now();
-    ok = false;
-    steps.push({
-      id: 'changelog.entry',
-      phase: 'changelog',
-      label: 'validate changelog for package version',
-      command: ['internal:changelog-validate'],
-      cwd: '.',
-      status: 'failed',
-      overridden: false,
-      owner: null,
-      startedAt: startedAt,
-      finishedAt: toIso(finishedAtMs),
-      durationMs: Math.max(0, finishedAtMs - startedAtMs),
-      exitCode: 1,
-      stdoutTail: '',
-      stderrTail: trimOutput(err?.message || String(err)),
-      artifacts: []
-    });
+  if (includePhase('changelog')) {
+    executedPhases.push('changelog');
+    try {
+      const changelogStepStart = Date.now();
+      version = validateChangelog();
+      const changelogStepEnd = Date.now();
+      steps.push({
+        id: 'changelog.entry',
+        phase: 'changelog',
+        label: 'validate changelog for package version',
+        command: ['internal:changelog-validate'],
+        cwd: '.',
+        status: 'passed',
+        overridden: false,
+        owner: null,
+        startedAt: toIso(changelogStepStart),
+        finishedAt: toIso(changelogStepEnd),
+        durationMs: Math.max(0, changelogStepEnd - changelogStepStart),
+        exitCode: 0,
+        stdoutTail: '',
+        stderrTail: '',
+        artifacts: []
+      });
+    } catch (err) {
+      const finishedAtMs = Date.now();
+      ok = false;
+      steps.push({
+        id: 'changelog.entry',
+        phase: 'changelog',
+        label: 'validate changelog for package version',
+        command: ['internal:changelog-validate'],
+        cwd: '.',
+        status: 'failed',
+        overridden: false,
+        owner: null,
+        startedAt: startedAt,
+        finishedAt: toIso(finishedAtMs),
+        durationMs: Math.max(0, finishedAtMs - startedAtMs),
+        exitCode: 1,
+        stdoutTail: '',
+        stderrTail: trimOutput(err?.message || String(err)),
+        artifacts: []
+      });
+    }
   }
 
-  const contractDriftStep = recordStep({
-    id: 'contracts.drift',
-    phase: 'contracts',
-    label: 'contract/spec drift check',
-    command: [
-      process.execPath,
-      'tools/docs/contract-drift.js',
-      '--fail',
-      '--out-json',
-      'docs/tooling/doc-contract-drift.json',
-      '--out-md',
-      'docs/tooling/doc-contract-drift.md'
-    ],
-    artifacts: ['docs/tooling/doc-contract-drift.json', 'docs/tooling/doc-contract-drift.md']
-  });
-  steps.push(contractDriftStep);
-  if (contractDriftStep.status === 'failed') ok = false;
+  if (includePhase('contracts')) {
+    executedPhases.push('contracts');
+    const contractDriftStep = recordStep({
+      id: 'contracts.drift',
+      phase: 'contracts',
+      label: 'contract/spec drift check',
+      command: [
+        process.execPath,
+        'tools/docs/contract-drift.js',
+        '--fail',
+        '--out-json',
+        'docs/tooling/doc-contract-drift.json',
+        '--out-md',
+        'docs/tooling/doc-contract-drift.md'
+      ],
+      artifacts: ['docs/tooling/doc-contract-drift.json', 'docs/tooling/doc-contract-drift.md']
+    });
+    steps.push(contractDriftStep);
+    if (contractDriftStep.status === 'failed') ok = false;
+  }
 
-  const pythonToolchainStep = recordStep({
-    id: 'toolchain.python',
-    phase: 'toolchain',
-    label: 'python toolchain policy check',
-    command: [process.execPath, 'tools/tooling/python-check.js', '--json']
-  });
-  steps.push(pythonToolchainStep);
-  if (pythonToolchainStep.status === 'failed') ok = false;
+  if (includePhase('toolchain')) {
+    executedPhases.push('toolchain');
+    const pythonToolchainStep = recordStep({
+      id: 'toolchain.python',
+      phase: 'toolchain',
+      label: 'python toolchain policy check',
+      command: [process.execPath, 'tools/tooling/python-check.js', '--json']
+    });
+    steps.push(pythonToolchainStep);
+    if (pythonToolchainStep.status === 'failed') ok = false;
+  }
 
-  for (const smokeStep of SMOKE_STEPS) {
+  for (const stepPhase of availableSelectedSurfacePhases) {
+    if (includePhase(stepPhase) && !executedPhases.includes(stepPhase)) {
+      executedPhases.push(stepPhase);
+    }
+  }
+
+  for (const smokeStep of releaseSteps) {
     const step = recordStep({
       id: smokeStep.id,
-      phase: 'smoke',
+      phase: smokeStep.phase,
       label: smokeStep.label,
       command: smokeStep.command,
+      owner: smokeStep.owner || null,
       artifacts: smokeStep.artifacts || []
     });
     steps.push(step);
@@ -421,14 +474,35 @@ const main = () => {
     durationMs: Math.max(0, finishedAtMs - startedAtMs),
     root: normalizePath(root),
     releaseVersion: version,
+    scope: {
+      surfaces: selectedSurfaces ? Array.from(selectedSurfaces).sort() : null,
+      phases: selectedPhases ? Array.from(selectedPhases).sort() : null,
+      runtimeTarget
+    },
     strict: {
       skipModesDisabled: true,
-      requiredChecks: ['changelog', 'contracts', 'toolchain', 'smoke']
+      requiredChecks: executedPhases
     },
+    shippedSurfaces: shippedSurfaceRegistry.surfaces.map((surface) => ({
+      id: surface.id,
+      name: surface.name,
+      owner: surface.owner,
+      supportLevel: surface.supportLevel,
+      packagingBoundary: surface.packagingBoundary,
+      publishBoundary: surface.publishBoundary,
+      versionSource: surface.versionSource,
+      ...projectReleaseCheckSurfaceFields(surface)
+    })),
     summary: {
       total: steps.length,
       passed: passedCount,
-      failed: failedCount
+      failed: failedCount,
+      byPhase: Object.fromEntries(
+        executedPhases.map((phase) => [
+          phase,
+          steps.filter((step) => step.phase === phase).length
+        ])
+      )
     },
     checks: steps.map((step) => ({
       ...step,
@@ -441,6 +515,24 @@ const main = () => {
     schemaVersion: 1,
     generatedAt: finishedAt,
     reportPath: normalizePath(path.relative(root, reportPath)),
+    shippedSurfacesRegistryPath: normalizePath(
+      path.relative(root, shippedSurfaceRegistry.registryPath)
+    ),
+    surfaces: shippedSurfaceRegistry.surfaces.map((surface) => ({
+      id: surface.id,
+      name: surface.name,
+      owner: surface.owner,
+      supportLevel: surface.supportLevel,
+      packagingBoundary: surface.packagingBoundary,
+      publishBoundary: surface.publishBoundary,
+      versionSource: surface.versionSource,
+      runtimeTargets: surface.runtimeTargets,
+      platforms: surface.platforms,
+      build: surface.build,
+      install: surface.install,
+      smoke: surface.smoke,
+      ...projectReleaseCheckSurfaceFields(surface)
+    })),
     artifacts: []
   };
 

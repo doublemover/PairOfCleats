@@ -18,7 +18,8 @@ import {
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
 import { normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
-import { getEnvConfig, normalizeOptionalBoolean } from '../../shared/env.js';
+import { normalizeOptionalBoolean } from '../../shared/env/core.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 import { normalizeBooleanString } from '../../shared/boolean-normalization.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 
@@ -455,6 +456,9 @@ export function normalizeSearchOptions({
     || userConfig?.search?.sqliteFtsStemming === true;
 
   const explain = argv.explain === true || argv.why === true;
+  const explainTier = explain
+    ? (argv.why === true ? 'full' : 'summary')
+    : 'summary';
   const configDenseVectorRaw = userConfig?.search?.denseVectorMode;
   const configDenseVectorMode = normalizeDenseVectorMode(configDenseVectorRaw, 'merged');
   const cliDenseVectorRaw = argv['dense-vector-mode'];
@@ -565,6 +569,7 @@ export function normalizeSearchOptions({
     sqliteReadPragmas,
     fieldWeightsConfig: searchConfig.fieldWeights || null,
     explain,
+    explainTier,
     denseVectorMode,
     strict,
     backendArg,

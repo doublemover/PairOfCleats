@@ -1,4 +1,4 @@
-import { estimateJsonBytes } from '../../shared/cache.js';
+import { estimateJsonBytes } from '../../shared/cache/size.js';
 import { coerceNonNegativeInt, coercePositiveInt } from '../../shared/number-coerce.js';
 
 /**

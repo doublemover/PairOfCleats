@@ -10,7 +10,7 @@ pairofcleats ingest scip --repo . --input scip.jsonl
 node tools/ingest/scip.js --repo . --input scip.jsonl
 
 # Or via npm
-npm run scip-ingest -- --repo . --input scip.jsonl
+pairofcleats ingest scip --repo . --input scip.jsonl
 
 # Run the SCIP CLI directly
 node tools/ingest/scip.js --repo . --run --input index.scip

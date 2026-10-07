@@ -1,11 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readContainedFile } from '../../shared/contained-file.js';
 import { normalizeSegmentsConfig } from '../segments.js';
 import { normalizeCommentConfig } from '../comments.js';
-import { createLruCache, estimateJsonBytes } from '../../shared/cache.js';
-import { fromPosix, toPosix } from '../../shared/files.js';
-import { log, logLine } from '../../shared/progress.js';
-import { getDocumentExtractorTestConfig, getEnvConfig } from '../../shared/env.js';
+import { createLruCache } from '../../shared/cache/lru.js';
+import { estimateJsonBytes } from '../../shared/cache/size.js';
+import { fromPosix, toPosix } from '../../shared/file-paths.js';
+import { log, logLine } from '../../shared/progress-runtime.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
+import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
@@ -25,6 +28,8 @@ import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
   sha256Hex,
   normalizeDocumentExtractionPolicy
 } from '../extractors/common.js';
@@ -255,11 +260,22 @@ export function createFileProcessor(options) {
    * repositories.
    *
    * @param {string} fileKey
-   * @param {{encodingFallback?:boolean,encoding?:string,encodingConfidence?:number,file?:string}} info
+   * @param {{
+   *   encodingFallback?:boolean,
+   *   encoding?:string,
+   *   encodingConfidence?:number,
+   *   encodingFallbackClass?:string,
+   *   encodingFallbackRisk?:string,
+   *   file?:string
+   * }} info
    * @returns {void}
    */
   const warnEncodingFallback = (fileKey, info) => {
     if (!info?.encodingFallback) return;
+    const risk = typeof info.encodingFallbackRisk === 'string'
+      ? info.encodingFallbackRisk
+      : 'medium';
+    if (risk === 'low' && !showLineProgress) return;
     const key = fileKey || info?.file || '';
     if (!key || encodingWarnings.seen.has(key)) return;
     if (encodingWarnings.count >= encodingWarnings.limit) return;
@@ -268,10 +284,15 @@ export function createFileProcessor(options) {
     const confidence = Number.isFinite(info.encodingConfidence)
       ? info.encodingConfidence.toFixed(2)
       : null;
-    const details = info.encoding
-      ? ` (${info.encoding}${confidence ? `, conf=${confidence}` : ''})`
-      : '';
-    log(`[encoding] fallback decode used for ${key}${details}.`);
+    const classLabel = typeof info.encodingFallbackClass === 'string'
+      ? info.encodingFallbackClass
+      : 'unknown';
+    const detailParts = [];
+    if (info.encoding) detailParts.push(info.encoding);
+    if (confidence) detailParts.push(`conf=${confidence}`);
+    detailParts.push(`class=${classLabel}`);
+    detailParts.push(`risk=${risk}`);
+    log(`[encoding] ${risk}-risk fallback decode for ${key} (${detailParts.join(', ')}).`);
   };
   if (!workerPool && !warnedNoWorkerPool) {
     warnedNoWorkerPool = true;
@@ -476,6 +497,7 @@ export function createFileProcessor(options) {
     updateCrashStage('pre-cpu:resolve-pre-read-skip:start');
     const preReadSkip = await resolvePreReadSkip({
       abs,
+      repoRoot: root,
       fileEntry,
       fileStat,
       ext,
@@ -567,7 +589,7 @@ export function createFileProcessor(options) {
         throwIfAborted();
         updateCrashStage('pre-cpu:extract:cache-read:start', { sourceType: documentSourceType });
         try {
-          artifacts.fileBuffer = await runIo(() => fs.readFile(abs));
+          artifacts.fileBuffer = await runIo(() => readContainedFile(root, abs, { expectedStat: fileStat }));
           updateCrashStage('pre-cpu:extract:cache-read:done', {
             bytes: Buffer.isBuffer(artifacts.fileBuffer) ? artifacts.fileBuffer.length : null,
             sourceType: documentSourceType
@@ -600,6 +622,8 @@ export function createFileProcessor(options) {
           }
           artifacts.fileEncoding = 'document-extracted';
           artifacts.fileEncodingFallback = null;
+          artifacts.fileEncodingFallbackClass = null;
+          artifacts.fileEncodingFallbackRisk = null;
           artifacts.fileEncodingConfidence = null;
           artifacts.documentExtraction = {
             sourceType: documentSourceType,
@@ -610,7 +634,14 @@ export function createFileProcessor(options) {
             counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
             units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
             normalizationPolicy: cachedExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
-            warnings
+            warnings,
+            policy: buildDocumentExtractionPolicySummary(documentExtractionPolicy),
+            fidelity: buildDocumentExtractionFidelity({
+              sourceType: documentSourceType,
+              status: 'ok',
+              warnings,
+              policy: documentExtractionPolicy
+            })
           };
           updateCrashStage('pre-cpu:extract:cache-hit', {
             sourceType: documentSourceType
@@ -623,6 +654,7 @@ export function createFileProcessor(options) {
       ? { skip: null }
       : await resolvePreCpuFileContent({
         abs,
+        repoRoot: root,
         relKey,
         mode,
         ext,
@@ -807,6 +839,12 @@ export function createFileProcessor(options) {
       fileEncoding: artifacts.fileEncoding || null,
       fileEncodingFallback: typeof artifacts.fileEncodingFallback === 'boolean'
         ? artifacts.fileEncodingFallback
+        : null,
+      fileEncodingFallbackClass: typeof artifacts.fileEncodingFallbackClass === 'string'
+        ? artifacts.fileEncodingFallbackClass
+        : null,
+      fileEncodingFallbackRisk: typeof artifacts.fileEncodingFallbackRisk === 'string'
+        ? artifacts.fileEncodingFallbackRisk
         : null,
       fileEncodingConfidence: Number.isFinite(artifacts.fileEncodingConfidence)
         ? artifacts.fileEncodingConfidence

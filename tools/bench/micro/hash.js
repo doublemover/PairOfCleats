@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveXxhashBackend } from '../../../src/shared/hash/xxhash-backend.js';
-import { formatStats, summarizeDurations } from './utils.js';
+import { formatStats, runSampledBench } from './utils.js';
 
 const argv = createCli({
   options: {
@@ -44,7 +44,7 @@ const iterations = Math.max(1, Math.floor(argv.iterations));
 const samples = Math.max(1, Math.floor(argv.samples));
 const warmup = Math.max(0, Math.floor(argv.warmup));
 
-const payload = Buffer.alloc(size, 0x61);
+const payload = 'a'.repeat(size);
 const results = {
   generatedAt: new Date().toISOString(),
   sizeBytes: size,
@@ -82,24 +82,11 @@ if (argv.json) {
 }
 
 async function runBench(label, backend, { payload, iterations, samples, warmup }) {
-  for (let i = 0; i < warmup; i += 1) {
-    await backend.hash64(payload);
-  }
-  const timings = [];
-  const perSample = Math.max(1, Math.floor(iterations / samples));
-  const remainder = iterations - (perSample * samples);
-  let totalMs = 0;
-  for (let i = 0; i < samples; i += 1) {
-    const loops = perSample + (i < remainder ? 1 : 0);
-    const start = process.hrtime.bigint();
-    for (let j = 0; j < loops; j += 1) {
-      await backend.hash64(payload);
-    }
-    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
-    timings.push(elapsed);
-    totalMs += elapsed;
-  }
-  const stats = summarizeDurations(timings);
+  const { totalMs, stats } = await runSampledBench(() => backend.hash64(payload), {
+    iterations,
+    samples,
+    warmup
+  });
   const bytesProcessed = payload.length * iterations;
   const mbPerSec = totalMs > 0 ? (bytesProcessed / (1024 * 1024)) / (totalMs / 1000) : 0;
   return {

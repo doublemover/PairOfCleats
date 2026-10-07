@@ -59,7 +59,9 @@ export const resolveMinhashOutputs = ({
         signatureLength: resolveSignatureLength()
       });
       if (sampledPlan) {
-        minhashSigs = safeChunks.map((chunk) => minifyMinhashSignature(chunk?.minhashSig, sampledPlan));
+        minhashSigs = !minhashStream
+          ? safeChunks.map((chunk) => minifyMinhashSignature(chunk?.minhashSig, sampledPlan))
+          : [];
         minhashGuard = {
           skipped: false,
           sampled: true,

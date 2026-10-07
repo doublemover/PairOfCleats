@@ -4,8 +4,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { runNode } from '../helpers/run-node.js';
 
 ensureTestingEnv(process.env);
 
@@ -20,14 +20,16 @@ const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 await fsPromises.rm(distDir, { recursive: true, force: true });
 await fsPromises.mkdir(distDir, { recursive: true });
 
-const runBuild = (args) => spawnSync(process.execPath, [buildScript, ...args], {
-  cwd: root,
-  encoding: 'utf8',
-  env: {
+const runBuild = (args) => runNode(
+  [buildScript, ...args],
+  `tui build ${args.join(' ')}`,
+  root,
+  {
     ...process.env,
     PAIROFCLEATS_TUI_DIST_DIR: distRel
-  }
-});
+  },
+  { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
+);
 
 const smoke = runBuild(['--smoke']);
 if (smoke.status !== 0) {

@@ -1,7 +1,9 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import path from 'node:path';
-import { writeJsonArrayFile, writeJsonLinesSharded, writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { writeJsonLinesSharded } from '../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
-import { fromPosix } from '../../../shared/files.js';
+import { fromPosix } from '../../../shared/file-paths.js';
 import { createOrderingHasher } from '../../../shared/order.js';
 import { applyByteBudget } from '../byte-budget.js';
 
@@ -256,7 +258,7 @@ export async function enqueueRepoMapArtifacts({
           metaFields.extensions = { delta: deltaExtensions };
         }
         await schedule(() => writeJsonObjectFile(repoMapMetaPath, {
-          fields: metaFields,
+          fields: withGeneratedArtifactMetadata(metaFields, 'sharded-meta', 'repo_map'),
           atomic: true
         }));
         await removeRepoMapJson();

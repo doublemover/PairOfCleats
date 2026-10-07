@@ -1,30 +1,28 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
-  loadTokenPostings,
-  loadMinhashSignatureRows,
-  loadJsonArrayArtifact,
-  loadJsonArrayArtifactRows,
-  loadFileMetaRows,
-  readJsonFile
-} from '../../shared/artifact-io.js';
+import { performance } from 'node:perf_hooks';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { loadJsonArrayArtifact, loadJsonArrayArtifactRows } from '../../shared/artifact-io/loaders/core.js';
+import { loadFileMetaRows } from '../../shared/artifact-io/loaders/core-file-meta.js';
+import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadMinhashSignatureRows } from '../../shared/artifact-io/loaders/minhash.js';
+import { loadTokenPostings } from '../../shared/artifact-io/loaders/token-postings.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { joinPathSafe, normalizeFilePath as normalizeFilePathShared } from '../../shared/path-normalize.js';
 import { clamp } from '../../shared/limits.js';
-import { logLine } from '../../shared/progress.js';
-import { loadOptionalSyncWithFallback } from '../../shared/optional-artifact-fallback.js';
+import { logLine } from '../../shared/progress-runtime.js';
+import { hasChunkMetaArtifactsSync } from '../../shared/artifact-io/chunk-meta-presence.js';
+import {
+  loadOptionalSyncWithFallback,
+  loadOptionalWithFallback,
+  iterateOptionalWithFallback
+} from '../../shared/artifact-io/optional-fallback.js';
 import {
   loadDenseVectorBinaryFromMetaSync,
   normalizeDenseVectorMeta
 } from '../../shared/dense-vector-artifacts.js';
-import {
-  hasChunkMetaArtifactsSync,
-  loadOptionalWithFallback,
-  iterateOptionalWithFallback
-} from '../../shared/index-artifact-helpers.js';
-import { getEnvConfig } from '../../shared/env.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -45,6 +43,18 @@ export function chunkArray(items, size = 900) {
   return chunks;
 }
 
+export const resolveExpectedDenseCount = (denseVec) => {
+  if (!denseVec || typeof denseVec !== 'object') return 0;
+  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
+  const fromCount = Number(denseVec.count ?? fields?.count);
+  if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
+  const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
+  if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
+  const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
+  if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
+  return 0;
+};
+
 const SQLITE_BATCH_MIN = 50;
 const SQLITE_BATCH_MAX = 2000;
 const SQLITE_DEFAULT_BATCH = 1000;
@@ -55,6 +65,9 @@ const SQLITE_WAL_MEDIUM_BYTES = 24 * BYTES_PER_MB;
 const SQLITE_WAL_HIGH_BYTES = 96 * BYTES_PER_MB;
 const SQLITE_TX_ROWS_MIN = 2000;
 const SQLITE_TX_ROWS_MAX = 250000;
+const SQLITE_TELEMETRY_MAX_SAMPLES = 12;
+const SQLITE_COMMIT_STALL_MS = 200;
+const SQLITE_CHECKPOINT_STALL_MS = 500;
 const DEFAULT_DENSE_BINARY_MAX_INLINE_MB = 512;
 const DENSE_BINARY_STREAM_READ_TARGET_BYTES = 4 * BYTES_PER_MB;
 const BENIGN_SQLITE_CLEANUP_CODES = new Set(['ENOENT', 'ENOTDIR']);
@@ -128,6 +141,70 @@ const normalizeJournalMode = (value) => {
   return normalized || null;
 };
 
+const pushBoundedSample = (list, entry, max = SQLITE_TELEMETRY_MAX_SAMPLES) => {
+  if (!Array.isArray(list)) return;
+  list.push(entry);
+  while (list.length > max) {
+    list.shift();
+  }
+};
+
+const getOrCreateSqliteRuntimeTelemetry = (stats) => {
+  if (!stats || typeof stats !== 'object') return null;
+  const telemetry = stats.runtimeTelemetry && typeof stats.runtimeTelemetry === 'object'
+    ? stats.runtimeTelemetry
+    : (stats.runtimeTelemetry = {});
+  if (!Array.isArray(telemetry.walSnapshots)) telemetry.walSnapshots = [];
+  if (!Array.isArray(telemetry.commits)) telemetry.commits = [];
+  if (!Array.isArray(telemetry.checkpoints)) telemetry.checkpoints = [];
+  if (!Array.isArray(telemetry.stalls)) telemetry.stalls = [];
+  if (!telemetry.stallCounts || typeof telemetry.stallCounts !== 'object') {
+    telemetry.stallCounts = { commit: 0, checkpoint: 0 };
+  }
+  return telemetry;
+};
+
+const createSqliteWriteStallSample = ({
+  kind,
+  stage,
+  durationMs,
+  thresholdMs,
+  walBytes = null,
+  walPressure = null
+}) => ({
+  kind,
+  stage: stage || null,
+  durationMs,
+  thresholdMs,
+  walBytes,
+  walPressure: walPressure || null
+});
+
+const maybeRecordSqliteWriteStall = (stats, sample) => {
+  if (!sample || !Number.isFinite(sample.durationMs) || !Number.isFinite(sample.thresholdMs)) return;
+  if (sample.durationMs < sample.thresholdMs) return;
+  const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
+  if (!telemetry) return;
+  const key = sample.kind === 'checkpoint' ? 'checkpoint' : 'commit';
+  telemetry.stallCounts[key] = (Number(telemetry.stallCounts[key]) || 0) + 1;
+  pushBoundedSample(telemetry.stalls, sample);
+};
+
+export const readSqliteFileSizes = (dbPath) => {
+  const readSize = (targetPath) => {
+    try {
+      return Number(fs.statSync(targetPath).size) || 0;
+    } catch {
+      return 0;
+    }
+  };
+  return {
+    dbBytes: readSize(dbPath),
+    walBytes: readSize(`${dbPath}-wal`),
+    shmBytes: readSize(`${dbPath}-shm`)
+  };
+};
+
 const resolveSqliteBatchInputs = (options = {}) => {
   const batchHint = options.batchSize && typeof options.batchSize === 'object' && !Array.isArray(options.batchSize)
     ? options.batchSize
@@ -194,20 +271,37 @@ const applySqliteRuntimeBatchAdjustments = ({
   journalMode
 }) => {
   let resolved = baseBatchSize;
-  if (pageSize >= 16384) resolved = Math.round(resolved * 1.28);
-  else if (pageSize >= 8192) resolved = Math.round(resolved * 1.14);
-  else if (pageSize <= 2048) resolved = Math.round(resolved * 0.84);
+  const adjustments = [];
+  if (pageSize >= 16384) {
+    resolved = Math.round(resolved * 1.28);
+    adjustments.push({ kind: 'page_size', factor: 1.28, reason: 'page_size_ge_16384' });
+  } else if (pageSize >= 8192) {
+    resolved = Math.round(resolved * 1.14);
+    adjustments.push({ kind: 'page_size', factor: 1.14, reason: 'page_size_ge_8192' });
+  } else if (pageSize <= 2048) {
+    resolved = Math.round(resolved * 0.84);
+    adjustments.push({ kind: 'page_size', factor: 0.84, reason: 'page_size_le_2048' });
+  }
   const walPressure = resolveSqliteWalPressure({ walEnabled, walBytes });
   if (walEnabled) {
-    if (walPressure === 'high') resolved = Math.round(resolved * 0.55);
-    else if (walPressure === 'medium') resolved = Math.round(resolved * 0.72);
-    else if (walPressure === 'low') resolved = Math.round(resolved * 0.86);
+    if (walPressure === 'high') {
+      resolved = Math.round(resolved * 0.55);
+      adjustments.push({ kind: 'wal_pressure', factor: 0.55, reason: 'wal_pressure_high' });
+    } else if (walPressure === 'medium') {
+      resolved = Math.round(resolved * 0.72);
+      adjustments.push({ kind: 'wal_pressure', factor: 0.72, reason: 'wal_pressure_medium' });
+    } else if (walPressure === 'low') {
+      resolved = Math.round(resolved * 0.86);
+      adjustments.push({ kind: 'wal_pressure', factor: 0.86, reason: 'wal_pressure_low' });
+    }
   } else if (journalMode && !['off', 'memory'].includes(journalMode)) {
     resolved = Math.round(resolved * 0.9);
+    adjustments.push({ kind: 'journal_mode', factor: 0.9, reason: `journal_mode_${journalMode}` });
   }
   return {
     batchSize: clamp(resolved, SQLITE_BATCH_MIN, SQLITE_BATCH_MAX),
-    walPressure
+    walPressure,
+    adjustments
   };
 };
 
@@ -283,7 +377,8 @@ export function resolveSqliteIngestPlan(options = {}) {
   const runtimeAdjusted = input.requested != null
     ? {
       batchSize: clamp(Math.floor(input.requested), SQLITE_BATCH_MIN, SQLITE_BATCH_MAX),
-      walPressure: resolveSqliteWalPressure(input)
+      walPressure: resolveSqliteWalPressure(input),
+      adjustments: [{ kind: 'requested', factor: 1, reason: 'requested_batch_size' }]
     }
     : applySqliteRuntimeBatchAdjustments({
       baseBatchSize,
@@ -325,7 +420,14 @@ export function resolveSqliteIngestPlan(options = {}) {
     rowCount: input.rowCount,
     fileCount: input.fileCount,
     repoBytes: input.repoBytes,
-    inputBytes: input.inputBytes
+    inputBytes: input.inputBytes,
+    telemetry: {
+      planVersion: 1,
+      baseBatchSize,
+      batchAdjustments: runtimeAdjusted.adjustments || [],
+      walPressure: runtimeAdjusted.walPressure,
+      requestedOverride: input.requested != null
+    }
   };
 };
 
@@ -348,6 +450,162 @@ export function resolveSqliteBatchSize(options = {}) {
   return resolveSqliteIngestPlan(options).batchSize;
 }
 
+export function recordSqlitePlanTelemetry(stats, plan, { source = null } = {}) {
+  const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
+  if (!telemetry || !plan || typeof plan !== 'object') return null;
+  telemetry.plan = {
+    batchSize: plan.batchSize ?? null,
+    transactionRows: plan.transactionRows ?? null,
+    batchesPerTransaction: plan.batchesPerTransaction ?? null,
+    filesPerTransaction: plan.filesPerTransaction ?? null,
+    rowsPerFile: plan.rowsPerFile ?? null,
+    repoTier: plan.repoTier ?? null,
+    walPressure: plan.walPressure ?? null,
+    pageSize: plan.pageSize ?? null,
+    journalMode: plan.journalMode ?? null,
+    walEnabled: plan.walEnabled === true,
+    walBytes: plan.walBytes ?? null,
+    rowCount: plan.rowCount ?? null,
+    fileCount: plan.fileCount ?? null,
+    repoBytes: plan.repoBytes ?? null,
+    inputBytes: plan.inputBytes ?? null,
+    telemetry: plan.telemetry || null,
+    source
+  };
+  return telemetry.plan;
+}
+
+export function recordSqliteWalSnapshot(
+  stats,
+  {
+    stage,
+    dbPath,
+    pageSize = null,
+    journalMode = null,
+    walEnabled = null,
+    walPressure = null,
+    source = null,
+    durationMs = null,
+    checkpointMode = null
+  } = {}
+) {
+  const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
+  if (!telemetry || !dbPath) return null;
+  const sizes = readSqliteFileSizes(dbPath);
+  const snapshot = {
+    stage: stage || null,
+    source,
+    pageSize,
+    journalMode,
+    walEnabled,
+    walPressure,
+    dbBytes: sizes.dbBytes,
+    walBytes: sizes.walBytes,
+    shmBytes: sizes.shmBytes,
+    durationMs,
+    checkpointMode
+  };
+  pushBoundedSample(telemetry.walSnapshots, snapshot);
+  return snapshot;
+}
+
+export function recordSqliteCommitTelemetry(
+  stats,
+  {
+    stage,
+    durationMs,
+    dbPath = null,
+    pageSize = null,
+    journalMode = null,
+    walEnabled = null,
+    walPressure = null,
+    source = null
+  } = {}
+) {
+  const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
+  if (!telemetry || !Number.isFinite(durationMs)) return null;
+  const sizes = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
+  const sample = {
+    stage: stage || null,
+    source,
+    durationMs,
+    pageSize,
+    journalMode,
+    walEnabled,
+    walPressure,
+    dbBytes: sizes.dbBytes,
+    walBytes: sizes.walBytes,
+    shmBytes: sizes.shmBytes
+  };
+  pushBoundedSample(telemetry.commits, sample);
+  maybeRecordSqliteWriteStall(stats, createSqliteWriteStallSample({
+    kind: 'commit',
+    stage,
+    durationMs,
+    thresholdMs: SQLITE_COMMIT_STALL_MS,
+    walBytes: sizes.walBytes,
+    walPressure
+  }));
+  return sample;
+}
+
+export function checkpointSqliteWithTelemetry(
+  db,
+  {
+    stats,
+    dbPath,
+    stage,
+    pageSize = null,
+    journalMode = null,
+    walEnabled = null,
+    walPressure = null,
+    source = null,
+    mode = 'TRUNCATE'
+  } = {}
+) {
+  if (!db) return null;
+  const start = performance.now();
+  const before = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
+  const result = db.pragma(`wal_checkpoint(${mode})`);
+  const durationMs = performance.now() - start;
+  const after = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
+  const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
+  if (!telemetry) return result;
+  const sample = {
+    stage: stage || null,
+    source,
+    mode,
+    durationMs,
+    pageSize,
+    journalMode,
+    walEnabled,
+    walPressure,
+    before,
+    after
+  };
+  pushBoundedSample(telemetry.checkpoints, sample);
+  maybeRecordSqliteWriteStall(stats, createSqliteWriteStallSample({
+    kind: 'checkpoint',
+    stage,
+    durationMs,
+    thresholdMs: SQLITE_CHECKPOINT_STALL_MS,
+    walBytes: after.walBytes,
+    walPressure
+  }));
+  recordSqliteWalSnapshot(stats, {
+    stage: stage ? `${stage}:after-checkpoint` : 'after-checkpoint',
+    dbPath,
+    pageSize,
+    journalMode,
+    walEnabled,
+    walPressure,
+    source,
+    durationMs,
+    checkpointMode: mode
+  });
+  return result;
+}
+
 /**
  * Increment a batch statistic counter when provided.
  * @param {object|null} stats
@@ -356,6 +614,36 @@ export function resolveSqliteBatchSize(options = {}) {
 export function bumpSqliteBatchStat(stats, key) {
   if (!stats || !key) return;
   stats[key] = (stats[key] || 0) + 1;
+}
+
+/**
+ * Record per-table sqlite write telemetry when a stats object is active.
+ * @param {object|null} tableStats
+ * @param {string} name
+ * @param {number} rows
+ * @param {number} durationMs
+ */
+export function recordSqliteTableStat(tableStats, name, rows, durationMs) {
+  if (!tableStats || !name) return;
+  const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
+  entry.rows += rows;
+  entry.durationMs += durationMs;
+  entry.rowsPerSec = entry.durationMs > 0
+    ? Math.round((entry.rows / entry.durationMs) * 1000)
+    : null;
+  tableStats[name] = entry;
+}
+
+/**
+ * Create a no-op-safe table telemetry recorder bound to a sqlite stats object.
+ * @param {object|null} stats
+ * @returns {(name:string, rows:number, durationMs:number) => void}
+ */
+export function createSqliteTableStatRecorder(stats) {
+  const tableStats = stats && typeof stats === 'object'
+    ? (stats.tables || (stats.tables = {}))
+    : null;
+  return (name, rows, durationMs) => recordSqliteTableStat(tableStats, name, rows, durationMs);
 }
 
 /**

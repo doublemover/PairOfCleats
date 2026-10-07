@@ -1,5 +1,5 @@
 import { isCLike } from './constants.js';
-import { fileExt } from '../shared/files.js';
+import { fileExt } from '../shared/file-paths.js';
 
 /**
  * Assign a scoring weight based on chunk kind and file path.

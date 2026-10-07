@@ -1,5 +1,5 @@
 {
-  "schemaHash": "70684cd90b52c87bc1ee78ea1da903f49a6d6aeb",
+  "schemaHash": "d1def956dfd9e7f322c926d600d36101a56c6aa4",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -321,6 +321,7 @@
         "space"
       ],
       "optionalFields": [
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
@@ -404,6 +405,7 @@
         "space"
       ],
       "optionalFields": [
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
@@ -446,6 +448,7 @@
         "space"
       ],
       "optionalFields": [
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
@@ -564,11 +567,13 @@
       "requiredFields": [
         "chunkerVersion",
         "counts",
+        "coverage",
         "extractionConfigDigest",
         "extractors",
         "files",
         "generatedAt",
         "mode",
+        "policy",
         "quality",
         "schemaVersion"
       ],
@@ -628,6 +633,8 @@
         "encoding",
         "encodingConfidence",
         "encodingFallback",
+        "encodingFallbackClass",
+        "encodingFallbackRisk",
         "ext"
       ]
     },
@@ -1025,6 +1032,23 @@
       "optionalFields": [
         "extensions"
       ]
+    },
+    {
+      "artifact": "scan_profile",
+      "schemaVersion": {
+        "type": "integer"
+      },
+      "requiredFields": [
+        "generatedAt",
+        "languageLines",
+        "modes",
+        "repo",
+        "reuse",
+        "schemaVersion",
+        "source",
+        "totals"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "snapshot_frozen",

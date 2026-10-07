@@ -4,6 +4,7 @@ import {
   buildSingleSymbolInputs,
   createLspProviderTempRepo,
   resolveLspFixtureCommand,
+  resolveLspStubServerPath,
   runDedicatedProviderFixture
 } from '../../helpers/lsp-provider-fixture.js';
 import { withLspTestPath } from '../../helpers/lsp-runtime.js';
@@ -29,6 +30,7 @@ const inputs = buildSingleSymbolInputs({
 await withLspTestPath({ repoRoot: root }, async () => {
   const result = await runDedicatedProviderFixture({
     tempRoot,
+    authorizeFixtureExecution: true,
     providerId: 'jdtls',
     providerConfigKey: 'jdtls',
     providerConfig: {
@@ -59,6 +61,14 @@ await withLspTestPath({ repoRoot: root }, async () => {
     false,
     'workspace marker guard should not trigger when pom.xml exists'
   );
+  const qualifiedResult = await runDedicatedProviderFixture({ tempRoot, authorizeFixtureExecution: true,
+    providerId: 'jdtls', providerConfigKey: 'jdtls', providerConfig: {
+      cmd: process.execPath, args: [resolveLspStubServerPath({ repoRoot: root }), '--mode', 'java-qualified', '--exit-on-shutdown'],
+      timeoutMs: 3000, retries: 0
+    }, inputs });
+  const qualified = qualifiedResult.byChunkUid.get(inputs.chunkUid)?.payload;
+  assert.equal(qualified?.returnType, 'int', 'JDT owner/parameter suffix cannot become part of the return type');
+  assert.deepEqual(Object.keys(qualified?.paramTypes || {}).sort(), ['a', 'b']);
 
   console.log('jdtls provider bootstrap test passed');
 });

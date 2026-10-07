@@ -156,7 +156,7 @@ export const readBuffer = (targetPath, maxBytes) => {
   return fs.readFileSync(targetPath);
 };
 
-export const collectCompressedCandidates = (filePath) => {
+const collectCompressedVariantCandidates = (filePath) => {
   const candidates = [];
   const addCandidate = (targetPath, compression, cleanup) => {
     if (!fs.existsSync(targetPath)) return;
@@ -179,25 +179,6 @@ export const collectCompressedCandidates = (filePath) => {
   return candidates;
 };
 
-export const collectCompressedJsonlCandidates = (filePath) => {
-  const candidates = [];
-  const addCandidate = (targetPath, compression, cleanup) => {
-    if (!fs.existsSync(targetPath)) return;
-    let mtimeMs = 0;
-    try {
-      mtimeMs = fs.statSync(targetPath).mtimeMs;
-    } catch {}
-    candidates.push({ path: targetPath, compression, cleanup, mtimeMs });
-  };
-  const zstPath = `${filePath}.zst`;
-  const gzPath = `${filePath}.gz`;
-  addCandidate(zstPath, 'zstd', true);
-  addCandidate(getBakPath(zstPath), 'zstd', false);
-  addCandidate(gzPath, 'gzip', true);
-  addCandidate(getBakPath(gzPath), 'gzip', false);
-  candidates.sort((a, b) => {
-    if (a.cleanup !== b.cleanup) return a.cleanup ? -1 : 1;
-    return b.mtimeMs - a.mtimeMs;
-  });
-  return candidates;
-};
+export const collectCompressedCandidates = (filePath) => collectCompressedVariantCandidates(filePath);
+
+export const collectCompressedJsonlCandidates = (filePath) => collectCompressedVariantCandidates(filePath);

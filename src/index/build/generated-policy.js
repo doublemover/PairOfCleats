@@ -1,6 +1,6 @@
 import path from 'node:path';
 import ignore from 'ignore';
-import { toPosix } from '../../shared/files.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { MINIFIED_NAME_REGEX } from './watch/shared.js';
 
 export const GENERATED_POLICY_REASON_CODE = 'USR-R-GENERATED-METADATA-ONLY';

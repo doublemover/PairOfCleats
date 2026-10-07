@@ -4,9 +4,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { resolveBundlePatchPath } from '../../../src/shared/bundle-io-paths.js';
 import {
   readBundleFile,
-  resolveBundlePatchPath,
   writeBundleFile,
   writeBundlePatch
 } from '../../../src/shared/bundle-io.js';

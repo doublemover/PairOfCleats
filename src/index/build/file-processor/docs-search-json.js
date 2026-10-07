@@ -1,4 +1,4 @@
-import { toPosix } from '../../../shared/files.js';
+import { toPosix } from '../../../shared/file-paths.js';
 import { isDocsPath } from '../mode-routing.js';
 
 const DOCS_SEARCH_JSON_FILE = 'search.json';
@@ -89,6 +89,28 @@ const extractStringField = (window, field) => {
   const match = window.match(rx);
   if (!match) return '';
   return decodeJsonString(match[1]);
+};
+
+const extractFastScanEntryFields = (window) => ({
+  name: extractStringField(window, 'name') || extractStringField(window, 'title'),
+  parent_name: extractStringField(window, 'parent_name') || extractStringField(window, 'parent'),
+  abstract: extractStringField(window, 'abstract')
+    || extractStringField(window, 'description')
+    || extractStringField(window, 'text')
+    || extractStringField(window, 'content')
+});
+
+const appendFastScanEntryLine = ({
+  lines,
+  route,
+  window,
+  abstractLimit,
+  lineLimit
+}) => {
+  const normalized = normalizeEntry(route, extractFastScanEntryFields(window), abstractLimit);
+  if (!normalized) return false;
+  lines.push(trimToLimit(normalized, lineLimit));
+  return true;
 };
 
 /**
@@ -280,19 +302,7 @@ const compactDocsSearchJsonTextFastScan = (
     const nextStart = i + 1 < entryHeads.length ? entryHeads[i + 1].start : text.length;
     const end = Math.min(text.length, start + windowChars, nextStart);
     const window = text.slice(start, end);
-    const name = extractStringField(window, 'name') || extractStringField(window, 'title');
-    const parent = extractStringField(window, 'parent_name') || extractStringField(window, 'parent');
-    const abstract = extractStringField(window, 'abstract')
-      || extractStringField(window, 'description')
-      || extractStringField(window, 'text')
-      || extractStringField(window, 'content');
-    const normalized = normalizeEntry(route, {
-      name,
-      parent_name: parent,
-      abstract
-    }, abstractLimit);
-    if (!normalized) continue;
-    lines.push(trimToLimit(normalized, lineLimit));
+    appendFastScanEntryLine({ lines, route, window, abstractLimit, lineLimit });
   }
   if (!lines.length) {
     const arrayEntryRanges = collectTopLevelArrayObjectRanges(text, entryLimit);
@@ -304,19 +314,7 @@ const compactDocsSearchJsonTextFastScan = (
         || extractStringField(window, 'path')
         || extractStringField(window, 'url')
         || extractStringField(window, 'id');
-      const name = extractStringField(window, 'name') || extractStringField(window, 'title');
-      const parent = extractStringField(window, 'parent_name') || extractStringField(window, 'parent');
-      const abstract = extractStringField(window, 'abstract')
-        || extractStringField(window, 'description')
-        || extractStringField(window, 'text')
-        || extractStringField(window, 'content');
-      const normalized = normalizeEntry(route, {
-        name,
-        parent_name: parent,
-        abstract
-      }, abstractLimit);
-      if (!normalized) continue;
-      lines.push(trimToLimit(normalized, lineLimit));
+      appendFastScanEntryLine({ lines, route, window, abstractLimit, lineLimit });
     }
   }
   if (!lines.length) return null;

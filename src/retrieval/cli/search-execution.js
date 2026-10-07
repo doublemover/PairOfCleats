@@ -16,6 +16,7 @@ export async function executeSearchAndEmit(input) {
     jsonOutput,
     jsonCompact,
     explain,
+    explainTier = 'summary',
     rootDir,
     userConfig,
     metricsDir,
@@ -109,7 +110,8 @@ export async function executeSearchAndEmit(input) {
     showMatched,
     verboseCache,
     stageTracker,
-    asOfContext
+    asOfContext,
+    generationContext = null
   } = input;
 
   const modelIds = {
@@ -249,6 +251,7 @@ export async function executeSearchAndEmit(input) {
     jsonOutput,
     jsonCompact,
     explain,
+    explainTier,
     color,
     rootDir,
     backendLabel,
@@ -259,6 +262,7 @@ export async function executeSearchAndEmit(input) {
     runExtractedProse,
     runRecords,
     topN,
+    rawQuery: query,
     queryTokens: queryPlan.queryTokens,
     highlightRegex: queryPlan.highlightRegex,
     contextExpansionEnabled,
@@ -292,6 +296,7 @@ export async function executeSearchAndEmit(input) {
     intentInfo: queryPlan.intentInfo,
     resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,
     fieldWeights: queryPlan.fieldWeights,
+    indexSignaturePayload,
     contextExpansionStats: searchResult.contextExpansionStats,
     idxProse,
     idxExtractedProse,
@@ -303,7 +308,9 @@ export async function executeSearchAndEmit(input) {
     elapsedMs,
     stageTracker,
     outputBudget: userConfig?.search?.outputBudget || null,
-    asOfContext
+    hyperlinkMode: userConfig?.search?.hyperlinks || null,
+    asOfContext,
+    generationContext
   });
 
   await recordSearchArtifacts({

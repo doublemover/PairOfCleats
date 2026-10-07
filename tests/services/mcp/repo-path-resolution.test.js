@@ -6,6 +6,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { resolveRepoPath, resolveToolTimeoutMs } from '../../../tools/mcp/repo.js';
+import { resolveMcpRepoContext } from '../../../tools/mcp/tools/helpers.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -51,26 +52,15 @@ applyTestEnv({ cacheRoot });
 
 try {
   const rootCache = await ensureRepoArtifacts(repoRoot, 'root-build');
-  const resolvedFromNested = resolveRepoPath(nested);
-  assert.equal(
-    normPath(resolvedFromNested),
-    normPath(repoRoot),
-    'repoPath should resolve to repository root when canonical root has artifacts'
-  );
-
-  await fsPromises.rm(rootCache, { recursive: true, force: true });
-  await ensureRepoArtifacts(nested, 'nested-build');
-  const resolvedWithNestedArtifacts = resolveRepoPath(nested);
-  assert.equal(
-    normPath(resolvedWithNestedArtifacts),
-    normPath(nested),
-    'repoPath should remain explicit when canonical root has no artifacts and explicit path does'
-  );
-
   const configPath = path.join(repoRoot, '.pairofcleats.json');
   await fsPromises.writeFile(
     configPath,
     JSON.stringify({
+      runtime: {
+        nodeOptions: '--trace-warnings',
+        maxOldSpaceMb: 1280,
+        uvThreadpoolSize: 11
+      },
       mcp: {
         toolTimeoutMs: 4321,
         toolTimeouts: {
@@ -79,6 +69,39 @@ try {
       }
     }, null, 2),
     'utf8'
+  );
+
+  const resolvedFromNested = resolveRepoPath(nested);
+  assert.equal(
+    normPath(resolvedFromNested),
+    normPath(repoRoot),
+    'repoPath should resolve to repository root when canonical root has artifacts'
+  );
+
+  const runtimeBaseEnv = { ...process.env };
+  delete runtimeBaseEnv.NODE_OPTIONS;
+  delete runtimeBaseEnv.UV_THREADPOOL_SIZE;
+  delete runtimeBaseEnv.PAIROFCLEATS_NODE_OPTIONS;
+  delete runtimeBaseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
+  delete runtimeBaseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
+  const mcpContext = resolveMcpRepoContext(nested, { baseEnv: runtimeBaseEnv });
+  assert.equal(
+    normPath(mcpContext.repoPath),
+    normPath(repoRoot),
+    'MCP context helper should preserve artifact-aware repoPath resolution'
+  );
+  assert.equal(mcpContext.userConfig.runtime?.uvThreadpoolSize, 11);
+  assert.equal(mcpContext.runtimeEnv.UV_THREADPOOL_SIZE, '11');
+  assert.match(String(mcpContext.runtimeEnv.NODE_OPTIONS || ''), /--trace-warnings/);
+  assert.match(String(mcpContext.runtimeEnv.NODE_OPTIONS || ''), /--max-old-space-size=1280/);
+
+  await fsPromises.rm(rootCache, { recursive: true, force: true });
+  await ensureRepoArtifacts(nested, 'nested-build');
+  const resolvedWithNestedArtifacts = resolveRepoPath(nested);
+  assert.equal(
+    normPath(resolvedWithNestedArtifacts),
+    normPath(nested),
+    'repoPath should remain explicit when canonical root has no artifacts and explicit path does'
   );
 
   const perToolTimeout = resolveToolTimeoutMs('search', { repoPath: nested }, {

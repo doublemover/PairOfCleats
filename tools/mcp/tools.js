@@ -1,20 +1,29 @@
 import { configStatus, indexStatus } from './repo.js';
 import { cacheGc, cleanArtifacts, reportArtifacts } from './tools/handlers/artifacts.js';
-import { runContextPack, runRiskExplain } from './tools/handlers/analysis.js';
+import { runContextPack, runRiskDelta, runRiskExplain } from './tools/handlers/analysis.js';
 import { runBootstrap } from './tools/handlers/bootstrap.js';
 import { downloadDictionaries, downloadExtensions, downloadModels, verifyExtensions } from './tools/handlers/downloads.js';
 import { buildIndex, buildSqliteIndex, compactSqliteIndex } from './tools/handlers/indexing.js';
 import { runSearch, runWorkspaceSearch } from './tools/handlers/search.js';
 import { triageContextPack, triageDecision, triageIngest } from './tools/handlers/triage.js';
 import { createError, ERROR_CODES } from '../../src/shared/error-codes.js';
-import { getTestEnvConfig } from '../../src/shared/env.js';
-import { normalizeMetaFilters } from '../shared/search-request.js';
+import { getTestEnvConfig } from '../../src/shared/env/testing.js';
+import { normalizeMetaFilters } from '../../src/shared/search-request.js';
 
 const parseTestDelayMs = () => {
   const testEnv = getTestEnvConfig();
   if (!testEnv.testing) return null;
   const parsed = Number(testEnv.mcpDelayMs);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  const toolNames = Array.isArray(testEnv.mcpDelayToolNames)
+    ? testEnv.mcpDelayToolNames
+      .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+      .filter(Boolean)
+    : [];
+  return {
+    ms: Math.floor(parsed),
+    toolNames
+  };
 };
 
 const delayWithAbort = (ms, signal) => new Promise((resolve, reject) => {
@@ -43,6 +52,7 @@ export {
   buildIndex,
   runSearch,
   runContextPack,
+  runRiskDelta,
   runRiskExplain,
   downloadModels,
   downloadDictionaries,
@@ -65,6 +75,7 @@ export const TOOL_HANDLERS = new Map([
   ['build_index', buildIndex],
   ['search', runSearch],
   ['context_pack', runContextPack],
+  ['risk_delta', runRiskDelta],
   ['risk_explain', runRiskExplain],
   ['search_workspace', runWorkspaceSearch],
   ['download_models', downloadModels],
@@ -93,14 +104,20 @@ export async function handleToolCall(name, args, context = {}) {
   if (!handler) {
     throw createError(ERROR_CODES.NOT_FOUND, `Unknown tool: ${name}`);
   }
-  const delayMs = parseTestDelayMs();
-  if (delayMs) {
+  const delayConfig = parseTestDelayMs();
+  const normalizedName = typeof name === 'string' ? name.trim().toLowerCase() : '';
+  const shouldDelay = delayConfig && (
+    !Array.isArray(delayConfig.toolNames)
+    || delayConfig.toolNames.length === 0
+    || delayConfig.toolNames.includes(normalizedName)
+  );
+  if (shouldDelay) {
     if (typeof context.progress === 'function') {
       for (let i = 0; i < 5; i += 1) {
         context.progress({ message: `test-progress-${i}`, phase: 'progress' });
       }
     }
-    await delayWithAbort(delayMs, context.signal);
+    await delayWithAbort(delayConfig.ms, context.signal);
   }
   return await handler(args, context);
 }

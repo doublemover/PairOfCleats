@@ -1,14 +1,285 @@
 import { sha1 } from './hash.js';
 import { stableStringifyForSignature } from './stable-json.js';
 import { getEnvConfig } from './env.js';
+import { createFifoBudgetMemo } from './cache/fifo-budget.js';
 
 export const CACHE_KEY_VERSION = 'ck1';
 export const DEFAULT_CACHE_NAMESPACE = 'pairofcleats';
 export const LOCAL_CACHE_KEY_VERSION = 'lk1';
+const LOCAL_CACHE_DIGEST_MEMO_MAX = 65536;
+// Two module-global memo budgets total 16 MiB per JS isolate. String lengths and
+// declared reference slots are a retention proxy, not Map overhead or process RSS.
+const LOCAL_CACHE_MEMO_PROXY_MAX_BYTES = 8 * 1024 * 1024;
+const REFERENCE_PROXY_BYTES = 8;
+const stringStorageProxy = (value) => typeof value === 'string' ? value.length * 2 : 0;
+const localCacheDigestMemo = createFifoBudgetMemo({
+  maxEntries: LOCAL_CACHE_DIGEST_MEMO_MAX,
+  maxBytes: LOCAL_CACHE_MEMO_PROXY_MAX_BYTES,
+  sizeCalculation: (digest, serialized) => stringStorageProxy(serialized)
+    + stringStorageProxy(digest) + 2 * REFERENCE_PROXY_BYTES
+});
+const localCacheSimpleKeyMemo = createFifoBudgetMemo({
+  maxEntries: LOCAL_CACHE_DIGEST_MEMO_MAX,
+  maxBytes: LOCAL_CACHE_MEMO_PROXY_MAX_BYTES,
+  sizeCalculation: (entry, memoKey) => stringStorageProxy(memoKey)
+    + stringStorageProxy(entry.key) + stringStorageProxy(entry.digest)
+    + stringStorageProxy(entry.serialized) + 5 * REFERENCE_PROXY_BYTES
+});
+const BUILDER_EMPTY_PROPERTY_VALUE = Symbol('builder-empty-property-value');
+const BUILDER_UNSUPPORTED_PROPERTY_VALUE = Symbol('builder-unsupported-property-value');
 
 const normalizeToken = (value) => {
   if (value == null) return '';
   return String(value).trim();
+};
+
+const tryStringifySignaturePrimitive = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value === 'bigint') {
+    return `{"__type":"bigint","value":${JSON.stringify(value.toString())}}`;
+  }
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return JSON.stringify(value);
+  }
+  return null;
+};
+
+const tryStableStringifyJsonSignature = (value, { arrayUndefinedAsNull = false } = {}) => {
+  const primitive = tryStringifySignaturePrimitive(value);
+  if (primitive !== null) {
+    return primitive === undefined && arrayUndefinedAsNull ? 'null' : primitive;
+  }
+  if (Array.isArray(value)) {
+    const parts = [];
+    for (const entry of value) {
+      const serialized = tryStableStringifyJsonSignature(entry, { arrayUndefinedAsNull: true });
+      if (serialized === null) return null;
+      parts.push(serialized === undefined ? 'null' : serialized);
+    }
+    return `[${parts.join(',')}]`;
+  }
+  if (!value || typeof value !== 'object' || value.constructor !== Object) {
+    return null;
+  }
+  const parts = [];
+  for (const key of Object.keys(value).sort()) {
+    const serialized = tryStableStringifyJsonSignature(value[key]);
+    if (serialized === null) return null;
+    if (serialized === undefined) continue;
+    parts.push(`${JSON.stringify(key)}:${serialized}`);
+  }
+  return `{${parts.join(',')}}`;
+};
+
+const serializeLocalCacheInput = ({ namespace, version, payload }) => {
+  const serializedPayload = tryStableStringifyJsonSignature(payload ?? null);
+  if (serializedPayload === null || serializedPayload === undefined) {
+    return stableStringifyForSignature({
+      namespace,
+      version,
+      payload: payload ?? null
+    });
+  }
+  return `{"namespace":${JSON.stringify(namespace)},"payload":${serializedPayload},"version":${JSON.stringify(version)}}`;
+};
+
+const tryPrimitiveMemoToken = (value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return 'null';
+  if (typeof value === 'number') return Number.isFinite(value) ? `number:${value}` : 'null';
+  if (typeof value === 'boolean') return value ? 'boolean:true' : 'boolean:false';
+  if (typeof value === 'string') return `string:${value.length}:${value}`;
+  return null;
+};
+
+const tryBuildSimpleLocalCacheMemoKey = ({ namespace, version, payload }) => {
+  const value = payload ?? null;
+  const primitive = tryPrimitiveMemoToken(value);
+  const prefix = `${namespace.length}:${namespace}|${version.length}:${version}|`;
+  if (primitive !== null) {
+    return `${prefix}${primitive}`;
+  }
+  if (!value || typeof value !== 'object' || value.constructor !== Object) return null;
+  const parts = [];
+  for (const key of Object.keys(value).sort()) {
+    const serialized = tryPrimitiveMemoToken(value[key]);
+    if (serialized === null) return null;
+    if (serialized === undefined) continue;
+    parts.push(`${key.length}:${key}=${serialized}`);
+  }
+  return `${prefix}{${parts.join(',')}}`;
+};
+
+const normalizeBuilderPropertyValue = (value) => {
+  if (value === undefined) return BUILDER_EMPTY_PROPERTY_VALUE;
+  if (value === null) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string' || typeof value === 'boolean' || typeof value === 'bigint') return value;
+  return BUILDER_UNSUPPORTED_PROPERTY_VALUE;
+};
+
+const createSinglePropertyKeyMemo = () => {
+  const buckets = new Map();
+  const order = new Map();
+  let nextOrderId = 0;
+  let size = 0;
+
+  const getBucket = (propertyName, create = false) => {
+    let bucket = buckets.get(propertyName);
+    if (!bucket && create) {
+      bucket = new Map();
+      buckets.set(propertyName, bucket);
+    }
+    return bucket || null;
+  };
+
+  return {
+    get(propertyName, value) {
+      return getBucket(propertyName)?.get(value) || null;
+    },
+    set(propertyName, value, key) {
+      let bucket = getBucket(propertyName);
+      if (!bucket?.has(value)) {
+        if (size >= LOCAL_CACHE_DIGEST_MEMO_MAX) return;
+        bucket = getBucket(propertyName, true);
+        size += 1;
+        order.set(nextOrderId, { propertyName, value });
+        nextOrderId += 1;
+      }
+      bucket.set(value, key);
+      while (size > LOCAL_CACHE_DIGEST_MEMO_MAX) {
+        const oldestOrderId = order.keys().next().value;
+        if (oldestOrderId === undefined) break;
+        const oldest = order.get(oldestOrderId);
+        order.delete(oldestOrderId);
+        const oldestBucket = getBucket(oldest.propertyName);
+        if (oldestBucket?.delete(oldest.value)) {
+          size -= 1;
+          if (!oldestBucket.size) buckets.delete(oldest.propertyName);
+        }
+      }
+    }
+  };
+};
+
+const hashMemoizedSerialized = (serialized) => {
+  const cached = localCacheDigestMemo.get(serialized);
+  if (cached) {
+    return cached;
+  }
+  const digest = sha1(serialized);
+  localCacheDigestMemo.set(serialized, digest);
+  return digest;
+};
+
+const rememberSimpleLocalCacheKey = (memoKey, entry) => {
+  if (!memoKey) return;
+  localCacheSimpleKeyMemo.set(memoKey, entry);
+};
+
+const buildResolvedLocalCacheKey = ({
+  resolvedNamespace,
+  resolvedVersion,
+  payload,
+  keyOnly = false
+}) => {
+  const memoKey = tryBuildSimpleLocalCacheMemoKey({
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    payload: payload ?? null
+  });
+  const cached = memoKey ? localCacheSimpleKeyMemo.get(memoKey) : null;
+  if (cached) {
+    if (keyOnly) return cached.key;
+    return {
+      key: cached.key,
+      namespace: resolvedNamespace,
+      version: resolvedVersion,
+      digest: cached.digest,
+      serialized: cached.serialized,
+      payload
+    };
+  }
+  const serialized = serializeLocalCacheInput({
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    payload: payload ?? null
+  });
+  const digest = hashMemoizedSerialized(serialized);
+  const key = `${resolvedNamespace}:${resolvedVersion}:${digest}`;
+  rememberSimpleLocalCacheKey(memoKey, { key, digest, serialized });
+  if (keyOnly) return key;
+  return {
+    key,
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    digest,
+    serialized,
+    payload
+  };
+};
+
+const buildResolvedSinglePropertyLocalCacheKey = ({
+  resolvedNamespace,
+  resolvedVersion,
+  property,
+  value,
+  keyOnly = false
+}) => {
+  const propertyName = String(property ?? '');
+  if (!propertyName) {
+    return buildResolvedLocalCacheKey({
+      resolvedNamespace,
+      resolvedVersion,
+      payload: {},
+      keyOnly
+    });
+  }
+  const serializedValue = tryStringifySignaturePrimitive(value);
+  if (serializedValue === null) {
+    const payload = { [propertyName]: value };
+    return buildResolvedLocalCacheKey({
+      resolvedNamespace,
+      resolvedVersion,
+      payload,
+      keyOnly
+    });
+  }
+  const prefix = `${resolvedNamespace.length}:${resolvedNamespace}|${resolvedVersion.length}:${resolvedVersion}|`;
+  const memoValue = tryPrimitiveMemoToken(value);
+  const memoKey = serializedValue === undefined
+    ? `${prefix}{}`
+    : (memoValue === null
+      ? null
+      : `${prefix}{${propertyName.length}:${propertyName}=${memoValue}}`);
+  const cached = memoKey ? localCacheSimpleKeyMemo.get(memoKey) : null;
+  if (cached) {
+    if (keyOnly) return cached.key;
+    return {
+      key: cached.key,
+      namespace: resolvedNamespace,
+      version: resolvedVersion,
+      digest: cached.digest,
+      serialized: cached.serialized,
+      payload: serializedValue === undefined ? {} : { [propertyName]: value }
+    };
+  }
+  const serializedPayload = serializedValue === undefined
+    ? '{}'
+    : `{${JSON.stringify(propertyName)}:${serializedValue}}`;
+  const serialized = `{"namespace":${JSON.stringify(resolvedNamespace)},"payload":${serializedPayload},"version":${JSON.stringify(resolvedVersion)}}`;
+  const digest = hashMemoizedSerialized(serialized);
+  const key = `${resolvedNamespace}:${resolvedVersion}:${digest}`;
+  rememberSimpleLocalCacheKey(memoKey, { key, digest, serialized });
+  if (keyOnly) return key;
+  return {
+    key,
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    digest,
+    serialized,
+    payload: serializedValue === undefined ? {} : { [propertyName]: value }
+  };
 };
 
 export const normalizeCacheNamespace = (value) => {
@@ -100,7 +371,7 @@ export const buildCacheKey = (options = {}) => {
   const version = normalizeToken(options.version) || CACHE_KEY_VERSION;
   const payload = buildCacheKeyPayload(options);
   const serialized = serializeCacheKeyPayload(payload);
-  const digest = sha1(serialized);
+  const digest = hashMemoizedSerialized(serialized);
   return {
     key: `${namespace}:${version}:${digest}`,
     namespace,
@@ -114,18 +385,68 @@ export const buildCacheKey = (options = {}) => {
 export const buildLocalCacheKey = ({ namespace = 'local', version, payload } = {}) => {
   const resolvedNamespace = normalizeCacheNamespace(namespace || 'local');
   const resolvedVersion = normalizeToken(version) || LOCAL_CACHE_KEY_VERSION;
-  const serialized = stableStringifyForSignature({
-    namespace: resolvedNamespace,
-    version: resolvedVersion,
-    payload: payload ?? null
-  });
-  const digest = sha1(serialized);
-  return {
-    key: `${resolvedNamespace}:${resolvedVersion}:${digest}`,
-    namespace: resolvedNamespace,
-    version: resolvedVersion,
-    digest,
-    serialized,
-    payload
+  return buildResolvedLocalCacheKey({ resolvedNamespace, resolvedVersion, payload });
+};
+
+export const createLocalCacheKeyBuilder = ({ namespace = 'local', version } = {}) => {
+  const resolvedNamespace = normalizeCacheNamespace(namespace || 'local');
+  const resolvedVersion = normalizeToken(version) || LOCAL_CACHE_KEY_VERSION;
+  const singlePropertyKeyMemo = createSinglePropertyKeyMemo();
+  const serializedNamespace = JSON.stringify(resolvedNamespace);
+  const serializedVersion = JSON.stringify(resolvedVersion);
+  const serializedEmptyPayload = `{"namespace":${serializedNamespace},"payload":{},"version":${serializedVersion}}`;
+  const serializedPayloadPrefix = `{"namespace":${serializedNamespace},"payload":{`;
+  const serializedPayloadSuffix = `},"version":${serializedVersion}}`;
+
+  const buildDirectSinglePropertyKey = (propertyName, value) => {
+    let serialized = serializedEmptyPayload;
+    if (propertyName && value !== undefined) {
+      const serializedValue = tryStringifySignaturePrimitive(value);
+      if (serializedValue === null) return null;
+      serialized = `${serializedPayloadPrefix}${JSON.stringify(propertyName)}:${serializedValue}${serializedPayloadSuffix}`;
+    }
+    const digest = sha1(serialized);
+    return `${resolvedNamespace}:${resolvedVersion}:${digest}`;
   };
+
+  const keyForSingleProperty = (property, value) => {
+    const propertyName = String(property ?? '');
+    const memoValue = propertyName
+      ? normalizeBuilderPropertyValue(value)
+      : BUILDER_EMPTY_PROPERTY_VALUE;
+    if (memoValue !== BUILDER_UNSUPPORTED_PROPERTY_VALUE) {
+      const memoPropertyName = memoValue === BUILDER_EMPTY_PROPERTY_VALUE ? '' : propertyName;
+      const cached = singlePropertyKeyMemo.get(memoPropertyName, memoValue);
+      if (cached) return cached;
+      const key = buildDirectSinglePropertyKey(propertyName, value);
+      singlePropertyKeyMemo.set(memoPropertyName, memoValue, key);
+      return key;
+    }
+    return buildResolvedSinglePropertyLocalCacheKey({
+      resolvedNamespace,
+      resolvedVersion,
+      property,
+      value,
+      keyOnly: true
+    });
+  };
+
+  return Object.freeze({
+    namespace: resolvedNamespace,
+    version: resolvedVersion,
+    build(payload) {
+      return buildResolvedLocalCacheKey({ resolvedNamespace, resolvedVersion, payload });
+    },
+    key(payload) {
+      return buildResolvedLocalCacheKey({
+        resolvedNamespace,
+        resolvedVersion,
+        payload,
+        keyOnly: true
+      });
+    },
+    keyForProperty(property, value) {
+      return keyForSingleProperty(property, value);
+    }
+  });
 };

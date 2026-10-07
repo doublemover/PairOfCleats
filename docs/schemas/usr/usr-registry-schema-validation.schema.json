@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "usr/usr-registry-schema-validation.schema.json",
+  "title": "usr-registry-schema-validation.schema.json",
+  "allOf": [
+    {
+      "$ref": "./evidence-envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "artifactId": {
+      "type": "string",
+      "const": "usr-registry-schema-validation"
+    },
+    "summary": {
+      "type": "object"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "unevaluatedProperties": false,
+  "required": [
+    "artifactId",
+    "summary",
+    "rows"
+  ]
+}

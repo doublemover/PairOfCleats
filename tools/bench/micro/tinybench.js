@@ -8,7 +8,7 @@ import { Bench } from 'tinybench';
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { buildIndex, search } from '../../../src/integrations/core/index.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { getIndexDir, resolveRepoRootArg, resolveToolRoot } from '../../shared/dict-utils.js';
 import { formatMs, writeJsonWithDir } from './utils.js';
 

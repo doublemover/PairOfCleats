@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getRepoCacheRoot, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
@@ -26,13 +26,22 @@ try {
     embeddings: 'stub',
     testConfig: {
       indexing: {
-        scm: { provider: 'none' }
+        scm: { provider: 'none' },
+        typeInference: false,
+        typeInferenceCrossFile: false,
+        riskAnalysis: false,
+        riskAnalysisCrossFile: false,
+        workerPool: { enabled: false }
+      },
+      tooling: {
+        autoEnableOnDetect: false,
+        lsp: { enabled: false }
       }
     }
   });
 
   const run = (args, label) => {
-    const result = spawnSync(process.execPath, args, { cwd: repoRoot, env, encoding: 'utf8' });
+    const result = runNode(args, label, repoRoot, env, { stdio: 'pipe', allowFailure: true });
     if (result.status !== 0) {
       console.error(`Failed: ${label}`);
       if (result.stderr) console.error(result.stderr.trim());
@@ -40,7 +49,17 @@ try {
     }
   };
 
-  run([buildIndexPath, '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'initial build');
+  run([
+    buildIndexPath,
+    '--incremental',
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ], 'initial build');
 
   const userConfig = loadUserConfig(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
@@ -60,7 +79,17 @@ try {
   const newTime = new Date(Date.now() + 5000);
   fs.utimesSync(filePath, newTime, newTime);
 
-  run([buildIndexPath, '--incremental', '--stub-embeddings', '--mode', 'code', '--repo', repoRoot], 'second build');
+  run([
+    buildIndexPath,
+    '--incremental',
+    '--stub-embeddings',
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--repo',
+    repoRoot
+  ], 'second build');
 
   const manifestAfter = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const entryAfter = manifestAfter.files?.['sample.js'];

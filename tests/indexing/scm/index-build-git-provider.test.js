@@ -7,6 +7,7 @@ import { getCurrentBuildInfo, getIndexDir, loadUserConfig, toRealPathSync } from
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8' });
 if (gitCheck.status !== 0) {
@@ -53,8 +54,7 @@ try {
       }
     }
   });
-  const buildResult = spawnSync(
-    process.execPath,
+  const buildResult = runNode(
     [
       path.join(process.cwd(), 'build_index.js'),
       '--stub-embeddings',
@@ -64,7 +64,10 @@ try {
       '--mode',
       'code'
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    'git provider build index',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (buildResult.status !== 0) {
     console.error('git provider build test failed: build_index failed');

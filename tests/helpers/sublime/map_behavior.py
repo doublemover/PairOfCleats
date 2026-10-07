@@ -2,12 +2,11 @@ import importlib
 import json
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeWindow, install_fake_modules
+from runtime_harness import isolated_temp_directory, FakeWindow, install_fake_modules
 
 
 class _FakeResult:
@@ -82,6 +81,23 @@ class MapBehaviorTests(unittest.TestCase):
             elif key == 'run_process':
                 self.map_commands.runner.run_process = value
 
+    def _install_successful_map_runner(self, out_path='https://example.test/map'):
+        runner_calls = []
+
+        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+            runner_calls.append({'cwd': cwd, 'title': title})
+            on_done(_FakeResult({
+                'ok': True,
+                'source': 'cli',
+                'format': 'html-iso',
+                'outPath': out_path,
+                'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
+                'warnings': [],
+            }))
+
+        self.map_commands.runner.run_process = _run_process
+        return runner_calls
+
     def test_map_dispatch_records_report_and_reopens_url_output(self):
         payload = {
             'ok': True,
@@ -107,7 +123,7 @@ class MapBehaviorTests(unittest.TestCase):
         self.assertIn('Warnings:', panel.appended)
 
     def test_map_open_last_viewer_opens_local_file_predictably(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             out_path = os.path.join(tmp, 'map.svg')
             with open(out_path, 'w', encoding='utf-8') as handle:
                 handle.write('<svg/>')
@@ -121,7 +137,7 @@ class MapBehaviorTests(unittest.TestCase):
             self.assertEqual(self.window.opened_files[-1]['path'], out_path)
 
     def test_map_jump_to_node_uses_stored_repo_and_handles_missing_location(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             node_list_path = os.path.join(tmp, 'nodes.json')
             with open(node_list_path, 'w', encoding='utf-8') as handle:
                 json.dump({'nodes': [{'label': 'Detached', 'id': 'n1'}]}, handle)
@@ -161,20 +177,7 @@ class MapBehaviorTests(unittest.TestCase):
             'map_index_mode': 'code',
             'map_collapse_default': 'none',
         }
-        runner_calls = []
-
-        def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
-            runner_calls.append({'cwd': cwd, 'title': title})
-            on_done(_FakeResult({
-                'ok': True,
-                'source': 'cli',
-                'format': 'html-iso',
-                'outPath': 'https://example.test/map',
-                'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
-                'warnings': [],
-            }))
-
-        self.map_commands.runner.run_process = _run_process
+        runner_calls = self._install_successful_map_runner()
 
         self.map_commands._dispatch_map(self.window, 'repo', '', 'C:/repo')
 
@@ -203,27 +206,14 @@ class MapBehaviorTests(unittest.TestCase):
         self.assertIn('API mode is not supported for map.', self.sublime.last_error)
 
     def test_repo_map_prompts_for_repo_when_multiple_roots_exist(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             os.makedirs(os.path.join(repo_a, '.git'))
             os.makedirs(os.path.join(repo_b, '.git'))
             self.window.set_folders([repo_a, repo_b])
             self.map_commands.paths.resolve_repo_root = self._originals['resolve_repo_root']
-            runner_calls = []
-
-            def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
-                runner_calls.append({'cwd': cwd, 'title': title})
-                on_done(_FakeResult({
-                    'ok': True,
-                    'source': 'cli',
-                    'format': 'html-iso',
-                    'outPath': 'https://example.test/map',
-                    'summary': {'counts': {'files': 1, 'members': 1, 'edges': 0}},
-                    'warnings': [],
-                }))
-
-            self.map_commands.runner.run_process = _run_process
+            runner_calls = self._install_successful_map_runner()
             self.map_commands.PairOfCleatsMapRepoCommand(self.window).run()
 
             self.assertEqual(runner_calls, [])

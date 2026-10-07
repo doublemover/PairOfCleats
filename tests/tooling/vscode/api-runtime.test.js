@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 
 import {
   createVsCodeRuntimeHarness,
@@ -38,6 +39,18 @@ const apiHarness = createVsCodeRuntimeHarness({
     searchMode: 'code'
   }
 });
+const runtimeManifest = getRuntimeCapabilityManifest({
+  runtimeCapabilities: {
+    watcher: { chokidar: false, parcel: false },
+    regex: { re2: false, re2js: false },
+    hash: { nodeRsXxhash: false, wasmXxhash: false },
+    compression: { gzip: true, zstd: false },
+    extractors: { pdf: false, docx: false },
+    mcp: { sdk: false, legacy: true },
+    externalBackends: { tantivy: false, lancedb: false },
+    nativeAccel: { enabled: false, runtimeKind: 'js', abiVersion: 1, featureBits: 0 }
+  }
+});
 
 try {
   apiHarness.activate();
@@ -47,11 +60,7 @@ try {
     status: 200,
     json: {
       ok: true,
-      capabilities: {
-        search: true,
-        'search-symbol': true,
-        'index-health': true
-      }
+      runtimeManifest
     }
   });
   apiHarness.queuedFetchResults.push({

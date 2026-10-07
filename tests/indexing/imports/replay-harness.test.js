@@ -17,6 +17,9 @@ const reports = [
     payload: {
       generatedAt: new Date().toISOString(),
       stats: {
+        unresolvedByAdapter: {
+          'bazel-label': 1
+        },
         unresolvedByResolverStage: {
           filesystem_probe: 2,
           fake_stage: 5
@@ -73,7 +76,8 @@ const reports = [
           reasonCode: 'IMP_U_RESOLVER_GAP',
           failureCause: 'resolver_gap',
           disposition: 'suppress_gate',
-          resolverStage: 'language_resolver'
+          resolverStage: 'language_resolver',
+          resolverAdapter: 'bazel-label'
         },
         {
           importer: 'tests/integration.spec.js',
@@ -119,6 +123,7 @@ assert.equal(aggregated.totals.actionable, 4, 'expected actionable unresolved to
 assert.equal(aggregated.totals.parserArtifact, 1, 'expected parser artifact count to be replayed');
 assert.equal(aggregated.totals.resolverGap, 1, 'expected resolver gap count to be replayed');
 assert.equal(aggregated.reasonCodeCounts.IMP_U_MISSING_FILE_RELATIVE, 2, 'expected reason code counts to include excluded warning');
+assert.equal(aggregated.resolverAdapters['bazel-label'], 1, 'expected resolver adapter counts to aggregate');
 assert.equal(aggregated.resolverStages.filesystem_probe, 2, 'expected stage counts to include all observed warnings');
 assert.equal(
   Object.prototype.hasOwnProperty.call(aggregated.resolverStages, 'fake_stage'),

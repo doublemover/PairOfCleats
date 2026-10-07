@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { getIndexDir } from '../../shared/dict-utils.js';
-import { toPosix } from '../../shared/files.js';
-import { hasChunkMetaArtifactsSync } from '../../shared/index-artifact-helpers.js';
+import { toPosix } from '../../shared/file-paths.js';
+import { hasChunkMetaArtifactsSync } from '../../shared/artifact-io/chunk-meta-presence.js';
 
 /**
  * Resolve the index directory for validation routines.

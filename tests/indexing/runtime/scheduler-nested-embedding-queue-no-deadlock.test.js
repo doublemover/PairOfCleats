@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createBuildScheduler } from '../../../src/shared/concurrency.js';
+import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 import { createRuntimeQueues } from '../../../src/index/build/runtime/workers.js';
 
 const scheduler = createBuildScheduler({

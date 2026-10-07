@@ -67,7 +67,7 @@ const result = await runToolingProviders({
     symbolHint: { name: 'name', kind: 'property' },
     languageId: 'yaml'
   }],
-  kinds: ['diagnostics']
+  kinds: ['types', 'diagnostics']
 });
 
 assert.equal(result.byChunkUid.has(chunkUid), true, 'expected yaml provider to enrich with merged init options');

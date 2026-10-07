@@ -1,12 +1,15 @@
+import {
+  coerceFiniteNumber,
+  coerceNonNegativeInt,
+  coercePositiveInt
+} from './number-coerce.js';
+
 /**
  * Normalize a numeric value to a finite number or null.
  * @param {unknown} value
  * @returns {number|null}
  */
-export const normalizeOptionalNumber = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-};
+export const normalizeOptionalNumber = (value) => coerceFiniteNumber(value);
 
 /**
  * Clamp a numeric value between inclusive bounds.
@@ -37,8 +40,8 @@ export const clampInt = (value, min, max, fallback = min) => {
  * @returns {number|null}
  */
 export const normalizeOptionalInt = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? Math.floor(parsed) : null;
+  const parsed = coerceFiniteNumber(value);
+  return parsed == null ? null : Math.floor(parsed);
 };
 
 /**
@@ -47,8 +50,8 @@ export const normalizeOptionalInt = (value) => {
  * @returns {number|null}
  */
 export const normalizeOptionalNonNegativeInt = (value) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
+  const parsed = coerceFiniteNumber(value);
+  if (parsed == null) return null;
   return Math.max(0, Math.floor(parsed));
 };
 
@@ -59,8 +62,8 @@ export const normalizeOptionalNonNegativeInt = (value) => {
  * @returns {number|null}
  */
 export const normalizeNonNegativeInt = (value, fallback = null) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
+  const parsed = coerceFiniteNumber(value);
+  if (parsed == null) return fallback;
   return Math.max(0, Math.floor(parsed));
 };
 
@@ -71,8 +74,8 @@ export const normalizeNonNegativeInt = (value, fallback = null) => {
  * @returns {number|null}
  */
 export const normalizePositiveNumber = (value, fallback = null) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  const parsed = coerceFiniteNumber(value);
+  if (parsed == null || parsed <= 0) return fallback;
   return parsed;
 };
 
@@ -83,9 +86,8 @@ export const normalizePositiveNumber = (value, fallback = null) => {
  * @returns {number|null}
  */
 export const normalizePositiveInt = (value, fallback = null) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.floor(parsed);
+  const parsed = coercePositiveInt(value);
+  return parsed == null ? fallback : parsed;
 };
 
 /**
@@ -135,7 +137,7 @@ export const normalizeOptionalLimit = (value) => (
  */
 export const normalizeCapNullOnZero = (value, fallback = null) => {
   if (value === 0 || value === false) return null;
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  const parsed = coercePositiveInt(value);
+  if (parsed != null) return parsed;
   return fallback;
 };

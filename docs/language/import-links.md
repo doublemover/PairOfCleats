@@ -3,7 +3,9 @@
 ## What they are
 `importLinks` represent **true dependency edges**: importer → resolved in-repo target. Raw specifiers are resolved to repo-local file paths (relative specifiers and TS path aliases) and only internal targets become `importLinks`.
 
-See `docs/specs/import-resolution.md` for the Import Resolution Graph (IRG) contract and resolution rules.
+See `docs/contracts/artifact-schemas.md` for the Import Resolution Graph (IRG)
+artifact contract and `docs/archived/import-resolution.md` for historical
+Phase 3 resolution-rule context.
 
 ## What they are not
 - They do not include external package edges (those remain as raw specifiers).

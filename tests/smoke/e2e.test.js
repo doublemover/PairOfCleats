@@ -3,6 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../helpers/stdio.js';
+import { runNode as runNodeHelper } from '../helpers/run-node.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../helpers/test-cache.js';
@@ -28,15 +29,36 @@ await fsPromises.writeFile(
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      scm: { provider: 'none' }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  },
   syncProcess: false
 });
 
 const runNode = (label, args, options = {}) => {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    encoding: 'utf8',
-    ...options
+  const {
+    stdio = 'pipe',
+    timeout,
+    ...spawnOptions
+  } = options;
+  const result = runNodeHelper(args, label, repoRoot, env, {
+    stdio,
+    timeoutMs: timeout,
+    allowFailure: true,
+    spawnOptions
   });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
@@ -50,10 +72,13 @@ const runNode = (label, args, options = {}) => {
 runNode('build index', [
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--stage',
+  'stage1',
   '--mode',
   'code',
   '--repo',
-  repoRoot
+  repoRoot,
+  '--no-sqlite'
 ], { stdio: 'inherit' });
 
 const search = runNode('search', [

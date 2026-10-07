@@ -1,9 +1,4 @@
-import {
-  toPosix,
-  fromPosix,
-  isAbsolutePathNative,
-  isAbsolutePathAny
-} from '../../src/shared/files.js';
+import { toPosix, fromPosix, isAbsolutePathNative, isAbsolutePathAny } from '../../src/shared/file-paths.js';
 
 export {
   toPosix,

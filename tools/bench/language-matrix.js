@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { createCli } from '../../src/shared/cli.js';
 import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../src/shared/cli-options.js';
+import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import {
-  getRuntimeConfig,
-  resolveRepoConfig,
-  resolveRuntimeEnv,
+  bootstrapRuntime,
   resolveToolRoot
 } from '../shared/dict-utils.js';
-import { parseCommaList } from '../shared/text-utils.js';
+import { parseCommaList } from '../../src/shared/comma-list.js';
 
 const benchOptions = mergeCliOptions(
   BENCH_OPTIONS,
@@ -39,15 +38,13 @@ const benchOptions = mergeCliOptions(
   }
 );
 const argv = createCli({
-  scriptName: 'bench-language-matrix',
+  scriptName: 'pairofcleats bench matrix',
   options: benchOptions
 }).parse();
 validateBenchArgs(argv, { allowedOptions: benchOptions });
 
 const scriptRoot = resolveToolRoot();
-const { repoRoot, userConfig } = resolveRepoConfig(argv.root);
-const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const { repoRoot, userConfig, runtimeEnv } = bootstrapRuntime(argv.root);
 const benchScript = path.join(scriptRoot, 'tools', 'bench', 'language-repos.js');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const resultsRoot = path.resolve(argv.results || path.join(scriptRoot, 'benchmarks', 'results'));
@@ -200,7 +197,7 @@ async function main() {
     results
   };
   const summaryPath = path.join(runRoot, 'matrix.json');
-  await fsPromises.writeFile(summaryPath, JSON.stringify(summary, null, 2));
+  await writeJsonFileResolved(summaryPath, summary);
   console.error(`\n[bench-matrix] Summary written to ${summaryPath}`);
 }
 

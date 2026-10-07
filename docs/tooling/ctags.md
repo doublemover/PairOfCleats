@@ -12,7 +12,7 @@ pairofcleats ingest ctags --repo . --run
 node tools/ingest/ctags.js --repo . --run
 
 # Or via npm
-npm run ctags-ingest -- --repo . --run
+pairofcleats ingest ctags --repo . --run
 
 # Ingest a pre-generated JSONL file
 node tools/ingest/ctags.js --repo . --input ctags.jsonl --out ./ctags.jsonl

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 
 await assert.rejects(
   () => spawnSubprocess(process.execPath, ['-e', 'console.log("ok")'], {

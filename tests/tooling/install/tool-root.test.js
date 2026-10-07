@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { createStage1CodeBuildEnv, runStage1CodeBuildOrExit } from '../../helpers/build-index-fixture.js';
+import { runNode } from '../../helpers/run-node.js';
 import { setupToolingInstallWorkspace } from '../../helpers/tooling-install-fixture.js';
 
 const {
@@ -24,42 +24,23 @@ await fsPromises.writeFile(
   'utf8'
 );
 
-const env = applyTestEnv({
-  cacheRoot,
-  embeddings: 'stub',
-  testConfig: {
-    indexing: {
-      scm: { provider: 'none' },
-      typeInference: false,
-      typeInferenceCrossFile: false
-    },
-    tooling: {
-      autoEnableOnDetect: false,
-      lsp: { enabled: false }
-    }
-  }
+const env = createStage1CodeBuildEnv({ cacheRoot });
+
+await runStage1CodeBuildOrExit({
+  root,
+  repoRoot,
+  cwd: outsideRoot,
+  env,
+  failureLabel: 'build_index from outside repo root'
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage1', '--mode', 'code', '--repo', repoRoot],
-  { cwd: outsideRoot, env, stdio: 'inherit' }
-);
-if (buildResult.status !== 0) {
-  console.error('Failed: build_index from outside repo root');
-  process.exit(buildResult.status ?? 1);
-}
-
-const searchResult = spawnSync(
-  process.execPath,
+const searchResult = runNode(
   [path.join(root, 'search.js'), 'greet', '--json', '--mode', 'code', '--no-ann', '--repo', repoRoot],
-  { cwd: outsideRoot, env, encoding: 'utf8' }
+  'search from outside repo root',
+  outsideRoot,
+  env,
+  { stdio: 'pipe' }
 );
-if (searchResult.status !== 0) {
-  console.error('Failed: search from outside repo root');
-  console.error(searchResult.stderr || searchResult.stdout || '');
-  process.exit(searchResult.status ?? 1);
-}
 
 let payload = null;
 try {

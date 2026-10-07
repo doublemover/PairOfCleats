@@ -1,7 +1,13 @@
-import { buildFilterIndex, hydrateFilterIndex } from './filter-index.js';
-import { loadHnswIndex, normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
+import { normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
 import { decodeLmdbValue } from '../storage/lmdb/utils.js';
+import {
+  buildFileMetaById,
+  hydrateChunksFromFileMeta,
+  hydrateSearchIndexPostProcessing,
+  loadSearchHnswIndex,
+  requireFileMetaForFileIdChunks
+} from './index-hydration.js';
 
 /**
  * Create LMDB helper functions for search.
@@ -47,35 +53,14 @@ export function createLmdbHelpers(options) {
       ? (getArtifact(db, LMDB_ARTIFACT_KEYS.chunkMeta) || [])
       : (chunkCount ? Array.from({ length: chunkCount }) : []);
 
-    const fileMetaRaw = getArtifact(db, LMDB_ARTIFACT_KEYS.fileMeta);
-    let fileMetaById = null;
-    if (Array.isArray(fileMetaRaw)) {
-      fileMetaById = new Map();
-      for (const entry of fileMetaRaw) {
-        if (!entry || entry.id == null) continue;
-        fileMetaById.set(entry.id, entry);
-      }
-    }
+    const fileMetaById = buildFileMetaById(getArtifact(db, LMDB_ARTIFACT_KEYS.fileMeta));
     if (!fileMetaById && includeChunks) {
-      const missingMeta = chunkMeta.some((chunk) => chunk && chunk.fileId != null && !chunk.file);
-      if (missingMeta) {
-        throw new Error('file_meta.json is required for fileId-based chunk metadata.');
-      }
+      requireFileMetaForFileIdChunks(chunkMeta);
     } else if (fileMetaById && includeChunks) {
-      for (const chunk of chunkMeta) {
-        if (!chunk || (chunk.file && chunk.ext)) continue;
-        const meta = fileMetaById.get(chunk.fileId);
-        if (!meta) continue;
-        if (!chunk.file) chunk.file = meta.file;
-        if (!chunk.ext) chunk.ext = meta.ext;
-        if (!chunk.externalDocs) chunk.externalDocs = meta.externalDocs;
-        if (!chunk.last_modified) chunk.last_modified = meta.last_modified;
-        if (!chunk.last_author) chunk.last_author = meta.last_author;
-        if (chunk.churn == null) chunk.churn = meta.churn;
-        if (chunk.churn_added == null) chunk.churn_added = meta.churn_added;
-        if (chunk.churn_deleted == null) chunk.churn_deleted = meta.churn_deleted;
-        if (chunk.churn_commits == null) chunk.churn_commits = meta.churn_commits;
-      }
+      hydrateChunksFromFileMeta(chunkMeta, fileMetaById, {
+        churnAssignment: 'nullish',
+        skipWhenFileAndExt: true
+      });
     }
 
     const fileRelationsRaw = getArtifact(db, LMDB_ARTIFACT_KEYS.fileRelations);
@@ -112,21 +97,16 @@ export function createLmdbHelpers(options) {
       if (indexDir) {
         const target = resolveHnswTarget(mode, denseVectorMode);
         const { indexPath } = resolveHnswPaths(indexDir, target);
-        const mergedConfig = {
-          ...hnswConfig,
-          space: hnswMeta.space || hnswConfig.space,
-          efSearch: hnswMeta.efSearch || hnswConfig.efSearch
-        };
-        const expectedModel = denseVec?.model || denseVecDoc?.model || denseVecCode?.model || null;
-        const expectedDims = denseVec?.dims || denseVecDoc?.dims || denseVecCode?.dims || hnswMeta.dims;
-        hnswIndex = loadHnswIndex({
+        const loadedHnsw = loadSearchHnswIndex({
           indexPath,
-          dims: expectedDims,
-          config: mergedConfig,
-          meta: hnswMeta,
-          expectedModel
+          hnswConfig,
+          hnswMeta,
+          denseVec,
+          denseVecDoc,
+          denseVecCode
         });
-        hnswAvailable = Boolean(hnswIndex);
+        hnswIndex = loadedHnsw.index;
+        hnswAvailable = loadedHnsw.available;
       }
     }
 
@@ -156,24 +136,12 @@ export function createLmdbHelpers(options) {
       phraseNgrams: getArtifact(db, LMDB_ARTIFACT_KEYS.phraseNgrams),
       chargrams: getArtifact(db, LMDB_ARTIFACT_KEYS.chargramPostings)
     };
-    if (idx.phraseNgrams?.vocab && !idx.phraseNgrams.vocabIndex) {
-      idx.phraseNgrams.vocabIndex = new Map(idx.phraseNgrams.vocab.map((term, i) => [term, i]));
-    }
-    if (idx.chargrams?.vocab && !idx.chargrams.vocabIndex) {
-      idx.chargrams.vocabIndex = new Map(idx.chargrams.vocab.map((term, i) => [term, i]));
-    }
-    if (idx.fieldPostings?.fields) {
-      for (const field of Object.keys(idx.fieldPostings.fields)) {
-        const entry = idx.fieldPostings.fields[field];
-        if (!entry?.vocab || entry.vocabIndex) continue;
-        entry.vocabIndex = new Map(entry.vocab.map((term, i) => [term, i]));
-      }
-    }
-    idx.filterIndex = includeFilterIndex
-      ? (filterIndexRaw
-        ? (hydrateFilterIndex(filterIndexRaw) || buildFilterIndex(chunkMeta, { fileChargramN }))
-        : buildFilterIndex(chunkMeta, { fileChargramN }))
-      : null;
+    hydrateSearchIndexPostProcessing(idx, {
+      chunkMeta,
+      fileChargramN,
+      filterIndexRaw,
+      includeFilterIndex
+    });
     idx.tokenIndex = getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings);
     return idx;
   }

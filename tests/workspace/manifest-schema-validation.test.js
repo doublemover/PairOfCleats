@@ -36,5 +36,14 @@ const { manifest } = await generateWorkspaceManifest(resolved, { write: false, g
 
 const validation = validateWorkspaceManifest(manifest);
 assert.equal(validation.ok, true, validation.errors.join('; '));
+assert.equal(
+  manifest.repos[0]?.build?.activeRoot,
+  toRealPathSync(buildRoot),
+  'expected workspace manifest to preserve the canonical active build root'
+);
+assert.ok(
+  typeof manifest.repos[0]?.build?.generationKey === 'string' && manifest.repos[0].build.generationKey.length > 0,
+  'expected workspace manifest to expose a repo generation key'
+);
 
 console.log('workspace manifest schema validation test passed');

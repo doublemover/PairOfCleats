@@ -2,6 +2,8 @@
 
 This guide defines checklist rules used across roadmaps and plans.
 
+`docs/roadmap.md` is the canonical current roadmap and execution-status document. Other roadmap-like docs are supporting specs, worklogs, or archived history.
+
 ## Checklist update rules
 - Only mark a task complete **at the same time** the commit that implements it is made.
 - Tests may only be checked after they **run and pass**.
@@ -24,8 +26,8 @@ Each phase SHOULD list:
 - [ ] Subtask detail
 
 ### Tests
-- [ ] tests/path/to/test-a.test.js
-- [ ] tests/path/to/test-b.test.js
+- [ ] Run the exact current test ids that cover the task
+- [ ] Record the concrete commands or runner ids beside the checkbox before marking it complete
 ```
 
 ## Commit discipline

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 
 const DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;
 const MIN_MAX_OUTPUT_BYTES = 1024;
@@ -219,6 +219,7 @@ export const runLoggedSubprocess = async ({
     return {
       exitCode,
       signal,
+      cancelled: false,
       timedOut: false,
       durationMs: result.durationMs,
       stdout,
@@ -233,6 +234,7 @@ export const runLoggedSubprocess = async ({
     };
   } catch (err) {
     const endedAt = new Date().toISOString();
+    const cancelled = err?.code === 'ABORT_ERR';
     const timedOut = err?.code === 'SUBPROCESS_TIMEOUT';
     const result = err?.result || {};
     const stdout = typeof result.stdout === 'string' ? result.stdout : '';
@@ -265,6 +267,7 @@ export const runLoggedSubprocess = async ({
     return {
       exitCode,
       signal,
+      cancelled,
       timedOut,
       durationMs: Number.isFinite(result.durationMs) ? result.durationMs : null,
       stdout,

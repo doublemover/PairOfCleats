@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { TOOLING_PROVIDERS, registerToolingProvider } from '../../../src/index/tooling/provider-registry.js';
-import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
+import {
+  createToolingProviderLogCollector,
+  runToolingProviderFixture
+} from './provider-run-fixture.js';
 
 TOOLING_PROVIDERS.clear();
 
@@ -17,31 +20,8 @@ registerToolingProvider({
   }
 });
 
-const logs = [];
-await runToolingProviders({
-  strict: true,
-  toolingConfig: {},
-  cache: { enabled: false },
-  logger: (line) => logs.push(String(line || ''))
-}, {
-  documents: [{
-    virtualPath: 'src/sample.fixture',
-    languageId: 'fixture',
-    docHash: 'hash-1'
-  }],
-  targets: [{
-    chunkRef: {
-      docId: 0,
-      chunkUid: 'chunk-1',
-      chunkId: 'chunk-1',
-      file: 'src/sample.fixture',
-      range: { start: 0, end: 1 }
-    },
-    name: 'sample',
-    virtualPath: 'src/sample.fixture',
-    virtualRange: { start: 0, end: 1 }
-  }]
-});
+const { logs, logger } = createToolingProviderLogCollector();
+await runToolingProviderFixture({ logger });
 
 assert.ok(
   logs.some((line) => line.includes('[tooling] provider runtime start providers=1')),

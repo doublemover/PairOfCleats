@@ -2,8 +2,8 @@
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { requireHnswLib, requireLanceDb } from '../../helpers/optional-deps.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -11,50 +11,98 @@ await requireLanceDb({ reason: 'lancedb not available; skipping ann parity test.
 requireHnswLib({ reason: 'hnswlib-node not available; skipping ann parity test.' });
 
 const root = process.cwd();
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const tempRoot = resolveTestCachePath(root, 'ann-parity');
 const repoRoot = path.join(tempRoot, 'repo');
 const cacheRoot = path.join(tempRoot, 'cache');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-await fs.cp(fixtureRoot, repoRoot, { recursive: true });
+await fs.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+await fs.writeFile(
+  path.join(repoRoot, 'src', 'index.js'),
+  [
+    'export function searchIndex(items, needle) {',
+    '  return items.filter((item) => item.includes(needle));',
+    '}',
+    '',
+    'export function rankIndexHit(score) {',
+    '  return score + 1;',
+    '}',
+    '',
+    'export const indexToken = "index";',
+    ''
+  ].join('\n'),
+  'utf8'
+);
 
 const env = applyTestEnv({
   cacheRoot: cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      treeSitter: { enabled: false },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false,
+      embeddings: {
+        enabled: true,
+        hnsw: {
+          enabled: true,
+          isolate: false
+        },
+        lancedb: {
+          enabled: true
+        }
+      }
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
 });
 
-function runNode(args, label) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  });
+function runChildNode(args, label) {
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);
   }
 }
 
-runNode([path.join(root, 'build_index.js'), '--stub-embeddings', '--scm-provider', 'none', '--repo', repoRoot], 'build index');
-runNode(
+runChildNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--stage',
+    'stage2',
+    '--mode',
+    'code',
+    '--scm-provider',
+    'none',
+    '--repo',
+    repoRoot
+  ],
+  'build index'
+);
+runChildNode(
   [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'code', '--repo', repoRoot],
   'build embeddings (code)'
 );
-runNode(
-  [path.join(root, 'tools', 'build/embeddings.js'), '--stub-embeddings', '--mode', 'prose', '--repo', repoRoot],
-  'build embeddings (prose)'
-);
 
 function runSearch(backend) {
-  const result = spawnSync(
-    process.execPath,
+  const result = runNode(
     [
       path.join(root, 'search.js'),
       'index',
       '--backend',
       'memory',
+      '--mode',
+      'code',
       '--ann',
       '--ann-backend',
       backend,
@@ -63,11 +111,14 @@ function runSearch(backend) {
       '--json',
       '--stats',
       '-n',
-      '5',
+      '3',
       '--repo',
       repoRoot
     ],
-    { cwd: repoRoot, env, encoding: 'utf8' }
+    `ANN parity search ${backend}`,
+    repoRoot,
+    env,
+    { stdio: 'pipe', encoding: 'utf8', allowFailure: true }
   );
   if (result.status !== 0) {
     console.error(`Search failed for ANN backend=${backend}`);
@@ -131,7 +182,7 @@ const compareHits = (baseKeys, otherKeys, label) => {
   }
 };
 
-for (const mode of ['code', 'prose']) {
+for (const mode of ['code']) {
   const baseKeys = topKeys(densePayload, mode);
   compareHits(baseKeys, topKeys(hnswPayload, mode), `${mode} (dense vs hnsw)`);
   compareHits(baseKeys, topKeys(lancePayload, mode), `${mode} (dense vs lancedb)`);

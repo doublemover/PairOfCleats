@@ -1,4 +1,4 @@
-import { readJsonFileSafe, readJsonFileSyncSafe } from '../files.js';
+import { readJsonFileSafe, readJsonFileSyncSafe } from '../file-read.js';
 
 /**
  * Read a bounded JSON file (sync) and preserve structured read/parse failure.

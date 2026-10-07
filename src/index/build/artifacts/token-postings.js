@@ -1,6 +1,7 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonObjectFile } from '../../../shared/json-stream.js';
+import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { DEFAULT_PACKED_BLOCK_SIZE, encodePackedOffsets, packTfPostings } from '../../../shared/packed-postings.js';
@@ -276,7 +277,7 @@ export async function enqueueTokenPostingsArtifacts({
         await fs.rename(tempDir, shardsDir);
         await removePathOrThrow(backupDir, { recursive: true });
         await writeJsonObjectFile(metaPath, {
-          fields: {
+          fields: withGeneratedArtifactMetadata({
             avgDocLen: postings.avgDocLen,
             totalDocs: state.docLengths.length,
             format: 'sharded',
@@ -285,7 +286,7 @@ export async function enqueueTokenPostingsArtifacts({
             parts,
             compression: tokenPostingsCompression || null,
             ...(tokenIdMeta ? { extensions: { tokenId: tokenIdMeta } } : {})
-          },
+          }, 'token-postings-meta'),
           arrays: {
             docLengths: state.docLengths
           },

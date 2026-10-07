@@ -3,26 +3,9 @@ import { performance } from 'node:perf_hooks';
 import { createEmbedder } from '../../../src/index/embedding.js';
 import { createToolDisplay } from '../../shared/cli-display.js';
 import { runBatched } from '../../build/embeddings/embed.js';
+import { parseSimpleBenchArgs } from '../shared.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const display = createToolDisplay({ argv: args, stream: process.stderr });
 const providerList = String(args.providers || 'stub')
   .split(',')

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createQueuedAppendWriter } from '../../../src/shared/io/append-writer.js';
 import { createTimeoutError, runWithTimeout } from '../../../src/shared/promise-timeout.js';
+import { createDisplayLoggerAdapter } from '../../shared/cli-display.js';
 
 const DEFAULT_LOG_HISTORY_LIMIT = 50;
 const DEFAULT_LOG_CLOSE_TIMEOUT_MS = 5000;
@@ -46,6 +47,7 @@ export const isDiskFullMessage = (line) => {
  *   closeMasterLog:() => Promise<void>,
  *   closeLogsSync:() => void,
  *   appendLog:(line:string,level?:'info'|'warn'|'error',meta?:object|null) => void,
+ *   appendLogSync:(line:string,level?:'info'|'warn'|'error',meta?:object|null) => void,
  *   writeListLine:(line:string) => void,
  *   writeLog:(line:string) => void,
  *   writeLogSync:(line:string) => void,
@@ -74,6 +76,7 @@ export const createBenchLogger = ({
   const pendingSyncWrites = new Map();
   const logsRoot = path.dirname(masterLogPath);
   const logHistory = [];
+  const displayLogger = createDisplayLoggerAdapter(display);
 
   const createLogWriter = (filePath) => createQueuedAppendWriter({
     filePath,
@@ -272,6 +275,16 @@ export const createBenchLogger = ({
     } catch {}
   };
 
+  const emitToDisplay = (line, level, meta) => {
+    if (level === 'error') {
+      displayLogger.error(line, meta);
+    } else if (level === 'warn') {
+      displayLogger.warn(line, meta);
+    } else {
+      displayLogger.log(line, meta);
+    }
+  };
+
   const writeLog = (line) => {
     if (!masterLogWriter) initMasterLog();
     if (masterLogWriter) enqueueWriterText(masterLogWriter, masterLogPath, `${line}\n`);
@@ -299,15 +312,18 @@ export const createBenchLogger = ({
       ? meta.fileOnlyLine
       : null;
     writeLog(fileOnlyLine || line);
-    if (level === 'error') {
-      display.error(line, meta);
-    } else if (level === 'warn') {
-      display.warn(line, meta);
-    } else if (meta && typeof meta === 'object' && meta.kind === 'status') {
-      display.logLine(line, meta);
-    } else {
-      display.log(line, meta);
-    }
+    emitToDisplay(line, level, meta);
+    logHistory.push(line);
+    if (logHistory.length > logHistoryLimit) logHistory.shift();
+  };
+
+  const appendLogSync = (line, level = 'info', meta = null) => {
+    if (!line) return;
+    const fileOnlyLine = meta && typeof meta === 'object' && typeof meta.fileOnlyLine === 'string'
+      ? meta.fileOnlyLine
+      : null;
+    writeLogSync(fileOnlyLine || line);
+    emitToDisplay(line, level, meta);
     logHistory.push(line);
     if (logHistory.length > logHistoryLimit) logHistory.shift();
   };
@@ -336,6 +352,7 @@ export const createBenchLogger = ({
     closeMasterLog,
     closeLogsSync,
     appendLog,
+    appendLogSync,
     writeListLine,
     writeLog,
     writeLogSync,

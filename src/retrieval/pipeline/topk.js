@@ -7,19 +7,14 @@ const normalizeScore = (value) => {
   return Number.isFinite(score) ? score : null;
 };
 
-const normalizeIdValue = (value) => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return { type: 'number', value };
-  }
-  return { type: 'string', value: value == null ? '' : String(value) };
-};
-
 const compareNormalizedIds = (a, b) => {
-  const left = normalizeIdValue(a);
-  const right = normalizeIdValue(b);
-  if (left.type !== right.type) return left.type === 'number' ? -1 : 1;
-  if (left.value < right.value) return -1;
-  if (left.value > right.value) return 1;
+  const leftNumeric = typeof a === 'number' && Number.isFinite(a);
+  const rightNumeric = typeof b === 'number' && Number.isFinite(b);
+  const left = leftNumeric ? a : (a == null ? '' : String(a));
+  const right = rightNumeric ? b : (b == null ? '' : String(b));
+  if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+  if (left < right) return -1;
+  if (left > right) return 1;
   return 0;
 };
 
@@ -31,6 +26,24 @@ export const compareTopKEntries = (a, b) => {
   if (idCompare) return idCompare;
   const rankA = Number.isFinite(a?.sourceRank) ? a.sourceRank : 0;
   const rankB = Number.isFinite(b?.sourceRank) ? b.sourceRank : 0;
+  return rankA - rankB;
+};
+
+const createTopKItemComparator = ({ score, id, sourceRank }) => (a, b) => {
+  // Preserve selector evaluation order without allocating comparator records.
+  const scoreAValue = score ? score(a) : (a?.score ?? a?.sim ?? 0);
+  const idA = id ? id(a) : (a?.idx ?? a?.id);
+  const rankAValue = sourceRank ? sourceRank(a) : (a?.sourceRank ?? 0);
+  const scoreBValue = score ? score(b) : (b?.score ?? b?.sim ?? 0);
+  const idB = id ? id(b) : (b?.idx ?? b?.id);
+  const rankBValue = sourceRank ? sourceRank(b) : (b?.sourceRank ?? 0);
+  const scoreA = Number.isFinite(scoreAValue) ? scoreAValue : -Infinity;
+  const scoreB = Number.isFinite(scoreBValue) ? scoreBValue : -Infinity;
+  if (scoreA !== scoreB) return scoreB - scoreA;
+  const idCompare = compareNormalizedIds(idA, idB);
+  if (idCompare) return idCompare;
+  const rankA = Number.isFinite(rankAValue) ? rankAValue : 0;
+  const rankB = Number.isFinite(rankBValue) ? rankBValue : 0;
   return rankA - rankB;
 };
 
@@ -264,14 +277,9 @@ export const selectTopK = (items, {
     });
     return empty;
   }
+  const sortByTopKEntry = createTopKItemComparator({ score, id, sourceRank });
   if (list.length <= limit) {
-    const baseline = list.slice().sort((a, b) => {
-      const entryA = { score: score ? score(a) : (a?.score ?? a?.sim ?? 0), id: id ? id(a) : (a?.idx ?? a?.id) };
-      const entryB = { score: score ? score(b) : (b?.score ?? b?.sim ?? 0), id: id ? id(b) : (b?.idx ?? b?.id) };
-      entryA.sourceRank = sourceRank ? sourceRank(a) : (a?.sourceRank ?? 0);
-      entryB.sourceRank = sourceRank ? sourceRank(b) : (b?.sourceRank ?? 0);
-      return compareTopKEntries(entryA, entryB);
-    });
+    const baseline = list.slice().sort(sortByTopKEntry);
     if (stats) {
       stats.seen = list.length;
       stats.kept = baseline.length;
@@ -293,13 +301,7 @@ export const selectTopK = (items, {
 
   const shouldUseHeap = list.length >= Math.max(minHeapSize, limit * heapThreshold);
   if (!shouldUseHeap) {
-    const baseline = list.slice().sort((a, b) => {
-      const entryA = { score: score ? score(a) : (a?.score ?? a?.sim ?? 0), id: id ? id(a) : (a?.idx ?? a?.id) };
-      const entryB = { score: score ? score(b) : (b?.score ?? b?.sim ?? 0), id: id ? id(b) : (b?.idx ?? b?.id) };
-      entryA.sourceRank = sourceRank ? sourceRank(a) : (a?.sourceRank ?? 0);
-      entryB.sourceRank = sourceRank ? sourceRank(b) : (b?.sourceRank ?? 0);
-      return compareTopKEntries(entryA, entryB);
-    });
+    const baseline = list.slice().sort(sortByTopKEntry);
     const sliced = baseline.slice(0, limit);
     if (stats) {
       stats.seen = list.length;

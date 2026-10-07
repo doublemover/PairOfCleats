@@ -6,7 +6,7 @@ import { createCli } from '../../src/shared/cli.js';
 import readline from 'node:readline/promises';
 import { readJsoncFile } from '../../src/shared/jsonc.js';
 import { createStdoutGuard } from '../../src/shared/cli/stdout-guard.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/index-artifact-helpers.js';
+import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import {
   getDictionaryPaths,
   getDictConfig,
@@ -22,6 +22,9 @@ import {
 } from '../shared/dict-utils.js';
 import { exitLikeCommandResult, runCommand as runCommandBase } from '../shared/cli-utils.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/vector-extension.js';
+import { verifyVectorExtensionArtifact } from '../sqlite/extension-trust.js';
+import { buildSetupReadiness } from './readiness.js';
+import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
 
 const argv = createCli({
   scriptName: 'setup',
@@ -42,10 +45,11 @@ const argv = createCli({
     incremental: { type: 'boolean', default: false },
     root: { type: 'string' },
     repo: { type: 'string' },
-    'tooling-scope': { type: 'string' }
+    'tooling-scope': { type: 'string' },
+    'require-steps': { type: 'string' }
   },
   aliases: { ci: 'non-interactive', s: 'with-sqlite', i: 'incremental' }
-}).parse();
+}).strictOptions().parse();
 
 const explicitRoot = argv.root || argv.repo;
 const root = resolveRepoRootArg(explicitRoot);
@@ -73,6 +77,18 @@ const summary = {
   steps: {},
   errors: []
 };
+const requiredSteps = String(argv['require-steps'] || '').split(',').map((id) => id.trim()).filter(Boolean);
+const knownSteps = new Set(['config', 'install', 'dictionaries', 'models', 'extensions', 'tooling', 'artifacts', 'index', 'sqlite']);
+if (requiredSteps.some((id) => !knownSteps.has(id))) throw new Error('Unknown setup step in --require-steps.');
+
+function finishSetup() {
+  summary.readiness = buildSetupReadiness(summary, { requiredIds: requiredSteps });
+  if (summary.readiness.state === 'ready') log('Setup complete.');
+  else if (summary.readiness.state === 'blocked') warn(`Setup blocked: ${summary.readiness.blockedIds.join(', ')}.`);
+  else warn(`Setup finished with limited readiness: ${summary.readiness.omittedIds.join(', ')}.`);
+  if (jsonOutput) stdoutGuard.writeJson(summary);
+  process.exitCode = summary.readiness.exitCode;
+}
 
 function recordStep(name, data) {
   summary.steps[name] = { ...(summary.steps[name] || {}), ...data };
@@ -87,10 +103,27 @@ function recordError(step, result, message) {
   });
 }
 
+async function readSetupAnswer(question) {
+  const inputClosed = () => new Error('Setup input closed before an answer. Use --non-interactive with explicit --skip-* options for unattended setup.');
+  let onClose;
+  const closed = new Promise((_, reject) => {
+    onClose = () => reject(inputClosed());
+    rl.once('close', onClose);
+  });
+  try {
+    return await Promise.race([rl.question(question), closed]);
+  } catch (error) {
+    if (error?.code === 'ERR_USE_AFTER_CLOSE') throw inputClosed();
+    throw error;
+  } finally {
+    rl.off('close', onClose);
+  }
+}
+
 async function promptYesNo(question, defaultYes) {
   if (nonInteractive) return defaultYes;
   const suffix = defaultYes ? 'Y/n' : 'y/N';
-  const answer = (await rl.question(`${question} [${suffix}] `)).trim().toLowerCase();
+  const answer = (await readSetupAnswer(`${question} [${suffix}] `)).trim().toLowerCase();
   if (!answer) return defaultYes;
   return answer === 'y' || answer === 'yes';
 }
@@ -98,7 +131,7 @@ async function promptYesNo(question, defaultYes) {
 async function promptChoice(question, choices, defaultChoice) {
   if (nonInteractive) return defaultChoice;
   const choiceList = choices.join('/');
-  const answer = (await rl.question(`${question} (${choiceList}) [${defaultChoice}] `)).trim().toLowerCase();
+  const answer = (await readSetupAnswer(`${question} (${choiceList}) [${defaultChoice}] `)).trim().toLowerCase();
   if (!answer) return defaultChoice;
   const normalized = answer === 'g' ? 'global' : answer === 'c' ? 'cache' : answer;
   const match = choices.find((choice) => choice.toLowerCase() === normalized);
@@ -148,6 +181,7 @@ function runOrExit(label, cmd, args, options = {}) {
   if (!result.ok) {
     recordError(label, result, 'command failed');
     console.error(`[setup] Failed: ${label}`);
+    finishSetup();
     exitLikeCommandResult(result);
   }
   return result;
@@ -184,6 +218,7 @@ if (shouldValidateConfig && configExists) {
       : await promptYesNo('Config validation failed. Continue setup anyway?', false);
     if (!continueSetup) {
       if (rl) await rl.close();
+      finishSetup();
       exitLikeCommandResult(result);
     }
   }
@@ -209,7 +244,7 @@ if (argv['skip-install']) {
     recordStep('install', { skipped: false, present: true, installed: true });
   } else {
     warn('Skipping npm install. Some commands may fail.');
-    recordStep('install', { skipped: false, present: false, installed: false });
+    recordStep('install', { skipped: false, present: false, installed: false, declined: true });
   }
 } else {
   log('Dependencies already installed.');
@@ -221,14 +256,15 @@ if (argv['skip-dicts']) {
 } else {
   const dictConfig = getDictConfig(root, userConfig);
   const dictionaryPaths = await getDictionaryPaths(root, dictConfig);
-  const englishPath = path.join(dictConfig.dir, 'en.txt');
-  const hasDicts = dictionaryPaths.length > 0;
-  const needsEnglish = !fs.existsSync(englishPath);
+  const before = resolveDictionarySetupReadiness({ dictConfig, dictionaryPaths });
   let downloaded = false;
-  if (!hasDicts || needsEnglish) {
+  let declined = false;
+  if (before.downloadableLanguages.length) {
     const shouldDownload = await promptYesNo('Download English dictionary wordlist?', true);
     if (shouldDownload) {
-      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'), '--lang', 'en']);
+      const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'dicts.js'),
+        '--lang', before.downloadableLanguages.join(','), '--repo', root, '--dir', dictConfig.dir,
+        ...(before.replaceEmptyEnglish ? ['--force'] : [])]);
       if (!result.ok) {
         warn('Dictionary download failed.');
         recordError('dictionaries', result, 'download failed');
@@ -237,14 +273,25 @@ if (argv['skip-dicts']) {
       }
     } else {
       warn('Skipping dictionary download. Identifier splitting will be limited.');
+      declined = true;
     }
-  } else {
+  } else if (before.present) {
     log(`Dictionary files found (${dictionaryPaths.length}).`);
+  } else if (before.applicable) {
+    warn(before.reason);
   }
+  const verification = resolveDictionarySetupReadiness({ dictConfig,
+    dictionaryPaths: await getDictionaryPaths(root, dictConfig) });
   recordStep('dictionaries', {
     skipped: false,
-    present: hasDicts,
-    downloaded
+    applicable: verification.applicable,
+    present: verification.present,
+    verificationLevel: verification.verificationLevel,
+    reason: verification.reason,
+    usablePaths: verification.usablePaths,
+    beforePresent: before.present,
+    downloaded,
+    declined
   });
 }
 
@@ -255,6 +302,7 @@ if (argv['skip-models']) {
   const modelDir = modelConfig.dir;
   const hasModels = await hasEntries(modelDir);
   let downloaded = false;
+  let declined = false;
   if (!hasModels) {
     const shouldDownload = await promptYesNo(`Download embedding model ${modelConfig.id}?`, true);
     if (shouldDownload) {
@@ -273,11 +321,12 @@ if (argv['skip-models']) {
       }
     } else {
       warn('Skipping model download. Embeddings may be stubbed.');
+      declined = true;
     }
   } else {
     log(`Model cache present (${modelDir}).`);
   }
-  recordStep('models', { skipped: false, present: hasModels, downloaded });
+  recordStep('models', { skipped: false, present: await hasEntries(modelDir), beforePresent: hasModels, downloaded, declined });
 }
 
 if (argv['skip-extensions']) {
@@ -288,10 +337,11 @@ if (argv['skip-extensions']) {
     const extPath = resolveVectorExtensionPath(vectorExtension);
     const hasExtension = !!(extPath && fs.existsSync(extPath));
     let downloaded = false;
+    let declined = false;
     if (!hasExtension) {
       const shouldDownload = await promptYesNo('Download SQLite ANN extension?', true);
       if (shouldDownload) {
-        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js')]);
+        const result = runCommand(process.execPath, [path.join(toolRoot, 'tools', 'download', 'extensions.js'), '--repo', root]);
         if (!result.ok) {
           warn('Extension download failed.');
           recordError('extensions', result, 'download failed');
@@ -300,15 +350,25 @@ if (argv['skip-extensions']) {
         }
       } else {
         warn('Skipping extension download. ANN acceleration will be unavailable.');
+        declined = true;
       }
     } else {
       log(`SQLite ANN extension present (${extPath}).`);
     }
+    const verification = verifyVectorExtensionArtifact(resolveVectorExtensionPath(vectorExtension), vectorExtension);
+    if (!verification.ok) warn(`SQLite ANN extension is unavailable: ${verification.reason}`);
     recordStep('extensions', {
       skipped: false,
       enabled: true,
-      present: hasExtension,
-      downloaded
+      present: verification.present,
+      ok: declined ? undefined : verification.ok,
+      ready: verification.ok,
+      reason: verification.reason,
+      verificationLevel: verification.verificationLevel || null,
+      verification,
+      beforePresent: hasExtension,
+      downloaded,
+      declined
     });
   } else {
     log('SQLite ANN extension not enabled; skipping extension download.');
@@ -322,6 +382,9 @@ if (argv['skip-tooling']) {
   const toolingConfig = getToolingConfig(root, userConfig);
   let toolingMissing = [];
   let toolingInstalled = false;
+  let toolingDetected = false;
+  let toolingReadiness = null;
+  let toolingDeclined = false;
   const detectResult = runCommand(
     process.execPath,
     [path.join(toolRoot, 'tools', 'tooling', 'detect.js'), '--root', root, '--json'],
@@ -333,9 +396,9 @@ if (argv['skip-tooling']) {
   if (detectResult.status === 0 && detectResult.stdout) {
     try {
       const report = JSON.parse(detectResult.stdout);
-      toolingMissing = Array.isArray(report.tools)
-        ? report.tools.filter((tool) => tool && tool.found === false)
-        : [];
+      if (!Array.isArray(report.tools)) throw new Error('Tooling detection report has no tool results.');
+      toolingDetected = true;
+      toolingMissing = report.tools.filter((tool) => tool && tool.found === false);
       if (!toolingMissing.length) {
         log('Optional tooling already installed.');
       } else {
@@ -344,17 +407,32 @@ if (argv['skip-tooling']) {
         if (shouldInstall) {
           const scopeDefault = argv['tooling-scope'] || toolingConfig.installScope || 'cache';
           const scope = await promptChoice('Install tooling scope', ['cache', 'global'], scopeDefault);
-          const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', scope];
+          const installArgs = [path.join(toolRoot, 'tools', 'tooling', 'install.js'), '--root', root, '--scope', scope, '--json'];
           if (!toolingConfig.allowGlobalFallback) installArgs.push('--no-fallback');
-          const result = runCommand(process.execPath, installArgs);
+          const result = runCommand(process.execPath, installArgs, { encoding: 'utf8', stdio: 'pipe' });
+          let installedReport;
+          try { installedReport = JSON.parse(result.stdout || '{}'); }
+          catch {
+            warn('Failed to parse tooling installation output.');
+            recordError('tooling', result, 'install result parse failed');
+            installedReport = {};
+          }
+          toolingReadiness = installedReport.readiness || null;
+          if (Array.isArray(installedReport.results)) {
+            toolingMissing = installedReport.results.filter((tool) => (
+              !['installed', 'already-installed'].includes(tool.status)
+            ));
+          }
           if (!result.ok) {
             warn('Tooling install failed.');
             recordError('tooling', result, 'install failed');
           } else {
-            toolingInstalled = true;
+            toolingInstalled = toolingReadiness?.ready === true;
+            if (!toolingInstalled) recordError('tooling', result, 'post-install readiness receipt missing or incomplete');
           }
         } else {
           warn('Skipping tooling install.');
+          toolingDeclined = true;
         }
       }
     } catch {
@@ -368,11 +446,15 @@ if (argv['skip-tooling']) {
   recordStep('tooling', {
     skipped: false,
     missing: toolingMissing.map((tool) => tool.id),
-    installed: toolingInstalled
+    installed: toolingInstalled,
+    present: toolingDetected && !toolingMissing.length,
+    declined: toolingDeclined,
+    readiness: toolingReadiness
   });
 }
 
 let restoredArtifacts = false;
+const artifactsAvailable = fs.existsSync(path.join(root, 'ci-artifacts', 'manifest.json'));
 if (!argv['skip-artifacts']) {
   const artifactsDir = path.join(root, 'ci-artifacts');
   const manifestPath = path.join(artifactsDir, 'manifest.json');
@@ -390,6 +472,7 @@ if (!argv['skip-artifacts']) {
 }
 recordStep('artifacts', {
   skipped: argv['skip-artifacts'] === true,
+  applicable: artifactsAvailable,
   restored: restoredArtifacts
 });
 
@@ -432,6 +515,7 @@ if (!argv['skip-index'] && !restoredArtifacts) {
 
 let sqliteBuilt = false;
 let sqliteOk = true;
+let sqliteRequested = false;
 if (!argv['skip-sqlite']) {
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const sqliteDefault = argv['with-sqlite'] ? true : sqliteConfigured;
@@ -439,6 +523,7 @@ if (!argv['skip-sqlite']) {
     ? true
     : await promptYesNo('Build SQLite indexes now?', sqliteDefault);
   if (shouldBuildSqlite) {
+    sqliteRequested = true;
     if (!indexReady) {
       const shouldBuildIndex = await promptYesNo('SQLite build requires file-backed indexes. Build index now?', true);
       if (shouldBuildIndex && !argv['skip-index']) {
@@ -472,6 +557,7 @@ if (!argv['skip-sqlite']) {
 }
 recordStep('sqlite', {
   skipped: argv['skip-sqlite'] === true,
+  applicable: sqliteRequested,
   built: sqliteBuilt,
   ok: sqliteOk
 });
@@ -486,8 +572,5 @@ recordStep('index', {
 
 if (rl) rl.close();
 
-log('Setup complete.');
+finishSetup();
 log('Tip: run pairofcleats index validate to verify index artifacts.');
-if (jsonOutput) {
-  stdoutGuard.writeJson(summary);
-}

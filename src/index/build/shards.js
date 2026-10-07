@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { fileExt, toPosix } from '../../shared/files.js';
+import { fileExt, toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { compareStrings } from '../../shared/sort.js';
 import { resolveSpecialCodeExt } from '../constants.js';
@@ -92,69 +92,32 @@ const hasHugeFile = (shard, lineCounts, threshold) => {
   return false;
 };
 
-const splitShardByLines = (shard, lineCounts, targetLines) => {
-  if (!targetLines || targetLines <= 0) return [shard];
-  const entries = [...shard.entries].sort((a, b) => compareStrings(a.rel || '', b.rel || ''));
-  if (entries.length <= 1) return [shard];
-  const parts = [];
-  let current = [];
-  let currentLines = 0;
-  let currentBytes = 0;
-  let currentCost = 0;
-  for (const entry of entries) {
-    const lines = getEntryLineCount(entry, lineCounts);
-    const bytes = getEntryByteCount(entry);
-    const cost = Number.isFinite(entry?.costMs) ? entry.costMs : lines;
-    if (current.length && currentLines + lines > targetLines) {
-      parts.push({
-        entries: current,
-        lines: currentLines,
-        bytes: currentBytes,
-        cost: currentCost
-      });
-      current = [];
-      currentLines = 0;
-      currentBytes = 0;
-      currentCost = 0;
-    }
-    current.push(entry);
-    currentLines += lines;
-    currentBytes += bytes;
-    currentCost += cost;
-  }
-  if (current.length) {
-    parts.push({
-      entries: current,
-      lines: currentLines,
-      bytes: currentBytes,
-      cost: currentCost
-    });
-  }
-  if (parts.length <= 1) return [shard];
-  return parts.map((part, index) => {
-    const label = `${shard.label}#${index + 1}of${parts.length}`;
-    return {
-      id: buildShardId(shard.mode, label),
-      label,
-      dir: shard.dir,
-      lang: shard.lang,
-      mode: shard.mode,
-      entries: part.entries,
-      lineCount: part.lines,
-      byteCount: part.bytes,
-      costMs: part.cost,
-      splitFrom: shard.label,
-      splitIndex: index + 1,
-      splitTotal: parts.length
-    };
-  });
+const buildSplitShard = (shard, part, index, total) => {
+  const label = `${shard.label}#${index + 1}of${total}`;
+  return {
+    id: buildShardId(shard.mode, label),
+    label,
+    dir: shard.dir,
+    lang: shard.lang,
+    mode: shard.mode,
+    entries: part.entries,
+    lineCount: part.lines,
+    byteCount: part.bytes,
+    costMs: part.cost,
+    splitFrom: shard.label,
+    splitIndex: index + 1,
+    splitTotal: total
+  };
 };
 
-const splitShardByCapacity = (shard, lineCounts, options = {}) => {
+const splitShardByConstraints = (shard, lineCounts, options = {}) => {
+  const targetLines = Number.isFinite(options.targetLines) && options.targetLines > 0
+    ? options.targetLines
+    : null;
   const targetCost = Number.isFinite(options.targetCost) ? options.targetCost : null;
   const maxBytes = Number.isFinite(options.maxBytes) ? options.maxBytes : null;
   const maxLines = Number.isFinite(options.maxLines) ? options.maxLines : null;
-  if (!targetCost && !maxBytes && !maxLines) return [shard];
+  if (!targetLines && !targetCost && !maxBytes && !maxLines) return [shard];
   const entries = [...shard.entries].sort((a, b) => compareStrings(a.rel || '', b.rel || ''));
   if (entries.length <= 1) return [shard];
   const parts = [];
@@ -166,10 +129,11 @@ const splitShardByCapacity = (shard, lineCounts, options = {}) => {
     const lines = getEntryLineCount(entry, lineCounts);
     const bytes = getEntryByteCount(entry);
     const cost = Number.isFinite(entry?.costMs) ? entry.costMs : lines;
+    const exceedsTargetLines = targetLines && (currentLines + lines) > targetLines;
     const exceedsCost = targetCost && (currentCost + cost) > targetCost;
     const exceedsBytes = maxBytes && (currentBytes + bytes) > maxBytes;
     const exceedsLines = maxLines && (currentLines + lines) > maxLines;
-    if (current.length && (exceedsCost || exceedsBytes || exceedsLines)) {
+    if (current.length && (exceedsTargetLines || exceedsCost || exceedsBytes || exceedsLines)) {
       parts.push({
         entries: current,
         lines: currentLines,
@@ -195,24 +159,16 @@ const splitShardByCapacity = (shard, lineCounts, options = {}) => {
     });
   }
   if (parts.length <= 1) return [shard];
-  return parts.map((part, index) => {
-    const label = `${shard.label}#${index + 1}of${parts.length}`;
-    return {
-      id: buildShardId(shard.mode, label),
-      label,
-      dir: shard.dir,
-      lang: shard.lang,
-      mode: shard.mode,
-      entries: part.entries,
-      lineCount: part.lines,
-      byteCount: part.bytes,
-      costMs: part.cost,
-      splitFrom: shard.label,
-      splitIndex: index + 1,
-      splitTotal: parts.length
-    };
-  });
+  return parts.map((part, index) => buildSplitShard(shard, part, index, parts.length));
 };
+
+const splitShardByLines = (shard, lineCounts, targetLines) => (
+  splitShardByConstraints(shard, lineCounts, { targetLines })
+);
+
+const splitShardByCapacity = (shard, lineCounts, options = {}) => (
+  splitShardByConstraints(shard, lineCounts, options)
+);
 
 const buildShardId = (mode, label) => {
   const key = `${mode || 'unknown'}:${label}`;

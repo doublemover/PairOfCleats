@@ -97,18 +97,23 @@ export function buildInitializeResult({
   serverInfo,
   schemaVersion,
   toolVersion,
-  capabilities
+  capabilities,
+  capabilityManifest
 } = {}) {
   const baseCapabilities = {
     tools: { listChanged: false },
     resources: { listChanged: false }
   };
-  if (capabilities && typeof capabilities === 'object') {
+  const runtimeCapabilities = capabilityManifest?.runtimeCapabilities && typeof capabilityManifest.runtimeCapabilities === 'object'
+    ? capabilityManifest.runtimeCapabilities
+    : (capabilities && typeof capabilities === 'object' ? capabilities : null);
+  if (runtimeCapabilities || capabilityManifest) {
     baseCapabilities.experimental = {
       pairofcleats: {
         schemaVersion: schemaVersion || null,
         toolVersion: toolVersion || null,
-        capabilities
+        capabilities: runtimeCapabilities,
+        manifest: capabilityManifest || null
       }
     };
   }

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -24,7 +24,7 @@ const env = applyTestEnv({
   }
 });
 
-const result = spawnSync(process.execPath, [
+const result = runNode([
   buildIndexPath,
   '--stub-embeddings',
   '--stage',
@@ -35,11 +35,7 @@ const result = spawnSync(process.execPath, [
   'code',
   '--repo',
   fixtureRoot
-], {
-  cwd: fixtureRoot,
-  env,
-  stdio: 'inherit'
-});
+], 'filter-index metrics build index', fixtureRoot, env, { stdio: 'inherit' });
 
 if (result.status !== 0) {
   console.error('filter-index metrics test failed: build_index failed.');

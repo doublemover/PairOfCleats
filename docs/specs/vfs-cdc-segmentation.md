@@ -1,6 +1,10 @@
-# Spec: VFS CDC segmentation (draft)
+# Spec: VFS CDC segmentation (active contract)
 
-Status: Draft (Milestone A). Optional segmentation strategy.
+Status: Active implemented optional segmentation contract.
+Last audited: 2026-05-21
+Implementation anchors: `src/index/segments/cdc.js`, `src/index/segments.js`.
+Contract coverage: `tests/indexing/vfs/cdc-segmentation-contract.test.js`,
+`tests/tooling/vfs/cdc-segmentation-stability.test.js`.
 
 Goal: provide content-defined segments for large files so segment boundaries and `segmentUid` are stable across small edits, even when semantic segmentation is unavailable.
 

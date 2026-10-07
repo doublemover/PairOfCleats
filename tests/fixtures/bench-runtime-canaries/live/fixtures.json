@@ -1,0 +1,89 @@
+{
+  "sdk-artifact-tail-live": {
+    "canaryMetrics": {
+      "resultClass": "timed_out",
+      "productionCleanStatus": "fail",
+      "timeoutClasses": [
+        "budget_exhausted_with_progress"
+      ],
+      "countsByDiagnosticType": {
+        "artifact_tail_stall": 3
+      },
+      "countsByFailureClass": {
+        "budget_exhausted_with_progress": 1
+      },
+      "crashCount": 0,
+      "taskCount": 1
+    }
+  },
+  "swift-nio-timeout-live": {
+    "canaryMetrics": {
+      "resultClass": "timed_out",
+      "productionCleanStatus": "fail",
+      "timeoutClasses": [
+        "budget_exhausted_with_progress",
+        "healthy_progress"
+      ],
+      "countsByFailureClass": {
+        "budget_exhausted_with_progress": 1,
+        "healthy_progress": 1
+      },
+      "crashCount": 0,
+      "taskCount": 1
+    }
+  },
+  "openmoonray-crash-live": {
+    "canaryMetrics": {
+      "resultClass": "crashed",
+      "productionCleanStatus": "fail",
+      "countsByFailureClass": {
+        "process_exit_crash": 1
+      },
+      "crashCount": 1,
+      "taskCount": 1
+    }
+  },
+  "sourcekit-container-live": {
+    "canaryMetrics": {
+      "resultClass": "passed_with_degradation",
+      "productionCleanStatus": "fail",
+      "countsByDiagnosticType": {
+        "provider_preflight_blocked": 1,
+        "provider_degraded_mode_entered": 1
+      },
+      "crashCount": 0,
+      "taskCount": 1
+    }
+  },
+  "gopls-cobra-live": {
+    "canaryMetrics": {
+      "resultClass": "passed_with_degradation",
+      "productionCleanStatus": "fail",
+      "countsByDiagnosticType": {
+        "provider_preflight_blocked": 1
+      },
+      "crashCount": 0,
+      "taskCount": 1
+    }
+  },
+  "rust-windows-ripgrep-live": {
+    "canaryMetrics": {
+      "resultClass": "passed_with_degradation",
+      "productionCleanStatus": "fail",
+      "countsByDiagnosticType": {
+        "fallback_used": 2
+      },
+      "crashCount": 0,
+      "taskCount": 1
+    }
+  },
+  "sdk-artifact-tail-live-target": {
+    "canaryMetrics": {
+      "resultClass": "passed",
+      "productionCleanStatus": "pass",
+      "countsByDiagnosticType": {},
+      "crashCount": 0,
+      "taskCount": 1
+    }
+  }
+}

@@ -6,7 +6,9 @@ import {
   SERVICE_INDEXER_OPTIONS,
   resolveCliOptionFlagSets
 } from '../../src/shared/cli-options.js';
-import { listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
+import { getPackageScriptReplacement } from '../../src/shared/command-aliases.js';
+import { listCommandRegistry } from '../../src/shared/command-registry-query.js';
+import { writeStableGeneratedJsonReport, writeTextIfChanged } from '../shared/generated-report.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats script-inventory',
@@ -43,10 +45,11 @@ const ciAllowlist = new Set([
 ]);
 
 const resolveCliEntrypoints = () => {
-  const entries = listDispatchManifest()
+  const entries = listCommandRegistry()
     .map((entry) => ({
       command: `pairofcleats ${entry.commandPath.join(' ')}`,
-      summary: String(entry.description || '').trim() || 'No summary available.'
+      summary: String(entry.description || '').trim() || 'No summary available.',
+      supportTier: entry.supportTier
     }))
     .sort((a, b) => a.command.localeCompare(b.command));
   return Array.from(
@@ -104,7 +107,7 @@ const main = async () => {
     name,
     category: categoryFor(name),
     ciAllowed: ciAllowlist.has(name) || name.startsWith('test:'),
-    replacement: null
+    replacement: getPackageScriptReplacement(name)
   }));
   const { optionNames: serviceIndexerFlags, valueOptionNames: serviceIndexerValueFlags } = resolveCliOptionFlagSets(
     SERVICE_INDEXER_OPTIONS
@@ -113,16 +116,12 @@ const main = async () => {
   const cliEntrypoints = resolveCliEntrypoints();
 
   const jsonPath = path.resolve(root, argv.json);
-  await fsPromises.mkdir(path.dirname(jsonPath), { recursive: true });
-  await fsPromises.writeFile(
-    jsonPath,
-    `${JSON.stringify({
-      generatedAt: new Date().toISOString(),
-      scripts: inventory,
-      cliCommands: cliEntrypoints,
-      phaseSpecDir: phaseSpecInfo.phaseDir
-    }, null, 2)}\n`
-  );
+  await writeStableGeneratedJsonReport(jsonPath, {
+    generatedAt: new Date().toISOString(),
+    scripts: inventory,
+    cliCommands: cliEntrypoints,
+    phaseSpecDir: phaseSpecInfo.phaseDir
+  });
 
   const markdownPath = path.resolve(root, argv.markdown);
   const lines = [
@@ -135,21 +134,36 @@ const main = async () => {
     ...phaseSpecInfo.specs.map((spec) => `- \`${spec}\``),
     '',
     '## CLI entrypoints',
-    ...cliEntrypoints.map((entry) => `- \`${entry.command}\` - ${entry.summary}`),
+    ...cliEntrypoints.map((entry) => `- [${entry.supportTier}] \`${entry.command}\` - ${entry.summary}`),
     '- `pairofcleats service indexer` flags:',
     `  - allowed: ${serviceIndexerFlags.map((flag) => `--${flag}`).join(', ')}`,
     `  - requires values: ${serviceIndexerValueFlags.map((flag) => `--${flag}`).join(', ')}`,
     '',
-    '## Stable entrypoints',
-    '- `node tests/run.js` (repo-local test runner)',
-    '- `node tools/ci/run-suite.js --mode ci` (CI suite)',
-    '- `node tools/ci/run-suite.js --mode nightly` (nightly suite)',
+    '## CLI ergonomics',
+    '- Audit the local command surface: `pairofcleats cli audit --json`',
+    '- PowerShell completions: `pairofcleats cli completions --shell powershell | Out-String | Invoke-Expression`',
+    '- bash completions: `eval "$(pairofcleats cli completions --shell bash)"`',
+    '- zsh completions: `eval "$(pairofcleats cli completions --shell zsh)"`',
+    '',
+    '## Contributor workflows',
+    '- `npm run bootstrap`',
+    '- `npm run bootstrap:ci`',
+    '- `npm test`',
+    '- `npm run test:ci`',
+    '- `npm run test:ci-long`',
+    '- `npm run test:services`',
+    '- `npm run test:api`',
+    '- `npm run test:storage`',
+    '- `npm run test:perf`',
+    '- `npm run verify`',
+    '- `npm run release:verify`',
     '- `npm run lint`',
     '- `npm run format`',
     '- `npm run config:budget`',
     '- `npm run env:check`',
     '',
     'Prefer `pairofcleats search`, `pairofcleats index build`, and `pairofcleats index watch` for user-facing workflows.',
+    'Root `build_index.js` and `search.js` remain compatibility shims; prefer the canonical `pairofcleats ...` commands.',
     'Index build/watch SCM flags: `--scm-provider <auto|git|jj|none>`, `--scm-annotate`, `--no-scm-annotate`.',
     'See `docs/guides/mcp.md` for MCP server modes, capabilities, and error codes.',
     '',
@@ -158,8 +172,7 @@ const main = async () => {
     ...inventory.map((entry) => `| \`${entry.name}\` | ${entry.category} | ${entry.ciAllowed ? 'yes' : 'no'} | ${entry.replacement || ''} |`),
     ''
   ];
-  await fsPromises.mkdir(path.dirname(markdownPath), { recursive: true });
-  await fsPromises.writeFile(markdownPath, `${lines.join('\n')}\n`);
+  await writeTextIfChanged(markdownPath, `${lines.join('\n')}\n`);
 };
 
 main().catch((error) => {

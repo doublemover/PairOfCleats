@@ -7,28 +7,76 @@ import {
   loadSqliteIndexOptionalArtifacts
 } from '../../utils.js';
 import { normalizeManifestFiles } from '../manifest.js';
+import { MAX_JSON_BYTES } from '../../../../shared/artifact-io/constants.js';
+import { readJsonLinesEachAwait, readJsonLinesEachSync } from '../../../../shared/artifact-io/json.js';
+import { parseJsonlLine, resolveJsonlRequiredKeys } from '../../../../shared/artifact-io/jsonl.js';
+import { loadChunkMetaRows } from '../../../../shared/artifact-io/loaders/chunk-meta.js';
+import { loadTokenPostings } from '../../../../shared/artifact-io/loaders/token-postings.js';
 import {
   CHUNK_META_PARTS_DIR,
-  MAX_JSON_BYTES,
   TOKEN_POSTINGS_PART_EXTENSIONS,
   TOKEN_POSTINGS_PART_PREFIX,
   TOKEN_POSTINGS_SHARDS_DIR,
   expandMetaPartPaths,
   listShardFiles,
   locateChunkMetaShards,
-  loadChunkMetaRows,
-  loadTokenPostings,
-  readJsonLinesEachAwait,
-  resolveArtifactPresence,
-  resolveJsonlRequiredKeys
-} from '../../../../shared/artifact-io.js';
+  resolveArtifactPresence
+} from '../../../../shared/artifact-io/manifest.js';
 import {
   INTEGER_COERCE_MODE_STRICT,
   INTEGER_COERCE_MODE_TRUNCATE,
   coerceNonNegativeInt
 } from '../../../../shared/number-coerce.js';
+import { inflateColumnarRows } from '../../../../shared/artifact-io/columnar-rows.js';
 
 const SQLITE_TOKEN_CARDINALITY_ERROR_CODE = 'ERR_SQLITE_TOKEN_CARDINALITY';
+const JSONL_SYNC_CALLBACK_MAX_BYTES = 1024 * 1024;
+
+const isPlainJsonlPath = (filePath) => (
+  typeof filePath === 'string'
+  && !filePath.endsWith('.gz')
+  && !filePath.endsWith('.zst')
+);
+
+const readDeclaredJsonlShardSync = (
+  filePath,
+  onEntry,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    requiredKeys = null,
+    validationMode = 'strict'
+  } = {}
+) => {
+  const stat = fsSync.statSync(filePath);
+  if (stat.size > JSONL_SYNC_CALLBACK_MAX_BYTES) return null;
+  if (stat.size > maxBytes) {
+    const err = new Error(
+      `[sqlite] chunk_meta jsonl shard exceeds size budget (${stat.size} bytes > ${maxBytes} bytes): ${filePath}`
+    );
+    err.code = 'ERR_SQLITE_ARTIFACT_TOO_LARGE';
+    throw err;
+  }
+  const raw = fsSync.readFileSync(filePath, 'utf8');
+  if (!raw.trim()) return { rows: 0, pending: [] };
+  const pending = [];
+  let rows = 0;
+  const lines = raw.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const entry = parseJsonlLine(
+      lines[index],
+      filePath,
+      index + 1,
+      maxBytes,
+      requiredKeys,
+      validationMode
+    );
+    if (entry === null) continue;
+    rows += 1;
+    const result = onEntry(entry);
+    if (result && typeof result.then === 'function') pending.push(result);
+  }
+  return { rows, pending };
+};
 
 const readJsonWithBudget = (filePath, {
   maxBytes = MAX_JSON_BYTES,
@@ -103,30 +151,6 @@ export const createManifestLookup = (manifestFiles) => {
     map: resolveManifestByNormalized(lookup),
     conflicts: Array.isArray(lookup.conflicts) ? lookup.conflicts : []
   };
-};
-
-export const inflateColumnarRows = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-  const arrays = payload.arrays && typeof payload.arrays === 'object' ? payload.arrays : null;
-  if (!arrays) return null;
-  const columns = Array.isArray(payload.columns) ? payload.columns : Object.keys(arrays);
-  if (!columns.length) return [];
-  const tables = payload.tables && typeof payload.tables === 'object' ? payload.tables : null;
-  const length = Number.isFinite(payload.length)
-    ? payload.length
-    : (Array.isArray(arrays[columns[0]]) ? arrays[columns[0]].length : 0);
-  const rows = new Array(length);
-  for (let i = 0; i < length; i += 1) {
-    const row = {};
-    for (const column of columns) {
-      const values = arrays[column];
-      const value = Array.isArray(values) ? (values[i] ?? null) : null;
-      const table = tables && Array.isArray(tables[column]) ? tables[column] : null;
-      row[column] = table && Number.isInteger(value) ? (table[value] ?? null) : value;
-    }
-    rows[i] = row;
-  }
-  return rows;
 };
 
 export const resolveChunkMetaSources = (dir) => {
@@ -341,8 +365,26 @@ export const CHUNK_META_REQUIRED_KEYS = resolveJsonlRequiredKeys('chunk_meta');
 export const readJsonLinesFile = async (
   filePath,
   onEntry,
-  { maxBytes = MAX_JSON_BYTES, requiredKeys = null } = {}
-) => readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys });
+  { maxBytes = MAX_JSON_BYTES, requiredKeys = null, validationMode = 'strict' } = {}
+) => {
+  const stat = fsSync.statSync(filePath);
+  if (stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES) {
+    const pending = [];
+    readJsonLinesEachSync(filePath, (row) => {
+      const result = onEntry(row);
+      if (result && typeof result.then === 'function') {
+        pending.push(result);
+      }
+    }, {
+      maxBytes,
+      requiredKeys,
+      validationMode
+    });
+    for (const result of pending) await result;
+    return;
+  }
+  await readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys, validationMode });
+};
 
 export const iterateChunkMetaSources = async (
   sources,
@@ -367,10 +409,10 @@ export const iterateChunkMetaSources = async (
       if (result && typeof result.then === 'function') await result;
     }
   };
-  const emitEntry = async (entry) => {
+  const emitEntry = (entry) => {
     const result = onEntry(entry, count);
-    if (result && typeof result.then === 'function') await result;
     count += 1;
+    return result;
   };
   if (sourceKind === 'json') {
     const sourcePath = paths[0];
@@ -382,7 +424,8 @@ export const iterateChunkMetaSources = async (
       });
       if (Array.isArray(rows)) {
         for (const row of rows) {
-          await emitEntry(row);
+          const result = emitEntry(row);
+          if (result && typeof result.then === 'function') await result;
         }
       }
     }
@@ -398,7 +441,8 @@ export const iterateChunkMetaSources = async (
       }));
       if (Array.isArray(rows)) {
         for (const row of rows) {
-          await emitEntry(row);
+          const result = emitEntry(row);
+          if (result && typeof result.then === 'function') await result;
         }
       }
     }
@@ -420,16 +464,37 @@ export const iterateChunkMetaSources = async (
       preferBinaryColumnar: true,
       enforceBinaryDataBudget: true
     })) {
-      await emitEntry(row);
+      const result = emitEntry(row);
+      if (result && typeof result.then === 'function') await result;
     }
     return { sourceKind, sourceFiles, count };
+  }
+  if (sourceKind === 'jsonl' && paths.length > 1 && paths.every(isPlainJsonlPath)) {
+    const allSmall = paths.every((sourcePath) => {
+      if (!sourcePath) return true;
+      const stat = fsSync.statSync(sourcePath);
+      return stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES;
+    });
+    if (allSmall) {
+      const pending = [];
+      for (const sourcePath of paths) {
+        if (!sourcePath) continue;
+        await emitSourceFile(sourcePath);
+        const result = readDeclaredJsonlShardSync(
+          sourcePath,
+          (entry) => emitEntry(entry),
+          { requiredKeys }
+        );
+        if (result?.pending?.length) pending.push(...result.pending);
+      }
+      for (const result of pending) await result;
+      return { sourceKind, sourceFiles, count };
+    }
   }
   for (const sourcePath of paths) {
     if (!sourcePath) continue;
     await emitSourceFile(sourcePath);
-    await readJsonLinesFile(sourcePath, async (entry) => {
-      await emitEntry(entry);
-    }, { requiredKeys });
+    await readJsonLinesFile(sourcePath, (entry) => emitEntry(entry), { requiredKeys });
   }
   return { sourceKind, sourceFiles, count };
 };

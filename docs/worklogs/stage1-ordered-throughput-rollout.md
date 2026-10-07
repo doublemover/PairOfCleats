@@ -23,27 +23,16 @@
 - Extended `src/index/build/indexer/steps/process-files/ordered.js` with `assertCompletion()` and hardened drain-state reconciliation for terminal envelopes during commit cursor progression.
 - Replaced legacy `ordered-appender-recover-missing-range` test behavior with hard-cutover no-gap assertions.
 - Added Stage1 redesign test set:
-  - `tests/indexing/stage1/seq-ledger-state-machine.test.js`
-  - `tests/indexing/stage1/window-planner-contiguous-ranges.test.js`
-  - `tests/indexing/stage1/window-planner-adaptive-resize.test.js`
-  - `tests/indexing/stage1/commit-cursor-monotonicity.test.js`
-  - `tests/indexing/stage1/commit-journal-replay-idempotence.test.js`
-  - `tests/indexing/stage1/cancellation-terminalization.test.js`
-  - `tests/indexing/stage1/retry-same-seq-contract.test.js`
-  - `tests/indexing/stage1/byte-budget-hysteresis.test.js`
-  - `tests/indexing/stage1/two-window-overlap-contract.test.js`
-  - `tests/indexing/stage1/terminal-count-integrity.test.js`
-  - `tests/indexing/stage1/commit-microbatch-coalescing.test.js`
-  - `tests/indexing/stage1/no-gap-recovery-correctness.test.js`
-  - `tests/perf/bench/stage1-windowed-throughput-bench.test.js`
+  - planned stage1 ledger/window/commit contract cases for the then-new redesign
+  - planned perf coverage for windowed throughput under the perf lane
 - Validation executed:
-  - Stage1 redesign tests listed above.
+  - Stage1 redesign coverage listed above.
   - Updated legacy ordering tests for hard-cutover semantics:
-    - `tests/indexing/ordering/ordered-appender-recover-missing-range.test.js`
-    - `tests/indexing/ordering/ordered-appender-progress-stall.test.js`
-    - `tests/indexing/ordering/ordered-appender-capacity-bypass.test.js`
-    - `tests/indexing/ordering/ordered-appender-emergency-capacity.test.js`
-    - `tests/indexing/ordering/ordered-appender-bucketed-watermark.test.js`
-    - `tests/indexing/ordering/ordered-appender-stale-drop.test.js`
-    - `tests/indexing/ordering/ordered-appender-flush-timeout.test.js`
-  - Regression sanity checks: `tests/indexing/stage1/process-files-ordering-sort.test.js`, `tests/indexing/stage1/process-files-refactor-helpers.test.js`.
+    - ordered-appender recover-missing-range
+    - ordered-appender progress-stall
+    - ordered-appender capacity-bypass
+    - ordered-appender emergency-capacity
+    - ordered-appender bucketed-watermark
+    - ordered-appender stale-drop
+    - ordered-appender flush-timeout
+  - Regression sanity checks for process-files ordering and helper refactors.

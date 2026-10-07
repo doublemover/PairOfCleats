@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { createCli } from '../../src/shared/cli.js';
-import { describeDispatchCommand, listDispatchManifest } from '../../src/shared/dispatch/manifest.js';
+import { describeDispatchCommand, listDispatchManifest } from '../../src/shared/dispatch/registry.js';
 
 const argv = createCli({
   scriptName: 'dispatch-manifest',
   options: {
     json: { type: 'boolean', default: false }
   }
-}).parse();
+}).strictOptions().parse();
 
 const [op = 'list', ...rest] = argv._.map((value) => String(value));
 

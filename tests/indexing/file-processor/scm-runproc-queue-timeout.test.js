@@ -1,126 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { normalizeCommentConfig } from '../../../src/index/comments.js';
-import { getLanguageForFile } from '../../../src/index/language-registry.js';
-import { normalizeSegmentsConfig } from '../../../src/index/segments.js';
-import { processFileCpu } from '../../../src/index/build/file-processor/cpu.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
+import { processScmFile, readFixture } from './scm-file-processor-test-helper.js';
 
-applyTestEnv({ testing: '1' });
-
-const root = process.cwd();
-const noop = () => {};
-const timing = {
-  metricsCollector: null,
-  addSettingMetric: noop,
-  addLineSpan: noop,
-  addParseDuration: noop,
-  addTokenizeDuration: noop,
-  addEnrichDuration: noop,
-  addEmbeddingDuration: noop,
-  addLintDuration: noop,
-  addComplexityDuration: noop,
-  setGitDuration: noop,
-  setPythonAstDuration: noop
-};
-
-const createContext = ({
-  abs,
-  ext,
-  rel,
-  relKey,
-  text,
-  fileStat,
-  languageHint,
-  scmProviderImpl,
-  fileHash,
-  scmConfig = { allowSlowTimeouts: true, timeoutMs: 25, annotate: { timeoutMs: 20 } },
-  runProc = (fn) => fn(),
-  onScmProcQueueWait = null,
-  signal = null
-}) => ({
-  abs,
-  root,
-  mode: 'code',
-  fileEntry: { abs, rel: relKey },
-  fileIndex: 1,
-  ext,
-  rel,
-  relKey,
-  text,
-  fileStat,
-  fileHash,
-  fileHashAlgo: 'sha1',
-  fileCaps: null,
-  fileStructural: null,
-  scmProvider: 'git',
-  scmProviderImpl,
-  scmRepoRoot: root,
-  scmConfig,
-  languageOptions: { treeSitter: { enabled: false }, pythonAst: { enabled: false } },
-  astDataflowEnabled: false,
-  controlFlowEnabled: false,
-  normalizedSegmentsConfig: normalizeSegmentsConfig(null),
-  normalizedCommentsConfig: normalizeCommentConfig(null),
-  tokenDictWords: new Set(),
-  dictConfig: {},
-  tokenContext: {
-    dictWords: new Set(),
-    dictConfig: {},
-    codeDictCache: new Map(),
-    tokenClassification: { enabled: false },
-    phraseEnabled: false,
-    chargramEnabled: false
-  },
-  postingsConfig: {},
-  contextWin: {},
-  relationsEnabled: false,
-  lintEnabled: false,
-  complexityEnabled: false,
-  typeInferenceEnabled: false,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  gitBlameEnabled: true,
-  analysisPolicy: null,
-  workerPool: null,
-  workerDictOverride: null,
-  workerState: {},
-  tokenizationStats: null,
-  tokenizeEnabled: true,
-  embeddingEnabled: false,
-  embeddingNormalize: false,
-  embeddingBatchSize: 0,
-  getChunkEmbedding: null,
-  getChunkEmbeddings: null,
-  runEmbedding: (fn) => fn(),
-  runProc,
-  signal,
-  onScmProcQueueWait,
-  runTreeSitterSerial: (fn) => fn(),
-  runIo: (fn) => fn(),
-  log: noop,
-  logLine: noop,
-  showLineProgress: false,
-  toolInfo: null,
-  treeSitterScheduler: null,
-  timing,
-  languageHint,
-  crashLogger: { enabled: false, updateFile: noop },
-  vfsManifestConcurrency: 1,
-  complexityCache: null,
-  lintCache: null,
-  buildStage: 'stage1'
-});
-
-const fixtureAbs = path.join(root, 'tests', 'fixtures', 'mixed', 'src', 'config.yml');
-const fixtureRel = path.relative(root, fixtureAbs);
-const fixtureRelKey = fixtureRel.split(path.sep).join('/');
-const fixtureText = await fs.readFile(fixtureAbs, 'utf8');
-const fixtureStat = await fs.stat(fixtureAbs);
-const fixtureLanguageHint = getLanguageForFile('.yml', fixtureRelKey);
+const fixture = await readFixture('tests', 'fixtures', 'mixed', 'src', 'config.yml');
 const queueDelayMs = 700;
+const timeoutScmConfig = { allowSlowTimeouts: true, timeoutMs: 25, annotate: { timeoutMs: 20 } };
 
 let metaBlockedCalls = 0;
 let metaBlockedAnnotateCalls = 0;
@@ -147,18 +31,13 @@ const metaBlockedRunProc = async (fn) => {
 };
 
 const metaStart = Date.now();
-await processFileCpu(createContext({
-  abs: fixtureAbs,
-  ext: '.yml',
-  rel: fixtureRel,
-  relKey: fixtureRelKey,
-  text: fixtureText,
-  fileStat: fixtureStat,
-  languageHint: fixtureLanguageHint,
+await processScmFile({
+  ...fixture,
   scmProviderImpl: metaBlockedScmProvider,
   fileHash: 'scm-runproc-queue-timeout-meta',
-  runProc: metaBlockedRunProc
-}));
+  runProc: metaBlockedRunProc,
+  scmConfig: timeoutScmConfig
+});
 const metaElapsedMs = Date.now() - metaStart;
 assert.equal(metaBlockedRunProcCalls, 1, 'expected metadata queue block to stop before annotate');
 assert.equal(metaBlockedCalls, 0, 'expected metadata task to abort before getFileMeta runs');
@@ -196,18 +75,13 @@ const annotateBlockedRunProc = async (fn) => {
 };
 
 const annotateStart = Date.now();
-const annotateResult = await processFileCpu(createContext({
-  abs: fixtureAbs,
-  ext: '.yml',
-  rel: fixtureRel,
-  relKey: fixtureRelKey,
-  text: fixtureText,
-  fileStat: fixtureStat,
-  languageHint: fixtureLanguageHint,
+const annotateResult = await processScmFile({
+  ...fixture,
   scmProviderImpl: annotateBlockedScmProvider,
   fileHash: 'scm-runproc-queue-timeout-annotate',
-  runProc: annotateBlockedRunProc
-}));
+  runProc: annotateBlockedRunProc,
+  scmConfig: timeoutScmConfig
+});
 const annotateElapsedMs = Date.now() - annotateStart;
 assert.equal(annotateRunProcCalls, 2, 'expected metadata and annotate to both use runProc queueing');
 assert.equal(annotateMetaCalls, 1, 'expected metadata call before annotate queue timeout');
@@ -243,21 +117,16 @@ const queueMetricRunProc = async (fn) => {
   await new Promise((resolve) => setTimeout(resolve, 15));
   return fn();
 };
-await processFileCpu(createContext({
-  abs: fixtureAbs,
-  ext: '.yml',
-  rel: fixtureRel,
-  relKey: fixtureRelKey,
-  text: fixtureText,
-  fileStat: fixtureStat,
-  languageHint: fixtureLanguageHint,
+await processScmFile({
+  ...fixture,
   scmProviderImpl: queueMetricScmProvider,
   fileHash: 'scm-runproc-queue-timeout-metrics',
   runProc: queueMetricRunProc,
+  scmConfig: timeoutScmConfig,
   onScmProcQueueWait: (waitMs) => {
     scmQueueWaitSamples.push(waitMs);
   }
-}));
+});
 assert.equal(queueMetricMetaCalls >= 1, true, 'expected metadata call in queue metric scenario');
 assert.equal(queueMetricAnnotateCalls >= 1, true, 'expected annotate call in queue metric scenario');
 assert.equal(scmQueueWaitSamples.length >= 2, true, 'expected SCM queue wait callback for metadata and annotate tasks');
@@ -288,19 +157,13 @@ const abortAwareScmProvider = {
 const abortController = new AbortController();
 setTimeout(() => abortController.abort(new Error('abort scm task from outer signal')), 10);
 const abortAwareStart = Date.now();
-await processFileCpu(createContext({
-  abs: fixtureAbs,
-  ext: '.yml',
-  rel: fixtureRel,
-  relKey: fixtureRelKey,
-  text: fixtureText,
-  fileStat: fixtureStat,
-  languageHint: fixtureLanguageHint,
+await processScmFile({
+  ...fixture,
   scmProviderImpl: abortAwareScmProvider,
   fileHash: 'scm-runproc-queue-timeout-abort',
   signal: abortController.signal,
   scmConfig: { allowSlowTimeouts: true, timeoutMs: 1000, annotate: { timeoutMs: 1000 } }
-}));
+});
 const abortAwareElapsedMs = Date.now() - abortAwareStart;
 assert.equal(abortAwareMetaCalls, 1, 'expected metadata task to start before abort signal');
 assert.ok(

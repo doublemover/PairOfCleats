@@ -2,29 +2,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../src/shared/json-stream.js';
-import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
-import { toPosix } from '../../../src/shared/files.js';
+import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
+import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders.js';
+import { toPosix } from '../../../src/shared/file-paths.js';
+import { parseSimpleBenchArgs } from '../shared.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const rows = Number(args.rows) || 200000;
 const maxBytes = Number(args.maxBytes) || 256 * 1024;
 const iterations = Number(args.iterations) || 3;

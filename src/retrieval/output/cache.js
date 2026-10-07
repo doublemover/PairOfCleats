@@ -1,15 +1,19 @@
 import {
   createCacheReporter,
-  createLruCache,
+  createLruCache
+} from '../../shared/cache/lru.js';
+import {
   DEFAULT_CACHE_MB,
   DEFAULT_CACHE_TTL_MS,
   estimateStringBytes
-} from '../../shared/cache.js';
-import { getEnvConfig } from '../../shared/env.js';
+} from '../../shared/cache/size.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const resolveEntryLimit = (raw) => {
+  // Missing environment overrides must leave the configured byte cache active.
+  if (raw == null) return undefined;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : undefined;
 };
 
 let outputCacheReporter = createCacheReporter({ enabled: false, log: null });

@@ -5,6 +5,7 @@ import {
   USR_REPORT_SCHEMA_DEFS,
   USR_CAPABILITY_TRANSITION_SCHEMA
 } from '../schemas/usr.js';
+import { formatValidatorErrors, toValidationResult } from './result.js';
 
 const ajv = createAjv({
   dialect: '2020',
@@ -119,16 +120,6 @@ const USR_CANONICAL_ID_REGEX = Object.freeze(
   )
 );
 
-const formatError = (error) => {
-  const path = error.instancePath || '/';
-  const message = error.message || 'schema error';
-  return `${path} ${message}`.trim();
-};
-
-const formatErrors = (validator) => (
-  validator.errors ? validator.errors.map(formatError) : []
-);
-
 const normalizeEdgeKindConstraintRows = (edgeKindConstraints) => {
   if (Array.isArray(edgeKindConstraints)) {
     return edgeKindConstraints;
@@ -206,13 +197,11 @@ export function validateUsrSchema(name, payload) {
   if (!validator) {
     return { ok: false, errors: [`unknown USR schema: ${name}`] };
   }
-  const ok = Boolean(validator(payload));
-  return { ok, errors: ok ? [] : formatErrors(validator) };
+  return toValidationResult(validator, payload);
 }
 
 export function validateUsrEvidenceEnvelope(payload) {
-  const ok = Boolean(EVIDENCE_ENVELOPE_VALIDATOR(payload));
-  return { ok, errors: ok ? [] : formatErrors(EVIDENCE_ENVELOPE_VALIDATOR) };
+  return toValidationResult(EVIDENCE_ENVELOPE_VALIDATOR, payload);
 }
 
 export function validateUsrReport(artifactId, payload) {
@@ -220,8 +209,7 @@ export function validateUsrReport(artifactId, payload) {
   if (!validator) {
     return { ok: false, errors: [`unknown USR report schema: ${artifactId}`] };
   }
-  const ok = Boolean(validator(payload));
-  return { ok, errors: ok ? [] : formatErrors(validator) };
+  return toValidationResult(validator, payload);
 }
 
 export function listUsrReportIds() {
@@ -281,7 +269,7 @@ export function validateUsrRequiredAuditReports(
 
 export function validateUsrCapabilityTransition(payload, { strictReasonCode = true } = {}) {
   const ok = Boolean(CAPABILITY_TRANSITION_VALIDATOR(payload));
-  const errors = ok ? [] : formatErrors(CAPABILITY_TRANSITION_VALIDATOR);
+  const errors = ok ? [] : formatValidatorErrors(CAPABILITY_TRANSITION_VALIDATOR);
   if (!ok) {
     return { ok: false, errors };
   }

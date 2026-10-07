@@ -1,12 +1,11 @@
 import importlib
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeWindow, install_fake_modules
+from runtime_harness import isolated_temp_directory, FakeWindow, install_fake_modules
 
 
 class IndexBehaviorTests(unittest.TestCase):
@@ -60,7 +59,7 @@ class IndexBehaviorTests(unittest.TestCase):
                 self.index.index_state.record_last_build = value
 
     def test_index_build_prompts_for_repo_when_multiple_roots_exist(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             os.makedirs(os.path.join(repo_a, '.git'))
@@ -79,7 +78,7 @@ class IndexBehaviorTests(unittest.TestCase):
             )
 
     def test_index_build_fails_closed_without_repo_root(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             folder = os.path.join(tmp, 'workspace')
             os.makedirs(folder)
             self.window.set_folders([folder])

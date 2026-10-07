@@ -3,10 +3,11 @@
 ## Status
 
 - **Spec version:** 1 (schemaVersion = 1)
-- **Audience:** PairOfCleats contributors implementing workspace catalog/manifest generation used by federated search and federated caching.
+- **Audience:** PairOfCleats contributors maintaining workspace catalog/manifest generation used by federated search and federated caching.
 - **Implementation status:** active (`src/workspace/manifest.js`).
+- **Last audited:** 2026-05-21
 
-This spec is intended to be *implementation-ready* and consistent with existing build pointer and cache conventions in `tools/shared/dict-utils.js`.
+This spec is the active workspace manifest contract and remains consistent with existing build pointer and cache conventions in `tools/shared/dict-utils.js`.
 
 ---
 

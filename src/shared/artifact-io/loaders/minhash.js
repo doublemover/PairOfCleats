@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getHeapStatistics } from 'node:v8';
+import { normalizeMinhashSampling } from '../../../index/minhash.js';
 import { MAX_JSON_BYTES } from '../constants.js';
 import {
   INTEGER_COERCE_MODE_STRICT,
@@ -20,6 +21,15 @@ import { resolveReadableArtifactPathState } from './core-source-resolution.js';
 const BYTES_PER_U32 = 4;
 const MAX_STREAM_BUFFER_HARD_CAP_BYTES = 64 * 1024 * 1024;
 const HEAP_BUFFER_BUDGET_FRACTION = 0.02;
+
+const resolveSampling = (input, dims = null) => {
+  if (input == null) return null;
+  const sampling = normalizeMinhashSampling(input);
+  if (!sampling || (dims != null && sampling.sampledSignatureLength !== dims)) {
+    throw createLoaderError('ERR_ARTIFACT_INVALID', 'Invalid minhash sampling metadata');
+  }
+  return Object.freeze(sampling);
+};
 
 const toStrictPositiveSafeInt = (value, label) => {
   const parsed = coerceNonNegativeInt(value, { mode: INTEGER_COERCE_MODE_STRICT });
@@ -126,6 +136,7 @@ const resolvePackedMinhashArtifacts = ({
   const dims = toStrictPositiveSafeInt(meta?.dims, 'dims');
   const count = toStrictPositiveSafeInt(meta?.count, 'count');
   const shape = resolvePackedShapeAndByteLengths({ dims, count });
+  const sampling = resolveSampling(meta?.sampling, dims);
   assertWithinMaxBytes(shape.totalBytes, maxBytes, 'Packed minhash signatures');
   return {
     dims,
@@ -133,6 +144,7 @@ const resolvePackedMinhashArtifacts = ({
     totalValues: shape.totalValues,
     totalBytes: shape.totalBytes,
     bytesPerSig: shape.bytesPerSig,
+    sampling,
     resolvedPackedPath,
     checksumValidator: createPackedChecksumValidator(meta, {
       label: 'Packed minhash signatures'
@@ -151,7 +163,7 @@ const resolvePackedMinhashArtifacts = ({
  *   manifest?: object|null,
  *   strict?: boolean
  * }} [options]
- * @returns {Promise<{ signatures: (Uint32Array|number[])[] }|null>}
+ * @returns {Promise<{ signatures: (Uint32Array|number[])[], sampling?:object }|null>}
  */
 export const loadMinhashSignatures = async (
   dir,
@@ -201,17 +213,19 @@ export const loadMinhashSignatures = async (
       const start = i * dims;
       signatures[i] = view.subarray(start, start + dims);
     }
-    return { signatures };
+    return packed.sampling ? { signatures, sampling: packed.sampling } : { signatures };
   }
   if (sources.format !== 'json') {
     throw new Error(`Unsupported minhash_signatures format: ${sources.format}`);
   }
   try {
-    return await loadJsonObjectArtifact(dir, 'minhash_signatures', {
+    const payload = await loadJsonObjectArtifact(dir, 'minhash_signatures', {
       maxBytes,
       manifest: resolvedManifest,
       strict
     });
+    const sampling = resolveSampling(payload?.sampling);
+    return sampling ? { ...payload, sampling } : payload;
   } catch (err) {
     const message = err?.message || '';
     if (message.includes('Missing manifest entry for minhash_signatures')) {
@@ -222,7 +236,7 @@ export const loadMinhashSignatures = async (
 };
 
 /**
- * Stream minhash signatures as `{ docId, sig }` rows.
+ * Stream minhash signatures as `{ docId, sig, sampling? }` rows.
  *
  * Uses batched binary reads for packed artifacts and falls back to JSON payloads.
  *
@@ -234,7 +248,7 @@ export const loadMinhashSignatures = async (
  *   materialize?: boolean,
  *   batchSize?: number
  * }} [options]
- * @returns {AsyncGenerator<{ docId: number, sig: Uint32Array|number[] }, void, unknown>}
+ * @returns {AsyncGenerator<{ docId: number, sig: Uint32Array|number[], sampling?:object }, void, unknown>}
  */
 export const loadMinhashSignatureRows = async function* (
   dir,
@@ -301,7 +315,9 @@ export const loadMinhashSignatureRows = async function* (
           // Copy each signature out of the reusable batch buffer so later reads
           // cannot mutate previously yielded rows.
           const sig = Uint32Array.from(view.subarray(start, end));
-          yield { docId: docId + i, sig };
+          yield packed.sampling
+            ? { docId: docId + i, sig, sampling: packed.sampling }
+            : { docId: docId + i, sig };
         }
         docId += batchCount;
       }
@@ -330,12 +346,13 @@ export const loadMinhashSignatureRows = async function* (
   }
   const signatures = Array.isArray(payload?.signatures) ? payload.signatures : null;
   if (!signatures) return;
+  const sampling = resolveSampling(payload?.sampling);
   if (!materialize) {
     warnMaterializeFallback(dir, 'minhash_signatures', 'json');
   }
   for (let docId = 0; docId < signatures.length; docId += 1) {
     const sig = signatures[docId];
     if (!sig) continue;
-    yield { docId, sig };
+    yield sampling ? { docId, sig, sampling } : { docId, sig };
   }
 };

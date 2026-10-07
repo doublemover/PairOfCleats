@@ -1,5 +1,6 @@
 import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
+import { createVocabIndex } from '../vocab-index.js';
 
 /**
  * Build helpers for navigating a parsed query AST.
@@ -16,6 +17,15 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
   const phraseRangeKey = resolvedPhraseRange?.min && resolvedPhraseRange?.max
     ? `${resolvedPhraseRange.min}:${resolvedPhraseRange.max}`
     : null;
+  // Positive Boolean operators and grouping deliberately request lexical
+  // constraints. Whitespace-only terms instead describe semantic intent for
+  // ANN hits; phrases and exclusions remain hard constraints in either mode.
+  const hasExplicitBoolean = (node) => {
+    if (!node) return false;
+    if (node.grouped || node.type === 'or' || (node.type === 'and' && node.implicit !== true)) return true;
+    return hasExplicitBoolean(node.left) || hasExplicitBoolean(node.right) || hasExplicitBoolean(node.child);
+  };
+  const allowSemanticTerms = !hasExplicitBoolean(queryAst);
 
   const resolveChunk = (idx, chunkId, chunk) => (
     chunk || idx?.chunkMeta?.[chunkId] || null
@@ -74,7 +84,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
     const phraseIndex = idx.phraseNgrams;
     if (phraseIndex && phraseIndex.vocab && phraseIndex.postings) {
       const vocabIndex = phraseIndex.vocabIndex
-        || (phraseIndex.vocabIndex = new Map(phraseIndex.vocab.map((t, i) => [t, i])));
+        || (phraseIndex.vocabIndex = createVocabIndex(phraseIndex.vocab));
       let matches = 0;
       for (const ng of phraseSet) {
         const hit = vocabIndex.get(ng);
@@ -98,15 +108,16 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
     return { matches };
   }
 
-  const matchesQueryAst = (idx, chunkId, chunk) => {
+  const matchesQueryAst = (idx, chunkId, chunk, semantic = false) => {
     if (!queryAst) return true;
     const chunkRecord = resolveChunk(idx, chunkId, chunk);
     const tokens = resolveChunkTokens(idx, chunkId, chunkRecord);
     const tokenSet = getCachedTokenSet(chunkRecord, chunkId, tokens);
-    const evalNode = (node) => {
+    const evalNode = (node, relaxTerms = semantic && allowSemanticTerms) => {
       if (!node) return true;
       switch (node.type) {
         case 'term': {
+          if (relaxTerms) return true;
           if (!node.tokens || !node.tokens.length) return false;
           if (!tokenSet) return false;
           return node.tokens.some((tok) => tokenSet.has(tok));
@@ -121,11 +132,11 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
           return node.tokens.some((tok) => tokenSet.has(tok));
         }
         case 'not':
-          return !evalNode(node.child);
+          return !evalNode(node.child, false);
         case 'and':
-          return evalNode(node.left) && evalNode(node.right);
+          return evalNode(node.left, relaxTerms) && evalNode(node.right, relaxTerms);
         case 'or':
-          return evalNode(node.left) || evalNode(node.right);
+          return evalNode(node.left, relaxTerms) || evalNode(node.right, relaxTerms);
         default:
           return true;
       }

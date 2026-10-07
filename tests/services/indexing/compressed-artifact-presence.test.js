@@ -9,10 +9,9 @@ import { loadWorkspaceConfig } from '../../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../../src/workspace/manifest.js';
 import { toRealPathSync } from '../../../src/workspace/identity.js';
 
-applyTestEnv();
-
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-compressed-artifacts-'));
 const cacheRoot = path.join(tempRoot, 'cache');
+applyTestEnv({ cacheRoot });
 const repoRoot = path.join(tempRoot, 'repo');
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 

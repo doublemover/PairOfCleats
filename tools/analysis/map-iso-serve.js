@@ -3,13 +3,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
 import { spawn } from 'node:child_process';
-import { spawnSubprocessSync } from '../../src/shared/subprocess.js';
-import { fileURLToPath } from 'node:url';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 import { createCli } from '../../src/shared/cli.js';
 import selfsigned from 'selfsigned';
-import { getRuntimeConfig, resolveRepoConfig, resolveRuntimeEnv, resolveToolRoot } from '../shared/dict-utils.js';
+import { bootstrapRuntime, resolveToolRoot } from '../shared/dict-utils.js';
 import { exitLikeCommandResult } from '../shared/cli-utils.js';
 import { decodePathnameSafe, safeJoinUnderBase } from './map-iso-safe-join.js';
+import { serveMapIsoStaticFileOr404 } from './map-iso-static.js';
 
 const argv = createCli({
   scriptName: 'map-iso',
@@ -27,9 +27,7 @@ const argv = createCli({
 
 const toolRoot = resolveToolRoot();
 const repoArg = argv.repo || argv.dir || null;
-const { repoRoot, userConfig } = resolveRepoConfig(repoArg);
-const runtimeConfig = getRuntimeConfig(repoRoot, userConfig);
-const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
+const { repoRoot, runtimeEnv } = bootstrapRuntime(repoArg);
 const mapsDir = path.join(repoRoot, '.pairofcleats', 'maps');
 const outPath = argv.out ? path.resolve(argv.out) : path.join(mapsDir, 'map.iso.html');
 const threeUrl = argv['three-url'] || '/three/three.module.js';
@@ -77,18 +75,6 @@ const runReport = () => {
   }
 };
 
-const contentTypeFor = (filePath) => {
-  const ext = path.extname(filePath).toLowerCase();
-  if (ext === '.html') return 'text/html; charset=utf-8';
-  if (ext === '.js') return 'application/javascript; charset=utf-8';
-  if (ext === '.json') return 'application/json; charset=utf-8';
-  if (ext === '.map') return 'application/json; charset=utf-8';
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
-  if (ext === '.png') return 'image/png';
-  if (ext === '.hdr') return 'application/octet-stream';
-  return 'application/octet-stream';
-};
-
 const openBrowser = (url) => {
   if (argv.open === false) return;
   if (process.platform === 'win32') {
@@ -117,7 +103,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
     return;
   }
   if (pathname === '/' || pathname === '/map.iso.html') {
-    serveStaticFileOr404(res, outPath, 'map.iso.html not found.');
+    serveMapIsoStaticFileOr404(res, outPath, 'map.iso.html not found.');
     return;
   }
   if (pathname.startsWith('/three/examples/')) {
@@ -128,7 +114,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
       res.end('three.js example asset not found.');
       return;
     }
-    serveStaticFileOr404(res, targetPath, 'three.js example asset not found.');
+    serveMapIsoStaticFileOr404(res, targetPath, 'three.js example asset not found.');
     return;
   }
   if (pathname.startsWith('/three/')) {
@@ -139,7 +125,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
       res.end('three.js asset not found.');
       return;
     }
-    serveStaticFileOr404(res, targetPath, 'three.js asset not found.');
+    serveMapIsoStaticFileOr404(res, targetPath, 'three.js asset not found.');
     return;
   }
   if (pathname.startsWith('/assets/isomap/')) {
@@ -150,7 +136,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
       res.end('isomap asset not found.');
       return;
     }
-    serveStaticFileOr404(res, targetPath, 'isomap asset not found.');
+    serveMapIsoStaticFileOr404(res, targetPath, 'isomap asset not found.');
     return;
   }
   if (pathname.startsWith('/isomap/')) {
@@ -161,7 +147,7 @@ const server = https.createServer({ key, cert }, (req, res) => {
       res.end('isomap client asset not found.');
       return;
     }
-    serveStaticFileOr404(res, targetPath, 'isomap client asset not found.');
+    serveMapIsoStaticFileOr404(res, targetPath, 'isomap client asset not found.');
     return;
   }
   res.writeHead(404);

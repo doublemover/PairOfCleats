@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { loadPiecesManifest } from '../../shared/artifact-io.js';
+import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
 import { isManifestPathSafe } from '../validate/paths.js';
-import { fromPosix, toPosix } from '../../shared/files.js';
+import { fromPosix, toPosix } from '../../shared/file-paths.js';
 import { checksumFile, sha1File } from '../../shared/hash.js';
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);

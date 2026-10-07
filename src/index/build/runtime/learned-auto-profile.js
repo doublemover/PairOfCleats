@@ -1,3 +1,4 @@
+import { withGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
@@ -185,7 +186,7 @@ const saveAutoProfileState = async ({
   };
   try {
     await fs.mkdir(path.dirname(statePath), { recursive: true });
-    await atomicWriteJson(statePath, payload, { spaces: 2 });
+    await atomicWriteJson(statePath, withGeneratedCacheMetadata(payload, 'learned-auto-profile'), { spaces: 2 });
     return true;
   } catch {
     return false;

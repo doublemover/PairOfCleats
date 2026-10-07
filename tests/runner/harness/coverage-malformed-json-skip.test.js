@@ -17,7 +17,7 @@ await fsPromises.writeFile(path.join(tempDir, 'bad.json'), '{not-json}\n', 'utf8
 await fsPromises.writeFile(path.join(tempDir, 'good.json'), JSON.stringify({
   result: [
     {
-      url: path.join(root, 'src', 'shared', 'files.js'),
+      url: path.join(root, 'src', 'shared', 'file-paths.js'),
       functions: [
         {
           ranges: [

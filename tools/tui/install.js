@@ -5,12 +5,11 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
-import { resolveRepoRootArg } from '../shared/dict-utils.js';
+import { resolveToolRoot } from '../shared/dict-utils.js';
 import {
   TUI_INSTALL_LAYOUT_VERSION,
   ensureExecutableModeSync,
   isExecutableForPlatform,
-  readBuildManifestSync,
   readTargetsManifest,
   resolveHostTargetTriple,
   resolveTargetForTriple,
@@ -19,18 +18,20 @@ import {
   toPosixRelative,
   writeStableJsonFile
 } from './targets.js';
+import { ensureBuildArtifactAvailable } from './build-support.js';
 
 const argv = createCli({
-  scriptName: 'tui-install',
+  scriptName: 'pairofcleats tui install',
   options: {
     json: { type: 'boolean', default: false },
     target: { type: 'string', default: '' },
+    build: { type: 'boolean', default: true },
     'install-root': { type: 'string', default: '' },
     'event-log-dir': { type: 'string', default: '' }
   }
-}).parse();
+}).strictOptions().parse();
 
-const root = resolveRepoRootArg(null, process.cwd());
+const root = resolveToolRoot();
 
 const resolveEventLogDir = ({ layout }) => {
   if (argv['event-log-dir']) {
@@ -60,22 +61,14 @@ const main = async () => {
     throw new Error(`unsupported target triple: ${triple} (not present in tools/tui/targets.json)`);
   }
 
-  const buildManifest = readBuildManifestSync({ root, verifyChecksum: true });
-  const buildArtifact = resolveTargetForTriple(buildManifest.artifacts, triple);
-  if (!buildArtifact) {
-    throw new Error(`missing artifact row for ${triple} in ${toPosixRelative(root, buildManifest.manifestPath)}`);
-  }
-  if (buildArtifact.artifactName !== target.artifactName) {
-    throw new Error(
-      `target manifest mismatch for ${triple}: expected ${target.artifactName}, got ${buildArtifact.artifactName}`
-    );
-  }
-  if (!buildArtifact.exists || !buildArtifact.absoluteArtifactPath || !fs.existsSync(buildArtifact.absoluteArtifactPath)) {
-    throw new Error(`missing TUI artifact: ${buildArtifact.artifactPath}`);
-  }
-  if (!buildArtifact.sha256) {
-    throw new Error(`build manifest is missing sha256 for ${buildArtifact.artifactPath}`);
-  }
+  const resolvedBuild = await ensureBuildArtifactAvailable({
+    rootDir: root,
+    triple,
+    env: process.env,
+    autoBuild: argv.build !== false
+  });
+  const buildManifest = resolvedBuild.buildManifest;
+  const buildArtifact = resolvedBuild.buildArtifact;
 
   const layout = resolveTuiInstallLayout({
     root,
@@ -111,6 +104,10 @@ const main = async () => {
     triple,
     platform: target.platform,
     artifactName: target.artifactName,
+    supervisor: {
+      path: 'tools/tui/supervisor.js',
+      sha256: sha256FileSync(path.join(root, 'tools', 'tui', 'supervisor.js'))
+    },
     binary: {
       path: toPosixRelative(root, layout.binaryPath),
       sha256: actualSha256,
@@ -134,6 +131,7 @@ const main = async () => {
     ok: true,
     triple,
     artifact: buildArtifact.artifactPath,
+    built: resolvedBuild.built === true,
     installedTo: toPosixRelative(root, layout.binaryPath),
     metadata: toPosixRelative(root, layout.metadataPath),
     eventLogDir: toPosixRelative(root, eventLogDir),
@@ -143,6 +141,9 @@ const main = async () => {
   if (argv.json) {
     process.stdout.write(`${stableStringify(result)}\n`);
   } else {
+    if (resolvedBuild.built === true) {
+      process.stderr.write(`[tui-install] built ${result.artifact}\n`);
+    }
     process.stderr.write(`[tui-install] installed ${result.artifact} -> ${result.installedTo}\n`);
     process.stderr.write(`[tui-install] metadata ${result.metadata}\n`);
   }

@@ -1,8 +1,10 @@
+import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import path from 'node:path';
 
-import { writeJsonArrayFile, writeJsonObjectFile, writeJsonLinesSharded } from '../../../shared/json-stream.js';
-import { resolveJsonlWriteShapeHints } from '../../../shared/artifact-io.js';
-import { estimateJsonBytes } from '../../../shared/cache.js';
+import { writeJsonLinesSharded } from '../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { resolveJsonlWriteShapeHints } from '../../../shared/artifact-io/jsonl.js';
+import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 
 export const createArtifactWriter = ({
@@ -75,7 +77,14 @@ export const createArtifactWriter = ({
       compressible = true,
       piece = null,
       priority = null,
-      estimatedBytes = null
+      estimatedBytes = null,
+      family = null,
+      familyCapability = null,
+      laneHint = null,
+      phaseHint = null,
+      progressUnit = null,
+      estimatedItems = null,
+      exclusivePublisherFamily = null
     } = {}
   ) => {
     const compression = resolveCompression(base, compressible, estimatedBytes);
@@ -91,21 +100,37 @@ export const createArtifactWriter = ({
           checksumAlgo: 'sha1',
           atomic: true
         }),
-        { priority, estimatedBytes }
+        {
+          priority,
+          estimatedBytes,
+          family,
+          familyCapability,
+          laneHint,
+          phaseHint,
+          progressUnit,
+          estimatedItems,
+          exclusivePublisherFamily,
+          publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
+        }
       );
-      if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression }, gzPath);
-      }
       if (keepRaw) {
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
           () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
-          { priority, estimatedBytes }
+          {
+            priority,
+            estimatedBytes,
+            family,
+            familyCapability,
+            laneHint,
+            phaseHint,
+            progressUnit,
+            estimatedItems,
+            exclusivePublisherFamily,
+            publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+          }
         );
-        if (piece) {
-          addPieceFile({ ...piece, format: 'json' }, rawPath);
-        }
       }
       return;
     }
@@ -113,11 +138,19 @@ export const createArtifactWriter = ({
     enqueueWrite(
       formatArtifactLabel(rawPath),
       () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
-      { priority, estimatedBytes }
+      {
+        priority,
+        estimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems,
+        exclusivePublisherFamily,
+        publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+      }
     );
-    if (piece) {
-      addPieceFile({ ...piece, format: 'json' }, rawPath);
-    }
   };
 
   const enqueueJsonArray = (
@@ -127,9 +160,19 @@ export const createArtifactWriter = ({
       compressible = true,
       piece = null,
       priority = null,
-      estimatedBytes = null
+      estimatedBytes = null,
+      family = null,
+      familyCapability = null,
+      laneHint = null,
+      phaseHint = null,
+      progressUnit = null,
+      estimatedItems = null,
+      exclusivePublisherFamily = null
     } = {}
   ) => {
+    const resolvedEstimatedItems = Number.isFinite(Number(estimatedItems))
+      ? Math.max(0, Math.floor(Number(estimatedItems)))
+      : (Array.isArray(items) ? items.length : null);
     const compression = resolveCompression(base, compressible, estimatedBytes);
     const keepRaw = resolveKeepRaw(base);
     if (compression) {
@@ -142,21 +185,37 @@ export const createArtifactWriter = ({
           checksumAlgo: 'sha1',
           atomic: true
         }),
-        { priority, estimatedBytes }
+        {
+          priority,
+          estimatedBytes,
+          family,
+          familyCapability,
+          laneHint,
+          phaseHint,
+          progressUnit,
+          estimatedItems: resolvedEstimatedItems,
+          exclusivePublisherFamily,
+          publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
+        }
       );
-      if (piece) {
-        addPieceFile({ ...piece, format: 'json', compression }, gzPath);
-      }
       if (keepRaw) {
         const rawPath = artifactPath(base, false);
         enqueueWrite(
           formatArtifactLabel(rawPath),
           () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
-          { priority, estimatedBytes }
+          {
+            priority,
+            estimatedBytes,
+            family,
+            familyCapability,
+            laneHint,
+            phaseHint,
+            progressUnit,
+            estimatedItems: resolvedEstimatedItems,
+            exclusivePublisherFamily,
+            publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+          }
         );
-        if (piece) {
-          addPieceFile({ ...piece, format: 'json' }, rawPath);
-        }
       }
       return;
     }
@@ -164,11 +223,19 @@ export const createArtifactWriter = ({
     enqueueWrite(
       formatArtifactLabel(rawPath),
       () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
-      { priority, estimatedBytes }
+      {
+        priority,
+        estimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems: resolvedEstimatedItems,
+        exclusivePublisherFamily,
+        publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
+      }
     );
-    if (piece) {
-      addPieceFile({ ...piece, format: 'json' }, rawPath);
-    }
   };
 
   const enqueueJsonArraySharded = (
@@ -181,7 +248,14 @@ export const createArtifactWriter = ({
       compression = null,
       gzipOptions = null,
       metaExtensions = null,
-      offsets = null
+      offsets = null,
+      family = null,
+      familyCapability = null,
+      laneHint = null,
+      phaseHint = null,
+      progressUnit = null,
+      estimatedItems = null,
+      exclusivePublisherFamily = null
     } = {}
   ) => {
     /**
@@ -205,6 +279,9 @@ export const createArtifactWriter = ({
     const resolvedEstimatedBytes = Number.isFinite(Number(estimatedBytes))
       ? Math.max(0, Math.floor(Number(estimatedBytes)))
       : estimateJsonBytes(items);
+    const resolvedEstimatedItems = Number.isFinite(Number(estimatedItems))
+      ? Math.max(0, Math.floor(Number(estimatedItems)))
+      : (Array.isArray(items) ? items.length : null);
     const shapeHints = jsonlShapeAware
       ? resolveJsonlWriteShapeHints({
         estimatedBytes: resolvedEstimatedBytes,
@@ -230,7 +307,14 @@ export const createArtifactWriter = ({
       enqueueJsonArray(base, items, {
         compressible: false,
         piece,
-        estimatedBytes: resolvedEstimatedBytes
+        estimatedBytes: resolvedEstimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems: resolvedEstimatedItems,
+        exclusivePublisherFamily
       });
       return;
     }
@@ -273,7 +357,7 @@ export const createArtifactWriter = ({
         }));
         const metaPath = path.join(outDir, `${base}.meta.json`);
         await writeJsonObjectFile(metaPath, {
-          fields: {
+          fields: withGeneratedArtifactMetadata({
             schemaVersion: SHARDED_JSONL_META_SCHEMA_VERSION,
             artifact: base,
             format: 'jsonl-sharded',
@@ -291,7 +375,7 @@ export const createArtifactWriter = ({
               ...(predictedSerializeMs > 0 ? { predictedSerializeMs } : {}),
               ...(preallocatePartBytes > 0 ? { preallocatePartBytes } : {})
             }
-          },
+          }, 'sharded-meta', base),
           checksumAlgo: 'sha1',
           atomic: true
         });
@@ -306,6 +390,17 @@ export const createArtifactWriter = ({
           }, absPath);
         }
         addPieceFile({ type: piece?.type || 'chunks', name: `${base}_meta`, format: 'json' }, metaPath);
+      }
+      ,
+      {
+        estimatedBytes: resolvedEstimatedBytes,
+        family,
+        familyCapability,
+        laneHint,
+        phaseHint,
+        progressUnit,
+        estimatedItems: resolvedEstimatedItems,
+        exclusivePublisherFamily
       }
     );
   };

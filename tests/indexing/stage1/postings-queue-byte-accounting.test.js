@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { estimateJsonBytes } from '../../../src/shared/cache.js';
+import { estimateJsonBytes } from '../../../src/shared/cache/size.js';
 import {
   createPostingsQueue,
   estimatePostingsPayload

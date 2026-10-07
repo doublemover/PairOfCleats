@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import { createInterface } from 'node:readline';
 import { PYTHON_AST_SCRIPT } from './ast-script.js';
 import { findPythonExecutable } from './executable.js';
 import { attachCleanupSignalHandlers } from '../../shared/process-signals.js';
-import { registerChildProcessForCleanup } from '../../shared/subprocess.js';
+import { registerChildProcessForCleanup } from '../../shared/subprocess/tracking-register.js';
 import { killChildProcessTree } from '../../shared/kill-tree.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 
 const PYTHON_AST_DEFAULTS = {
   enabled: true,
@@ -25,26 +27,26 @@ let pythonPool = null;
 let pythonPoolSignature = null;
 let pythonPoolHooked = false;
 
-function normalizePythonAstConfig(config = {}, options = {}) {
+export function normalizePythonAstConfig(config = {}, options = {}) {
   if (config.enabled === false) return { enabled: false };
   const defaultMaxWorkers = Number.isFinite(options.defaultMaxWorkers)
     ? Math.max(1, Math.floor(options.defaultMaxWorkers))
     : PYTHON_AST_DEFAULTS.maxWorkers;
+  const launchThreads = getEnvConfig().threads;
+  const launchCap = Math.max(1, Math.min(4, os.availableParallelism(),
+    Number.isFinite(launchThreads) && launchThreads > 0 ? Math.floor(launchThreads) : 4));
   const hardMaxWorkers = Number.isFinite(options.hardMaxWorkers)
-    ? Math.max(1, Math.floor(options.hardMaxWorkers))
-    : null;
-  const allowOverCap = config.allowOverCap === true || options.allowOverCap === true;
+    ? Math.min(launchCap, Math.max(1, Math.floor(options.hardMaxWorkers)))
+    : launchCap;
   const workerCountRaw = Number(config.workerCount);
   const workerCount = Number.isFinite(workerCountRaw)
-    ? Math.max(1, Math.floor(workerCountRaw))
-    : Math.min(PYTHON_AST_DEFAULTS.workerCount, defaultMaxWorkers);
+    ? Math.min(hardMaxWorkers, Math.max(1, Math.floor(workerCountRaw)))
+    : Math.min(hardMaxWorkers, PYTHON_AST_DEFAULTS.workerCount, defaultMaxWorkers);
   const maxWorkersRaw = Number(config.maxWorkers);
   const requestedMax = Number.isFinite(maxWorkersRaw)
     ? Math.max(workerCount, Math.floor(maxWorkersRaw))
     : Math.max(workerCount, defaultMaxWorkers);
-  const cappedMax = (!allowOverCap && Number.isFinite(hardMaxWorkers))
-    ? Math.min(requestedMax, hardMaxWorkers)
-    : requestedMax;
+  const cappedMax = Math.min(requestedMax, hardMaxWorkers);
   const maxWorkers = Math.max(workerCount, cappedMax);
   const scaleUpQueueMsRaw = Number(config.scaleUpQueueMs);
   const scaleUpQueueMs = Number.isFinite(scaleUpQueueMsRaw)

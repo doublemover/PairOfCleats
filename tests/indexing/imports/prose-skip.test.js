@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -18,10 +18,12 @@ const env = applyTestEnv({
   embeddings: 'stub'
 });
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [path.join(root, 'build_index.js'), '--stub-embeddings', '--stage', 'stage2', '--mode', 'prose', '--repo', fixtureRoot],
-  { cwd: fixtureRoot, env, encoding: 'utf8' }
+  'build_index prose mode',
+  fixtureRoot,
+  env,
+  { stdio: 'pipe' }
 );
 
 if (result.status !== 0) {

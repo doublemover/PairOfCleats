@@ -1,0 +1,1846 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-06T16:50:23.920Z",
+  "summary": {
+    "lanes": 5,
+    "tests": 1022,
+    "exactDuplicates": 0,
+    "hotspotKinds": 10,
+    "families": 267,
+    "topSlowest": 10,
+    "timingCoverage": {
+      "freshArtifactTests": 0,
+      "historicalFallbackTests": 74,
+      "missingTests": 948
+    }
+  },
+  "lanes": [
+    {
+      "lane": "gate",
+      "targetMaxDurationSeconds": 15,
+      "orderFile": "tests/gate/gate.order.txt",
+      "timingArtifactPath": ".testLogs/gate-testRunTimes.txt",
+      "totalTests": 35,
+      "knownDurationTests": 0,
+      "knownDurationMs": 0,
+      "p50DurationMs": null,
+      "p95DurationMs": null,
+      "resolvedTimingArtifactPaths": [],
+      "timingSources": {
+        "missing": 35
+      }
+    },
+    {
+      "lane": "ci-lite",
+      "targetMaxDurationSeconds": 15,
+      "orderFile": "tests/ci-lite/ci-lite.order.txt",
+      "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
+      "totalTests": 837,
+      "knownDurationTests": 49,
+      "knownDurationMs": 27090,
+      "p50DurationMs": 190,
+      "p95DurationMs": 2140,
+      "resolvedTimingArtifactPaths": [],
+      "timingSources": {
+        "historical-test-times": 49,
+        "missing": 788
+      }
+    },
+    {
+      "lane": "ci",
+      "targetMaxDurationSeconds": 60,
+      "orderFile": "tests/ci/ci.order.txt",
+      "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
+      "totalTests": 121,
+      "knownDurationTests": 22,
+      "knownDurationMs": 101770,
+      "p50DurationMs": 5020,
+      "p95DurationMs": 5030,
+      "resolvedTimingArtifactPaths": [],
+      "timingSources": {
+        "historical-test-times": 22,
+        "missing": 99
+      }
+    },
+    {
+      "lane": "ci-long",
+      "targetMaxDurationSeconds": 180,
+      "orderFile": "tests/ci-long/ci-long.order.txt",
+      "timingArtifactPath": ".testLogs/ci-long-testRunTimes.txt",
+      "totalTests": 18,
+      "knownDurationTests": 3,
+      "knownDurationMs": 15060,
+      "p50DurationMs": 5020,
+      "p95DurationMs": 5030,
+      "resolvedTimingArtifactPaths": [],
+      "timingSources": {
+        "historical-test-times": 3,
+        "missing": 15
+      }
+    },
+    {
+      "lane": "usr-full-conformance",
+      "targetMaxDurationSeconds": 60,
+      "orderFile": "tests/usr-full-conformance/usr-full-conformance.order.txt",
+      "timingArtifactPath": "",
+      "totalTests": 11,
+      "knownDurationTests": 0,
+      "knownDurationMs": 0,
+      "p50DurationMs": null,
+      "p95DurationMs": null,
+      "resolvedTimingArtifactPaths": [],
+      "timingSources": {
+        "missing": 11
+      }
+    }
+  ],
+  "exactDuplicates": [],
+  "families": [
+    {
+      "key": "storage/sqlite",
+      "count": 66,
+      "knownDurationMs": 25860,
+      "unknownDurationCount": 57
+    },
+    {
+      "key": "indexing/chunking",
+      "count": 11,
+      "knownDurationMs": 10530,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "tooling/triage",
+      "count": 3,
+      "knownDurationMs": 10060,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/shards",
+      "count": 4,
+      "knownDurationMs": 8870,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/file-processor",
+      "count": 10,
+      "knownDurationMs": 8370,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "tooling/install",
+      "count": 14,
+      "knownDurationMs": 8330,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "indexing/type-inference",
+      "count": 14,
+      "knownDurationMs": 5700,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "indexing/imports",
+      "count": 32,
+      "knownDurationMs": 5550,
+      "unknownDurationCount": 30
+    },
+    {
+      "key": "cli/general",
+      "count": 6,
+      "knownDurationMs": 5410,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/runtime",
+      "count": 4,
+      "knownDurationMs": 5040,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "lang/contracts",
+      "count": 13,
+      "knownDurationMs": 5030,
+      "unknownDurationCount": 12
+    },
+    {
+      "key": "indexing/language-fixture",
+      "count": 1,
+      "knownDurationMs": 5030,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "retrieval/ann",
+      "count": 7,
+      "knownDurationMs": 5020,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "retrieval/filters",
+      "count": 5,
+      "knownDurationMs": 5020,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "shared/encoding",
+      "count": 3,
+      "knownDurationMs": 5020,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/metadata",
+      "count": 1,
+      "knownDurationMs": 5020,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "retrieval/ranking",
+      "count": 4,
+      "knownDurationMs": 5010,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "retrieval/contracts",
+      "count": 2,
+      "knownDurationMs": 4180,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "services/api",
+      "count": 6,
+      "knownDurationMs": 3400,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/artifacts",
+      "count": 41,
+      "knownDurationMs": 2990,
+      "unknownDurationCount": 35
+    },
+    {
+      "key": "indexing/workers",
+      "count": 5,
+      "knownDurationMs": 1770,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/segments",
+      "count": 4,
+      "knownDurationMs": 910,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/reports",
+      "count": 9,
+      "knownDurationMs": 510,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "shared/hash",
+      "count": 1,
+      "knownDurationMs": 250,
+      "unknownDurationCount": 0
+    },
+    {
+      "key": "shared/json-stream",
+      "count": 18,
+      "knownDurationMs": 220,
+      "unknownDurationCount": 16
+    },
+    {
+      "key": "tooling/type-inference",
+      "count": 2,
+      "knownDurationMs": 200,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/watch",
+      "count": 17,
+      "knownDurationMs": 160,
+      "unknownDurationCount": 16
+    },
+    {
+      "key": "indexing/postings",
+      "count": 21,
+      "knownDurationMs": 90,
+      "unknownDurationCount": 20
+    },
+    {
+      "key": "indexing/tokenization",
+      "count": 5,
+      "knownDurationMs": 90,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/dict-utils",
+      "count": 3,
+      "knownDurationMs": 80,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/metav2",
+      "count": 2,
+      "knownDurationMs": 70,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/registry",
+      "count": 2,
+      "knownDurationMs": 70,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/embeddings",
+      "count": 31,
+      "knownDurationMs": 60,
+      "unknownDurationCount": 30
+    },
+    {
+      "key": "tooling/lsp",
+      "count": 86,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 86
+    },
+    {
+      "key": "indexing/tree-sitter",
+      "count": 27,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 27
+    },
+    {
+      "key": "tooling/vfs",
+      "count": 23,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 23
+    },
+    {
+      "key": "indexing/contracts",
+      "count": 18,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 18
+    },
+    {
+      "key": "indexing/risk",
+      "count": 18,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 18
+    },
+    {
+      "key": "shared/artifact-io",
+      "count": 17,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 17
+    },
+    {
+      "key": "tooling/vscode",
+      "count": 17,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 17
+    },
+    {
+      "key": "indexing/validate",
+      "count": 15,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 15
+    },
+    {
+      "key": "tooling/doctor",
+      "count": 15,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 15
+    },
+    {
+      "key": "indexing/scm",
+      "count": 14,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 14
+    },
+    {
+      "key": "retrieval/pipeline",
+      "count": 14,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 14
+    },
+    {
+      "key": "indexing/vfs",
+      "count": 13,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 13
+    },
+    {
+      "key": "perf/bench",
+      "count": 13,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 13
+    },
+    {
+      "key": "shared/subprocess",
+      "count": 12,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 12
+    },
+    {
+      "key": "indexing/relations",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
+    },
+    {
+      "key": "conformance/language-shards",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "indexing/policy",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "cli/search",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "indexing/extracted-prose",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "retrieval/federation",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "shared/concurrency",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "runner/harness",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "tooling/api-contracts",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "tooling/ingest",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
+      "key": "indexing/determinism",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/incremental",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/stage1",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "indexing/build",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/discovery",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/git",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/map",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "shared/io",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/architecture",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/ci",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "tooling/sublime",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "indexing/cache",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/chunk-meta",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/filter-index",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "retrieval/cli",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "retrieval/output",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "shared/cache",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/config-inventory",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/fixtures",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "tooling/structural",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "indexing/build-state",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/lifecycle",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/piece-assembly",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/records",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/signatures",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/state",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "indexing/tooling",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "retrieval/cache",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "retrieval/graph",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/fs",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "shared/merge",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "storage/lmdb",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/docs",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/eval",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/paths",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "ci/capability-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/dependency-runtime-migration",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/import-resolution-slo-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/markdown-link-check",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/npm-script-targets",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/suite-runner.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-doctor-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-default-enable-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-guardrail-regression-diff",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-replay-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-attempt-ratios",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-regression-diff",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-sampling",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-tail-p95",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate-unavailable-skip",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/tooling-lsp-slo-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/workflow-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "cli/build-index",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/core-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/excerpt-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-assembly",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-filters-parity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-ranking-budget",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-seed-anchoring",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "context-pack/risk-strict-status",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "contracts/manifest-max-bytes-validation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "contracts/module-export-surface-compat",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "embeddings/runner",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/architecture-output-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/architecture-rules-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/context-pack-skip-resort",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/contracts",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/count-mismatch-warning",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/edge-type-inclusion",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/filter-predicate-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/id-remap-roundtrip",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/lazy-edge-load",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/memory-plateau",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/multiseed-bfs-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/neighborhood-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/output-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/spill-merge-deterministic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/store-and-neighborhood-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/store-cache-eviction",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/store-csr-artifact-load",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/symbol-direction",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/witness-path-lazy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexer/call-sites",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexer/determinism",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexer/incremental",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexer/metav2",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexer/signatures",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/build-cleanup-pending-timeout",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/callsite-id",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/chunk-id",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/config",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/failure-taxonomy-null-shard",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/file-caps",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/graphs",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/identity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/ignore",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/metrics",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/ordering",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/preprocess",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "indexing/repo-map",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "integrations/lsp",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/clike",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/fixtures-sample",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/javascript",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/kotlin",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/php",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/python",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/ruby",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/rust",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "lang/typescript",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/build-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/build-map",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/config-merge-behavior",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/filter-api-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/html-escape-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/isometric",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "map/viewer-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/backend",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/context-expansion",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/providers",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/query",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "runner/stability-classification",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/contained-file-boundaries",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/download-transactions",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/editor-tui-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/java-workspace-execution-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/native-download-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/repository-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/rust-workspace-execution-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "security/zig-workspace-execution-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/api-search-asof",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/embeddings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/indexer",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/indexing",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/queue",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/risk-explain-adapter-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-core-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshot-ref-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/snapshots",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/soak",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "services/sqlite-build-snapshot",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/abort",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/async",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/bloom",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/bundle-io-patch-append",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/capabilities",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/cli",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/cli-option-validators-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/config",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/diffs-registry",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/direct-execution-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/disk-space",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/embeddings-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/files",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-core",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-discovery",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/generated-artifact-prefix-validation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/h33-hard-cutover-boundaries",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/index-ref",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/json-file",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/jsonl",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/jsonrpc",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/lifecycle",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/limits",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/locks",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/logging",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/no-path-leak",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/order",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/path-handling",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/path-normalize",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/process-signals",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/progress",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/provenance",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/risk-filters",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/runtime",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/runtime-capability-manifest-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/safe-regex",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/search-request-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/seed-ref",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/snapshots-registry",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/truncation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/validation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/api-core-health",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/baseline",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/e2e",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/embeddings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/retrieval",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/services",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/sqlite",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/tantivy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "smoke/workers",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "storage/backend",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "storage/embeddings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "storage/vector-extension",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/analysis-wrapper-exit-propagation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/cache",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/config",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/download",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/editors",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/impact",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/index-stats",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/logging",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/providers",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/service",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/signature-parse",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/test-selection",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/usr",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/config-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "workspace/manifest-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    }
+  ],
+  "hotspots": [
+    {
+      "key": "index-build-heavy",
+      "count": 369,
+      "knownDurationMs": 70250,
+      "unknownDurationCount": 328,
+      "note": "Index construction, replay, and build-heavy setup overlap."
+    },
+    {
+      "key": "sqlite-heavy",
+      "count": 66,
+      "knownDurationMs": 25860,
+      "unknownDurationCount": 57,
+      "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
+    },
+    {
+      "key": "cli-cold-start",
+      "count": 7,
+      "knownDurationMs": 5410,
+      "unknownDurationCount": 5,
+      "note": "CLI process startup and argument-routing overlap."
+    },
+    {
+      "key": "api-server-boot",
+      "count": 6,
+      "knownDurationMs": 3400,
+      "unknownDurationCount": 5,
+      "note": "HTTP server startup, routing, and streaming harness reuse."
+    },
+    {
+      "key": "embeddings-cache",
+      "count": 31,
+      "knownDurationMs": 60,
+      "unknownDurationCount": 30,
+      "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
+    },
+    {
+      "key": "lsp-bootstrap",
+      "count": 86,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 86,
+      "note": "Dedicated/configured provider bootstrap and session reuse."
+    },
+    {
+      "key": "smoke-wiring",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9,
+      "note": "Smoke suites should stay thin and avoid chaining lower-level contract tests."
+    },
+    {
+      "key": "search-cli-contract",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7,
+      "note": "Search CLI help, explain, and contract surfaces share fixture/index bootstrap."
+    },
+    {
+      "key": "map-build",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4,
+      "note": "Code-map suites often share the same repo build and render pipeline."
+    },
+    {
+      "key": "lmdb-report",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2,
+      "note": "LMDB report/corruption tests can often share one built fixture and diverge only in tamper steps."
+    }
+  ],
+  "topSlowest": [
+    {
+      "id": "indexing/runtime/two-stage-state",
+      "path": "indexing/runtime/two-stage-state.test.js",
+      "durationMs": 5040,
+      "family": "indexing/runtime",
+      "hotspotKind": "index-build-heavy"
+    },
+    {
+      "id": "indexing/chunking/comment-join",
+      "path": "indexing/chunking/comment-join.test.js",
+      "durationMs": 5030,
+      "family": "indexing/chunking",
+      "hotspotKind": "index-build-heavy"
+    },
+    {
+      "id": "indexing/language-fixture/postings-integrity",
+      "path": "indexing/language-fixture/postings-integrity.test.js",
+      "durationMs": 5030,
+      "family": "indexing/language-fixture",
+      "hotspotKind": "index-build-heavy"
+    },
+    {
+      "id": "lang/contracts/misc-buildfiles",
+      "path": "lang/contracts/misc-buildfiles.test.js",
+      "durationMs": 5030,
+      "family": "lang/contracts",
+      "hotspotKind": "other"
+    },
+    {
+      "id": "storage/sqlite/incremental/file-manifest-updates",
+      "path": "storage/sqlite/incremental/file-manifest-updates.test.js",
+      "durationMs": 5030,
+      "family": "storage/sqlite",
+      "hotspotKind": "sqlite-heavy"
+    },
+    {
+      "id": "storage/sqlite/migrations/schema-mismatch-rebuild",
+      "path": "storage/sqlite/migrations/schema-mismatch-rebuild.test.js",
+      "durationMs": 5030,
+      "family": "storage/sqlite",
+      "hotspotKind": "sqlite-heavy"
+    },
+    {
+      "id": "tooling/triage/context-pack",
+      "path": "tooling/triage/context-pack.test.js",
+      "durationMs": 5030,
+      "family": "tooling/triage",
+      "hotspotKind": "index-build-heavy"
+    },
+    {
+      "id": "tooling/triage/records-index-and-search",
+      "path": "tooling/triage/records-index-and-search.test.js",
+      "durationMs": 5030,
+      "family": "tooling/triage",
+      "hotspotKind": "index-build-heavy"
+    },
+    {
+      "id": "cli/general/repo-root",
+      "path": "cli/general/repo-root.test.js",
+      "durationMs": 5020,
+      "family": "cli/general",
+      "hotspotKind": "cli-cold-start"
+    },
+    {
+      "id": "indexing/chunking/formats/format-fidelity",
+      "path": "indexing/chunking/formats/format-fidelity.test.js",
+      "durationMs": 5020,
+      "family": "indexing/chunking",
+      "hotspotKind": "index-build-heavy"
+    }
+  ]
+}

@@ -19,11 +19,13 @@ Framework ID: <framework-id>
 ## 7. Risk and diagnostics expectations
 ## 8. Required fixtures and evidence
 ## 9. Approval checklist
-- [ ] Owner-role review completed.
-- [ ] Backup-owner review completed.
-- [ ] Matrix linkage verified against framework profile and edge-case registries.
-- [ ] Required framework fixture families assigned with concrete fixture IDs.
-- [ ] Required C4 conformance checks mapped to executable lanes.
+Template placeholder rows are not active checklist state. When instantiating a concrete framework contract, copy these rows as Markdown checkboxes and complete or leave them pending according to technical rollout readiness:
+
+- Owner-role review completed.
+- Backup-owner review completed.
+- Matrix linkage verified against framework profile and edge-case registries.
+- Required framework fixture families assigned with concrete fixture IDs.
+- Required C4 conformance checks mapped to executable lanes.
 
 ## 10. Completion evidence artifacts
 - `usr-conformance-summary.json` framework row updated for this profile.

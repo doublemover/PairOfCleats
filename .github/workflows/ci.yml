@@ -3,9 +3,16 @@ name: CI
 permissions:
   contents: read
 
+# Hosted validation/packaging uses the bundled CPU runtime, not CUDA extras.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
   pull_request:
 
 concurrency:
@@ -21,20 +28,20 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.13.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps
         shell: bash
@@ -42,6 +49,19 @@ jobs:
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
           fi
+
+      - name: Dependency security
+        run: npm audit --audit-level=low
+
+      - name: Bootstrap and runtime contracts
+        run: |
+          node tests/ci/dependency-security-contract.test.js
+          node tests/ci/duplicate-scanner-contract.test.js
+          node tests/ci/workflow-contract.test.js
+          node tests/ci/onnx-cpu-install-policy.test.js
+          node tests/tooling/install/postinstall-patch-enforcement.test.js
+          node tests/tooling/install/postinstall-rebuild-native.test.js
+          node tests/tooling/install/postinstall-signal-exit.test.js
 
       - name: Lint
         run: npm run lint
@@ -52,13 +72,19 @@ jobs:
       - name: Env usage guardrail
         run: npm run env:check
 
+      - name: Generated surfaces freshness
+        run: node tools/docs/generated-surfaces.js --check-freshness
+
+      - name: Command surface audit
+        run: node tools/ci/check-command-surface.js
+
       - name: Gate lane
         run: |
           node tests/run.js --lane gate --allow-timeouts --junit .testLogs/junit-gate.xml --log-dir .testLogs
 
       - name: Upload gate artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-artifacts-gate
           path: |
@@ -67,6 +93,47 @@ jobs:
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0
+
+  rust-tui:
+    name: rust-tui
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+          components: rustfmt, clippy
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/pairofcleats-tui/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('crates/pairofcleats-tui/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Cargo fmt
+        working-directory: crates/pairofcleats-tui
+        run: cargo fmt --check
+
+      - name: Cargo check
+        working-directory: crates/pairofcleats-tui
+        run: cargo check --locked
+
+      - name: Cargo test
+        working-directory: crates/pairofcleats-tui
+        run: cargo test --locked
+
+      - name: Cargo clippy
+        working-directory: crates/pairofcleats-tui
+        run: cargo clippy --locked -- -D warnings
 
   ubuntu:
     name: ubuntu
@@ -77,16 +144,16 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.13.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .ci-cache/pairofcleats/models
@@ -98,10 +165,10 @@ jobs:
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -111,9 +178,9 @@ jobs:
             npm run bootstrap:ci
           else
             echo "node_modules cache hit; verifying native modules."
-            if ! npm run verify:native; then
+            if ! node tools/setup/rebuild-native.js --verify; then
               echo "native verification failed; running targeted repair:native."
-              npm run repair:native
+              node tools/setup/rebuild-native.js --repair
             fi
           fi
           node -v
@@ -142,9 +209,24 @@ jobs:
           $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
           node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
 
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-quality-artifacts-ubuntu
+          path: |
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/test-profile.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
       - name: Upload test artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-artifacts-ubuntu
           path: |
@@ -163,16 +245,16 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.13.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
@@ -182,10 +264,10 @@ jobs:
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: pwsh
@@ -193,12 +275,13 @@ jobs:
           node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
           if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
             npm run bootstrap:ci
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
             Write-Host 'node_modules cache hit; verifying native modules.'
-            npm run verify:native
+            node tools/setup/rebuild-native.js --verify
             if ($LASTEXITCODE -ne 0) {
               Write-Host 'native verification failed; running targeted repair:native.'
-              npm run repair:native
+              node tools/setup/rebuild-native.js --repair
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
@@ -218,9 +301,24 @@ jobs:
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
 
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-quality-artifacts-windows
+          path: |
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/test-profile.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
       - name: Upload test artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-artifacts-windows
           path: |
@@ -239,16 +337,16 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '24.13.0'
+          node-version: '24.21.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .ci-cache/pairofcleats
           key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id }}
@@ -258,10 +356,10 @@ jobs:
 
       - name: Restore node_modules cache
         id: node-modules-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -271,9 +369,9 @@ jobs:
             npm run bootstrap:ci
           else
             echo "node_modules cache hit; verifying native modules."
-            if ! npm run verify:native; then
+            if ! node tools/setup/rebuild-native.js --verify; then
               echo "native verification failed; running targeted repair:native."
-              npm run repair:native
+              node tools/setup/rebuild-native.js --repair
             fi
           fi
           node -v
@@ -294,9 +392,24 @@ jobs:
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
 
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-quality-artifacts-macos
+          path: |
+            .diagnostics/test-summary.json
+            .diagnostics/test-timings.json
+            .diagnostics/test-profile.json
+            .diagnostics/coverage/**
+            .testLogs/junit.xml
+          if-no-files-found: ignore
+          include-hidden-files: true
+          compression-level: 0
+
       - name: Upload test artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-artifacts-macos
           path: |

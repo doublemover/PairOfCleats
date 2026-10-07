@@ -1,7 +1,7 @@
 {
   "generated": "2026-01-17T06:05:00.000Z",
   "packages": [
-    { "package": "@xenova/transformers", "reason": "Embeddings models and tokenizers." },
+    { "package": "@huggingface/transformers", "reason": "Embeddings models and tokenizers." },
     { "package": "onnxruntime-node", "reason": "Local embedding inference runtime." },
     { "package": "lmdb", "reason": "Primary on-disk index store." },
     { "package": "better-sqlite3", "reason": "SQLite backend for retrieval." },

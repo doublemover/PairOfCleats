@@ -1,45 +1,9 @@
 {
-  "generatedAt": "2026-02-21T13:36:26.622Z",
+  "generatedAt": "2026-05-20T13:08:59.959Z",
   "scripts": [
     {
-      "name": "api-server",
+      "name": "audit:duplicates",
       "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-dict-seg",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-language",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-language:matrix",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-micro",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-micro:tiny",
-      "category": "bench",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "bench-queries",
-      "category": "bench",
       "ciAllowed": false,
       "replacement": null
     },
@@ -56,111 +20,9 @@
       "replacement": null
     },
     {
-      "name": "build-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "build-lmdb-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "build-tantivy-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "cache-gc",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "caps:calibrate",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "ci-build",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "ci-restore",
-      "category": "release",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "clean-artifacts",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "compact-sqlite-index",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "compare-models",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "config-dump",
-      "category": "config",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "config-reset",
-      "category": "config",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "config-validate",
-      "category": "config",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
       "name": "config:budget",
       "category": "config",
       "ciAllowed": true,
-      "replacement": null
-    },
-    {
-      "name": "ctags-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "download-dicts",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "download-extensions",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "download-models",
-      "category": "tooling",
-      "ciAllowed": false,
       "replacement": null
     },
     {
@@ -170,57 +32,9 @@
       "replacement": null
     },
     {
-      "name": "eval-run",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
       "name": "format",
       "category": "lint",
       "ciAllowed": true,
-      "replacement": null
-    },
-    {
-      "name": "generate-repo-dict",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "get-last-failure",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "gtags-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "index-validate",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "indexer-service",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "lexicon:report",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "lexicon:validate",
-      "category": "tooling",
-      "ciAllowed": false,
       "replacement": null
     },
     {
@@ -230,254 +44,380 @@
       "replacement": null
     },
     {
-      "name": "lsif-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "map-iso",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "mcp-server",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "metrics-dashboard",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "package-sublime",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "package-vscode",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "parity:matrix",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "patch",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
       "name": "postinstall",
       "category": "tooling",
       "ciAllowed": false,
       "replacement": null
     },
     {
-      "name": "python:check",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "rebuild:native",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "release-check",
+      "name": "release:verify",
       "category": "release",
       "ciAllowed": false,
       "replacement": null
     },
     {
-      "name": "release-check:breaking",
-      "category": "release",
-      "ciAllowed": false,
+      "name": "test",
+      "category": "test",
+      "ciAllowed": true,
       "replacement": null
     },
     {
-      "name": "repair:native",
+      "name": "test:api",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:ci",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:ci-lite",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:ci-long",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:lane-audit",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:perf",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:refresh-governance",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:services",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "test:storage",
+      "category": "test",
+      "ciAllowed": true,
+      "replacement": null
+    },
+    {
+      "name": "verify",
       "category": "tooling",
-      "ciAllowed": false,
+      "ciAllowed": true,
       "replacement": null
     },
     {
-      "name": "report-artifacts",
+      "name": "verify:production",
       "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "scip-ingest",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "search",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "shard-census",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "show-throughput",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "structural-search",
-      "category": "indexing",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "summary-report",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "tooling-detect",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "tooling-install",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "tui:build",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "tui:install",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "tui:supervisor",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "uninstall",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "verify-extensions",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "verify:native",
-      "category": "tooling",
-      "ciAllowed": false,
-      "replacement": null
-    },
-    {
-      "name": "watch-index",
-      "category": "indexing",
       "ciAllowed": false,
       "replacement": null
     }
   ],
   "cliCommands": [
     {
+      "command": "pairofcleats api-contracts",
+      "summary": "Report cross-file API contracts.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats architecture-check",
+      "summary": "Evaluate architecture rules over graphs.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats bench language",
+      "summary": "Run the bench-language corpus.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats bench matrix",
+      "summary": "Run the bench-language backend matrix.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats bench micro",
+      "summary": "Run focused indexing/search microbenchmarks.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats bench summarize",
+      "summary": "Summarize completed bench-language runs.",
+      "supportTier": "experimental"
+    },
+    {
       "command": "pairofcleats bootstrap",
-      "summary": "Fast bootstrap flow."
+      "summary": "Fast bootstrap flow.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats cache clear",
+      "summary": "Clear shared caches.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats cache gc",
+      "summary": "Run shared cache GC.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats cli audit",
+      "summary": "Run the local command-surface self-audit.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats cli completions",
+      "summary": "Generate shell completions for the canonical CLI surface.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats config dump",
+      "summary": "Dump effective config and derived runtime state.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats config reset",
+      "summary": "Reset repo config back to the default template.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats config validate",
+      "summary": "Validate repo config against the schema.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats context-pack",
+      "summary": "Build a composite context pack for a seed.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats dispatch describe",
+      "summary": "Describe one shared dispatch command.",
+      "supportTier": "internal"
+    },
+    {
+      "command": "pairofcleats dispatch list",
+      "summary": "List shared dispatch manifest entries.",
+      "supportTier": "internal"
+    },
+    {
+      "command": "pairofcleats graph-context",
+      "summary": "Build a graph context pack for a seed.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats impact",
+      "summary": "Analyze change impact over the graph.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats index build",
-      "summary": "Build file-backed indexes."
+      "summary": "Build file-backed indexes.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats index diff",
+      "summary": "Compute and inspect index diffs.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats index snapshot",
+      "summary": "Manage index snapshots.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats index stats",
+      "summary": "Report per-mode index artifact stats.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats index validate",
-      "summary": "Validate index artifacts."
+      "summary": "Validate index artifacts.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats index watch",
-      "summary": "Watch and rebuild indexes."
+      "summary": "Watch and rebuild indexes.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats ingest ctags",
-      "summary": "Ingest ctags symbols."
+      "summary": "Ingest ctags symbols.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats ingest gtags",
-      "summary": "Ingest GTAGS symbols."
+      "summary": "Ingest GTAGS symbols.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats ingest lsif",
-      "summary": "Ingest LSIF dump."
+      "summary": "Ingest LSIF dump.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats ingest scip",
-      "summary": "Ingest SCIP index."
+      "summary": "Ingest SCIP index.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats lmdb build",
+      "summary": "Build LMDB indexes.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats report compare-models",
+      "summary": "Compare embedding model results.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats report eval",
+      "summary": "Run retrieval evaluation.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats report map",
+      "summary": "Generate the code map report.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats report metrics",
+      "summary": "Render metrics dashboard artifacts.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats report parity",
+      "summary": "Run the retrieval parity matrix harness.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats report summary",
+      "summary": "Build the combined summary report.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats report throughput",
+      "summary": "Render benchmark throughput overviews.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats risk delta",
+      "summary": "Compare risk flows across two refs.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats risk explain",
+      "summary": "Explain interprocedural risk flows.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats search",
-      "summary": "Query indexed data."
+      "summary": "Query indexed data.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats service api",
-      "summary": "Run local API service."
+      "summary": "Run local API service.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats service indexer",
-      "summary": "Run indexer service."
+      "summary": "Run indexer service.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats service mcp",
+      "summary": "Run local MCP service.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats setup",
-      "summary": "Guided setup flow."
+      "summary": "Guided setup flow.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats sqlite compact",
+      "summary": "Compact SQLite indexes in place.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats suggest-tests",
+      "summary": "Suggest tests impacted by a change list.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats tooling detect",
+      "summary": "Detect repo tooling and language coverage.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tooling doctor",
+      "summary": "Inspect tooling availability and configuration.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats tooling install",
+      "summary": "Install or plan external tooling dependencies.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tooling navigate",
+      "summary": "Query indexed definitions, references, and document symbols.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tooling uninstall",
+      "summary": "Remove installed PairOfCleats caches and tooling payloads.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tui build",
+      "summary": "Build TUI artifacts.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats tui install",
+      "summary": "Install TUI artifacts.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats tui supervisor",
-      "summary": "Run Node supervisor process."
+      "summary": "Run Node supervisor process.",
+      "supportTier": "operator"
     },
     {
       "command": "pairofcleats workspace build",
-      "summary": "Build workspace indexes."
+      "summary": "Build workspace indexes.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats workspace catalog",
-      "summary": "Inspect workspace catalog."
+      "summary": "Inspect workspace catalog.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats workspace manifest",
-      "summary": "Generate workspace manifest."
+      "summary": "Generate workspace manifest.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats workspace status",
-      "summary": "Show workspace status."
+      "summary": "Show workspace status.",
+      "supportTier": "stable"
     }
   ],
   "phaseSpecDir": null

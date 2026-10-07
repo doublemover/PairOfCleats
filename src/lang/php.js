@@ -1,8 +1,17 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildBraceDelimitedMethodRelations,
+  collectCLikeDataflowFacts,
+  buildDefaultDocMeta,
+  collectAttributes,
+  collectCLikeTypeBodyMemberDeclarations,
+  extractDocComment,
+  normalizeDeclarationList,
+  sliceSignature
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
@@ -97,6 +106,8 @@ const PHP_CALL_KEYWORDS = new Set([
 const PHP_USAGE_SKIP = new Set([
   ...PHP_RESERVED_WORDS
 ]);
+
+const PHP_CALLABLE_KINDS = new Set(['MethodDeclaration', 'FunctionDeclaration']);
 
 function extractPhpModifiers(signature) {
   const mods = [];
@@ -317,28 +328,29 @@ export function buildPhpChunks(text, options = {}) {
     }
   }
 
-  for (const typeDecl of typeDecls) {
-    if (!typeDecl || typeDecl.start == null || typeDecl.end == null) continue;
-    const bounds = findCLikeBodyBounds(text, typeDecl.start);
-    if (bounds.bodyStart === -1 || bounds.bodyEnd === -1) continue;
-    const startLine = offsetToLine(lineIndex, bounds.bodyStart + 1);
-    const endLine = offsetToLine(lineIndex, bounds.bodyEnd);
-    for (let i = startLine - 1; i < Math.min(lines.length, endLine); i++) {
-      const line = lines[i];
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.startsWith('#')) continue;
-      if (!trimmed.includes('function')) continue;
-      const { signature, endLine: sigEndLine, hasBody } = readSignatureLines(lines, i);
-      if (!signature.includes('(')) continue;
+  decls.push(...collectCLikeTypeBodyMemberDeclarations({
+    text,
+    lines,
+    lineIndex,
+    typeDecls,
+    findBodyBounds: findCLikeBodyBounds,
+    offsetToLine,
+    readSignatureLines,
+    shouldSkipLine: (trimmed) => (
+      !trimmed
+      || trimmed.startsWith('//')
+      || trimmed.startsWith('/*')
+      || trimmed.startsWith('*')
+      || trimmed.startsWith('#')
+    ),
+    shouldReadLine: (trimmed) => trimmed.includes('function'),
+    buildEntry: ({ typeDecl, lineIndex: i, signature, start, end, endLine }) => {
       const parsed = parsePhpSignature(signature);
-      if (!parsed.name) continue;
-      const start = lineIndex[i] + line.indexOf(trimmed);
-      const boundsInner = hasBody ? findCLikeBodyBounds(text, start) : { bodyStart: -1, bodyEnd: -1 };
-      const end = boundsInner.bodyEnd > start ? boundsInner.bodyEnd : lineIndex[sigEndLine] + lines[sigEndLine].length;
+      if (!parsed.name) return null;
       const modifiers = extractPhpModifiers(signature);
       const meta = {
         startLine: i + 1,
-        endLine: offsetToLine(lineIndex, end),
+        endLine,
         signature,
         params: extractPhpParams(signature),
         returns: parsed.returns,
@@ -347,25 +359,17 @@ export function buildPhpChunks(text, options = {}) {
         docstring: extractDocComment(lines, i),
         attributes: collectAttributes(lines, i, signature)
       };
-      decls.push({
+      return {
         start,
         end,
         name: `${typeDecl.name}.${parsed.name}`,
         kind: 'MethodDeclaration',
         meta
-      });
+      };
     }
-  }
-
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
   }));
+
+  return normalizeDeclarationList(decls);
 }
 
 /**
@@ -375,38 +379,23 @@ export function buildPhpChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildPhpRelations(text, phpChunks) {
-  const imports = collectPhpImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
-  if (Array.isArray(phpChunks)) {
-    for (const chunk of phpChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
+  return buildBraceDelimitedMethodRelations(text, phpChunks, {
+    collectImports: collectPhpImports,
+    collectCallsAndUsages: collectPhpCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds,
+    callableKinds: PHP_CALLABLE_KINDS,
+    isExported: (chunk) => {
       if (chunk.kind === 'NamespaceDeclaration'
         || chunk.kind === 'ClassDeclaration'
         || chunk.kind === 'InterfaceDeclaration'
         || chunk.kind === 'TraitDeclaration'
         || chunk.kind === 'FunctionDeclaration') {
-        exports.add(chunk.name);
+        return true;
       }
       const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
-      if (chunk.kind === 'MethodDeclaration' && mods.includes('public')) exports.add(chunk.name);
-      if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectPhpCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
+      return chunk.kind === 'MethodDeclaration' && mods.includes('public');
     }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  });
 }
 
 /**
@@ -415,27 +404,12 @@ export function buildPhpRelations(text, phpChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[],visibility:(string|null),returnType:(string|null)}}
  */
 export function extractPhpDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  const decorators = Array.isArray(meta.attributes) ? meta.attributes : [];
-  const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
-  const returns = meta.returns || null;
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns,
-    returnType: returns,
-    signature: meta.signature || null,
-    decorators,
-    modifiers,
-    visibility: meta.visibility || null,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk, {
+    includeReturnType: true,
+    decoratorsFrom: 'attributes',
+    includeModifiers: true,
+    includeVisibility: true
+  });
 }
 
 /**
@@ -466,20 +440,12 @@ export function computePhpFlow(text, chunk, options = {}) {
 
   if (dataflowEnabled) {
     const flowSkip = new Set([...PHP_USAGE_SKIP, 'this']);
-    out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: flowSkip,
-      memberOperators: ['->', '::', '.']
-    });
-    out.returnsValue = hasReturnValue(cleaned);
-    const throws = new Set();
-    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_\\\\]*)/g;
-    let match;
-    while ((match = throwRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) throws.add(name);
-    }
-    out.throws = Array.from(throws);
-    out.yields = /\byield\b/.test(cleaned);
+    Object.assign(out, collectCLikeDataflowFacts(cleaned, {
+      usageSkip: flowSkip,
+      memberOperators: ['->', '::', '.'],
+      throwPattern: /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_\\\\]*)/g,
+      yieldPattern: /\byield\b/
+    }));
   }
 
   if (controlFlowEnabled) {

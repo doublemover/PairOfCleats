@@ -1,35 +1,21 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import fsSync from 'node:fs';
 import { applyBuildPragmas, restoreBuildPragmas } from '../../../src/storage/sqlite/build/pragmas.js';
 
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  loadSqlitePragmaDatabase,
+  openPragmaTestDatabase,
+  readPragmaValue
+} from './helpers/pragmas-fixture.js';
 
-let Database = null;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch (err) {
-  console.error(`better-sqlite3 missing: ${err?.message || err}`);
-  process.exit(1);
-}
-
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'sqlite-build-pragmas-restore');
-const dbPath = path.join(tempRoot, 'restore.db');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
-
-const db = new Database(dbPath);
-const readPragma = (name) => {
-  try {
-    return db.pragma(name, { simple: true });
-  } catch {
-    return null;
-  }
-};
+const Database = await loadSqlitePragmaDatabase();
+const { db, dbPath } = await openPragmaTestDatabase({
+  label: 'sqlite-build-pragmas-restore',
+  name: 'restore.db',
+  Database
+});
+const readPragma = (name) => readPragmaValue(db, name);
 
 db.pragma('cache_size = -1234');
 db.pragma('mmap_size = 0');

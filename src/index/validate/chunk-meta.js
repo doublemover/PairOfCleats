@@ -1,12 +1,10 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { resolveSqlitePaths } from '../../shared/dict-utils.js';
-import {
-  MAX_JSON_BYTES,
-  loadChunkMeta,
-  loadJsonArrayArtifact,
-  readJsonFile
-} from '../../shared/artifact-io.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
+import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
 import { validateRiskInterproceduralArtifacts } from './risk-interprocedural.js';

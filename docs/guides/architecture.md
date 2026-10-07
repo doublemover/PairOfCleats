@@ -102,8 +102,10 @@ graph TD
 ```
 
 References:
-- docs/specs/watch-atomicity.md
-- docs/specs/build-state-integrity.md
+- docs/specs/build-truth-ledger.md
+- docs/specs/deterministic-ordering.md
+- docs/specs/json-stream-atomic-replace.md
+- Historical context only: docs/archived/watch-atomicity.md
 
 ## Search (query)
 

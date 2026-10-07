@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
 import yargs from 'yargs/yargs';
+import { isDirectExecution } from '../src/shared/direct-execution.js';
 import { resolveRepoConfig } from './shared/dict-utils.js';
 import { emitJson } from './shared/cli-utils.js';
 import {
@@ -143,6 +143,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
       .option('max-bytes', { type: 'number' })
       .option('persist', { type: 'boolean' })
       .option('persist-unsafe', { type: 'boolean', default: false })
+      .option('retention-tier', { type: 'string' })
       .option('wait-ms', { type: 'number', default: 0 })
       .option('dry-run', { type: 'boolean', default: false })
       .option('json', { type: 'boolean', default: false }),
@@ -172,6 +173,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
           maxBytes: argv['max-bytes'] ?? diffDefaults.compute.maxBytes,
           persist: resolveBooleanArg('persist', diffDefaults.compute.persist),
           persistUnsafe: resolveBooleanArg('persist-unsafe', false),
+          retentionTier: argv['retention-tier'],
           waitMs: argv['wait-ms'],
           dryRun: argv['dry-run'] === true
         });
@@ -342,7 +344,7 @@ export async function runDiffCli(rawArgs = process.argv.slice(2)) {
   await parser.demandCommand(0).parseAsync();
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runDiffCli().catch((err) => {
     emitCliError(err, false);
     process.exit(1);

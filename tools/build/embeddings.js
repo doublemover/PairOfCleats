@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { fileURLToPath } from 'node:url';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   const { runBuildEmbeddings } = await import('./embeddings/run.js');
   runBuildEmbeddings().catch((err) => {
     console.error(err?.message || err);

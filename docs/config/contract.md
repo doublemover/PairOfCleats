@@ -14,6 +14,8 @@ Sources:
 - retrieval
 - runtime
 - search
+- security
+- sqlite
 - threads
 - tooling
 
@@ -32,7 +34,7 @@ indexing.artifacts.symbolArtifactsFormat (string) enum=auto|jsonl|jsonl-sharded|
 indexing.artifacts.tokenPostingsFormat (string)
 indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
-indexing.artifacts.writeConcurrency (integer) range=1..32
+indexing.artifacts.writeConcurrency (integer)
 indexing.concurrency (number)
 indexing.diffs (object)
 indexing.diffs.compute (object)
@@ -58,19 +60,18 @@ indexing.embeddings.cache.maxAgeDays (number)
 indexing.embeddings.cache.maxGb (number)
 indexing.embeddings.cache.scope (string) enum=global|repo|local
 indexing.embeddings.concurrency (number)
+indexing.embeddings.embeddinggemma2 (object)
+indexing.embeddings.embeddinggemma2.dimensions (integer) enum=128|256|512|768
+indexing.embeddings.embeddinggemma2.dtype (string) enum=fp32|q8|q4
+indexing.embeddings.embeddinggemma2.revision (string)
+indexing.embeddings.model (string)
 indexing.embeddings.onnx (object)
 indexing.embeddings.onnx.interOpNumThreads (number)
 indexing.embeddings.onnx.intraOpNumThreads (number)
 indexing.embeddings.provider (string)
 indexing.fileCaps (object)
 indexing.fileCaps.byExt (object)
-indexing.fileCaps.byExt.* (object)
-indexing.fileCaps.byExt.*.maxBytes (number)
-indexing.fileCaps.byExt.*.maxLines (number)
 indexing.fileCaps.byLanguage (object)
-indexing.fileCaps.byLanguage.* (object)
-indexing.fileCaps.byLanguage.*.maxBytes (number)
-indexing.fileCaps.byLanguage.*.maxLines (number)
 indexing.fileCaps.byMode (object)
 indexing.fileCaps.byMode.code (object)
 indexing.fileCaps.byMode.code.maxBytes (number)
@@ -96,15 +97,6 @@ indexing.ioConcurrencyCap (number)
 indexing.lexicon (object)
 indexing.lexicon.enabled (boolean)
 indexing.lexicon.languageOverrides (object)
-indexing.lexicon.languageOverrides.* (object)
-indexing.lexicon.languageOverrides.*.relations (object)
-indexing.lexicon.languageOverrides.*.relations.drop (object)
-indexing.lexicon.languageOverrides.*.relations.drop.builtins (boolean)
-indexing.lexicon.languageOverrides.*.relations.drop.keywords (boolean)
-indexing.lexicon.languageOverrides.*.relations.drop.literals (boolean)
-indexing.lexicon.languageOverrides.*.relations.drop.types (boolean)
-indexing.lexicon.languageOverrides.*.relations.enabled (boolean)
-indexing.lexicon.languageOverrides.*.relations.stableDedupe (boolean)
 indexing.lexicon.relations (object)
 indexing.lexicon.relations.drop (object)
 indexing.lexicon.relations.drop.builtins (boolean)
@@ -134,15 +126,18 @@ indexing.postings.tokenClassification
 indexing.profile (string) enum=default|vector_only
 indexing.riskInterprocedural (object)
 indexing.riskInterprocedural.caps (object)
+indexing.riskInterprocedural.caps.maxBlockedExpansionsPerPartial (number)
 indexing.riskInterprocedural.caps.maxCallSitesPerEdge (number)
 indexing.riskInterprocedural.caps.maxDepth (number)
 indexing.riskInterprocedural.caps.maxEdgeExpansions (number)
 indexing.riskInterprocedural.caps.maxMs (number|null)
+indexing.riskInterprocedural.caps.maxPartialFlows (number)
 indexing.riskInterprocedural.caps.maxPathsPerPair (number)
 indexing.riskInterprocedural.caps.maxTotalFlows (number)
 indexing.riskInterprocedural.emitArtifacts (string) enum=none|jsonl|off
 indexing.riskInterprocedural.enabled (boolean)
 indexing.riskInterprocedural.sanitizerPolicy (string) enum=terminate|weaken
+indexing.riskInterprocedural.semantics (array)
 indexing.riskInterprocedural.strictness (string) enum=conservative|argAware
 indexing.riskInterprocedural.summaryOnly (boolean)
 indexing.scheduler (object)
@@ -152,9 +147,6 @@ indexing.scheduler.ioTokens (number)
 indexing.scheduler.lowResourceMode (boolean)
 indexing.scheduler.memoryTokens (number)
 indexing.scheduler.queues (object)
-indexing.scheduler.queues.* (object)
-indexing.scheduler.queues.*.maxPending (number)
-indexing.scheduler.queues.*.priority (number)
 indexing.scheduler.starvationMs (number)
 indexing.scm (object)
 indexing.scm.annotate (object)
@@ -236,6 +228,7 @@ search (object)
 search.annDefault (boolean)
 search.denseVectorMode (string) enum=merged|code|doc|auto
 search.fieldWeights (object)
+search.hyperlinks (string) enum=auto|off|file|vscode
 search.maxCandidates (number)
 search.rrf (object)
 search.rrf.enabled (boolean)
@@ -247,6 +240,38 @@ search.scoreBlend.sparseWeight (number)
 search.sqliteAutoArtifactBytes (number)
 search.sqliteAutoChunkThreshold (number)
 search.sqliteFtsWeights
+security (object)
+security.archives (object)
+security.archives.maxBytes (number)
+security.archives.maxEntries (number)
+security.archives.maxEntryBytes (number)
+security.downloads (object)
+security.downloads.allowlist (object)
+security.downloads.maxBytes (number)
+security.downloads.maxRedirects (number)
+security.downloads.requireHash (boolean)
+security.downloads.timeoutMs (number)
+security.downloads.warnUnsigned (boolean)
+sqlite (object)
+sqlite.annMode (string) enum=auto|extension|js
+sqlite.vectorExtension (object)
+sqlite.vectorExtension.annMode (string) enum=auto|extension|js
+sqlite.vectorExtension.arch (string)
+sqlite.vectorExtension.column (string)
+sqlite.vectorExtension.dir (string)
+sqlite.vectorExtension.downloads (object)
+sqlite.vectorExtension.enabled (boolean)
+sqlite.vectorExtension.encoding (string)
+sqlite.vectorExtension.filename (string)
+sqlite.vectorExtension.ingestEncoding (string)
+sqlite.vectorExtension.module (string)
+sqlite.vectorExtension.options (string)
+sqlite.vectorExtension.path (string)
+sqlite.vectorExtension.platform (string)
+sqlite.vectorExtension.provider (string)
+sqlite.vectorExtension.sha256 (string)
+sqlite.vectorExtension.table (string)
+sqlite.vectorExtension.url (string)
 threads (number)
 tooling (object)
 tooling.allowGlobalFallback (boolean)
@@ -261,28 +286,30 @@ tooling.circuitBreakerThreshold (number)
 tooling.clangd (object)
 tooling.clangd.compileCommandsDir (string)
 tooling.clangd.requireCompilationDatabase (boolean)
+tooling.csharp (object)
+tooling.dart (object)
 tooling.dir (string)
 tooling.disabledTools
+tooling.elixir (object)
 tooling.enabledTools
+tooling.gopls (object)
+tooling.haskell (object)
 tooling.installScope (string)
+tooling.jdtls (object)
+tooling.lifecycle (object)
 tooling.logDir (string)
 tooling.lsp (object)
+tooling.lsp.circuitBreakerThreshold (number)
 tooling.lsp.enabled (boolean)
+tooling.lsp.lifecycle (object)
+tooling.lsp.maxRetries (number)
 tooling.lsp.servers (array)
-tooling.lsp.servers[] (object)
-tooling.lsp.servers[].args
-tooling.lsp.servers[].cmd (string)
-tooling.lsp.servers[].id (string)
-tooling.lsp.servers[].label (string)
-tooling.lsp.servers[].languages
-tooling.lsp.servers[].priority (number)
-tooling.lsp.servers[].retries (number)
-tooling.lsp.servers[].timeoutMs (number)
-tooling.lsp.servers[].uriScheme (string) enum=file|poc-vfs
-tooling.lsp.servers[].version (string)
+tooling.lsp.timeoutMs (number)
 tooling.maxRetries (number)
+tooling.phpactor (object)
 tooling.providerOrder
 tooling.pyright (object)
+tooling.solargraph (object)
 tooling.sourcekit (object)
 tooling.strict (boolean)
 tooling.timeoutMs (number)
@@ -333,62 +360,11 @@ tooling.vfs.tokenMode (string)
 
 ## Env overrides (runtime)
 
-- MCP_MODE -> mcpMode
-- PAIROFCLEATS_API_TOKEN -> apiToken
-- PAIROFCLEATS_BUNDLE_THREADS -> bundleThreads
-- PAIROFCLEATS_CACHE_METRICS_SAMPLE_RATE -> cacheMetricsSampleRate
-- PAIROFCLEATS_CACHE_NAMESPACE -> cacheNamespace
-- PAIROFCLEATS_CACHE_REBUILD -> cacheRebuild
-- PAIROFCLEATS_CACHE_ROOT -> cacheRoot
-- PAIROFCLEATS_COMPRESSION -> compression
-- PAIROFCLEATS_DEBUG_CRASH -> debugCrash
-- PAIROFCLEATS_DEBUG_ORDERED -> debugOrdered
-- PAIROFCLEATS_DICT_DIR -> dictDir
-- PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY -> discoveryStatConcurrency
-- PAIROFCLEATS_DOC_EXTRACT -> docExtract
-- PAIROFCLEATS_EMBEDDINGS -> embeddings
-- PAIROFCLEATS_EXTENSIONS_DIR -> extensionsDir
-- PAIROFCLEATS_FILE_CACHE_MAX -> fileCacheMax
-- PAIROFCLEATS_HOME -> homeRoot
-- PAIROFCLEATS_IMPORT_GRAPH -> importGraph
-- PAIROFCLEATS_LANCEDB_CHILD -> child
-- PAIROFCLEATS_LANCEDB_ISOLATE -> isolate
-- PAIROFCLEATS_LANCEDB_PAYLOAD -> payload
-- PAIROFCLEATS_LOG_FORMAT -> logFormat
-- PAIROFCLEATS_LOG_LEVEL -> logLevel
-- PAIROFCLEATS_MCP_MAX_BUFFER_BYTES -> mcpMaxBufferBytes
-- PAIROFCLEATS_MCP_MODE -> mcpMode
-- PAIROFCLEATS_MCP_QUEUE_MAX -> mcpQueueMax
-- PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS -> mcpToolTimeoutMs
-- PAIROFCLEATS_MCP_TRANSPORT -> mcpTransport
-- PAIROFCLEATS_MODELS_DIR -> modelsDir
-- PAIROFCLEATS_REGEX_ENGINE -> regexEngine
-- PAIROFCLEATS_SCHEDULER -> schedulerEnabled
-- PAIROFCLEATS_SCHEDULER_CPU -> schedulerCpuTokens
-- PAIROFCLEATS_SCHEDULER_IO -> schedulerIoTokens
-- PAIROFCLEATS_SCHEDULER_LOW_RESOURCE -> schedulerLowResource
-- PAIROFCLEATS_SCHEDULER_MEM -> schedulerMemoryTokens
-- PAIROFCLEATS_SCHEDULER_STARVATION_MS -> schedulerStarvationMs
-- PAIROFCLEATS_STAGE -> stage
-- PAIROFCLEATS_SUMMARY_CACHE_MAX -> summaryCacheMax
-- PAIROFCLEATS_THREADS -> threads
-- PAIROFCLEATS_TRACE_ARTIFACT_IO -> traceArtifactIo
-- PAIROFCLEATS_VERBOSE -> verbose
-- PAIROFCLEATS_WATCHER_BACKEND -> watcherBackend
-- PAIROFCLEATS_WORKER_POOL -> workerPool
-- PAIROFCLEATS_XXHASH_BACKEND -> xxhashBackend
+- (none)
 
 ## Env overrides (test-only, require PAIROFCLEATS_TESTING=1)
 
-- PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY -> allowMissingCompatKey
-- PAIROFCLEATS_TEST_CONFIG
-- PAIROFCLEATS_TEST_FORCE_DOCX_MISSING -> forceDocxMissing
-- PAIROFCLEATS_TEST_FORCE_PDF_MISSING -> forcePdfMissing
-- PAIROFCLEATS_TEST_MAX_JSON_BYTES -> maxJsonBytes
-- PAIROFCLEATS_TEST_MCP_DELAY_MS -> mcpDelayMs
-- PAIROFCLEATS_TEST_STUB_DOCX_EXTRACT -> stubDocxExtract
-- PAIROFCLEATS_TEST_STUB_PDF_EXTRACT -> stubPdfExtract
-- PAIROFCLEATS_TEST_STUB_PDF_EXTRACT_DELAY_MS -> stubPdfExtractDelayMs
+- (none)
 
 ## CLI flags
 
@@ -430,100 +406,6 @@ tooling.vfs.tokenMode (string)
 
 ### search / pairofcleats search
 
-- --alias
-- --allow-sparse-fallback
-- --allow-unsafe-mix
-- --ann
-- --ann-backend
-- --as-of
-- --async
-- --author
-- --awaits
-- --backend
-- --bm25-b
-- --bm25-k1
-- --branch
-- --branches
-- --breaks
-- --calls
-- --case
-- --case-file
-- --case-tokens
-- --chunk-author
-- --churn
-- --cohort
-- --comments
-- --compact
-- --concurrency
-- --continues
-- --debug-include-paths
-- --decorator
-- --dense-vector-mode
-- --explain
-- --ext
-- --extends
-- --federated-strict
-- --file
-- --filter
-- --fts-profile
-- --fts-stemming
-- --fts-trigram
-- --fts-weights
-- --generator
-- --graph-ranking-max-ms
-- --graph-ranking-max-work
-- --graph-ranking-seed-k
-- --graph-ranking-seeds
-- --import
-- --include-disabled
-- --inferred-type
-- --json
-- --lang
-- --lint
-- --loops
-- --matched
-- --merge
-- --meta
-- --meta-json
-- --mode
-- --model
-- --modified-after
-- --modified-since
-- --mutates
-- --n
-- --non-strict
-- --param
-- --path
-- --reads
-- --repo
-- --repo-filter
-- --return-type
-- --returns
-- --risk
-- --risk-category
-- --risk-flow
-- --risk-sink
-- --risk-source
-- --risk-tag
-- --rrf-k
-- --select
-- --signature
-- --snapshot
-- --stats
-- --struct-pack
-- --struct-rule
-- --struct-tag
-- --stub-embeddings
-- --tag
-- --throws
-- --top
-- --top-per-repo
-- --type
-- --uses
-- --visibility
-- --why
-- --workspace
-- --writes
 
 Notes:
 - Boolean flags accept `--no-<flag>` unless a command overrides negation behavior.

@@ -1,5 +1,5 @@
 import { StringDecoder } from 'node:string_decoder';
-import { spawnSubprocess } from '../../shared/subprocess.js';
+import { spawnSubprocess, SubprocessError } from '../../shared/subprocess/runner.js';
 
 const EMBEDDINGS_CANCEL_CODE = 0xC000013A;
 
@@ -73,19 +73,24 @@ export const runEmbeddingsTool = async (args, options = {}) => {
     ? options.extraEnv
     : null;
   const env = extraEnv ? { ...baseEnv, ...extraEnv } : baseEnv;
-  const result = await spawnSubprocess(process.execPath, args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env,
-    signal: options.signal || null,
-    rejectOnNonZeroExit: false,
-    onStdout: emitter ? emitter.handleChunk : null,
-    onStderr: emitter ? emitter.handleChunk : null
-  });
-  emitter?.flush();
-  if (result.exitCode === 0) {
+  let result;
+  try {
+    result = await spawnSubprocess(process.execPath, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
+      signal: options.signal || null,
+      rejectOnNonZeroExit: false,
+      onStdout: emitter ? emitter.handleChunk : null,
+      onStderr: emitter ? emitter.handleChunk : null
+    });
+  } finally {
+    emitter?.flush();
+  }
+  if (result.exitCode === 0 && !result.signal) {
     return { ok: true };
   }
-  if (result.signal || result.exitCode === EMBEDDINGS_CANCEL_CODE) {
+  if (options.signal?.aborted
+    || (Number.isInteger(result.exitCode) && (result.exitCode >>> 0) === EMBEDDINGS_CANCEL_CODE)) {
     return { cancelled: true, code: result.exitCode ?? null, signal: result.signal || null };
   }
   const pickText = (value) => {
@@ -99,10 +104,9 @@ export const runEmbeddingsTool = async (args, options = {}) => {
   const detailTail = details
     ? details.slice(-4000)
     : '';
-  const errorMessage = detailTail
-    ? `build-embeddings exited with code ${result.exitCode ?? 'unknown'}\n${detailTail}`
-    : `build-embeddings exited with code ${result.exitCode ?? 'unknown'}`;
-  const error = new Error(errorMessage);
-  error.result = result;
-  throw error;
+  const termination = result.signal
+    ? `was terminated by signal ${result.signal}`
+    : `exited with code ${result.exitCode ?? 'unknown'}`;
+  const errorMessage = `build-embeddings ${termination}${detailTail ? `\n${detailTail}` : ''}`;
+  throw new SubprocessError(errorMessage, result);
 };

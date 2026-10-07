@@ -20,7 +20,7 @@ import {
   updateBundleSizing
 } from './bundler.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { runWithConcurrency } from '../../shared/concurrency.js';
+import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 
 const LARGE_REPO_CHUNK_THRESHOLD = 3000;
 const LARGE_REPO_FILE_THRESHOLD = 500;
@@ -74,6 +74,16 @@ const buildCandidateIds = (symbolRef) => {
   if (!symbolRef || !Array.isArray(symbolRef.candidates)) return [];
   const ids = symbolRef.candidates.map(formatCandidateId).filter(Boolean);
   return ids.length ? ids : [];
+};
+
+const syncCallDetailResolution = (detail, symbolRef) => {
+  if (!detail || typeof detail !== 'object') return;
+  const resolvedChunkUid = symbolRef?.resolved?.chunkUid || null;
+  const candidateIds = buildCandidateIds(symbolRef);
+  detail.calleeRef = symbolRef || null;
+  detail.resolvedCalleeChunkUid = resolvedChunkUid;
+  detail.targetChunkUid = resolvedChunkUid;
+  detail.targetCandidates = candidateIds;
 };
 
 const buildEdgeLink = ({ edgeKind, fromChunkUid, symbolRef, resolvedEntry }) => {
@@ -606,14 +616,7 @@ export async function runCrossFilePropagation({
             kindHint: null,
             fromFile: chunk.file
           });
-          const candidateIds = buildCandidateIds(symbolRef);
-          if (symbolRef?.resolved?.chunkUid && !detail.targetChunkUid) {
-            detail.targetChunkUid = symbolRef.resolved.chunkUid;
-          } else if (!detail.targetChunkUid && (!detail.targetCandidates || !detail.targetCandidates.length) && candidateIds.length) {
-            detail.targetCandidates = candidateIds;
-          }
-          detail.calleeRef = symbolRef || null;
-          detail.resolvedCalleeChunkUid = symbolRef?.resolved?.chunkUid || null;
+          syncCallDetailResolution(detail, symbolRef);
           const resolvedEntry = symbolRef?.resolved?.chunkUid
             ? entryByUid.get(symbolRef.resolved.chunkUid)
             : null;

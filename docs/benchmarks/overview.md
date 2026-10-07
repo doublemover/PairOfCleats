@@ -4,6 +4,124 @@ This project has two layers of benchmarking:
 - Microbenchmarks for fast component-level timing.
 - Language benchmarks for full-size repo comparisons.
 
+For the planned pinned Node 24/26 macOS experiment, use the
+[matched runtime comparison](node-runtime-comparison.md). It is a recipe,
+not a recorded performance result.
+
+For bounded CPU sampling, timeline traces and CPU/I/O diagnosis, see the
+[performance profiling guide](profiling.md).
+
+Language reports distinguish observed extraction quality from missing evidence.
+Stage 1's quality record is retained in `index_state.json` even when PDF/DOCX
+reporting is disabled or a tiny-repository profile omits auxiliary reports. Older
+stage timing records remain readable. Source-extraction admission and stage 3
+bundle synchronization are recorded separately; skipped synchronization is not
+counted as source-content recall loss.
+
+The production-clean gate requires observed extraction-quality evidence for
+successful tasks. Unknown evidence fails its zero-default
+`maxUnobservedQualityRepos` threshold; it does not establish zero recall loss.
+Ordinary partial runs keep their existing exit policy. Reports retain actual
+skipped-file counts separately from estimated suppressed files and recall loss.
+
+SCM metadata recovery retains bounded failure codes and messages, batch counters,
+per-file attempted/completed/unavailable counts, and unresolved-file counts in
+stage timings under `scmMetadata`. This distinguishes a fully recovered provider
+that intentionally lacks batch support from a real batch failure, and keeps the
+failure evidence available after benchmark cache cleanup.
+
+An empty primary SQLite mode no longer removes a usable sibling mode from the
+query benchmark. A code-only SQLite index is queried with an explicit code
+selector; the reverse case selects prose. Reports name the selected primary
+modes per backend and count executed searches, so results with different scope
+can be compared deliberately. An entirely empty SQLite workload is recorded as
+unexercised. Empty-mode receipts must match their checksum, current ready state,
+generation and database target; an unknown or missing nonempty mode remains an
+error. Confirmed empty receipts also prevent unnecessary automatic rebuilds.
+
+Incremental JSON bundles and their patches now use the same byte-vector and
+omitted-field representation as their checksums. Buffer vectors, typed-array
+patches and omitted optional fields round-trip without false corruption
+reports. Existing MessagePack checksum representations remain readable. This
+fix has a small deterministic write/read fixture; it does not establish the
+cause of checksum mismatches in earlier repository campaigns.
+
+Cross-file inference also checks complete chunk coverage before reusing a
+whole-run cache result. Size-truncated or incomplete entries trigger fresh
+inference before any cached rows alter its inputs. Complete entries retain
+their existing reuse path, so warm results do not silently lose updates that
+were omitted from a bounded cache.
+
+A configured path alone no longer counts as an installed SQLite ANN extension.
+Setup and benchmark preparation check the actual artifact before reporting it
+ready, including in check-only mode. This verifies installation data; native
+compatibility and actual ANN query coverage still need runtime checks.
+
+Query summaries retain per-mode ANN stage evidence separately from the requested
+ANN flag: vector-result sources, MinHash-result sources, sparse bypasses and
+stages without results. Cache hits and searches without stage evidence are
+counted separately. Aggregate reports explicitly identify older reports without
+this evidence. An enabled flag or a reported JavaScript backend alone does not
+prove vector retrieval; observed results also do not establish native
+compatibility or judged relevance. These observations do not change exit gates.
+
+Automatic query-worker sizing reads current manifest and SQLite file sizes when
+byte estimates are omitted. Unknown values no longer become zero through numeric
+coercion; an explicit zero retains its meaning. The existing memory estimates,
+worker caps and recycling policy remain unchanged. Manifest sizes are declared
+artifact metadata, not a measurement of live process memory.
+
+Dictionary preparation follows the selected configuration and shared directory.
+When English is not requested, valid non-English or custom wordlists do not
+trigger its download. The default English recipe can repair an empty file; unsupported
+missing resources remain visible. File readiness does not imply complete
+dictionary-language coverage or measured segmentation quality.
+
+Pyright preparation accepts the comments and trailing commas supported by its
+own configuration format. Valid project settings no longer produce a false
+invalid-config warning. Malformed, unavailable and oversized configuration
+files remain explicit, and ordinary JSON readers keep their strict policy.
+
+Tool preparation checks the Go SDK's version identity before using it to install
+Go-based servers. An unrelated exit-zero program is reported as an unmet
+prerequisite. Installation commands and prerequisite probes use the application
+directory, keeping their setup context separate from the repository being timed.
+
+Go-based server preparation can now provision an official portable Go SDK when
+one is missing, including when the server itself is already installed. `gopls`
+and `sqls` share the same SDK and module/build caches outside the per-run index
+cache. Installation records the version, platform, architecture, official
+archive SHA256 and executable-version check; cached bytes are verified before
+reuse. Dry-run plans the SDK without downloading it, and check-only benchmark
+preparation keeps its existing no-provision behavior.
+
+Managed Go is visible to command resolution and Go-server child environments,
+without modifying the system PATH. Preparation defaults to one Go worker and
+one compiler job, preserves explicit launch limits, and disables implicit
+toolchain downloads unless explicitly selected by the launch environment.
+Portable archive recipes cover Linux/macOS x64 and arm64 plus Windows x64,
+arm64 and x86; Linux x86 is also supported. Other targets and unverified existing
+cache slots remain explicit failures or manual work. Inert fixtures cover the
+recipe and cache protocol; native SDK/server installation and cross-platform
+acceptance remain unrun. SDK availability alone does not establish compatibility
+with every server release or repository workspace.
+
+Supported hosts can also prepare clangd from its official standalone release.
+The managed package retains the builtin C/C++ headers beside the executable;
+copying only the binary would lose those resources. Published archive digests,
+binary target headers and the reported version are checked before the cache is
+used. Linux/Windows x64 and universal macOS x64/arm64 routes are declared; other
+targets remain manual. Public release redirects stay within the vendor's
+approved origins, and existing system installations keep their normal detection
+path. Tiny inert fixtures verify the installer/cache protocol, not native host
+compatibility, compilation-database coverage or real repository enrichment.
+
+Managed binary verification uses a shared bounded record of previously verified
+hashes. File identity, size, nanosecond modification time and change time must
+all match before a hash can be reused. Changed or evicted records require a new
+streamed hash. The per-process cache retains at most 16 records and a 128 KiB
+conservative string/reference proxy; this is not a process-memory measurement.
+
 ## Query generation
 
 Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
@@ -20,7 +138,7 @@ Common flags:
 
 Default outputs:
 - Text mode: `benchmarks/queries/generated-<mode>.txt`
-- JSON mode: `docs/benchmarks-queries.json`
+- JSON mode: `benchmarks/results/benchmarks-queries.json`
 
 ## Microbench suite
 

@@ -1,0 +1,132 @@
+{
+  "sourceHead": "84b66b251d2c10fea0586adc0e77d9c76ed5275e",
+  "rows": [
+    {
+      "id": 0,
+      "file": "src/a.js",
+      "ext": ".js"
+    },
+    {
+      "id": 1,
+      "file": "src/a.js",
+      "ext": ".js",
+      "size": 0,
+      "hash": "",
+      "encoding": "utf8",
+      "encodingFallback": false,
+      "externalDocs": []
+    },
+    null,
+    {
+      "id": 3,
+      "file": "src/東京.ts",
+      "ext": ".ts",
+      "last_author": "😀",
+      "churn": 0,
+      "hashAlgo": "sha1",
+      "encodingConfidence": 0.9
+    }
+  ],
+  "expected": {
+    "format": "columnar",
+    "columns": [
+      "id",
+      "file",
+      "ext",
+      "size",
+      "hash",
+      "hashAlgo",
+      "encoding",
+      "encodingFallback",
+      "encodingConfidence",
+      "externalDocs",
+      "last_author",
+      "churn"
+    ],
+    "length": 4,
+    "arrays": {
+      "id": [
+        0,
+        1,
+        null,
+        3
+      ],
+      "file": [
+        0,
+        0,
+        null,
+        1
+      ],
+      "ext": [
+        0,
+        0,
+        null,
+        1
+      ],
+      "size": [
+        null,
+        0,
+        null,
+        null
+      ],
+      "hash": [
+        null,
+        "",
+        null,
+        null
+      ],
+      "hashAlgo": [
+        null,
+        null,
+        null,
+        "sha1"
+      ],
+      "encoding": [
+        null,
+        "utf8",
+        null,
+        null
+      ],
+      "encodingFallback": [
+        null,
+        false,
+        null,
+        null
+      ],
+      "encodingConfidence": [
+        null,
+        null,
+        null,
+        0.9
+      ],
+      "externalDocs": [
+        null,
+        [],
+        null,
+        null
+      ],
+      "last_author": [
+        null,
+        null,
+        null,
+        "😀"
+      ],
+      "churn": [
+        null,
+        null,
+        null,
+        0
+      ]
+    },
+    "tables": {
+      "file": [
+        "src/a.js",
+        "src/東京.ts"
+      ],
+      "ext": [
+        ".js",
+        ".ts"
+      ]
+    }
+  }
+}

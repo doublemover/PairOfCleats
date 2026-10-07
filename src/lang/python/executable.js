@@ -1,4 +1,4 @@
-import { spawnSubprocess } from '../../shared/subprocess.js';
+import { spawnSubprocess } from '../../shared/subprocess/runner.js';
 
 const PYTHON_CANDIDATES = ['python', 'python3'];
 

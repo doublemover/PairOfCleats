@@ -1,26 +1,9 @@
 #!/usr/bin/env node
 import { performance } from 'node:perf_hooks';
 import { buildFileMeta } from '../../../src/index/build/artifacts/file-meta.js';
+import { parseSimpleBenchArgs } from '../shared.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const fileCount = Number(args.files) || 10000;
 const chunksPerFile = Number(args.chunksPerFile) || 2;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())

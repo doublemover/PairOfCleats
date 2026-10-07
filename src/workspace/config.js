@@ -5,7 +5,7 @@ import { stableStringify } from '../shared/stable-json.js';
 import { sha1 } from '../shared/hash.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { validateWorkspaceConfigResolved } from '../contracts/validators/workspace.js';
-import { getRepoId, resolveRepoRoot } from '../../tools/shared/dict-utils.js';
+import { getRepoId, resolveRepoRoot } from '../shared/repo-paths.js';
 import { normalizeIdentityPath, toRealPathSync } from './identity.js';
 
 export const WORKSPACE_CONFIG_DEFAULT_FILENAME = '.pairofcleats-workspace.jsonc';

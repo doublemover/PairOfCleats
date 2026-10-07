@@ -3,35 +3,42 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { runWithConcurrency } from '../../src/shared/concurrency.js';
+import { runWithConcurrency } from '../../src/shared/concurrency/run-with-queue.js';
 import { formatBytes, sizeOfPath } from '../../src/shared/disk-space.js';
 import {
   DEFAULT_CACHE_GC_POLICY,
   DEFAULT_CAS_DESIGN_GATE,
   describeCacheLayers
-} from '../../src/shared/cache.js';
+} from '../../src/shared/cache/layers.js';
 import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import {
   getCasMetaPath,
   getCasObjectPath,
   getCasObjectsRoot,
   getCasRoot,
-  listCasObjectHashes,
-  normalizeCasHash,
-  readActiveCasLeases,
+  normalizeCasHash
+} from '../../src/shared/cache-cas/paths.js';
+import {
+  listCasObjectHashes
+} from '../../src/shared/cache-cas/gc.js';
+import {
+  readActiveCasLeases
+} from '../../src/shared/cache-cas/leases.js';
+import {
   readCasMetadata
-} from '../../src/shared/cache-cas.js';
-import { isPathWithinRoot } from '../../src/shared/files.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+} from '../../src/shared/cache-cas/metadata.js';
+import { isPathWithinRoot, isRootPath } from '../../src/shared/file-paths.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
-import { isRootPath } from '../shared/path-utils.js';
+import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',
   options: {
     apply: { type: 'boolean', default: false },
     'dry-run': { type: 'boolean', default: false },
+    'allow-unmarked-cache': { type: 'boolean', default: false },
     json: { type: 'boolean', default: false },
     'cache-root': { type: 'string' },
     'grace-days': { type: 'number' },
@@ -151,6 +158,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
 
   const failedRemovals = [];
   for (const repo of removals) {
+    assertSafeCacheDeletion(repo.path, [cacheRoot], { allowUnmarked: argv['allow-unmarked-cache'] || dryRun });
     if (isRootPath(repo.path)) {
       console.error(`refusing to delete root path: ${repo.path}`);
       process.exit(1);
@@ -378,6 +386,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       if (isRootPath(objectPathResolved) || isRootPath(metadataPathResolved)) {
         throw new Error(`Refusing to delete root path during CAS GC: ${objectPathResolved}`);
       }
+      assertSafeCacheDeletion(objectPathResolved, [cacheRoot], { allowUnmarked: argv['allow-unmarked-cache'] || argv['dry-run'] });
       const objectDelete = await removePathWithRetry(objectPathResolved, {
         recursive: false,
         force: true,
@@ -395,6 +404,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
         });
         return;
       }
+      assertSafeCacheDeletion(metadataPathResolved, [cacheRoot], { allowUnmarked: argv['allow-unmarked-cache'] || argv['dry-run'] });
       const metadataDelete = await removePathWithRetry(metadataPathResolved, {
         recursive: false,
         force: true,

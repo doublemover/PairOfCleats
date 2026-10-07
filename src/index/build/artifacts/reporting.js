@@ -1,9 +1,13 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { isRelativePathEscape, toPosix } from '../../../shared/files.js';
+import { isRelativePathEscape, toPosix } from '../../../shared/file-paths.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { DOCUMENT_CHUNKER_VERSION } from '../../chunking/formats/document-common.js';
-import { DOCUMENT_EXTRACTION_REASON_CODES } from '../../extractors/common.js';
+import {
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
+  DOCUMENT_EXTRACTION_REASON_CODES
+} from '../../extractors/common.js';
 
 const DOCUMENT_SOURCE_EXT_TO_TYPE = new Map([
   ['.pdf', 'pdf'],
@@ -29,10 +33,24 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: true
   },
   {
+    path: 'extensions.artifactCleanup.previousSchemaVersion',
+    category: 'cleanup_history',
+    reason: 'artifact cleanup carries prior schema provenance after first write, but it does not change the current published state semantics.',
+    source: 'src/index/build/artifacts-write/family-dispatch.js',
+    excludeFromStableHash: true
+  },
+  {
     path: 'embeddings.updatedAt',
     category: 'time',
     reason: 'embeddings updatedAt reflects stage3 execution timing per run.',
     source: 'tools/build/embeddings/runner.js',
+    excludeFromStableHash: true
+  },
+  {
+    path: 'extensions.extractionQuality.lowYieldBailout.decisionAt',
+    category: 'time',
+    reason: 'Extraction admission decision time changes per run; its observed outcome and counts remain in the stable hash.',
+    source: 'src/index/build/indexer/steps/process-files/results.js',
     excludeFromStableHash: true
   },
   {
@@ -176,11 +194,54 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     ? state.extractedProseLowYieldBailout
     : {};
   const triggered = raw.triggered === true;
+  const normalizeQualityBudgetCost = (value, { includeQualityImpact = false } = {}) => {
+    const payload = value && typeof value === 'object' ? value : {};
+    return {
+      class: typeof payload.class === 'string' ? payload.class : null,
+      ...(includeQualityImpact
+        ? {
+          qualityImpact: typeof payload.qualityImpact === 'string' ? payload.qualityImpact : null,
+          downgradedRecall: payload.downgradedRecall === true
+        }
+        : {}),
+      estimatedSuppressedFiles: Number.isFinite(Number(payload.estimatedSuppressedFiles))
+        ? Math.max(0, Math.floor(Number(payload.estimatedSuppressedFiles)))
+        : 0,
+      estimatedRecallLossRatio: Number.isFinite(Number(payload.estimatedRecallLossRatio))
+        ? Math.max(0, Math.min(1, Number(payload.estimatedRecallLossRatio)))
+        : 0,
+      estimatedRecallLossClass: typeof payload.estimatedRecallLossClass === 'string'
+        ? payload.estimatedRecallLossClass
+        : null,
+      estimatedRecallLossConfidence: typeof payload.estimatedRecallLossConfidence === 'string'
+        ? payload.estimatedRecallLossConfidence
+        : null,
+      skippedFiles: Number.isFinite(Number(payload.skippedFiles))
+        ? Math.max(0, Math.floor(Number(payload.skippedFiles)))
+        : 0,
+      estimatedAvoidedChunkSamples: Number.isFinite(Number(payload.estimatedAvoidedChunkSamples))
+        ? Math.max(0, Math.floor(Number(payload.estimatedAvoidedChunkSamples)))
+        : 0,
+      suppressedCohortCount: Number.isFinite(Number(payload.suppressedCohortCount))
+        ? Math.max(0, Math.floor(Number(payload.suppressedCohortCount)))
+        : 0,
+      protectedCohortCount: Number.isFinite(Number(payload.protectedCohortCount))
+        ? Math.max(0, Math.floor(Number(payload.protectedCohortCount)))
+        : 0,
+      protectedHighValueCohortCount: Number.isFinite(Number(payload.protectedHighValueCohortCount))
+        ? Math.max(0, Math.floor(Number(payload.protectedHighValueCohortCount)))
+        : 0,
+      strategyMismatchRiskCount: Number.isFinite(Number(payload.strategyMismatchRiskCount))
+        ? Math.max(0, Math.floor(Number(payload.strategyMismatchRiskCount)))
+        : 0
+    };
+  };
   return {
     enabled: raw.enabled === true,
     triggered,
     reason: typeof raw.reason === 'string' ? raw.reason : null,
     qualityImpact: typeof raw.qualityImpact === 'string' ? raw.qualityImpact : null,
+    repoYieldClass: typeof raw.repoYieldClass === 'string' ? raw.repoYieldClass : null,
     seed: typeof raw.seed === 'string' ? raw.seed : null,
     warmupWindowSize: Number.isFinite(Number(raw.warmupWindowSize))
       ? Math.max(0, Math.floor(Number(raw.warmupWindowSize)))
@@ -209,13 +270,60 @@ const buildExtractedProseLowYieldQualityMarker = (state) => {
     skippedFiles: Number.isFinite(Number(raw.skippedFiles))
       ? Math.max(0, Math.floor(Number(raw.skippedFiles)))
       : 0,
+    suppressedCohortCount: Number.isFinite(Number(raw.suppressedCohortCount))
+      ? Math.max(0, Math.floor(Number(raw.suppressedCohortCount)))
+      : 0,
+    protectedCohortCount: Number.isFinite(Number(raw.protectedCohortCount))
+      ? Math.max(0, Math.floor(Number(raw.protectedCohortCount)))
+      : 0,
+    strategyMismatchRiskCount: Number.isFinite(Number(raw.strategyMismatchRiskCount))
+      ? Math.max(0, Math.floor(Number(raw.strategyMismatchRiskCount)))
+      : 0,
+    estimatedSuppressedFiles: Number.isFinite(Number(raw.estimatedSuppressedFiles))
+      ? Math.max(0, Math.floor(Number(raw.estimatedSuppressedFiles)))
+      : 0,
+    estimatedRecallLossRatio: Number.isFinite(Number(raw.estimatedRecallLossRatio))
+      ? Math.max(0, Math.min(1, Number(raw.estimatedRecallLossRatio)))
+      : 0,
+    estimatedRecallLossClass: typeof raw.estimatedRecallLossClass === 'string'
+      ? raw.estimatedRecallLossClass
+      : null,
+    estimatedRecallLossConfidence: typeof raw.estimatedRecallLossConfidence === 'string'
+      ? raw.estimatedRecallLossConfidence
+      : null,
+    opportunityCost: normalizeQualityBudgetCost(raw.opportunityCost),
+    recallCost: normalizeQualityBudgetCost(raw.recallCost, { includeQualityImpact: true }),
     decisionAtOrderIndex: Number.isFinite(Number(raw.decisionAtOrderIndex))
       ? Math.floor(Number(raw.decisionAtOrderIndex))
       : null,
     decisionAt: typeof raw.decisionAt === 'string' ? raw.decisionAt : null,
+    repoFingerprint: raw.repoFingerprint && typeof raw.repoFingerprint === 'object'
+      ? raw.repoFingerprint
+      : { totalEntries: 0, docLikeEntries: 0, dominantCohort: null, cohortCounts: {} },
+    suppressedCohorts: Array.isArray(raw.suppressedCohorts) ? raw.suppressedCohorts : [],
+    protectedCohorts: Array.isArray(raw.protectedCohorts) ? raw.protectedCohorts : [],
+    strategyMismatchRiskCohorts: Array.isArray(raw.strategyMismatchRiskCohorts)
+      ? raw.strategyMismatchRiskCohorts
+      : [],
     deterministic: typeof raw.seed === 'string' && raw.seed.length > 0,
     downgradedRecall: triggered
   };
+};
+
+/** Quality observation is persisted independently of optional document extraction reports. */
+export const buildExtractionQualityRecord = ({ state, mode } = {}) => {
+  if (mode !== 'extracted-prose') return null;
+  const raw = state?.extractedProseLowYieldBailout;
+  const observed = raw && typeof raw === 'object' && !Array.isArray(raw) && typeof raw.triggered === 'boolean';
+  return { schemaVersion: 1, stage: 'stage1-extraction', source: 'stage1-extraction',
+    observation: observed ? 'observed' : 'unknown',
+    lowYieldBailout: observed ? buildExtractedProseLowYieldQualityMarker(state) : null };
+};
+
+export const stampIndexStateExtractionQuality = ({ indexState, state, mode } = {}) => {
+  if (!indexState || typeof indexState !== 'object' || mode !== 'extracted-prose') return;
+  if (!indexState.extensions || typeof indexState.extensions !== 'object') indexState.extensions = {};
+  indexState.extensions.extractionQuality = buildExtractionQualityRecord({ state, mode });
 };
 
 /**
@@ -234,6 +342,7 @@ export const buildExtractionReport = ({
   documentExtractionConfig
 }) => {
   const configDigest = sha256Hex(stableStringifyForSignature(documentExtractionConfig || {}));
+  const policy = buildDocumentExtractionPolicySummary(documentExtractionConfig);
   const entries = new Map();
   const fileInfoByPath = state?.fileInfoByPath;
   if (fileInfoByPath && typeof fileInfoByPath.entries === 'function') {
@@ -267,7 +376,14 @@ export const buildExtractionReport = ({
           paragraphs: Number(extraction?.counts?.paragraphs) || 0,
           totalUnits: Number(extraction?.counts?.totalUnits) || 0
         },
-        warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : []
+        warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : [],
+        policy: extraction?.policy || policy,
+        fidelity: extraction?.fidelity || buildDocumentExtractionFidelity({
+          sourceType,
+          status: 'ok',
+          warnings: extraction?.warnings || [],
+          policy
+        })
       });
     }
   }
@@ -291,7 +407,15 @@ export const buildExtractionReport = ({
       extractionConfigDigest: configDigest,
       extractionIdentityHash: null,
       unitCounts: null,
-      warnings: Array.isArray(skipped?.warnings) ? skipped.warnings : []
+      warnings: Array.isArray(skipped?.warnings) ? skipped.warnings : [],
+      policy,
+      fidelity: buildDocumentExtractionFidelity({
+        sourceType,
+        status: 'skipped',
+        reason,
+        warnings: skipped?.warnings || [],
+        policy
+      })
     });
   }
   const files = Array.from(entries.values()).sort((a, b) => (
@@ -300,12 +424,25 @@ export const buildExtractionReport = ({
   const byReason = {};
   let okCount = 0;
   let skippedCount = 0;
+  const bySourceType = {
+    pdf: { total: 0, ok: 0, skipped: 0 },
+    docx: { total: 0, ok: 0, skipped: 0 }
+  };
   for (const file of files) {
+    if (file.sourceType === 'pdf' || file.sourceType === 'docx') {
+      bySourceType[file.sourceType].total += 1;
+    }
     if (file.status === 'ok') {
       okCount += 1;
+      if (file.sourceType === 'pdf' || file.sourceType === 'docx') {
+        bySourceType[file.sourceType].ok += 1;
+      }
       continue;
     }
     skippedCount += 1;
+    if (file.sourceType === 'pdf' || file.sourceType === 'docx') {
+      bySourceType[file.sourceType].skipped += 1;
+    }
     const reason = file.reason || 'extract_failed';
     byReason[reason] = (byReason[reason] || 0) + 1;
   }
@@ -326,11 +463,24 @@ export const buildExtractionReport = ({
     }
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode,
     generatedAt: new Date().toISOString(),
     chunkerVersion: DOCUMENT_CHUNKER_VERSION,
     extractionConfigDigest: configDigest,
+    policy,
+    coverage: {
+      state: files.length === 0
+        ? 'missing'
+        : skippedCount === 0
+          ? 'complete'
+          : okCount > 0
+            ? 'partial'
+            : 'missing',
+      coverageLossCount: skippedCount,
+      qualitySensitiveFailures: policy.qualitySensitive ? skippedCount : 0,
+      bySourceType
+    },
     quality: {
       lowYieldBailout: buildExtractedProseLowYieldQualityMarker(state)
     },

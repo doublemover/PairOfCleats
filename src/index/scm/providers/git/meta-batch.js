@@ -1,11 +1,12 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { runWithConcurrency } from '../../../../shared/concurrency.js';
-import { toPosix } from '../../../../shared/files.js';
-import { showProgress } from '../../../../shared/progress.js';
+import { runWithConcurrency } from '../../../../shared/concurrency/run-with-queue.js';
+import { toPosix } from '../../../../shared/file-paths.js';
+import { showProgress } from '../../../../shared/progress-runtime.js';
 import { toRepoPosixPath } from '../../paths.js';
 import { runScmCommand } from '../../runner.js';
 import { runGitTask } from './config.js';
+import { buildScmMetadataFailure } from '../../metadata-diagnostics.js';
 import {
   createUnavailableFileMeta,
   normalizeFileMeta,
@@ -304,6 +305,8 @@ export const createBatchDiagnostics = () => ({
   timeoutRetries: 0,
   cooldownSkips: 0,
   unavailableChunks: 0,
+  failureCount: 0,
+  failures: [],
   timeoutHeatmap: []
 });
 
@@ -393,6 +396,40 @@ export const runGitMetaBatchFetch = async ({
     gitMetaTimeoutState.delete(key);
   };
 
+  const recordTimeoutFailureBookkeeping = ({
+    failure,
+    chunk,
+    timeoutMsForAttempt,
+    attemptIndex,
+    attemptCount,
+    updateTimeoutState = false
+  }) => {
+    diagnostics.failureCount += 1;
+    if (diagnostics.failures.length < 8) diagnostics.failures.push(buildScmMetadataFailure(failure, 'git-file-meta-batch'));
+    else diagnostics.truncated = true;
+    if (failure.timeoutLike) {
+      diagnostics.timeoutCount += 1;
+      for (const filePosix of chunk) {
+        if (updateTimeoutState) {
+          markTimeout(filePosix, timeoutMsForAttempt);
+        } else {
+          registerHeatEntry(heatByPath, filePosix, {
+            timeout: true,
+            timeoutMs: timeoutMsForAttempt
+          });
+        }
+      }
+    }
+    const canRetry = failure.timeoutLike && attemptIndex < attemptCount - 1;
+    if (canRetry) {
+      diagnostics.timeoutRetries += 1;
+      for (const filePosix of chunk) {
+        registerHeatEntry(heatByPath, filePosix, { retry: true });
+      }
+    }
+    return canRetry;
+  };
+
   if (!activeFiles.length) {
     diagnostics.timeoutHeatmap = Array.from(heatByPath.values());
     return {
@@ -453,6 +490,7 @@ export const runGitMetaBatchFetch = async ({
       for (let attemptIndex = 0; attemptIndex < timeoutPlan.length; attemptIndex += 1) {
         const attemptTimeoutMs = timeoutPlan[attemptIndex];
         const args = [
+          '-c', 'core.quotePath=false',
           '-C',
           repoRoot,
           'log',
@@ -478,18 +516,14 @@ export const runGitMetaBatchFetch = async ({
           });
         } catch (err) {
           failure = createGitMetaBatchFailure({ err });
-          if (failure.timeoutLike) {
-            diagnostics.timeoutCount += 1;
-            for (const filePosix of chunk) {
-              markTimeout(filePosix, attemptTimeoutMs);
-            }
-          }
-          const canRetry = failure.timeoutLike && attemptIndex < timeoutPlan.length - 1;
-          if (canRetry) {
-            diagnostics.timeoutRetries += 1;
-            for (const filePosix of chunk) {
-              registerHeatEntry(heatByPath, filePosix, { retry: true });
-            }
+          if (recordTimeoutFailureBookkeeping({
+            failure,
+            chunk,
+            timeoutMsForAttempt: attemptTimeoutMs,
+            attemptIndex,
+            attemptCount: timeoutPlan.length,
+            updateTimeoutState: true
+          })) {
             continue;
           }
           break;
@@ -501,6 +535,7 @@ export const runGitMetaBatchFetch = async ({
             for (let churnAttemptIndex = 0; churnAttemptIndex < timeoutPlan.length; churnAttemptIndex += 1) {
               const churnTimeoutMs = timeoutPlan[churnAttemptIndex];
               const churnArgs = [
+                '-c', 'core.quotePath=false',
                 '-C',
                 repoRoot,
                 'log',
@@ -526,21 +561,13 @@ export const runGitMetaBatchFetch = async ({
                 });
               } catch (err) {
                 churnFailure = createGitMetaBatchFailure({ err });
-                if (churnFailure.timeoutLike) {
-                  diagnostics.timeoutCount += 1;
-                  for (const filePosix of chunk) {
-                    registerHeatEntry(heatByPath, filePosix, {
-                      timeout: true,
-                      timeoutMs: churnTimeoutMs
-                    });
-                  }
-                }
-                const canRetryChurn = churnFailure.timeoutLike && churnAttemptIndex < timeoutPlan.length - 1;
-                if (canRetryChurn) {
-                  diagnostics.timeoutRetries += 1;
-                  for (const filePosix of chunk) {
-                    registerHeatEntry(heatByPath, filePosix, { retry: true });
-                  }
+                if (recordTimeoutFailureBookkeeping({
+                  failure: churnFailure,
+                  chunk,
+                  timeoutMsForAttempt: churnTimeoutMs,
+                  attemptIndex: churnAttemptIndex,
+                  attemptCount: timeoutPlan.length
+                })) {
                   continue;
                 }
                 break;
@@ -558,21 +585,13 @@ export const runGitMetaBatchFetch = async ({
                 break;
               }
               churnFailure = createGitMetaBatchFailure({ result: churnResult });
-              if (churnFailure.timeoutLike) {
-                diagnostics.timeoutCount += 1;
-                for (const filePosix of chunk) {
-                  registerHeatEntry(heatByPath, filePosix, {
-                    timeout: true,
-                    timeoutMs: churnTimeoutMs
-                  });
-                }
-              }
-              const canRetryChurn = churnFailure.timeoutLike && churnAttemptIndex < timeoutPlan.length - 1;
-              if (canRetryChurn) {
-                diagnostics.timeoutRetries += 1;
-                for (const filePosix of chunk) {
-                  registerHeatEntry(heatByPath, filePosix, { retry: true });
-                }
+              if (recordTimeoutFailureBookkeeping({
+                failure: churnFailure,
+                chunk,
+                timeoutMsForAttempt: churnTimeoutMs,
+                attemptIndex: churnAttemptIndex,
+                attemptCount: timeoutPlan.length
+              })) {
                 continue;
               }
               break;
@@ -585,18 +604,14 @@ export const runGitMetaBatchFetch = async ({
           break;
         }
         failure = createGitMetaBatchFailure({ result });
-        if (failure.timeoutLike) {
-          diagnostics.timeoutCount += 1;
-          for (const filePosix of chunk) {
-            markTimeout(filePosix, attemptTimeoutMs);
-          }
-        }
-        const canRetry = failure.timeoutLike && attemptIndex < timeoutPlan.length - 1;
-        if (canRetry) {
-          diagnostics.timeoutRetries += 1;
-          for (const filePosix of chunk) {
-            registerHeatEntry(heatByPath, filePosix, { retry: true });
-          }
+        if (recordTimeoutFailureBookkeeping({
+          failure,
+          chunk,
+          timeoutMsForAttempt: attemptTimeoutMs,
+          attemptIndex,
+          attemptCount: timeoutPlan.length,
+          updateTimeoutState: true
+        })) {
           continue;
         }
         break;
@@ -610,7 +625,8 @@ export const runGitMetaBatchFetch = async ({
       }
       diagnostics.unavailableChunks += 1;
       if (failure && (failure.fatalUnavailable || !failure.timeoutLike)) {
-        return { ok: false, fatal: true, reason: failure.message || 'unavailable' };
+        return { ok: false, fatal: true, reason: failure.message || 'unavailable',
+          failure: buildScmMetadataFailure(failure, 'git-file-meta-batch') };
       }
       const unavailableMetaByPath = Object.create(null);
       for (const filePosix of chunk) {
@@ -633,6 +649,7 @@ export const runGitMetaBatchFetch = async ({
       return {
         ok: false,
         reason: 'unavailable',
+        failure: chunkResult.failure || null,
         diagnostics
       };
     }

@@ -17,6 +17,11 @@ The server runs in-process and does not shell out to the CLI.
 ## Startup
 - `pairofcleats service api`
 
+Recommended defaults for operator use:
+- keep the server on `127.0.0.1` unless you have an explicit remote-access requirement
+- provide `--auth-token` or `PAIROFCLEATS_API_TOKEN` whenever the server is not strictly local/dev-only
+- use `--json` for automation so startup discovery is machine-parseable
+
 Options:
 - `--host <addr>`: bind address (default `127.0.0.1`)
 - `--port <port>`: port number (use `0` for an ephemeral port)
@@ -177,8 +182,15 @@ Common cases:
 - `NO_INDEX`: indexes are missing; run `pairofcleats index build` (or `node build_index.js`).
 - `INTERNAL`: unexpected failure; check server logs for details.
 
+Startup failures should be treated as configuration issues first:
+- invalid auth/cors/repo-root settings
+- invalid bind host/port
+- missing default repo or disallowed repo override roots
+- missing indexes for the default repo when search/status requests begin
+
 ## Security considerations
 - Auth is required for non-localhost bindings unless `--allow-unauthenticated` is set.
 - CORS is disabled by default; enable with `--cors-allowed-origins` (include localhost explicitly) or opt-in to
   `--cors-allow-any` only if you understand the exposure.
 - `repoPath` overrides require an explicit allowlist; otherwise the server uses its configured repo only.
+- If this is used operationally, pair it with service/indexer status monitoring rather than treating `/health` as sufficient readiness.

@@ -1,0 +1,343 @@
+# Outstanding branch and product capability review
+
+Snapshot: 2026-10-02. Target: `hydro/complete-outstanding-work`, based on
+NEON_TIDE, with the main squash ancestry reconciled. This is an implementation
+review with bounded affected-test validation, not a release-wide acceptance claim.
+The canonical execution queue remains [the roadmap](roadmap.md).
+
+## Branches and reviewed pull requests
+
+All 11 remote heads were inventoried. The original eight open pull requests were refreshed
+on 2026-10-02, including exact heads, mergeability, checks and review threads.
+The repository owner subsequently merged the two clean dependency PRs below.
+Current main is `ca04533d1ec747d998ec74c0512d3ce5135ff39c`; its ancestry is
+reconciled into the completion branch while retaining newer dependency versions.
+No historical feature branch is merged wholesale.
+
+| Branch / PR | Disposition |
+| --- | --- |
+| `main` at `ca04533d` | Includes merged PR105 and PR85; the earlier `b9398da2` squash was reconciled by `81bc5774`, and the two newer dependency changes are already superseded by the completion branch versions |
+| `NEON_TIDE` at `1938552f`, PR #218 | Entire branch is an ancestor. The PR is conflicted against main; all 88 review threads are resolved. Continue through the completion PR rather than merging its old conflicted tip |
+| `hydro/complete-outstanding-work` | Current implementation target |
+| `mess` at `64b90824`, PR #20 | Conflicted, with a historical failed test check. Recover positive behavior selectively as documented below; its API/backend removals would regress newer capabilities. Its sole unresolved review concern, runtime configuration for service jobs, is addressed by the current runtime-environment owner |
+| `phase23-turbo-wombat` at `85555cbb` | 237 commits absent by ancestry; 211 nonmerge commits and its 201-line historical plan reviewed as capability families |
+| Dependabot Svelte group, PR #105 | Merged into main as `38609577` after a clean merge-tree preview and four successful checks on the exact head; completion branch retains newer 5.57.1 |
+| Dependabot SWC, PR #102 | Historical Windows check failed. Target 1.15.13 is incorporated through package `^1.15.13` and newer lock 1.16.13; no older lockfile transplant is needed |
+| Dependabot c8, PR #101 | Historical Windows check failed. Target 10.1.3 is superseded by package and lock 12.0.0 on the completion branch |
+| Dependabot jsdoccomment, PR #100 | Historical Windows check failed. Target 0.84.0 is incorporated in both package and lock on the completion branch |
+| Dependabot ESLint, PR #88 | Historical gate failed and platform jobs were skipped. Target 10.0.1 plus rule-compatibility fixes is incorporated and locally checked on the completion branch |
+| Dependabot yargs, PR #85 | Merged into main as `ca04533d` after a clean preview against the new main and four successful checks on its exact head; completion branch retains 18.2.0 |
+| Dependabot grouped update, PR #518 at `39b0b892` | All four checks passed, but the PR retains Node >=24.13 while new native dependencies require 24.15+. Its declared/security targets are already met, exceeded or removed here. The sole distinct retained update, node-gyp 13.1.0, is selectively incorporated with lock/security/engine checks; no native rebuild is claimed |
+
+The six dependency PRs contain no remaining version upgrade to transplant. Both
+root lock specifications and installed-package lock entries were inspected.
+This does not claim the old PR branches are mergeable or that upstream security
+alerts have already closed. The existing dependency validation report remains the
+evidence for runtime compatibility and audits.
+
+The green checks on PR105 and PR85 are their recorded February head checks, not
+new October merged-main runs. Failed checks on the other dependency tips are not
+waived or relabeled as passes. Each changes only the two dependency manifests and
+one declared package; its intended upgrade is preserved in the completion branch.
+The PR20 runtime concern is covered by `resolveRepoRuntimeEnv` in
+`tools/service/indexer-service-helpers.js` and by both index/embedding call sites
+in `tools/service/indexer-service/job-executor.js`.
+
+The two January branches predate extensive refactoring and later hardening. Raw
+tree replacement would remove newer capabilities. Their old file paths were
+traced to current owners, and behavior was compared rather than treating every
+nonancestor commit as missing implementation. The two branches share all but one
+of `mess`'s nonmerge commits; the extra `64b90824` patch was reviewed separately.
+
+## Recovered fixes implemented in this pass
+
+1. LSP initialization negotiation could select UTF-16 before inspecting supported
+   top-level UTF-8/UTF-32 fields. Recognized-value selection now precedes fallback.
+   Overlong positions also clamp before LF/CRLF terminators instead of spilling
+   onto the following line. Regression: `tests/tooling/lsp/tooling.test.js`.
+2. Embedding identity normalization converted explicit null, blanks, booleans,
+   and empty arrays to numeric zero. Missing values now retain null/defaults;
+   valid numeric strings and explicit numeric zero retain their meaning.
+   Regression: `tests/indexing/embeddings/identity.test.js`.
+3. Metadata schema types did not enforce ordered offset/line/page/paragraph
+   bounds or containment within segments. Standalone metadata and row-based
+   artifact validators now share semantic checks. The writer also preserves the
+   documented `segment.ext`. Regression: `tests/indexing/metav2/metadata-v2.test.js`.
+4. Context-window estimation copied and sorted every discovered path to retain
+   only 20. A bounded selection keeps exactly the same lexicographic first 20,
+   with original duplicate, Unicode, and case-sensitive ordering semantics.
+   Auxiliary path storage is bounded by 21 entries; selection is O(n log 20)
+   comparisons plus bounded insertion work, rather than O(n log n) full sorting.
+   This is an algorithmic improvement, not a measured end-to-end speedup claim.
+   Regression: `tests/unit/context-window-sampling.unit.js`.
+5. The old `mess` callback shielding had been lost during scheduler extraction.
+   A throwing firing hook could prevent work, and a throwing/rejecting error hook
+   could cause an uncaught failure. Both are contained while scheduled work still
+   runs. Regression: `tests/indexing/watch/debounce.test.js`.
+6. Risk flow-cap truncation retained `status: "ok"`. Omitted distinct flows now
+   produce an explicit `maxFlows` capped result and stop further analysis;
+   exactly filling a cap without omission remains complete. Whole-chunk caps now
+   run before allocating the line array. Regression:
+   `tests/indexing/risk/risk-contract-matrix.test.js`.
+7. Metadata/risk documentation now reflects actual nullability, type provenance,
+   segment context, ordered parameter semantics, supported rule fields, and
+   partial-result status. Historical speculative proposals are not silently
+   introduced as new public contracts.
+8. A deeper comparison of `mess`'s unique `64b90824` tip recovered another lost
+   behavior: a config-mismatched shard performance profile must be ignored, not
+   deleted by its reader. The completed metrics writer still replaces profiles
+   normally. A regression reproduced the deletion and now verifies byte/mtime
+   preservation, original-config reuse, later replacement and unchanged corrupt,
+   unsupported-version and missing-file behavior. The existing shard-plan
+   selector and changed-file ESLint passed without an indexing benchmark.
+9. The same tip sorted incremental-bundle manifest keys before assigning missing
+   chunk IDs. Current sharded-bundle support had lost that ordering, and sorting
+   files later in the embedding runner did not repair already-assigned vector
+   positions. Canonical string ordering is restored before bundle traversal;
+   missing/mixed/explicit IDs, manifest permutations, within-file shard order
+   and logical-file alias merging are covered by the existing bundle-shards
+   regression. Its prefix failure, fixed pass and scoped ESLint are recorded.
+10. `mess`'s HNSW row-count guard was not copied blindly: the current writer
+    records successful nonempty insertions as `count` and attempts as
+    `expectedCount`, while dense row slots can include missing document vectors.
+    The proposed runtime guard was withdrawn before execution. Instead, a
+    regression confirmed that the current offline validator rejected valid sparse
+    targets by comparing `count` to every chunk row. Validation now compares
+    known per-target `expectedCount`, preserves manifest checks and the row-count
+    upper bound, and does not guess legacy occupancy. The optional producer field
+    is schema-validated as a nonnegative integer. All three HNSW target variants
+    and invalid-count cases pass in the existing validator matrix with scoped
+    ESLint, without reading dense payloads or loading native indexes.
+11. The tip's authored profiling workflow had no current equivalent. It is
+    recovered as [performance profiling](benchmarks/profiling.md), using current
+    direct work entrypoints, effective configuration names, process-tree resource
+    bounds, and separate cold/warm evidence. Example arguments, runtime-advertised
+    flags and local links were checked without executing a profile or workload.
+12. Phase23's Tantivy integration survives, but its global query limit inherited a
+    filtered-recall defect: it was reduced to allowed-set cardinality before
+    post-filtering. A one-document allowed set could miss its sole eligible hit
+    below unrelated global leaders. The adapter now retains its existing bounded
+    overfetch budget and short-circuits empty allowed sets before opening/querying.
+    A stub-adapter prefix reproduced the miss; Set/bitmap, null/undefined, ranking,
+    top-k, handle-reuse and budget controls pass in the provider matrix together
+    with the Tantivy preflight selector and scoped ESLint. Native optional-backend
+    integration was not run, and recall beyond the bounded candidate budget is
+    not claimed.
+13. Retained HTTP request-path review found that body parsing could start after
+    an `IncomingMessage` had already aborted/closed, attach fresh listeners and
+    wait for events that would never replay. An actual request-class fixture
+    reproduced the retained listeners; parsing now rejects immediately. Normal
+    and empty JSON, mid-read abort, oversized-body 413 classification and listener
+    cleanup controls pass with scoped ESLint, without starting a network service.
+    A separate generic-readable unhandled-error hypothesis was rejected after
+    checking actual `IncomingMessage` semantics; existing error-destroy behavior
+    is unchanged and covered by the oversized-request control.
+
+14. Reviewing Phase23's incremental SQLite path found that early pragma, schema,
+    manifest-planning and manifest-only transaction failures bypassed handle
+    cleanup. The owned lifetime now has one outer finalizer, including all fast
+    returns, while the existing transactions retain their commit/rollback rules.
+    A tiny real-SQLite regression reproduced the open handle and now verifies
+    original-error preservation, one close, pragma restoration, rollback after a
+    real manifest write, successful updates and schema/no-change skips. The new
+    lifecycle selector, existing ANN-insert and pragma controls, and two-file
+    ESLint passed without an index build. The new case is registered in ci-lite;
+    only its runtime manifest is regenerated, with no inventory report tracking.
+
+15. The related full-build helper also leaked a database when pragma/schema
+    initialization failed before returning ownership. It now restores captured
+    pragmas and closes before preserving the original error. Bundle builders
+    defer worker allocation until database/statement setup succeeds, and protect
+    the loader immediately against later failures. A tiny SQLite fixture with an
+    asserted no-thread pool stub reproduced both gaps and covers helper success,
+    single cleanup, secondary close errors, pool/log failures and a successful
+    one-row bundle build. Three focused selectors and scoped ESLint passed;
+    the new regression is registered in ci-lite without running the lane.
+
+## Historical Phase 23 capability disposition
+
+| Historical family | Current source / contract evidence and disposition |
+| --- | --- |
+| Nested inferred/tooling parameter and local maps | `src/index/metadata-v2.js` normalizes nested maps and partitions tooling entries; `metadata-v2-param-map-tooling-split.test.js` covers parameter retention |
+| Declared parameter/return types | `buildDeclaredTypes` preserves annotations and collected return types; defaults feed `src/index/type-inference.js` rather than becoming declared types |
+| Optional declared defaults/locals proposal | No current `localTypes` producer or active declared-default schema; documented as outside the emitted contract, rather than fabricating a new facet |
+| Metadata deep validation | Canonical schema in `src/contracts/schemas/analysis/metadata.js`, nested type schema in `primitives.js`, artifact validation and equivalence checks already exist; missing range semantics fixed above |
+| Ordering and empty values | Params preserve declaration order; annotations and risk evidence preserve deterministic traversal order. Sorting parameter names would lose signature order. Actual null/empty behavior is documented |
+| Producer/embedded naming | Structured `tooling` plus compatibility `generatedBy`/`embedded` behavior retained and documented; no breaking rename |
+| SafeRegex compilation and diagnostics | `src/index/risk-rules.js` uses `compileSafeRegex` with configured flags and bounded diagnostics; invalid patterns cannot abort normalization |
+| Long-line shielding | `src/index/risk/shared.js` and `risk.js` catch evaluation failures; contract matrix covers long lines |
+| Risk resource bounds and prefilters | Single line traversal evaluates categories; byte/line early returns, node/edge/time stops and prefilters exist; allocation and flow-cap reporting gaps fixed above |
+| File-scope/match-count proposals | These are not current rule-bundle fields. The supported line-based, first-evidence-per-rule semantics are now explicit in the guide |
+| Git blame/churn policy and caching | Runtime analysis policy controls blame; SCM provider requests metadata with `blame: false`, batches history, and uses separate root/commit-scoped caches and failure backoff; expensive legacy helper defaults are not the indexer policy |
+| LSP request lifecycle | `src/integrations/tooling/lsp/client.js` supplies default request timeouts, cancels timed-out requests, and clears pending state on teardown |
+| Diagnostic collection | Current LSP diagnostics use bounded URI/chunk buffers and overlap projection, with workspace/provider-specific diagnostics paths and tests; asynchronous notification completeness is provider-dependent |
+| Unicode/CRLF offsets | UTF-8/UTF-16/UTF-32 conversion exists; fallback precedence and line-end gaps fixed above, with emoji and CRLF coverage |
+| Symbol overlap mapping | `providers/lsp/target-index.js` implements indexed overlap/containment/name ranking; it supersedes strict-only containment |
+| TypeScript resolution and naming | `tooling/typescript/load.js` implements repo/cache/global lookup; normalized destructuring and symbol mapping are covered by `typescript-contract-matrix.test.js` |
+| Type merge policy | `type-inference.js` merges confidence by maximum, retains first available evidence/shape, and unions elements; source order is retained rather than inventing evidence aggregation semantics |
+| Complex signatures | Current C-like/Python/Swift and additional-language parsers use shared nesting-aware helpers; signature matrix tests cover nested templates, generics, defaults, and language-specific forms |
+| Markdown double parsing | `src/index/segments/markdown.js` collects fenced and inline spans from one micromark event stream |
+| Repeated provider reads | Providers receive virtual documents; TypeScript's virtual compiler host reads supplied text first and delegates only absent files to disk |
+| Unified analysis policy | `src/index/build/runtime/policy.js` and canonical policy schema coordinate metadata, risk, Git, and inference modes |
+
+## Other historical branch capability families
+
+- Retrieval families (BM25/RRF, fielded/filter indexing, query intent, structural
+  search, context expansion, core API caching) have current owners under
+  `src/retrieval`, `src/graph`, `src/context-pack`, and `src/integrations/core`.
+- ANN families are retained through current HNSW/LanceDB and external sparse
+  backend modules. HNSW supports backup candidates, model/dimension/space guards,
+  typed vectors, and empty candidate sets; current ANN contract tests cover them.
+- The `mess` embedding/cache patch is superseded by shared embedding identity,
+  canonical vector validation, atomic cache IO, and the modern standalone build
+  pipeline under `tools/build/embeddings`. Missing-document vectors intentionally
+  use a zero-length marker; blindly restoring the old strict-empty rejection
+  would conflict with the current sparse document-vector contract.
+- Large/sharded JSON, JSONL, zstd, binary-columnar and file-metadata work lives in
+  current artifact-IO, contracts and storage owners. Old flattened script paths
+  were reorganized under `tools/build`, `tools/setup`, `tools/service`, and
+  `tools/shared`; path removal alone is not loss of a feature.
+- Tree-sitter lifecycle/grammar limits, Python AST workers, language passes,
+  deterministic IDs, encoding, call links and type enrichment have later runtime
+  owners and dedicated test matrices. The historical implementation is not a
+  compatible substitute for the current USR/identity pipeline.
+- Sublime and VS Code search/lifecycle/context/risk integrations remain present.
+  API/MCP search, streaming, service caching and command dispatch have later
+  contract owners; the old patch's removals would regress these surfaces.
+- Benchmark tiers, resource envelopes, stale-lock cleanup, progress reporting,
+  test lanes, evaluation and release tooling are current supported surfaces.
+  Their broad performance/CI/platform campaigns remain deferred by instruction.
+
+## Validation and remaining boundary
+
+### Subsequent current-source correctness checks
+
+Continued review after the initial checkpoint found and corrected two additional
+implementation gaps rather than treating branch reconciliation as product
+completion:
+
+- Reconverging local-risk aliases duplicated identical source-evidence objects
+  exponentially. A 12-alias regression reproduced premature `maxEdges` truncation
+  before the sink. Stable original-object deduplication preserves distinct source
+  records and traversal order; explicit zero confidence also retains its value.
+  The risk contract, rule configuration, and invalid-pattern diagnostic selectors
+  passed (3 tests, 0.314 s; sampled peak aggregate RSS 118.75 MiB).
+- LSP asynchronous write failures, server-request replies, initialization, and
+  shutdown could affect a replacement transport after restart. Each continuation
+  now checks its originating process/writer generation. Four focused generation,
+  closed-transport shutdown, normal shutdown, and timeout-cancellation selectors
+  passed (1.32 s; sampled peak aggregate RSS 150.05 MiB), including current-session
+  controls, reused server request IDs, and initialization failure behavior.
+- The framed JSON-RPC parser rejected exact-limit headers when their delimiter
+  arrived in fragments, repeatedly rescanned/reparsed headers while awaiting data,
+  and shifted its fragment queue on consumption. Incremental header state and an
+  indexed queue now preserve exact limits across chunk boundaries with linear
+  header work. The boundary regression reproduced its failure before the fix;
+  the parser, tooling, and protocol fail-open selectors passed (3 tests, 3.52 s;
+  sampled peak aggregate RSS 294.45 MiB). Deterministic operation counts cover
+  scanning/copying and do not claim an end-to-end benchmark speedup. This batch
+  used a tighter 512 MiB aggregate guard, 2 GiB global available-memory reserve,
+  and 256 MiB free-disk reserve; scoped ESLint also passed.
+- IndexRef cache boundaries were enforced for `latest` but bypassed by explicit
+  build refs, frozen snapshot roots and some metadata paths. Those paths now
+  receive lexical and resolved-path checks; tag-selected and pre-parsed IDs are
+  validated before path construction. In-cache aliases, explicit `path:` refs
+  and pointer-only snapshot resolution remain supported. The IndexRef and
+  snapshot-registry selectors passed (2 tests, 0.446 s; sampled peak aggregate
+  RSS 121.1 MiB), with changed-file ESLint and the tighter resource guards.
+- Shared SQLite code/prose paths used mode-specific cache keys, so opening the
+  second mode closed the first mode's handle in the same request. Configured
+  co-resident modes now share one physical handle and a combined generation
+  identity, including unrequested co-resident state for warm single/mixed reuse.
+  Separate files, real generation invalidation, ANN mode table names and unique
+  fallback cleanup remain intact. Six focused selectors passed (3.38 s; sampled
+  peak aggregate RSS 335.7 MiB), including a schema-only SQLite fixture, loader
+  and no-sync-FS contracts; changed-file ESLint passed. No full index was built.
+
+- Subsequent lifecycle work adds SQLite request leases so eviction, expiry,
+  signature invalidation and generation replacement cannot close active handles.
+  New handles are owned before validation; forced/partial initialization failures
+  release them. SQLite/LMDB contexts now dispose idempotently, await LMDB close,
+  and the runner retains initial/reinitialized cleanup through request finally.
+  Ten intended focused selectors now pass, including direct native fixtures and
+  real CLI success, injected failure and cancellation checks. The largest sampled
+  RSS among passing groups was 413.57 MiB; twelve-file ESLint passed. Three CLI
+  fixture mistakes (config shape, missing manifest, cancellation-code expectation)
+  were corrected without weakening production strictness or cancellation behavior.
+
+- Owner follow-through terminally retires SQLite caches on repo eviction,
+  removal and shutdown while preserving reusable generation refresh. Federation
+  disposes request-created caches after all workers settle, without delaying a
+  strict failure behind unrelated active workers or closing host-owned caches.
+  Gated sibling/late-open and owned/borrowed-cache regressions passed in the two
+  affected federation selectors (4.48 s; sampled peak aggregate RSS 376.25 MiB),
+  along with changed-file ESLint under the tighter resource guards.
+
+These changes close the confirmed request-handle ownership gaps inspected in
+this pass. Custom raw Map caches retain external ownership; only caches
+implementing leases provide active eviction safety. The broader release,
+platform and measured-performance boundaries below remain unchanged.
+
+Same-build freshness review subsequently found that loaded file-backed indexes
+and search signatures ignored changes to embedding readiness and identity when
+the build ID, mode and artifact surface stayed constant. Standalone embeddings
+update that state in place. A regression reproduced stale pending state after
+completion; the signature now includes a digest of the already-read index-state
+bytes. This also distinguishes state changes sharing a timestamp while identical
+state rewrites retain warm reuse. The index-cache, legacy dense-signature and
+federation generation-context selectors and two-file ESLint passed under the
+same bounded resource guards, without an index or embedding build.
+
+Historical LMDB retrieval also resolved its external HNSW files from the live
+index root even when the store belonged to an explicit as-of target. The runner
+now forwards its existing index-resolution options to backend helpers, which
+resolve only requested active LMDB modes. A candidate-probe regression reproduced
+the live-root leak and now covers explicit directory/base-root targets, live
+controls, partial code-only/prose-only snapshots, and cleanup when a requested
+mode is absent. The backend lifecycle, real CLI cleanup and runner module-load
+selectors plus three-file ESLint passed; no HNSW or snapshot index build ran.
+
+Concurrent cold requests also duplicated full index materialization before a
+completed cache entry existed. A gated regression observed two same-key loader
+calls; managed index caches now share one request-independent in-flight load per
+key/signature. Clear/delete/explicit replacement and newer signatures prevent
+late publication, and rejected loads are removed so retries remain possible.
+Different options/generations stay separate; signal-bearing misses and externally
+owned or disabled caches remain independent. Explicit loader-start gates prove
+overlap and cancellation isolation without timing sleeps. Three focused selectors
+and two-file ESLint passed. This is a deterministic duplicate-work reduction,
+not an end-to-end latency or memory benchmark claim.
+
+The two new lifecycle regressions are also registered in the ordered `ci-lite`
+lane at positions 770 and 771. Targeted manifest generation preserved all prior
+entries/order/metadata and every other lane manifest. Membership listing and
+focused runner contracts passed without executing the full lane. A pre-existing
+taxonomy test required heroes in `ci-long`, despite its unchanged manifest
+containing 10 matrices and 8 heavy-runtime suites. That unsupported diversity
+assumption was replaced with exact ordered membership, per-entry classification
+and reason, and summary-total checks against the documented taxonomy.
+
+The risk and generation-isolation batches passed changed-file ESLint under the same one-CPU, 512 MiB Node,
+sampled 1 GiB aggregate guard and 30-second per-test limit. These source fixes do
+not turn the deferred release-wide validation into a completed campaign.
+
+### Initial checkpoint evidence
+
+The 11 affected tests named for this pass all passed in three sequential groups
+(2, 3, and 6). Group test durations were 0.198 s, 4.35 s, and 2.15 s; the largest
+sampled aggregate RSS was 318.53 MiB. Every group used one CPU, one test job,
+512 MiB Node old-space, a sampled 1 GiB descendant-RSS stop, no retries, and a
+30-second per-test limit. The LSP/identity failures were reproduced before their
+fixes. An initial metadata substring selected four tests rather than three and
+was stopped by the selection guard before execution; the corrected exact selector
+ran the intended three. No failed selection is counted as a test pass.
+
+Changed-file ESLint formatting and governance generation passed. Canonical lane
+memberships remain gate 35, ci-lite 769, ci 121, ci-long 18, and USR conformance 11;
+the new sampling unit test is discoverable in the unit lane. No tests were removed.
+
+Focused regression receipts are recorded with this checkpoint; historical test
+filenames above identify coverage owners and are not claims that every test was
+rerun. The unchanged broad CI, platform, release, CodeQL, and measured-performance
+gaps remain explicit in the roadmap. No universal absence-of-bugs or release-ready
+claim follows from branch reconciliation or a finite source review.

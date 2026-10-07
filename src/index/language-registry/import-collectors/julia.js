@@ -1,14 +1,10 @@
-import { lineHasAny, shouldScanLine, stripInlineCommentAware } from './utils.js';
+import { addCollectorImport, lineHasAny, shouldScanLine, stripInlineCommentAware } from './utils.js';
 
 export const collectJuliaImports = (text) => {
   const imports = new Set();
   const lines = String(text || '').split('\n');
   const precheck = (value) => lineHasAny(value, ['using', 'import', 'include']);
-  const addImport = (value) => {
-    const token = String(value || '').trim();
-    if (!token) return;
-    imports.add(token);
-  };
+  const addImport = (value) => addCollectorImport(imports, value);
   for (const line of lines) {
     if (!shouldScanLine(line, precheck)) continue;
     const cleaned = stripInlineCommentAware(line, { markers: ['#'] });

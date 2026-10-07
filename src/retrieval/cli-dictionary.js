@@ -1,4 +1,4 @@
-import { getCodeDictionaryPaths, getDictionaryPaths } from '../../tools/shared/dict-utils.js';
+import { getCodeDictionaryPaths, getDictionaryPaths } from '../shared/dict-utils.js';
 import { normalizeCodeDictLanguages } from '../shared/code-dictionaries.js';
 import {
   loadCodeDictionaryWordSets,

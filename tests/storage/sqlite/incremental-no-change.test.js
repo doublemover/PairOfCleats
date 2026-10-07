@@ -3,8 +3,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCombinedOutput } from '../../helpers/stdio.js';
+import { runNode } from '../../helpers/run-node.js';
 import {
   getIndexDir,
   getRepoCacheRoot,
@@ -40,6 +40,21 @@ await fsPromises.cp(fixtureRoot, repoRoot, { recursive: true });
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: {
+        enabled: false
+      }
+    }
+  },
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off',
     PAIROFCLEATS_MAX_OLD_SPACE_MB: '4096'
@@ -51,11 +66,7 @@ if (nodeOptions) {
   delete env.NODE_OPTIONS;
 }
 function run(args, label) {
-  const result = spawnSync(process.execPath, args, {
-    cwd: repoRoot,
-    env,
-    stdio: 'inherit'
-  });
+  const result = runNode(args, label, repoRoot, env, { stdio: 'inherit', allowFailure: true });
   if (result.status !== 0) {
     console.error(`Failed: ${label}`);
     process.exit(result.status ?? 1);

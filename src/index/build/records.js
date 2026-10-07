@@ -1,6 +1,6 @@
 import path from 'node:path';
 import picomatch from 'picomatch';
-import { isRelativePathEscape, toPosix } from '../../shared/files.js';
+import { isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { EXTS_CODE, EXTS_PROSE } from '../constants.js';
 
 const RECORD_EXT_TYPES = new Map([

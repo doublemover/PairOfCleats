@@ -183,10 +183,82 @@ try {
       /escapes repo cache root/,
       'expected latest resolver to reject symlinked build roots that escape repo cache'
     );
+    for (const allowMissingModes of [false, true]) {
+      assert.throws(() => resolveIndexRef({
+        ref: 'build:escape-link', repoRoot, userConfig,
+        requestedModes: ['code'], allowMissingModes
+      }), /escapes repo cache root/, 'explicit build refs must enforce the same cache boundary as latest');
+    }
+
+    const internalLink = path.join(buildsRoot, 'internal-link');
+    await fs.symlink(buildCodeRoot, internalLink, process.platform === 'win32' ? 'junction' : 'dir');
+    const internal = resolveIndexRef({
+      ref: 'build:internal-link', repoRoot, userConfig, requestedModes: ['code']
+    });
+    assert.equal(internal.indexBaseRootByMode.code, internalLink, 'aliases remaining inside the cache stay supported');
+
+    const frozenSnapshot = 'snap-frozen-escape';
+    const snapshotDir = path.join(snapshotsRoot, frozenSnapshot);
+    await writeJson(path.join(snapshotDir, 'snapshot.json'), {
+      version: 1, snapshotId: frozenSnapshot,
+      pointer: { buildRootsByMode: { code: 'builds/build-code' } }
+    });
+    await fs.symlink(escapeRoot, path.join(snapshotDir, 'frozen'), process.platform === 'win32' ? 'junction' : 'dir');
+    const manifestPath = path.join(snapshotsRoot, 'manifest.json');
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    manifest.snapshots[frozenSnapshot] = { snapshotId: frozenSnapshot, hasFrozen: true };
+    await writeJson(manifestPath, manifest);
+    for (const allowMissingModes of [false, true]) {
+      assert.throws(() => resolveIndexRef({
+        ref: `snap:${frozenSnapshot}`, repoRoot, userConfig,
+        requestedModes: ['code'], allowMissingModes
+      }), /escapes repo cache root/, 'frozen roots must not escape through a directory link');
+    }
+    const pointerOnly = resolveIndexRef({
+      ref: `snap:${frozenSnapshot}`, repoRoot, userConfig,
+      requestedModes: ['code'], preferFrozen: false
+    });
+    assert.equal(pointerOnly.indexBaseRootByMode.code, buildCodeRoot,
+      'explicit pointer resolution must not require an unused frozen root');
+
+    const externalSnapshotDir = path.join(tempRoot, 'external-snapshot');
+    await writeJson(path.join(externalSnapshotDir, 'snapshot.json'), {
+      pointer: { buildRootsByMode: { code: 'builds/build-code' } }
+    });
+    await fs.symlink(externalSnapshotDir, path.join(snapshotsRoot, 'snap-metadata-escape'),
+      process.platform === 'win32' ? 'junction' : 'dir');
+    manifest.snapshots['snap-metadata-escape'] = { snapshotId: 'snap-metadata-escape' };
+    await writeJson(manifestPath, manifest);
+    assert.throws(() => resolveIndexRef({
+      ref: 'snap:snap-metadata-escape', repoRoot, userConfig, requestedModes: ['code']
+    }), /escapes repo cache root/, 'snapshot metadata must be cache-contained before reading it');
+
+    const externalPath = resolveIndexRef({
+      ref: `path:${escapeRoot}`, repoRoot, userConfig, requestedModes: ['code']
+    });
+    assert.equal(externalPath.indexBaseRootByMode.code, escapeRoot,
+      'explicit path refs retain their documented nonportable behavior');
+  }
+
+  const manifestPath = path.join(snapshotsRoot, 'manifest.json');
+  const malformedManifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+  malformedManifest.tags.invalid = ['../outside-snapshot'];
+  malformedManifest.snapshots['../outside-snapshot'] = { snapshotId: '../outside-snapshot' };
+  await writeJson(manifestPath, malformedManifest);
+  assert.throws(() => resolveIndexRef({
+    ref: 'tag:invalid', repoRoot, userConfig, requestedModes: ['code']
+  }), /Invalid snapshot id/, 'tag-selected snapshot IDs must be validated before constructing paths');
+
+  for (const parsed of [
+    { kind: 'build', buildId: '../escape', canonical: 'build:../escape' },
+    { kind: 'snapshot', snapshotId: '../escape', canonical: 'snap:../escape' }
+  ]) {
+    assert.throws(() => resolveIndexRef({ parsed, repoRoot, userConfig, requestedModes: ['code'] }),
+      (error) => error?.code === 'INVALID_REQUEST' && /Invalid .* id/.test(error.message),
+      'pre-parsed references must retain ID safety checks');
   }
 
   console.log('index-ref tests passed');
 } finally {
   restoreEnv();
 }
-

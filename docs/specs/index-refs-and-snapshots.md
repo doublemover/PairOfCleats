@@ -562,5 +562,9 @@ Update `bin/pairofcleats.js`:
 
 - Snapshot IDs and tags MUST be validated before constructing paths.
 - Never join user-provided values without validation (prevents path traversal).
+- Cache-backed build and snapshot roots, including frozen roots and registry metadata,
+  MUST remain within the configured repo cache after resolving existing symlinks.
+  In-cache aliases remain supported; allowing missing modes does not permit escaping roots.
+- Tag-selected snapshot IDs and pre-parsed build/snapshot IDs retain the same validation
+  as textual refs. Explicit `path:` refs keep their documented nonportable behavior.
 - Path IndexRefs MUST NOT be stored in registries.
-

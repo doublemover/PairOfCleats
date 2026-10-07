@@ -1,7 +1,7 @@
 # Spec -- Unified Syntax Representation (USR)
 
-Status: Draft v1.6
-Last updated: 2026-02-11T06:35:00Z
+Status: Active USR umbrella contract v1.6; current branch technical rollout evidence is green.
+Last audited: 2026-05-21
 
 Applies to: PairOfCleats indexing pipeline, language registry, framework segmentation/extraction, graph/risk/query surfaces.
 
@@ -1324,20 +1324,33 @@ Before declaring full support complete, all items below MUST be true.
 - Threat-model and abuse-case coverage policy is machine-readable and enforced for critical threats.
 - Waiver and exception governance is machine-readable, time-bounded, and CI-enforced for expiry and scope.
 
-## 21. Immediate Integration Tasks
+## 21. Integration Checkpoint
 
-1. Add `USRLanguageProfile` and framework profile registries in `tests/lang/matrix` as canonical data files.
-2. Add strict schema validators for USR entities under `src/contracts/schemas`.
-3. Add conformance lane materialization from language/framework profile matrices.
-4. Wire capability-state assertions into phase gates before broad language lane rollout.
-5. Add migration mappers between USR entities and existing artifact surfaces.
-6. Add runtime config and feature-flag validators wired to strict-mode gate behavior.
-7. Add failure-injection harness lanes and blocking fault-scenario evaluators.
-8. Add fixture-governance validators and mutation-policy enforcement checks.
-9. Add audit/report schema validators for readiness, resilience, and fixture-governance outputs.
-10. Add benchmark-policy validators and regression gate evaluators for blocking lanes.
-11. Add threat-model and abuse-case validators with control-gap reporting.
-12. Add waiver-policy validators with expiry and approver-governance checks.
+Local technical prerequisites are represented by the decomposed USR specs,
+machine-readable language/framework matrices, schema-backed reports, guardrail
+tools, conformance shards, and release evidence bundle cited from
+`docs/roadmap.md` and `docs/roadmap-release-validation-evidence-20260521.md`.
+
+The original immediate task set is checkpointed as implemented local technical
+coverage:
+
+1. `USRLanguageProfile` and framework profile registries are represented by the USR language/framework docs and generated matrix baselines.
+2. Strict schema validators for USR entities and reports live under `src/contracts/schemas/usr.js`, `src/contracts/validators/usr.js`, and `docs/schemas/usr/**`.
+3. Conformance lane materialization is linked from language/framework profile matrices and guardrail registry coverage.
+4. Capability-state assertions are wired into phase gates before broad language lane rollout.
+5. Migration mappers between USR entities and existing artifact surfaces are covered by compatibility, artifact-schema, and public-surface contracts.
+6. Runtime config and feature-flag validators are wired to strict-mode gate behavior.
+7. Failure-injection harness lanes and blocking fault-scenario evaluators are represented by schema-backed readiness and failure-injection artifacts.
+8. Fixture-governance validators and mutation-policy checks are enforced for blocking fixtures.
+9. Audit/report schema validators cover readiness, resilience, and fixture-governance outputs.
+10. Benchmark-policy validators and regression gate evaluators cover blocking lanes.
+11. Threat-model and abuse-case validators report control gaps.
+12. Waiver-policy validators enforce expiry and approver governance.
+
+Remaining movement is not another local implementation task list. Rollout
+authorization is governed by the current technical validation evidence and the
+standard release readiness gate; the former Gate C role-signoff lock is archived
+at `docs/archived/usr-rollout-approval-lock.md`.
 
 ## 22. References
 
@@ -1617,16 +1630,18 @@ Audit reports MUST be deterministic for identical inputs except for required tim
 
 Before enabling USR-backed production path for a lane, the following scorecard MUST pass.
 
-- [ ] 100% registry language profile coverage
-- [ ] 100% required framework profile coverage
-- [ ] 0 unresolved schema drift findings
-- [ ] 0 ID grammar violations
-- [ ] 0 edge endpoint constraint violations
-- [ ] deterministic rerun diff is empty for required entities
-- [ ] capability downgrade diagnostics within approved threshold budget
-- [ ] no high-severity unresolved diagnostics in required conformance levels
+- [x] 100% registry language profile coverage
+- [x] 100% required framework profile coverage
+- [x] 0 unresolved schema drift findings
+- [x] 0 ID grammar violations
+- [x] 0 edge endpoint constraint violations
+- [x] deterministic rerun diff is empty for required entities
+- [x] capability downgrade diagnostics within approved threshold budget
+- [x] no high-severity unresolved diagnostics in required conformance levels
 
 Any failed scorecard item blocks production-path promotion for that lane.
+
+Current local scorecard evidence is green through the USR matrix, schema registry, conformance shard, guardrail, and governance-refresh checks cited in `docs/roadmap.md` and `docs/roadmap-release-validation-evidence-20260521.md`. Production-path enablement is now governed by standard release readiness validation rather than the archived Gate C role-signoff lock.
 
 ## 32. Strategic hardening backlog (recommended next improvements)
 

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/files.js';
+import { isAbsolutePathNative, isRelativePathEscape } from '../../../shared/file-paths.js';
 import { normalizeRelPath, sortStrings } from './path-utils.js';
 import { resolveCandidate, resolveFromLookup } from './lookup.js';
 

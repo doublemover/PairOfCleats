@@ -4,13 +4,17 @@ import fsPromises from 'node:fs/promises';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
+import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
+process.env.PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS = '1';
 const fixturesRoot = path.join(root, 'tests', 'fixtures', 'extensions');
 const tempRoot = resolveTestCachePath(root, 'download-extensions');
+const verifyEnv = applyTestEnv({ syncProcess: false });
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(tempRoot, { recursive: true });
@@ -107,7 +111,7 @@ for (const entry of cases) {
     continue;
   }
   const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
-  const key = 'vec0:win32-x64';
+  const key = 'sqlite-vec:win32-x64';
   const record = manifest[key];
   if (!record) {
     failures.push(`${entry.label} manifest entry missing (${key})`);
@@ -123,8 +127,7 @@ for (const entry of cases) {
     failures.push(`${entry.label} manifest hash verification missing`);
   }
 
-  const verify = spawnSync(
-    process.execPath,
+  const verify = runNode(
     [
       path.join(root, 'tools', 'sqlite', 'verify-extensions.js'),
       '--dir',
@@ -138,7 +141,10 @@ for (const entry of cases) {
       '--no-load',
       '--json'
     ],
-    { cwd: root, encoding: 'utf8' }
+    `verify extensions ${entry.label}`,
+    root,
+    verifyEnv,
+    { stdio: 'pipe' }
   );
   if (verify.status !== 0) {
     failures.push(`${entry.label} verify-extensions failed`);
@@ -190,4 +196,3 @@ if (failures.length) {
 }
 
 console.log('download-extensions archive test passed');
-

@@ -1,14 +1,18 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createTempPath, replaceFile, replaceFileSync } from './atomic-persistence.js';
+import { createTempPath } from './temp-path.js';
+import { replaceFile, replaceFileSync } from './replace-file.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
+import { incAtomicPersistenceFallback } from '../metrics/core.js';
 
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
 const OPEN_RETRY_ATTEMPTS = 10;
 const OPEN_RETRY_BASE_DELAY_MS = 10;
 let exdevRenameFallbackCount = 0;
+let lastExdevFallbackAt = null;
+let lastExdevFallbackPath = null;
 
 const toNonNegativeInt = (value, fallback) => {
   const parsed = Number(value);
@@ -43,6 +47,36 @@ const removeTempPathSync = (tempPath) => {
 };
 
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+
+const findExistingPathSync = (candidatePath) => {
+  if (!candidatePath) return null;
+  let current = path.resolve(String(candidatePath));
+  while (current) {
+    if (fsSync.existsSync(current)) return current;
+    const parent = path.dirname(current);
+    if (!parent || parent === current) break;
+    current = parent;
+  }
+  return null;
+};
+
+const readDeviceIdSync = (candidatePath) => {
+  const existingPath = findExistingPathSync(candidatePath);
+  if (!existingPath) return null;
+  try {
+    const stat = fsSync.statSync(existingPath);
+    return Number.isFinite(Number(stat?.dev)) ? Number(stat.dev) : null;
+  } catch {
+    return null;
+  }
+};
+
+const recordExdevFallback = (targetPath) => {
+  exdevRenameFallbackCount += 1;
+  lastExdevFallbackAt = new Date().toISOString();
+  lastExdevFallbackPath = targetPath || null;
+  incAtomicPersistenceFallback({ reason: 'exdev' });
+};
 
 /**
  * Retry transient descriptor exhaustion (EMFILE/ENFILE) when creating temp files.
@@ -82,6 +116,21 @@ const syncParentDirectory = async (targetPath) => {
   }
 };
 
+const resolveAtomicWriteTarget = (targetPath) => {
+  if (!targetPath) return null;
+  const normalizedTargetPath = normalizePathForPlatform(targetPath);
+  if (!normalizedTargetPath) {
+    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
+  }
+  const targetAbsolutePath = path.resolve(normalizedTargetPath);
+  const parent = path.dirname(targetAbsolutePath);
+  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
+  if (!safeTargetPath) {
+    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
+  }
+  return { parent, safeTargetPath };
+};
+
 /**
  * Write payload to a temporary sibling file, fsync it, rename into place, and
  * fsync the parent directory to maximize durability across crashes.
@@ -99,17 +148,9 @@ const writeAtomicPayload = async (targetPath, payload, {
   mode = undefined,
   encoding = 'utf8'
 } = {}) => {
-  if (!targetPath) return null;
-  const normalizedTargetPath = normalizePathForPlatform(targetPath);
-  if (!normalizedTargetPath) {
-    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
-  }
-  const targetAbsolutePath = path.resolve(normalizedTargetPath);
-  const parent = path.dirname(targetAbsolutePath);
-  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
-  if (!safeTargetPath) {
-    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
-  }
+  const resolvedTarget = resolveAtomicWriteTarget(targetPath);
+  if (!resolvedTarget) return null;
+  const { parent, safeTargetPath } = resolvedTarget;
   if (mkdir) {
     await fs.mkdir(parent, { recursive: true });
   }
@@ -131,7 +172,7 @@ const writeAtomicPayload = async (targetPath, payload, {
     await replaceFile(tempPath, safeTargetPath, {
       keepBackup: false,
       onExdevFallback: () => {
-        exdevRenameFallbackCount += 1;
+        recordExdevFallback(safeTargetPath);
       }
     });
     await syncParentDirectory(safeTargetPath);
@@ -175,17 +216,9 @@ const writeAtomicPayloadSync = (targetPath, payload, {
   encoding = 'utf8',
   durable = true
 } = {}) => {
-  if (!targetPath) return null;
-  const normalizedTargetPath = normalizePathForPlatform(targetPath);
-  if (!normalizedTargetPath) {
-    throw createAtomicWriteError('normalize target path', String(targetPath || ''), new Error('Invalid target path.'));
-  }
-  const targetAbsolutePath = path.resolve(normalizedTargetPath);
-  const parent = path.dirname(targetAbsolutePath);
-  const safeTargetPath = joinPathSafe(parent, [path.basename(targetAbsolutePath)]);
-  if (!safeTargetPath) {
-    throw createAtomicWriteError('validate target path', targetAbsolutePath, new Error('Target path escaped parent boundary.'));
-  }
+  const resolvedTarget = resolveAtomicWriteTarget(targetPath);
+  if (!resolvedTarget) return null;
+  const { parent, safeTargetPath } = resolvedTarget;
   if (mkdir) {
     fsSync.mkdirSync(parent, { recursive: true });
   }
@@ -211,7 +244,7 @@ const writeAtomicPayloadSync = (targetPath, payload, {
     replaceFileSync(tempPath, safeTargetPath, {
       keepBackup: false,
       onExdevFallback: () => {
-        exdevRenameFallbackCount += 1;
+        recordExdevFallback(safeTargetPath);
       }
     });
     if (durable !== false) {
@@ -227,6 +260,36 @@ const writeAtomicPayloadSync = (targetPath, payload, {
   }
 };
 
+const buildAtomicTextPayload = (text, { newline = false } = {}) => {
+  if (Buffer.isBuffer(text)) {
+    if (!newline) return text;
+    if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
+    return Buffer.concat([text, Buffer.from('\n')]);
+  }
+  const source = text == null ? '' : String(text);
+  if (!newline) return source;
+  return source.endsWith('\n') ? source : `${source}\n`;
+};
+
+const buildAtomicJsonPayload = (targetPath, value, {
+  replacer = null,
+  spaces = 2,
+  newline = true
+} = {}) => {
+  const resolvedSpaces = toNonNegativeInt(spaces, 2);
+  let payload = null;
+  try {
+    payload = JSON.stringify(value, replacer, resolvedSpaces);
+  } catch (err) {
+    throw createAtomicWriteError('serialize JSON', targetPath, err);
+  }
+  if (payload === undefined) {
+    const err = new Error('JSON payload resolved to undefined.');
+    throw createAtomicWriteError('serialize JSON', targetPath, err);
+  }
+  return newline ? `${payload}\n` : payload;
+};
+
 /**
  * Atomically write UTF-8 text to disk (temp file -> fsync -> rename).
  * @param {string} targetPath
@@ -239,17 +302,7 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
     newline = false,
     encoding = 'utf8'
   } = options;
-  const payload = Buffer.isBuffer(text)
-    ? (() => {
-      if (!newline) return text;
-      if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
-      return Buffer.concat([text, Buffer.from('\n')]);
-    })()
-    : (() => {
-      const source = text == null ? '' : String(text);
-      if (!newline) return source;
-      return source.endsWith('\n') ? source : `${source}\n`;
-    })();
+  const payload = buildAtomicTextPayload(text, { newline });
   return writeAtomicPayload(targetPath, payload, { ...options, encoding });
 };
 
@@ -261,27 +314,7 @@ export const atomicWriteText = async (targetPath, text, options = {}) => {
  * @returns {Promise<string|null>}
  */
 export const atomicWriteJson = async (targetPath, value, options = {}) => {
-  const {
-    replacer = null,
-    spaces = 2,
-    newline = true
-  } = options;
-  const resolvedSpaces = toNonNegativeInt(spaces, 2);
-  let payload = null;
-  try {
-    payload = JSON.stringify(value, replacer, resolvedSpaces);
-  } catch (err) {
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  if (payload === undefined) {
-    const err = new Error('JSON payload resolved to undefined.');
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  return writeAtomicPayload(
-    targetPath,
-    newline ? `${payload}\n` : payload,
-    options
-  );
+  return writeAtomicPayload(targetPath, buildAtomicJsonPayload(targetPath, value, options), options);
 };
 
 /**
@@ -296,17 +329,7 @@ export const atomicWriteTextSync = (targetPath, text, options = {}) => {
     newline = false,
     encoding = 'utf8'
   } = options;
-  const payload = Buffer.isBuffer(text)
-    ? (() => {
-      if (!newline) return text;
-      if (text.length > 0 && text[text.length - 1] === 0x0a) return text;
-      return Buffer.concat([text, Buffer.from('\n')]);
-    })()
-    : (() => {
-      const source = text == null ? '' : String(text);
-      if (!newline) return source;
-      return source.endsWith('\n') ? source : `${source}\n`;
-    })();
+  const payload = buildAtomicTextPayload(text, { newline });
   return writeAtomicPayloadSync(targetPath, payload, { ...options, encoding });
 };
 
@@ -318,33 +341,46 @@ export const atomicWriteTextSync = (targetPath, text, options = {}) => {
  * @returns {string|null}
  */
 export const atomicWriteJsonSync = (targetPath, value, options = {}) => {
-  const {
-    replacer = null,
-    spaces = 2,
-    newline = true
-  } = options;
-  const resolvedSpaces = toNonNegativeInt(spaces, 2);
-  let payload = null;
-  try {
-    payload = JSON.stringify(value, replacer, resolvedSpaces);
-  } catch (err) {
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  if (payload === undefined) {
-    const err = new Error('JSON payload resolved to undefined.');
-    throw createAtomicWriteError('serialize JSON', targetPath, err);
-  }
-  return writeAtomicPayloadSync(
-    targetPath,
-    newline ? `${payload}\n` : payload,
-    options
-  );
+  return writeAtomicPayloadSync(targetPath, buildAtomicJsonPayload(targetPath, value, options), options);
 };
 
 export const getAtomicWriteRuntimeMetrics = () => ({
-  exdevRenameFallbackCount
+  degradedDurability: exdevRenameFallbackCount > 0,
+  exdevRenameFallbackCount,
+  lastExdevFallbackAt,
+  lastExdevFallbackPath
 });
+
+export const getAtomicWriteDurabilityStatus = ({
+  repoPath = null,
+  cacheRoot = null,
+  repoCacheRoot = null
+} = {}) => {
+  const repoDeviceId = readDeviceIdSync(repoPath);
+  const cacheDeviceId = readDeviceIdSync(cacheRoot);
+  const repoCacheDeviceId = readDeviceIdSync(repoCacheRoot);
+  const deviceIds = [repoDeviceId, cacheDeviceId, repoCacheDeviceId].filter((value) => value != null);
+  const uniqueDeviceIds = Array.from(new Set(deviceIds));
+  const crossDeviceRisk = uniqueDeviceIds.length > 1;
+  return {
+    runtime: getAtomicWriteRuntimeMetrics(),
+    layout: {
+      repoPath: repoPath ? path.resolve(repoPath) : null,
+      cacheRoot: cacheRoot ? path.resolve(cacheRoot) : null,
+      repoCacheRoot: repoCacheRoot ? path.resolve(repoCacheRoot) : null,
+      deviceIds: {
+        repo: repoDeviceId,
+        cache: cacheDeviceId,
+        repoCache: repoCacheDeviceId
+      },
+      crossDeviceRisk,
+      reason: crossDeviceRisk ? 'device_mismatch' : 'shared_device'
+    }
+  };
+};
 
 export const resetAtomicWriteRuntimeMetricsForTests = () => {
   exdevRenameFallbackCount = 0;
+  lastExdevFallbackAt = null;
+  lastExdevFallbackPath = null;
 };

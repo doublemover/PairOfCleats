@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { runShowThroughputReport } from './show-throughput-report-fixture.js';
 import { THROUGHPUT_LEDGER_SCHEMA_VERSION } from '../../../tools/bench/language/metrics.js';
 
-ensureTestingEnv(process.env);
-
 const root = process.cwd();
-const scriptPath = path.join(root, 'tools', 'reports', 'show-throughput.js');
+const materializeScriptPath = path.join(root, 'tools', 'reports', 'materialize-throughput.js');
+const env = applyTestEnv({ syncProcess: false });
 const tmpRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'show-throughput-ledger-diff-'));
 const runRoot = path.join(tmpRoot, 'workspace');
 const resultsRoot = path.join(runRoot, 'benchmarks', 'results');
@@ -68,13 +68,10 @@ await writeFixture('owner__repo-current.json', {
 
 const stripAnsi = (value) => String(value || '').replace(/\u001b\[[0-9;]*m/g, '');
 
-const first = spawnSync(
-  process.execPath,
-  [scriptPath],
-  { cwd: runRoot, encoding: 'utf8' }
-);
+const first = runShowThroughputReport([], { cwd: runRoot });
 assert.equal(first.status, 0, first.stderr || first.stdout);
-const firstOutput = stripAnsi(first.stderr);
+const firstOutput = stripAnsi(first.stdout);
+assert.equal(stripAnsi(first.stderr).trim(), '', 'expected overview text on stdout only');
 assert.equal(
   firstOutput.toLowerCase().includes('ledger regression'),
   true,
@@ -85,11 +82,32 @@ assert.equal(
   true,
   'expected global throughput regression section'
 );
+const untouchedPayload = JSON.parse(
+  await fsPromises.readFile(path.join(languageDir, 'owner__repo-current.json'), 'utf8')
+);
+assert.equal(
+  untouchedPayload?.artifacts?.throughputLedger ?? null,
+  null,
+  'expected read-only show-throughput to avoid mutating benchmark JSON'
+);
 
-const refreshed = spawnSync(
-  process.execPath,
-  [scriptPath, '--refresh-json'],
-  { cwd: runRoot, encoding: 'utf8' }
+const deprecatedRefresh = runShowThroughputReport(
+  ['--refresh-json'],
+  { cwd: runRoot, allowFailure: true }
+);
+assert.equal(deprecatedRefresh.status, 2, deprecatedRefresh.stderr || deprecatedRefresh.stdout);
+assert.equal(
+  stripAnsi(deprecatedRefresh.stderr).includes('materialize-throughput.js'),
+  true,
+  'expected show-throughput refresh flag to direct callers to the dedicated materializer'
+);
+
+const refreshed = runNode(
+  [materializeScriptPath],
+  'materialize throughput ledger',
+  runRoot,
+  env,
+  { stdio: 'pipe' }
 );
 assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
 
@@ -105,6 +123,11 @@ assert.equal(
   typeof refreshedPayload?.artifacts?.throughputLedger?.runSignature,
   'string',
   'expected persisted throughput ledger run signature'
+);
+assert.equal(
+  refreshedPayload?.artifacts?.materialization?.sections?.throughputLedger?.source,
+  'fallback-throughput-derived',
+  'expected materializer to record synthesized throughput-ledger provenance'
 );
 
 await fsPromises.rm(tmpRoot, { recursive: true, force: true });

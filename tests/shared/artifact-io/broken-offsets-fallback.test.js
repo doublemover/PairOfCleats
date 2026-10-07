@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { loadSymbolOccurrencesByFile } from '../../../src/shared/artifact-io/loaders.js';
 import {
   prepareArtifactIoTestDir,

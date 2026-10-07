@@ -1,0 +1,2 @@
+[tooling] preflight:blocked provider=sourcekit id=sourcekit.package-resolution class=dependency state=blocked policy=dependency-resolution
+[tooling] sourcekit degraded mode active (fail-open).

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { loadReleaseCheckArtifacts, runReleaseCheckCli } from '../../helpers/release-check-fixture.js';
+import { getReleaseCheckSurfaceSteps } from '../../../tools/release/surfaces.js';
 
 const { run, root, reportPath, manifestPath } = await runReleaseCheckCli({
   outDirName: 'release-check-smoke'
@@ -27,14 +28,7 @@ const expected = [
   'changelog.entry',
   'contracts.drift',
   'toolchain.python',
-  'smoke.version',
-  'smoke.fixture-index-build',
-  'smoke.fixture-index-validate-strict',
-  'smoke.fixture-search',
-  'smoke.editor-sublime',
-  'smoke.editor-vscode',
-  'smoke.tui-build',
-  'smoke.service-mode'
+  ...getReleaseCheckSurfaceSteps(root).map((step) => step.id)
 ];
 
 const ids = report.checks.map((step) => step.id);
@@ -49,6 +43,16 @@ for (let i = 0; i < expected.length; i += 1) {
     console.error(`release-check smoke failed at index ${i}: expected ${expected[i]}, got ${ids[i]}`);
     process.exit(1);
   }
+}
+
+if (!Array.isArray(report.shippedSurfaces) || report.shippedSurfaces.length < 6) {
+  console.error('release-check smoke failed: expected shipped surface metadata in report');
+  process.exit(1);
+}
+
+if (!Array.isArray(manifest.surfaces) || manifest.surfaces.length !== report.shippedSurfaces.length) {
+  console.error('release-check smoke failed: manifest/report shipped surface counts differ');
+  process.exit(1);
 }
 
 console.log('release-check smoke test passed');

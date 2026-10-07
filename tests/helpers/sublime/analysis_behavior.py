@@ -2,12 +2,11 @@ import importlib
 import json
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeView, FakeWindow, install_fake_modules
+from runtime_harness import FakeView, FakeWindow, install_fake_modules, isolated_temp_directory
 
 
 class _FakeResult:
@@ -79,7 +78,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
                 self.analysis.runner.run_process = value
 
     def test_context_pack_panel_export_reopen_and_actions(self):
-        with tempfile.TemporaryDirectory() as temp_root:
+        with isolated_temp_directory() as temp_root:
             out_path = os.path.join(temp_root, 'context-pack.json')
             command = self.analysis.PairOfCleatsContextPackCommand(self.window)
             command.run(seed='file:src/index.js', export_json=True, out_path=out_path)
@@ -203,7 +202,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         self.assertTrue(self.sublime.clipboard.replace('\\', '/').endswith('.pairofcleats-workspace.jsonc'))
 
     def test_workspace_build_prompts_for_repo_when_multiple_roots_exist(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             workspace_path = os.path.join(tmp, '.pairofcleats-workspace.jsonc')
@@ -246,7 +245,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
                 self.analysis.paths.resolve_repo_root_interactive = original_interactive
 
     def test_workspace_build_fails_closed_without_repo_root(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             workspace_dir = os.path.join(tmp, 'workspace')
             os.makedirs(workspace_dir)
             workspace_path = os.path.join(workspace_dir, '.pairofcleats-workspace.jsonc')
@@ -264,7 +263,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
             self.assertIn('require an explicit repo root', self.sublime.last_error)
 
     def test_workspace_build_prefers_repo_root_from_workspace_path_hint(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             repo_a = os.path.join(tmp, 'repo-a')
             repo_b = os.path.join(tmp, 'repo-b')
             workspace_path = os.path.join(repo_b, '.pairofcleats-workspace.jsonc')
@@ -283,7 +282,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
             self.assertEqual(self.sublime.status_history, [])
 
     def test_workspace_build_fails_closed_without_repo_root(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with isolated_temp_directory() as tmp:
             folder = os.path.join(tmp, 'workspace')
             workspace_path = os.path.join(folder, '.pairofcleats-workspace.jsonc')
             os.makedirs(folder)

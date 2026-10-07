@@ -17,14 +17,23 @@ export const buildEmbeddingActions = ({ root, runNode }) => [
     covers: ['embeddings-identity-test']
   },
   {
-    label: 'embeddings-cache-invalidation-test',
-    run: () => runNode('embeddings-cache-invalidation-test', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-invalidation.test.js')),
-    covers: ['embeddings-cache-invalidation-test']
+    label: 'embeddings-cache-index-contract-matrix-test',
+    run: () => runNode('embeddings-cache-index-contract-matrix-test', path.join(root, 'tests', 'indexing', 'embeddings', 'cache-index-contract-matrix.test.js')),
+    covers: ['embeddings-cache-invalidation-test', 'embeddings-cache-index-contract-matrix-test']
   },
   {
-    label: 'embeddings-dims-mismatch-test',
-    run: () => runNode('embeddings-dims-mismatch-test', path.join(root, 'tests', 'indexing', 'embeddings', 'dims-mismatch.test.js')),
-    covers: ['embeddings-dims-mismatch-test']
+    label: 'embeddings-stub-fastpath-cache-contract-matrix-test',
+    run: () => runNode(
+      'embeddings-stub-fastpath-cache-contract-matrix-test',
+      path.join(root, 'tests', 'indexing', 'embeddings', 'stub-fastpath-cache-contract-matrix.test.js')
+    ),
+    covers: [
+      'embeddings-dims-mismatch-test',
+      'embeddings-cache-cross-repo-reuse-test',
+      'embeddings-cache-index-append-only-test',
+      'embeddings-cache-partial-reuse-test',
+      'embeddings-stub-fastpath-cache-contract-matrix-test'
+    ]
   },
   {
     label: 'embeddings-dims-validation-test',
@@ -37,24 +46,15 @@ export const buildEmbeddingActions = ({ root, runNode }) => [
     covers: ['embeddings-sqlite-dense-test']
   },
   {
-    label: 'embedding-batch-multipliers-test',
-    run: () => runNode('embedding-batch-multipliers-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-batch-multipliers.test.js')),
-    covers: ['embedding-batch-multipliers-test']
-  },
-  {
-    label: 'embedding-batch-defaults-test',
-    run: () => runNode('embedding-batch-defaults-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-batch-defaults.test.js')),
-    covers: ['embedding-batch-defaults-test']
-  },
-  {
-    label: 'embedding-batch-throughput-test',
-    run: () => runNode('embedding-batch-throughput-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-batch-throughput.test.js')),
-    covers: ['embedding-batch-throughput-test']
-  },
-  {
-    label: 'embedding-queue-defaults-test',
-    run: () => runNode('embedding-queue-defaults-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-queue-defaults.test.js')),
-    covers: ['embedding-queue-defaults-test']
+    label: 'embedding-batch-policy-matrix-test',
+    run: () => runNode('embedding-batch-policy-matrix-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-batch-policy-matrix.test.js')),
+    covers: [
+      'embedding-batch-multipliers-test',
+      'embedding-batch-defaults-test',
+      'embedding-batch-throughput-test',
+      'embedding-queue-defaults-test',
+      'embedding-batch-policy-matrix-test'
+    ]
   },
   {
     label: 'build-embeddings-cache-test',
@@ -62,8 +62,8 @@ export const buildEmbeddingActions = ({ root, runNode }) => [
     covers: ['build-embeddings-cache-test']
   },
   {
-    label: 'embedding-batch-autotune-test',
-    run: () => runNode('embedding-batch-autotune-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-batch-autotune.test.js')),
-    covers: ['embedding-batch-autotune-test']
+    label: 'embedding-autotune-profile-test',
+    run: () => runNode('embedding-autotune-profile-test', path.join(root, 'tests', 'indexing', 'embeddings', 'embedding-autotune-profile.test.js')),
+    covers: ['embedding-batch-autotune-test', 'embedding-autotune-profile-test']
   }
 ];

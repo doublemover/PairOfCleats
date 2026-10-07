@@ -14,12 +14,12 @@ import {
 import {
   createUint8ClampStats,
   dequantizeUint8ToFloat32,
-  isVectorEncodingCompatible,
+  formatVectorEncodingMismatchWarning,
   packUint32,
   packUint8,
   quantizeVec,
-  resolveEncodedVectorBytes,
   resolveVectorEncodingBytes,
+  resolveVectorEncodingCompatibility,
   toSqliteRowId
 } from '../vector.js';
 import { resolveQuantizationParams } from '../quantization.js';
@@ -139,8 +139,6 @@ export async function buildDatabaseFromBundles({
   const bundleThreads = Number.isFinite(envBundleThreads) && envBundleThreads > 0
     ? Math.floor(envBundleThreads)
     : Math.max(1, Math.floor(threadLimits.fileConcurrency));
-  const bundleLoader = createBundleLoader({ bundleThreads, workerPath });
-  const useBundleWorkers = bundleLoader.useWorkers;
   const logBundleProgress = (file, force = false) => {
     if (!emitOutput) return;
     const ratio = totalFiles > 0 ? (processedFiles / totalFiles) : 1;
@@ -160,9 +158,6 @@ export async function buildDatabaseFromBundles({
   };
   if (emitOutput) {
     log(`[sqlite] Using incremental bundles for ${mode} (${totalFiles} files).`);
-    if (useBundleWorkers) {
-      log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
-    }
   }
 
   const useBuildPragmas = buildPragmas !== false;
@@ -641,19 +636,15 @@ export async function buildDatabaseFromBundles({
                 );
               const encoded = floatVec ? encodeVector(floatVec, vectorExtension) : null;
               if (encoded) {
-                const compatible = isVectorEncodingCompatible({
+                const compatibility = resolveVectorEncodingCompatibility({
                   encoded,
                   dims,
                   encoding: vectorExtension.encoding
                 });
-                if (!compatible) {
+                if (!compatibility.compatible) {
                   if (!vectorAnnInsertWarned) {
-                    const expectedBytes = resolveVectorEncodingBytes(dims, vectorExtension.encoding);
-                    const actualBytes = resolveEncodedVectorBytes(encoded);
                     warn(
-                      `[sqlite] Vector extension insert skipped for ${mode}: ` +
-                      `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} ` +
-                      `(dims=${dims}, encoding=${vectorExtension.encoding || 'float32'}).`
+                      formatVectorEncodingMismatchWarning({ mode, dims, ...compatibility })
                     );
                     vectorAnnInsertWarned = true;
                   }
@@ -692,11 +683,19 @@ export async function buildDatabaseFromBundles({
     const bundleFailures = [];
     let fatalBundleFailure = null;
     let bundleFailureAbort = false;
-    const maxInFlightBundles = useBundleWorkers
-      ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
-      : 1;
-    const batchSize = maxInFlightBundles;
+    // Delay worker allocation until the database and insert path are ready,
+    // then own the loader immediately so every later failure closes it.
+    let bundleLoader = null;
     try {
+      bundleLoader = createBundleLoader({ bundleThreads, workerPath });
+      const useBundleWorkers = bundleLoader.useWorkers;
+      if (emitOutput && useBundleWorkers) {
+        log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
+      }
+      const maxInFlightBundles = useBundleWorkers
+        ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
+        : 1;
+      const batchSize = maxInFlightBundles;
       for (let i = 0; i < manifestEntries.length; i += batchSize) {
         const batch = manifestEntries.slice(i, i + batchSize);
         const tasks = batch.map((record) => bundleLoader.loadBundle({
@@ -743,7 +742,7 @@ export async function buildDatabaseFromBundles({
         if (fatalBundleFailure || bundleFailureAbort) break;
       }
     } finally {
-      await bundleLoader.close();
+      await bundleLoader?.close();
     }
 
     validationStats.chunks = count;
@@ -875,7 +874,11 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
-    commitSqliteBuildTransaction(db, batchStats);
+    commitSqliteBuildTransaction(db, batchStats, {
+      dbPath,
+      stage: 'bundle-build',
+      source: 'bundles'
+    });
     runSqliteBuildPostCommit({
       db,
       mode,
@@ -887,7 +890,8 @@ export async function buildDatabaseFromBundles({
       vectorAnnTable: vectorAnnState?.table || vectorExtension.table || 'dense_vectors_ann',
       useOptimize,
       inputBytes,
-      batchStats
+      batchStats,
+      telemetry: { source: 'bundles' }
     });
     succeeded = true;
     emitDenseClampSummary();
@@ -898,6 +902,7 @@ export async function buildDatabaseFromBundles({
       db,
       succeeded,
       pragmaState,
+      batchStats,
       dbPath,
       promotePath,
       outPath,

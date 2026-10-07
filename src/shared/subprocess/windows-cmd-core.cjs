@@ -1,7 +1,20 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const WINDOWS_CMD_META_PATTERN = /[\s"%!&|<>^();]/u;
+const WINDOWS_CMD_META_PATTERN = /[()\][%!^"`<>&|;, *?\t]/u;
+const WINDOWS_CMD_META_ESCAPE_PATTERN = /[()\][%!^"`<>&|;, *?\t]/gu;
+const WRAPPER_LAUNCH_PATTERN = /^(?:node|php|python|ruby|java|dotnet|"%_prog%"|%_prog%)(?:\s|$)/iu;
+
+function assertSafeShellText(text) {
+  if (!/[\0\r\n]/u.test(text)) return;
+  const error = new Error('Windows command shell text cannot contain NUL or line breaks.');
+  error.code = 'ERR_WINDOWS_CMD_UNSAFE_ARGUMENT';
+  throw error;
+}
+
+function escapeWindowsCmdMeta(text) {
+  return text.replace(WINDOWS_CMD_META_ESCAPE_PATTERN, '^$&');
+}
 
 function unwrapWrapperPrefix(line) {
   return String(line || '')
@@ -41,7 +54,7 @@ function splitPathEntries(envPath) {
     .filter(Boolean);
 }
 
-function resolveCommandPath(cmd) {
+function resolveCommandPath(cmd, env = process.env) {
   const raw = String(cmd || '').trim();
   if (!raw) return '';
   if (path.isAbsolute(raw)) return fs.existsSync(raw) ? raw : '';
@@ -49,9 +62,34 @@ function resolveCommandPath(cmd) {
     const candidate = path.resolve(raw);
     return fs.existsSync(candidate) ? candidate : '';
   }
-  for (const dir of splitPathEntries(process.env.PATH || process.env.Path || process.env.path || '')) {
+  const envPath = env?.PATH || env?.Path || env?.path || '';
+  for (const dir of splitPathEntries(envPath)) {
     const candidate = path.join(dir, raw);
     if (fs.existsSync(candidate)) return candidate;
+  }
+  return '';
+}
+
+function resolveWindowsCmdShimPath(cmd, env = process.env) {
+  const raw = String(cmd || '').trim();
+  if (!raw) return '';
+  const ext = path.extname(raw).toLowerCase();
+  if (ext === '.cmd' || ext === '.bat') {
+    return resolveCommandPath(raw, env);
+  }
+  if (ext) return '';
+
+  if (path.isAbsolute(raw) || /[\\/]/u.test(raw)) {
+    for (const candidateExt of ['.cmd', '.bat']) {
+      const candidate = `${raw}${candidateExt}`;
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    return '';
+  }
+
+  for (const candidateExt of ['.cmd', '.bat']) {
+    const resolved = resolveCommandPath(`${raw}${candidateExt}`, env);
+    if (resolved) return resolved;
   }
   return '';
 }
@@ -71,6 +109,13 @@ function maybeResolveWindowsCmdShim(cmdPath, args = []) {
     .split(/\r?\n/u)
     .map((line) => unwrapWrapperPrefix(line))
     .filter(Boolean);
+  // Only bypass cmd.exe for a straight-line wrapper. Extracting the last
+  // invocation from an IF/GOTO script would discard its probe/launch branches.
+  const launchLines = lines.filter((line) => WRAPPER_LAUNCH_PATTERN.test(line));
+  if (launchLines.length !== 1 || lines.some((line) => (
+    !WRAPPER_LAUNCH_PATTERN.test(line)
+    && !/^(?:echo\s+off|setlocal|endlocal|rem(?:\s.*)?|::.*)$/iu.test(line)
+  )) || /[&|<>]/u.test(launchLines[0])) return null;
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index];
     if (!/(?:^|\s)(?:node|php|python|ruby|java|dotnet|"%_prog%"|%_prog%)/iu.test(line)) continue;
@@ -89,28 +134,37 @@ function maybeResolveWindowsCmdShim(cmdPath, args = []) {
   return null;
 }
 
-function quoteWindowsCmdArg(value) {
+function quoteWindowsCmdArg(value, { doubleEscape = false } = {}) {
   const text = String(value ?? '');
-  if (!text) return '""';
-  const escaped = text
-    .replaceAll('^', '^^')
-    .replaceAll('%', '^%')
-    .replaceAll('!', '^!')
-    .replaceAll('&', '^&')
-    .replaceAll('|', '^|')
-    .replaceAll('<', '^<')
-    .replaceAll('>', '^>')
-    .replaceAll('(', '^(')
-    .replaceAll(')', '^)')
-    .replaceAll(';', '^;')
-    .replaceAll('"', '""');
-  if (!WINDOWS_CMD_META_PATTERN.test(text)) return escaped;
-  return `"${escaped}"`;
+  assertSafeShellText(text);
+  if (text && !WINDOWS_CMD_META_PATTERN.test(text)) return text;
+  // First quote for the eventual executable's Windows argv parser. Backslashes
+  // are doubled only before a quote (including the final closing quote).
+  const needsQuotes = !text || /\s/u.test(text);
+  let quoted = needsQuotes ? '"' : '';
+  let backslashes = 0;
+  for (const character of text) {
+    if (character === '\\') {
+      backslashes += 1;
+      continue;
+    }
+    quoted += '\\'.repeat(character === '"' ? backslashes * 2 + 1 : backslashes);
+    quoted += character;
+    backslashes = 0;
+  }
+  quoted += needsQuotes ? `${'\\'.repeat(backslashes * 2)}"` : '\\'.repeat(backslashes);
+  if (needsQuotes && !/[%!^"&|<>]/u.test(text)) return quoted;
+  // Escape the quote syntax too: carets *inside* protective quotes are literal.
+  // A batch forwarder (%*) parses the text again, requiring one more layer.
+  const escaped = escapeWindowsCmdMeta(quoted);
+  return doubleEscape ? escapeWindowsCmdMeta(escaped) : escaped;
 }
 
-function buildWindowsShellCommand(cmd, args = []) {
-  return [cmd, ...(Array.isArray(args) ? args : [])]
-    .map(quoteWindowsCmdArg)
+function buildWindowsShellCommand(cmd, args = [], { doubleEscape = false } = {}) {
+  const command = String(cmd ?? '');
+  assertSafeShellText(command);
+  return [escapeWindowsCmdMeta(command), ...(Array.isArray(args) ? args : [])
+    .map((value) => quoteWindowsCmdArg(value, { doubleEscape }))]
     .join(' ');
 }
 
@@ -122,31 +176,40 @@ function resolveWindowsCommandProcessor() {
 }
 
 function buildWindowsCmdShellInvocation(cmdPath, args = []) {
+  // A recognized native launch with trailing, unquoted %* parses argv again.
+  // Comments, SET/ECHO text, quoted %*, CALL and positional forwarding are not
+  // evidence of this protocol. General nested batch protocols remain opaque.
+  const doubleEscape = fs.readFileSync(cmdPath, 'utf8')
+    .split(/\r?\n/u)
+    .map(unwrapWrapperPrefix)
+    .some((line) => WRAPPER_LAUNCH_PATTERN.test(line) && /(?:^|\s)%\*\s*$/u.test(line));
   return {
     command: resolveWindowsCommandProcessor(),
-    args: ['/d', '/s', '/c', buildWindowsShellCommand(cmdPath, args)]
+    args: ['/d', '/s', '/c', `"${buildWindowsShellCommand(cmdPath, args, { doubleEscape })}"`],
+    windowsVerbatimArguments: true
   };
 }
 
-function resolveWindowsCmdInvocation(cmd, args = []) {
+function resolveWindowsCmdInvocation(cmd, args = [], env = process.env) {
   const raw = String(cmd || '').trim();
-  if (!/\.(cmd|bat)$/iu.test(raw)) {
-    return { command: cmd, args: Array.isArray(args) ? [...args] : [] };
-  }
-  const resolvedPath = resolveCommandPath(raw);
-  if (!resolvedPath) {
+  const resolvedShimPath = resolveWindowsCmdShimPath(raw, env);
+  if (!resolvedShimPath && /\.(cmd|bat)$/iu.test(raw)) {
     const error = new Error(`Windows wrapper command not found: ${cmd}`);
     error.code = 'ERR_WINDOWS_CMD_NOT_FOUND';
     throw error;
   }
-  const shimInvocation = maybeResolveWindowsCmdShim(resolvedPath, args);
+  if (!resolvedShimPath) {
+    return { command: cmd, args: Array.isArray(args) ? [...args] : [] };
+  }
+  const shimInvocation = maybeResolveWindowsCmdShim(resolvedShimPath, args);
   if (shimInvocation) return shimInvocation;
-  return buildWindowsCmdShellInvocation(resolvedPath, args);
+  return buildWindowsCmdShellInvocation(resolvedShimPath, args);
 }
 
 module.exports = {
   quoteWindowsCmdArg,
   buildWindowsShellCommand,
   buildWindowsCmdShellInvocation,
+  resolveWindowsCmdShimPath,
   resolveWindowsCmdInvocation
 };

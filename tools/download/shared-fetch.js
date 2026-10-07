@@ -1,6 +1,8 @@
 import http from 'node:http';
 import https from 'node:https';
 import { URL } from 'node:url';
+import { createDownloadLookup, validateDownloadUrl } from './network-policy.js';
+import { getDownloadEnvConfig } from '../../src/shared/env/runtime.js';
 
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -25,8 +27,8 @@ const toTimeoutMs = (value) => {
 
 const downloadError = (url, message) => new Error(`Download request failed for ${url}: ${message}`);
 
-const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes }) => new Promise((resolve, reject) => {
-  const parsed = new URL(url);
+const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLocal }) => new Promise((resolve, reject) => {
+  const parsed = validateDownloadUrl(url, { allowLocal });
   const handler = parsed.protocol === 'https:' ? https : http;
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     reject(downloadError(url, `unsupported protocol "${parsed.protocol}"`));
@@ -41,7 +43,9 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes }) => new
     fn(value);
   };
 
-  const req = handler.request(parsed, { method: 'GET', headers }, (res) => {
+  const req = handler.request(parsed, {
+    method: 'GET', headers, lookup: createDownloadLookup({ allowLocal })
+  }, (res) => {
     const statusCode = Number(res.statusCode) || 0;
     const responseHeaders = res.headers || {};
     if (REDIRECT_STATUS_CODES.has(statusCode)) {
@@ -131,13 +135,20 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes }) => new
  * @returns {Promise<{statusCode:number,headers:object,body?:Buffer,stream?:import('node:stream').Readable,url:string,redirects:number}>}
  */
 export async function fetchDownloadUrl(initialUrl, options = {}) {
-  const headers = options.headers && typeof options.headers === 'object'
-    ? options.headers
+  let headers = options.headers && typeof options.headers === 'object'
+    ? { ...options.headers }
     : {};
   const responseType = options.responseType === 'stream' ? 'stream' : 'buffer';
-  const maxRedirects = toBoundedInteger(options.maxRedirects, DEFAULT_MAX_REDIRECTS, { min: 0 });
-  const timeoutMs = toTimeoutMs(options.timeoutMs);
-  const maxBytes = toMaxBytes(options.maxBytes);
+  const maxRedirects = Math.min(DEFAULT_MAX_REDIRECTS,
+    toBoundedInteger(options.maxRedirects, DEFAULT_MAX_REDIRECTS, { min: 0 }));
+  const timeoutMs = toTimeoutMs(options.timeoutMs) || 30_000;
+  const maxBytes = toMaxBytes(options.maxBytes) || 64 * 1024 * 1024;
+  const downloadEnv = getDownloadEnvConfig();
+  const allowLocal = options.allowLocal === true || downloadEnv.allowLocal;
+  let configuredOrigins = [];
+  try { configuredOrigins = JSON.parse(downloadEnv.redirectOriginsJson); } catch {}
+  const redirectOrigins = new Set(Array.isArray(configuredOrigins)
+    ? configuredOrigins.map((entry) => validateDownloadUrl(entry, { allowLocal }).origin) : []);
 
   let currentUrl;
   try {
@@ -147,12 +158,26 @@ export async function fetchDownloadUrl(initialUrl, options = {}) {
   }
 
   for (let redirects = 0; redirects <= maxRedirects; redirects++) {
-    const result = await requestOnce(currentUrl, { headers, responseType, timeoutMs, maxBytes });
+    validateDownloadUrl(currentUrl, { allowLocal });
+    const result = await requestOnce(currentUrl, { headers, responseType, timeoutMs, maxBytes, allowLocal });
     if (result.redirectUrl) {
       if (redirects >= maxRedirects) {
         throw downloadError(currentUrl, `too many redirects (max ${maxRedirects})`);
       }
-      currentUrl = result.redirectUrl;
+      const previous = new URL(currentUrl);
+      const next = validateDownloadUrl(result.redirectUrl, { allowLocal });
+      if (previous.protocol === 'https:' && next.protocol !== 'https:') {
+        throw downloadError(currentUrl, 'HTTPS downgrade redirect rejected');
+      }
+      if (previous.origin !== next.origin) {
+        if (!redirectOrigins.has(next.origin)) {
+          throw downloadError(currentUrl, 'cross-origin redirect requires launch-time approval');
+        }
+        headers = Object.fromEntries(Object.entries(headers).filter(([key]) => (
+          !['authorization', 'cookie', 'proxy-authorization', 'host'].includes(key.toLowerCase())
+        )));
+      }
+      currentUrl = next.toString();
       continue;
     }
     return {

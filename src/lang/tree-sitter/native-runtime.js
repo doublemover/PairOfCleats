@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { LANGUAGE_GRAMMAR_KEYS } from './config.js';
 import { toStringArray } from '../../shared/iterables.js';
 
@@ -48,7 +49,7 @@ export const NATIVE_GRAMMAR_MODULES = Object.freeze({
     fallbackExportKeys: ['markdown', 'language', 'default']
   },
   kotlin: { moduleName: 'tree-sitter-kotlin' },
-  csharp: { moduleName: 'tree-sitter-c-sharp' },
+  csharp: { moduleName: 'tree-sitter-c-sharp', nodeGypBinding: true },
   clike: { moduleName: 'tree-sitter-c' },
   c: { moduleName: 'tree-sitter-c' },
   cpp: { moduleName: 'tree-sitter-cpp' },
@@ -183,6 +184,17 @@ const normalizeLanguageBinding = (languageValue, grammarModule) => {
 };
 
 const loadGrammarModule = (grammarSpec) => {
+  if (grammarSpec?.nodeGypBinding) {
+    // Recent C# wrappers use top-level await to import a synchronous N-API
+    // binding. Load that binding through the grammar's own declared loader,
+    // preserving synchronous parser APIs and source-build/prebuild fallback.
+    // Resolution stays anchored to this installed package, never the input repo.
+    const packagePath = require.resolve(`${grammarSpec.moduleName}/package.json`);
+    const grammarRequire = createRequire(packagePath);
+    const binding = grammarRequire('node-gyp-build')(path.dirname(packagePath));
+    binding.nodeTypeInfo = grammarRequire('./src/node-types.json');
+    return binding;
+  }
   if (grammarSpec?.prebuildBinary) {
     const prebuildId = `${process.platform}-${process.arch}`;
     const bindingPath = `${grammarSpec.moduleName}/prebuilds/${prebuildId}/${grammarSpec.prebuildBinary}`;

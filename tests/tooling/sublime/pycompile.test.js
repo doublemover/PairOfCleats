@@ -3,6 +3,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { runNode } from '../../helpers/run-node.js';
+
 const root = process.cwd();
 const pkgDir = path.join(root, 'sublime', 'PairOfCleats');
 
@@ -31,10 +33,12 @@ if (!pyFiles.length) {
   process.exit(1);
 }
 
-const pythonPolicy = spawnSync(
-  process.execPath,
+const pythonPolicy = runNode(
   [path.join(root, 'tools', 'tooling', 'python-check.js'), '--json'],
-  { encoding: 'utf8' }
+  'python-check for sublime pycompile',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (pythonPolicy.status !== 0) {
   console.error('sublime-pycompile: required python toolchain is missing');

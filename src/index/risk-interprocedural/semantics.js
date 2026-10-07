@@ -1,4 +1,8 @@
-import { compileSafeRegex, normalizeSafeRegexConfig } from '../../shared/safe-regex.js';
+import {
+  attachSafeRegexPrefilter,
+  compileSafeRegex,
+  normalizeSafeRegexConfig
+} from '../../shared/safe-regex.js';
 import { toArray } from '../../shared/iterables.js';
 
 export const SUPPORTED_RISK_INTERPROCEDURAL_SEMANTIC_KINDS = new Set([
@@ -49,28 +53,10 @@ const buildSemanticDiagnostic = ({ code, message, entry, field = null }) => ({
   field
 });
 
-const extractPrefilter = (pattern) => {
-  const source = typeof pattern === 'string' ? pattern : pattern?.source;
-  if (!source) return null;
-  const scrubbed = source.replace(/\\./g, ' ');
-  const tokens = scrubbed.match(/[A-Za-z0-9_$]{3,}/g);
-  if (!tokens || !tokens.length) return null;
-  tokens.sort((a, b) => b.length - a.length);
-  return tokens[0] || null;
-};
-
 const compilePattern = (pattern, regexConfig, diagnostics, entry, field) => {
   const compiledResult = compileSafeRegex(pattern, '', regexConfig);
   if (compiledResult.regex) {
-    const compiled = compiledResult.regex;
-    const prefilter = extractPrefilter(pattern);
-    if (prefilter) {
-      compiled.prefilter = prefilter;
-      if (compiled.flags && compiled.flags.includes('i')) {
-        compiled.prefilterLower = prefilter.toLowerCase();
-      }
-    }
-    return compiled;
+    return attachSafeRegexPrefilter(compiledResult.regex, pattern);
   }
   if (compiledResult.error) {
     appendDiagnostic(diagnostics, buildSemanticDiagnostic({

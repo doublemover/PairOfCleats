@@ -1,4 +1,5 @@
 import { clampWriteConcurrency } from './lane-policy.js';
+import { summarizeBoundedHistogram } from '../../../shared/perf/histogram.js';
 
 const LARGE_ARTIFACT_WRITE_BYTES = 256 * 1024 * 1024;
 const HUGE_ARTIFACT_WRITE_BYTES = 768 * 1024 * 1024;
@@ -73,6 +74,31 @@ export const resolveArtifactWritePhaseClass = (phase) => {
   return 'other';
 };
 
+export const resolveArtifactWriteStallAttribution = ({
+  longestStallSec = 0,
+  attributedToWriteQueue = false,
+  hasSchedulerWriteSignals = false,
+  activeStallOwner = null
+} = {}) => {
+  if (!Number.isFinite(Number(longestStallSec)) || Number(longestStallSec) <= 0) return 'none';
+  if (attributedToWriteQueue) return 'write-queue';
+  if (typeof activeStallOwner === 'string' && activeStallOwner.trim()) {
+    return activeStallOwner.trim();
+  }
+  if (hasSchedulerWriteSignals) return 'non-write';
+  return 'unknown';
+};
+
+export const isNonQueueArtifactStallAttribution = (stallAttribution) => {
+  const normalized = typeof stallAttribution === 'string' ? stallAttribution.trim().toLowerCase() : '';
+  return Boolean(
+    normalized
+    && normalized !== 'none'
+    && normalized !== 'write-queue'
+    && normalized !== 'unknown'
+  );
+};
+
 export const resolveArtifactPhaseBudgetWeight = (phase) => {
   const phaseClass = resolveArtifactWritePhaseClass(phase);
   switch (phaseClass) {
@@ -100,7 +126,7 @@ export const resolveArtifactBlockingState = (activeEntries = []) => {
       hasOversizeBlockingEntry = false;
       for (const activeEntry of Array.isArray(activeEntries) ? activeEntries : []) {
         if (!activeEntry || typeof activeEntry !== 'object') continue;
-        const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry.label);
+        const activeFamily = resolveArtifactExclusivePublisherFamily(activeEntry);
         const activeBytes = resolveArtifactEffectiveDispatchBytes(activeEntry);
         const phaseWeight = resolveArtifactPhaseBudgetWeight(activeEntry.phase);
         const phaseClass = resolveArtifactWritePhaseClass(activeEntry.phase);
@@ -136,21 +162,6 @@ export const resolveArtifactBlockingState = (activeEntries = []) => {
       };
     }
   };
-};
-
-/**
- * Resolve an upper percentile from sorted millisecond samples.
- *
- * @param {number[]} samples
- * @param {number} ratio
- * @returns {number}
- */
-const resolvePercentileMs = (samples, ratio) => {
-  if (!Array.isArray(samples) || !samples.length) return 0;
-  if (!Number.isFinite(ratio)) return samples[0];
-  const clampedRatio = Math.max(0, Math.min(1, ratio));
-  const index = Math.min(samples.length - 1, Math.max(0, Math.ceil(clampedRatio * samples.length) - 1));
-  return samples[index];
 };
 
 /**
@@ -199,7 +210,17 @@ const toNonNegativeNumberOrNull = (value) => {
   return parsed;
 };
 
-export const resolveArtifactExclusivePublisherFamily = (label) => {
+export const resolveArtifactExclusivePublisherFamily = (value) => {
+  const explicitFamily = typeof value === 'object' && value
+    ? (
+      (typeof value.exclusivePublisherFamily === 'string' && value.exclusivePublisherFamily.trim())
+      || (typeof value?.familyCapability?.exclusivePublisherFamily === 'string'
+        && value.familyCapability.exclusivePublisherFamily.trim())
+      || null
+    )
+    : null;
+  if (explicitFamily) return explicitFamily;
+  const label = typeof value === 'object' && value ? value.label : value;
   const normalized = String(label || '').replace(/\\/g, '/').toLowerCase();
   if (!normalized) return null;
   for (const entry of EXCLUSIVE_ARTIFACT_PUBLISHER_FAMILIES) {
@@ -213,7 +234,7 @@ export const resolveArtifactEffectiveDispatchBytes = (entry) => {
   if (!entry || typeof entry !== 'object') return 0;
   const estimatedBytes = toNonNegativeNumberOrNull(entry.estimatedBytes);
   if (estimatedBytes != null && estimatedBytes > 0) return estimatedBytes;
-  if (resolveArtifactExclusivePublisherFamily(entry.label)) {
+  if (resolveArtifactExclusivePublisherFamily(entry)) {
     return HUGE_ARTIFACT_WRITE_BYTES;
   }
   const lane = typeof entry.lane === 'string' ? entry.lane.trim().toLowerCase() : '';
@@ -247,7 +268,7 @@ export const shouldEagerStartArtifactWrite = ({
 } = {}) => {
   if (!entry || typeof entry !== 'object' || entry.eagerStart !== true) return false;
   const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
-  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry);
   if (entryBytes <= 0) return true;
   if (maxBytesInFlight != null && entryBytes > maxBytesInFlight) {
     return false;
@@ -271,7 +292,7 @@ export const canDispatchArtifactWriteEntry = ({
 } = {}) => {
   if (!entry || typeof entry !== 'object') return false;
   const entryBytes = resolveArtifactEffectiveDispatchBytes(entry);
-  const entryFamily = resolveArtifactExclusivePublisherFamily(entry.label);
+  const entryFamily = resolveArtifactExclusivePublisherFamily(entry);
   const blockingState = resolveArtifactBlockingState(activeEntries).fromEntries(maxBytesInFlight);
   if (entryFamily && blockingState.blockingHugeFamilies.has(entryFamily)) {
     return false;
@@ -403,8 +424,8 @@ const isMicroCoalescibleWrite = (entry, maxEntryBytes) => {
  * @param {number} [input.writeQueueOldestWaitMsThreshold]
  * @param {number} [input.writeQueueWaitP95MsThreshold]
  * @param {() => number} [input.now]
- * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string}) => void} [input.onChange]
- * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
+ * @param {(event:{reason:string,from:number,to:number,pendingWrites:number,activeWrites:number,longestStallSec:number,memoryPressure:number|null,gcPressure:number|null,rssUtilization:number|null,schedulerWritePending:number|null,schedulerWriteOldestWaitMs:number|null,schedulerWriteWaitP95Ms:number|null,stallAttribution:string,stalledFamily:string|null,alternatePendingFamilies:number|null}) => void} [input.onChange]
+ * @returns {{observe:(snapshot?:{pendingWrites?:number,activeWrites?:number,activeWriteBytes?:number,longestStallSec?:number,memoryPressure?:number|null,gcPressure?:number|null,rssUtilization?:number|null,schedulerWritePending?:number|null,schedulerWriteOldestWaitMs?:number|null,schedulerWriteWaitP95Ms?:number|null,activeStallOwner?:string|null,activeStallFamily?:string|null,pendingFamilyCount?:number,stalledFamilyPendingCount?:number,alternatePendingFamilies?:number})=>number,getCurrentConcurrency:()=>number,getLimits:()=>{min:number,max:number}}}
  */
 export const createAdaptiveWriteConcurrencyController = (input = {}) => {
   const maxConcurrency = clampWriteConcurrency(input.maxConcurrency, 1);
@@ -485,7 +506,11 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       schedulerWritePending: snapshot.schedulerWritePending,
       schedulerWriteOldestWaitMs: snapshot.schedulerWriteOldestWaitMs,
       schedulerWriteWaitP95Ms: snapshot.schedulerWriteWaitP95Ms,
-      stallAttribution: snapshot.stallAttribution
+      stallAttribution: snapshot.stallAttribution,
+      stalledFamily: snapshot.activeStallFamily || null,
+      alternatePendingFamilies: Number.isFinite(Number(snapshot.alternatePendingFamilies))
+        ? Number(snapshot.alternatePendingFamilies)
+        : null
     });
   };
 
@@ -516,6 +541,21 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     const activeWriteBytes = Number.isFinite(Number(snapshot.activeWriteBytes))
       ? Math.max(0, Math.floor(Number(snapshot.activeWriteBytes)))
       : 0;
+    const activeStallOwner = typeof snapshot.activeStallOwner === 'string' && snapshot.activeStallOwner.trim()
+      ? snapshot.activeStallOwner.trim()
+      : null;
+    const activeStallFamily = typeof snapshot.activeStallFamily === 'string' && snapshot.activeStallFamily.trim()
+      ? snapshot.activeStallFamily.trim().toLowerCase()
+      : null;
+    const pendingFamilyCount = Number.isFinite(Number(snapshot.pendingFamilyCount))
+      ? Math.max(0, Math.floor(Number(snapshot.pendingFamilyCount)))
+      : 0;
+    const stalledFamilyPendingCount = Number.isFinite(Number(snapshot.stalledFamilyPendingCount))
+      ? Math.max(0, Math.floor(Number(snapshot.stalledFamilyPendingCount)))
+      : 0;
+    const alternatePendingFamilies = Number.isFinite(Number(snapshot.alternatePendingFamilies))
+      ? Math.max(0, Math.floor(Number(snapshot.alternatePendingFamilies)))
+      : 0;
     const hasSchedulerWriteSignals = (
       schedulerWritePending != null
       || schedulerWriteOldestWaitMs != null
@@ -537,15 +577,12 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && (schedulerWritePending == null || schedulerWritePending <= 0)
       && (schedulerWriteOldestWaitMs == null || schedulerWriteOldestWaitMs <= 0)
       && (schedulerWriteWaitP95Ms == null || schedulerWriteWaitP95Ms <= 1);
-    const stallAttribution = (
-      longestStallSec <= 0
-        ? 'none'
-        : (
-          attributedToWriteQueue
-            ? 'write-queue'
-            : (hasSchedulerWriteSignals ? 'non-write' : 'unknown')
-        )
-    );
+    const stallAttribution = resolveArtifactWriteStallAttribution({
+      longestStallSec,
+      attributedToWriteQueue,
+      hasSchedulerWriteSignals,
+      activeStallOwner
+    });
     const nowValue = now();
     const timestamp = Number.isFinite(Number(nowValue)) ? Number(nowValue) : Date.now();
     const backlogPerSlot = pendingWrites / Math.max(1, currentConcurrency);
@@ -600,7 +637,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       canScaleDown
       && pendingWrites > 0
       && longestStallSec >= stallScaleDownSeconds
-      && attributedToWriteQueue
+      && stallAttribution === 'write-queue'
     ) {
       const severeQueueStall = (
         schedulerWritePending != null
@@ -628,8 +665,14 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
     if (
       canScaleDown
       && longestStallSec >= stallScaleDownSeconds
-      && stallAttribution === 'non-write'
+      && isNonQueueArtifactStallAttribution(stallAttribution)
       && activeWriteBytes >= nonWriteHighBytesThreshold
+      && !(
+        activeStallFamily
+        && pendingFamilyCount > 1
+        && stalledFamilyPendingCount > 0
+        && alternatePendingFamilies > 0
+      )
     ) {
       currentConcurrency = Math.max(minConcurrency, currentConcurrency - 1);
       lastScaleDownAt = timestamp;
@@ -678,7 +721,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && pendingWrites > 0
       && backlogPerSlot >= scaleUpBacklogPerSlot
       && longestStallSec <= stallScaleUpGuardSeconds
-      && stallAttribution !== 'non-write'
+      && !isNonQueueArtifactStallAttribution(stallAttribution)
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;
@@ -700,7 +743,7 @@ export const createAdaptiveWriteConcurrencyController = (input = {}) => {
       && lowMemoryPressure
       && backlogPerSlot >= Math.max(0.75, scaleUpBacklogPerSlot * 0.6)
       && longestStallSec <= Math.max(1, stallScaleUpGuardSeconds * 0.75)
-      && stallAttribution !== 'non-write'
+      && !isNonQueueArtifactStallAttribution(stallAttribution)
     ) {
       currentConcurrency += 1;
       lastScaleUpAt = timestamp;
@@ -751,44 +794,28 @@ export const resolveArtifactWriteMemTokens = (estimatedBytes) => {
  * @returns {object|null}
  */
 export const summarizeQueueDelayHistogram = (samples) => {
-  if (!Array.isArray(samples) || !samples.length) return null;
-  const normalized = samples
-    .map((entry) => Number(entry))
-    .filter((entry) => Number.isFinite(entry) && entry >= 0)
-    .map((entry) => Math.round(entry))
-    .sort((a, b) => a - b);
-  if (!normalized.length) return null;
-  const bucketCounts = new Array(ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length).fill(0);
-  let overflowCount = 0;
-  for (const value of normalized) {
-    let bucketIndex = -1;
-    for (let index = 0; index < ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length; index += 1) {
-      if (value <= ARTIFACT_QUEUE_DELAY_BUCKETS_MS[index]) {
-        bucketIndex = index;
-        break;
-      }
-    }
-    if (bucketIndex >= 0) bucketCounts[bucketIndex] += 1;
-    else overflowCount += 1;
-  }
-  const buckets = [];
-  for (let index = 0; index < ARTIFACT_QUEUE_DELAY_BUCKETS_MS.length; index += 1) {
-    const count = bucketCounts[index];
-    if (!count) continue;
-    buckets.push({
-      leMs: ARTIFACT_QUEUE_DELAY_BUCKETS_MS[index],
-      count
-    });
-  }
-  return {
+  const histogram = summarizeBoundedHistogram(samples, {
+    buckets: ARTIFACT_QUEUE_DELAY_BUCKETS_MS,
     unit: 'ms',
-    sampleCount: normalized.length,
-    minMs: normalized[0],
-    maxMs: normalized[normalized.length - 1],
-    p50Ms: resolvePercentileMs(normalized, 0.5),
-    p95Ms: resolvePercentileMs(normalized, 0.95),
-    buckets,
-    overflowCount
+    round: true,
+    percentiles: [
+      { ratio: 0.5, key: 'p50Ms' },
+      { ratio: 0.95, key: 'p95Ms' }
+    ]
+  });
+  if (!histogram) return null;
+  return {
+    unit: histogram.unit,
+    sampleCount: histogram.sampleCount,
+    minMs: histogram.min,
+    maxMs: histogram.max,
+    p50Ms: histogram.p50Ms,
+    p95Ms: histogram.p95Ms,
+    buckets: histogram.buckets.map((entry) => ({
+      leMs: entry.le,
+      count: entry.count
+    })),
+    overflowCount: histogram.overflowCount
   };
 };
 

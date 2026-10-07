@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
+import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
@@ -52,19 +53,27 @@ await fs.writeFile(
 const runWithScenario = async ({ steps, args }) => {
   const scenarioPath = path.join(tempRoot, `scenario-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
   await fs.writeFile(scenarioPath, `${JSON.stringify({ steps }, null, 2)}\n`, 'utf8');
-  const result = spawnSync(
-    process.execPath,
-    [fetchHarnessPath, scenarioPath, scriptPath, ...args],
+  const result = runNode(
+    [fetchHarnessPath, scenarioPath, scriptPath, '--sha256',
+      crypto.createHash('sha256').update(String(steps.at(-1)?.body || 'unused')).digest('hex'), ...args],
+    'install phpactor phar network guard scenario',
+    root,
+    applyTestEnv({ syncProcess: false }),
     {
-      cwd: root,
-      env: applyTestEnv({ syncProcess: false }),
-      encoding: 'utf8'
+      stdio: 'pipe',
+      allowFailure: true
     }
   );
   return result;
 };
 
 try {
+  const missingDigestReport = path.join(tempRoot, 'missing-digest-report.json');
+  const missingDigest = runNode([scriptPath, '--bin-dir', path.join(tempRoot, 'missing-digest'),
+    '--url', 'https://example.invalid/unused', '--report', missingDigestReport],
+  'phpactor missing approved digest', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true });
+  assert.equal(missingDigest.status, 1);
+  assert.equal(JSON.parse(await fs.readFile(missingDigestReport, 'utf8')).reason, 'checksum_required');
   const timeoutBinDir = path.join(tempRoot, 'timeout-bin');
   const timeoutReportPath = path.join(tempRoot, 'timeout-report.json');
   const timeoutResult = await runWithScenario({

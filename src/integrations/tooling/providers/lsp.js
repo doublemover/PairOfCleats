@@ -2,6 +2,9 @@ import path from 'node:path';
 import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
+import { createLspConfigurationHandler } from '../lsp/configuration.js';
+import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { openOwnedLspDocument, closeOwnedLspDocuments } from './lsp/document-lifecycle.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
 import {
@@ -18,32 +21,42 @@ import {
 import {
   DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
   DEFAULT_HOVER_CONCURRENCY,
-  DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+  DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
+  LSP_REQUEST_CACHE_POLICY_VERSION,
   clampIntRange,
   createConcurrencyLimiter,
   createEmptyHoverMetricsResult,
-  loadHoverCache,
+  loadLspRequestCache,
   normalizeHoverKinds,
-  persistHoverCache,
+  persistLspRequestCache,
   processDocumentTypes,
   runWithConcurrency,
   summarizeHoverMetrics,
   toFiniteInt
 } from './lsp/hover-types.js';
+import {
+  createBudgetController,
+  createEmptyRequestCacheMetrics,
+  resolveAdaptiveLspRequestBudgetPlanForTests as __resolveAdaptiveLspRequestBudgetPlanForTests,
+  resolveProviderConfidenceBias,
+  summarizeRequestCacheMetrics
+} from './lsp/request-budget.js';
+import { resolveAdaptiveLspScopePlanForTests as __resolveAdaptiveLspScopePlanForTests } from './lsp/scope-plan.js';
 import { buildTargetLookupIndex, findTargetForOffsets } from './lsp/target-index.js';
 import {
+  createVfsQueuedWriteBatcher,
   ensureVirtualFilesBatch,
   normalizeUriScheme,
   resolveDocumentUri,
   resolveVfsIoBatching
 } from './lsp/vfs-batching.js';
-import { classifyLspDocumentPathPolicy } from './lsp/path-policy.js';
-import { probeLspCapabilities } from './lsp/capabilities.js';
+import { buildLspCapabilityGate, probeLspCapabilities } from './lsp/capabilities.js';
 import { withLspSession } from './lsp/session-pool.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { sha1 } from '../../../shared/hash.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -86,349 +99,11 @@ const buildEmptyCollectResult = (checks, runtime = null) => ({
     : runtime
 });
 
-const ADAPTIVE_LSP_SCOPE_PROFILES = Object.freeze({
-  pyright: Object.freeze({
-    docThreshold: 192,
-    maxDocs: 192,
-    degradedMaxDocs: 96,
-    targetThreshold: 512,
-    maxTargets: 512,
-    degradedMaxTargets: 192,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 3
-  }),
-  clangd: Object.freeze({
-    docThreshold: 64,
-    maxDocs: 64,
-    degradedMaxDocs: 32,
-    targetThreshold: 256,
-    maxTargets: 256,
-    degradedMaxTargets: 96,
-    degradedDocumentSymbolTimeouts: 1,
-    degradedDocumentSymbolP95Ms: 3500,
-    defaultHoverMaxPerFile: 4,
-    degradedHoverMaxPerFile: 2
-  }),
-  gopls: Object.freeze({
-    docThreshold: 128,
-    maxDocs: 128,
-    degradedMaxDocs: 64,
-    targetThreshold: 256,
-    maxTargets: 256,
-    degradedMaxTargets: 96,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 3
-  }),
-  sourcekit: Object.freeze({
-    docThreshold: 64,
-    maxDocs: 64,
-    degradedMaxDocs: 32,
-    targetThreshold: 160,
-    maxTargets: 128,
-    degradedMaxTargets: 64,
-    degradedHoverTimeouts: 2,
-    degradedHoverP95Ms: 2000,
-    defaultHoverMaxPerFile: 3,
-    degradedHoverMaxPerFile: 1
-  }),
-  'yaml-language-server': Object.freeze({
-    docThreshold: 64,
-    maxDocs: 96,
-    degradedMaxDocs: 48,
-    targetThreshold: 96,
-    maxTargets: 160,
-    degradedMaxTargets: 80
-  }),
-  'lua-language-server': Object.freeze({
-    docThreshold: 192,
-    maxDocs: 256,
-    degradedMaxDocs: 160,
-    targetThreshold: 320,
-    maxTargets: 640,
-    degradedMaxTargets: 256,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 5
-  }),
-  'rust-analyzer': Object.freeze({
-    docThreshold: 256,
-    maxDocs: 320,
-    degradedMaxDocs: 192,
-    targetThreshold: 384,
-    maxTargets: 768,
-    degradedMaxTargets: 320,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 3000,
-    defaultHoverMaxPerFile: 8,
-    degradedHoverMaxPerFile: 4
-  }),
-  zls: Object.freeze({
-    docThreshold: 160,
-    maxDocs: 256,
-    degradedMaxDocs: 128,
-    targetThreshold: 256,
-    maxTargets: 512,
-    degradedMaxTargets: 192,
-    degradedDocumentSymbolTimeouts: 2,
-    degradedDocumentSymbolP95Ms: 2500,
-    defaultHoverMaxPerFile: 6,
-    degradedHoverMaxPerFile: 4
-  })
-});
-
-const normalizeAdaptiveLspScopeProfile = (value) => {
-  if (!value || typeof value !== 'object') return null;
-  const normalizeInt = (entry, min = 1) => {
-    const parsed = Number(entry);
-    return Number.isFinite(parsed) ? Math.max(min, Math.floor(parsed)) : null;
-  };
-  return {
-    docThreshold: normalizeInt(value.docThreshold),
-    maxDocs: normalizeInt(value.maxDocs),
-    degradedMaxDocs: normalizeInt(value.degradedMaxDocs),
-    targetThreshold: normalizeInt(value.targetThreshold),
-    maxTargets: normalizeInt(value.maxTargets),
-    degradedMaxTargets: normalizeInt(value.degradedMaxTargets),
-    degradedDocumentSymbolTimeouts: normalizeInt(value.degradedDocumentSymbolTimeouts, 0),
-    degradedDocumentSymbolP95Ms: normalizeInt(value.degradedDocumentSymbolP95Ms, 0),
-    degradedHoverTimeouts: normalizeInt(value.degradedHoverTimeouts, 0),
-    degradedHoverP95Ms: normalizeInt(value.degradedHoverP95Ms, 0),
-    defaultHoverMaxPerFile: normalizeInt(value.defaultHoverMaxPerFile, 0),
-    degradedHoverMaxPerFile: normalizeInt(value.degradedHoverMaxPerFile, 0)
-  };
+export { createVfsQueuedWriteBatcher, resolveVfsIoBatching, ensureVirtualFilesBatch };
+export {
+  __resolveAdaptiveLspRequestBudgetPlanForTests,
+  __resolveAdaptiveLspScopePlanForTests
 };
-
-const mergeAdaptiveLspScopeProfiles = (base, override) => {
-  const normalizedBase = normalizeAdaptiveLspScopeProfile(base);
-  const normalizedOverride = normalizeAdaptiveLspScopeProfile(override);
-  if (!normalizedBase && !normalizedOverride) return null;
-  return {
-    ...(normalizedBase || {}),
-    ...(normalizedOverride || {})
-  };
-};
-
-const buildAdaptiveLspDocEntries = (docs, targetsByPath) => (
-  Array.isArray(docs)
-    ? docs.map((doc) => ({
-      doc,
-      virtualPath: String(doc?.virtualPath || ''),
-      targetCount: (targetsByPath.get(doc?.virtualPath) || []).length,
-      byteLength: Buffer.byteLength(String(doc?.text || ''), 'utf8'),
-      pathPolicy: classifyLspDocumentPathPolicy({
-        providerId: doc?.providerId || null,
-        virtualPath: doc?.virtualPath || ''
-      })
-    }))
-    : []
-);
-
-const resolveAdaptiveSelectionTierRank = (entry) => {
-  const tier = String(entry?.pathPolicy?.selectionTier || 'preferred').trim().toLowerCase();
-  if (tier === 'preferred') return 0;
-  if (tier === 'secondary') return 1;
-  if (tier === 'low-value') return 2;
-  return 3;
-};
-
-const rankAdaptiveLspDocumentEntries = (entries) => (
-  Array.isArray(entries)
-    ? entries.slice().sort((left, right) => (
-      (resolveAdaptiveSelectionTierRank(left) - resolveAdaptiveSelectionTierRank(right))
-      || (Number(Boolean(left?.pathPolicy?.skipDocumentSymbol)) - Number(Boolean(right?.pathPolicy?.skipDocumentSymbol)))
-      || (right.targetCount - left.targetCount)
-      || (Number(Boolean(left?.pathPolicy?.deprioritized)) - Number(Boolean(right?.pathPolicy?.deprioritized)))
-      || (left.byteLength - right.byteLength)
-      || left.virtualPath.localeCompare(right.virtualPath)
-    ))
-    : []
-);
-
-const applyAdaptiveDocCapByTier = (entries, limit) => {
-  const rankedEntries = rankAdaptiveLspDocumentEntries(entries);
-  if (!Number.isFinite(Number(limit)) || limit <= 0 || rankedEntries.length <= limit) {
-    return rankedEntries;
-  }
-  const tierBuckets = new Map();
-  for (const entry of rankedEntries) {
-    const rank = resolveAdaptiveSelectionTierRank(entry);
-    const bucket = tierBuckets.get(rank) || [];
-    bucket.push(entry);
-    tierBuckets.set(rank, bucket);
-  }
-  const limited = [];
-  for (const rank of [0, 1, 2, 3]) {
-    const bucket = tierBuckets.get(rank) || [];
-    if (!bucket.length) continue;
-    const remaining = Math.max(0, limit - limited.length);
-    if (remaining <= 0) break;
-    limited.push(...bucket.slice(0, remaining));
-  }
-  return limited.length ? limited : rankedEntries.slice(0, limit);
-};
-
-const resolveAdaptiveLspScopeProfile = ({ providerId, override = null }) => {
-  const normalizedProviderId = String(providerId || '').trim().toLowerCase();
-  const baseProfile = ADAPTIVE_LSP_SCOPE_PROFILES[normalizedProviderId] || null;
-  return mergeAdaptiveLspScopeProfiles(baseProfile, override);
-};
-
-export const __resolveAdaptiveLspScopePlanForTests = ({
-  providerId,
-  docs,
-  targetsByPath,
-  clientMetrics = null,
-  documentSymbolConcurrency = DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY,
-  hoverMaxPerFile = null,
-  adaptiveDocScope = null,
-  adaptiveDegradedHint = false,
-  adaptiveReasonHint = null
-}) => {
-  const profile = resolveAdaptiveLspScopeProfile({ providerId, override: adaptiveDocScope });
-  const sourceDocs = Array.isArray(docs) ? docs : [];
-  const effectiveTargetsByPath = targetsByPath instanceof Map ? targetsByPath : new Map();
-  const candidateEntries = buildAdaptiveLspDocEntries(
-    sourceDocs.map((doc) => ({ ...doc, providerId })),
-    effectiveTargetsByPath
-  ).filter((entry) => entry?.pathPolicy?.skipDocument !== true);
-  const sourceEntries = candidateEntries.filter((entry) => (
-    entry?.pathPolicy?.skipDocumentSymbol !== true
-    && entry.targetCount > 0
-  ));
-  const totalTargets = sourceEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
-  const methodMetrics = clientMetrics?.byMethod || {};
-  const documentSymbolMetrics = methodMetrics['textDocument/documentSymbol']?.latencyMs || {};
-  const documentSymbolTimedOut = Number(methodMetrics['textDocument/documentSymbol']?.timedOut || 0);
-  const hoverMetrics = methodMetrics['textDocument/hover']?.latencyMs || {};
-  const hoverTimedOut = Number(methodMetrics['textDocument/hover']?.timedOut || 0);
-  const configuredHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
-  let effectiveHoverMaxPerFile = configuredHoverMaxPerFile;
-  let selectedEntries = sourceEntries;
-  let docLimitApplied = false;
-  let targetLimitApplied = false;
-  let degraded = false;
-  const reasons = [];
-  const rankEntries = (entriesToRank) => rankAdaptiveLspDocumentEntries(entriesToRank);
-  const applyTargetCap = (entriesToLimit, targetCap) => {
-    const rankedEntries = rankEntries(entriesToLimit);
-    const limited = [];
-    let accumulatedTargets = 0;
-    for (const entry of rankedEntries) {
-      if (limited.length > 0 && accumulatedTargets >= targetCap) break;
-      if (limited.length > 0 && (accumulatedTargets + entry.targetCount) > targetCap) break;
-      limited.push(entry);
-      accumulatedTargets += entry.targetCount;
-    }
-    return limited.length ? limited : rankedEntries.slice(0, 1);
-  };
-  if (profile) {
-    const docThreshold = Number(profile.docThreshold || 0);
-    const maxDocsBase = Number(profile.maxDocs || 0);
-    const degradedMaxDocsBase = Number(profile.degradedMaxDocs || maxDocsBase || 0);
-    const documentSymbolP95Ms = Number(documentSymbolMetrics?.p95 || 0);
-    const hoverP95Ms = Number(hoverMetrics?.p95 || 0);
-    degraded = (
-      adaptiveDegradedHint === true
-      || (
-        (Number(profile.degradedDocumentSymbolTimeouts || 0) > 0
-        && documentSymbolTimedOut >= Number(profile.degradedDocumentSymbolTimeouts || 0))
-      || (Number(profile.degradedDocumentSymbolP95Ms || 0) > 0
-        && documentSymbolP95Ms >= Number(profile.degradedDocumentSymbolP95Ms || 0))
-      || (Number(profile.degradedHoverTimeouts || 0) > 0
-        && hoverTimedOut >= Number(profile.degradedHoverTimeouts || 0))
-      || (Number(profile.degradedHoverP95Ms || 0) > 0
-        && hoverP95Ms >= Number(profile.degradedHoverP95Ms || 0))
-      )
-    );
-    if (adaptiveDegradedHint === true && adaptiveReasonHint) {
-      reasons.push(`preflight:${String(adaptiveReasonHint)}`);
-    }
-    if (docThreshold > 0 && maxDocsBase > 0 && sourceEntries.length > docThreshold) {
-      const targetCap = Math.max(
-        Math.max(1, clampIntRange(documentSymbolConcurrency, DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY, { min: 1, max: 32 })) * 4,
-        degraded ? degradedMaxDocsBase : maxDocsBase
-      );
-      if (sourceEntries.length > targetCap) {
-        selectedEntries = applyAdaptiveDocCapByTier(sourceEntries, targetCap);
-        docLimitApplied = true;
-      }
-      reasons.push(degraded ? `degraded-doc-cap:${targetCap}` : `doc-cap:${targetCap}`);
-    }
-    const targetThreshold = Number(profile.targetThreshold || 0);
-    const maxTargetsBase = Number(profile.maxTargets || 0);
-    const degradedMaxTargetsBase = Number(profile.degradedMaxTargets || maxTargetsBase || 0);
-    const currentTargetCount = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
-    if (targetThreshold > 0 && maxTargetsBase > 0 && currentTargetCount > targetThreshold) {
-      const targetCap = degraded ? degradedMaxTargetsBase : maxTargetsBase;
-      if (targetCap > 0 && currentTargetCount > targetCap) {
-        selectedEntries = applyTargetCap(selectedEntries, targetCap);
-        targetLimitApplied = true;
-      }
-      reasons.push(degraded ? `degraded-target-cap:${targetCap}` : `target-cap:${targetCap}`);
-    }
-    if (!Number.isFinite(effectiveHoverMaxPerFile) || effectiveHoverMaxPerFile <= 0) {
-      if (Number(profile.defaultHoverMaxPerFile || 0) > 0) {
-        effectiveHoverMaxPerFile = Number(profile.defaultHoverMaxPerFile);
-      }
-    }
-    if ((degraded || docLimitApplied || targetLimitApplied) && Number(profile.degradedHoverMaxPerFile || 0) > 0) {
-      effectiveHoverMaxPerFile = Number.isFinite(effectiveHoverMaxPerFile) && effectiveHoverMaxPerFile > 0
-        ? Math.min(effectiveHoverMaxPerFile, Number(profile.degradedHoverMaxPerFile))
-        : Number(profile.degradedHoverMaxPerFile);
-    }
-  }
-  const selectedDocs = selectedEntries.map((entry) => entry.doc);
-  const selectedTargetPaths = new Set(selectedDocs.map((doc) => String(doc?.virtualPath || '')).filter(Boolean));
-  const selectedTargets = selectedEntries.reduce((sum, entry) => sum + entry.targetCount, 0);
-  const skippedByPathPolicy = Math.max(0, sourceDocs.length - candidateEntries.length);
-  const skippedByDocumentSymbolPolicy = Math.max(
-    0,
-    candidateEntries.filter((entry) => entry?.pathPolicy?.skipDocumentSymbol === true).length
-  );
-  const skippedByMissingTargets = Math.max(
-    0,
-    candidateEntries.filter((entry) => (
-      entry?.pathPolicy?.skipDocumentSymbol !== true
-      && entry.targetCount <= 0
-    )).length
-  );
-  const interactiveSuppressedDocs = selectedEntries.filter((entry) => entry?.pathPolicy?.suppressInteractive).length;
-  if (!selectedEntries.length && skippedByDocumentSymbolPolicy > 0) {
-    reasons.push('document-symbol-path-policy');
-  }
-  if (!selectedEntries.length && skippedByMissingTargets > 0) {
-    reasons.push('no-targets');
-  }
-  return {
-    profile,
-    entries: selectedEntries,
-    documents: selectedDocs,
-    selectedTargetPaths,
-    sourceDocCount: sourceDocs.length,
-    totalDocs: sourceEntries.length,
-    selectedDocs: selectedDocs.length,
-    totalTargets,
-    selectedTargets,
-    skippedByPathPolicy,
-    skippedByDocumentSymbolPolicy,
-    skippedByMissingTargets,
-    interactiveSuppressedDocs,
-    docLimitApplied,
-    targetLimitApplied,
-    degraded,
-    reason: reasons.length ? reasons.join(',') : null,
-    hoverMaxPerFile: Number.isFinite(effectiveHoverMaxPerFile) && effectiveHoverMaxPerFile > 0
-      ? effectiveHoverMaxPerFile
-      : null
-  };
-};
-
-export { resolveVfsIoBatching, ensureVirtualFilesBatch };
 
 /**
  * Collect LSP-derived signature/hover metadata for indexed chunks.
@@ -491,10 +166,15 @@ export { resolveVfsIoBatching, ensureVirtualFilesBatch };
  * @param {number} [params.typeDefinitionConcurrency=8]
  * @param {number} [params.referencesConcurrency=8]
  * @param {number|null} [params.softDeadlineMs=null]
- * @param {number} [params.hoverCacheMaxEntries=50000]
+ * @param {number} [params.requestCacheMaxEntries=50000]
  * @param {(line:string)=>boolean|null} [params.stderrFilter=null]
  * @param {object|null} [params.initializationOptions=null]
  * @param {string|null} [params.providerId=null]
+ * @param {string|null} [params.providerVersion=null]
+ * @param {string|null} [params.toolingRoot=null] Application-owned managed runtime directory.
+ * @param {boolean} [params.semanticTokensEnabled=true]
+ * @param {boolean} [params.inlayHintsEnabled=true]
+ * @param {string|null} [params.workspaceRootDir=null]
  * @param {string|null} [params.workspaceKey=null]
  * @param {number|null} [params.lifecycleRestartWindowMs=null]
  * @param {number|null} [params.lifecycleMaxRestartsPerWindow=null]
@@ -520,6 +200,7 @@ export async function collectLspTypes({
   vfsRoot = null,
   uriScheme = 'file',
   captureDiagnostics = false,
+  collectTypes = true,
   vfsTokenMode = 'docHash+virtualPath',
   vfsIoBatching = null,
   lineIndexFactory = buildLineIndex,
@@ -554,10 +235,14 @@ export async function collectLspTypes({
   typeDefinitionConcurrency = DEFAULT_HOVER_CONCURRENCY,
   referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
   softDeadlineMs = null,
-  hoverCacheMaxEntries = DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+  requestCacheMaxEntries = DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
   stderrFilter = null,
   initializationOptions = null,
   providerId = null,
+  providerVersion = null,
+  semanticTokensEnabled = true,
+  inlayHintsEnabled = true,
+  workspaceRootDir = null,
   workspaceKey = null,
   lifecycleRestartWindowMs = null,
   lifecycleMaxRestartsPerWindow = null,
@@ -565,7 +250,8 @@ export async function collectLspTypes({
   sessionIdleTimeoutMs = null,
   sessionMaxLifetimeMs = null,
   sessionPoolingEnabled = true,
-  abortSignal = null
+  abortSignal = null,
+  toolingRoot = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
     ? abortSignal
@@ -584,6 +270,7 @@ export async function collectLspTypes({
   const resolvedReferencesTimeout = resolvePositiveTimeout(referencesTimeoutMs) ?? resolvedTypeDefinitionTimeout;
   const resolvedDocumentSymbolTimeout = resolvePositiveTimeout(documentSymbolTimeoutMs);
   const resolvedProviderId = String(providerId || cmd || 'lsp');
+  const resolvedProviderVersion = String(providerVersion || '1.0.0').trim() || '1.0.0';
   const resolvedHoverMaxPerFile = toFiniteInt(hoverMaxPerFile, 0);
   const resolvedHoverDisableAfterTimeouts = toFiniteInt(hoverDisableAfterTimeouts, 1);
   const resolvedHoverKinds = normalizeHoverKinds(hoverSymbolKinds);
@@ -637,23 +324,41 @@ export async function collectLspTypes({
     16,
     { min: 1, max: 256 }
   );
-  const resolvedHoverCacheMaxEntries = clampIntRange(
-    hoverCacheMaxEntries,
-    DEFAULT_HOVER_CACHE_MAX_ENTRIES,
+  const resolvedRequestCacheMaxEntries = clampIntRange(
+    requestCacheMaxEntries,
+    DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
     { min: 1000, max: 200000 }
   );
 
   const checks = [];
   const runtime = {
+    collectionMode: collectTypes === false ? (captureDiagnostics ? 'diagnostics-only' : 'none')
+      : (captureDiagnostics ? 'types-and-diagnostics' : 'types'),
     command: String(cmd || ''),
     capabilities: null,
     lifecycle: null,
     guard: null,
     requests: null
   };
-  const docs = Array.isArray(documents) ? documents : [];
+  const docs = Array.isArray(documents)
+    ? documents.map((doc) => ({
+      ...doc,
+      docHash: String(doc?.docHash || '').trim()
+        || sha1(`${String(doc?.virtualPath || '')}\0${String(doc?.text || '')}`)
+    }))
+    : [];
   const targetList = Array.isArray(targets) ? targets : [];
-  if (!docs.length || !targetList.length) {
+  const workspaceExecutionAuthority = () => resolveWorkspaceExecutionAuthority({
+    repoRoot: rootDir, workspaceRoot: workspaceRootDir || rootDir, providerId,
+    server: { cmd },
+    languages: docs.flatMap((doc) => [doc.languageId,
+      languageIdForFileExt(doc.effectiveExt || path.extname(String(doc.virtualPath || '').split('#')[0]))])
+  });
+  const executionAuthority = workspaceExecutionAuthority();
+  if (executionAuthority) {
+    return buildEmptyCollectResult([executionAuthority.check], { ...runtime, executionAuthority: { state: 'blocked', reasonCode: executionAuthority.reasonCode } });
+  }
+  if (!docs.length || !targetList.length || (collectTypes === false && !captureDiagnostics)) {
     runtime.selection = {
       providerId: resolvedProviderId,
       totalDocs: docs.length,
@@ -675,6 +380,8 @@ export async function collectLspTypes({
   throwIfAborted(toolingAbortSignal);
 
   const resolvedRoot = vfsRoot || rootDir;
+  const resolvedWorkspaceRootDir = String(workspaceRootDir || rootDir || '').trim() || rootDir;
+  const resolvedWorkspaceKey = String(workspaceKey || workspaceRootDir || rootDir || '').trim() || null;
   const resolvedScheme = normalizeUriScheme(uriScheme);
   const resolvedBatching = resolveVfsIoBatching(vfsIoBatching);
 
@@ -753,26 +460,29 @@ export async function collectLspTypes({
     crashLoopQuarantined: false
   };
 
-  const { diagnosticsByUri, onNotification } = createDiagnosticsCollector({
+  const { diagnosticsByUri, onNotification, waitForDiagnostics, registerDocument, unregisterDocument } = createDiagnosticsCollector({
     captureDiagnostics,
+    requireOwnedDocuments: true,
     checks,
     checkFlags,
     maxDiagnosticUris: resolvedMaxDiagnosticUris,
     maxDiagnosticsPerUri: resolvedMaxDiagnosticsPerUri
   });
+  const onRequest = createLspConfigurationHandler(initializationOptions);
 
   const runWithPooledSession = () => withLspSession({
     enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: resolvedProviderId,
-    workspaceKey: workspaceKey || rootDir,
+    workspaceKey: resolvedWorkspaceKey || rootDir,
     cmd,
     args,
-    cwd: rootDir,
-    env: applyToolchainDaemonPolicyEnv(process.env),
+    cwd: resolvedWorkspaceRootDir,
+    env: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }),
     log,
     stderrFilter,
     onNotification,
+    onRequest,
     timeoutMs,
     retries,
     breakerThreshold,
@@ -785,6 +495,10 @@ export async function collectLspTypes({
     initializationOptions
   }, async (lease) => {
     const client = lease.client;
+    const currentAuthority = workspaceExecutionAuthority();
+    if (currentAuthority) {
+      return buildEmptyCollectResult([currentAuthority.check], { ...runtime, executionAuthority: { state: 'blocked', reasonCode: currentAuthority.reasonCode } });
+    }
     const guard = lease.guard;
     const lifecycleHealth = lease.lifecycleHealth;
     const killClientSafely = async () => {
@@ -803,6 +517,15 @@ export async function collectLspTypes({
         ? Number(lease.transportGeneration)
         : null
     };
+    runtime.capabilityGate = {
+      requested: Object.create(null),
+      effective: Object.create(null),
+      missing: []
+    };
+    runtime.workspaceModel = {
+      workspaceRootDir: resolvedWorkspaceRootDir,
+      workspaceKey: resolvedWorkspaceKey
+    };
 
     let detachAbortHandler = null;
     let abortKillPromise = null;
@@ -816,7 +539,9 @@ export async function collectLspTypes({
     }
 
     const refreshRuntimeState = ({ includeRequests = false } = {}) => {
-      runtime.lifecycle = lifecycleHealth.getState();
+      runtime.lifecycle = typeof lease.getReliabilityState === 'function'
+        ? lease.getReliabilityState()
+        : lifecycleHealth.getState();
       runtime.guard = guard.getState ? guard.getState() : null;
       if (includeRequests || runtime.requests == null) {
         runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
@@ -867,25 +592,31 @@ export async function collectLspTypes({
       }
     };
 
-    const rootUri = pathToFileUri(rootDir);
+    const rootUri = pathToFileUri(resolvedWorkspaceRootDir);
     let shouldShutdownClient = false;
     let capabilityMask = null;
     let effectiveHoverEnabled = hoverEnabled !== false;
+    let effectiveSemanticTokensEnabled = semanticTokensEnabled !== false;
     let effectiveSignatureHelpEnabled = signatureHelpEnabled !== false;
+    let effectiveInlayHintsEnabled = inlayHintsEnabled !== false;
     let effectiveDefinitionEnabled = definitionEnabled !== false;
     let effectiveTypeDefinitionEnabled = typeDefinitionEnabled !== false;
     let effectiveReferencesEnabled = referencesEnabled !== false;
     let skipSymbolCollection = false;
     let positionEncoding = 'utf-16';
+    let initializeResult = null;
     try {
       throwIfAborted(toolingAbortSignal);
-      let initializeResult = null;
       const mustInitialize = lease.shouldInitialize !== false;
       if (mustInitialize) {
         if (typeof lease.markInitializing === 'function') lease.markInitializing();
         const rawInitializeResult = await runWithHealthGuard(({ timeoutMs: guardTimeout }) => client.initialize({
           rootUri,
-          capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+          capabilities: {
+            ...(onRequest ? { workspace: { configuration: true } } : {}),
+            textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+              publishDiagnostics: { versionSupport: true } }
+          },
           initializationOptions,
           timeoutMs: guardTimeout
         }), { label: 'initialize' });
@@ -912,55 +643,35 @@ export async function collectLspTypes({
         runtime.positionEncoding = positionEncoding;
       }
       capabilityMask = probeLspCapabilities(initializeResult);
-      runtime.capabilities = capabilityMask;
-      effectiveHoverEnabled = effectiveHoverEnabled && capabilityMask.hover;
-      effectiveSignatureHelpEnabled = effectiveSignatureHelpEnabled && capabilityMask.signatureHelp;
-      effectiveDefinitionEnabled = effectiveDefinitionEnabled && capabilityMask.definition;
-      effectiveTypeDefinitionEnabled = effectiveTypeDefinitionEnabled && capabilityMask.typeDefinition;
-      effectiveReferencesEnabled = effectiveReferencesEnabled && capabilityMask.references;
-      if (!capabilityMask.documentSymbol) {
-        checks.push({
-          name: 'tooling_capability_missing_document_symbol',
-          status: 'warn',
-          message: `${cmd} does not advertise textDocument/documentSymbol; skipping LSP enrichment.`
-        });
-        skipSymbolCollection = true;
+      const capabilityGate = buildLspCapabilityGate({
+        capabilityMask,
+        cmd,
+        collectTypes,
+        hoverEnabled,
+        semanticTokensEnabled,
+        signatureHelpEnabled,
+        inlayHintsEnabled,
+        definitionEnabled,
+        typeDefinitionEnabled,
+        referencesEnabled
+      });
+      runtime.capabilities = capabilityGate.capabilities;
+      runtime.capabilityGate = {
+        requested: capabilityGate.requested,
+        effective: capabilityGate.effective,
+        missing: capabilityGate.missing
+      };
+      effectiveHoverEnabled = capabilityGate.effective.hover;
+      effectiveSemanticTokensEnabled = capabilityGate.effective.semanticTokens;
+      effectiveSignatureHelpEnabled = capabilityGate.effective.signatureHelp;
+      effectiveInlayHintsEnabled = capabilityGate.effective.inlayHints;
+      effectiveDefinitionEnabled = capabilityGate.effective.definition;
+      effectiveTypeDefinitionEnabled = capabilityGate.effective.typeDefinition;
+      effectiveReferencesEnabled = capabilityGate.effective.references;
+      skipSymbolCollection = capabilityGate.skipSymbolCollection;
+      checks.push(...capabilityGate.checks);
+      if (skipSymbolCollection) {
         shouldShutdownClient = lease.pooled !== true;
-      }
-      if (hoverEnabled !== false && !capabilityMask.hover) {
-        checks.push({
-          name: 'tooling_capability_missing_hover',
-          status: 'warn',
-          message: `${cmd} does not advertise textDocument/hover; hover enrichment disabled.`
-        });
-      }
-      if (signatureHelpEnabled !== false && !capabilityMask.signatureHelp) {
-        checks.push({
-          name: 'tooling_capability_missing_signature_help',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/signatureHelp.`
-        });
-      }
-      if (definitionEnabled !== false && !capabilityMask.definition) {
-        checks.push({
-          name: 'tooling_capability_missing_definition',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/definition.`
-        });
-      }
-      if (typeDefinitionEnabled !== false && !capabilityMask.typeDefinition) {
-        checks.push({
-          name: 'tooling_capability_missing_type_definition',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/typeDefinition.`
-        });
-      }
-      if (referencesEnabled !== false && !capabilityMask.references) {
-        checks.push({
-          name: 'tooling_capability_missing_references',
-          status: 'info',
-          message: `${cmd} does not advertise textDocument/references.`
-        });
       }
       shouldShutdownClient = lease.pooled !== true;
     } catch (err) {
@@ -997,6 +708,7 @@ export async function collectLspTypes({
       return buildEmptyCollectResult(checks, runtime);
     }
 
+    const openDocs = new Map();
     try {
       if (skipSymbolCollection) {
         refreshRuntimeState({ includeRequests: true });
@@ -1018,11 +730,13 @@ export async function collectLspTypes({
       const definitionLimiter = createConcurrencyLimiter(resolvedDefinitionConcurrency);
       const typeDefinitionLimiter = createConcurrencyLimiter(resolvedTypeDefinitionConcurrency);
       const referencesLimiter = createConcurrencyLimiter(resolvedReferencesConcurrency);
-      const hoverCacheState = await loadHoverCache(cacheRoot);
-      const hoverCacheEntries = hoverCacheState.entries;
-      let hoverCacheDirty = false;
-      const markHoverCacheDirty = () => {
-        hoverCacheDirty = true;
+      const requestCacheState = await loadLspRequestCache(cacheRoot);
+      const requestCacheEntries = requestCacheState.entries;
+      const requestCachePersistedKeys = requestCacheState.persistedKeys;
+      const requestCacheMetrics = createEmptyRequestCacheMetrics(resolvedProviderId);
+      let requestCacheDirty = false;
+      const markRequestCacheDirty = () => {
+        requestCacheDirty = true;
       };
       const adaptiveScopePlan = __resolveAdaptiveLspScopePlanForTests({
         providerId: resolvedProviderId,
@@ -1082,6 +796,24 @@ export async function collectLspTypes({
         ])
       );
       const effectiveHoverMaxPerFile = adaptiveScopePlan.hoverMaxPerFile;
+      const requestBudgetPlan = __resolveAdaptiveLspRequestBudgetPlanForTests({
+        providerId: resolvedProviderId,
+        selection: adaptiveScopePlan,
+        clientMetrics: typeof client.getMetrics === 'function' ? client.getMetrics() : null,
+        lifecycleState: lifecycleHealth.getState(),
+        guardState: guard.getState ? guard.getState() : null,
+        workspaceKey: resolvedWorkspaceKey
+      });
+      const requestBudgetControllers = {
+        documentSymbol: createBudgetController(requestBudgetPlan.byKind?.documentSymbol?.maxRequests),
+        hover: createBudgetController(requestBudgetPlan.byKind?.hover?.maxRequests),
+        semanticTokens: createBudgetController(requestBudgetPlan.byKind?.semanticTokens?.maxRequests),
+        signatureHelp: createBudgetController(requestBudgetPlan.byKind?.signatureHelp?.maxRequests),
+        inlayHints: createBudgetController(requestBudgetPlan.byKind?.inlayHints?.maxRequests),
+        definition: createBudgetController(requestBudgetPlan.byKind?.definition?.maxRequests),
+        typeDefinition: createBudgetController(requestBudgetPlan.byKind?.typeDefinition?.maxRequests),
+        references: createBudgetController(requestBudgetPlan.byKind?.references?.maxRequests)
+      };
       runtime.selection = {
         providerId: resolvedProviderId,
         totalDocs: adaptiveScopePlan.totalDocs,
@@ -1100,6 +832,8 @@ export async function collectLspTypes({
         skippedByMissingTargets: adaptiveScopePlan.skippedByMissingTargets,
         interactiveSuppressedDocs: adaptiveScopePlan.interactiveSuppressedDocs
       };
+      runtime.requestBudgets = requestBudgetPlan;
+      runtime.requestCache = summarizeRequestCacheMetrics(requestCacheMetrics);
       if (adaptiveScopePlan.skippedByPathPolicy > 0) {
         log(
           `[tooling] ${cmd} path policy skipped ${adaptiveScopePlan.skippedByPathPolicy}/${adaptiveScopePlan.sourceDocCount} `
@@ -1162,7 +896,6 @@ export async function collectLspTypes({
         });
       }
       throwIfAborted(toolingAbortSignal);
-      const openDocs = new Map();
       const diskPathMap = resolvedScheme === 'file'
         ? await ensureVirtualFilesBatch({
           rootDir: resolvedRoot,
@@ -1184,6 +917,10 @@ export async function collectLspTypes({
           coldStartCache
         });
         const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
+        if (collectTypes === false) {
+          openOwnedLspDocument({ client, doc, uri, legacyUri, languageId, openDocs, registerDocument });
+          return;
+        }
 
         const { enrichedDelta } = await processDocumentTypes({
           doc,
@@ -1199,14 +936,19 @@ export async function collectLspTypes({
           legacyUri,
           languageId,
           openDocs,
+          registerDocument,
+          unregisterDocument,
           targetIndexesByPath,
           byChunkUid,
           signatureParseCache,
           hoverEnabled: effectiveHoverEnabled,
+          semanticTokensEnabled: effectiveSemanticTokensEnabled,
           signatureHelpEnabled: effectiveSignatureHelpEnabled,
+          inlayHintsEnabled: effectiveInlayHintsEnabled,
           definitionEnabled: effectiveDefinitionEnabled,
           typeDefinitionEnabled: effectiveTypeDefinitionEnabled,
           referencesEnabled: effectiveReferencesEnabled,
+          deferDocumentClose: captureDiagnostics,
           docPathPolicy: docPathPolicyByPath.get(String(doc?.virtualPath || '')) || null,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
@@ -1223,8 +965,20 @@ export async function collectLspTypes({
           definitionLimiter,
           typeDefinitionLimiter,
           referencesLimiter,
-          hoverCacheEntries,
-          markHoverCacheDirty,
+          requestCacheEntries,
+          requestCachePersistedKeys,
+          requestCacheMetrics,
+          markRequestCacheDirty,
+          requestBudgetControllers,
+          requestCacheContext: {
+            providerId: resolvedProviderId,
+            providerVersion: resolvedProviderVersion,
+            workspaceKey: resolvedWorkspaceKey
+          },
+          providerConfidenceBias: resolveProviderConfidenceBias(resolvedProviderId),
+          semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend
+            || initializeResult?.capabilities?.textDocument?.semanticTokens?.legend
+            || null,
           hoverControl,
           hoverFileStats,
           hoverLatencyMs,
@@ -1265,18 +1019,25 @@ export async function collectLspTypes({
       });
       throwIfAborted(toolingAbortSignal);
       if (captureDiagnostics) {
-        // PublishDiagnostics notifications can trail didOpen/documentSymbol by a few
-        // milliseconds; give the session a brief drain window before shaping.
-        await sleep(15);
+        // Real servers debounce validation beyond documentSymbol completion.
+        // Wait once for each opened document's first notification (including an
+        // empty result), with a shared budget rather than a delay per document.
+        runtime.diagnosticsDrain = await waitForDiagnostics(
+          Array.from(openDocs.values(), (doc) => [doc.uri, doc.legacyUri]),
+          {
+            timeoutMs: softDeadlineAt == null ? 500 : Math.min(500, Math.max(0, softDeadlineAt - Date.now())),
+            signal: toolingAbortSignal
+          }
+        );
         throwIfAborted(toolingAbortSignal);
       }
 
-      if (hoverCacheDirty) {
+      if (requestCacheDirty) {
         try {
-          await persistHoverCache({
-            cachePath: hoverCacheState.path,
-            entries: hoverCacheEntries,
-            maxEntries: resolvedHoverCacheMaxEntries
+          await persistLspRequestCache({
+            cachePath: requestCacheState.path,
+            entries: requestCacheEntries,
+            maxEntries: resolvedRequestCacheMaxEntries
           });
         } catch {}
       }
@@ -1309,6 +1070,32 @@ export async function collectLspTypes({
 
       const lifecycleState = lifecycleHealth.getState();
       refreshRuntimeState({ includeRequests: true });
+      runtime.requestCache = summarizeRequestCacheMetrics(requestCacheMetrics);
+      const documentSymbolMetrics = runtime.requests?.byMethod?.['textDocument/documentSymbol'] || null;
+      const hasDocumentSymbolFailureCheck = checks.some((check) => check?.name === 'tooling_document_symbol_failed');
+      if (
+        Number(documentSymbolMetrics?.failed || 0) > 0
+        && hasDocumentSymbolFailureCheck !== true
+      ) {
+        checkFlags.documentSymbolFailed = true;
+        const lastFailureMessage = String(runtime.guard?.lastFailure?.message || '').toLowerCase();
+        const lastFailureCode = String(runtime.guard?.lastFailure?.code || '');
+        const failureCategory = Number(documentSymbolMetrics?.timedOut || 0) > 0
+          ? 'timeout'
+          : (
+            lifecycleState?.quarantine?.reasonCode === 'transport_failure'
+              || lastFailureCode === 'ERR_LSP_TRANSPORT_CLOSED'
+              || lastFailureMessage.includes('transport closed')
+              || lastFailureMessage.includes('writer unavailable')
+          )
+            ? 'transport'
+            : 'request';
+        checks.push({
+          name: 'tooling_document_symbol_failed',
+          status: 'warn',
+          message: `${cmd} documentSymbol requests failed; running in degraded mode (${failureCategory}).`
+        });
+      }
       if (lifecycleState.crashLoopTrips > 0 && !checkFlags.crashLoopQuarantined) {
         checkFlags.crashLoopQuarantined = true;
         checks.push({
@@ -1344,6 +1131,11 @@ export async function collectLspTypes({
         hoverMetrics: summarizedHoverMetrics
       };
     } finally {
+      if (captureDiagnostics) {
+        // The collector owns retained documents through diagnostic shaping,
+        // including aborted/failed passes; cleanup never starts a new transport.
+        closeOwnedLspDocuments({ client, openDocs, unregisterDocument });
+      }
       if (detachAbortHandler) {
         try {
           detachAbortHandler();
@@ -1370,6 +1162,18 @@ export async function collectLspTypes({
       return await runWithPooledSession();
     } catch (err) {
       const isSessionDesync = err?.code === LSP_SESSION_DESYNC_ERROR_CODE;
+      const isQuarantined = err?.code === 'TOOLING_QUARANTINED';
+      if (isQuarantined) {
+        runtime.lifecycle = err?.detail
+          ? { ...(runtime.lifecycle || {}), quarantine: err.detail }
+          : runtime.lifecycle;
+        checks.push({
+          name: 'tooling_provider_quarantined',
+          status: 'warn',
+          message: `${cmd} provider quarantine active${err?.detail?.remainingMs != null ? ` (${err.detail.remainingMs}ms remaining)` : ''}.`
+        });
+        return buildEmptyCollectResult(checks, runtime);
+      }
       if (!isSessionDesync) throw err;
       if (attemptedDesyncRecovery) {
         checkFlags.initializeFailed = true;

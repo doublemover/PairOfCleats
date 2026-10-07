@@ -1,27 +1,28 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getGitMeta } from '../../../src/index/git.js';
+import { ensureGitAvailableOrSkip, initGitRepo, runGit } from '../../helpers/git-fixture.js';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
-const root = process.cwd();
-const target = path.join(root, 'README.md');
+if (!ensureGitAvailableOrSkip()) process.exit(0);
+const root = await makeTempDir('poc-git-meta-');
+try {
+  initGitRepo(root);
+  const target = path.join(root, 'README.md');
+  await fs.writeFile(target, '# Local metadata fixture\n', 'utf8');
+  runGit(['add', 'README.md'], { cwd: root });
+  runGit(['-c', 'commit.gpgsign=false', 'commit', '-m', 'metadata fixture'], { cwd: root });
 
-if (!fs.existsSync(target)) {
-  console.error(`Missing README.md at ${target}`);
-  process.exit(1);
-}
+  const blameEnabled = await getGitMeta(target, 1, 1, { blame: true, baseDir: root });
+  const blameDisabled = await getGitMeta(target, 1, 1, { blame: false, baseDir: root });
 
-const blameEnabled = await getGitMeta(target, 1, 1, { blame: true, baseDir: root });
-const blameDisabled = await getGitMeta(target, 1, 1, { blame: false, baseDir: root });
-
-if (blameDisabled.chunk_authors !== undefined) {
-  console.error('Expected git blame metadata to be disabled, but chunk_authors is present.');
-  process.exit(1);
-}
-
-if (blameEnabled.chunk_authors !== undefined && !Array.isArray(blameEnabled.chunk_authors)) {
-  console.error('Expected chunk_authors to be an array when present.');
-  process.exit(1);
+  assert.equal(blameDisabled.chunk_authors, undefined, 'disabled blame must omit chunk authors');
+  assert.deepEqual(blameEnabled.chunk_authors, ['Test User'], 'enabled blame must resolve fixture line authors');
+  assert.equal(blameEnabled.last_commit, blameDisabled.last_commit, 'blame toggle must retain file metadata');
+} finally {
+  await rmDirRecursive(root);
 }
 
 console.log('Git metadata config test passed');

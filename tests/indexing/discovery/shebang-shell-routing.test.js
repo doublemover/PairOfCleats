@@ -4,8 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { discoverEntries, discoverFiles } from '../../../src/index/build/discover.js';
-import { createFileProcessor } from '../../../src/index/build/file-processor.js';
 import { buildIgnoreMatcher } from '../../../src/index/build/ignore.js';
+import { createFileProcessorForTest } from '../file-processor/file-processor-fixture.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -76,48 +76,17 @@ assert.equal(snippetEntry.ext, '', 'expected indented shebang snippet to keep em
 const discoveredCodeEntry = entries.find((entry) => entry.rel === 'scripts/rebuild');
 assert.equal(discoveredCodeEntry?.ext, '.sh', 'expected shebang-routed discoverFiles entry to keep canonical .sh extension');
 
-const { processFile } = createFileProcessor({
+const { processFile } = createFileProcessorForTest({
   root: tempRoot,
-  mode: 'code',
-  dictConfig: {},
-  dictWords: new Set(),
   languageOptions: {
     skipUnknownLanguages: false,
-    astDataflowEnabled: false,
-    controlFlowEnabled: false,
     treeSitter: { enabled: false }
   },
-  postingsConfig: {},
-  segmentsConfig: {},
-  commentsConfig: {},
-  contextWin: 0,
-  incrementalState: {
-    enabled: false,
-    manifest: { files: {} },
-    bundleDir: '',
-    bundleFormat: 'json'
-  },
-  getChunkEmbedding: async () => null,
-  getChunkEmbeddings: async () => null,
-  typeInferenceEnabled: false,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  relationsEnabled: true,
-  seenFiles: new Set(),
-  gitBlameEnabled: false,
-  lintEnabled: false,
-  complexityEnabled: false,
-  structuralMatches: null,
-  cacheConfig: {},
-  cacheReporter: null,
-  queues: null,
-  workerPool: null,
-  crashLogger: null,
-  skippedFiles: [],
-  embeddingEnabled: false,
-  tokenizeEnabled: false,
-  toolInfo: { tool: 'pairofcleats', version: '0.0.0-test' },
-  tokenizationStats: null
+  overrides: {
+    relationsEnabled: true,
+    tokenizeEnabled: false,
+    toolInfo: { tool: 'pairofcleats', version: '0.0.0-test' }
+  }
 });
 
 const processed = await processFile(discoveredCodeEntry, 0);

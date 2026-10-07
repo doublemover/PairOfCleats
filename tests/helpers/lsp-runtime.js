@@ -3,7 +3,7 @@ import { getToolingDir } from '../../src/shared/dict-utils.js';
 import { resolveEnvPath, resolvePathEnvKey } from '../../src/shared/env-path.js';
 import { resolveToolingCommandProfile } from '../../src/index/tooling/command-resolver.js';
 import { __testLspSessionPool } from '../../src/integrations/tooling/providers/lsp/session-pool.js';
-import { getTrackedSubprocessCount, terminateTrackedSubprocesses } from '../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount, terminateTrackedSubprocesses } from '../../src/shared/subprocess/tracking.js';
 import { withTemporaryEnv } from './test-env.js';
 import { skip } from './skip.js';
 

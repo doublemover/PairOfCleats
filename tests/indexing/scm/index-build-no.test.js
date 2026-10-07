@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getCurrentBuildInfo, getIndexDir, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const tempRoot = await makeTempDir('poc-scm-none-provider-');
 const repoRootRaw = path.join(tempRoot, 'repo');
@@ -35,8 +35,7 @@ try {
       }
     }
   });
-  const buildResult = spawnSync(
-    process.execPath,
+  const buildResult = runNode(
     [
       path.join(process.cwd(), 'build_index.js'),
       '--stub-embeddings',
@@ -49,7 +48,10 @@ try {
       '--scm-provider',
       'none'
     ],
-    { cwd: repoRoot, env, stdio: 'inherit' }
+    'no-scm provider build index',
+    repoRoot,
+    env,
+    { stdio: 'inherit', allowFailure: true }
   );
   if (buildResult.status !== 0) {
     console.error('no-scm build test failed: build_index failed');

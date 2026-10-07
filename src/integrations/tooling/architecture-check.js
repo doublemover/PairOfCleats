@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { createCli } from '../../shared/cli.js';
-import { toPosix } from '../../shared/files.js';
+import { isDirectExecution } from '../../shared/direct-execution.js';
+import { toPosix } from '../../shared/file-paths.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { readJsoncFile } from '../../shared/jsonc.js';
 import { emitCliOutput, resolveFormat } from './cli-helpers.js';
@@ -13,7 +13,8 @@ import { validateArchitectureReport } from '../../contracts/validators/analysis.
 import { hasIndexMeta } from '../../retrieval/cli/index-loader.js';
 import { resolveIndexDir } from '../../retrieval/cli-index.js';
 import { prepareGraphIndex, prepareGraphInputs } from './graph-helpers.js';
-import { loadUserConfig, resolveRepoRoot } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../shared/dict-utils.js';
+import { getRepoRoot } from '../../shared/repo-paths.js';
 
 const loadRulesFile = (rulesPath) => {
   const ext = path.extname(rulesPath).toLowerCase();
@@ -57,7 +58,7 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
     throw new Error('Missing --rules <path>.');
   }
 
-  const repoRoot = argv.repo ? path.resolve(argv.repo) : resolveRepoRoot(process.cwd());
+  const repoRoot = getRepoRoot(argv.repo || null, process.cwd());
   const format = resolveFormat(argv);
   const rulesPath = path.resolve(argv.rules);
   if (!fs.existsSync(rulesPath)) {
@@ -122,7 +123,7 @@ export async function runArchitectureCheckCli(rawArgs = process.argv.slice(2)) {
   });
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isDirectExecution(import.meta.url)) {
   runArchitectureCheckCli().catch((err) => {
     console.error(err?.message || err);
     process.exit(err?.code === 'ERR_ARCHITECTURE_VIOLATION' ? 2 : 1);

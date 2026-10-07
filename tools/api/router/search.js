@@ -1,4 +1,4 @@
-import { buildSearchRequestArgs } from '../../shared/search-request.js';
+import { buildSearchRequestArgs } from '../../../src/shared/search-request.js';
 
 export const buildSearchParams = (_repoPath, payload, defaultOutput) => {
   const result = buildSearchRequestArgs(payload, {

@@ -4,10 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ensureTestingEnv } from './test-env.js';
-import {
-  registerChildProcessForCleanup,
-  terminateTrackedSubprocesses
-} from '../../src/shared/subprocess.js';
+import { registerChildProcessForCleanup, terminateTrackedSubprocesses } from '../../src/shared/subprocess/tracking.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 const encodeFramedMessage = (payload) => {

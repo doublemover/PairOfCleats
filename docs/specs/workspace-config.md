@@ -3,10 +3,12 @@
 ## Status
 
 - **Spec version:** 1 (schemaVersion = 1)
-- **Audience:** PairOfCleats contributors implementing workspace/federation support (CLI/API/MCP).
+- **Audience:** PairOfCleats contributors maintaining workspace/federation support (CLI/API/MCP).
+- **Implementation status:** active (`src/workspace/config.js`, `src/retrieval/federation/coordinator.js`).
+- **Last audited:** 2026-05-21
 - **Primary goals:** deterministic repo identity, canonical repo roots, stable `repoSetId`, strict validation.
 
-This spec is written to be *implementation-ready* in the existing PairOfCleats Node/ESM codebase.
+This spec is the active workspace configuration contract for the existing PairOfCleats Node/ESM codebase.
 
 ---
 

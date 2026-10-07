@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
-import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { countNonEmptyLines } from '../../helpers/lsp-signature-fixtures.js';
-import { createSourcekitPreflightFixture } from '../../helpers/sourcekit-preflight-fixture.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
+import {
+  createSourcekitPreflightFixture,
+  withSourcekitPreflightProvider
+} from '../../helpers/sourcekit-preflight-fixture.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const fixture = await createSourcekitPreflightFixture({
@@ -16,16 +16,14 @@ const fixture = await createSourcekitPreflightFixture({
   resolveExitCode: 0
 });
 const logs = [];
-const { ctx, document, target } = fixture.contextFor(logs);
 
 try {
-  await withTemporaryEnv({ POC_SWIFT_PREFLIGHT_COUNTER: fixture.counterPath }, async () => {
-    registerDefaultToolingProviders();
-    const provider = getToolingProvider('sourcekit');
-    assert.ok(provider, 'expected sourcekit provider');
-
+  await withSourcekitPreflightProvider({ fixture, logs }, async ({ provider, ctx, document, target }) => {
     const output = await provider.run(ctx, { documents: [document], targets: [target] });
     assert.ok(output && typeof output.byChunkUid === 'object', 'expected sourcekit output');
+    assert.equal(output?.diagnostics?.preflight?.workspaceKind, 'package_managed_workspace');
+    assert.equal(output?.diagnostics?.preflight?.dependencyState, 'not_needed');
+    assert.equal(output?.diagnostics?.preflight?.preflightState, 'ready');
     const checks = Array.isArray(output?.diagnostics?.checks) ? output.diagnostics.checks : [];
     assert.equal(
       checks.some((check) => String(check?.name || '').startsWith('sourcekit_package_preflight_')),

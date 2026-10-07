@@ -1,10 +1,16 @@
 #!/usr/bin/env node
-import { getTuiEnvConfig } from '../../src/shared/env.js';
+import { getTuiEnvConfig, getTuiWorkspaceRoot } from '../../src/shared/env/tui.js';
 import { getToolVersion, resolveToolRoot } from '../shared/dict-utils.js';
 import { FLOW_METRICS_INTERVAL_MS, SUPERVISOR_PROTOCOL } from './supervisor/constants.js';
 import { createJobController } from './supervisor/jobs.js';
 import { createEventLogRecorder, createFlowController } from './supervisor/protocol-flow.js';
 import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
+import { createCli } from '../../src/shared/cli.js';
+
+createCli({
+  scriptName: 'pairofcleats tui supervisor',
+  usage: 'Run the TUI supervisor over stdin/stdout using the poc.tui@1 protocol.'
+}).strictOptions().parse();
 
 const ROOT = resolveToolRoot();
 const tuiEnvConfig = getTuiEnvConfig(process.env);
@@ -74,6 +80,15 @@ const {
   eventLogRecorder
 });
 
+const buildSessionDescriptor = () => ({
+  mode: 'supervised',
+  source: 'local-supervisor',
+  scope: getTuiWorkspaceRoot() || process.cwd(),
+  connection: 'connected',
+  note: 'interactive supervisor session',
+  controllable: true
+});
+
 const {
   startJob,
   cancelJob,
@@ -138,13 +153,12 @@ const handleRequest = async (request) => {
     return;
   }
   if (op === 'hello') {
-    emitHello({ supervisorVersion });
+    emitHello({ supervisorVersion, session: buildSessionDescriptor() });
     emitRuntimeMetrics();
     return;
   }
   if (op === 'flow:credit') {
     const added = addFlowCredits(request.credits);
-    emitRuntimeMetrics();
     if (added <= 0) {
       emitLog(null, 'warn', 'ignored invalid flow:credit request', { credits: request.credits });
     }
@@ -230,7 +244,7 @@ process.on('SIGTERM', () => {
   shutdown('sigterm', 130).catch(() => process.exit(130));
 });
 
-emitHello({ supervisorVersion });
+emitHello({ supervisorVersion, session: buildSessionDescriptor() });
 
 runtimeMetricsTimer = setInterval(() => {
   if (state.shuttingDown) return;

@@ -2,25 +2,27 @@
 
 > **Purpose:** Make the existing LSP tooling provider reliable, deterministic, and compatible with segment-aware virtual documents and canonical chunk identity (`chunkUid`).
 
+Status: Implemented for the required acceptance criteria in the current branch. Focused validation passed 7 selected LSP/VFS checks with 0 failures, 0 timeouts, and 0 skipped in `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.
+
 This refinement adds:
 - `chunkUid`-keyed storage (no `file::name`)
 - Virtual document support (VFS)
 - Deterministic restart semantics
 - Clear failure accounting policy
-- Token URIs + hash routing options for VFS documents (draft)
+- Token URIs + hash routing options for VFS documents
 
 ---
 
-## 0. Current baseline (grounded)
+## 0. Implementation status
 
 Provider implementation: `src/integrations/tooling/providers/lsp.js`  
 Client implementation: `src/integrations/tooling/lsp/client.js`
 
-Observed behaviors:
-- Stores results keyed by `${file}::${name}` (collision-prone).
-- Uses on-disk file paths; no notion of virtual documents.
-- Process restart handling can race due to captured `proc` ref in exit handler.
-- Tooling guard counts failures per-attempt rather than per-target.
+Historical gaps now closed:
+- Provider output is keyed by `chunkUid`, not `${file}::${name}`.
+- `.poc-vfs/...` virtual documents are opened before LSP queries.
+- Restart generation safety is covered by a focused race test.
+- Failure accounting is covered at the per-target level.
 
 ---
 
@@ -45,6 +47,56 @@ Use `ToolingRunInputs.targets[]` where each target includes:
 ### 2.2 Output
 
 Provider MUST emit `ToolingProviderOutput.byChunkUid`.
+
+### 2.3 Configured workspace preflight classification
+
+Environment preflight assembly must preserve all workspace exclusions and cannot
+allow an earlier non-blocking runtime warning to mask a later execution denial.
+Blocking state/authority wins first, then partial partition coverage, then ordinary
+degradation; equal-priority results retain their deterministic order. The combined
+checks retain each warning, even when another result supplies the primary reason.
+
+Blocked workspace keys/roots are merged without duplication. A partial result
+continues healthy partitions while excluding invalid/failed partitions; an
+all-blocked result prevents the provider launch. Explicit workspace-cache
+participants must all report reuse for the combined `cached` flag. Lightweight
+warnings without cache semantics do not erase metadata reuse, and cache reuse
+must not convert a degraded runtime into a healthy result. These rules are covered
+by the preflight-precedence and Rust negative/partial/timeout-local fixtures.
+
+### 2.4 Diagnostics-only collection
+
+Configured requests containing diagnostics but no types use the common collector's
+explicit `collectTypes: false` mode. The ordinary type mode keeps its documentSymbol
+requirement. Diagnostics-only mode does not request symbols, hover, navigation or
+other type stages, and it does not fabricate type payloads/capabilities. Existing
+target ranges still own diagnostic-to-chunk binding. Provider fidelity declares
+type enrichment false for this mode.
+
+Both modes share one document notification owner. Diagnostic capture accepts only
+currently opened URIs or their registered VFS aliases, rejects a provided version
+that differs from didOpen, retains legacy unversioned results for owned URIs, and
+shapes results before closing. Close unregisters diagnostic ownership and is sent
+at most once without restarting a failed transport. Abort retains the existing
+owned-process cleanup. The bounded diagnostic drain, scope/buffer limits and
+workspace execution authority apply unchanged; silence is still reported as a
+pending/timed-out observation, not a clean source result.
+
+### 2.5 Build-capable workspace execution authority
+
+Rust, ZLS/Zig and Java/JDT workspace tooling require an exact canonical repository
+grant in the launching user's `PAIROFCLEATS_TRUSTED_REPOS`. Native parser analysis
+and explicit server installation do not grant that authority. Dedicated/custom
+provider entry points, doctor/runtime/initialize probes and direct collection must
+reject before workspace-capable execution when the grant is absent. Repository
+configuration or a parent-directory grant cannot substitute for it.
+
+Trust participates in provider/preflight cache identity. Pending preflight and
+preparation must be rechecked before later launches, including each canonically
+contained partition. A revoked grant cannot reuse a ready cached preflight to
+start a client. Already-started external processes are not sandboxed or revoked by
+this check. See the [execution authority guide](../guides/execution-authority.md)
+for compatibility and official build/import behavior evidence.
 
 ---
 
@@ -75,7 +127,7 @@ If the server supports in-memory schemes, allow `poc-vfs://...`.
 
 This must be configurable per language server.
 
-#### Token URIs (draft)
+#### Token URIs
 
 - When enabled, the provider SHOULD use `poc-vfs` URIs with a token query parameter (see `docs/specs/vfs-token-uris.md`).
 - When using `file://` URIs, hash routing SHOULD be applied to disk paths so token changes force a new on-disk path (see `docs/specs/vfs-hash-routing.md`).
@@ -96,8 +148,11 @@ In `createLspClient(...)`, track a monotonically increasing `generation`:
 
 - each `start()` increments generation and associates it with the spawned process
 - exit handler only performs cleanup if the exiting process generation matches current generation
+- asynchronous write failures only reject requests belonging to their original writer and generation
+- delayed server-request handlers only reply on the transport that received the request
+- initialization only sends `initialized` and resets backoff for its original live transport; a stale continuation rejects with `ERR_LSP_TRANSPORT_CLOSED`
 
-This prevents old exit events from tearing down a newly started process.
+This prevents old exit events and asynchronous continuations from corrupting a newly started process.
 
 ### 4.2 Backoff policy (mandatory)
 
@@ -111,6 +166,21 @@ Ensure:
 - `shutdown` request is sent when possible
 - `exit` notification follows
 - hard kill after timeout
+- capture the original process and generation before awaiting shutdown; a restart ends that shutdown attempt without sending exit to, waiting on, or killing the replacement
+
+### 4.4 Framed transport boundaries
+
+The shared JSON-RPC parser scans new header bytes once and caches the parsed
+content length while waiting for the body. Fragment consumption uses an indexed
+queue with amortized compaction. An exact-limit header remains valid when the
+four-byte CRLF delimiter is split across input chunks; only header bytes count
+toward `maxHeaderBytes`. Pending delimiter-prefix bytes do not expand that limit.
+
+Buffer and message byte caps remain enforced, and malformed or oversized input
+closes the parser after one error. Byte caps describe buffered input bytes, not a
+guaranteed total JavaScript heap footprint. Focused parser tests cover delimiter
+splits, Unicode byte fragments, adjacent frames, disposal, and deterministic
+scanning/copying work bounds without wall-clock performance thresholds.
 
 ---
 
@@ -163,41 +233,46 @@ If two targets share the same `chunkUid` (should not happen if chunkUid collisio
 
 ---
 
-## 8. Implementation plan
+## 8. Implementation ownership
 
-1. Refactor `src/integrations/tooling/providers/lsp.js`
-   - accept `ToolingVirtualDocument[]` and `ToolingTarget[]`
-   - open/update VFS docs before queries
-   - store results in `byChunkUid`
-2. Harden `src/integrations/tooling/lsp/client.js`
-   - generation token
-   - backoff
-   - strict shutdown
-3. Update `src/index/type-inference-crossfile/tooling.js`
-   - consume `byChunkUid` outputs
+1. `src/integrations/tooling/providers/lsp.js`
+   - accepts `ToolingVirtualDocument[]` and `ToolingTarget[]`
+   - opens VFS docs before queries
+   - stores results in `byChunkUid`
+2. `src/integrations/tooling/lsp/client.js`
+   - owns generation token behavior, backoff, and strict shutdown
+3. `src/index/type-inference-crossfile/tooling.js`
+   - consumes `byChunkUid` outputs
 
 ---
 
 ## 9. Acceptance criteria
 
-- [ ] Provider can return hover/signature results for `.poc-vfs/...` virtual paths.
-- [ ] Provider outputs are keyed by `chunkUid`.
-- [ ] Restart races do not corrupt active sessions (generation token test).
-- [ ] Failure counts reflect per-target failures, not per-attempt.
+- [x] Provider can return hover/signature results for `.poc-vfs/...` virtual paths.
+- [x] Provider outputs are keyed by `chunkUid`.
+- [x] Restart races do not corrupt active sessions (generation token test).
+- [x] Failure counts reflect per-target failures, not per-attempt.
 
 ---
 
 ## 10. Tests (exact)
 
-1. `tests/tooling/lsp/lsp-bychunkuid-keying.test.js`
+1. `tests/tooling/lsp/bychunkuid-keying.test.js`
    - Fake LSP client returns deterministic payload; assert map keys are chunkUid.
 
-2. `tests/tooling/lsp/lsp-restart-generation-safety.test.js`
+2. `tests/tooling/lsp/restart-generation-safety.test.js`
    - Simulate old process exit after new start; assert new process remains active.
 
-3. `tests/tooling/lsp/lsp-vfs-didopen.test.js`
+3. `tests/tooling/lsp/vfs-didopen.test.js`
    - Ensure didOpen is sent for virtual doc before hover.
 
-4. `tests/tooling/lsp/lsp-failure-accounting-per-target.test.js`
+4. `tests/tooling/lsp/metrics-contract-matrix.test.js`
    - Retry loop triggers one failure count per target.
 
+Current validation:
+
+```powershell
+node tests/run.js tooling/lsp/bychunkuid-keying tooling/lsp/restart-generation-safety tooling/lsp/vfs-didopen tooling/lsp/metrics-contract-matrix tooling/vfs/maps-segment-offsets tooling/vfs/routing-and-token-contract-matrix tooling/vfs/invalid-virtual-range-regression --lane=all --timeout-ms 30000
+```
+
+Evidence: `temp/validation/lsp-vfs-focused-spec-acceptance-20260521.log`.

@@ -79,6 +79,7 @@ export const mergeToolingMaps = (base, incoming) => {
 };
 
 const FD_PRESSURE_PATTERN = /\b(emfile|enfile|too many open files)\b/i;
+const FAILURE_RATE_WINDOW_MS = 60_000;
 
 const trimWindow = (events, now, windowMs) => {
   while (events.length && (now - events[0]) > windowMs) events.shift();
@@ -98,6 +99,9 @@ const trimWindow = (events, now, windowMs) => {
  * @returns {{
  *   onLifecycleEvent:(event:object)=>void,
  *   noteStderrLine:(line:string)=>void,
+ *   noteHandshakeSuccess:(at?:number)=>void,
+ *   noteHandshakeFailure:(detail?:object)=>void,
+ *   noteRequestTimeout:(detail?:object)=>void,
  *   getState:()=>object
  * }}
  */
@@ -122,10 +126,21 @@ export const createToolingLifecycleHealth = (options = {}) => {
   let fdPressureEvents = 0;
   let fdPressureUntil = 0;
   let lastFdPressureLine = '';
+  let startupFailures = 0;
+  let handshakeFailures = 0;
+  let protocolParseFailures = 0;
+  let requestTimeouts = 0;
+  let lastStartAt = 0;
+  let lastHandshakeAt = 0;
+  let lastFailureCategory = null;
+  const protocolParseEvents = [];
+  const requestTimeoutEvents = [];
 
   const refreshWindows = (now = Date.now()) => {
     trimWindow(starts, now, restartWindowMs);
     trimWindow(crashes, now, restartWindowMs);
+    trimWindow(protocolParseEvents, now, FAILURE_RATE_WINDOW_MS);
+    trimWindow(requestTimeoutEvents, now, FAILURE_RATE_WINDOW_MS);
   };
 
   const evaluateCrashLoop = (now = Date.now()) => {
@@ -142,12 +157,32 @@ export const createToolingLifecycleHealth = (options = {}) => {
     if (!kind) return;
     const now = Number.isFinite(Number(event?.at)) ? Number(event.at) : Date.now();
     if (kind === 'start') {
+      lastStartAt = now;
       starts.push(now);
       evaluateCrashLoop(now);
       return;
     }
+    if (kind === 'protocol_parse_error') {
+      protocolParseFailures += 1;
+      protocolParseEvents.push(now);
+      lastFailureCategory = {
+        category: 'protocol_parse_failure',
+        message: event?.message ? String(event.message) : 'protocol parse error',
+        at: new Date(now).toISOString()
+      };
+      refreshWindows(now);
+      return;
+    }
     if (kind === 'exit' || kind === 'error') {
       crashes.push(now);
+      if (lastStartAt > 0 && lastHandshakeAt < lastStartAt) {
+        startupFailures += 1;
+        lastFailureCategory = {
+          category: 'startup_failure',
+          message: event?.message ? String(event.message) : `${kind} before handshake`,
+          at: new Date(now).toISOString()
+        };
+      }
       lastCrash = {
         kind,
         code: event?.code ?? null,
@@ -170,6 +205,35 @@ export const createToolingLifecycleHealth = (options = {}) => {
     log(`[tooling] ${name} fd-pressure backoff armed (${fdPressureBackoffMs}ms).`);
   };
 
+  const noteHandshakeSuccess = (at = Date.now()) => {
+    const now = Number.isFinite(Number(at)) ? Number(at) : Date.now();
+    lastHandshakeAt = now;
+  };
+
+  const noteHandshakeFailure = (detail = {}) => {
+    const now = Number.isFinite(Number(detail?.at)) ? Number(detail.at) : Date.now();
+    handshakeFailures += 1;
+    lastFailureCategory = {
+      category: 'handshake_failure',
+      code: detail?.code || null,
+      message: detail?.message ? String(detail.message) : 'handshake failure',
+      at: new Date(now).toISOString()
+    };
+  };
+
+  const noteRequestTimeout = (detail = {}) => {
+    const now = Number.isFinite(Number(detail?.at)) ? Number(detail.at) : Date.now();
+    requestTimeouts += 1;
+    requestTimeoutEvents.push(now);
+    refreshWindows(now);
+    lastFailureCategory = {
+      category: 'request_timeout',
+      code: detail?.code || null,
+      message: detail?.message ? String(detail.message) : 'request timeout',
+      at: new Date(now).toISOString()
+    };
+  };
+
   const getState = () => {
     const now = Date.now();
     refreshWindows(now);
@@ -186,13 +250,24 @@ export const createToolingLifecycleHealth = (options = {}) => {
       fdPressureBackoffMs,
       fdPressureBackoffActive: now < fdPressureUntil,
       fdPressureBackoffRemainingMs: Math.max(0, fdPressureUntil - now),
-      lastFdPressureLine: lastFdPressureLine || null
+      lastFdPressureLine: lastFdPressureLine || null,
+      startupFailures,
+      handshakeFailures,
+      protocolParseFailures,
+      protocolParseFailureRatePerMinute: Number((((protocolParseEvents.length * 60_000) / FAILURE_RATE_WINDOW_MS) || 0).toFixed(2)),
+      requestTimeouts,
+      requestTimeoutRatePerMinute: Number((((requestTimeoutEvents.length * 60_000) / FAILURE_RATE_WINDOW_MS) || 0).toFixed(2)),
+      fdPressureDensityPerMinute: Number((((fdPressureEvents * 60_000) / Math.max(1, restartWindowMs)) || 0).toFixed(2)),
+      lastFailureCategory
     };
   };
 
   return {
     onLifecycleEvent,
     noteStderrLine,
+    noteHandshakeSuccess,
+    noteHandshakeFailure,
+    noteRequestTimeout,
     getState
   };
 };

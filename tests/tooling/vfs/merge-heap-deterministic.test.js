@@ -4,9 +4,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { createVfsManifestCollector } from '../../../src/index/build/vfs-manifest-collector.js';
-import { enqueueVfsManifestArtifacts } from '../../../src/index/build/artifacts/writers/vfs-manifest.js';
 import { compareVfsManifestRows } from '../../../src/index/tooling/vfs.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { runVfsManifestWriter } from '../../helpers/vfs-streaming-fixture.js';
 
 const readJsonl = async (filePath) => {
   const raw = await fs.readFile(filePath, 'utf8');
@@ -15,32 +15,6 @@ const readJsonl = async (filePath) => {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line));
-};
-
-const runWriter = async ({ outDir, rows }) => {
-  const writes = [];
-  const enqueueWrite = (label, fn) => {
-    writes.push({ label, fn });
-  };
-  const addPieceFile = () => {};
-  const formatArtifactLabel = (value) => value;
-
-  await enqueueVfsManifestArtifacts({
-    outDir,
-    mode: 'code',
-    rows,
-    maxJsonBytes: 1000000,
-    compression: null,
-    gzipOptions: null,
-    hashRouting: false,
-    enqueueWrite,
-    addPieceFile,
-    formatArtifactLabel
-  });
-
-  for (const write of writes) {
-    await write.fn();
-  }
 };
 
 const tempRoot = await makeTempDir('pairofcleats-vfs-merge-heap-');
@@ -106,7 +80,7 @@ try {
   });
   await collector.appendRows(rows);
 
-  await runWriter({ outDir, rows: collector });
+  await runVfsManifestWriter({ outDir, mode: 'code', rows: collector });
 
   const manifestPath = path.join(outDir, 'vfs_manifest.jsonl');
   const written = await readJsonl(manifestPath);

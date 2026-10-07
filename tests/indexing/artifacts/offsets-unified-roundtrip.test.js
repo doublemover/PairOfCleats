@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonLinesShardedAsync } from '../../../src/shared/json-stream.js';
+import { writeJsonLinesShardedAsync } from '../../../src/shared/json-stream/jsonl-sharded.js';
 import { readJsonlRowAt } from '../../../src/shared/artifact-io/offsets.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';

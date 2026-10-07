@@ -1,5 +1,6 @@
 import { sha1 } from '../../../shared/hash.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../../shared/stable-json.js';
+import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact.js';
 
 export const normalizeContentConfig = (config) => {
   if (!config || typeof config !== 'object') return config || {};
@@ -18,6 +19,7 @@ export const normalizeContentConfig = (config) => {
 export const buildContentConfigHash = (config, envConfig) => {
   const normalizedEnv = { ...envConfig, cacheRoot: '' };
   const payload = {
+    generatedArtifactPolicyVersion: GENERATED_ARTIFACT_POLICY_VERSION,
     config: normalizeContentConfig(config),
     env: normalizedEnv
   };

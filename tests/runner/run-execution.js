@@ -270,6 +270,42 @@ const runTestWithRetries = async ({
   return normalizeResult({ ...(lastResult || { status: 'failed' }), attempts: attemptOffset + maxAttempts, logs });
 };
 
+const createRetryRunOptions = ({
+  test,
+  context,
+  activeChildren,
+  markActivity,
+  redoExitCodes = context.redoExitCodes,
+  attemptOffset = 0
+}) => ({
+  test,
+  passThrough: context.passThrough,
+  env: context.baseEnv,
+  cwd: context.root,
+  timeoutMs: resolveTestTimeout({
+    test,
+    defaultTimeoutMs: context.timeoutMs,
+    overrides: context.timeoutOverrides
+  }),
+  captureOutput: context.captureOutput,
+  retries: context.retries,
+  logDir: context.runLogDir,
+  timeoutGraceMs: context.timeoutGraceMs,
+  skipExitCode: context.skipExitCode,
+  maxOutputBytes: context.maxOutputBytes,
+  redoExitCodes,
+  attemptOffset,
+  onChildStart: (pid) => {
+    activeChildren.add(pid);
+    markActivity();
+  },
+  onChildStop: (pid) => {
+    activeChildren.delete(pid);
+    markActivity();
+  },
+  onActivity: markActivity
+});
+
 export const runTests = async ({ selection, context, reportResult, reportDirect }) => {
   const results = new Array(selection.length);
   let failFastTriggered = false;
@@ -312,33 +348,12 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
           if (context.initReporter?.start) {
             context.initReporter.start(test);
           }
-          result = await runTestWithRetries({
+          result = await runTestWithRetries(createRetryRunOptions({
             test,
-            passThrough: context.passThrough,
-            env: context.baseEnv,
-            cwd: context.root,
-            timeoutMs: resolveTestTimeout({
-              test,
-              defaultTimeoutMs: context.timeoutMs,
-              overrides: context.timeoutOverrides
-            }),
-            captureOutput: context.captureOutput,
-            retries: context.retries,
-            logDir: context.runLogDir,
-            timeoutGraceMs: context.timeoutGraceMs,
-            skipExitCode: context.skipExitCode,
-            maxOutputBytes: context.maxOutputBytes,
-            redoExitCodes: context.redoExitCodes,
-            onChildStart: (pid) => {
-              activeChildren.add(pid);
-              markActivity();
-            },
-            onChildStop: (pid) => {
-              activeChildren.delete(pid);
-              markActivity();
-            },
-            onActivity: markActivity
-          });
+            context,
+            activeChildren,
+            markActivity
+          }));
         }
         const fullResult = { ...test, ...normalizeResult(result) };
         if (fullResult.status === 'redo') {
@@ -360,34 +375,14 @@ export const runTests = async ({ selection, context, reportResult, reportDirect 
           if (context.initReporter?.start) {
             context.initReporter.start(test, { label: 'REDO', labelMode: 'redo' });
           }
-          const result = await runTestWithRetries({
+          const result = await runTestWithRetries(createRetryRunOptions({
             test,
-            passThrough: context.passThrough,
-            env: context.baseEnv,
-            cwd: context.root,
-            timeoutMs: resolveTestTimeout({
-              test,
-              defaultTimeoutMs: context.timeoutMs,
-              overrides: context.timeoutOverrides
-            }),
-            captureOutput: context.captureOutput,
-            retries: context.retries,
-            logDir: context.runLogDir,
-            timeoutGraceMs: context.timeoutGraceMs,
-            skipExitCode: context.skipExitCode,
-            maxOutputBytes: context.maxOutputBytes,
             redoExitCodes: null,
             attemptOffset: prior.attempts,
-            onChildStart: (pid) => {
-              activeChildren.add(pid);
-              markActivity();
-            },
-            onChildStop: (pid) => {
-              activeChildren.delete(pid);
-              markActivity();
-            },
-            onActivity: markActivity
-          });
+            context,
+            activeChildren,
+            markActivity
+          }));
           const mergedLogs = [...(prior.logs || []), ...(result.logs || [])];
           const finalResult = { ...test, ...normalizeResult({ ...result, logs: mergedLogs }) };
           results[index] = finalResult;

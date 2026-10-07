@@ -2,34 +2,70 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'fielded-bm25');
 const cacheRoot = path.join(tempRoot, 'cache');
-const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
+const fixtureRoot = path.join(tempRoot, 'repo');
+await fsPromises.mkdir(path.join(fixtureRoot, 'src'), { recursive: true });
 await fsPromises.mkdir(cacheRoot, { recursive: true });
+await fsPromises.writeFile(
+  path.join(fixtureRoot, 'src', 'greet.js'),
+  [
+    'export function greet(name = "world") {',
+    '  return `greet ${name}`;',
+    '}',
+    ''
+  ].join('\n')
+);
 
 const env = applyTestEnv({
   cacheRoot,
-  embeddings: 'stub'
+  embeddings: 'stub',
+  testConfig: {
+    indexing: {
+      scm: { provider: 'none' },
+      typeInference: false,
+      typeInferenceCrossFile: false,
+      riskAnalysis: false,
+      riskAnalysisCrossFile: false
+    },
+    tooling: {
+      autoEnableOnDetect: false,
+      lsp: { enabled: false }
+    }
+  },
+  extraEnv: {
+    PAIROFCLEATS_WORKER_POOL: 'off'
+  }
 });
 
-const buildResult = spawnSync(
-  process.execPath,
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
-  { env, stdio: 'inherit' }
+runNode(
+  [
+    path.join(root, 'build_index.js'),
+    '--stub-embeddings',
+    '--repo',
+    fixtureRoot,
+    '--stage',
+    'stage1',
+    '--mode',
+    'code',
+    '--no-sqlite',
+    '--scm-provider',
+    'none'
+  ],
+  'fielded bm25 build index',
+  root,
+  env,
+  { stdio: 'inherit' }
 );
-if (buildResult.status !== 0) {
-  console.error('fielded bm25 test failed: build_index failed');
-  process.exit(buildResult.status ?? 1);
-}
 
 const userConfig = loadUserConfig(fixtureRoot);
 const fieldPostings = path.join(
@@ -42,8 +78,7 @@ if (!fs.existsSync(fieldPostings)) {
   process.exit(1);
 }
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [
     path.join(root, 'search.js'),
     'greet',
@@ -57,14 +92,11 @@ const result = spawnSync(
     '--repo',
     fixtureRoot
   ],
-  { env, encoding: 'utf8' }
+  'fielded bm25 search',
+  root,
+  env,
+  { stdio: 'pipe' }
 );
-
-if (result.status !== 0) {
-  console.error('fielded bm25 test failed: search returned error');
-  if (result.stderr) console.error(result.stderr.trim());
-  process.exit(result.status ?? 1);
-}
 
 let payload = null;
 try {

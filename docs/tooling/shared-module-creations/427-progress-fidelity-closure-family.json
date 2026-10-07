@@ -1,0 +1,79 @@
+{
+  "issueId": 427,
+  "title": "Shared progress, fidelity, degradation, and closure-evidence helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "src/shared/progress-events.js"
+  ],
+  "problemStatement": "MCP runner and handler surfaces were manually constructing the same progress-event envelopes over and over, including phase transitions, streamed line forwarding, and ad hoc progress guards. That duplication risked subtle progress-shape drift across handlers and made runtime diagnostics less consistent.",
+  "duplicateClusters": [
+    {
+      "name": "MCP tool handlers building progress envelopes by hand",
+      "files": [
+        "tools/mcp/runner.js",
+        "tools/mcp/tools/helpers.js",
+        "tools/mcp/tools/handlers/triage.js",
+        "tools/mcp/tools/handlers/downloads.js",
+        "tools/mcp/tools/handlers/indexing.js",
+        "tools/mcp/tools/handlers/analysis.js"
+      ],
+      "bestFix": "Create one shared progress-event helper that owns start/done/progress/stream-line event emission so MCP handlers all publish the same event shape."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "src/shared/progress.js is oriented around runtime logging, not context.progress event envelopes.",
+    "tools/mcp/runner.js had partial stream-forwarding logic, but the surrounding start/done event construction was still duplicated across handlers."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "src/shared/progress-events.js",
+      "action": "created",
+      "notes": "Now owns shared progress reporter and streamed line forwarding helpers."
+    },
+    {
+      "path": "tools/mcp/runner.js",
+      "action": "migrated",
+      "notes": "Now uses shared progress-event helpers for runToolWithProgress."
+    },
+    {
+      "path": "tools/mcp/tools/helpers.js",
+      "action": "migrated",
+      "notes": "Artifact-restore notifications now use the shared progress reporter."
+    },
+    {
+      "path": "tools/mcp/tools/handlers/triage.js",
+      "action": "migrated",
+      "notes": "Triage ingest/context-pack progress now uses the shared progress reporter."
+    },
+    {
+      "path": "tools/mcp/tools/handlers/downloads.js",
+      "action": "migrated",
+      "notes": "Model download progress now uses the shared progress reporter."
+    },
+    {
+      "path": "tools/mcp/tools/handlers/indexing.js",
+      "action": "migrated",
+      "notes": "Index build and heartbeat events now use the shared progress reporter."
+    },
+    {
+      "path": "tools/mcp/tools/handlers/analysis.js",
+      "action": "migrated",
+      "notes": "Risk/context-pack analysis start and completion progress now uses the shared progress reporter."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/shared/progress-events.test.js"
+    ],
+    "testsToKeepGreen": []
+  },
+  "nonGoals": [
+    "Unify every fidelity or degraded-status contract in the repo in one pass.",
+    "Replace runtime logging helpers or observability envelopes.",
+    "Create a generic event framework for all surfaces."
+  ],
+  "followOnDeletionTargets": [
+    "Continue hoisting other genuinely repeated progress/fidelity envelopes if later scans show the same tight seam outside MCP.",
+    "Leave specialized closure-evidence and fidelity-domain logic with their existing owners until a similarly narrow shared family is proven."
+  ]
+}

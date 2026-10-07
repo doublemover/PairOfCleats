@@ -1,4 +1,4 @@
-import { log, logLine } from '../../../../../shared/progress.js';
+import { log, logLine } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import {
   enrichUnresolvedImportSamples,
@@ -17,6 +17,7 @@ import {
   summarizeGateEligibleImportWarnings
 } from '../../../import-resolution.js';
 import { buildWarningSortKey } from '../../../import-resolution/graph.js';
+import { toSortedCountObject } from '../../../import-resolution/counts.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
@@ -28,16 +29,9 @@ import { resolveHangProbeConfig, runWithHangProbe } from '../../hang-probe.js';
 const MAX_UNRESOLVED_IMPORT_LOG_LINES = 50;
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value);
-const toSortedCountObject = (counts) => {
-  const entries = Object.entries(
-    counts && typeof counts === 'object' && !Array.isArray(counts) ? counts : {}
-  )
-    .filter(([key, value]) => key && Number.isFinite(Number(value)) && Number(value) > 0)
-    .sort((a, b) => sortStrings(a[0], b[0]));
-  return Object.fromEntries(entries.map(([key, value]) => [key, Math.floor(Number(value))]));
-};
 
 const normalizeUnresolvedSamples = (samples) => enrichUnresolvedImportSamples(samples);
+const MAX_DEGRADED_VISIBLE_UNRESOLVED_SAMPLES = 3;
 
 /**
  * Merge existing graph warnings with unresolved samples while preserving
@@ -84,6 +78,14 @@ const formatUnresolvedResolverStageCounts = (resolverStages) => {
     .sort((a, b) => sortStrings(a[0], b[0]));
   if (entries.length === 0) return 'none';
   return entries.map(([stage, count]) => `${stage}=${Number(count)}`).join(', ');
+};
+
+const formatUnresolvedResolverAdapterCounts = (resolverAdapters) => {
+  const entries = Object.entries(resolverAdapters || {})
+    .filter(([adapter, count]) => adapter && Number.isFinite(Number(count)) && Number(count) > 0)
+    .sort((a, b) => sortStrings(a[0], b[0]));
+  if (entries.length === 0) return 'none';
+  return entries.map(([adapter, count]) => `${adapter}=${Number(count)}`).join(', ');
 };
 
 const formatBudgetExhaustedByType = (counts) => {
@@ -197,7 +199,7 @@ const resolveImportCacheStaleEdgeBudget = (resolverPlugins) => {
   return Math.floor(budget);
 };
 
-const logUnresolvedImportSamples = ({
+export const logUnresolvedImportSamples = ({
   samples,
   suppressed,
   unresolvedTotal,
@@ -226,6 +228,14 @@ const logUnresolvedImportSamples = ({
     : summary?.actionableRate;
   const parserArtifactRate = Number.isFinite(summary?.parserArtifactRate) ? summary.parserArtifactRate : 0;
   const resolverGapRate = Number.isFinite(summary?.resolverGapRate) ? summary.resolverGapRate : 0;
+  const budgetExhausted = Number(summary?.resolverBudgetExhausted || 0);
+  const degradedRun = actionableTotal > 0 || budgetExhausted > 0 || resolverGapRate > 0;
+  const degradedVisibleFloor = policySuppressed > 0 && degradedRun && normalized.length > 0
+    ? Math.min(MAX_DEGRADED_VISIBLE_UNRESOLVED_SAMPLES, normalized.length)
+    : 0;
+  const visibleSamples = visible.length > 0
+    ? visible
+    : (degradedVisibleFloor > 0 ? normalized.slice(0, degradedVisibleFloor) : []);
   log(
     `[imports] unresolved taxonomy: ${formatUnresolvedFailureCauseCounts(summary?.failureCauses)} ` +
     `(actionable=${actionableTotal}, live-suppressed=${policySuppressed})`
@@ -236,7 +246,7 @@ const logUnresolvedImportSamples = ({
   );
   log(`[imports] unresolved reason codes: ${formatUnresolvedReasonCodeCounts(summary?.reasonCodes)}`);
   log(`[imports] unresolved resolver stages: ${formatUnresolvedResolverStageCounts(summary?.resolverStages)}`);
-  const budgetExhausted = Number(summary?.resolverBudgetExhausted || 0);
+  log(`[imports] unresolved resolver adapters: ${formatUnresolvedResolverAdapterCounts(summary?.resolverAdapters)}`);
   if (budgetExhausted > 0) {
     log(
       `[imports] unresolved resolver budgets exhausted: ${budgetExhausted} ` +
@@ -245,8 +255,14 @@ const logUnresolvedImportSamples = ({
   }
   log(`[imports] unresolved actionable hotspots: ${formatUnresolvedActionableHotspots(summary?.actionableHotspots)}`);
   log(`[imports] unresolved actionable languages: ${formatUnresolvedActionableByLanguage(summary?.actionableByLanguage)}`);
-  log(`[imports] unresolved import samples (${visible.length} live of ${total}):`);
-  for (const entry of visible) {
+  if (visible.length === 0 && degradedVisibleFloor > 0) {
+    log(
+      `[imports] retaining ${visibleSamples.length} bounded unresolved sample(s) ` +
+      'despite live suppression because actionable degradation is active.'
+    );
+  }
+  log(`[imports] unresolved import samples (${visibleSamples.length} live of ${total}):`);
+  for (const entry of visibleSamples) {
     const from = entry.importer || '<unknown-importer>';
     const specifier = entry.specifier || '<empty-specifier>';
     const reasonCode = entry.reasonCode || 'IMP_U_UNKNOWN';
@@ -257,18 +273,40 @@ const logUnresolvedImportSamples = ({
       `[reasonCode=${reasonCode}, failureCause=${failureCause}, confidence=${confidence}]`
     );
   }
-  if (visible.length === 0 && policySuppressed > 0) {
+  if (visibleSamples.length === 0 && policySuppressed > 0) {
     log(`[imports] all captured unresolved samples were suppressed by live policy (${policySuppressed}).`);
   }
   const resolverSuppressed = Number.isFinite(suppressed) && suppressed > 0 ? suppressed : 0;
   const capSuppressed = Math.max(0, actionable.length - visible.length);
   const omittedTotal = policySuppressed + capSuppressed + resolverSuppressed;
+  const omittedFailureCauses = Object.entries(summary?.failureCauses || {})
+    .filter(([, count]) => Number(count) > 0)
+    .sort((left, right) => sortStrings(left[0], right[0]))
+    .map(([failureCause]) => failureCause)
+    .slice(0, 8);
+  if (policySuppressed > 0) {
+    log(
+      `[imports] suppression: policy=live count=${policySuppressed} degraded=${degradedRun ? 1 : 0} ` +
+      `visible=${visibleSamples.length} total=${total} actionable=${actionableTotal} ` +
+      `omittedFailureCauses=${omittedFailureCauses.length ? omittedFailureCauses.join(',') : 'none'}`
+    );
+  }
   if (omittedTotal > 0) {
     log(
       `[imports] unresolved imports omitted from live log: ${omittedTotal} ` +
       `(policy=${policySuppressed}, cap=${capSuppressed}, resolver=${resolverSuppressed})`
     );
   }
+  return {
+    suppressionPolicy: policySuppressed > 0 ? 'live' : null,
+    suppressedCount: policySuppressed,
+    resolverSuppressedCount: resolverSuppressed,
+    capSuppressedCount: capSuppressed,
+    omittedTotal,
+    omittedFailureCauses,
+    degradedRun,
+    visibleSampleCount: visibleSamples.length
+  };
 };
 
 /**
@@ -554,19 +592,28 @@ export const postScanImports = async ({
     canonicalStatsSource.unresolvedResolverSuppressed ?? canonicalStatsSource.unresolvedSuppressed
   );
   const unresolvedReasonCodes = toSortedCountObject(
-    canonicalStatsSource.unresolvedByReasonCode || unresolvedTaxonomySample.reasonCodes
+    canonicalStatsSource.unresolvedByReasonCode || unresolvedTaxonomySample.reasonCodes,
+    { nullPrototype: false }
   );
   const unresolvedFailureCauses = toSortedCountObject(
-    canonicalStatsSource.unresolvedByFailureCause || unresolvedTaxonomySample.failureCauses
+    canonicalStatsSource.unresolvedByFailureCause || unresolvedTaxonomySample.failureCauses,
+    { nullPrototype: false }
   );
   const unresolvedDispositions = toSortedCountObject(
-    canonicalStatsSource.unresolvedByDisposition || unresolvedTaxonomySample.dispositions
+    canonicalStatsSource.unresolvedByDisposition || unresolvedTaxonomySample.dispositions,
+    { nullPrototype: false }
   );
   const unresolvedResolverStages = toSortedCountObject(
-    canonicalStatsSource.unresolvedByResolverStage || unresolvedTaxonomySample.resolverStages
+    canonicalStatsSource.unresolvedByResolverStage || unresolvedTaxonomySample.resolverStages,
+    { nullPrototype: false }
+  );
+  const unresolvedResolverAdapters = toSortedCountObject(
+    canonicalStatsSource.unresolvedByAdapter || unresolvedTaxonomySample.resolverAdapters,
+    { nullPrototype: false }
   );
   const unresolvedActionableByLanguage = toSortedCountObject(
-    canonicalStatsSource.unresolvedActionableByLanguage || unresolvedTaxonomySample.actionableByLanguage
+    canonicalStatsSource.unresolvedActionableByLanguage || unresolvedTaxonomySample.actionableByLanguage,
+    { nullPrototype: false }
   );
   const unresolvedActionableHotspots = Array.isArray(canonicalStatsSource.unresolvedActionableHotspots)
     ? canonicalStatsSource.unresolvedActionableHotspots
@@ -621,7 +668,8 @@ export const postScanImports = async ({
     ? Math.floor(resolverBudgetExhausted)
     : 0;
   const resolverBudgetExhaustedByType = toSortedCountObject(
-    canonicalStatsSource.unresolvedBudgetExhaustedByType || resolution?.stats?.unresolvedBudgetExhaustedByType || {}
+    canonicalStatsSource.unresolvedBudgetExhaustedByType || resolution?.stats?.unresolvedBudgetExhaustedByType || {},
+    { nullPrototype: false }
   );
   const unresolvedTaxonomy = {
     total: resolvedUnresolvedTotal,
@@ -632,6 +680,7 @@ export const postScanImports = async ({
     failureCauses: unresolvedFailureCauses,
     dispositions: unresolvedDispositions,
     resolverStages: unresolvedResolverStages,
+    resolverAdapters: unresolvedResolverAdapters,
     actionableHotspots: unresolvedActionableHotspots,
     actionableByLanguage: unresolvedActionableByLanguage,
     actionableRate: unresolvedActionableRate,
@@ -656,6 +705,7 @@ export const postScanImports = async ({
       resolution.graph.stats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
       resolution.graph.stats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
       resolution.graph.stats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
+      resolution.graph.stats.unresolvedByAdapter = unresolvedTaxonomy.resolverAdapters;
       resolution.graph.stats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
       resolution.graph.stats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
       resolution.graph.stats.unresolvedGateEligible = unresolvedGateEligible.unresolved;
@@ -741,6 +791,7 @@ export const postScanImports = async ({
     resolvedStats.unresolvedByFailureCause = unresolvedTaxonomy.failureCauses;
     resolvedStats.unresolvedByDisposition = unresolvedTaxonomy.dispositions;
     resolvedStats.unresolvedByResolverStage = unresolvedTaxonomy.resolverStages;
+    resolvedStats.unresolvedByAdapter = unresolvedTaxonomy.resolverAdapters;
     resolvedStats.unresolvedActionableHotspots = unresolvedTaxonomy.actionableHotspots;
     resolvedStats.unresolvedActionableByLanguage = unresolvedTaxonomy.actionableByLanguage;
     resolvedStats.unresolvedGateEligible = unresolvedGateEligible.unresolved;
@@ -831,13 +882,19 @@ export const postScanImports = async ({
       );
     }
     if (unresolved > 0) {
-      logUnresolvedImportSamples({
+      const unresolvedSuppression = logUnresolvedImportSamples({
         samples: resolvedResult.unresolvedSamples,
         suppressed: resolvedResult.unresolvedSuppressed,
         unresolvedTotal: unresolved,
         taxonomy: resolvedResult.unresolvedTaxonomy,
         alreadyNormalized: true
       });
+      if (resolvedResult?.stats && unresolvedSuppression) {
+        resolvedResult.stats.unresolvedWarningSuppression = unresolvedSuppression;
+      }
+      if (state?.importResolutionGraph?.stats && unresolvedSuppression) {
+        state.importResolutionGraph.stats.unresolvedWarningSuppression = unresolvedSuppression;
+      }
     }
   }
   return resolvedResult;

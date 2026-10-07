@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "usr/usr-capability-transition.schema.json",
+  "title": "usr-capability-transition.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "from",
+    "to",
+    "diagnostic"
+  ],
+  "properties": {
+    "from": {
+      "type": "string",
+      "enum": [
+        "supported",
+        "partial",
+        "unsupported"
+      ]
+    },
+    "to": {
+      "type": "string",
+      "enum": [
+        "supported",
+        "partial",
+        "unsupported"
+      ]
+    },
+    "diagnostic": {
+      "type": "string",
+      "enum": [
+        "USR-W-CAPABILITY-DOWNGRADED",
+        "USR-E-CAPABILITY-LOST"
+      ]
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^USR-R-[A-Z0-9-]+$"
+    }
+  }
+}

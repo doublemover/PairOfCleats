@@ -13,6 +13,7 @@ from ..lib import paths
 from ..lib import results
 from ..lib import runner
 from ..lib import ui
+from ..lib import views
 
 MAP_TYPE_CHOICES = [
     ('combined', 'combined (imports + calls + usages + dataflow)'),
@@ -73,26 +74,6 @@ def _with_map_repo_root(window, on_resolved, path_hint=None):
         allow_fallback=False,
         prompt='PairOfCleats repo for map',
     )
-
-
-def _extract_selection(view):
-    if view is None:
-        return ''
-    for region in view.sel():
-        if not region.empty():
-            return view.substr(region)
-    return ''
-
-
-def _extract_symbol(view):
-    if view is None:
-        return ''
-    selection = view.sel()
-    if not selection:
-        return ''
-    region = selection[0]
-    word = view.word(region)
-    return view.substr(word)
 
 
 def _relative_focus(repo_root, path_value):
@@ -418,13 +399,13 @@ class PairOfCleatsMapCurrentFileCommand(sublime_plugin.WindowCommand):
 
 class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view and self.view.file_name() and _extract_symbol(self.view))
+        return bool(self.view and self.view.file_name() and views.extract_symbol(self.view))
 
     def is_visible(self):
         return bool(self.view and self.view.file_name())
 
     def run(self, edit):
-        symbol = _extract_symbol(self.view)
+        symbol = views.extract_symbol(self.view)
         if not symbol:
             ui.show_status('PairOfCleats: no symbol under cursor.')
             return
@@ -439,13 +420,13 @@ class PairOfCleatsMapSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 class PairOfCleatsMapSelectionCommand(sublime_plugin.TextCommand):
     def is_enabled(self):
-        return bool(self.view and _extract_selection(self.view).strip())
+        return bool(self.view and views.extract_selection(self.view).strip())
 
     def is_visible(self):
         return bool(self.view)
 
     def run(self, edit):
-        selection = _extract_selection(self.view)
+        selection = views.extract_selection(self.view)
         if not selection:
             ui.show_status('PairOfCleats: no selection.')
             return

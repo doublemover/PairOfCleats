@@ -16,6 +16,9 @@ import {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const toPosix = (value) => String(value || '').replace(/[\\/]+/g, '/');
+const normalizeComparablePath = (value) => (
+  process.platform === 'win32' ? toPosix(value).toLowerCase() : toPosix(value)
+);
 
 const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'show-throughput-refresh-cache-'));
 
@@ -115,11 +118,17 @@ try {
 
   const buildA = path.join(cacheRoot, 'builds', 'build-a');
   const buildZ = path.join(cacheRoot, 'builds', 'build-z');
+  const externalBuild = path.join(tempRoot, 'outside-current-build');
   await fsPromises.mkdir(buildA, { recursive: true });
   await fsPromises.mkdir(buildZ, { recursive: true });
+  await fsPromises.mkdir(externalBuild, { recursive: true });
   await fsPromises.writeFile(
     path.join(cacheRoot, 'builds', 'current.json'),
-    JSON.stringify({ buildId: 'build-a' }, null, 2)
+    JSON.stringify({
+      buildId: 'build-a',
+      buildRoot: externalBuild,
+      activeRoot: externalBuild
+    }, null, 2)
   );
 
   const writeBuildState = async (buildRoot, repoMapCount) => {
@@ -145,6 +154,7 @@ try {
   };
   await writeBuildState(buildA, 2);
   await writeBuildState(buildZ, 9);
+  await writeBuildState(externalBuild, 777);
 
   const benchPayload = {
     artifacts: {
@@ -167,8 +177,8 @@ try {
   });
   assert.equal(refreshedBench.changed, true);
   assert.equal(
-    toPosix(refreshedBench.analysis?.buildRoot),
-    toPosix(buildA),
+    normalizeComparablePath(refreshedBench.analysis?.buildRoot),
+    normalizeComparablePath(buildA),
     'expected build-root resolution to prefer current build pointer over directory sort order'
   );
   assert.equal(

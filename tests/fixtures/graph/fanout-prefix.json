@@ -1,0 +1,239 @@
+{
+  "nodes": [
+    {
+      "ref": {
+        "type": "chunk",
+        "chunkUid": "chunk-000"
+      },
+      "distance": 0,
+      "label": "src/seed.js",
+      "file": "src/seed.js",
+      "kind": null,
+      "name": null,
+      "signature": null,
+      "confidence": null
+    },
+    {
+      "ref": {
+        "type": "chunk",
+        "chunkUid": "chunk-001"
+      },
+      "distance": 1,
+      "label": "src/0.js",
+      "file": "src/0.js",
+      "kind": null,
+      "name": null,
+      "signature": null,
+      "confidence": null
+    },
+    {
+      "ref": {
+        "type": "chunk",
+        "chunkUid": "chunk-002"
+      },
+      "distance": 1,
+      "label": "src/1.js",
+      "file": "src/1.js",
+      "kind": null,
+      "name": null,
+      "signature": null,
+      "confidence": null
+    },
+    {
+      "ref": {
+        "type": "chunk",
+        "chunkUid": "chunk-003"
+      },
+      "distance": 1,
+      "label": "src/2.js",
+      "file": "src/2.js",
+      "kind": null,
+      "name": null,
+      "signature": null,
+      "confidence": null
+    }
+  ],
+  "edges": [
+    {
+      "edgeType": "call",
+      "graph": "callGraph",
+      "from": {
+        "type": "chunk",
+        "chunkUid": "chunk-000"
+      },
+      "to": {
+        "type": "chunk",
+        "chunkUid": "chunk-001"
+      },
+      "confidence": null,
+      "evidence": {
+        "callSiteIds": [
+          "site:chunk-000|chunk-001"
+        ]
+      }
+    },
+    {
+      "edgeType": "call",
+      "graph": "callGraph",
+      "from": {
+        "type": "chunk",
+        "chunkUid": "chunk-000"
+      },
+      "to": {
+        "type": "chunk",
+        "chunkUid": "chunk-002"
+      },
+      "confidence": null,
+      "evidence": {
+        "callSiteIds": [
+          "site:chunk-000|chunk-002"
+        ]
+      }
+    },
+    {
+      "edgeType": "call",
+      "graph": "callGraph",
+      "from": {
+        "type": "chunk",
+        "chunkUid": "chunk-000"
+      },
+      "to": {
+        "type": "chunk",
+        "chunkUid": "chunk-003"
+      },
+      "confidence": null,
+      "evidence": {
+        "callSiteIds": [
+          "site:chunk-000|chunk-003"
+        ]
+      }
+    }
+  ],
+  "paths": [
+    {
+      "to": {
+        "type": "chunk",
+        "chunkUid": "chunk-001"
+      },
+      "distance": 1,
+      "nodes": [
+        {
+          "type": "chunk",
+          "chunkUid": "chunk-000"
+        },
+        {
+          "type": "chunk",
+          "chunkUid": "chunk-001"
+        }
+      ],
+      "edges": [
+        {
+          "from": {
+            "type": "chunk",
+            "chunkUid": "chunk-000"
+          },
+          "to": {
+            "type": "chunk",
+            "chunkUid": "chunk-001"
+          },
+          "edgeType": "call"
+        }
+      ]
+    },
+    {
+      "to": {
+        "type": "chunk",
+        "chunkUid": "chunk-002"
+      },
+      "distance": 1,
+      "nodes": [
+        {
+          "type": "chunk",
+          "chunkUid": "chunk-000"
+        },
+        {
+          "type": "chunk",
+          "chunkUid": "chunk-002"
+        }
+      ],
+      "edges": [
+        {
+          "from": {
+            "type": "chunk",
+            "chunkUid": "chunk-000"
+          },
+          "to": {
+            "type": "chunk",
+            "chunkUid": "chunk-002"
+          },
+          "edgeType": "call"
+        }
+      ]
+    },
+    {
+      "to": {
+        "type": "chunk",
+        "chunkUid": "chunk-003"
+      },
+      "distance": 1,
+      "nodes": [
+        {
+          "type": "chunk",
+          "chunkUid": "chunk-000"
+        },
+        {
+          "type": "chunk",
+          "chunkUid": "chunk-003"
+        }
+      ],
+      "edges": [
+        {
+          "from": {
+            "type": "chunk",
+            "chunkUid": "chunk-000"
+          },
+          "to": {
+            "type": "chunk",
+            "chunkUid": "chunk-003"
+          },
+          "edgeType": "call"
+        }
+      ]
+    }
+  ],
+  "truncation": [
+    {
+      "scope": "graph",
+      "cap": "maxCandidates",
+      "limit": 2,
+      "observed": 4,
+      "omitted": 2
+    },
+    {
+      "scope": "graph",
+      "cap": "maxFanoutPerNode",
+      "limit": 3,
+      "observed": 78,
+      "omitted": 75,
+      "at": {
+        "node": "chunk:chunk-000"
+      }
+    }
+  ],
+  "warnings": null,
+  "counts": {
+    "nodesReturned": 4,
+    "edgesReturned": 3,
+    "pathsReturned": 3,
+    "workUnitsUsed": 3
+  },
+  "capsTriggered": {
+    "maxCandidates": 2,
+    "maxFanoutPerNode": 1
+  },
+  "artifactsUsed": {
+    "graphRelations": true,
+    "symbolEdges": true,
+    "callSites": false
+  }
+}

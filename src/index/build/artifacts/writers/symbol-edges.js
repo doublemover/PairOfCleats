@@ -1,13 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import {
-  writeJsonLinesFile,
-  writeJsonLinesFileAsync,
-  writeJsonLinesSharded,
-  writeJsonLinesShardedAsync,
-  writeJsonObjectFile
-} from '../../../../shared/json-stream.js';
-import { fromPosix, toPosix } from '../../../../shared/files.js';
+import { writeJsonLinesFile, writeJsonLinesFileAsync } from '../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesSharded, writeJsonLinesShardedAsync } from '../../../../shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
+import { fromPosix, toPosix } from '../../../../shared/file-paths.js';
 import { mergeSortedRuns } from '../../../../shared/merge.js';
 import {
   compareSymbolEdgeRows,

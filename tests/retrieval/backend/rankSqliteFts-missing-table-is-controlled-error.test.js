@@ -1,42 +1,12 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createSqliteHelpers, RETRIEVAL_FTS_UNAVAILABLE_CODE } from '../../../src/retrieval/sqlite-helpers.js';
+import { RETRIEVAL_FTS_UNAVAILABLE_CODE } from '../../../src/retrieval/sqlite-helpers.js';
+import { createRankSqliteFtsFixture } from './rank-sqlite-fts-fixture.js';
 
-let Database;
-try {
-  ({ default: Database } = await import('better-sqlite3'));
-} catch {
-  console.log('rankSqliteFts missing-table controlled error test skipped: better-sqlite3 not available');
-  process.exit(0);
-}
-
-const db = new Database(':memory:');
-db.exec(`
-  CREATE TABLE chunks (
-    id INTEGER PRIMARY KEY,
-    mode TEXT NOT NULL,
-    weight REAL
-  );
-`);
-
-const vectorAnnState = {
-  code: { available: false },
-  prose: { available: false },
-  records: { available: false },
-  'extracted-prose': { available: false }
-};
-
-const helpers = createSqliteHelpers({
-  getDb: (mode) => (mode === 'code' ? db : null),
-  postingsConfig: {},
-  sqliteFtsWeights: [0, 1, 1, 1, 1, 1, 1, 1],
-  maxCandidates: null,
-  vectorExtension: {},
-  vectorAnnConfigByMode: null,
-  vectorAnnState,
-  queryVectorAnn: () => [],
-  modelIdDefault: 'test-model',
-  fileChargramN: 3
+const { db, helpers } = await createRankSqliteFtsFixture({
+  skipLabel: 'rankSqliteFts missing-table controlled error test',
+  createFts: false,
+  rowCount: 0
 });
 
 const diagnostics = [];

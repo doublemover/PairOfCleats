@@ -1,105 +1,6 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
-import { toPosix } from '../../../shared/files.js';
-import { buildChunksFromLineHeadings, buildLineIndexFromLines } from '../helpers.js';
-import { getTreeSitterOptions } from '../tree-sitter.js';
-
-const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
-  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  const name = rawName || 'section';
-  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
-  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
-  return {
-    ...chunk,
-    name,
-    kind: chunk?.kind || 'ConfigSection',
-    meta: {
-      ...existingMeta,
-      format,
-      title: rawTitle || name
-    }
-  };
-});
-
-const chunkGitHubActions = (text) => {
-  const lines = text.split('\n');
-  const lineIndex = buildLineIndexFromLines(lines);
-  const headings = [];
-  let jobsLine = -1;
-  for (let i = 0; i < lines.length; ++i) {
-    if (/^\s*jobs:\s*$/.test(lines[i])) {
-      jobsLine = i;
-      break;
-    }
-  }
-  if (jobsLine >= 0) {
-    for (let i = jobsLine + 1; i < lines.length; ++i) {
-      const match = lines[i].match(/^\s{2}([A-Za-z0-9_-]+):\s*$/);
-      if (match) headings.push({ line: i, title: match[1] });
-    }
-  }
-  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
-  return chunks || [{ start: 0, end: text.length, name: 'workflow', kind: 'ConfigSection', meta: { format: 'github-actions' } }];
-};
-
-const parseYamlTopLevelKey = (line) => {
-  const quoted = line.match(/^(['"])(.+?)\1\s*:/);
-  if (quoted) return quoted[2].trim();
-  const unquoted = line.match(/^([A-Za-z0-9_.-]+)\s*:/);
-  if (unquoted) return unquoted[1].trim();
-  return null;
-};
-
-const collectYamlDocumentBoundaries = (lines, lineIndex) => {
-  const boundaries = [0];
-  for (let i = 0; i < lines.length; ++i) {
-    if (!/^\s*---(?:\s+#.*)?\s*$/.test(lines[i])) continue;
-    const offset = Number.isFinite(lineIndex[i]) ? lineIndex[i] : 0;
-    if (offset <= 0) continue;
-    boundaries.push(offset);
-  }
-  boundaries.sort((a, b) => a - b);
-  return boundaries;
-};
-
-const resolveDocumentIndex = (offset, boundaries) => {
-  if (!Number.isFinite(offset) || !Array.isArray(boundaries) || boundaries.length === 0) return 0;
-  let index = 0;
-  for (let i = 1; i < boundaries.length; ++i) {
-    if (offset < boundaries[i]) break;
-    index = i;
-  }
-  return index;
-};
-
-const chunkYamlTopLevel = (text) => {
-  const lines = text.split('\n');
-  const lineIndex = buildLineIndexFromLines(lines);
-  const documentBoundaries = collectYamlDocumentBoundaries(lines, lineIndex);
-  const headings = [];
-  for (let i = 0; i < lines.length; ++i) {
-    const line = lines[i];
-    if (!line || line.trim().length === 0) continue;
-    if (line.startsWith(' ') || line.startsWith('\t')) continue;
-    const trimmed = line.trim();
-    if (trimmed.startsWith('#') || trimmed === '---' || trimmed === '...') continue;
-    if (trimmed.startsWith('-')) continue;
-    const key = parseYamlTopLevelKey(line);
-    if (key) headings.push({ line: i, title: key });
-  }
-  const chunks = buildChunksFromLineHeadings(text, headings, lineIndex);
-  return chunks && chunks.length
-    ? chunks.map((chunk) => ({
-      ...chunk,
-      kind: 'ConfigSection',
-      meta: {
-        ...(chunk.meta || {}),
-        format: 'yaml',
-        title: chunk.name,
-        documentIndex: resolveDocumentIndex(chunk.start, documentBoundaries)
-      }
-    }))
-    : null;
-};
+import { toPosix } from '../../../shared/file-paths.js';
+import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
+import { parseYamlStructure } from '../../../shared/yaml-structure.js';
 
 const resolveYamlChunkMode = (text, context) => {
   const config = context?.yamlChunking || {};
@@ -115,23 +16,54 @@ const resolveYamlChunkMode = (text, context) => {
   return mode;
 };
 
-export function chunkYaml(text, relPath, context) {
+export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = () => performance.now() } = {}) => (text, relPath, context) => {
+  const source = String(text || '');
   const relPosix = relPath ? toPosix(relPath) : '';
-  const isWorkflow = relPosix.includes('.github/workflows/');
-  if (isWorkflow) return chunkGitHubActions(text);
-  if (context?.treeSitter?.configChunking === true) {
-    const treeChunks = buildTreeSitterChunks({
-      text,
-      languageId: 'yaml',
-      ext: '.yaml',
-      options: getTreeSitterOptions(context)
-    });
-    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, 'yaml');
+  const workflow = relPosix.includes('.github/workflows/');
+  if (!workflow) {
+    const treeChunks = buildConfigTreeSitterChunks({ text: source, context, languageId: 'yaml', ext: '.yaml', format: 'yaml' });
+    if (treeChunks) return treeChunks;
+    if (resolveYamlChunkMode(source, context) !== 'top-level') {
+      return [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta: { format: 'yaml' } }];
+    }
   }
-  const mode = resolveYamlChunkMode(text, context);
-  if (mode === 'top-level') {
-    const chunks = chunkYamlTopLevel(text);
-    if (chunks && chunks.length) return chunks;
+  parseStructure.initialize?.();
+  const started = Number(now());
+  const requested = Number(context?.treeSitter?.byLanguage?.yaml?.maxParseMs ?? context?.treeSitter?.maxParseMs);
+  const ownerLimitMs = Number.isFinite(requested) && requested > 0 ? Math.max(1, Math.min(30, Math.floor(requested))) : 30;
+  const elapsed = () => Math.max(0, Number(now()) - started);
+  const structure = parseStructure(source, { maxMs: ownerLimitMs });
+  const outputMetrics = { ...structure.metrics, ownerLimitMs };
+  const meta = { format: workflow ? 'github-actions' : 'yaml', parser: structure.parser,
+    parserCoverage: structure.coverage, parserFallbackReason: structure.reason, parseMetrics: outputMetrics,
+    rangeSource: structure.rangeSource, unresolvedAliases: structure.unresolvedAliases, unresolvedTags: structure.unresolvedTags,
+    parserWarningCodes: structure.warningCodes };
+  const headings = workflow ? structure.jobs : structure.properties;
+  const chunks = [];
+  const expired = () => {
+    const measured = elapsed();
+    outputMetrics.ownerElapsedMs = measured;
+    if (Number.isFinite(measured) && measured < ownerLimitMs) return false;
+    meta.parser = 'yaml-unavailable';
+    meta.parserCoverage = 'unavailable';
+    meta.parserFallbackReason = 'time-limit';
+    meta.rangeSource = undefined;
+    outputMetrics.ownerMeasuredOverrunMs = Math.max(0, measured - ownerLimitMs);
+    return true;
+  };
+  const unavailable = () => [{ start: 0, end: source.length, name: workflow ? 'workflow' : 'root', kind: 'ConfigSection', meta }];
+  if (structure.reason || expired() || !headings.length) return unavailable();
+  for (let index = 0; index < headings.length; index += 1) {
+    if (expired()) return unavailable();
+    const heading = headings[index];
+    chunks.push({ start: heading.sectionStart, end: headings[index + 1]?.sectionStart ?? source.length,
+      name: heading.name, kind: 'ConfigSection', meta: { ...meta, title: heading.name, documentIndex: heading.documentIndex,
+        keyRange: heading.keyRange, valueRange: heading.valueRange, propertyRange: heading.propertyRange,
+        sectionRangeSource: 'application-line-boundaries', propertyRangeSource: 'application-key/value-span' } });
   }
-  return [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format: 'yaml' } }];
-}
+  if (expired()) return unavailable();
+  Object.freeze(outputMetrics);
+  return chunks;
+};
+
+export const chunkYaml = createYamlChunker();

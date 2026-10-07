@@ -62,11 +62,11 @@ Out of scope:
 
 Minimum suite:
 
-- `tests/indexing/tree-sitter/tree-sitter-scheduler-native-smoke.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-scheduler-native-plan-contract.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-scheduler-native-determinism.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-scheduler-stage1-contract.test.js`
-- `tests/indexing/tree-sitter/tree-sitter-scheduler-swift-subprocess.test.js`
+- `tests/indexing/tree-sitter/scheduler-native-smoke.test.js`
+- `tests/indexing/tree-sitter/scheduler-native-plan-contract.test.js`
+- `tests/indexing/tree-sitter/scheduler-native-determinism.test.js`
+- `tests/indexing/tree-sitter/scheduler-stage1-contract.test.js`
+- `tests/indexing/tree-sitter/scheduler-swift-subprocess.test.js`
 
 ## Compatibility policy
 

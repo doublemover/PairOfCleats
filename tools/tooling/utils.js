@@ -3,8 +3,10 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
-import { findBinaryInDirs, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
-import { toPosix } from '../../src/shared/files.js';
+import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
+import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
+import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
+import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
   resolveGlobalComposerBinDirs,
   resolveGlobalDotnetBinDirs,
@@ -17,10 +19,13 @@ import {
   resolveEnvPath as resolveSharedEnvPath,
   resolvePathEnvKey as resolveSharedPathEnvKey
 } from '../../src/shared/env-path.js';
-import { getToolingConfig } from '../shared/dict-utils.js';
+import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
+import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
+
+const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
 const LANGUAGE_EXTENSIONS = {
-  javascript: ['.js', '.mjs', '.cjs'],
+  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
   typescript: ['.ts', '.tsx', '.mts', '.cts'],
   python: ['.py', '.pyi'],
   c: ['.c', '.h'],
@@ -90,7 +95,7 @@ const TOOL_DOCS = {
   'lua-language-server': 'https://github.com/LuaLS/lua-language-server',
   'yaml-language-server': 'https://github.com/redhat-developer/yaml-language-server',
   zls: 'https://github.com/zigtools/zls',
-  sqls: 'https://github.com/lighttiger2505/sqls'
+  sqls: 'https://github.com/sqls-server/sqls'
 };
 
 const PREFERRED_TOOL_BY_LANGUAGE = {
@@ -181,7 +186,7 @@ function resolveDetectArgCandidates(tool) {
 function probeWithArgCandidates(cmd, argCandidates) {
   const attempts = [];
   for (const args of argCandidates) {
-    const probe = probeCommand(cmd, args, { timeoutMs: 4000 });
+    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd: resolveToolRoot() });
     attempts.push({
       args,
       outcome: probe.outcome,
@@ -207,6 +212,49 @@ function probeWithArgCandidates(cmd, argCandidates) {
     outcome: preferred,
     attempts
   };
+}
+
+function applyToolLayoutValidation(tool, detectedPath, probe) {
+  let validation = validateResolvedToolingCommandLayout({
+    providerId: tool?.id || tool?.detect?.cmd || '',
+    resolvedCmd: detectedPath,
+    toolingConfig: null
+  });
+  if (
+    validation.ok === true
+    && String(tool?.id || '').trim() === 'lua-language-server'
+    && detectedPath
+    && Array.isArray(tool?.detect?.binDirs)
+  ) {
+    const normalizedDetectedPath = path.resolve(String(detectedPath));
+    const insideManagedBinDir = tool.detect.binDirs.some((dir) => {
+      const candidateDir = String(dir || '').trim();
+      if (!candidateDir) return false;
+      const normalizedCandidateDir = path.resolve(candidateDir);
+      const left = process.platform === 'win32' ? normalizedDetectedPath.toLowerCase() : normalizedDetectedPath;
+      const right = process.platform === 'win32' ? normalizedCandidateDir.toLowerCase() : normalizedCandidateDir;
+      return left === right || left.startsWith(`${right}${path.sep}`);
+    });
+    if (insideManagedBinDir) {
+      const expectedMainLua = path.join(path.dirname(detectedPath), 'main.lua');
+      if (!fs.existsSync(expectedMainLua)) {
+        validation = {
+          ok: false,
+          reasonCode: 'broken-layout',
+          message: `lua-language-server managed install is missing runtime entry "${expectedMainLua}".`
+        };
+      }
+    }
+  }
+  if (probe?.ok === true && validation.ok === false) {
+    return {
+      ...probe,
+      ok: false,
+      outcome: 'broken-layout',
+      validationFailure: validation
+    };
+  }
+  return probe;
 }
 
 async function scanRepo(root) {
@@ -292,11 +340,16 @@ export async function detectRepoLanguages(root) {
 }
 
 export function getToolingRegistry(toolingRoot, repoRoot) {
+  const implementationRoot = resolveToolRoot();
+  // Newer TypeScript distributions may omit the tsserver/JavaScript compiler
+  // API used by our provider. Match the project's supported dependency range.
+  const typescriptPackage = `typescript@${packageMetadata.dependencies.typescript}`;
   const absoluteToolingRoot = path.resolve(toolingRoot);
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
   const nodeDir = path.join(absoluteToolingRoot, 'node');
-  const repoNodeBin = path.join(repoRoot, 'node_modules', '.bin');
+  const repoNodeBin = isRepoTrusted(repoRoot)
+    ? [path.join(repoRoot, 'node_modules', '.bin')] : [];
   const gemsDir = path.join(absoluteToolingRoot, 'gems');
   const globalDotnetBins = resolveGlobalDotnetBinDirs();
   const globalGemBins = resolveGlobalGemBinDirs();
@@ -308,10 +361,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'tsserver',
       label: 'TypeScript server',
       languages: ['typescript'],
-      detect: { cmd: 'tsserver', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'tsserver', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
-        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript'] },
-        user: { cmd: 'npm', args: ['install', '-g', 'typescript'] }
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, typescriptPackage] },
+        user: { cmd: 'npm', args: ['install', '-g', typescriptPackage] }
       },
       docs: TOOL_DOCS.tsserver
     },
@@ -319,10 +372,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'typescript-language-server',
       label: 'TypeScript language server',
       languages: ['typescript'],
-      detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'typescript-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
-        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server'] },
-        user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server'] }
+        cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'typescript-language-server', typescriptPackage] },
+        user: { cmd: 'npm', args: ['install', '-g', 'typescript-language-server', typescriptPackage] }
       },
       docs: TOOL_DOCS['typescript-language-server']
     },
@@ -330,10 +383,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'clangd',
       label: 'clangd',
       languages: ['c', 'cpp', 'objc'],
-      detect: { cmd: 'clangd', args: ['--version'], binDirs: [] },
-      install: {
-        manual: true
-      },
+      detect: { cmd: 'clangd', args: ['--version'], binDirs: [resolveManagedClangd(absoluteToolingRoot)?.binDir].filter(Boolean) },
+      install: resolveClangdArchiveTarget() ? { cache: { cmd: process.execPath,
+        args: [path.join(implementationRoot, 'tools/tooling/install-clangd.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot] } }
+        : { manual: true },
       docs: TOOL_DOCS.clangd
     },
     {
@@ -350,7 +403,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'pyright',
       label: 'Pyright',
       languages: ['python'],
-      detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'pyright-langserver', args: ['--help'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'pyright'] },
         user: { cmd: 'npm', args: ['install', '-g', 'pyright'] }
@@ -488,14 +541,15 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['php'],
       detect: { cmd: 'phpactor', args: ['--version'], binDirs: [binDir, composerBin, ...globalComposerBins, ...globalPhpactorBins] },
       install: {
+        manual: true,
         cache: {
           cmd: process.execPath,
-          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
           requires: 'php'
         },
         user: {
           cmd: process.execPath,
-          args: [path.join(repoRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
           requires: 'php'
         }
       },
@@ -505,7 +559,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'intelephense',
       label: 'Intelephense',
       languages: ['php'],
-      detect: { cmd: 'intelephense', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'intelephense', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'intelephense'] },
         user: { cmd: 'npm', args: ['install', '-g', 'intelephense'] }
@@ -518,7 +572,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['lua'],
       detect: { cmd: 'lua-language-server', args: ['-v'], binDirs: [binDir] },
       install: {
-        manual: true
+        cache: {
+          cmd: process.execPath,
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-lua-language-server.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot]
+        }
       },
       docs: TOOL_DOCS['lua-language-server']
     },
@@ -526,7 +583,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'yaml-language-server',
       label: 'yaml-language-server',
       languages: ['yaml'],
-      detect: { cmd: 'yaml-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'yaml-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'yaml-language-server'] },
         user: { cmd: 'npm', args: ['install', '-g', 'yaml-language-server'] }
@@ -547,7 +604,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       id: 'bash-language-server',
       label: 'bash-language-server',
       languages: ['shell'],
-      detect: { cmd: 'bash-language-server', args: ['--version'], binDirs: [repoNodeBin, nodeBin] },
+      detect: { cmd: 'bash-language-server', args: ['--version'], binDirs: [...repoNodeBin, nodeBin] },
       install: {
         cache: { cmd: 'npm', args: ['install', '--prefix', nodeDir, 'bash-language-server'] },
         user: { cmd: 'npm', args: ['install', '-g', 'bash-language-server'] }
@@ -560,13 +617,18 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['sql'],
       detect: { cmd: 'sqls', args: ['version'], binDirs: [binDir] },
       install: {
-        cache: { cmd: 'go', args: ['install', 'github.com/lighttiger2505/sqls@latest'], env: { GOBIN: binDir }, requires: 'go' },
-        user: { cmd: 'go', args: ['install', 'github.com/lighttiger2505/sqls@latest'], requires: 'go' }
+        cache: { cmd: 'go', args: ['install', 'github.com/sqls-server/sqls@latest'], env: { GOBIN: binDir }, requires: 'go' },
+        user: { cmd: 'go', args: ['install', 'github.com/sqls-server/sqls@latest'], requires: 'go' }
       },
       docs: TOOL_DOCS.sqls
     }
-  ];
+  ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot }));
 }
+
+export const getToolProviderAliases = (toolId) => {
+  const dedicated = { tsserver: 'typescript', 'typescript-language-server': 'typescript', 'sourcekit-lsp': 'sourcekit' };
+  return [toolId, `lsp-${toolId}`, ...(dedicated[toolId] ? [dedicated[toolId]] : [])];
+};
 
 function filterToolsByConfig(tools, toolingConfig) {
   const enabled = Array.isArray(toolingConfig?.enabledTools) ? toolingConfig.enabledTools : [];
@@ -574,11 +636,11 @@ function filterToolsByConfig(tools, toolingConfig) {
   let filtered = tools;
   if (enabled.length) {
     const enabledSet = new Set(enabled);
-    filtered = filtered.filter((tool) => enabledSet.has(tool.id));
+    filtered = filtered.filter((tool) => getToolProviderAliases(tool.id).some((id) => enabledSet.has(id)));
   }
   if (disabled.length) {
     const disabledSet = new Set(disabled);
-    filtered = filtered.filter((tool) => !disabledSet.has(tool.id));
+    filtered = filtered.filter((tool) => !getToolProviderAliases(tool.id).some((id) => disabledSet.has(id)));
   }
   return filtered;
 }
@@ -613,27 +675,54 @@ export function resolveToolsById(ids, toolingRoot, repoRoot, toolingConfig = nul
 }
 
 export function detectTool(tool) {
+  if (!tool?.detect?.cmd) return { found: false, path: null, source: null, probe: null };
+  const candidate = (path.isAbsolute(tool.detect.cmd) && fs.existsSync(tool.detect.cmd) ? tool.detect.cmd : null)
+    || findBinaryInDirs(tool.detect.cmd, tool.detect.binDirs || [])
+    || findBinaryOnPath(tool.detect.cmd);
+  if (candidate && tool.authorityRepoRoot && !isRepoTrusted(tool.authorityRepoRoot)) {
+    const canonical = fs.realpathSync(candidate);
+    const physicalRepo = fs.realpathSync(tool.authorityRepoRoot);
+    if ((isPathWithinRoot(canonical, physicalRepo)
+      || isPathWithinRoot(path.resolve(candidate), physicalRepo)
+      || isPathWithinRoot(path.resolve(candidate), path.resolve(tool.authorityRepoRoot)))
+      && !isApplicationOwnedCommand({ commandPath: candidate, repoRoot: tool.authorityRepoRoot, toolRoot: resolveToolRoot() })) {
+      return { found: false, path: null, source: 'blocked', probe: { ok: false, attempted: [] } };
+    }
+  }
   const detectCmd = String(tool?.detect?.cmd || '');
   const detectArgCandidates = resolveDetectArgCandidates(tool);
   const binDirs = tool.detect?.binDirs || [];
+  let lastProbe = null;
+  const rememberProbe = (probe) => {
+    if (!probe || typeof probe !== 'object') return;
+    if (!lastProbe) {
+      lastProbe = probe;
+      return;
+    }
+    if (lastProbe.validationFailure && !probe.validationFailure) return;
+    lastProbe = probe;
+  };
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const probe = probeWithArgCandidates(binPath, detectArgCandidates);
+    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates));
+    rememberProbe(probe);
     if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const probe = probeWithArgCandidates(tool.detect.cmd, detectArgCandidates);
+  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates));
+  rememberProbe(probe);
   if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const pathFound = findBinaryInDirs(detectCmd, pathEntries);
   if (pathFound) {
-    const pathProbe = probeWithArgCandidates(pathFound, detectArgCandidates);
+    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates));
+    rememberProbe(pathProbe);
     if (pathProbe.ok === true) {
       return { found: true, path: pathFound, source: 'path', probe: pathProbe };
     }
   }
-  return { found: false, path: null, source: null, probe };
+  return { found: false, path: null, source: null, probe: lastProbe };
 }
 
 export function selectInstallPlan(tool, scope, allowFallback) {

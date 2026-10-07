@@ -22,5 +22,5 @@ Error payloads should include:
 Contract assertions live in:
 
 - `tests/cli/error-contract.test.js`
-- `tests/services/api/router-smoke.test.js`
+- `tests/services/api/router-contract-matrix.test.js`
 - `tests/services/mcp/errors.test.js`

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
+import { runNode } from '../../../helpers/run-node.js';
+import { assertMissingIngestInputFailsCleanly } from '../missing-input-helper.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'lsif-ingest');
@@ -17,10 +18,12 @@ const outPath = path.join(tempRoot, 'lsif.jsonl');
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
 
-const result = spawnSync(
-  process.execPath,
+const result = runNode(
   [cliPath, 'ingest', 'lsif', '--repo', repoRoot, '--input', inputPath, '--out', outPath, '--json'],
-  { encoding: 'utf8' }
+  'lsif ingest',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (result.status !== 0) {
   console.error(result.stderr || result.stdout || 'lsif-ingest failed');
@@ -67,10 +70,12 @@ await fsPromises.writeFile(escapeInputPath, [
   JSON.stringify({ id: 301, type: 'edge', label: 'item', outV: 11, inVs: [101] }),
   JSON.stringify({ id: 302, type: 'edge', label: 'item', outV: 12, inVs: [102] })
 ].join('\n'));
-const escapeResult = spawnSync(
-  process.execPath,
+const escapeResult = runNode(
   [cliPath, 'ingest', 'lsif', '--repo', repoRoot, '--input', escapeInputPath, '--out', escapeOutPath, '--json'],
-  { encoding: 'utf8' }
+  'lsif escape ingest',
+  root,
+  process.env,
+  { stdio: 'pipe', allowFailure: true }
 );
 if (escapeResult.status !== 0) {
   console.error(escapeResult.stderr || escapeResult.stdout || 'lsif escape ingest failed');
@@ -84,18 +89,13 @@ assert.ok(escapedLines.every((entry) => !/^[A-Za-z]:\//.test(entry.file)));
 assert.ok(escapedLines.every((entry) => !entry.file.startsWith('/')));
 
 const missingInputPath = path.join(tempRoot, 'missing.lsif');
-const missingResult = spawnSync(
-  process.execPath,
-  [cliPath, 'ingest', 'lsif', '--repo', repoRoot, '--input', missingInputPath, '--out', path.join(tempRoot, 'missing.jsonl'), '--json'],
-  { encoding: 'utf8' }
-);
-assert.notEqual(missingResult.status, 0, 'expected missing input to fail');
-const missingOutput = `${missingResult.stderr || ''}${missingResult.stdout || ''}`;
-assert.equal(
-  missingOutput.includes("Unhandled 'error' event"),
-  false,
-  'expected missing input failure to avoid unhandled stream error'
-);
+assertMissingIngestInputFailsCleanly({
+  cliPath,
+  kind: 'lsif',
+  repoRoot,
+  missingInputPath,
+  outPath: path.join(tempRoot, 'missing.jsonl')
+});
 
 console.log('lsif ingest test passed');
 

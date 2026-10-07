@@ -1,9 +1,14 @@
 import fsSync from 'node:fs';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
 import {
+  checkpointSqliteWithTelemetry,
+  createSqliteTableStatRecorder,
   hasRequiredTables,
+  recordSqlitePlanTelemetry,
+  recordSqliteWalSnapshot,
   removeSqliteSidecars,
-  resolveSqliteBatchSize,
+  resolveExpectedDenseCount,
+  resolveSqliteIngestPlan,
   bumpSqliteBatchStat
 } from '../utils.js';
 import { createUint8ClampStats } from '../vector.js';
@@ -31,25 +36,6 @@ const VOCAB_GROWTH_LIMITS = {
   token_vocab: { ratio: 0.4, absolute: 200000 },
   phrase_vocab: { ratio: 0.5, absolute: 150000 },
   chargram_vocab: { ratio: 1.0, absolute: 250000 }
-};
-
-/**
- * Resolve how many dense vectors a payload expects, supporting both current
- * and legacy dense metadata shapes.
- *
- * @param {object|null} denseVec
- * @returns {number}
- */
-const resolveExpectedDenseCount = (denseVec) => {
-  if (!denseVec || typeof denseVec !== 'object') return 0;
-  const fields = denseVec.fields && typeof denseVec.fields === 'object' ? denseVec.fields : null;
-  const fromCount = Number(denseVec.count ?? fields?.count);
-  if (Number.isFinite(fromCount) && fromCount > 0) return Math.floor(fromCount);
-  const fromTotalRecords = Number(denseVec.totalRecords ?? fields?.totalRecords);
-  if (Number.isFinite(fromTotalRecords) && fromTotalRecords > 0) return Math.floor(fromTotalRecords);
-  const vectors = denseVec.vectors ?? denseVec.arrays?.vectors;
-  if (Array.isArray(vectors) && vectors.length > 0) return vectors.length;
-  return 0;
 };
 
 /**
@@ -141,27 +127,25 @@ export async function incrementalUpdateDatabase({
     }
     console.warn(message);
   };
-  const resolvedBatchSize = resolveSqliteBatchSize({ batchSize, inputBytes });
+  const ingestPlan = resolveSqliteIngestPlan({ batchSize, inputBytes });
+  const resolvedBatchSize = ingestPlan.batchSize;
   const denseClampStats = createUint8ClampStats();
   const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
   const batchStats = stats && typeof stats === 'object' ? stats : null;
   const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
+    batchStats.ingestPlan = {
+      batchSize: ingestPlan.batchSize,
+      transactionRows: ingestPlan.transactionRows,
+      batchesPerTransaction: ingestPlan.batchesPerTransaction,
+      filesPerTransaction: ingestPlan.filesPerTransaction,
+      repoTier: ingestPlan.repoTier,
+      walPressure: ingestPlan.walPressure
+    };
+    recordSqlitePlanTelemetry(batchStats, ingestPlan, { source: 'incremental' });
   }
-  const tableStats = batchStats
-    ? (batchStats.tables || (batchStats.tables = {}))
-    : null;
-  const recordTable = (name, rows, durationMs) => {
-    if (!tableStats || !name) return;
-    const entry = tableStats[name] || { rows: 0, durationMs: 0, rowsPerSec: null };
-    entry.rows += rows;
-    entry.durationMs += durationMs;
-    entry.rowsPerSec = entry.durationMs > 0
-      ? Math.round((entry.rows / entry.durationMs) * 1000)
-      : null;
-    tableStats[name] = entry;
-  };
+  const recordTable = createSqliteTableStatRecorder(batchStats);
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
@@ -176,7 +160,11 @@ export async function incrementalUpdateDatabase({
 
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
-  const pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
+  // Establish cleanup ownership before any fallible initialization runs.
+  let pragmaState = null;
+  let pageSize = ingestPlan.pageSize;
+  let journalMode = ingestPlan.journalMode;
+  let walEnabled = ingestPlan.walEnabled === true;
   let dbClosed = false;
 
   /**
@@ -190,7 +178,16 @@ export async function incrementalUpdateDatabase({
     if (dbClosed) return;
     dbClosed = true;
     try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      checkpointSqliteWithTelemetry(db, {
+        stats: batchStats,
+        dbPath: outPath,
+        stage: 'close',
+        pageSize,
+        journalMode,
+        walEnabled,
+        walPressure: ingestPlan.walPressure,
+        source: 'incremental'
+      });
     } catch {}
     if (pragmaState) {
       try {
@@ -204,175 +201,189 @@ export async function incrementalUpdateDatabase({
       await removeSqliteSidecars(outPath);
     } catch {}
   };
-  const schemaVersion = getSchemaVersion(db);
-  if (schemaVersion !== SCHEMA_VERSION) {
-    await finalize();
-    return {
-      used: false,
-      reason: `schema mismatch (db=${schemaVersion ?? 'unknown'}, expected=${SCHEMA_VERSION})`
-    };
-  }
-
-  if (!hasRequiredTables(db, REQUIRED_TABLES)) {
-    await finalize();
-    return { used: false, reason: 'schema missing' };
-  }
-
-  const changePlan = resolveIncrementalChangePlan({
-    db,
-    mode,
-    manifest: incrementalData.manifest,
-    evaluateChangeGuard: evaluateIncrementalChangeGuard
-  });
-  if (!changePlan.ok) {
-    await finalize();
-    return {
-      used: false,
-      reason: changePlan.reason,
-      ...(changePlan.changeSummary || {})
-    };
-  }
-  const {
-    changed,
-    deleted,
-    manifestUpdates,
-    changeSummary
-  } = changePlan;
-  if (!changed.length && !deleted.length && !manifestUpdates.length) {
-    await finalize();
-    return { used: true, insertedChunks: 0, ...changeSummary };
-  }
-
-  const dbDenseMeta = db.prepare(
-    'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
-  ).get(mode);
-  const dbDims = Number.isFinite(dbDenseMeta?.dims) ? dbDenseMeta.dims : null;
-  const dbModel = dbDenseMeta?.model || null;
-  const configQuantization = resolveQuantizationParams(vectorConfig?.quantization);
-  const dbQuantization = dbDenseMeta
-    ? resolveQuantizationParams({
-      minVal: dbDenseMeta?.min_val,
-      maxVal: dbDenseMeta?.max_val,
-      levels: dbDenseMeta?.levels
-    })
-    : configQuantization;
-  const quantization = dbDenseMeta ? dbQuantization : configQuantization;
-  if (expectedDenseRequired && !dbDenseMeta) {
-    if (emitOutput) {
-      warn(`[sqlite] ${mode} incremental update: dense metadata missing; rebuilding dense_meta from incremental vectors.`);
-    }
-  }
-  if (expectedModel) {
-    if (dbDenseMeta && !dbModel) {
-      await finalize();
-      return { used: false, reason: 'dense metadata model missing', ...changeSummary };
-    }
-    if (dbDenseMeta && dbModel !== expectedModel) {
-      await finalize();
+  try {
+    pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
+    const pageSizeRaw = Number(db.pragma('page_size', { simple: true }));
+    pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0 ? pageSizeRaw : ingestPlan.pageSize;
+    const journalModeRaw = db.pragma('journal_mode', { simple: true });
+    journalMode = typeof journalModeRaw === 'string'
+      ? journalModeRaw.trim().toLowerCase()
+      : ingestPlan.journalMode;
+    walEnabled = journalMode === 'wal' || ingestPlan.walEnabled === true;
+    recordSqliteWalSnapshot(batchStats, {
+      stage: 'open',
+      dbPath: outPath,
+      pageSize,
+      journalMode,
+      walEnabled,
+      walPressure: ingestPlan.walPressure,
+      source: 'incremental'
+    });
+    const schemaVersion = getSchemaVersion(db);
+    if (schemaVersion !== SCHEMA_VERSION) {
       return {
         used: false,
-        reason: `model mismatch (db=${dbModel}, expected=${expectedModel})`,
+        reason: `schema mismatch (db=${schemaVersion ?? 'unknown'}, expected=${SCHEMA_VERSION})`
+      };
+    }
+
+    if (!hasRequiredTables(db, REQUIRED_TABLES)) {
+      return { used: false, reason: 'schema missing' };
+    }
+
+    const changePlan = resolveIncrementalChangePlan({
+      db,
+      mode,
+      manifest: incrementalData.manifest,
+      evaluateChangeGuard: evaluateIncrementalChangeGuard
+    });
+    if (!changePlan.ok) {
+      return {
+        used: false,
+        reason: changePlan.reason,
+        ...(changePlan.changeSummary || {})
+      };
+    }
+    const {
+      changed,
+      deleted,
+      manifestUpdates,
+      changeSummary
+    } = changePlan;
+    if (!changed.length && !deleted.length && !manifestUpdates.length) {
+      return { used: true, insertedChunks: 0, ...changeSummary };
+    }
+
+    const dbDenseMeta = db.prepare(
+      'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
+    ).get(mode);
+    const dbDims = Number.isFinite(dbDenseMeta?.dims) ? dbDenseMeta.dims : null;
+    const dbModel = dbDenseMeta?.model || null;
+    const configQuantization = resolveQuantizationParams(vectorConfig?.quantization);
+    const dbQuantization = dbDenseMeta
+      ? resolveQuantizationParams({
+        minVal: dbDenseMeta?.min_val,
+        maxVal: dbDenseMeta?.max_val,
+        levels: dbDenseMeta?.levels
+      })
+      : configQuantization;
+    const quantization = dbDenseMeta ? dbQuantization : configQuantization;
+    if (expectedDenseRequired && !dbDenseMeta) {
+      if (emitOutput) {
+        warn(`[sqlite] ${mode} incremental update: dense metadata missing; rebuilding dense_meta from incremental vectors.`);
+      }
+    }
+    if (expectedModel) {
+      if (dbDenseMeta && !dbModel) {
+        return { used: false, reason: 'dense metadata model missing', ...changeSummary };
+      }
+      if (dbDenseMeta && dbModel !== expectedModel) {
+        return {
+          used: false,
+          reason: `model mismatch (db=${dbModel}, expected=${expectedModel})`,
+          ...changeSummary
+        };
+      }
+    }
+    if (expectedDims !== null) {
+      if (dbDenseMeta && dbDims === null) {
+        return { used: false, reason: 'dense metadata dims missing', ...changeSummary };
+      }
+      if (dbDenseMeta && dbDims !== expectedDims) {
+        return {
+          used: false,
+          reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})`,
+          ...changeSummary
+        };
+      }
+    }
+
+    const updateFileManifest = db.prepare(
+      'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
+    );
+    if (!changed.length && !deleted.length) {
+      const updateTx = db.transaction(() => {
+        for (const record of manifestUpdates) {
+          const normalizedFile = record.normalized;
+          const entry = record.entry || {};
+          updateFileManifest.run(
+            entry?.hash || null,
+            Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
+            Number.isFinite(entry?.size) ? entry.size : null,
+            mode,
+            normalizedFile
+          );
+        }
+      });
+      updateTx();
+      try {
+        checkpointSqliteWithTelemetry(db, {
+          stats: batchStats,
+          dbPath: outPath,
+          stage: 'manifest-only',
+          pageSize,
+          journalMode,
+          walEnabled,
+          walPressure: ingestPlan.walPressure,
+          source: 'incremental'
+        });
+      } catch (err) {
+        if (emitOutput) {
+          warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
+        }
+      }
+      return { used: true, insertedChunks: 0, ...changeSummary };
+    }
+
+    const bundlePlan = await loadBundlesAndCollectState({
+      changed,
+      bundleDir: incrementalData.bundleDir
+    });
+    if (!bundlePlan.ok) {
+      return { used: false, reason: bundlePlan.reason, ...changeSummary };
+    }
+    const {
+      bundles,
+      tokenValues,
+      phraseValues,
+      chargramValues,
+      incomingDims
+    } = bundlePlan;
+    if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
+      return {
+        used: false,
+        reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})`,
         ...changeSummary
       };
     }
-  }
-  if (expectedDims !== null) {
-    if (dbDenseMeta && dbDims === null) {
-      await finalize();
-      return { used: false, reason: 'dense metadata dims missing', ...changeSummary };
-    }
-    if (dbDenseMeta && dbDims !== expectedDims) {
-      await finalize();
+    if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
       return {
         used: false,
-        reason: `dense dims mismatch (db=${dbDims}, expected=${expectedDims})`,
+        reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})`,
         ...changeSummary
       };
     }
-  }
 
-  const updateFileManifest = db.prepare(
-    'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
-  );
-  if (!changed.length && !deleted.length) {
-    const updateTx = db.transaction(() => {
-      for (const record of manifestUpdates) {
-        const normalizedFile = record.normalized;
-        const entry = record.entry || {};
-        updateFileManifest.run(
-          entry?.hash || null,
-          Number.isFinite(entry?.mtimeMs) ? entry.mtimeMs : null,
-          Number.isFinite(entry?.size) ? entry.size : null,
-          mode,
-          normalizedFile
-        );
+    const statements = createInsertStatements(db);
+    const docIdResolver = createIncrementalDocIdResolver({
+      db,
+      mode,
+      changed,
+      deleted,
+      batchSize: resolvedBatchSize,
+      onBatch: (rows) => {
+        recordBatch('existingChunkBatches');
+        if (batchStats) {
+          batchStats.existingChunkRows = (batchStats.existingChunkRows || 0) + rows;
+        }
       }
     });
-    updateTx();
-    try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
-    } catch (err) {
-      if (emitOutput) {
-        warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
-      }
-    }
-    await finalize();
-    return { used: true, insertedChunks: 0, ...changeSummary };
-  }
+    const orderedChanged = docIdResolver.orderChangedRecords(changed);
+    const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?')
+      .get(mode);
+    const startDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
 
-  const bundlePlan = await loadBundlesAndCollectState({
-    changed,
-    bundleDir: incrementalData.bundleDir
-  });
-  if (!bundlePlan.ok) {
-    await finalize();
-    return { used: false, reason: bundlePlan.reason, ...changeSummary };
-  }
-  const {
-    bundles,
-    tokenValues,
-    phraseValues,
-    chargramValues,
-    incomingDims
-  } = bundlePlan;
-  if (incomingDims !== null && dbDims !== null && incomingDims !== dbDims) {
-    await finalize();
-    return {
-      used: false,
-      reason: `embedding dims mismatch (db=${dbDims}, incoming=${incomingDims})`,
-      ...changeSummary
-    };
-  }
-  if (incomingDims !== null && expectedDims !== null && incomingDims !== expectedDims) {
-    await finalize();
-    return {
-      used: false,
-      reason: `embedding dims mismatch (expected=${expectedDims}, incoming=${incomingDims})`,
-      ...changeSummary
-    };
-  }
-
-  const statements = createInsertStatements(db);
-  const docIdResolver = createIncrementalDocIdResolver({
-    db,
-    mode,
-    changed,
-    deleted,
-    batchSize: resolvedBatchSize,
-    onBatch: (rows) => {
-      recordBatch('existingChunkBatches');
-      if (batchStats) {
-        batchStats.existingChunkRows = (batchStats.existingChunkRows || 0) + rows;
-      }
-    }
-  });
-  const orderedChanged = docIdResolver.orderChangedRecords(changed);
-  const maxRow = db.prepare('SELECT MAX(id) AS maxId FROM chunks WHERE mode = ?')
-    .get(mode);
-  const startDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
-
-  let insertedChunks = 0;
-  try {
+    let insertedChunks = 0;
     const updateResult = runIncrementalUpdatePhase({
       db,
       outPath,
@@ -407,7 +418,6 @@ export async function incrementalUpdateDatabase({
       if (updateResult.mutated === true) {
         throw new Error('[sqlite] Incremental update reported skip after mutating database state.');
       }
-      await finalize();
       return { used: false, reason: updateResult.skipReason, ...changeSummary };
     }
     insertedChunks = updateResult.insertedChunks;
@@ -438,20 +448,27 @@ export async function incrementalUpdateDatabase({
       batchStats.transactionPhases = updateResult.transactionPhases;
     }
     try {
-      db.pragma('wal_checkpoint(TRUNCATE)');
+      checkpointSqliteWithTelemetry(db, {
+        stats: batchStats,
+        dbPath: outPath,
+        stage: 'post-update',
+        pageSize,
+        journalMode,
+        walEnabled,
+        walPressure: ingestPlan.walPressure,
+        source: 'incremental'
+      });
     } catch (err) {
       if (emitOutput) {
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
     }
-  } catch (err) {
+    return {
+      used: true,
+      insertedChunks,
+      ...changeSummary
+    };
+  } finally {
     await finalize();
-    throw err;
   }
-  await finalize();
-  return {
-    used: true,
-    insertedChunks,
-    ...changeSummary
-  };
 }

@@ -2,7 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-batch.js';
-import { getEnvConfig } from '../../../src/shared/env.js';
+import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../../src/shared/onnx-embeddings.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { getModelConfig, getRepoCacheRoot, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';
@@ -17,6 +17,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
       dims: { type: 'number' },
+      model: { type: 'string' },
       batch: { type: 'number' },
       'stub-embeddings': { type: 'boolean', default: false },
       'index-root': { type: 'string' },
@@ -35,7 +36,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const modelConfig = getModelConfig(root, userConfig);
-  const modelId = modelConfig.id;
+  const modelId = argv.model || modelConfig.id;
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const autoTune = loadEmbeddingsAutoTuneRecommendation({
     repoCacheRoot,

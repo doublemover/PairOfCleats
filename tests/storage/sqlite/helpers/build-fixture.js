@@ -1,14 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { writeJsonLinesSharded, writeJsonObjectFile } from '../../../../src/shared/json-stream.js';
+import { writeJsonLinesSharded } from '../../../../src/shared/json-stream/jsonl-sharded.js';
+import { writeJsonObjectFile } from '../../../../src/shared/json-stream/json-writers.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
-const loadDatabaseCtor = async () => {
+export const SQLITE_BUILD_FIXTURE_DEFAULT_TOKENS = Object.freeze(['alpha', 'beta']);
+
+export const loadDatabaseCtor = async () => {
   try {
     const loaded = await import('better-sqlite3');
     return loaded.default;
@@ -17,47 +20,73 @@ const loadDatabaseCtor = async () => {
   }
 };
 
-export const setupSqliteBuildFixture = async ({
-  tempLabel,
+export function* createSqliteBuildFixtureChunks({
   chunkCount,
   fileCount = 3,
   mode = 'code',
-  includeRowcountArtifacts = false
+  tokens = SQLITE_BUILD_FIXTURE_DEFAULT_TOKENS,
+  decorateChunk = null
+}) {
+  for (let i = 0; i < chunkCount; i += 1) {
+    const chunk = {
+      id: i,
+      file: `src/file-${i % fileCount}.js`,
+      start: 0,
+      end: 10,
+      startLine: 1,
+      endLine: 1,
+      kind: mode,
+      name: `fn${i}`,
+      tokens
+    };
+    const extra = typeof decorateChunk === 'function' ? decorateChunk(chunk, i) : null;
+    yield extra && typeof extra === 'object' ? { ...chunk, ...extra } : chunk;
+  }
+}
+
+export const createSqliteShardFixturePieceEntries = (shardResult) => [
+  ...shardResult.parts.map((part) => ({
+    name: 'chunk_meta',
+    path: part,
+    format: 'jsonl'
+  })),
+  { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
+  {
+    name: 'token_postings',
+    path: 'token_postings.shards/token_postings.part-00000.json',
+    format: 'sharded'
+  },
+  { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
+];
+
+export const writeSqliteShardFixtureArtifacts = async ({
+  indexDir,
+  chunkCount,
+  fileCount = 3,
+  mode = 'code',
+  tokens = SQLITE_BUILD_FIXTURE_DEFAULT_TOKENS,
+  tokenVocab = [tokens[0] || 'alpha'],
+  tokenPostings = null,
+  docLengths = null,
+  avgDocLen = null,
+  tokenShardSize = null,
+  chunkMaxBytes = 4096,
+  compression = 'none',
+  decorateChunk = null
 }) => {
-  applyTestEnv({ testing: '1' });
-
-  const Database = await loadDatabaseCtor();
-  const root = process.cwd();
-  const tempRoot = resolveTestCachePath(root, tempLabel);
-  const indexDir = path.join(tempRoot, 'index-code');
-  const outPath = path.join(tempRoot, 'index-code.db');
-
-  await fs.rm(tempRoot, { recursive: true, force: true });
-  await fs.mkdir(indexDir, { recursive: true });
-
-  const tokens = ['alpha', 'beta'];
-  const chunkIterator = function* chunkIterator() {
-    for (let i = 0; i < chunkCount; i += 1) {
-      yield {
-        id: i,
-        file: `src/file-${i % fileCount}.js`,
-        start: 0,
-        end: 10,
-        startLine: 1,
-        endLine: 1,
-        kind: mode,
-        name: `fn${i}`,
-        tokens
-      };
-    }
-  };
-
   const shardResult = await writeJsonLinesSharded({
     dir: indexDir,
     partsDirName: 'chunk_meta.parts',
     partPrefix: 'chunk_meta.part-',
-    items: chunkIterator(),
-    maxBytes: 4096,
+    items: createSqliteBuildFixtureChunks({
+      chunkCount,
+      fileCount,
+      mode,
+      tokens,
+      decorateChunk
+    }),
+    maxBytes: chunkMaxBytes,
+    compression,
     atomic: true
   });
   await writeJsonObjectFile(path.join(indexDir, 'chunk_meta.meta.json'), {
@@ -66,7 +95,7 @@ export const setupSqliteBuildFixture = async ({
       artifact: 'chunk_meta',
       format: 'jsonl-sharded',
       generatedAt: new Date().toISOString(),
-      compression: 'none',
+      compression,
       totalRecords: shardResult.total,
       totalBytes: shardResult.totalBytes,
       maxPartRecords: shardResult.maxPartRecords,
@@ -85,40 +114,81 @@ export const setupSqliteBuildFixture = async ({
   await fs.mkdir(postingsDir, { recursive: true });
   const postingsPart = path.join(postingsDir, 'token_postings.part-00000.json');
   const postingsEntries = Array.from({ length: chunkCount }, (_, i) => [i, 1]);
+  const resolvedTokenPostings = Array.isArray(tokenPostings)
+    ? tokenPostings
+    : tokenVocab.map(() => postingsEntries);
   await writeJsonObjectFile(postingsPart, {
     arrays: {
-      vocab: ['alpha'],
-      postings: [postingsEntries]
+      vocab: tokenVocab,
+      postings: resolvedTokenPostings
     },
     atomic: true
   });
-  const docLengths = Array.from({ length: chunkCount }, () => tokens.length);
+  const resolvedDocLengths = Array.isArray(docLengths)
+    ? docLengths
+    : Array.from({ length: chunkCount }, () => tokens.length);
   await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
     fields: {
-      avgDocLen: tokens.length,
+      avgDocLen: avgDocLen ?? tokens.length,
       totalDocs: chunkCount,
       format: 'sharded',
-      shardSize: 1,
-      vocabCount: 1,
+      shardSize: tokenShardSize ?? Math.max(1, tokenVocab.length),
+      vocabCount: tokenVocab.length,
       parts: ['token_postings.shards/token_postings.part-00000.json']
     },
-    arrays: { docLengths },
+    arrays: { docLengths: resolvedDocLengths },
     atomic: true
   });
-  const pieceEntries = [
-    ...shardResult.parts.map((part) => ({
-      name: 'chunk_meta',
-      path: part,
-      format: 'jsonl'
-    })),
-    { name: 'chunk_meta_meta', path: 'chunk_meta.meta.json', format: 'json' },
-    {
-      name: 'token_postings',
-      path: 'token_postings.shards/token_postings.part-00000.json',
-      format: 'sharded'
-    },
-    { name: 'token_postings_meta', path: 'token_postings.meta.json', format: 'json' }
-  ];
+
+  return {
+    shardResult,
+    pieceEntries: createSqliteShardFixturePieceEntries(shardResult),
+    tokens
+  };
+};
+
+export const setupSqliteBuildFixture = async ({
+  tempLabel,
+  chunkCount,
+  fileCount = 3,
+  mode = 'code',
+  tokens = SQLITE_BUILD_FIXTURE_DEFAULT_TOKENS,
+  tokenVocab = [tokens[0] || 'alpha'],
+  tokenPostings = null,
+  docLengths = null,
+  avgDocLen = null,
+  tokenShardSize = null,
+  chunkMaxBytes = 4096,
+  compression = 'none',
+  decorateChunk = null,
+  includeRowcountArtifacts = false
+}) => {
+  applyTestEnv({ testing: '1' });
+
+  const Database = await loadDatabaseCtor();
+  const root = process.cwd();
+  const tempRoot = resolveTestCachePath(root, tempLabel);
+  const indexDir = path.join(tempRoot, 'index-code');
+  const outPath = path.join(tempRoot, 'index-code.db');
+
+  await fs.rm(tempRoot, { recursive: true, force: true });
+  await fs.mkdir(indexDir, { recursive: true });
+
+  const { shardResult, pieceEntries } = await writeSqliteShardFixtureArtifacts({
+    indexDir,
+    chunkCount,
+    fileCount,
+    mode,
+    tokens,
+    tokenVocab,
+    tokenPostings,
+    docLengths,
+    avgDocLen,
+    tokenShardSize,
+    chunkMaxBytes,
+    compression,
+    decorateChunk
+  });
 
   let phraseDocIds = [];
   if (includeRowcountArtifacts) {
@@ -195,6 +265,7 @@ export const setupSqliteBuildFixture = async ({
     count,
     chunkCount,
     fileCount,
+    shardResult,
     phraseDocIds,
     indexPieces
   };

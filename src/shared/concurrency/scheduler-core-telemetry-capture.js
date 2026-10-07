@@ -105,11 +105,7 @@ export function createSchedulerTelemetryCapture(deps = {}) {
     return { byQueue, pending, pendingBytes, running, inFlightBytes };
   };
 
-  const captureSchedulingTrace = ({
-    now = nowMs(),
-    reason = 'interval',
-    force = false
-  } = {}) => {
+  const captureSchedulingTraceAt = (now, reason, force) => {
     if (!force && (now - lastTraceAtMs) < getTraceIntervalMs()) return null;
     const queueDepth = buildQueueDepthState();
     const sample = {
@@ -135,11 +131,13 @@ export function createSchedulerTelemetryCapture(deps = {}) {
     return sample;
   };
 
-  const captureQueueDepthSnapshot = ({
+  const captureSchedulingTrace = ({
     now = nowMs(),
     reason = 'interval',
     force = false
-  } = {}) => {
+  } = {}) => captureSchedulingTraceAt(now, reason, force);
+
+  const captureQueueDepthSnapshotAt = (now, reason, force) => {
     if (!isQueueDepthSnapshotsEnabled()) return null;
     if (!force && (now - lastQueueDepthSnapshotAtMs) < getQueueDepthSnapshotIntervalMs()) return null;
     const queueDepth = buildQueueDepthState();
@@ -159,6 +157,12 @@ export function createSchedulerTelemetryCapture(deps = {}) {
     return snapshot;
   };
 
+  const captureQueueDepthSnapshot = ({
+    now = nowMs(),
+    reason = 'interval',
+    force = false
+  } = {}) => captureQueueDepthSnapshotAt(now, reason, force);
+
   /**
    * Capture both telemetry streams using a single clock read to keep samples
    * time-aligned and avoid redundant `Date.now()` calls on fast polling loops.
@@ -166,8 +170,9 @@ export function createSchedulerTelemetryCapture(deps = {}) {
    */
   const captureTelemetryIfDue = (reason = 'interval') => {
     const now = nowMs();
-    captureSchedulingTrace({ now, reason });
-    captureQueueDepthSnapshot({ now, reason });
+    // Enqueue/stats/interval polling needs no temporary public-options records.
+    captureSchedulingTraceAt(now, reason, false);
+    captureQueueDepthSnapshotAt(now, reason, false);
   };
 
   return {

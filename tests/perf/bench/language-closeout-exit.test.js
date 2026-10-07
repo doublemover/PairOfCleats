@@ -2,61 +2,24 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import {
+  createBenchLanguageRepoFixture,
+  runBenchLanguageRepos
+} from './language-repos-fixture.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'bench-language-closeout-exit');
-const reposRoot = path.join(tempRoot, 'repos');
-const cacheRoot = path.join(tempRoot, 'cache');
-const resultsRoot = path.join(tempRoot, 'results');
-const configPath = path.join(tempRoot, 'repos.json');
-const logPath = path.join(resultsRoot, 'bench-run.log');
-const queriesPath = path.join(root, 'tests', 'fixtures', 'sample', 'queries.txt');
 const repoId = 'test/closeout-repo';
-const repoPath = path.join(reposRoot, 'javascript', repoId.replace('/', '__'));
+const fixture = await createBenchLanguageRepoFixture({
+  name: 'bench-language-closeout-exit',
+  repoId,
+  readme: 'bench closeout exit test'
+});
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
-await fsPromises.mkdir(repoPath, { recursive: true });
-await fsPromises.mkdir(cacheRoot, { recursive: true });
-await fsPromises.mkdir(resultsRoot, { recursive: true });
-await fsPromises.writeFile(path.join(repoPath, 'README.md'), 'bench closeout exit test');
-
-const config = {
-  javascript: {
-    label: 'JavaScript',
-    queries: queriesPath,
-    repos: {
-      small: [repoId]
-    }
-  }
-};
-await fsPromises.writeFile(configPath, JSON.stringify(config, null, 2));
-
-const scriptPath = path.join(root, 'tools', 'bench', 'language-repos.js');
-const result = spawnSync(
-  process.execPath,
-  [
-    scriptPath,
-    '--config',
-    configPath,
-    '--root',
-    reposRoot,
-    '--cache-root',
-    cacheRoot,
-    '--results',
-    resultsRoot,
-    '--log',
-    logPath,
-    '--no-clone',
-    '--dry-run',
-    '--quiet'
-  ],
-  {
-    encoding: 'utf8',
-    timeout: 15000
-  }
-);
+const logPath = path.join(fixture.resultsRoot, 'bench-run.log');
+const result = runBenchLanguageRepos({
+  fixture,
+  args: ['--log', logPath, '--quiet'],
+  timeout: 15000
+});
 
 if (result.error?.code === 'ETIMEDOUT') {
   console.error('bench-language closeout exit test timed out waiting for process to exit');
@@ -73,6 +36,25 @@ if (!fs.existsSync(logPath)) {
 const logText = await fsPromises.readFile(logPath, 'utf8');
 if (!logText.includes('Completed 1 benchmark runs.')) {
   console.error('expected completion marker in bench log');
+  process.exit(1);
+}
+const logsRoot = path.dirname(logPath);
+const logEntries = await fsPromises.readdir(logsRoot);
+const summaryName = logEntries.find((entry) => entry.endsWith('-run-summary.json'));
+const ledgerName = logEntries.find((entry) => entry.endsWith('-run-ledger.jsonl'));
+const footerName = logEntries.find((entry) => entry.endsWith('-footer.log'));
+if (!summaryName || !ledgerName || !footerName) {
+  console.error(`expected bench closeout artifacts in ${logsRoot}; found ${logEntries.join(', ')}`);
+  process.exit(1);
+}
+const summary = JSON.parse(await fsPromises.readFile(path.join(logsRoot, summaryName), 'utf8'));
+if (summary?.run?.state !== 'completed') {
+  console.error(`expected completed run summary, got ${summary?.run?.state}`);
+  process.exit(1);
+}
+const footerText = await fsPromises.readFile(path.join(logsRoot, footerName), 'utf8');
+if (!footerText.includes('State: completed')) {
+  console.error('expected completed state in footer artifact');
   process.exit(1);
 }
 

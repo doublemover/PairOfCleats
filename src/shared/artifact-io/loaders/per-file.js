@@ -1,4 +1,4 @@
-import { fromPosix } from '../../files.js';
+import { fromPosix } from '../../file-paths.js';
 import { isPathUnderDir, joinPathSafe } from '../../path-normalize.js';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';

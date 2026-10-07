@@ -4,47 +4,21 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { sha1 } from '../../../src/shared/hash.js';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
+import {
+  createSeededRng,
+  parseSimpleBenchArgs,
+  pickRandom,
+  resolveCompareMode
+} from '../shared.js';
 
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
-
-const createRng = (seed) => {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-};
-
-const pick = (rng, list) => list[Math.floor(rng() * list.length)];
-
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const fileCount = Number(args.files) || 2000;
 const importsPerFile = Number(args.imports) || 6;
 const dirtyRate = Math.min(1, Math.max(0, Number(args.dirtyRate) || 0.1));
 const seed = Number(args.seed) || 1337;
-const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
-  ? String(args.mode).toLowerCase()
-  : 'compare';
+const mode = resolveCompareMode(args.mode);
 
-const rng = createRng(seed);
+const rng = createSeededRng(seed);
 const benchRoot = path.join(process.cwd(), '.benchCache', 'import-graph-incremental');
 await fs.mkdir(benchRoot, { recursive: true });
 
@@ -57,7 +31,7 @@ const baseRelations = new Map();
 for (const rel of files) {
   const list = [];
   for (let i = 0; i < importsPerFile; i += 1) {
-    const target = pick(rng, files);
+    const target = pickRandom(rng, files);
     const relDir = path.posix.dirname(rel);
     let spec = path.posix.relative(relDir, target);
     if (!spec.startsWith('.')) spec = `./${spec}`;

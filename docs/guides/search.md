@@ -30,6 +30,26 @@ triaged quickly.
 - Prose search applies stop-word removal and stemming; code search does not.
 - Query parsing preserves punctuation tokens so symbol-only queries can match code.
 
+## Free text and explicit query constraints
+
+- Sparse-only results keep implicit AND semantics for adjacent terms.
+- For candidates returned by a vector provider, unquoted positive free-text terms
+  describe semantic intent rather than requiring every word to occur literally.
+  The lexical MinHash fallback retains lexical constraints.
+  For example, `cache refresh unnecessary` can retain a relevant ANN result
+  containing `cache refresh`.
+- Explicit `AND`, `OR`, or parentheses request Boolean matching for the complete
+  query, including its implicit conjunctions. Use `cache AND refresh` to require
+  both terms for sparse and ANN results alike.
+- Quoted phrases, `NOT`/`-` exclusions, and structured file/language/metadata filters
+  remain hard constraints for ANN results. Free text never bypasses those filters.
+- With `--stats` or `--explain`, the `rank` entry in `stats.pipeline` includes
+  `queryGate` counts: `evaluated`, `annEvaluated`, `rejected`, and `annRejected`.
+  These distinguish an empty provider result from post-retrieval query rejection.
+
+Query-result cache keys are versioned for these semantics; old cached zero-result
+responses are not reused after the change.
+
 ## File Filter Prefilter (Substring/Regex)
 
 When `--file` or `--path` filters are used, the filter index builds file-name chargrams. The filter stage:
@@ -70,7 +90,7 @@ SQLite ANN (`sqlite-vec`) currently indexes merged vectors only. When `denseVect
 
 ## Context expansion
 
-When enabled, the search pipeline can append related chunks (calls/imports/usages) after primary hits. Context hits are labeled with a `context` object (`sourceId`, `reason`) and have `scoreType: "context"`. Use `search.contextExpansion.*` to control limits and relation types, and `respectFilters` to keep expansions inside the active filters.
+When enabled, the search pipeline can append related chunks (calls/imports/usages) after primary hits. Context hits are labeled with a `context` object (`sourceId`, `reason`) and have `scoreType: "context"`. Use `retrieval.contextExpansion.*` to control limits and relation types, and `respectFilters` to keep expansions inside the active filters.
 
 ## Structural filters
 
@@ -82,20 +102,22 @@ When structural matches are ingested (see `docs/guides/structural-search.md`), y
 ## Output formats
 
 - Default output is human-readable sections for code/prose/records.
+- Shortened human excerpts preserve complete Unicode characters and emoji
+  sequences; JSON retains the full stored headline.
 - `--json` emits a JSON payload with `backend`, `code`, `prose`, `extractedProse`, and `records`.
 - `--compact` trims JSON hits to a stable subset of fields (use `--json --compact`).
 - `--stats` adds a `stats` object to JSON output; `--explain` implies stats and adds score breakdowns.
 
 Notes:
 - JSON output strips `tokens` fields from hits (and nested context/contextHits) to keep payloads smaller.
-- Planned output modes like `symbol-first` / `context-only` are not implemented yet.
+- Historical roadmap drafts mentioned `symbol-first` and `context-only` modes. The current supported output controls are the default human view, `--json`, `--compact`, `--stats`, and `--explain`; context expansion is controlled by `retrieval.contextExpansion.*`.
 
 Configuration:
 - `search.rrf.enabled` (default: true)
 - `search.rrf.k` (default: 60)
 - `search.fieldWeights` (defaults favor name/signature over body)
 - `search.sqliteFtsWeights` (file/name/signature/kind/headline/doc/tokens column weights)
-- `search.contextExpansion` (limits and relation toggles)
+- `retrieval.contextExpansion` (limits and relation toggles)
 - `search.scoreBlend` can override RRF when enabled (normalized blend weights).
 - `search.denseVectorMode` or `--dense-vector-mode` (vector target selection; CLI overrides config).
 - `search.annDefault` (default: true; used when `--ann/--no-ann` is not provided).
@@ -111,4 +133,3 @@ Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:
 - `symbol` boost metadata for definitions/exports
 - `phrase` metadata when phrase/chargram boosts are active
 - `selected` final score type + value
-

@@ -10,52 +10,13 @@ import {
   buildVfsManifestRowsForFile,
   buildVfsVirtualPath
 } from '../../../src/index/tooling/vfs.js';
-import { enqueueVfsManifestArtifacts } from '../../../src/index/build/artifacts/writers/vfs-manifest.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { runVfsManifestWriter } from '../../helpers/vfs-streaming-fixture.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 assert.ok(
   ARTIFACT_SCHEMA_DEFS && typeof ARTIFACT_SCHEMA_DEFS === 'object' && ARTIFACT_SCHEMA_DEFS.vfs_manifest,
   'Expected contracts registry to include a vfs_manifest schema.'
 );
-
-const runWriter = async ({ outDir, mode, rows, maxJsonBytes }) => {
-  const writes = [];
-  const pieceFiles = [];
-  const enqueueWrite = (label, fn) => {
-    writes.push({ label, fn });
-  };
-  const addPieceFile = (entry, absPath) => {
-    pieceFiles.push({ entry, absPath });
-  };
-  const formatArtifactLabel = (value) => value;
-
-  await enqueueVfsManifestArtifacts({
-    outDir,
-    mode,
-    rows,
-    maxJsonBytes,
-    compression: null,
-    gzipOptions: null,
-    enqueueWrite,
-    addPieceFile,
-    formatArtifactLabel
-  });
-
-  for (const write of writes) {
-    await write.fn();
-  }
-
-  if (pieceFiles.length) {
-    const pieces = pieceFiles.map(({ entry, absPath }) => ({
-      ...entry,
-      path: path.relative(outDir, absPath).replace(/\\/g, '/')
-    }));
-    await writePiecesManifest(outDir, pieces);
-  }
-
-  return { pieceFiles };
-};
 
 const tempRoot = await makeTempDir('pairofcleats-vfs-manifest-');
 const plainDir = path.join(tempRoot, 'plain');
@@ -137,7 +98,7 @@ try {
   }
 
   // Unsharded write/read.
-  await runWriter({ outDir: plainDir, mode: 'code', rows, maxJsonBytes: 1024 * 1024 });
+  await runVfsManifestWriter({ outDir: plainDir, mode: 'code', rows, maxJsonBytes: 1024 * 1024 });
   const plainLoaded = await loadJsonArrayArtifact(plainDir, 'vfs_manifest', { strict: false });
   assert.deepStrictEqual(plainLoaded, rows, 'Unsharded vfs_manifest should roundtrip identically.');
 
@@ -147,7 +108,7 @@ try {
   const totalBytes = jsonlLineBytes.reduce((sum, bytes) => sum + bytes, 0);
   assert.ok(totalBytes > maxLineBytes + 1, 'Fixture should be large enough to force sharding.');
 
-  await runWriter({ outDir: shardedDir, mode: 'code', rows, maxJsonBytes: maxLineBytes + 1 });
+  await runVfsManifestWriter({ outDir: shardedDir, mode: 'code', rows, maxJsonBytes: maxLineBytes + 1 });
   const shardedLoaded = await loadJsonArrayArtifact(shardedDir, 'vfs_manifest', { strict: false });
   assert.deepStrictEqual(shardedLoaded, rows, 'Sharded vfs_manifest should roundtrip identically.');
 

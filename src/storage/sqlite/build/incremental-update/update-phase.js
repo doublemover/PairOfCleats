@@ -3,12 +3,11 @@ import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../.
 import { ensureVocabIds } from '../../vocab.js';
 import { toArray } from '../../../../shared/iterables.js';
 import {
-  isVectorEncodingCompatible,
+  formatVectorEncodingMismatchWarning,
   packUint32,
   packUint8,
   quantizeVec,
-  resolveEncodedVectorBytes,
-  resolveVectorEncodingBytes,
+  resolveVectorEncodingCompatibility,
   toSqliteRowId
 } from '../../vector.js';
 import { deleteDocIds, updateTokenStats } from '../delete.js';
@@ -379,19 +378,15 @@ export const runIncrementalUpdatePhase = ({
             if (vectorAnn.ready && vectorAnn.insert && encodeVector) {
               const encoded = encodeVector(chunk.embedding, vectorExtension);
               if (encoded) {
-                const compatible = isVectorEncodingCompatible({
+                const compatibility = resolveVectorEncodingCompatibility({
                   encoded,
                   dims,
                   encoding: vectorExtension.encoding
                 });
-                if (!compatible) {
+                if (!compatibility.compatible) {
                   if (!vectorAnnInsertWarned && emitOutput) {
-                    const expectedBytes = resolveVectorEncodingBytes(dims, vectorExtension.encoding);
-                    const actualBytes = resolveEncodedVectorBytes(encoded);
                     warn(
-                      `[sqlite] Vector extension insert skipped for ${mode}: ` +
-                      `encoded length ${actualBytes ?? 'unknown'} != expected ${expectedBytes ?? 'unknown'} ` +
-                      `(dims=${dims}, encoding=${vectorExtension.encoding || 'float32'}).`
+                      formatVectorEncodingMismatchWarning({ mode, dims, ...compatibility })
                     );
                     vectorAnnInsertWarned = true;
                   }

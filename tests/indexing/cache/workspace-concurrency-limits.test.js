@@ -7,10 +7,9 @@ import path from 'node:path';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
-applyTestEnv();
-
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-workspace-concurrency-'));
 const cacheRoot = path.join(tempRoot, 'cache');
+applyTestEnv({ cacheRoot });
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 const repoCount = 8;
 

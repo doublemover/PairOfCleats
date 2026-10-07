@@ -1,6 +1,51 @@
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.3.0';
+export const MCP_SCHEMA_VERSION = '1.4.1';
+
+const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
+  anyOf: [
+    { type: 'string' },
+    { type: 'array', items: { type: 'string' } }
+  ]
+});
+
+const MCP_RISK_FILTER_SCHEMA_PROPERTIES = Object.freeze({
+  rule: STRING_OR_STRING_ARRAY_SCHEMA,
+  category: STRING_OR_STRING_ARRAY_SCHEMA,
+  severity: STRING_OR_STRING_ARRAY_SCHEMA,
+  tag: STRING_OR_STRING_ARRAY_SCHEMA,
+  source: STRING_OR_STRING_ARRAY_SCHEMA,
+  sink: STRING_OR_STRING_ARRAY_SCHEMA,
+  flowId: STRING_OR_STRING_ARRAY_SCHEMA,
+  flow_id: STRING_OR_STRING_ARRAY_SCHEMA,
+  'flow-id': STRING_OR_STRING_ARRAY_SCHEMA,
+  sourceRule: STRING_OR_STRING_ARRAY_SCHEMA,
+  source_rule: STRING_OR_STRING_ARRAY_SCHEMA,
+  'source-rule': STRING_OR_STRING_ARRAY_SCHEMA,
+  sinkRule: STRING_OR_STRING_ARRAY_SCHEMA,
+  sink_rule: STRING_OR_STRING_ARRAY_SCHEMA,
+  'sink-rule': STRING_OR_STRING_ARRAY_SCHEMA
+});
+
+const MCP_WORKSPACE_SELECT_SCHEMA = Object.freeze({
+  type: 'object',
+  properties: Object.freeze({
+    repos: STRING_OR_STRING_ARRAY_SCHEMA,
+    tags: STRING_OR_STRING_ARRAY_SCHEMA,
+    repoFilter: STRING_OR_STRING_ARRAY_SCHEMA,
+    includeDisabled: { type: 'boolean' }
+  })
+});
+
+const buildWorkspaceToolProperties = ({
+  workspacePathDescription = 'Workspace config path (.jsonc).',
+  extraProperties = {}
+} = {}) => ({
+  workspacePath: { type: 'string', description: workspacePathDescription },
+  workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
+  select: MCP_WORKSPACE_SELECT_SCHEMA,
+  ...extraProperties
+});
 
 /**
  * Build MCP tool definitions for the server.
@@ -116,45 +161,41 @@ export function getToolDefs(defaultModelId) {
       description: 'Generate a composite context pack for a seed in the current code index.',
       inputSchema: {
         type: 'object',
-        properties: {
-          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
-          hops: { type: 'number', description: 'Neighborhood depth.' },
-          includeGraph: { type: 'boolean' },
-          includeTypes: { type: 'boolean' },
-          includeRisk: { type: 'boolean' },
-          includeRiskPartialFlows: { type: 'boolean' },
-          strictRisk: { type: 'boolean' },
-          includeImports: { type: 'boolean' },
-          includeUsages: { type: 'boolean' },
-          includeCallersCallees: { type: 'boolean' },
-          includePaths: { type: 'boolean' },
-          maxBytes: { type: 'number' },
-          maxTokens: { type: 'number' },
-          maxTypeEntries: { type: 'number' },
-          maxDepth: { type: 'number' },
-          maxFanoutPerNode: { type: 'number' },
-          maxNodes: { type: 'number' },
-          maxEdges: { type: 'number' },
-          maxPaths: { type: 'number' },
-          maxCandidates: { type: 'number' },
-          maxWorkUnits: { type: 'number' },
-          maxWallClockMs: { type: 'number' },
-          filters: {
-            type: 'object',
-            properties: {
-              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
+        properties: buildWorkspaceToolProperties({
+          workspacePathDescription: 'Workspace config path (.jsonc) for federated risk packs.',
+          extraProperties: {
+            repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+            includeDisabled: { type: 'boolean' },
+            maxFederatedRepos: { type: 'number' },
+            seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+            hops: { type: 'number', description: 'Neighborhood depth.' },
+            includeGraph: { type: 'boolean' },
+            includeTypes: { type: 'boolean' },
+            includeRisk: { type: 'boolean' },
+            includeRiskPartialFlows: { type: 'boolean' },
+            strictRisk: { type: 'boolean' },
+            strictEvidence: { type: 'boolean' },
+            includeImports: { type: 'boolean' },
+            includeUsages: { type: 'boolean' },
+            includeCallersCallees: { type: 'boolean' },
+            includePaths: { type: 'boolean' },
+            maxBytes: { type: 'number' },
+            maxTokens: { type: 'number' },
+            maxTypeEntries: { type: 'number' },
+            maxDepth: { type: 'number' },
+            maxFanoutPerNode: { type: 'number' },
+            maxNodes: { type: 'number' },
+            maxEdges: { type: 'number' },
+            maxPaths: { type: 'number' },
+            maxCandidates: { type: 'number' },
+            maxWorkUnits: { type: 'number' },
+            maxWallClockMs: { type: 'number' },
+            filters: {
+              type: 'object',
+              properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
             }
           }
-        },
+        }),
         required: ['seed', 'hops']
       }
     },
@@ -171,20 +212,29 @@ export function getToolDefs(defaultModelId) {
           maxPartialFlows: { type: 'number', description: 'Maximum number of partial flows to return.' },
           filters: {
             type: 'object',
-            properties: {
-              rule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              category: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              severity: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tag: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              source: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sink: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              flowId: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sourceRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              sinkRule: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] }
-            }
+            properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
           }
         },
         required: ['chunk']
+      }
+    },
+    {
+      name: 'risk_delta',
+      description: 'Compare risk flows for one seed across two code-index refs.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
+          seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+          from: { type: 'string', description: 'From ref (build:<id>, snap:<id>, tag:<name>, latest).' },
+          to: { type: 'string', description: 'To ref (build:<id>, snap:<id>, tag:<name>, latest).' },
+          includePartialFlows: { type: 'boolean', description: 'Compare partial frontier flows in addition to full flows.' },
+          filters: {
+            type: 'object',
+            properties: MCP_RISK_FILTER_SCHEMA_PROPERTIES
+          }
+        },
+        required: ['seed', 'from', 'to']
       }
     },
     {
@@ -192,55 +242,46 @@ export function getToolDefs(defaultModelId) {
       description: 'Run federated search across repos from a workspace configuration.',
       inputSchema: {
         type: 'object',
-        properties: {
-          workspacePath: { type: 'string', description: 'Workspace config path (.jsonc).' },
-          workspaceId: { type: 'string', description: 'Expected workspace repoSetId (optional cross-check).' },
-          query: { type: 'string' },
-          search: {
-            type: 'object',
-            description: 'Single-repo search knobs forwarded per repo (mode/top/backend/filter/etc).'
-          },
-          select: {
-            type: 'object',
-            properties: {
-              repos: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              tags: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              repoFilter: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              includeDisabled: { type: 'boolean' }
-            }
-          },
-          merge: {
-            type: 'object',
-            properties: {
-              strategy: { type: 'string', enum: ['rrf'] },
-              rrfK: { type: 'number' }
-            }
-          },
-          limits: {
-            type: 'object',
-            properties: {
-              perRepoTop: { type: 'number' },
-              concurrency: { type: 'number' }
-            }
-          },
-          cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-          cohorts: {
-            type: 'object',
-            properties: {
-              policy: { type: 'string', enum: ['default', 'strict'] },
-              cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
-              allowUnsafeMix: { type: 'boolean' }
-            }
-          },
-          allowUnsafeMix: { type: 'boolean' },
-          strict: { type: 'boolean' },
-          debug: {
-            type: 'object',
-            properties: {
-              includePaths: { type: 'boolean' }
+        properties: buildWorkspaceToolProperties({
+          extraProperties: {
+            query: { type: 'string' },
+            search: {
+              type: 'object',
+              description: 'Single-repo search knobs forwarded per repo (mode/top/backend/filter/etc).'
+            },
+            merge: {
+              type: 'object',
+              properties: {
+                strategy: { type: 'string', enum: ['rrf'] },
+                rrfK: { type: 'number' }
+              }
+            },
+            limits: {
+              type: 'object',
+              properties: {
+                perRepoTop: { type: 'number' },
+                concurrency: { type: 'number' }
+              }
+            },
+            cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+            cohorts: {
+              type: 'object',
+              properties: {
+                policy: { type: 'string', enum: ['default', 'strict'] },
+                cohort: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+                allowUnsafeMix: { type: 'boolean' }
+              }
+            },
+            allowUnsafeMix: { type: 'boolean' },
+            strict: { type: 'boolean' },
+            debug: {
+              type: 'object',
+              properties: {
+                includePaths: { type: 'boolean' }
+              }
             }
           }
-        },
+        }),
         required: ['workspacePath', 'query']
       }
     },
@@ -254,6 +295,7 @@ export function getToolDefs(defaultModelId) {
           source: { type: 'string', enum: ['dependabot', 'aws_inspector', 'generic', 'manual'] },
           inputPath: { type: 'string', description: 'Input JSON/JSONL file.' },
           meta: { type: 'object', description: 'Routing metadata (service/env/team/owner/etc).' },
+          strict: { type: 'boolean', description: 'Fail when malformed JSONL records are encountered.' },
           buildIndex: { type: 'boolean', description: 'Build the records index after ingest.' },
           incremental: { type: 'boolean', description: 'Use incremental indexing if enabled.' },
           stubEmbeddings: { type: 'boolean', description: 'Use stub embeddings for indexing.' }
@@ -324,17 +366,11 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'download_extensions',
-      description: 'Download SQLite ANN extensions into the cache.',
+      description: 'Download the user-approved SQLite ANN artifact into managed storage.',
       inputSchema: {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          provider: { type: 'string', description: 'Extension provider (ex: sqlite-vec).' },
-          dir: { type: 'string', description: 'Override extension directory.' },
-          url: { type: 'string', description: 'Override download URL(s) name=url (repeatable).' },
-          out: { type: 'string', description: 'Explicit output path.' },
-          platform: { type: 'string', description: 'Override platform.' },
-          arch: { type: 'string', description: 'Override architecture.' },
           update: { type: 'boolean', description: 'Check for updates (If-Modified-Since).' },
           force: { type: 'boolean', description: 'Force re-downloads.' }
         }
@@ -342,23 +378,18 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'verify_extensions',
-      description: 'Verify SQLite ANN extension availability.',
+      description: 'Verify the user-approved SQLite ANN artifact; non-loading by default.',
       inputSchema: {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          provider: { type: 'string' },
-          dir: { type: 'string' },
-          path: { type: 'string' },
-          platform: { type: 'string' },
-          arch: { type: 'string' },
           module: { type: 'string' },
           table: { type: 'string' },
           column: { type: 'string' },
           encoding: { type: 'string' },
           options: { type: 'string' },
           annMode: { type: 'string' },
-          load: { type: 'boolean', description: 'Attempt to load extension (default true).' }
+          load: { type: 'boolean', description: 'Explicitly load the user-approved artifact (default false; requires server launch authorization).' }
         }
       }
     },
@@ -407,12 +438,11 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'clean_artifacts',
-      description: 'Remove repo cache artifacts (optional all repos).',
+      description: 'Remove only the selected repo cache artifacts from approved owned storage.',
       inputSchema: {
         type: 'object',
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          all: { type: 'boolean' },
           dryRun: { type: 'boolean' }
         }
       }

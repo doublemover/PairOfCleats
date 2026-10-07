@@ -1,4 +1,4 @@
-import { toPosix } from '../../../../src/shared/files.js';
+import { toPosix } from '../../../../src/shared/file-paths.js';
 import {
   buildChunkMappingHintKey,
   resolveChunkStableFilePath,

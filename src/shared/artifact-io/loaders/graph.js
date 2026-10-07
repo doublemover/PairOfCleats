@@ -10,6 +10,86 @@ import {
 } from '../graph.js';
 import { loadPiecesManifest, resolveManifestArtifactSources } from '../manifest.js';
 
+const resolveGraphSources = ({
+  dir,
+  name,
+  maxBytes,
+  manifest,
+  strict,
+  required = true
+}) => {
+  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const sources = resolveManifestArtifactSources({
+    dir,
+    manifest: resolvedManifest,
+    name,
+    strict,
+    maxBytes
+  });
+  if (sources?.paths?.length) return sources;
+  if (!required && !strict) return null;
+  throw new Error(`Missing manifest entry for ${name}`);
+};
+
+const readSingleJsonSource = ({ sources, maxBytes, name }) => {
+  if (sources.format !== 'json') return { ok: false, payload: null };
+  if (sources.paths.length > 1) {
+    throw new Error(`Ambiguous JSON sources for ${name}`);
+  }
+  return {
+    ok: true,
+    payload: readJsonFile(sources.paths[0], { maxBytes })
+  };
+};
+
+const loadGraphRelationsCsrPayload = ({ sources, maxBytes, strict }) => {
+  if (!sources) return null;
+  if (sources.format !== 'json') {
+    throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
+  }
+  const payload = readSingleJsonSource({
+    sources,
+    maxBytes,
+    name: 'graph_relations_csr'
+  }).payload;
+  return normalizeGraphRelationsCsr(payload, { strict });
+};
+
+const resolveGraphRelationsReadPlan = ({
+  dir,
+  maxBytes,
+  manifest,
+  strict
+}) => {
+  const sources = resolveGraphSources({
+    dir,
+    name: 'graph_relations',
+    maxBytes,
+    manifest,
+    strict,
+    required: true
+  });
+  const jsonPayload = readSingleJsonSource({
+    sources,
+    maxBytes,
+    name: 'graph_relations'
+  });
+  if (jsonPayload.ok) {
+    return { isJson: true, jsonPayload: jsonPayload.payload, payload: null, sources: null, readOptions: null };
+  }
+  return {
+    isJson: false,
+    jsonPayload: null,
+    payload: createGraphRelationsShell(sources.meta || null),
+    sources,
+    readOptions: {
+      maxBytes,
+      requiredKeys: resolveJsonlRequiredKeys('graph_relations'),
+      validationMode: strict ? 'strict' : 'trusted'
+    }
+  };
+};
+
 /**
  * Load graph relations payload with support for JSON and JSONL-sharded layouts.
  *
@@ -29,36 +109,19 @@ export const loadGraphRelations = async (
     strict = true
   } = {}
 ) => {
-  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
-  const validationMode = strict ? 'strict' : 'trusted';
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const sources = resolveManifestArtifactSources({
+  const plan = resolveGraphRelationsReadPlan({
     dir,
-    manifest: resolvedManifest,
-    name: 'graph_relations',
-    strict,
-    maxBytes
+    maxBytes,
+    manifest,
+    strict
   });
-  if (!sources?.paths?.length) {
-    throw new Error('Missing manifest entry for graph_relations');
-  }
-  if (sources.format === 'json') {
-    if (sources.paths.length > 1) {
-      throw new Error('Ambiguous JSON sources for graph_relations');
-    }
-    return readJsonFile(sources.paths[0], { maxBytes });
-  }
-  const payload = createGraphRelationsShell(sources.meta || null);
-  for (const partPath of sources.paths) {
-    for await (const entry of readJsonLinesIterator(partPath, {
-      maxBytes,
-      requiredKeys,
-      validationMode
-    })) {
-      appendGraphRelationsEntry(payload, entry, partPath);
+  if (plan.isJson) return plan.jsonPayload;
+  for (const partPath of plan.sources.paths) {
+    for await (const entry of readJsonLinesIterator(partPath, plan.readOptions)) {
+      appendGraphRelationsEntry(plan.payload, entry, partPath);
     }
   }
-  return finalizeGraphRelations(payload);
+  return finalizeGraphRelations(plan.payload);
 };
 
 /**
@@ -80,26 +143,15 @@ export const loadGraphRelationsCsr = async (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const sources = resolveManifestArtifactSources({
+  const sources = resolveGraphSources({
     dir,
-    manifest: resolvedManifest,
     name: 'graph_relations_csr',
+    maxBytes,
+    manifest,
     strict,
-    maxBytes
+    required: false
   });
-  if (sources?.paths?.length) {
-    if (sources.format !== 'json') {
-      throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
-    }
-    if (sources.paths.length > 1) {
-      throw new Error('Ambiguous JSON sources for graph_relations_csr');
-    }
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    return normalizeGraphRelationsCsr(payload, { strict });
-  }
-  if (!strict) return null;
-  throw new Error('Missing manifest entry for graph_relations_csr');
+  return loadGraphRelationsCsrPayload({ sources, maxBytes, strict });
 };
 
 /**
@@ -121,35 +173,21 @@ export const loadGraphRelationsSync = (
     strict = true
   } = {}
 ) => {
-  const requiredKeys = resolveJsonlRequiredKeys('graph_relations');
-  const validationMode = strict ? 'strict' : 'trusted';
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const sources = resolveManifestArtifactSources({
+  const plan = resolveGraphRelationsReadPlan({
     dir,
-    manifest: resolvedManifest,
-    name: 'graph_relations',
-    strict,
-    maxBytes
+    maxBytes,
+    manifest,
+    strict
   });
-  if (!sources?.paths?.length) {
-    throw new Error('Missing manifest entry for graph_relations');
+  if (plan.isJson) return plan.jsonPayload;
+  for (const partPath of plan.sources.paths) {
+    appendGraphRelationsEntries(
+      plan.payload,
+      readJsonLinesArraySync(partPath, plan.readOptions),
+      partPath
+    );
   }
-  if (sources.format === 'json') {
-    if (sources.paths.length > 1) {
-      throw new Error('Ambiguous JSON sources for graph_relations');
-    }
-    return readJsonFile(sources.paths[0], { maxBytes });
-  }
-  const payload = createGraphRelationsShell(sources.meta || null);
-  for (const partPath of sources.paths) {
-    const entries = readJsonLinesArraySync(partPath, {
-      maxBytes,
-      requiredKeys,
-      validationMode
-    });
-    appendGraphRelationsEntries(payload, entries, partPath);
-  }
-  return finalizeGraphRelations(payload);
+  return finalizeGraphRelations(plan.payload);
 };
 
 /**
@@ -171,24 +209,13 @@ export const loadGraphRelationsCsrSync = (
     strict = true
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
-  const sources = resolveManifestArtifactSources({
+  const sources = resolveGraphSources({
     dir,
-    manifest: resolvedManifest,
     name: 'graph_relations_csr',
+    maxBytes,
+    manifest,
     strict,
-    maxBytes
+    required: false
   });
-  if (sources?.paths?.length) {
-    if (sources.format !== 'json') {
-      throw new Error(`Unsupported manifest format for graph_relations_csr: ${sources.format}`);
-    }
-    if (sources.paths.length > 1) {
-      throw new Error('Ambiguous JSON sources for graph_relations_csr');
-    }
-    const payload = readJsonFile(sources.paths[0], { maxBytes });
-    return normalizeGraphRelationsCsr(payload, { strict });
-  }
-  if (!strict) return null;
-  throw new Error('Missing manifest entry for graph_relations_csr');
+  return loadGraphRelationsCsrPayload({ sources, maxBytes, strict });
 };

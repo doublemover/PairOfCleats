@@ -187,22 +187,7 @@ export function compileSafeRegex(pattern, flags = '', config = {}) {
       error: { code: 'ENGINE_UNAVAILABLE', message: 'Regex engine unavailable.' }
     };
   }
-  if (backend.name === 're2' && normalized.maxProgramSize) {
-    if (!checkProgramSize(source, combinedFlags, normalized.maxProgramSize)) {
-      const probe = tryCompileWithoutSize(backend, source, combinedFlags, normalized);
-      if (!probe) {
-        return {
-          regex: null,
-          error: { code: 'INVALID_PATTERN', message: 'Invalid regex pattern.' }
-        };
-      }
-      return {
-        regex: null,
-        error: { code: 'PROGRAM_TOO_LARGE', message: 'Regex program exceeds size cap.' }
-      };
-    }
-  }
-  if (backend.name !== 're2' && normalized.maxProgramSize) {
+  if (normalized.maxProgramSize) {
     if (!checkProgramSize(source, combinedFlags, normalized.maxProgramSize)) {
       const probe = tryCompileWithoutSize(backend, source, combinedFlags, normalized);
       if (!probe) {
@@ -237,6 +222,28 @@ export function compileSafeRegex(pattern, flags = '', config = {}) {
     };
   }
 }
+
+export const extractSafeRegexPrefilter = (pattern) => {
+  const source = typeof pattern === 'string' ? pattern : pattern?.source;
+  if (!source) return null;
+  const scrubbed = source.replace(/\\./g, ' ');
+  const tokens = scrubbed.match(/[A-Za-z0-9_$]{3,}/g);
+  if (!tokens || !tokens.length) return null;
+  tokens.sort((a, b) => b.length - a.length);
+  return tokens[0] || null;
+};
+
+export const attachSafeRegexPrefilter = (regex, pattern) => {
+  if (!regex) return regex;
+  const prefilter = extractSafeRegexPrefilter(pattern);
+  if (prefilter) {
+    regex.prefilter = prefilter;
+    if (regex.flags && regex.flags.includes('i')) {
+      regex.prefilterLower = prefilter.toLowerCase();
+    }
+  }
+  return regex;
+};
 
 export function createSafeRegex(pattern, flags = '', config = {}) {
   const configInput = config && typeof config === 'object' ? config : {};

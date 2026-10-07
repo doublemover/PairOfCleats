@@ -1,5 +1,10 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
-import { extractDocComment } from './shared.js';
+import {
+  buildDefaultDocMeta,
+  collectDottedCallsAndUsages,
+  extractDocComment,
+  normalizeDeclarationList
+} from './shared.js';
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
 import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
@@ -60,44 +65,16 @@ function stripLuaComments(text) {
   return text.replace(/--\[\[[\s\S]*?\]\]/g, ' ').replace(/--.*$/gm, ' ');
 }
 
-function getLastLuaSegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && (raw[end - 1] === '.' || raw[end - 1] === ':')) end -= 1;
-  if (!end) return '';
-  let idx = end - 1;
-  while (idx >= 0) {
-    const ch = raw[idx];
-    if (ch === '.' || ch === ':') break;
-    idx -= 1;
-  }
-  return raw.slice(idx + 1, end);
-}
+const LUA_CALL_PATTERN = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
 
 function collectLuaCallsAndUsages(text) {
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripLuaComments(text);
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_.:]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastLuaSegment(raw);
-    if (!base || LUA_CALL_KEYWORDS.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (LUA_USAGE_SKIP.has(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords: LUA_CALL_KEYWORDS,
+    usageSkip: LUA_USAGE_SKIP,
+    stripComments: stripLuaComments,
+    callPattern: LUA_CALL_PATTERN,
+    segmentSeparators: '.:'
+  });
 }
 
 function parseLuaParams(signature) {
@@ -249,8 +226,7 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
       });
     }
     if (!chunks.length) return null;
-    chunks.sort((a, b) => a.start - b.start);
-    return chunks;
+    return normalizeDeclarationList(chunks);
   } finally {
     try {
       if (tree && typeof tree.delete === 'function') tree.delete();
@@ -370,15 +346,7 @@ export function buildLuaChunks(text, options = {}) {
     }
   }
 
-  if (!decls.length) return null;
-  decls.sort((a, b) => a.start - b.start);
-  return decls.map((decl) => ({
-    start: decl.start,
-    end: decl.end,
-    name: decl.name,
-    kind: decl.kind,
-    meta: decl.meta || {}
-  }));
+  return normalizeDeclarationList(decls);
 }
 
 /**
@@ -416,20 +384,7 @@ export function buildLuaRelations(text, luaChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null)}}
  */
 export function extractLuaDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns: meta.returns || null,
-    signature: meta.signature || null,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk);
 }
 
 /**

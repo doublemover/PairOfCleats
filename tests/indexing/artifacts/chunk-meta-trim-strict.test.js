@@ -9,7 +9,10 @@ const { fixtureRoot, userConfig } = await ensureFixtureIndex({
   fixtureName: 'languages',
   cacheName: 'language-fixture-trim-strict-v2',
   cacheScope: 'shared',
-  requiredModes: ['code']
+  requiredModes: ['code'],
+  envOverrides: {
+    PAIROFCLEATS_TEST_CONFIG: JSON.stringify({ indexing: { scm: { provider: 'none' } } })
+  }
 });
 
 const current = getCurrentBuildInfo(fixtureRoot, userConfig, { mode: 'code' });

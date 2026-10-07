@@ -1,9 +1,11 @@
-import fs from 'node:fs/promises';
+import { readContainedFile } from '../../../shared/contained-file.js';
 import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { sha1 } from '../../../shared/hash.js';
 import { extractPdf } from '../../extractors/pdf.js';
 import { extractDocx } from '../../extractors/docx.js';
 import {
+  buildDocumentExtractionFidelity,
+  buildDocumentExtractionPolicySummary,
   EXTRACTION_NORMALIZATION_POLICY,
   sha256Hex
 } from '../../extractors/common.js';
@@ -16,6 +18,7 @@ import {
   isDocsSearchIndexJsonPath
 } from './docs-search-json.js';
 import { resolveBinarySkip } from './skip.js';
+import { classifyGeneratedArtifactContentPrefix } from '../../../shared/generated-artifact.js';
 
 /**
  * Normalize extractor units into stable, serializable metadata.
@@ -43,7 +46,8 @@ const buildDocumentExtractionInfo = ({
   sourceType,
   extracted,
   joined,
-  sourceHashBuffer
+  sourceHashBuffer,
+  policy
 }) => ({
   sourceType,
   status: 'ok',
@@ -53,7 +57,14 @@ const buildDocumentExtractionInfo = ({
   counts: joined.counts,
   units: buildDocumentExtractionUnits(joined.units),
   normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
-  warnings: extracted.warnings || []
+  warnings: extracted.warnings || [],
+  policy: buildDocumentExtractionPolicySummary(policy),
+  fidelity: extracted.fidelity || buildDocumentExtractionFidelity({
+    sourceType,
+    status: 'ok',
+    warnings: extracted.warnings || [],
+    policy
+  })
 });
 
 /**
@@ -78,6 +89,7 @@ const buildDocumentExtractionInfo = ({
  */
 export async function resolvePreCpuFileContent({
   abs,
+  repoRoot,
   relKey,
   mode,
   ext,
@@ -96,7 +108,7 @@ export async function resolvePreCpuFileContent({
     throwIfAborted();
     updateCrashStage('pre-cpu:read-file:start');
     try {
-      artifacts.fileBuffer = await runIo(() => fs.readFile(abs));
+      artifacts.fileBuffer = await runIo(() => readContainedFile(repoRoot, abs, { expectedStat: fileStat }));
       updateCrashStage('pre-cpu:read-file:done', {
         bytes: Buffer.isBuffer(artifacts.fileBuffer) ? artifacts.fileBuffer.length : null
       });
@@ -113,6 +125,17 @@ export async function resolvePreCpuFileContent({
           message: err?.message || String(err)
         }
       };
+    }
+  }
+
+  // Reuse the source buffer: renamed owned outputs must not require a second
+  // blanket discovery read. Explicit records retain their searchable role.
+  if (mode !== 'records') {
+    const artifact = classifyGeneratedArtifactContentPrefix({ prefix: artifacts.fileBuffer });
+    if (artifact?.action === 'omit') {
+      return { skip: { reason: 'generated-artifact', artifactKind: artifact.kind,
+        artifactFormat: artifact.format, artifactFlags: artifact.flags, action: artifact.action,
+        recognition: 'existing-content-read' } };
     }
   }
 
@@ -167,7 +190,7 @@ export async function resolvePreCpuFileContent({
     if (!sourceHashBuffer) {
       try {
         updateCrashStage('pre-cpu:extract:source-read:start');
-        sourceHashBuffer = await runIo(() => fs.readFile(abs));
+        sourceHashBuffer = await runIo(() => readContainedFile(repoRoot, abs, { expectedStat: fileStat }));
         updateCrashStage('pre-cpu:extract:source-read:done', {
           bytes: Buffer.isBuffer(sourceHashBuffer) ? sourceHashBuffer.length : null
         });
@@ -183,12 +206,15 @@ export async function resolvePreCpuFileContent({
     }
     artifacts.fileEncoding = 'document-extracted';
     artifacts.fileEncodingFallback = null;
+    artifacts.fileEncodingFallbackClass = null;
+    artifacts.fileEncodingFallbackRisk = null;
     artifacts.fileEncodingConfidence = null;
     artifacts.documentExtraction = buildDocumentExtractionInfo({
       sourceType: documentSourceType,
       extracted,
       joined,
-      sourceHashBuffer
+      sourceHashBuffer,
+      policy: documentExtractionPolicy
     });
     return { skip: null };
   }
@@ -224,10 +250,14 @@ export async function resolvePreCpuFileContent({
     }
     artifacts.fileEncoding = decoded.encoding || artifacts.fileEncoding;
     artifacts.fileEncodingFallback = decoded.usedFallback;
+    artifacts.fileEncodingFallbackClass = decoded.encodingFallbackClass || null;
+    artifacts.fileEncodingFallbackRisk = decoded.encodingFallbackRisk || null;
     artifacts.fileEncodingConfidence = decoded.confidence;
     warnEncodingFallback(relKey, {
       encoding: artifacts.fileEncoding,
       encodingFallback: artifacts.fileEncodingFallback,
+      encodingFallbackClass: artifacts.fileEncodingFallbackClass,
+      encodingFallbackRisk: artifacts.fileEncodingFallbackRisk,
       encodingConfidence: artifacts.fileEncodingConfidence
     });
   }

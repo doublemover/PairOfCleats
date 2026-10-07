@@ -1,16 +1,17 @@
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { rmDirRecursive } from './temp.js';
 import { resolveTestCacheDir } from './test-cache.js';
 import { applyTestEnv } from './test-env.js';
-import { formatCommandFailure } from './command-failure.js';
+import { runNode } from './run-node.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-export const getTriageContext = async ({ name }) => {
-  const repoRoot = path.join(ROOT, 'tests', 'fixtures', 'sample');
+export const getTriageContext = async ({ name, testConfig, fixtureBuilder } = {}) => {
+  const repoRoot = typeof fixtureBuilder === 'function'
+    ? path.join((resolveTestCacheDir(`${name || 'triage'}-repo`, { root: ROOT })).dir, 'repo')
+    : path.join(ROOT, 'tests', 'fixtures', 'sample');
   const triageFixtureRoot = path.join(ROOT, 'tests', 'fixtures', 'triage');
   const { dir: cacheRootBase } = resolveTestCacheDir(name, { root: ROOT });
   const cacheSuffix = `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
@@ -29,10 +30,16 @@ export const getTriageContext = async ({ name }) => {
     console.log(`[triage-test] ready cache root: ${cacheRoot}`);
   }
   await fsPromises.mkdir(cacheRoot, { recursive: true });
+  if (typeof fixtureBuilder === 'function') {
+    await rmDirRecursive(repoRoot, { retries: 20, delayMs: 40 });
+    await fsPromises.mkdir(repoRoot, { recursive: true });
+    await fixtureBuilder(repoRoot);
+  }
 
   const env = applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    testConfig,
     syncProcess: false,
     extraEnv: {
       PAIROFCLEATS_TRACE_ARTIFACT_IO: traceArtifactIo ? '1' : undefined
@@ -53,18 +60,25 @@ export const getTriageContext = async ({ name }) => {
   return { root: ROOT, repoRoot, triageFixtureRoot, cacheRoot, env, writeTestLog };
 };
 
+const runTriageProcess = (label, args, options = {}) => {
+  const {
+    cwd = process.cwd(),
+    env = process.env,
+    encoding = 'utf8',
+    stdio = 'pipe',
+    timeout,
+    ...spawnOptions
+  } = options;
+  return runNode(args, label, cwd, env, {
+    encoding,
+    stdio,
+    timeoutMs: timeout,
+    spawnOptions
+  });
+};
+
 export const runJson = (label, args, options = {}) => {
-  const result = spawnSync(process.execPath, args, { encoding: 'utf8', ...options });
-  if (result.status !== 0) {
-    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
-    console.error(formatCommandFailure({
-      label,
-      command,
-      cwd: options?.cwd || process.cwd(),
-      result
-    }));
-    process.exit(result.status ?? 1);
-  }
+  const result = runTriageProcess(label, args, { encoding: 'utf8', ...options });
   try {
     return JSON.parse(result.stdout || '{}');
   } catch (error) {
@@ -74,16 +88,5 @@ export const runJson = (label, args, options = {}) => {
 };
 
 export const run = (label, args, options = {}) => {
-  const result = spawnSync(process.execPath, args, { stdio: 'inherit', ...options });
-  if (result.status !== 0) {
-    const command = [process.execPath, ...(Array.isArray(args) ? args : [])].join(' ');
-    console.error(formatCommandFailure({
-      label,
-      command,
-      cwd: options?.cwd || process.cwd(),
-      result
-    }));
-    process.exit(result.status ?? 1);
-  }
+  runTriageProcess(label, args, { stdio: 'inherit', ...options });
 };
-

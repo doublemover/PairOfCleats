@@ -30,7 +30,8 @@ await writePiecesManifest({
     format: 'json',
     path: 'chunk_meta.json',
     bytes: Buffer.byteLength(payload, 'utf8'),
-    checksum: `sha1:${checksum}`
+    checksum: `sha1:${checksum}`,
+    extensions: { caller: 'retained' }
   }],
   outDir,
   mode: 'code',
@@ -42,6 +43,11 @@ const entry = pieces.find((piece) => piece?.path === 'chunk_meta.json');
 assert.ok(entry, 'expected manifest entry for chunk_meta.json');
 assert.equal(entry.checksum, `sha1:${checksum}`, 'expected precomputed checksum to be preserved');
 assert.equal(entry.bytes, Buffer.byteLength(payload, 'utf8'), 'expected precomputed bytes to be preserved');
+assert.deepEqual(entry.extensions, { caller: 'retained' });
+const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'pieces', 'manifest.json'), 'utf8'));
+assert.equal(Object.keys(manifest)[0], 'extensions');
+assert.equal(manifest.extensions.__poc_generated.kind, 'pieces-manifest');
+assert.equal(await fs.readFile(piecePath, 'utf8'), payload, 'data bytes must remain unchanged');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

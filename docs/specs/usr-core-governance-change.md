@@ -102,9 +102,7 @@ Drift checks must verify consistency across:
 - `docs/specs/usr/README.md`
 - all `docs/specs/usr-core-*.md`
 - `docs/specs/usr-consolidation-coverage-matrix.md`
-- `TES_LAYN_ROADMAP.md`
-- `TES_LAYN_EXECUTION_PACKS.md`
-- `TES_LAYN_GOVERNANCE.md`
+- `docs/roadmap.md`
 - `tests/lang/matrix/usr-*.json`
 
 Drift checks must also verify:

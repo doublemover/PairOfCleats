@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fsSync from 'node:fs';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { readJsonFileSafe } from '../../shared/files.js';
+import { resolvePyrightWorkspaceConfigPreflight } from './preflight/pyright-workspace-config.js';
 import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
@@ -13,6 +13,17 @@ import { parsePythonSignature } from './signature-parse/python.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
 import { resolveProviderRequestedCommand } from './provider-command-override.js';
 import { filterTargetsForDocuments } from './provider-utils.js';
+import {
+  persistPyrightPlannerHealth,
+  resolvePyrightRequestPlan
+} from './pyright-planner.js';
+import {
+  buildPyrightFallbackContract,
+  derivePyrightRuntimeOutcome,
+  persistPyrightRuntimeHealth,
+  resolvePyrightRuntimeHealth,
+  resolvePyrightRuntimeOverrides
+} from './pyright-runtime-health.js';
 import { awaitToolingProviderPreflight } from './preflight-manager.js';
 import {
   mergePreflightChecks,
@@ -21,7 +32,6 @@ import {
 } from './preflight/command-profile-preflight.js';
 
 export const PYTHON_EXTS = ['.py', '.pyi'];
-const PYRIGHT_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
 const PYRIGHT_WORKSPACE_SCAN_OUTLIER_ENTRY_THRESHOLD = 3000;
 const PYRIGHT_WORKSPACE_SCAN_OUTLIER_DURATION_MS = 250;
 const PYRIGHT_WORKSPACE_MARKERS = new Set([
@@ -30,6 +40,57 @@ const PYRIGHT_WORKSPACE_MARKERS = new Set([
   'setup.cfg',
   'requirements.txt'
 ]);
+
+const buildPyrightProviderEnvelope = ({ configHash, diagnostics }) => ({
+  provider: { id: 'pyright', version: '2.0.1', configHash },
+  byChunkUid: {},
+  diagnostics
+});
+
+const buildPyrightHealthDiagnostics = (runtimeHealth) => ({
+  state: runtimeHealth.effectiveState,
+  nextState: runtimeHealth.effectiveState,
+  reasonCode: runtimeHealth.reasonCode,
+  workspaceRootRel: runtimeHealth.workspaceRootRel,
+  fingerprint: runtimeHealth.fingerprint,
+  priorState: runtimeHealth.persistedState?.state || null,
+  cooldownRemainingMs: runtimeHealth.cooldownRemainingMs,
+  documentSymbolTimedOut: 0,
+  documentSymbolFailed: 0,
+  hoverTimedOut: 0,
+  hoverFailed: 0
+});
+
+const buildPyrightFallbackProviderResult = ({
+  configHash,
+  inputs,
+  requestPlan,
+  runtimeHealth,
+  checks,
+  fallbackChecks = []
+}) => {
+  const fallback = buildPyrightFallbackContract({
+    state: runtimeHealth.effectiveState,
+    reasonCode: runtimeHealth.reasonCode,
+    workspaceRootRel: runtimeHealth.workspaceRootRel,
+    fingerprint: runtimeHealth.fingerprint,
+    captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+    ...(fallbackChecks.length ? { checks: fallbackChecks } : {})
+  });
+  const fidelity = {
+    ...fallback,
+    state: fallback.fidelityState || fallback.state
+  };
+  return buildPyrightProviderEnvelope({
+    configHash,
+    diagnostics: appendDiagnosticChecks({
+      planning: requestPlan.diagnostics,
+      health: buildPyrightHealthDiagnostics(runtimeHealth),
+      fallback,
+      fidelity
+    }, checks)
+  });
+};
 
 const resolveWorkspaceScanOutlierThresholds = (toolingConfig) => {
   const pyrightConfig = toolingConfig?.pyright && typeof toolingConfig.pyright === 'object'
@@ -76,75 +137,6 @@ export const __canRunPyrightForTests = (cmd) => (
     toolingConfig: {}
   })?.probe?.ok === true
 );
-
-const resolvePyrightWorkspaceConfigPreflight = async ({ ctx }) => {
-  const configPath = path.join(String(ctx?.repoRoot || process.cwd()), 'pyrightconfig.json');
-  let readError = null;
-  const parsed = await readJsonFileSafe(configPath, {
-    fallback: null,
-    maxBytes: PYRIGHT_CONFIG_MAX_BYTES,
-    onError: (info) => {
-      readError = info;
-    }
-  });
-  const code = String(readError?.error?.code || '').trim().toUpperCase();
-  if (!readError) {
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return { state: 'ready', reasonCode: null, message: '', checks: [] };
-    }
-    const message = 'pyright workspace config (pyrightconfig.json) must be a JSON object.';
-    return {
-      state: 'degraded',
-      reasonCode: 'pyright_workspace_config_invalid',
-      message,
-      checks: [{
-        name: 'pyright_workspace_config_invalid',
-        status: 'warn',
-        message
-      }]
-    };
-  }
-  if (code === 'ENOENT') {
-    return { state: 'ready', reasonCode: null, message: '', checks: [] };
-  }
-  if (code === 'ERR_JSON_FILE_TOO_LARGE') {
-    const message = `pyright workspace config exceeds ${PYRIGHT_CONFIG_MAX_BYTES} bytes.`;
-    return {
-      state: 'degraded',
-      reasonCode: 'pyright_workspace_config_too_large',
-      message,
-      checks: [{
-        name: 'pyright_workspace_config_too_large',
-        status: 'warn',
-        message
-      }]
-    };
-  }
-  if (String(readError?.phase || '').toLowerCase() === 'parse') {
-    const message = `pyright workspace config is invalid JSON: ${readError?.error?.message || 'parse failed'}`;
-    return {
-      state: 'degraded',
-      reasonCode: 'pyright_workspace_config_invalid',
-      message,
-      checks: [{
-        name: 'pyright_workspace_config_invalid',
-        status: 'warn',
-        message
-      }]
-    };
-  }
-  const message = `pyright workspace config is unreadable: ${readError?.error?.message || 'read failed'}`;
-  return {
-    state: 'degraded',
-    reasonCode: 'pyright_workspace_config_unreadable',
-    message,
-    checks: [{
-      name: 'pyright_workspace_config_unreadable',
-      status: 'warn',
-      message
-    }]
-  };
-};
 
 const resolvePyrightWorkspaceRootPreflight = ({ ctx }) => {
   const repoRoot = String(ctx?.repoRoot || process.cwd());
@@ -217,7 +209,7 @@ export const createPyrightProvider = () => ({
   id: 'pyright',
   preflightId: 'pyright.command-profile',
   preflightClass: 'probe',
-  version: '2.0.0',
+  version: '2.0.1',
   label: 'pyright',
   priority: 30,
   languages: ['python'],
@@ -303,7 +295,7 @@ export const createPyrightProvider = () => ({
     const checks = [...duplicateChecks];
     if (!docs.length || !targets.length) {
       return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -337,6 +329,9 @@ export const createPyrightProvider = () => ({
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
       preflight,
       fallbackRequestedCommand: requestedCommand,
+      providerId: 'pyright',
+      repoRoot: ctx?.repoRoot || process.cwd(),
+      toolingConfig: ctx?.toolingConfig || {},
       missingProfileCheck: {
         name: 'pyright_preflight_command_profile_missing',
         status: 'warn',
@@ -348,7 +343,7 @@ export const createPyrightProvider = () => ({
     if (!resolvedCmd) {
       checks.push(...runtimeCommand.checks);
       return {
-        provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
       };
@@ -372,11 +367,61 @@ export const createPyrightProvider = () => ({
         breakerThreshold: 5
       }
     });
+    const requestPlan = await resolvePyrightRequestPlan({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      documents: docs,
+      targets,
+      allDocuments: Array.isArray(inputs?.documents) ? inputs.documents : docs
+    });
+    checks.push(...requestPlan.checks);
+    const runtimeHealth = await resolvePyrightRuntimeHealth({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      workspaceRootRel: requestPlan.workspaceRootRel,
+      selectedDocumentSummaries: requestPlan.selectedDocumentSummaries
+    });
+    if (!requestPlan.selectedDocuments.length || !requestPlan.selectedTargets.length) {
+      return buildPyrightFallbackProviderResult({
+        configHash: this.getConfigHash(ctx),
+        inputs,
+        requestPlan,
+        runtimeHealth,
+        checks
+      });
+    }
+    const runtimeOverrides = resolvePyrightRuntimeOverrides({
+      documentSymbolConcurrency: requestPlan.documentSymbolConcurrency
+    });
+    if (runtimeOverrides.documentSymbolConcurrency !== requestPlan.documentSymbolConcurrency) {
+      checks.push({
+        name: 'pyright_document_symbol_serialized',
+        status: 'info',
+        message: 'pyright documentSymbol collection is serialized to avoid repeated workspace-local timeout storms.'
+      });
+    }
+    if (runtimeHealth.shouldShortCircuit) {
+      checks.push({
+        name: 'pyright_quarantined_for_run',
+        status: 'warn',
+        message: `pyright workspace "${runtimeHealth.workspaceRootRel}" is quarantined for this run${runtimeHealth.cooldownRemainingMs > 0 ? ` (${runtimeHealth.cooldownRemainingMs}ms remaining)` : ''}.`
+      });
+      return buildPyrightFallbackProviderResult({
+        configHash: this.getConfigHash(ctx),
+        inputs,
+        requestPlan,
+        runtimeHealth,
+        checks,
+        fallbackChecks: checks
+      });
+    }
     const result = await collectLspTypes({
       ...runtimeConfig,
       rootDir: ctx.repoRoot,
-      documents: docs,
-      targets,
+      workspaceRootDir: requestPlan.workspaceRootDir,
+      workspaceKey: `pyright:${requestPlan.workspaceRootRel}:${runtimeHealth.fingerprint}`,
+      documents: requestPlan.selectedDocuments,
+      targets: requestPlan.selectedTargets,
       abortSignal: ctx?.abortSignal || null,
       log,
       providerId: 'pyright',
@@ -384,6 +429,7 @@ export const createPyrightProvider = () => ({
       adaptiveReasonHint: preflight?.reasonCode || null,
       cmd: resolvedCmd,
       args: resolvedArgs,
+      documentSymbolConcurrency: runtimeOverrides.documentSymbolConcurrency,
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
@@ -393,10 +439,55 @@ export const createPyrightProvider = () => ({
       indexDir: ctx?.buildRoot || null,
       captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
     });
+    await persistPyrightPlannerHealth({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      workspaceRootRel: requestPlan.workspaceRootRel,
+      runtime: result.runtime
+    });
+    const runtimeOutcome = derivePyrightRuntimeOutcome({
+      healthContext: runtimeHealth,
+      runtime: result.runtime,
+      checks: result.checks,
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds)
+    });
+    await persistPyrightRuntimeHealth({
+      repoRoot: ctx.repoRoot,
+      cacheRoot: ctx?.cache?.dir || null,
+      workspaceRootRel: requestPlan.workspaceRootRel,
+      record: runtimeOutcome.record
+    });
+    if (runtimeOutcome.state === 'degraded_soft' && runtimeOutcome.nextState === 'degraded_hard') {
+      checks.push({
+        name: 'pyright_timeout_storm_truncated',
+        status: 'warn',
+        message: 'pyright promoted a high-cost request timeout into a hard degraded state and will quarantine the same workspace shape on the next run.'
+      });
+    }
+    const fallback = buildPyrightFallbackContract({
+      state: runtimeOutcome.state,
+      reasonCode: runtimeOutcome.reasonCode,
+      workspaceRootRel: runtimeHealth.workspaceRootRel,
+      fingerprint: runtimeHealth.fingerprint,
+      captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(inputs?.kinds),
+      runtime: result.runtime,
+      checks: [...checks, ...(Array.isArray(result.checks) ? result.checks : [])],
+      byChunkUid: result.byChunkUid
+    });
+    const fidelity = {
+      ...fallback,
+      state: fallback.fidelityState || fallback.state
+    };
     const diagnostics = appendDiagnosticChecks(
-      result.diagnosticsCount
-        ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
-        : null,
+      {
+        ...(result.diagnosticsCount
+          ? { diagnosticsCount: result.diagnosticsCount, diagnosticsByChunkUid: result.diagnosticsByChunkUid }
+          : {}),
+        planning: requestPlan.diagnostics,
+        health: runtimeOutcome.summary,
+        fallback,
+        fidelity
+      },
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]
     );
     invalidateProbeCacheOnInitializeFailure({
@@ -404,10 +495,11 @@ export const createPyrightProvider = () => ({
       providerId: 'pyright',
       command: resolvedCmd,
       args: resolvedArgs,
-      toolingConfig: ctx?.toolingConfig || null
+      toolingConfig: ctx?.toolingConfig || null,
+      cwd: ctx?.repoRoot || process.cwd()
     });
     return {
-      provider: { id: 'pyright', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
       byChunkUid: result.byChunkUid,
       diagnostics: result.runtime
         ? { ...(diagnostics || {}), runtime: result.runtime }

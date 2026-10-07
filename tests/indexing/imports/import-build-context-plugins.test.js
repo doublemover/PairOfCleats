@@ -7,11 +7,14 @@ const entries = [
   { rel: 'src/main.ts' },
   { rel: 'src/proto/client.proto' },
   { rel: 'schema/api.graphql' },
-  { rel: 'api/openapi.yaml' }
+  { rel: 'api/openapi.yaml' },
+  { rel: 'tools/defs.bzl' },
+  { rel: 'go/extensions.bzl' },
+  { rel: 'app/local.bzl' }
 ];
 
 const buildContext = createImportBuildContext({ entries });
-assert.equal(buildContext.version, 'build-context-v4');
+assert.equal(buildContext.version, 'build-context-v5');
 assert.equal(typeof buildContext.fingerprint, 'string');
 assert.equal(Array.isArray(buildContext.plugins), true);
 assert.deepEqual(
@@ -20,6 +23,7 @@ assert.deepEqual(
     { id: 'bazel-label', priority: 10 },
     { id: 'path-context', priority: 12 },
     { id: 'nix-flake', priority: 15 },
+    { id: 'makefile-artifacts', priority: 16 },
     { id: 'typescript-emit', priority: 18 },
     { id: 'generated-artifacts', priority: 20 }
   ],
@@ -31,24 +35,29 @@ const bazelResult = buildContext.classifyUnresolved({
   spec: '//tools:missing_extension.bzl',
   rawSpec: '//tools:missing_extension.bzl'
 });
-assert.equal(bazelResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(bazelResult?.reasonCode, 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
 assert.equal(bazelResult?.pluginId, 'bazel-label');
+assert.equal(bazelResult?.traceStage, 'workspace_anchoring');
+assert.equal(bazelResult?.details?.packageExists, true);
 
 const bazelLocalResult = buildContext.classifyUnresolved({
   importerRel: 'app/rules.bzl',
   spec: ':missing_local.bzl',
   rawSpec: ':missing_local.bzl'
 });
-assert.equal(bazelLocalResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(bazelLocalResult?.reasonCode, 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
 assert.equal(bazelLocalResult?.pluginId, 'bazel-label');
+assert.equal(bazelLocalResult?.details?.packageExists, true);
+assert.equal(bazelLocalResult?.details?.targetExists, false);
 
 const bazelExternalResult = buildContext.classifyUnresolved({
   importerRel: 'app/rules.bzl',
   spec: '@repo_tools//defs:missing.bzl',
   rawSpec: '@repo_tools//defs:missing.bzl'
 });
-assert.equal(bazelExternalResult?.reasonCode, 'IMP_U_RESOLVER_GAP');
+assert.equal(bazelExternalResult?.reasonCode, 'IMP_U_BAZEL_EXTERNAL_REPOSITORY_UNAVAILABLE');
 assert.equal(bazelExternalResult?.pluginId, 'bazel-label');
+assert.equal(bazelExternalResult?.details?.repo, 'repo_tools');
 
 const bazelRootTraversal = buildContext.classifyUnresolved({
   importerRel: 'MODULE.bazel',
@@ -145,6 +154,15 @@ const bazelEqualDepthRootTraversal = buildContext.classifyUnresolved({
 });
 assert.equal(bazelEqualDepthRootTraversal?.reasonCode, 'IMP_U_BAZEL_WORKSPACE_ROOT_SENTINEL');
 assert.equal(bazelEqualDepthRootTraversal?.pluginId, 'path-context');
+
+const makefileGeneratedTarget = buildContext.classifyUnresolved({
+  importerRel: 'Makefile.am',
+  spec: '.remake-version-h',
+  rawSpec: '.remake-version-h'
+});
+assert.equal(makefileGeneratedTarget?.reasonCode, 'IMP_U_MAKEFILE_GENERATED_TARGET_MISSING');
+assert.equal(makefileGeneratedTarget?.pluginId, 'makefile-artifacts');
+assert.equal(makefileGeneratedTarget?.traceStage, 'generated_artifact_interpretation');
 
 const generatedFromIndex = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',

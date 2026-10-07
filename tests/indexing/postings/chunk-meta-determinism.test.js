@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { loadChunkMeta, MAX_JSON_BYTES } from '../../../src/shared/artifact-io.js';
 import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
@@ -12,6 +11,7 @@ import { stableStringifyForSignature } from '../../../src/shared/stable-json.js'
 import { sha1 } from '../../../src/shared/hash.js';
 import { rmDirRecursive } from '../../helpers/temp.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { runNode } from '../../helpers/run-node.js';
 
 applyTestEnv();
 const root = process.cwd();
@@ -93,7 +93,11 @@ const runBuild = async ({ label, threads }) => {
     '--progress',
     'off'
   ];
-  const result = spawnSync(process.execPath, args, { cwd: fixtureRoot, env, encoding: 'utf8' });
+  const result = runNode(args, `chunk meta determinism build ${label}`, fixtureRoot, env, {
+    stdio: 'pipe',
+    encoding: 'utf8',
+    allowFailure: true
+  });
   if (result.status !== 0) {
     throw new Error(formatBuildFailure(label, result));
   }

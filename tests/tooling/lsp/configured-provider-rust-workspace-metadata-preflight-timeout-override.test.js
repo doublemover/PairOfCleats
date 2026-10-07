@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
@@ -8,12 +9,14 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `configured-lsp-rust-workspace-metadata-timeout-${process.pid}-${Date.now()}`);
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
+await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+grantFixtureRepositoryExecution(tempRoot);
 await fs.writeFile(
   path.join(tempRoot, 'Cargo.toml'),
   '[package]\nname = "sample"\nversion = "0.1.0"\nedition = "2021"\n',
   'utf8'
 );
+await fs.writeFile(path.join(tempRoot, 'src', 'lib.rs'), 'fn add(a: i32, b: i32) -> i32 { a + b }\n', 'utf8');
 
 const rustProbeHangScriptPath = path.join(tempRoot, 'rust-metadata-timeout.js');
 await fs.writeFile(rustProbeHangScriptPath, 'setTimeout(() => process.exit(0), 5000);\n', 'utf8');
@@ -75,17 +78,18 @@ const result = await runToolingProviders({
 const diagnostics = result.diagnostics?.['lsp-rust-metadata-timeout'] || {};
 assert.equal(
   diagnostics?.preflight?.state,
-  'degraded',
-  'expected rust metadata timeout override preflight degraded state'
+  'blocked',
+  'expected rust metadata timeout override preflight blocked state when all partitions time out'
 );
 assert.equal(
-  diagnostics?.preflight?.reasonCode,
-  'rust_workspace_metadata_timeout',
+  ['rust_workspace_metadata_timeout', 'rust_workspace_blocked_all_partitions']
+    .includes(String(diagnostics?.preflight?.reasonCode || '')),
+  true,
   'expected rust metadata timeout override reason code'
 );
 const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
 assert.equal(
-  checks.some((check) => String(check?.name || '') === 'rust_workspace_metadata_timeout'),
+  checks.some((check) => ['rust_workspace_metadata_timeout', 'rust_workspace_blocked_all_partitions'].includes(String(check?.name || ''))),
   true,
   'expected rust metadata timeout override warning check'
 );

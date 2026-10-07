@@ -4,6 +4,7 @@ import { MAX_JSON_BYTES } from '../constants.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { readJsonFile } from '../json.js';
 import { createPackedChecksumValidator } from '../checksum.js';
+import { decodeVarint64List } from '../varint.js';
 import {
   loadPiecesManifest,
   resolveManifestArtifactSources,
@@ -17,8 +18,146 @@ import {
 } from '../../packed-postings.js';
 import { joinPathSafe } from '../../path-normalize.js';
 import { formatHash64 } from '../../token-id.js';
-import { readJsonFileCached } from './shared.js';
-import { tryLoadTokenPostingsBinaryColumnar } from './binary-columnar.js';
+import { readJsonFileCached, resolveArtifactMetaEnvelope } from './shared.js';
+import {
+  assertSupportedBinaryColumnarMeta,
+  coerceStrictNonNegativeSafeInt,
+  loadBinaryColumnarRowPayloads,
+  resolveSafeLayoutPath,
+  resolveStrictNonNegativeSafeInt,
+  shouldDegradeUnsupportedMeta
+} from './binary-columnar.js';
+
+/**
+ * Decode varint delta/tf pairs into `[docId, tf]` postings.
+ *
+ * @param {Uint8Array|Buffer} payload
+ * @returns {Array<[number, number]>}
+ */
+const decodePostingPairsVarint = (payload) => {
+  const values = decodeVarint64List(payload);
+  if (values.length % 2 !== 0) {
+    throw new Error('Invalid token_postings binary-columnar payload: odd varint pair count');
+  }
+  const postings = [];
+  let docId = 0;
+  for (let i = 0; i < values.length; i += 2) {
+    const delta = coerceStrictNonNegativeSafeInt(values[i]);
+    const tf = coerceStrictNonNegativeSafeInt(values[i + 1]);
+    if (delta == null || tf == null) {
+      throw new Error('Invalid token_postings binary-columnar payload: non-integer delta/tf');
+    }
+    docId = resolveStrictNonNegativeSafeInt(docId + delta, 'token_postings decoded docId');
+    postings.push([docId, tf]);
+  }
+  return postings;
+};
+
+const assertTokenPostingsCardinalityInvariant = ({
+  count,
+  vocab,
+  postings,
+  vocabIds,
+  contextLabel
+}) => {
+  const diagnostics = [];
+  const vocabCount = Array.isArray(vocab) ? vocab.length : 0;
+  const postingsCount = Array.isArray(postings) ? postings.length : 0;
+  const vocabIdsCount = Array.isArray(vocabIds) ? vocabIds.length : 0;
+  if (count !== vocabCount) {
+    diagnostics.push(`count=${count} does not match vocab=${vocabCount}`);
+  }
+  if (postingsCount !== vocabCount) {
+    diagnostics.push(`postings=${postingsCount} does not match vocab=${vocabCount}`);
+  }
+  if (vocabIdsCount > 0 && vocabIdsCount !== vocabCount) {
+    diagnostics.push(`vocabIds=${vocabIdsCount} does not match vocab=${vocabCount}`);
+  }
+  if (!diagnostics.length) return;
+  const error = new Error(
+    `[artifact-io] ${contextLabel} cardinality invariant failed: ${diagnostics.join('; ')}`
+  );
+  error.code = 'ERR_ARTIFACT_INVALID';
+  error.diagnostics = diagnostics;
+  throw error;
+};
+
+/**
+ * Attempt to load `token_postings` from binary-columnar artifacts.
+ *
+ * @param {string} dir
+ * @param {{ maxBytes?: number, enforceDataBudget?: boolean }} [options]
+ * @returns {object|null}
+ */
+const tryLoadTokenPostingsBinaryColumnar = (
+  dir,
+  {
+    maxBytes = MAX_JSON_BYTES,
+    enforceDataBudget = true
+  } = {}
+) => {
+  const metaPath = path.join(dir, 'token_postings.binary-columnar.meta.json');
+  if (!existsOrBak(metaPath)) return null;
+  const metaRaw = readJsonFileCached(resolvePathOrBak(metaPath), { maxBytes });
+  try {
+    assertSupportedBinaryColumnarMeta(metaRaw, 'token_postings binary-columnar');
+  } catch (error) {
+    if (shouldDegradeUnsupportedMeta(error)) return null;
+    throw error;
+  }
+  const { fields: meta, arrays } = resolveArtifactMetaEnvelope(metaRaw);
+  const vocab = Array.isArray(arrays.vocab) ? arrays.vocab : [];
+  const count = meta?.count == null
+    ? vocab.length
+    : resolveStrictNonNegativeSafeInt(meta.count, 'token_postings binary-columnar count');
+  const vocabIds = Array.isArray(arrays.vocabIds) ? arrays.vocabIds : [];
+  const dataPath = resolveSafeLayoutPath(
+    dir,
+    meta?.data,
+    'token_postings.binary-columnar.bin',
+    'token_postings binary-columnar data'
+  );
+  const offsetsPath = resolveSafeLayoutPath(
+    dir,
+    meta?.offsets,
+    'token_postings.binary-columnar.offsets.bin',
+    'token_postings binary-columnar offsets'
+  );
+  const lengthsPath = resolveSafeLayoutPath(
+    dir,
+    meta?.lengths,
+    'token_postings.binary-columnar.lengths.varint',
+    'token_postings binary-columnar lengths'
+  );
+  const payloads = loadBinaryColumnarRowPayloads({
+    dataPath,
+    offsetsPath,
+    lengthsPath,
+    count,
+    maxBytes,
+    enforceDataBudget
+  });
+  if (!payloads) return null;
+  const postings = new Array(payloads.length);
+  for (let i = 0; i < payloads.length; i += 1) {
+    postings[i] = decodePostingPairsVarint(payloads[i]);
+  }
+  assertTokenPostingsCardinalityInvariant({
+    count,
+    vocab,
+    postings,
+    vocabIds,
+    contextLabel: 'token_postings binary-columnar'
+  });
+  const docLengths = Array.isArray(arrays.docLengths) ? arrays.docLengths : [];
+  return {
+    ...meta,
+    vocab,
+    ...(vocabIds.length ? { vocabIds } : {}),
+    postings,
+    docLengths
+  };
+};
 
 /**
  * Load sparse token postings from manifest-selected formats.

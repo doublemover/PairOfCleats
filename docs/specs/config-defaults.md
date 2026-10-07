@@ -108,7 +108,4 @@ No default in this spec should implicitly enable an experimental subsystem unles
 
 ## 9. Required tests
 
-- `tests/config/snapshot-defaults-normalization.test.js`
-- `tests/config/diff-defaults-normalization.test.js`
-- `tests/config/federation-defaults-normalization.test.js`
-- `tests/config/unknown-key-hard-fail.test.js`
+- `tests/shared/config/contract-matrix.test.js`

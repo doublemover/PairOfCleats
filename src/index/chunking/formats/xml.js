@@ -1,84 +1,42 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
-import { getTreeSitterOptions } from '../tree-sitter.js';
+import { buildConfigTreeSitterChunks } from './config-tree-sitter.js';
+import { parseXmlStructure } from '../../../shared/xml-structure.js';
 
-const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
-  const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';
-  const name = rawName || 'section';
-  const existingMeta = chunk?.meta && typeof chunk.meta === 'object' ? chunk.meta : {};
-  const rawTitle = typeof existingMeta.title === 'string' ? existingMeta.title.trim() : '';
-  return {
-    ...chunk,
-    name,
-    kind: chunk?.kind || 'ConfigSection',
-    meta: {
-      ...existingMeta,
-      format,
-      title: rawTitle || name
-    }
+export const createXmlChunker = ({ parseStructure = parseXmlStructure, now = () => performance.now() } = {}) => (text, context) => {
+  const source = String(text || '');
+  const treeChunks = buildConfigTreeSitterChunks({ text: source, context, languageId: 'xml', ext: '.xml', format: 'xml' });
+  if (treeChunks) return treeChunks;
+  const started = Number(now());
+  const requested = Number(context?.treeSitter?.byLanguage?.xml?.maxParseMs ?? context?.treeSitter?.maxParseMs);
+  const ownerLimitMs = Number.isFinite(requested) && requested > 0 ? Math.max(1, Math.min(30, Math.floor(requested))) : 30;
+  const structure = parseStructure(source, { maxMs: ownerLimitMs,
+    remainingMs: () => Math.max(0, ownerLimitMs - (Number(now()) - started)) });
+  const meta = { format: 'xml', parser: structure.parser, parserCoverage: structure.coverage,
+    parserFallbackReason: structure.reason, rangeSource: structure.rangeSource,
+    unresolvedReferences: structure.unresolvedReferences, ignoredDeclarations: structure.ignoredDeclarations,
+    parseMetrics: { ...structure.metrics, ownerLimitMs } };
+  const wholeContent = () => [{ start: 0, end: source.length, name: 'root', kind: 'ConfigSection', meta }];
+  const expired = () => {
+    const measured = Math.max(0, Number(now()) - started);
+    if (Number.isFinite(measured) && measured < ownerLimitMs) return false;
+    meta.parser = 'xml-unavailable';
+    meta.parserCoverage = 'unavailable';
+    meta.parserFallbackReason = 'time-limit';
+    meta.rangeSource = undefined;
+    meta.parseMetrics = { ...meta.parseMetrics, ownerElapsedMs: measured, ownerMeasuredOverrunMs: Math.max(0, measured - ownerLimitMs) };
+    return true;
   };
-});
-
-export function chunkXml(text, context) {
-  if (context?.treeSitter?.configChunking === true) {
-    const treeChunks = buildTreeSitterChunks({
-      text,
-      languageId: 'xml',
-      ext: '.xml',
-      options: getTreeSitterOptions(context)
-    });
-    if (treeChunks && treeChunks.length) return normalizeConfigTreeSitterChunks(treeChunks, 'xml');
-  }
-  const keys = [];
-  let depth = 0;
-  let i = 0;
-  while (i < text.length) {
-    if (text[i] !== '<') {
-      i += 1;
-      continue;
-    }
-    if (text.startsWith('<!--', i)) {
-      const end = text.indexOf('-->', i + 4);
-      i = end === -1 ? text.length : end + 3;
-      continue;
-    }
-    if (text.startsWith('<?', i) || text.startsWith('<!', i)) {
-      const end = text.indexOf('>', i + 2);
-      i = end === -1 ? text.length : end + 1;
-      continue;
-    }
-    if (text.startsWith('</', i)) {
-      depth = Math.max(0, depth - 1);
-      const end = text.indexOf('>', i + 2);
-      i = end === -1 ? text.length : end + 1;
-      continue;
-    }
-    const tagMatch = text.slice(i + 1).match(/^([A-Za-z0-9:_-]+)/);
-    if (!tagMatch) {
-      i += 1;
-      continue;
-    }
-    const tag = tagMatch[1];
-    const closeIdx = text.indexOf('>', i + 1);
-    const selfClose = closeIdx >= 0 && text[closeIdx - 1] === '/';
-    if (depth === 1) {
-      keys.push({ name: tag, index: i });
-    }
-    if (!selfClose) depth += 1;
-    i = closeIdx === -1 ? text.length : closeIdx + 1;
-  }
-  if (!keys.length) return [{ start: 0, end: text.length, name: 'root', kind: 'ConfigSection', meta: { format: 'xml' } }];
+  if (structure.reason || expired() || !structure.sections.length) return wholeContent();
   const chunks = [];
-  for (let k = 0; k < keys.length; ++k) {
-    const start = keys[k].index;
-    const end = k + 1 < keys.length ? keys[k + 1].index : text.length;
-    const title = keys[k].name || 'section';
-    chunks.push({
-      start,
-      end,
-      name: title,
-      kind: 'ConfigSection',
-      meta: { title, format: 'xml' }
-    });
+  for (let index = 0; index < structure.sections.length; index += 1) {
+    if (expired()) return wholeContent();
+    const section = structure.sections[index];
+    chunks.push({ start: section.start, end: structure.sections[index + 1]?.start ?? source.length,
+      name: section.name, kind: 'ConfigSection', meta: { ...meta, title: section.name,
+        lexicalElementRange: { start: section.start, end: section.end },
+        nameRange: section.nameRange, openingRange: section.openingRange, sectionRangeSource: 'application-sibling-boundaries' } });
   }
+  if (expired()) return wholeContent();
   return chunks;
-}
+};
+
+export const chunkXml = createXmlChunker();

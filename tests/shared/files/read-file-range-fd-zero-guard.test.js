@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { readFileRangeSync } from '../../../src/shared/files.js';
+import { readFileRangeSync } from '../../../src/shared/file-read.js';
 
 const originalOpenSync = fs.openSync;
 const originalReadSync = fs.readSync;

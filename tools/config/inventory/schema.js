@@ -27,22 +27,31 @@ export const mergeEntry = (target, incoming) => {
   }
 };
 
+const getObjectProperties = (schema) => (
+  schema?.properties && typeof schema.properties === 'object'
+    ? schema.properties
+    : null
+);
+
+const walkSchemaProperties = (schema, prefix, visit) => {
+  const properties = getObjectProperties(schema);
+  if (!properties) return;
+  for (const [key, child] of Object.entries(properties)) {
+    const pathKey = prefix ? `${prefix}.${key}` : key;
+    visit(pathKey, child);
+    walkSchemaProperties(child, pathKey, visit);
+  }
+};
+
 export const collectSchemaEntries = (schema, prefix = '', entries = []) => {
   if (!schema || typeof schema !== 'object') return entries;
-  const properties = schema.properties && typeof schema.properties === 'object'
-    ? schema.properties
-    : null;
-  if (properties) {
-    for (const [key, child] of Object.entries(properties)) {
-      const pathKey = prefix ? `${prefix}.${key}` : key;
-      entries.push({
-        path: pathKey,
-        type: normalizeType(child),
-        enum: normalizeEnum(child)
-      });
-      collectSchemaEntries(child, pathKey, entries);
-    }
-  }
+  walkSchemaProperties(schema, prefix, (pathKey, child) => {
+    entries.push({
+      path: pathKey,
+      type: normalizeType(child),
+      enum: normalizeEnum(child)
+    });
+  });
   const additional = schema.additionalProperties && typeof schema.additionalProperties === 'object'
     ? schema.additionalProperties
     : null;
@@ -65,6 +74,16 @@ export const collectSchemaEntries = (schema, prefix = '', entries = []) => {
     });
     collectSchemaEntries(items, pathKey, entries);
   }
+  return entries;
+};
+
+export const collectSchemaDefaults = (schema, prefix = '', entries = []) => {
+  if (!schema || typeof schema !== 'object') return entries;
+  walkSchemaProperties(schema, prefix, (pathKey, child) => {
+    if (Object.prototype.hasOwnProperty.call(child, 'default')) {
+      entries.push({ path: pathKey, value: child.default });
+    }
+  });
   return entries;
 };
 

@@ -12,13 +12,21 @@ on:
 
 jobs:
   analyze:
-    name: CodeQL (javascript)
+    name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript
+            build-mode: none
+          - language: rust
+            build-mode: autobuild
     steps:
       - name: Rate limit (nightly)
         if: github.event_name == 'schedule'
         id: nightly
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data } = await github.rest.repos.listCommits({
@@ -39,7 +47,7 @@ jobs:
       - name: Rate limit (push)
         if: github.event_name == 'push'
         id: rate
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const branch = context.ref.replace('refs/heads/', '');
@@ -63,14 +71,27 @@ jobs:
 
       - name: Checkout
         if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Initialize CodeQL
         if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
         uses: github/codeql-action/init@v4
         with:
-          languages: javascript
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Setup Rust toolchain
+        if: matrix.language == 'rust' && (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
+      - name: Autobuild Rust
+        if: matrix.language == 'rust' && (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
         if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
         uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'

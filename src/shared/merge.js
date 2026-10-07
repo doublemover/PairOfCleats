@@ -3,7 +3,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { once } from 'node:events';
 import { createJsonlBatchWriter } from './json-stream/jsonl-batch.js';
-import { writeJsonObjectFile } from './json-stream.js';
+import { writeJsonObjectFile } from './json-stream/json-writers.js';
 import { atomicWriteJson } from './io/atomic-write.js';
 import { compareStrings } from './sort.js';
 import { compareWithAntisymmetryInvariant } from './invariants.js';
@@ -125,6 +125,36 @@ const createComparator = (compare, { validateComparator = false } = {}) => {
   return (left, right) => compareWithAntisymmetryInvariant(base, left, right);
 };
 
+const createBufferedJsonlRunWriter = (writer, {
+  maxBufferRows = DEFAULT_MAX_BUFFER_ROWS,
+  maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES
+} = {}) => {
+  let buffer = [];
+  let bufferBytes = 0;
+  const flush = async () => {
+    for (const entry of buffer) {
+      await writer.writeLine(entry.line, entry.lineBytes);
+    }
+    buffer = [];
+    bufferBytes = 0;
+  };
+  const writeLine = async (line, lineBytes) => {
+    buffer.push({ line, lineBytes });
+    bufferBytes += lineBytes;
+    if ((maxBufferRows && buffer.length >= maxBufferRows)
+      || (maxBufferBytes && bufferBytes >= maxBufferBytes)) {
+      await flush();
+    }
+  };
+  return {
+    flush,
+    writeLine,
+    get pending() {
+      return buffer.length;
+    }
+  };
+};
+
 export const createMergeRunManifest = ({
   runPath,
   rows,
@@ -161,27 +191,14 @@ export const writeJsonlRunFile = async (
 ) => {
   const writer = createJsonlBatchWriter(filePath, { atomic });
   const stringify = typeof serialize === 'function' ? serialize : (value) => JSON.stringify(value);
-  let buffer = [];
-  let bufferBytes = 0;
-  const flush = async () => {
-    for (const entry of buffer) {
-      await writer.writeLine(entry.line, entry.lineBytes);
-    }
-    buffer = [];
-    bufferBytes = 0;
-  };
+  const bufferedWriter = createBufferedJsonlRunWriter(writer, { maxBufferRows, maxBufferBytes });
   try {
     for (const entry of rows) {
       const line = stringify(entry);
       const lineBytes = Buffer.byteLength(line, 'utf8') + 1;
-      buffer.push({ line, lineBytes });
-      bufferBytes += lineBytes;
-      if ((maxBufferRows && buffer.length >= maxBufferRows)
-        || (maxBufferBytes && bufferBytes >= maxBufferBytes)) {
-        await flush();
-      }
+      await bufferedWriter.writeLine(line, lineBytes);
     }
-    if (buffer.length) await flush();
+    if (bufferedWriter.pending) await bufferedWriter.flush();
     await writer.close();
   } catch (err) {
     try { await writer.destroy(err); } catch {}
@@ -245,6 +262,7 @@ export const mergeSortedRunsToFile = async ({
   if (!outputPath) throw new Error('mergeSortedRunsToFile requires outputPath');
   const stringify = typeof serialize === 'function' ? serialize : (value) => JSON.stringify(value);
   const writer = createJsonlBatchWriter(outputPath, { atomic });
+  const bufferedWriter = createBufferedJsonlRunWriter(writer, { maxBufferRows, maxBufferBytes });
   const stats = {
     rows: 0,
     bytes: 0,
@@ -253,15 +271,6 @@ export const mergeSortedRunsToFile = async ({
     finishedAt: null,
     elapsedMs: 0
   };
-  let buffer = [];
-  let bufferBytes = 0;
-  const flush = async () => {
-    for (const entry of buffer) {
-      await writer.writeLine(entry.line, entry.lineBytes);
-    }
-    buffer = [];
-    bufferBytes = 0;
-  };
   try {
     for await (const row of mergeSortedRuns(runs, { compare, readRun, validateComparator })) {
       const line = stringify(row);
@@ -269,14 +278,9 @@ export const mergeSortedRunsToFile = async ({
       stats.rows += 1;
       stats.bytes += lineBytes;
       stats.maxRowBytes = Math.max(stats.maxRowBytes, lineBytes);
-      buffer.push({ line, lineBytes });
-      bufferBytes += lineBytes;
-      if ((maxBufferRows && buffer.length >= maxBufferRows)
-        || (maxBufferBytes && bufferBytes >= maxBufferBytes)) {
-        await flush();
-      }
+      await bufferedWriter.writeLine(line, lineBytes);
     }
-    if (buffer.length) await flush();
+    if (bufferedWriter.pending) await bufferedWriter.flush();
     await writer.close();
   } catch (err) {
     try { await writer.destroy(err); } catch {}

@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
+import { validateDownloadUrl } from '../download/network-policy.js';
+import {
+  createInstallError,
+  downloadToBuffer,
+  jitterForAttempt,
+  normalizeChecksum,
+  sleep,
+  toInt,
+  writeInstallReport
+} from './install-shared.js';
 
 const PHPACTOR_PHAR_URL = 'https://github.com/phpactor/phpactor/releases/latest/download/phpactor.phar';
 const DEFAULT_TIMEOUT_MS = 45_000;
@@ -28,116 +37,25 @@ const parseArgs = () => createCli({
   .strictOptions()
   .parse();
 
-const toInt = (value, fallback, min = 0) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(min, Math.floor(parsed));
-};
-
-const sleep = async (ms) => {
-  if (!Number.isFinite(ms) || ms <= 0) return;
-  await new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-const jitterForAttempt = (attempt, jitterMs) => {
-  if (!Number.isFinite(jitterMs) || jitterMs <= 0) return 0;
-  const seed = (attempt * 193) + 17;
-  return seed % (Math.floor(jitterMs) + 1);
-};
-
-const withTimeoutSignal = (timeoutMs) => {
-  const abortController = new AbortController();
-  const timer = setTimeout(() => {
-    abortController.abort(new Error(`timeout after ${timeoutMs}ms`));
-  }, timeoutMs);
-  return {
-    signal: abortController.signal,
-    clear: () => clearTimeout(timer)
-  };
-};
-
-const createInstallError = (reason, message, options = {}) => {
-  const error = new Error(message);
-  error.reason = reason;
-  error.retryable = options.retryable === true;
-  if (Number.isInteger(options.statusCode)) {
-    error.statusCode = options.statusCode;
-  }
-  if (options.cause) error.cause = options.cause;
-  return error;
-};
-
-const computeSha256 = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
-
-const normalizeChecksum = (value) => String(value || '').trim().toLowerCase();
-
-const isRetryableHttpStatus = (statusCode) => statusCode === 408 || statusCode === 429 || statusCode >= 500;
-
-const writeReport = async (reportPath, payload) => {
-  const target = String(reportPath || '').trim();
-  if (!target) return null;
-  const resolved = path.resolve(target);
-  await fs.mkdir(path.dirname(resolved), { recursive: true });
-  await fs.writeFile(resolved, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-  return resolved;
-};
-
 const downloadPhar = async ({ url, timeoutMs }) => {
-  const timeout = withTimeoutSignal(timeoutMs);
-  try {
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: timeout.signal
-    });
-    if (!response.ok) {
-      try {
-        await response.arrayBuffer();
-      } catch {}
-      throw createInstallError(
-        'download_http_error',
-        `Failed to download phpactor PHAR (${response.status} ${response.statusText}).`,
-        {
-          retryable: isRetryableHttpStatus(response.status),
-          statusCode: response.status
-        }
-      );
+  validateDownloadUrl(url);
+  return downloadToBuffer({
+    url,
+    timeoutMs,
+    redirect: 'manual',
+    maxBytes: 32 * 1024 * 1024,
+    label: 'phpactor PHAR',
+    drainErrorBody: false,
+    createErrorMessage: (reason, details) => {
+      if (reason === 'download_http_error') {
+        return `Failed to download phpactor PHAR (${details.statusCode} ${details.statusText}).`;
+      }
+      if (reason === 'download_empty_payload') return 'Downloaded empty phpactor PHAR payload.';
+      if (reason === 'download_timeout') return `Timed out downloading phpactor PHAR after ${details.timeoutMs}ms.`;
+      if (reason === 'download_network_error') return `Failed to download phpactor PHAR: ${details.message || details.errorText}`;
+      return null;
     }
-    const body = Buffer.from(await response.arrayBuffer());
-    if (!body.length) {
-      throw createInstallError(
-        'download_empty_payload',
-        'Downloaded empty phpactor PHAR payload.',
-        { retryable: false }
-      );
-    }
-    return {
-      body,
-      sha256: computeSha256(body),
-      sourceUrl: response.url || url
-    };
-  } catch (error) {
-    if (error?.reason) throw error;
-    const timeoutTriggered = timeout.signal?.aborted === true;
-    const message = String(error?.message || '');
-    if (
-      timeoutTriggered
-      || error?.name === 'AbortError'
-      || /timeout/i.test(message)
-    ) {
-      throw createInstallError(
-        'download_timeout',
-        `Timed out downloading phpactor PHAR after ${timeoutMs}ms.`,
-        { retryable: true, cause: error }
-      );
-    }
-    throw createInstallError(
-      'download_network_error',
-      `Failed to download phpactor PHAR: ${error?.message || String(error)}`,
-      { retryable: true, cause: error }
-    );
-  } finally {
-    timeout.clear();
-  }
+  });
 };
 
 const writeShims = async (binDir) => {
@@ -199,6 +117,12 @@ const main = async (argv) => {
   const retryBaseMs = toInt(argv['retry-base-ms'], DEFAULT_RETRY_BASE_MS, 0);
   const retryJitterMs = toInt(argv['retry-jitter-ms'], DEFAULT_RETRY_JITTER_MS, 0);
   const expectedSha256 = normalizeChecksum(argv.sha256);
+  if (!/^[a-f0-9]{64}$/.test(expectedSha256)) {
+    throw createInstallError('checksum_required', 'phpactor PHAR installation requires an explicitly approved --sha256 digest.', { retryable: false });
+  }
+  if (url.includes('/releases/latest/')) {
+    throw createInstallError('immutable_url_required', 'Use an explicit immutable phpactor artifact URL with its approved digest; mutable latest URLs are not accepted.', { retryable: false });
+  }
   const attempts = [];
   const binDir = resolveBinDir(argv);
   const pharPath = path.join(binDir, 'phpactor.phar');
@@ -280,7 +204,7 @@ const main = async (argv) => {
     sha256: download.sha256,
     attempts
   };
-  const reportPath = await writeReport(argv.report, successPayload);
+  const reportPath = await writeInstallReport(argv.report, successPayload);
   if (reportPath) {
     console.error(`phpactor PHAR install report: ${reportPath}`);
   }
@@ -297,7 +221,7 @@ main(argv).catch(async (error) => {
     message: error?.message || String(error)
   };
   if (argv?.report) {
-    await writeReport(argv.report, payload).catch(() => {});
+    await writeInstallReport(argv.report, payload).catch(() => {});
   }
   console.error(`install-phpactor-phar failed [${payload.reason}]: ${payload.message}`);
   process.exit(1);

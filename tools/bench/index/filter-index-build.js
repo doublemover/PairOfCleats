@@ -10,31 +10,14 @@ import {
   isRoaringAvailable,
   shouldUseBitmap
 } from '../../../src/retrieval/bitmap.js';
-
-const parseArgs = () => {
-  const out = {};
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) continue;
-    const key = arg.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith('--')) {
-      out[key] = next;
-      i += 1;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-};
+import { parseSimpleBenchArgs } from '../shared.js';
 
 if (!isRoaringAvailable()) {
   console.log('[bench] roaring-wasm not available; skipping filter-index build bitmap bench');
   process.exit(0);
 }
 
-const args = parseArgs();
+const args = parseSimpleBenchArgs();
 const fileCount = Math.max(1, Number(args.files) || 2000);
 const chunksPerFile = Math.max(1, Number(args.chunksPerFile) || 32);
 const bitmapMinSize = Math.max(1, Number(args.minSize) || 256);
@@ -129,12 +112,19 @@ const printCurrent = (result, baseline = null) => {
     `ms=${result.durationMs.toFixed(1)}`,
     `fileBitmaps=${result.fileBitmaps}`
   ];
+  let delta = null;
+  let pct = null;
   if (baseline) {
-    const delta = result.durationMs - baseline.durationMs;
-    const pct = baseline.durationMs > 0 ? (delta / baseline.durationMs) * 100 : null;
+    delta = result.durationMs - baseline.durationMs;
+    pct = baseline.durationMs > 0 ? (delta / baseline.durationMs) * 100 : null;
     parts.push(`delta=${delta.toFixed(1)}ms (${pct?.toFixed(1)}%)`);
   }
   console.log(`[bench] current ${parts.join(' ')}`);
+  if (baseline) {
+    console.log(
+      `[bench] delta ms=${delta.toFixed(1)} (${pct?.toFixed(1)}%) fileBitmaps=${result.fileBitmaps - baseline.fileBitmaps}`
+    );
+  }
 };
 
 let baseline = null;
@@ -148,4 +138,3 @@ if (mode !== 'baseline') {
 }
 
 releaseFilterIndexMemory(index);
-

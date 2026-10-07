@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -25,6 +26,16 @@ class SettingsBehaviorTests(unittest.TestCase):
         settings.set('search_prompt_options', False)
         settings.set('map_stream_output', False)
         settings.set('env', {'BASE_ONLY': '1', 'SHARED': 'base'})
+        self.process_guards = []
+        for name in ('subprocess.Popen', 'subprocess.run'):
+            guard = mock.patch(name, side_effect=AssertionError('Settings fixtures cannot launch software'))
+            patched = guard.start()
+            self.process_guards.append(patched)
+            self.addCleanup(guard.stop)
+
+    def tearDown(self):
+        for guard in self.process_guards:
+            guard.assert_not_called()
 
     def test_validate_settings_covers_api_output_watch_and_map_keys(self):
         settings = self.config.get_settings(None)
@@ -125,12 +136,27 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertFalse(explicit_api['allow_fallback'])
         self.assertIsNone(explicit_api['error'])
 
-    def test_project_overrides_merge_env_and_override_scalars(self):
+    def test_project_overrides_preserve_user_execution_settings_and_override_scalars(self):
+        user = self.sublime.load_settings(self.config.SETTINGS_FILE)
+        protected = {
+            'pairofcleats_path': '/owned/cli.js',
+            'node_path': '/owned/node',
+            'api_server_url': 'http://127.0.0.1:7464',
+            'api_execution_mode': 'prefer',
+        }
+        user.update(protected)
+        user.set('cli_args', ['--not-supported'])
+        user.set('extra_search_args', ['--not-supported'])
         self.window.set_project_data({
             'settings': {
                 'pairofcleats': {
-                    'api_server_url': 'http://127.0.0.1:7464',
-                    'api_execution_mode': 'prefer',
+                    'pairofcleats_path': '/project/ignored.js',
+                    'node_path': '/project/ignored-node',
+                    'api_server_url': 'http://ignored.invalid',
+                    'api_execution_mode': 'require',
+                    'cli_args': ['--ignored'],
+                    'extra_search_args': ['--ignored-search'],
+                    'api_timeout_ms': 6200,
                     'open_results_in': 'output_panel',
                     'progress_panel_on_start': False,
                     'progress_watchdog_ms': 20000,
@@ -142,14 +168,18 @@ class SettingsBehaviorTests(unittest.TestCase):
             }
         })
         settings = self.config.get_settings(self.window)
-        self.assertEqual(settings['api_server_url'], 'http://127.0.0.1:7464')
-        self.assertEqual(settings['api_execution_mode'], 'prefer')
+        for key, value in protected.items():
+            self.assertEqual(settings[key], value)
+        self.assertNotIn('cli_args', settings)
+        self.assertNotIn('extra_search_args', settings)
+        self.assertEqual(settings['api_timeout_ms'], 6200)
         self.assertEqual(settings['open_results_in'], 'output_panel')
         self.assertEqual(settings['progress_panel_on_start'], False)
         self.assertEqual(settings['progress_watchdog_ms'], 20000)
         self.assertEqual(settings['env']['BASE_ONLY'], '1')
-        self.assertEqual(settings['env']['PROJECT_ONLY'], '1')
-        self.assertEqual(settings['env']['SHARED'], 'project')
+        self.assertNotIn('PROJECT_ONLY', settings['env'])
+        self.assertEqual(settings['env']['SHARED'], 'base')
+        self.assertEqual(self.config.extract_project_settings(self.window)['env']['SHARED'], 'project')
 
     def test_project_settings_command_ensures_override_root_exists(self):
         command = self.settings_commands.PairOfCleatsOpenProjectSettingsCommand(self.window)
@@ -169,8 +199,10 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertIn('settings', payload)
         self.assertIn('pairofcleats', payload['settings'])
         override = payload['settings']['pairofcleats']
-        self.assertEqual(override['api_server_url'], 'http://127.0.0.1:7464')
-        self.assertEqual(override['api_execution_mode'], 'cli')
+        for key in ('pairofcleats_path', 'node_path', 'env', 'api_server_url',
+                    'api_execution_mode', 'cli_args', 'extra_search_args'):
+            self.assertNotIn(key, override)
+        self.assertEqual(override['api_timeout_ms'], 5000)
         self.assertIn('search_ann_default', override)
         self.assertIn('search_allow_sparse_fallback', override)
         self.assertIn('search_as_of_default', override)
@@ -182,6 +214,33 @@ class SettingsBehaviorTests(unittest.TestCase):
         self.assertIn('map_stream_output', override)
         self.assertIn('index_watch_mode', override)
         self.assertIn('open_results_in', override)
+
+    def test_project_settings_template_round_trips_supported_defaults(self):
+        user = self.sublime.load_settings(self.config.SETTINGS_FILE)
+        user.set('pairofcleats_path', '/owned/cli.js')
+        user.set('index_watch_folder', './user-folder')
+        payload = json.loads(self.config.build_project_settings_template())
+        self.window.set_project_data(payload)
+        settings = self.config.get_settings(self.window)
+        for key, value in payload['settings']['pairofcleats'].items():
+            self.assertEqual(settings[key], value)
+        self.assertEqual(settings['pairofcleats_path'], '/owned/cli.js')
+        self.assertEqual(settings['index_watch_folder'], './user-folder')
+        self.assertEqual(settings['env'], {'BASE_ONLY': '1', 'SHARED': 'base'})
+
+    def test_setting_origin_matches_resolution_for_ignored_and_supported_fields(self):
+        overrides = {
+            'env': {'IGNORED': '1'}, 'api_server_url': 'http://ignored.invalid',
+            'pairofcleats_path': '/project/ignored.js', 'node_path': '/project/ignored-node',
+            'api_execution_mode': 'require', 'cli_args': [], 'extra_search_args': [],
+            'api_timeout_ms': 6200, 'search_limit': 7,
+        }
+        for key in ('env', 'api_server_url', 'pairofcleats_path', 'node_path',
+                    'api_execution_mode', 'cli_args', 'extra_search_args'):
+            self.assertEqual(self.settings_commands._setting_source(key, overrides), 'base')
+        self.assertEqual(self.settings_commands._setting_source('api_timeout_ms', overrides), 'project')
+        self.assertEqual(self.settings_commands._setting_source('search_limit', overrides), 'project')
+        self.assertEqual(self.settings_commands._setting_source('search_limit', None), 'base')
 
     def test_show_effective_settings_groups_output(self):
         self.window.set_project_data({
@@ -200,18 +259,59 @@ class SettingsBehaviorTests(unittest.TestCase):
         command.run()
         panel = self.window.panels['pairofcleats-settings']
         text = panel.appended
-        self.assertIn('Merge semantics:', text)
+        self.assertIn('Settings precedence:', text)
         self.assertIn('API:', text)
         self.assertIn('Search:', text)
         self.assertIn('Output:', text)
         self.assertIn('Watch:', text)
         self.assertIn('Map:', text)
-        self.assertIn('api_server_url = "http://127.0.0.1:7464" [project]', text)
-        self.assertIn('api_execution_mode = "prefer" [project]', text)
+        self.assertIn('api_server_url = "" [base]', text)
+        self.assertIn('api_execution_mode = "cli" [base]', text)
         self.assertIn('progress_panel_on_start = false [project]', text)
         self.assertIn('progress_watchdog_ms = 20000 [project]', text)
         self.assertIn('map_stream_output = true [project]', text)
-        self.assertIn('Project env override keys: PAIR', text)
+        self.assertIn('Ignored project keys (use User Settings): api_execution_mode, api_server_url, env', text)
+        self.assertIn('env = {"BASE_ONLY": "1", "SHARED": "base"} [base]', text)
+        self.assertNotIn('shallow-merged', text)
+        self.assertNotIn('http://127.0.0.1:7464', text)
+        self.assertNotIn('Project env override keys:', text)
+
+    def test_effective_settings_refreshes_after_project_changes(self):
+        command = self.settings_commands.PairOfCleatsShowEffectiveSettingsCommand(self.window)
+        self.window.set_project_data({'settings': {'pairofcleats': {
+            'env': {'IGNORED': '1'}, 'map_stream_output': True,
+        }}})
+        command.run()
+        self.assertIn('Ignored project keys (use User Settings): env',
+                      self.window.panels['pairofcleats-settings'].appended)
+        self.window.set_project_data({'settings': {'PairOfCleats': {'search_limit': 7}}})
+        command.run()
+        text = self.window.panels['pairofcleats-settings'].appended
+        self.assertIn('Project override keys: search_limit', text)
+        self.assertIn('search_limit = 7 [project]', text)
+        self.assertIn('map_stream_output = false [base]', text)
+        self.assertNotIn('Ignored project keys', text)
+
+    def test_non_dictionary_project_settings_have_no_project_origin(self):
+        self.window.set_project_data({'settings': {'pairofcleats': ['not-settings']}})
+        command = self.settings_commands.PairOfCleatsShowEffectiveSettingsCommand(self.window)
+        command.run()
+        text = self.window.panels['pairofcleats-settings'].appended
+        self.assertIn('Project override keys: (none)', text)
+        self.assertNotIn('[project]', text)
+
+    def test_unsupported_project_keys_are_not_advertised_as_user_settings(self):
+        self.window.set_project_data({'settings': {'pairofcleats': {
+            'cli_args': ['--ignored-fixture'], 'extra_search_args': ['--ignored-fixture'],
+            'unrecognized_fixture': 'not-a-supported-setting',
+        }}})
+        command = self.settings_commands.PairOfCleatsShowEffectiveSettingsCommand(self.window)
+        command.run()
+        text = self.window.panels['pairofcleats-settings'].appended
+        self.assertIn('Project override keys: (none)', text)
+        self.assertIn('Unsupported project keys: cli_args, extra_search_args, unrecognized_fixture', text)
+        self.assertNotIn('Ignored project keys (use User Settings)', text)
+        self.assertNotIn('--ignored-fixture', text)
 
 
 if __name__ == '__main__':

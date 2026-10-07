@@ -92,6 +92,8 @@ const resolveBooleanSetting = ({ providerConfig, globalConfigs, keys, fallback =
  *   definitionEnabled:boolean|null,
  *   typeDefinitionEnabled:boolean|null,
  *   referencesEnabled:boolean|null,
+ *   semanticTokensEnabled:boolean|null,
+ *   inlayHintsEnabled:boolean|null,
  *   hoverRequireMissingReturn:boolean|null,
  *   lifecycleRestartWindowMs:number|null,
  *   lifecycleMaxRestartsPerWindow:number|null,
@@ -248,6 +250,18 @@ export const resolveLspRuntimeConfig = (input = {}) => {
       providerConfig,
       globalConfigs,
       keys: ['referencesEnabled', 'references'],
+      fallback: null
+    }),
+    semanticTokensEnabled: resolveBooleanSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['semanticTokensEnabled', 'semanticTokens'],
+      fallback: null
+    }),
+    inlayHintsEnabled: resolveBooleanSetting({
+      providerConfig,
+      globalConfigs,
+      keys: ['inlayHintsEnabled', 'inlayHints'],
       fallback: null
     }),
     hoverRequireMissingReturn: resolveBooleanSetting({

@@ -7,6 +7,13 @@ Status: Contract notes for implementation and validation. This document compleme
 
 ## 1) Identity and compatibility
 
+The `xenova` provider uses `@huggingface/transformers` 4.x. Its public provider
+name and model IDs (including `Xenova/all-MiniLM-L12-v2`) remain unchanged.
+Existing generic model downloads and inference explicitly select `dtype: 'q8'`, preserving existing
+`onnx/model_quantized.onnx` caches rather than silently switching Node inference
+to full-precision weights. The `onnx` provider uses the same tokenizer package.
+See the upstream [dtype migration guide](https://huggingface.co/docs/transformers.js/guides/dtypes).
+
 Embeddings MUST be treated as build-scoped artifacts. A build may only consume embeddings produced with the same:
 
 - embedding model/provider identity
@@ -24,6 +31,55 @@ These fields MUST be recorded in:
 - `index_state.json.embeddings`
 - service embedding queue payloads (when used)
 - optionally ANN meta files (HNSW, LanceDB, sqlite dense_meta) for redundancy
+
+### 1.2 Optional EmbeddingGemma 2 text/code embeddings
+
+Select `onnx-community/embeddinggemma-2-ONNX` with `indexing.embeddings.model`
+or `--model` when building embeddings. The CLI option takes precedence. This
+is opt-in; the default model does not change. Use provider
+`xenova`, which is the existing name for the Transformers.js adapter. The direct
+single-file `onnx` provider is not supported for this multi-component export.
+
+Optional `.pairofcleats.json` settings:
+
+```json
+{
+  "indexing": {
+    "embeddings": {
+      "provider": "xenova",
+      "model": "onnx-community/embeddinggemma-2-ONNX",
+      "embeddinggemma2": { "dtype": "q4", "dimensions": 128 }
+    }
+  }
+}
+```
+
+- Defaults: `fp32`, 768 dimensions, immutable ONNX revision
+  `daa72c51243991dfcaf9f9137d2c573d8f7790c0`, and qualified Transformers.js 4.3.1.
+- Supported precisions: `fp32`, `q8`, and `q4`. Half-precision variants are not
+  enabled by this adapter. Supported dimensions: 128, 256, 512, and 768.
+- An explicit `revision` must be a 40-character commit SHA. Updating revision,
+  precision, or dimensions changes the embedding identity and requires rebuilding
+  the affected embeddings. `--dims`, if also supplied to the standalone builder,
+  must agree with the configured output dimensions.
+- Only the text encoder and tokenizer load; vision/audio encoders are disabled.
+  Tokenized input is truncated at 8192 tokens. The adapter consumes the projected
+  `sentence_embedding` output, validates its shape and finite values, truncates
+  dimensions, then L2-normalizes. `normalize: false` is rejected.
+- Queries use `task: code retrieval | query: `; untitled code passages use
+  `title: none | text: `. Separator whitespace is retained in persisted identity.
+  Retrieval uses the index's saved profile, not an unrelated current precision.
+- New E5/BGE identities also retain their exact prefix separator whitespace.
+  Their rebuilt embedding caches receive different identity keys where the old
+  identity trimmed those separators; existing caches are not relabeled in place.
+- A tiny CPU smoke with the pinned q4 export covers two code passages and a query
+  at 128 dimensions. It verifies loading, finite values, and unit norms, not
+  ranking quality, broad hardware support, or a performance improvement.
+
+The text-only q4 graph and weights total 174,519,542 bytes, plus tokenizer/config
+files. Full-precision text weights are substantially larger. See the
+[ONNX export](https://huggingface.co/onnx-community/embeddinggemma-2-ONNX/tree/daa72c51243991dfcaf9f9137d2c573d8f7790c0)
+and [Google model guidance](https://huggingface.co/google/embeddinggemma-2).
 
 ## 2) Terminology (Phase 7)
 
@@ -74,6 +130,13 @@ embeddings: {
 
 ## 4) Quantization invariants
 
+Stage 3 synchronizes produced vectors into every manifest bundle, including late
+and sharded files. It does not repeat stage 1's extraction-yield admission test.
+Coverage metadata counts examined, unexamined and invalid bundles separately;
+missing or unknown coverage remains incomplete, preserving the existing SQLite
+artifact fallback. Eligible/covered counts describe observed nonempty bundles,
+so a zero denominator alone cannot certify the entire manifest.
+
 For uint8 embeddings:
 - `levels` MUST be clamped to `[2, 256]`
 - emitted vectors MUST only contain values in `[0, 255]` (no wrap)
@@ -111,7 +174,7 @@ The worker MUST refuse to run if `buildRoot` does not exist and should treat `in
 
 ## 7) Strict manifest compliance
 
-Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See the Phase 7 strict manifest addendum in `GIGAROADMAP_2.md`.
+Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-strict fallback is allowed only when explicitly enabled and must emit a warning. See `docs/contracts/public-artifact-surface.md` and `docs/specs/artifact-schemas.md` for the current manifest-first artifact contract.
 
 ## 8) Embeddings throughput KPI gate
 

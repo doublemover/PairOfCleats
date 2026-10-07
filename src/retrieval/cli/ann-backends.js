@@ -1,15 +1,15 @@
 import path from 'node:path';
-import { pathExists } from '../../shared/files.js';
-import { runWithConcurrency } from '../../shared/concurrency.js';
+import { pathExists } from '../../shared/file-read.js';
+import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
+import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
+import { readJsonFile } from '../../shared/artifact-io/json.js';
+import { loadJsonObjectArtifact } from '../../shared/artifact-io/loaders/core.js';
+import { loadGraphRelations } from '../../shared/artifact-io/loaders/graph.js';
 import {
-  MAX_JSON_BYTES,
-  loadGraphRelations,
-  loadJsonObjectArtifact,
   loadPiecesManifest,
-  readJsonFile,
   resolveArtifactPresence,
   resolveDirArtifactPath
-} from '../../shared/artifact-io.js';
+} from '../../shared/artifact-io/manifest.js';
 import {
   isDenseVectorPayloadAvailable,
   loadDenseVectorBinaryFromMetaAsync,
@@ -42,6 +42,19 @@ export const resolveDenseArtifactCandidates = (mode, resolvedDenseVectorMode) =>
     if (mode === 'prose' || mode === 'extracted-prose') return ['dense_vectors_doc', 'dense_vectors'];
   }
   return ['dense_vectors'];
+};
+
+const materializeLegacyDenseVectorPayload = (legacy, modelIdDefault) => {
+  const vectors = Array.isArray(legacy?.arrays?.vectors)
+    ? legacy.arrays.vectors
+    : (Array.isArray(legacy?.vectors) ? legacy.vectors : null);
+  if (!Array.isArray(vectors) || !vectors.length) return null;
+  const payload = {
+    ...legacy,
+    vectors
+  };
+  if (!payload.model && modelIdDefault) payload.model = modelIdDefault;
+  return payload;
 };
 
 /**
@@ -110,15 +123,8 @@ export const attachDenseVectorLoader = ({
             manifest,
             strict
           });
-          const vectors = Array.isArray(legacy?.arrays?.vectors)
-            ? legacy.arrays.vectors
-            : (Array.isArray(legacy?.vectors) ? legacy.vectors : null);
-          if (!Array.isArray(vectors) || !vectors.length) continue;
-          const payload = {
-            ...legacy,
-            vectors
-          };
-          if (!payload.model && modelIdDefault) payload.model = modelIdDefault;
+          const payload = materializeLegacyDenseVectorPayload(legacy, modelIdDefault);
+          if (!payload) continue;
           idx.denseVec = payload;
           return payload;
         } catch {
@@ -132,15 +138,8 @@ export const attachDenseVectorLoader = ({
           for (const fallbackPath of fallbackPaths) {
             try {
               const legacy = readJsonFile(fallbackPath, { maxBytes: MAX_JSON_BYTES });
-              const vectors = Array.isArray(legacy?.arrays?.vectors)
-                ? legacy.arrays.vectors
-                : (Array.isArray(legacy?.vectors) ? legacy.vectors : null);
-              if (!Array.isArray(vectors) || !vectors.length) continue;
-              const payload = {
-                ...legacy,
-                vectors
-              };
-              if (!payload.model && modelIdDefault) payload.model = modelIdDefault;
+              const payload = materializeLegacyDenseVectorPayload(legacy, modelIdDefault);
+              if (!payload) continue;
               idx.denseVec = payload;
               return payload;
             } catch {}

@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  buildArtifactFamilyCloseoutSummary,
   buildActiveWriteTelemetrySnapshot,
-  resolveActiveWritePhaseLabel
+  recordArtifactFamilyCloseoutCompletion,
+  recordArtifactFamilyCloseoutStart,
+  recordArtifactFamilyCloseoutStall,
+  resolveActiveWritePhaseLabel,
+  resolveArtifactWriteStallCauseHint
 } from '../../../src/index/build/artifacts/write-telemetry.js';
 
 const activeWrites = new Map([
@@ -16,9 +21,9 @@ const activeWriteBytes = new Map([
   ['repo_map.json', 4096]
 ]);
 const activeWriteMeta = new Map([
-  ['pieces/manifest.json', { phase: 'scheduler-wait', lane: 'light' }],
-  ['chunk_meta/shard-0001.jsonl', { phase: 'job', lane: 'heavy' }],
-  ['repo_map.json', { phase: 'prefetch-wait', lane: 'massive' }]
+  ['pieces/manifest.json', { phase: 'scheduler-wait', lane: 'light', family: 'artifact-stats' }],
+  ['chunk_meta/shard-0001.jsonl', { phase: 'job', lane: 'heavy', family: 'chunk-meta', progressUnit: 'chunks', estimatedItems: 2048 }],
+  ['repo_map.json', { phase: 'prefetch-wait', lane: 'massive', family: 'repo-analysis' }]
 ]);
 
 const snapshot = buildActiveWriteTelemetrySnapshot({
@@ -36,13 +41,51 @@ assert.equal(snapshot.inflight[0].phase, 'scheduler-wait', 'expected phase metad
 assert.equal(snapshot.inflight[0].phaseClass, 'other', 'expected phase class metadata to be captured');
 assert.equal(
   snapshot.previewText,
-  'pieces/manifest.json [scheduler-wait:light] (7s, ~1024b), chunk_meta/shard-0001.jsonl [job:heavy] (4s, ~2048b)',
-  'expected preview text to include phase, lane, elapsed time, and bytes'
+  'pieces/manifest.json [artifact-stats|scheduler-wait:light] (7s, ~1024b), chunk_meta/shard-0001.jsonl [chunk-meta|job:heavy] (4s, ~2048b, ~2048 chunks)',
+  'expected preview text to include family, phase, lane, elapsed time, bytes, and estimated work units'
 );
 assert.equal(
   snapshot.phaseSummaryText,
   'job=1, prefetch-wait=1, scheduler-wait=1',
   'expected stable phase histogram summary'
+);
+assert.equal(
+  snapshot.familySummaryText,
+  'artifact-stats=1, chunk-meta=1, repo-analysis=1',
+  'expected stable family histogram summary'
+);
+assert.equal(snapshot.stallOwner, null, 'expected non-executing phases to avoid synthetic stall ownership');
+assert.equal(snapshot.stallFamily, null, 'expected non-executing phases to avoid synthetic stall family attribution');
+
+const closeoutSnapshot = buildActiveWriteTelemetrySnapshot({
+  activeWrites: new Map([
+    ['closeout/pieces-manifest', 1000],
+    ['chunk_meta.binary-columnar.bundle', 4000]
+  ]),
+  activeWriteBytes: new Map([
+    ['closeout/pieces-manifest', 0],
+    ['chunk_meta.binary-columnar.bundle', 1024]
+  ]),
+  activeWriteMeta: new Map([
+    ['closeout/pieces-manifest', { phase: 'closeout:pieces-manifest', lane: 'closeout' }],
+    ['chunk_meta.binary-columnar.bundle', { phase: 'materialize:chunk-meta-binary-columnar', lane: 'massive', family: 'chunk-meta' }]
+  ]),
+  now: 8000
+});
+assert.equal(
+  closeoutSnapshot.stallOwner,
+  'closeout:pieces-manifest',
+  'expected closeout work to surface as the active stall owner before generic non-write attribution'
+);
+assert.equal(
+  closeoutSnapshot.stallFamily,
+  'chunk-meta',
+  'expected the executing family to remain visible even when closeout owns stall attribution'
+);
+assert.equal(
+  resolveActiveWritePhaseLabel('chunk_meta.binary-columnar.bundle'),
+  'write:binary-columnar',
+  'expected binary-columnar artifacts to keep their specific phase label'
 );
 assert.equal(
   resolveActiveWritePhaseLabel('closeout/pieces-manifest'),
@@ -54,5 +97,50 @@ assert.equal(
   'write:binary',
   'expected shard binary labels to classify into binary write phases'
 );
+assert.equal(
+  resolveArtifactWriteStallCauseHint('materialize:chunk-meta-binary-columnar'),
+  'heavy-serialization',
+  'expected chunk-meta binary-columnar writes to surface a heavy-serialization stall hint'
+);
+assert.equal(
+  resolveArtifactWriteStallCauseHint('closeout:pieces-manifest'),
+  'publish-or-filesystem-flush',
+  'expected closeout writes to surface a publish/filesystem stall hint'
+);
+
+const familyLedger = new Map();
+recordArtifactFamilyCloseoutStart({
+  artifactFamilyLedger: familyLedger,
+  family: 'chunk-meta',
+  lane: 'massive',
+  phase: 'materialize:chunk-meta-binary-columnar',
+  label: 'chunk_meta.binary-columnar.bundle',
+  estimatedBytes: 4096
+});
+recordArtifactFamilyCloseoutStall({
+  artifactFamilyLedger: familyLedger,
+  family: 'chunk-meta',
+  elapsedSec: 33,
+  lane: 'massive',
+  phase: 'materialize:chunk-meta-binary-columnar',
+  label: 'chunk_meta.binary-columnar.bundle'
+});
+recordArtifactFamilyCloseoutCompletion({
+  artifactFamilyLedger: familyLedger,
+  family: 'chunk-meta',
+  queueDelayMs: 12,
+  durationMs: 55,
+  bytes: 2048,
+  latencyClass: 'huge:tail',
+  lane: 'massive',
+  phase: 'publish:chunk-meta-binary-columnar',
+  label: 'chunk_meta.binary-columnar.bundle'
+});
+const familySummary = buildArtifactFamilyCloseoutSummary(familyLedger);
+assert.equal(familySummary.length, 1, 'expected one family summary entry');
+assert.equal(familySummary[0]?.family, 'chunk-meta');
+assert.equal(familySummary[0]?.stallCount, 1, 'expected family stall count to accumulate');
+assert.equal(familySummary[0]?.maxStallElapsedSec, 33, 'expected max family stall elapsed seconds');
+assert.deepEqual(familySummary[0]?.lanes, ['massive'], 'expected lanes to be preserved in family summary');
 
 console.log('artifact active write telemetry snapshot test passed');

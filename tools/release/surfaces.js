@@ -1,0 +1,194 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { resolveToolRoot } from '../shared/dict-utils.js';
+
+export const SHIPPED_SURFACES_REGISTRY_PATH = 'docs/tooling/shipped-surfaces.json';
+
+const COMMAND_TOKENS = Object.freeze({
+  '$NODE': () => process.execPath
+});
+
+const RELEASE_CHECK_PHASES = new Set(['build', 'install', 'boot', 'smoke']);
+
+const normalizeString = (value) => String(value || '').trim();
+
+const normalizeStringArray = (value) => (Array.isArray(value) ? value : [])
+  .map((entry) => normalizeString(entry))
+  .filter(Boolean);
+
+const normalizeRepoRelativePath = (root, value, label) => {
+  const text = normalizeString(value);
+  if (!text) return '';
+  if (path.isAbsolute(text)) {
+    throw new Error(`${label} must be repo-relative: ${text}`);
+  }
+  const resolved = path.resolve(root, text);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`${label} must stay within repo root: ${text}`);
+  }
+  return relative.replace(/\\/g, '/');
+};
+
+const normalizeRepoRelativePathArray = (root, value, label) => normalizeStringArray(value)
+  .map((entry) => normalizeRepoRelativePath(root, entry, label));
+
+const normalizeSelectorSet = (value) => {
+  if (value == null || value === '') return null;
+  const entries = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  if (entries.length === 0) return new Set();
+  return new Set(entries.map((entry) => normalizeString(entry).toLowerCase()).filter(Boolean));
+};
+
+const resolveCommandToken = (part) => {
+  const text = normalizeString(part);
+  if (!text) {
+    return '';
+  }
+  const resolver = COMMAND_TOKENS[text];
+  return typeof resolver === 'function' ? resolver() : text;
+};
+
+const normalizeReleaseCheckStep = (root, surfaceId, step, index) => {
+  const id = normalizeString(step?.id);
+  const label = normalizeString(step?.label);
+  const phase = normalizeString(step?.phase || 'smoke').toLowerCase();
+  const command = normalizeStringArray(step?.command).map((part) => resolveCommandToken(part));
+  const artifacts = normalizeRepoRelativePathArray(root, step?.artifacts, `${surfaceId}:${id || index} artifact`);
+  if (!id || !label || command.length === 0) {
+    throw new Error(`invalid releaseCheck step for ${surfaceId} at index ${index}`);
+  }
+  if (!RELEASE_CHECK_PHASES.has(phase)) {
+    throw new Error(`invalid releaseCheck phase for ${surfaceId}:${id} (${phase || 'missing'})`);
+  }
+  return {
+    id,
+    phase,
+    label,
+    command,
+    artifacts
+  };
+};
+
+const normalizeSurface = (root, surface, index) => {
+  const id = normalizeString(surface?.id);
+  const name = normalizeString(surface?.name);
+  const owner = normalizeString(surface?.owner);
+  const supportLevel = normalizeString(surface?.supportLevel);
+  const packagingBoundary = normalizeString(surface?.packagingBoundary);
+  const publishBoundary = normalizeString(surface?.publishBoundary);
+  const versionSource = normalizeString(surface?.versionSource);
+  const runtimeTargets = normalizeStringArray(surface?.runtimeTargets);
+  const platforms = normalizeStringArray(surface?.platforms);
+  const build = surface?.build && typeof surface.build === 'object' ? {
+    kind: normalizeString(surface.build.kind),
+    sourcePaths: normalizeRepoRelativePathArray(root, surface.build.sourcePaths, `${id || index} build source path`),
+    outputs: normalizeRepoRelativePathArray(root, surface.build.outputs, `${id || index} build output path`)
+  } : {
+    kind: '',
+    sourcePaths: [],
+    outputs: []
+  };
+  const install = surface?.install && typeof surface.install === 'object' ? {
+    kind: normalizeString(surface.install.kind),
+    summary: normalizeString(surface.install.summary)
+  } : { kind: '', summary: '' };
+  const smoke = surface?.smoke && typeof surface.smoke === 'object' ? {
+    summary: normalizeString(surface.smoke.summary)
+  } : { summary: '' };
+  const releaseCheckConfig = surface?.releaseCheck && typeof surface.releaseCheck === 'object'
+    ? surface.releaseCheck
+    : {};
+  const releaseCheck = {
+    enabled: releaseCheckConfig.enabled === true,
+    steps: (Array.isArray(releaseCheckConfig.steps) ? releaseCheckConfig.steps : [])
+      .map((step, stepIndex) => normalizeReleaseCheckStep(root, id || `surface-${index}`, step, stepIndex))
+  };
+  if (!id || !name || !owner || !supportLevel || !packagingBoundary || !publishBoundary || !versionSource) {
+    throw new Error(`invalid shipped surface metadata at index ${index}`);
+  }
+  if (!build.kind || !install.kind || !install.summary || !smoke.summary) {
+    throw new Error(`surface ${id} is missing build/install/smoke contract metadata`);
+  }
+  return {
+    id,
+    name,
+    owner,
+    supportLevel,
+    packagingBoundary,
+    publishBoundary,
+    versionSource,
+    runtimeTargets,
+    platforms,
+    build,
+    install,
+    smoke,
+    releaseCheck
+  };
+};
+
+export const getShippedSurfacesRegistryPath = (root = resolveToolRoot()) =>
+  path.join(root, SHIPPED_SURFACES_REGISTRY_PATH);
+
+export const loadShippedSurfaces = (root = resolveToolRoot()) => {
+  const registryPath = getShippedSurfacesRegistryPath(root);
+  const payload = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+  const surfaces = (Array.isArray(payload?.surfaces) ? payload.surfaces : [])
+    .map((surface, index) => normalizeSurface(root, surface, index));
+  const ids = new Set();
+  const stepIds = new Set();
+  for (const surface of surfaces) {
+    if (ids.has(surface.id)) {
+      throw new Error(`duplicate shipped surface id: ${surface.id}`);
+    }
+    ids.add(surface.id);
+    for (const step of surface.releaseCheck.steps) {
+      if (stepIds.has(step.id)) {
+        throw new Error(`duplicate shipped surface release-check step id: ${step.id}`);
+      }
+      stepIds.add(step.id);
+    }
+  }
+  return {
+    schemaVersion: normalizeString(payload?.schemaVersion),
+    registryPath,
+    surfaces
+  };
+};
+
+export const getReleaseCheckSurfaceSteps = (
+  root = resolveToolRoot(),
+  { surfaceIds = null, phases = null } = {}
+) => {
+  const registry = loadShippedSurfaces(root);
+  const selectedSurfaceIds = normalizeSelectorSet(surfaceIds);
+  const selectedPhases = normalizeSelectorSet(phases);
+  return registry.surfaces.flatMap((surface) =>
+    (selectedSurfaceIds && !selectedSurfaceIds.has(surface.id.toLowerCase()))
+      ? []
+      : (
+        surface.releaseCheck.enabled
+          ? surface.releaseCheck.steps.map((step) => ({
+            ...step,
+            surfaceId: surface.id,
+            surfaceName: surface.name,
+            owner: surface.owner
+          }))
+            .filter((step) => !selectedPhases || selectedPhases.has(step.phase.toLowerCase()))
+          : []
+      )
+  );
+};
+
+export const getReleaseCheckSurfacePhases = (
+  root = resolveToolRoot(),
+  options = {}
+) => {
+  const phases = new Set(getReleaseCheckSurfaceSteps(root, options).map((step) => step.phase));
+  return Array.from(phases);
+};

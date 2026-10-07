@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { getTrackedSubprocessCount, spawnSubprocess } from '../../../src/shared/subprocess.js';
+import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { resolveSilentStdio } from '../../helpers/test-env.js';
 
 const waitFor = async (predicate, timeoutMs = 5000) => {

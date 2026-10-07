@@ -131,6 +131,19 @@ const fieldMetric = Array.isArray(timing.artifacts)
 assert.ok(fieldMetric, 'expected field_postings.json metric entry');
 assert.ok(Number.isFinite(fieldMetric.serializationMs), 'expected serializationMs metric');
 assert.ok(Number.isFinite(fieldMetric.diskMs), 'expected diskMs metric');
+assert.ok(fieldMetric.phaseTimings && typeof fieldMetric.phaseTimings === 'object', 'expected phaseTimings metric');
+assert.ok(Number.isFinite(fieldMetric.phaseTimings.flushMs), 'expected flushMs phase timing');
+assert.ok(Number.isFinite(fieldMetric.phaseTimings.publishMs), 'expected publishMs phase timing');
+assert.ok(Number.isFinite(fieldMetric.phaseTimings.backpressureWaitMs), 'expected backpressureWaitMs phase timing');
+
+const fieldBinaryMetric = Array.isArray(timing.artifacts)
+  ? timing.artifacts.find((entry) => entry?.path === 'field_postings.binary-columnar.bundle')
+  : null;
+assert.ok(fieldBinaryMetric, 'expected field_postings binary-columnar metric entry');
+assert.ok(fieldBinaryMetric.phaseTimings && typeof fieldBinaryMetric.phaseTimings === 'object', 'expected binary phase timings');
+assert.ok(Number.isFinite(fieldBinaryMetric.phaseTimings.serializationMs), 'expected binary serializationMs phase timing');
+assert.ok(Number.isFinite(fieldBinaryMetric.phaseTimings.flushMs), 'expected binary flushMs phase timing');
+assert.ok(Number.isFinite(fieldBinaryMetric.phaseTimings.publishMs), 'expected binary publishMs phase timing');
 
 await fs.rm(testRoot, { recursive: true, force: true });
 

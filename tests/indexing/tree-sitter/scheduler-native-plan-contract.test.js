@@ -105,6 +105,8 @@ for (const group of planResult.groups || []) {
     assert.equal(typeof signature.hash, 'string', 'expected file signature hash');
     assert.equal(Number.isFinite(signature.size), true, 'expected file signature size');
     assert.equal(Number.isFinite(signature.mtimeMs), true, 'expected file signature mtimeMs');
+    assert.equal(typeof job?.segment?.segmentUid, 'string', 'expected stable segmentUid on scheduler jobs');
+    assert.ok(job.segment.segmentUid.length > 0, 'expected non-empty scheduler segmentUid');
   }
 }
 

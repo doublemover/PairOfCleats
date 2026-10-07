@@ -1,15 +1,37 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
-import { processChunks } from '../../../src/index/build/file-processor/process-chunks.js';
-import { createTokenizationContext } from '../../../src/index/build/tokenization.js';
-import { buildLineIndex } from '../../../src/shared/lines.js';
+import {
+  createDisabledAnalysisPolicy,
+  createProcessChunksFixtureContext,
+  processFixtureChunks
+} from './process-chunks-fixture.js';
 
 ensureTestingEnv(process.env);
 
 const text = 'function a() { return 1; }\nfunction b() { return 2; }\nfunction c() { return 3; }\nfunction d() { return 4; }\n';
-const lineIndex = buildLineIndex(text);
-const lineCount = lineIndex.length || 1;
+const perfRows = [];
+const { context, logs, lineIndex } = createProcessChunksFixtureContext({
+  text,
+  rel: 'src/heavy-file.js',
+  lang: { id: 'javascript', extractDocMeta: () => ({}) },
+  languageOptions: {
+    heavyFile: {
+      maxChunks: 2,
+      skipTokenizationMaxChunks: 2,
+      skipTokenizationCoalesceMaxChunks: 1
+    }
+  },
+  tokenizeEnabled: true,
+  riskAnalysisEnabled: false,
+  riskConfig: {},
+  typeInferenceEnabled: false,
+  analysisPolicy: createDisabledAnalysisPolicy(),
+  perfEventLogger: {
+    enabled: true,
+    emit: (event, payload) => perfRows.push({ event, ...(payload || {}) })
+  }
+});
 const offsets = [
   0,
   lineIndex[1],
@@ -23,95 +45,9 @@ const sc = [
   { start: offsets[2], end: offsets[3], segment: { languageId: 'javascript', segmentUid: 'seg-3' }, kind: 'code', name: 'c' },
   { start: offsets[3], end: offsets[4], segment: { languageId: 'javascript', segmentUid: 'seg-4' }, kind: 'code', name: 'd' }
 ];
-const tokenContext = createTokenizationContext({
-  dictWords: new Set(),
-  dictConfig: { dpMaxTokenLength: 16 },
-  postingsConfig: {}
-});
-const logs = [];
-const perfRows = [];
-
-const result = await processChunks({
+const result = await processFixtureChunks(context, {
   sc,
-  text,
-  ext: '.js',
-  rel: 'src/heavy-file.js',
-  relKey: 'src/heavy-file.js',
-  fileStat: { size: Buffer.byteLength(text) },
-  fileHash: null,
-  fileHashAlgo: null,
-  fileLineCount: lineCount,
-  fileLanguageId: 'javascript',
-  lang: { id: 'javascript', extractDocMeta: () => ({}) },
-  languageContext: {},
-  languageOptions: {
-    heavyFile: {
-      maxChunks: 2,
-      skipTokenizationMaxChunks: 2,
-      skipTokenizationCoalesceMaxChunks: 1
-    }
-  },
-  mode: 'code',
-  relationsEnabled: false,
-  fileRelations: null,
-  callIndex: null,
-  fileStructural: null,
-  commentEntries: [],
-  commentRanges: [],
-  normalizedCommentsConfig: { extract: 'off', maxBytesPerChunk: 0, maxPerChunk: 0 },
-  tokenDictWords: new Set(),
-  dictConfig: { dpMaxTokenLength: 16 },
-  tokenContext,
-  postingsConfig: {},
-  contextWin: 0,
-  tokenMode: 'code',
-  embeddingEnabled: false,
-  embeddingBatchSize: 0,
-  getChunkEmbedding: null,
-  getChunkEmbeddings: null,
-  runEmbedding: async () => null,
-  runProc: async (fn) => fn(),
-  workerPool: null,
-  workerDictOverride: null,
-  workerState: { tokenWorkerDisabled: true, workerTokenizeFailed: false },
-  tokenizationStats: { chunks: 0, tokens: 0, seq: 0 },
-  tokenizeEnabled: true,
-  complexityEnabled: false,
-  lintEnabled: false,
-  complexityCache: new Map(),
-  lintCache: new Map(),
-  log: (line) => logs.push(String(line)),
-  logLine: () => {},
-  perfEventLogger: {
-    enabled: true,
-    emit: (event, payload) => perfRows.push({ event, ...(payload || {}) })
-  },
-  crashLogger: null,
-  riskAnalysisEnabled: false,
-  riskConfig: {},
-  typeInferenceEnabled: false,
-  analysisPolicy: {
-    metadata: { enabled: false },
-    risk: { enabled: false },
-    typeInference: { local: { enabled: false } }
-  },
-  astDataflowEnabled: false,
-  controlFlowEnabled: false,
-  toolInfo: { version: 'test' },
-  lineIndex,
-  lineAuthors: null,
-  fileGitMeta: {},
-  vfsManifestConcurrency: 1,
-  addLineSpan: () => {},
-  addSettingMetric: () => {},
-  addEnrichDuration: () => {},
-  addTokenizeDuration: () => {},
-  addComplexityDuration: () => {},
-  addLintDuration: () => {},
-  addEmbeddingDuration: () => {},
-  showLineProgress: false,
-  totalLines: lineCount,
-  failFile: () => ({ chunks: [], fileRelations: null, skip: { reason: 'fail' } })
+  totalLines: lineIndex.length || 1
 });
 
 assert.equal(result.chunks.length, 1, 'expected heavy-file coalescing to reduce chunks');

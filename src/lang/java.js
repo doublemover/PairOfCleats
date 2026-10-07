@@ -1,8 +1,18 @@
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { findCLikeBodyBounds } from './clike.js';
-import { collectAttributes, extractDocComment, sliceSignature } from './shared.js';
+import {
+  buildDefaultDocMeta,
+  buildBraceDelimitedMethodRelations,
+  collectCLikeDataflowFacts,
+  collectAttributes,
+  collectDottedCallsAndUsages,
+  extractReturnTypeBeforeName,
+  extractDocComment,
+  sliceSignature,
+  stripCLikeComments
+} from './shared.js';
 import { readSignatureLines } from './shared/signature-lines.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
+import { summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 
 /**
@@ -126,18 +136,10 @@ function extractJavaParams(signature) {
 }
 
 function extractJavaReturns(signature, name) {
-  if (!name) return null;
-  const idx = signature.indexOf('(');
-  if (idx === -1) return null;
-  const before = signature.slice(0, idx).replace(/\s+/g, ' ').trim();
-  const nameIdx = before.lastIndexOf(name);
-  if (nameIdx === -1) return null;
-  const raw = before.slice(0, nameIdx).trim();
-  if (!raw) return null;
-  const filtered = raw
-    .split(/\s+/)
-    .filter((tok) => tok && !JAVA_MODIFIERS.has(tok) && !tok.startsWith('@'));
-  return filtered.length ? filtered.join(' ') : null;
+  return extractReturnTypeBeforeName(signature, name, {
+    modifiers: JAVA_MODIFIERS,
+    shouldSkipToken: (tok) => tok.startsWith('@')
+  });
 }
 
 function parseJavaSignature(signature) {
@@ -151,46 +153,15 @@ function parseJavaSignature(signature) {
   return { name, returns };
 }
 
-function stripJavaComments(text) {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/.*$/gm, ' ');
-}
-
-function getLastDottedSegment(raw) {
-  if (!raw) return '';
-  let end = raw.length;
-  while (end > 0 && raw[end - 1] === '.') end -= 1;
-  if (!end) return '';
-  const idx = raw.lastIndexOf('.', end - 1);
-  return raw.slice(idx + 1, end);
-}
+const stripJavaComments = stripCLikeComments;
 
 function collectJavaCallsAndUsages(text) {
-  const calls = new Set();
-  const usages = new Set();
-  const normalized = stripJavaComments(text).replace(/->/g, '.');
-  const callRe = /\b([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
-  let match;
-  while ((match = callRe.exec(normalized)) !== null) {
-    const raw = match[1];
-    if (!raw) continue;
-    const base = getLastDottedSegment(raw);
-    if (!base || JAVA_CALL_KEYWORDS.has(base)) continue;
-    calls.add(raw);
-    if (base !== raw) calls.add(base);
-    if (!match[0]) callRe.lastIndex += 1;
-  }
-  const usageRe = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-  while ((match = usageRe.exec(normalized)) !== null) {
-    const name = match[1];
-    if (!name || name.length < 2) continue;
-    if (JAVA_USAGE_SKIP.has(name)) continue;
-    if (/^[A-Z0-9_]{2,}$/.test(name)) continue;
-    usages.add(name);
-    if (!match[0]) usageRe.lastIndex += 1;
-  }
-  return { calls: Array.from(calls), usages: Array.from(usages) };
+  return collectDottedCallsAndUsages(text, {
+    callKeywords: JAVA_CALL_KEYWORDS,
+    usageSkip: JAVA_USAGE_SKIP,
+    normalizeText: (value) => value.replace(/->/g, '.'),
+    shouldSkipUsage: (name) => /^[A-Z0-9_]{2,}$/.test(name)
+  });
 }
 
 /**
@@ -339,31 +310,11 @@ export function buildJavaChunks(text, options = {}) {
  * @returns {{imports:string[],exports:string[],calls:Array<[string,string]>,usages:string[]}}
  */
 export function buildJavaRelations(text, javaChunks) {
-  const imports = collectJavaImports(text);
-  const exports = new Set();
-  const calls = [];
-  const usages = new Set();
-  if (Array.isArray(javaChunks)) {
-    for (const chunk of javaChunks) {
-      if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
-      const mods = Array.isArray(chunk.meta?.modifiers) ? chunk.meta.modifiers : [];
-      if (mods.includes('public')) exports.add(chunk.name);
-      if (!['MethodDeclaration', 'ConstructorDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const bounds = findCLikeBodyBounds(text, chunk.start);
-      const scanStart = bounds.bodyStart > -1 && bounds.bodyStart < chunk.end ? bounds.bodyStart + 1 : chunk.start;
-      const scanEnd = bounds.bodyEnd > scanStart && bounds.bodyEnd <= chunk.end ? bounds.bodyEnd : chunk.end;
-      const slice = text.slice(scanStart, scanEnd);
-      const { calls: chunkCalls, usages: chunkUsages } = collectJavaCallsAndUsages(slice);
-      for (const callee of chunkCalls) calls.push([chunk.name, callee]);
-      for (const usage of chunkUsages) usages.add(usage);
-    }
-  }
-  return {
-    imports,
-    exports: Array.from(exports),
-    calls,
-    usages: Array.from(usages)
-  };
+  return buildBraceDelimitedMethodRelations(text, javaChunks, {
+    collectImports: collectJavaImports,
+    collectCallsAndUsages: collectJavaCallsAndUsages,
+    findBodyBounds: findCLikeBodyBounds
+  });
 }
 
 /**
@@ -372,24 +323,10 @@ export function buildJavaRelations(text, javaChunks) {
  * @returns {{doc:string,params:string[],returns:(string|null),signature:(string|null),decorators:string[],modifiers:string[]}}
  */
 export function extractJavaDocMeta(chunk) {
-  const meta = chunk.meta || {};
-  const params = Array.isArray(meta.params) ? meta.params : [];
-  const attributes = Array.isArray(meta.attributes) ? meta.attributes : [];
-  const modifiers = Array.isArray(meta.modifiers) ? meta.modifiers : [];
-  return {
-    doc: meta.docstring ? String(meta.docstring).slice(0, 300) : '',
-    params,
-    returns: meta.returns || null,
-    signature: meta.signature || null,
-    decorators: attributes,
-    modifiers,
-    dataflow: meta.dataflow || null,
-    throws: meta.throws || [],
-    awaits: meta.awaits || [],
-    yields: meta.yields || false,
-    returnsValue: meta.returnsValue || false,
-    controlFlow: meta.controlFlow || null
-  };
+  return buildDefaultDocMeta(chunk, {
+    decoratorsFrom: 'attributes',
+    includeModifiers: true
+  });
 }
 
 /**
@@ -419,19 +356,10 @@ export function computeJavaFlow(text, chunk, options = {}) {
   };
 
   if (dataflowEnabled) {
-    out.dataflow = buildHeuristicDataflow(cleaned, {
-      skip: JAVA_USAGE_SKIP,
+    Object.assign(out, collectCLikeDataflowFacts(cleaned, {
+      usageSkip: JAVA_USAGE_SKIP,
       memberOperators: ['.']
-    });
-    out.returnsValue = hasReturnValue(cleaned);
-    const throws = new Set();
-    const throwRe = /\bthrow\b\s+(?:new\s+)?([A-Za-z_][A-Za-z0-9_.]*)/g;
-    let match;
-    while ((match = throwRe.exec(cleaned)) !== null) {
-      const name = match[1].replace(/[({].*$/, '').trim();
-      if (name) throws.add(name);
-    }
-    out.throws = Array.from(throws);
+    }));
   }
 
   if (controlFlowEnabled) {

@@ -1,4 +1,4 @@
-import { StreamMessageWriter } from 'vscode-jsonrpc';
+import { WriteableStreamMessageWriter } from 'vscode-jsonrpc';
 
 const writerCache = new WeakMap();
 const CLOSED_STREAM_WRITE_ERROR_CODES = new Set([
@@ -19,15 +19,45 @@ export const isClosedStreamWriteError = (err) => {
 const getWriterState = (outputStream) => {
   let state = writerCache.get(outputStream);
   if (state) return state;
-  const writer = new StreamMessageWriter(outputStream);
-  state = { writer, closed: false, queue: Promise.resolve() };
+  const listeners = new Set();
+  const subscribe = (event, listener, once = false) => {
+    if (once) outputStream.once(event, listener);
+    else outputStream.on(event, listener);
+    const dispose = () => {
+      outputStream.removeListener(event, listener);
+      listeners.delete(dispose);
+    };
+    listeners.add(dispose);
+    return { dispose };
+  };
+  // Own the adapter subscriptions explicitly. The upstream writer disposes its
+  // emitters, but does not dispose the underlying stream subscriptions.
+  const writer = new WriteableStreamMessageWriter({
+    onClose: (listener) => subscribe('close', listener),
+    onError: (listener) => subscribe('error', listener),
+    onEnd: (listener) => subscribe('end', listener),
+    write: (data, encoding) => new Promise((resolve, reject) => {
+      const callback = (error) => error == null ? resolve() : reject(error);
+      if (typeof data === 'string') outputStream.write(data, encoding, callback);
+      else outputStream.write(data, callback);
+    }),
+    end: () => outputStream.end()
+  });
+  state = { writer, closed: false, pending: 0, disposed: false, queue: Promise.resolve() };
+  state.release = () => {
+    if (!state.closed || state.pending || state.disposed) return;
+    state.disposed = true;
+    state.writer.dispose();
+    for (const dispose of listeners) dispose();
+  };
   const markClosed = () => {
     state.closed = true;
+    state.release();
   };
   if (typeof outputStream.once === 'function') {
-    outputStream.once('close', markClosed);
-    outputStream.once('finish', markClosed);
-    outputStream.once('error', markClosed);
+    subscribe('close', markClosed, true);
+    subscribe('finish', markClosed, true);
+    subscribe('error', markClosed, true);
   }
   writerCache.set(outputStream, state);
   return state;
@@ -44,6 +74,8 @@ export function getJsonRpcWriter(outputStream) {
   }
   const state = getWriterState(outputStream);
   const write = (payload) => {
+    if (state.closed) return Promise.reject(new Error('JSON-RPC stream closed.'));
+    state.pending += 1;
     const run = async () => {
       if (state.closed || outputStream.destroyed || outputStream.writableEnded) {
         throw new Error('JSON-RPC stream closed.');
@@ -56,12 +88,15 @@ export function getJsonRpcWriter(outputStream) {
         state.closed = true;
       }
       throw err;
+    }).finally(() => {
+      state.pending -= 1;
+      state.release();
     });
   };
   const close = () => {
     state.closed = true;
-    state.writer.dispose?.();
-    writerCache.delete(outputStream);
+    state.release();
+    if (writerCache.get(outputStream) === state) writerCache.delete(outputStream);
   };
   return { write, close };
 }
@@ -74,7 +109,7 @@ export function closeJsonRpcWriter(outputStream) {
   const state = writerCache.get(outputStream);
   if (!state) return;
   state.closed = true;
-  state.writer.dispose?.();
+  state.release();
   writerCache.delete(outputStream);
 }
 
@@ -114,13 +149,31 @@ export function createFramedJsonRpcParser({
     ? Math.floor(Number(maxHeaderBytes))
     : null;
   const buffers = [];
+  let bufferHead = 0;
   let bufferLength = 0;
   let closed = false;
+  let scanBuffer = 0;
+  let scanOffset = 0;
+  let scannedHeaderBytes = 0;
+  let delimiterPrefix = 0;
+  let pendingFrame = null;
+  const resetHeaderScan = () => {
+    scanBuffer = bufferHead;
+    scanOffset = 0;
+    scannedHeaderBytes = 0;
+    delimiterPrefix = 0;
+    pendingFrame = null;
+  };
+  const clearBuffers = () => {
+    buffers.length = 0;
+    bufferHead = 0;
+    bufferLength = 0;
+    resetHeaderScan();
+  };
   const fail = (message) => {
     if (closed) return;
     closed = true;
-    buffers.length = 0;
-    bufferLength = 0;
+    clearBuffers();
     handleError(new Error(message));
   };
   const appendBuffer = (chunk) => {
@@ -132,15 +185,15 @@ export function createFramedJsonRpcParser({
     if (!size) return Buffer.alloc(0);
     const out = Buffer.allocUnsafe(size);
     let offset = 0;
-    while (offset < size && buffers.length) {
-      const head = buffers[0];
+    while (offset < size && bufferHead < buffers.length) {
+      const head = buffers[bufferHead];
       const take = Math.min(head.length, size - offset);
       head.copy(out, offset, 0, take);
       offset += take;
       if (take === head.length) {
-        buffers.shift();
+        buffers[bufferHead++] = null;
       } else {
-        buffers[0] = head.subarray(take);
+        buffers[bufferHead] = head.subarray(take);
       }
     }
     bufferLength = Math.max(0, bufferLength - size);
@@ -151,8 +204,9 @@ export function createFramedJsonRpcParser({
     if (!size) return Buffer.alloc(0);
     const out = Buffer.allocUnsafe(size);
     let offset = 0;
-    for (const head of buffers) {
+    for (let index = bufferHead; index < buffers.length; index += 1) {
       if (offset >= size) break;
+      const head = buffers[index];
       const take = Math.min(head.length, size - offset);
       head.copy(out, offset, 0, take);
       offset += take;
@@ -163,36 +217,47 @@ export function createFramedJsonRpcParser({
     const size = Math.max(0, Math.floor(length));
     if (!size) return;
     let remaining = size;
-    while (remaining > 0 && buffers.length) {
-      const head = buffers[0];
+    while (remaining > 0 && bufferHead < buffers.length) {
+      const head = buffers[bufferHead];
       if (head.length <= remaining) {
-        buffers.shift();
+        buffers[bufferHead++] = null;
         remaining -= head.length;
       } else {
-        buffers[0] = head.subarray(remaining);
+        buffers[bufferHead] = head.subarray(remaining);
         remaining = 0;
       }
     }
     bufferLength = Math.max(0, bufferLength - size);
   };
+  const compactBuffers = () => {
+    if (bufferHead === buffers.length) {
+      buffers.length = 0;
+      bufferHead = 0;
+    } else if (bufferHead >= 64 && bufferHead * 2 >= buffers.length) {
+      buffers.splice(0, bufferHead);
+      bufferHead = 0;
+    }
+  };
+  const delimiter = [13, 10, 13, 10];
   const findHeaderEnd = () => {
-    if (!buffers.length) return -1;
-    const delim = Buffer.from('\r\n\r\n');
-    let offset = 0;
-    let carry = null;
-    for (const buf of buffers) {
-      if (!buf.length) {
-        offset += buf.length;
-        continue;
+    // Resume at the first unseen byte, including a delimiter split over pushes.
+    while (scanBuffer < buffers.length) {
+      const buffer = buffers[scanBuffer];
+      while (scanOffset < buffer.length) {
+        const byte = buffer[scanOffset++];
+        scannedHeaderBytes += 1;
+        delimiterPrefix = byte === delimiter[delimiterPrefix]
+          ? delimiterPrefix + 1
+          : (byte === delimiter[0] ? 1 : 0);
+        if (delimiterPrefix === delimiter.length) return scannedHeaderBytes - delimiter.length;
+        // Pending CR/LF prefix bytes may still be framing rather than header.
+        if (maxHeader && scannedHeaderBytes - delimiterPrefix > maxHeader) {
+          fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
+          return -1;
+        }
       }
-      const combined = carry ? Buffer.concat([carry, buf]) : buf;
-      const idx = combined.indexOf(delim);
-      if (idx !== -1) {
-        return offset - (carry ? carry.length : 0) + idx;
-      }
-      const carryStart = Math.max(0, combined.length - (delim.length - 1));
-      carry = combined.subarray(carryStart);
-      offset += buf.length;
+      scanBuffer += 1;
+      scanOffset = 0;
     }
     return -1;
   };
@@ -212,31 +277,32 @@ export function createFramedJsonRpcParser({
   };
   const parseBuffer = () => {
     while (!closed) {
-      const headerEnd = findHeaderEnd();
-      if (headerEnd === -1) {
-        if (maxHeader && bufferLength > maxHeader) {
+      if (!pendingFrame) {
+        const headerEnd = findHeaderEnd();
+        if (headerEnd === -1) return;
+        if (maxHeader && headerEnd > maxHeader) {
           fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
+          return;
         }
-        return;
+        const headerRaw = peekBytes(headerEnd).toString('utf8');
+        const contentLength = parseHeaders(headerRaw);
+        if (!Number.isFinite(contentLength) || contentLength < 0) {
+          fail('JSON-RPC Content-Length header missing or invalid.');
+          return;
+        }
+        if (maxMessage && contentLength > maxMessage) {
+          fail(`JSON-RPC message exceeded ${maxMessage} bytes.`);
+          return;
+        }
+        pendingFrame = { headerBytes: headerEnd + 4, contentLength };
       }
-      if (maxHeader && headerEnd > maxHeader) {
-        fail(`JSON-RPC header exceeded ${maxHeader} bytes.`);
-        return;
-      }
-      const headerRaw = peekBytes(headerEnd).toString('utf8');
-      const contentLength = parseHeaders(headerRaw);
-      if (!Number.isFinite(contentLength) || contentLength < 0) {
-        fail('JSON-RPC Content-Length header missing or invalid.');
-        return;
-      }
-      if (maxMessage && contentLength > maxMessage) {
-        fail(`JSON-RPC message exceeded ${maxMessage} bytes.`);
-        return;
-      }
-      const frameEnd = headerEnd + 4 + contentLength;
+      const { headerBytes, contentLength } = pendingFrame;
+      const frameEnd = headerBytes + contentLength;
       if (bufferLength < frameEnd) return;
-      discardBytes(headerEnd + 4);
+      discardBytes(headerBytes);
       const payloadBuffer = takeBytes(contentLength);
+      compactBuffers();
+      resetHeaderScan();
       try {
         const message = JSON.parse(payloadBuffer.toString('utf8'));
         handleMessage(message);
@@ -261,8 +327,7 @@ export function createFramedJsonRpcParser({
     },
     dispose() {
       closed = true;
-      buffers.length = 0;
-      bufferLength = 0;
+      clearBuffers();
     }
   };
 }

@@ -78,7 +78,7 @@ const result = await incrementalUpdateDatabase({
   vectorConfig: {
     enabled: true,
     extension: { table: 'dense_vectors_ann', column: 'embedding' },
-    encodeVector: () => Buffer.from([1, 2]),
+    encodeVector: (vector) => Buffer.from(new Float32Array(vector).buffer),
     loadVectorExtension: () => ({ ok: true }),
     hasVectorTable: () => true,
     ensureVectorTable: () => ({ ok: true, tableName: 'dense_vectors_ann', column: 'embedding' })
@@ -103,4 +103,3 @@ if (!Number.isFinite(annRow?.count) || annRow.count !== 1) {
 }
 
 console.log('SQLite incremental ANN insert with existing table ok.');
-

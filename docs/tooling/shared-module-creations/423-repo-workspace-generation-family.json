@@ -1,0 +1,90 @@
+{
+  "issueId": 423,
+  "title": "Shared repo/workspace/cache-root/generation helper family",
+  "createdAt": "2026-03-26",
+  "sharedDestination": [
+    "src/shared/repo-paths.js"
+  ],
+  "problemStatement": "Repo-root resolution, repo cache-root derivation, current-build selection, and index-root resolution were owned by tools/dict-utils/paths/repo.js even though src/** product code and src/shared/dict-utils.js depended on them. That cross-layer seam made correctness-critical generation/build-root logic effectively tool-owned.",
+  "duplicateClusters": [
+    {
+      "name": "Product code importing tool-side repo/build helpers",
+      "files": [
+        "src/workspace/config.js",
+        "src/workspace/manifest.js",
+        "src/retrieval/cli-index.js",
+        "src/retrieval/cli/run-search/plan-runner.js",
+        "src/integrations/core/build-index/index.js",
+        "src/integrations/core/build-index/stages.js",
+        "src/integrations/core/status.js",
+        "src/integrations/tooling/architecture-check.js",
+        "src/integrations/tooling/api-contracts.js",
+        "src/integrations/tooling/context-pack.js",
+        "src/integrations/tooling/graph-context.js",
+        "src/integrations/tooling/impact.js",
+        "src/integrations/tooling/suggest-tests.js",
+        "src/integrations/triage/index-records.js",
+        "src/index/type-inference-crossfile/cache.js",
+        "src/shared/dict-utils.js"
+      ],
+      "bestFix": "Move repo/cache/build-resolution ownership into src/shared/repo-paths.js and reduce tools/dict-utils/paths/repo.js to an adapter that injects loadUserConfig/getCacheRoot defaults."
+    },
+    {
+      "name": "Tool wrapper performing shared work plus config defaulting",
+      "files": [
+        "tools/dict-utils/paths/repo.js",
+        "tools/shared/dict-utils.js"
+      ],
+      "bestFix": "Preserve the tool wrapper only as a compatibility adapter for config-loading defaults, not as the canonical owner of repo/build semantics."
+    },
+    {
+      "name": "src/shared compatibility shim masking tool ownership",
+      "files": [
+        "src/shared/dict-utils.js"
+      ],
+      "bestFix": "Stop blind export-star passthrough and make the shim explicitly re-export the real shared repo-path helpers plus only the remaining tool-local helpers still needed by tests."
+    }
+  ],
+  "whyCurrentSharedModulesWereInsufficient": [
+    "src/shared/indexing/build-pointer.js already owned build-pointer interpretation, but not repo-root/cache-root/current-build entrypoints used across product surfaces.",
+    "src/workspace/config.js and src/workspace/manifest.js owned workspace semantics, but not generic repo cache/build path resolution.",
+    "tools/shared/dict-utils.js exposed the needed functions, but its ownership was wrong for src/** and caused a cross-layer dependency."
+  ],
+  "migrationsCompleted": [
+    {
+      "path": "src/shared/repo-paths.js",
+      "action": "created",
+      "notes": "Now owns repo ID/root/cache/build/index path resolution and current-build generation selection."
+    },
+    {
+      "path": "tools/dict-utils/paths/repo.js",
+      "action": "wrapped",
+      "notes": "Now delegates to src/shared/repo-paths.js and only injects config-loading defaults."
+    },
+    {
+      "path": "src/shared/dict-utils.js",
+      "action": "narrowed",
+      "notes": "No longer blanket re-exports tools/shared/dict-utils.js."
+    }
+  ],
+  "parityPlan": {
+    "testsAdded": [
+      "tests/shared/repo-paths-parity.test.js"
+    ],
+    "testsToKeepGreen": [
+      "tests/tooling/paths/explicit-repo-root-arg.test.js",
+      "tests/tooling/paths/current-build-fallback-artifacts.test.js",
+      "tests/workspace/manifest-schema-validation.test.js",
+      "tests/workspace/manifest-determinism-and-hash.test.js"
+    ]
+  },
+  "nonGoals": [
+    "Move config loading out of tools/dict-utils/config.js in this issue.",
+    "Replace every remaining tools/shared/dict-utils.js import in one pass.",
+    "Change API trust-boundary or workspace selection policy."
+  ],
+  "followOnDeletionTargets": [
+    "Further reduce src/shared/dict-utils.js compatibility exports once test/helpers move to direct shared owners.",
+    "Continue migrating remaining src/** imports off tools/shared/dict-utils.js where the imported helper now lives in src/shared/repo-paths.js."
+  ]
+}

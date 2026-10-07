@@ -10,7 +10,7 @@ pairofcleats ingest lsif --repo . --input dump.lsif
 node tools/ingest/lsif.js --repo . --input dump.lsif
 
 # Or via npm
-npm run lsif-ingest -- --repo . --input dump.lsif
+pairofcleats ingest lsif --repo . --input dump.lsif
 
 # Read from stdin
 cat dump.lsif | node tools/ingest/lsif.js --repo . --input -

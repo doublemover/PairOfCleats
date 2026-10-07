@@ -1,10 +1,9 @@
 import path from 'node:path';
-import { isAbsolutePathNative } from '../../../../src/shared/files.js';
-import { normalizeMetaFilters } from '../../../shared/search-request.js';
-import { loadUserConfig } from '../../../shared/dict-utils.js';
-import { resolveRepoPath } from '../../repo.js';
+import { isAbsolutePathNative } from '../../../../src/shared/file-paths.js';
+import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
+import { normalizeMetaFilters } from '../../../../src/shared/search-request.js';
 import { runNodeAsync, runNodeSync } from '../../runner.js';
-import { resolveRepoRuntimeEnv, toolRoot } from '../helpers.js';
+import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 import { buildIndex } from './indexing.js';
 
 /**
@@ -13,8 +12,7 @@ import { buildIndex } from './indexing.js';
  * @returns {Promise<object>}
  */
 export async function triageIngest(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const source = String(args.source || '').trim();
   const inputPath = String(args.inputPath || '').trim();
   if (!source || !inputPath) {
@@ -24,16 +22,13 @@ export async function triageIngest(args = {}, context = {}) {
   const metaFilters = normalizeMetaFilters(args.meta);
   const ingestArgs = [path.join(toolRoot, 'tools', 'triage', 'ingest.js'), '--source', source, '--in', resolvedInput];
   ingestArgs.push('--repo', repoPath);
+  if (args.strict === true) ingestArgs.push('--strict');
   if (Array.isArray(metaFilters)) {
     metaFilters.forEach((entry) => ingestArgs.push('--meta', entry));
   }
-  const progress = typeof context.progress === 'function' ? context.progress : null;
-  const progressLine = progress
-    ? ({ stream, line }) => progress({ message: line, stream })
-    : null;
-  if (progress) {
-    progress({ message: `Ingesting ${source} records.`, phase: 'start' });
-  }
+  const reporter = createProgressReporter(context);
+  const progressLine = createStreamLineProgressForwarder(context);
+  reporter?.start(`Ingesting ${source} records.`);
   const { stdout } = await runNodeAsync(repoPath, ingestArgs, {
     streamOutput: true,
     onLine: progressLine,
@@ -55,9 +50,7 @@ export async function triageIngest(args = {}, context = {}) {
       sqlite: false
     }, context);
   }
-  if (progress) {
-    progress({ message: 'Triage ingest complete.', phase: 'done' });
-  }
+  reporter?.done('Triage ingest complete.');
   return payload;
 }
 
@@ -67,8 +60,7 @@ export async function triageIngest(args = {}, context = {}) {
  * @returns {object}
  */
 export function triageDecision(args = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const finding = String(args.finding || '').trim();
   const status = String(args.status || '').trim();
   if (!finding || !status) {
@@ -97,8 +89,7 @@ export function triageDecision(args = {}) {
  * @returns {Promise<object>}
  */
 export async function triageContextPack(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
-  const runtimeEnv = resolveRepoRuntimeEnv(repoPath, loadUserConfig(repoPath));
+  const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const recordId = String(args.recordId || '').trim();
   if (!recordId) throw new Error('recordId is required.');
   const contextArgs = [path.join(toolRoot, 'tools', 'triage', 'context-pack.js'), '--record', recordId];
@@ -107,22 +98,16 @@ export async function triageContextPack(args = {}, context = {}) {
   if (args.ann === true) contextArgs.push('--ann');
   if (args.ann === false) contextArgs.push('--no-ann');
   if (args.stubEmbeddings === true) contextArgs.push('--stub-embeddings');
-  const progress = typeof context.progress === 'function' ? context.progress : null;
-  const progressLine = progress
-    ? ({ stream, line }) => progress({ message: line, stream })
-    : null;
-  if (progress) {
-    progress({ message: 'Building triage context pack.', phase: 'start' });
-  }
+  const reporter = createProgressReporter(context);
+  const progressLine = createStreamLineProgressForwarder(context);
+  reporter?.start('Building triage context pack.');
   const { stdout } = await runNodeAsync(repoPath, contextArgs, {
     streamOutput: true,
     onLine: progressLine,
     env: runtimeEnv,
     signal: context.signal
   });
-  if (progress) {
-    progress({ message: 'Context pack ready.', phase: 'done' });
-  }
+  reporter?.done('Context pack ready.');
   try {
     return JSON.parse(stdout || '{}');
   } catch (error) {

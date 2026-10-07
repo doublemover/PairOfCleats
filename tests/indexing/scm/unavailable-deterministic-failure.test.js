@@ -27,7 +27,10 @@ const wrapped = assertScmProvider({
 assert.deepEqual(wrapped.detect({ startPath: process.cwd() }), { ok: false });
 assert.deepEqual(await wrapped.listTrackedFiles({ repoRoot: '/repo' }), { ok: false, reason: 'unavailable' });
 assert.deepEqual(await wrapped.getChangedFiles({ repoRoot: '/repo' }), { ok: false, reason: 'unavailable' });
-assert.deepEqual(await wrapped.getFileMeta({ repoRoot: '/repo', filePosix: 'a.js' }), { ok: false, reason: 'unavailable' });
+const metaFailure = await wrapped.getFileMeta({ repoRoot: '/repo', filePosix: 'a.js' });
+assert.equal(metaFailure.ok, false);
+assert.equal(metaFailure.reason, 'unavailable');
+assert.deepEqual(metaFailure.failure, { operation: 'getFileMeta', code: 'Error', message: 'meta boom', truncated: false });
 assert.deepEqual(await wrapped.annotate({ repoRoot: '/repo', filePosix: 'a.js', timeoutMs: 10 }), { ok: false, reason: 'unavailable' });
 
 const provenance = await wrapped.getRepoProvenance({ repoRoot: '/repo' });
