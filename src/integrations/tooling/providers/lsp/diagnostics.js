@@ -8,6 +8,16 @@ export const DEFAULT_MAX_DIAGNOSTIC_URIS = 1000;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_URI = 200;
 export const DEFAULT_MAX_DIAGNOSTICS_PER_CHUNK = 100;
 
+const diagnosticRangeKey = (range) => {
+  const startLine = range?.start?.line;
+  const startCharacter = range?.start?.character;
+  const endLine = range?.end?.line;
+  const endCharacter = range?.end?.character;
+  if (!Number.isInteger(startLine) || !Number.isInteger(startCharacter)
+    || !Number.isInteger(endLine) || !Number.isInteger(endCharacter)) return null;
+  return `${startLine}:${startCharacter}:${endLine}:${endCharacter}`;
+};
+
 /**
  * Build a stable dedupe key for one diagnostic entry.
  * @param {object} diag
@@ -211,13 +221,26 @@ export const shapeDiagnosticsByChunkUid = ({
     if (openEntry && !openEntry.lineIndex) openEntry.lineIndex = lineIndex;
     const docText = openEntry?.text || doc.text || '';
     const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
+    // Diagnostics commonly attach different messages to the same source range.
+    // This bounded cache belongs only to this immutable document projection;
+    // never carry coordinate/target results across documents or notifications.
+    const rangeTargets = diagnostics.length > 1 ? new Map() : null;
 
     for (const diag of diagnostics) {
-      const offsets = rangeToOffsets(lineIndex, diag.range, {
-        text: docText,
-        positionEncoding
-      });
-      const target = findTargetForOffsets(docTargetIndex, offsets);
+      const rangeKey = rangeTargets ? diagnosticRangeKey(diag.range) : null;
+      let target;
+      if (rangeKey !== null && rangeTargets.has(rangeKey)) {
+        target = rangeTargets.get(rangeKey);
+      } else {
+        const offsets = rangeToOffsets(lineIndex, diag.range, {
+          text: docText,
+          positionEncoding
+        });
+        target = findTargetForOffsets(docTargetIndex, offsets);
+        if (rangeKey !== null && rangeTargets.size < DEFAULT_MAX_DIAGNOSTICS_PER_URI) {
+          rangeTargets.set(rangeKey, target);
+        }
+      }
       if (!target?.chunkRef?.chunkUid) continue;
 
       const chunkUid = target.chunkRef.chunkUid;
