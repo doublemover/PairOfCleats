@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 749,
+    "hero": 750,
     "matrix": 108,
     "meta": 25,
     "soak": 1,
@@ -5311,6 +5311,12 @@
     {
       "id": "tooling/lsp/session-health-retirement",
       "order": 883,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/structural-windows-wrapper",
+      "order": 884,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
