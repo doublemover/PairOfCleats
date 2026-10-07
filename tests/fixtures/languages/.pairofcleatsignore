@@ -1,0 +1,3 @@
+# Keep the local Bazel load target in the shared language fixture index.
+!tools/BUILD
+!tools/defs.bzl
