@@ -274,8 +274,8 @@ export const buildGraphNeighborhood = ({
   const edgeWindows = [];
   const paths = [];
   const pathTargets = [];
-  const pathTargetSet = new Set();
-  const parentMap = new Map();
+  let pathTargetsSeen = 0;
+  const parentMap = includePaths ? new Map() : null;
   const queue = [];
   const edgeCandidates = [];
   const edgeBatches = {
@@ -591,17 +591,20 @@ export const buildGraphNeighborhood = ({
       if (!nextKey) continue;
       if (!nodeMap.has(nextKey)) {
         const addedNode = addNode(nextRef, current.distance + 1);
-        if (addedNode) {
-          parentMap.set(nextKey, {
-            parentKey: nodeKey(currentRef),
-            edge: candidate.witnessEdge || {
-              from: edge.from,
-              to: edge.to,
-              edgeType: edge.edgeType
-            }
-          });
-          if (includePaths && !pathTargetSet.has(nextKey)) {
-            pathTargetSet.add(nextKey);
+        if (addedNode && includePaths) {
+          pathTargetsSeen += 1;
+          if (normalizedCaps.maxPaths == null || pathTargets.length < normalizedCaps.maxPaths) {
+            // First-discovery order is also the path-admission order. Every
+            // ancestor of an admitted target was discovered earlier (or is a
+            // seed), so retaining only admitted predecessors preserves chains.
+            parentMap.set(nextKey, {
+              parentKey: nodeKey(currentRef),
+              edge: candidate.witnessEdge || {
+                from: edge.from,
+                to: edge.to,
+                edgeType: edge.edgeType
+              }
+            });
             pathTargets.push(nextKey);
           }
         }
@@ -646,16 +649,14 @@ export const buildGraphNeighborhood = ({
     });
   }
   if (includePaths) {
-    let targets = pathTargets;
-    if (normalizedCaps.maxPaths != null && targets.length > normalizedCaps.maxPaths) {
+    if (normalizedCaps.maxPaths != null && pathTargetsSeen > normalizedCaps.maxPaths) {
       recordTruncation('maxPaths', {
         limit: normalizedCaps.maxPaths,
-        observed: targets.length,
-        omitted: targets.length - normalizedCaps.maxPaths
+        observed: pathTargetsSeen,
+        omitted: pathTargetsSeen - normalizedCaps.maxPaths
       });
-      targets = targets.slice(0, normalizedCaps.maxPaths);
     }
-    for (const key of targets) {
+    for (const key of pathTargets) {
       const path = buildPathForNode(key);
       if (path?.to) paths.push(path);
     }
