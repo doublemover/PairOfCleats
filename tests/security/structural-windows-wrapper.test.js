@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { syncBuiltinESMExports } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { resolveWindowsCmdInvocation } from '../../src/shared/subprocess/windows-cmd.js';
 
 const nativeWindows = process.platform === 'win32';
@@ -36,6 +37,21 @@ try {
     await fs.writeFile(wrapper,
       '@echo off\r\nif exist "%~dp0skip-launch" exit /b 7\r\nnode "%~dp0\\capture.cjs" %*\r\n');
   }
+  const relativeDir = path.join(repoRoot, 'relative wrappers');
+  const relativeWrapper = path.join(relativeDir, 'relative-tool.cmd');
+  await fs.mkdir(relativeDir);
+  await fs.copyFile(path.join(tempRoot, 'capture.cjs'), path.join(relativeDir, 'capture.cjs'));
+  await fs.copyFile(wrappers[0], relativeWrapper);
+  const relativeLaunches = [
+    { command: path.join('relative wrappers', 'relative-tool.cmd'), options: { cwd: repoRoot } },
+    { command: 'relative-tool.cmd', options: { cwd: pathToFileURL(`${relativeDir}${path.sep}`) } },
+    {
+      command: 'relative-tool.cmd', options: {
+        cwd: repoRoot,
+        env: { ...process.env, PATH: `relative wrappers${path.delimiter}${path.dirname(process.execPath)}` }
+      }
+    }
+  ];
   const rule = {
     id: 'literal-rule', language: '.js',
     pattern: 'alpha beta %PATH% !PATH! ^caret',
@@ -83,6 +99,13 @@ try {
   const callsBeforeMissing = calls.length;
   assert.equal(runBinary(path.join(tempRoot, 'missing.cmd'), []).error?.code, 'ERR_WINDOWS_CMD_NOT_FOUND');
   assert.equal(calls.length, callsBeforeMissing, 'missing wrappers must fail closed');
+  for (const { command, options } of relativeLaunches) {
+    assert.equal(runBinary(command, literalArgs, options).status, 0);
+    const expected = resolveWindowsCmdInvocation(relativeWrapper, literalArgs);
+    assert.equal(calls.at(-1).command, expected.command);
+    assert.deepEqual(calls.at(-1).args, expected.args, 'relative wrapper lookup must use the child cwd');
+    assert.equal(calls.at(-1).options.cwd, options.cwd, 'spawn cwd must remain unchanged');
+  }
 
   const directArgs = [...literalArgs, 'literal\nnewline'];
   runBinary(straightWrapper, directArgs, { windowsVerbatimArguments: true });
@@ -110,10 +133,10 @@ try {
   syncBuiltinESMExports();
 
   if (nativeWindows) {
-    const assertCaptured = async (command, args, expected = args) => {
+    const assertCaptured = async (command, args, expected = args, options = {}) => {
       await fs.rm(capturePath, { force: true });
       const result = runBinary(command, args, {
-        encoding: 'utf8', timeoutMs: 5000, windowsHide: true, maxBuffer: 65536
+        encoding: 'utf8', timeoutMs: 5000, windowsHide: true, maxBuffer: 65536, ...options
       });
       assert.ifError(result.error);
       assert.equal(result.status, 0, `native structural launch failed: ${result.stderr}`);
@@ -134,6 +157,9 @@ try {
       assert.equal(guarded.status, 7, 'opaque wrapper control flow must be preserved');
       await assert.rejects(fs.access(capturePath), 'guarded wrapper must not launch the fixture');
       await fs.rm(path.join(tempRoot, 'skip-launch'));
+    }
+    for (const { command, options } of relativeLaunches) {
+      await assertCaptured(command, literalArgs, literalArgs, options);
     }
     await assertCaptured(straightWrapper, directArgs);
     await assertCaptured({ command: process.execPath, argsPrefix: [path.join(tempRoot, 'capture.cjs')] }, directArgs);
