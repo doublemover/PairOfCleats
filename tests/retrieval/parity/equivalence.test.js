@@ -13,7 +13,6 @@ import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-u
 import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
 import { formatParityDuration } from '../../helpers/duration-format.js';
 import { runNode } from '../../helpers/run-node.js';
-import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { ensureTestingEnv, syncProcessEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -137,6 +136,8 @@ const parityArtifacts = await ensureParityArtifacts({
     }
   },
   buildSqlite: async () => {
+    // Existing indexes do not need the indexing pipeline at report startup.
+    const { runSqliteBuild } = await import('../../helpers/sqlite-builder.js');
     await runSqliteBuild(root, { env: parityEnv });
   }
 });
