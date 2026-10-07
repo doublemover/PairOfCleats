@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "timezone": "America/Detroit",
+  "suites": [
+    {
+      "id": "full",
+      "workflow": "maintenance-full.yml",
+      "monthlyDay": 5,
+      "cron": "23 7 * * 4",
+      "paths": [
+        "**"
+      ],
+      "ignorePaths": [
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "docs/**/*.md"
+      ],
+      "protectedPaths": [
+        ".github/**",
+        "docs/contracts/**",
+        "docs/support/**",
+        "docs/specs/**",
+        "docs/fixtures/**"
+      ],
+      "expectedJobs": [
+        {
+          "name": "nightly (ubuntu-latest)"
+        },
+        {
+          "name": "nightly (windows-latest)"
+        },
+        {
+          "name": "nightly (macos-latest)"
+        },
+        {
+          "name": "rust-tui-nightly"
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "workflow": "maintenance-security.yml",
+      "monthlyDay": 13,
+      "cron": "37 7 * * 5",
+      "paths": [
+        "**"
+      ],
+      "ignorePaths": [
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+        "docs/**/*.md"
+      ],
+      "protectedPaths": [
+        ".github/**",
+        "docs/contracts/**",
+        "docs/support/**",
+        "docs/specs/**",
+        "docs/fixtures/**"
+      ],
+      "expectedJobs": [
+        {
+          "name": "CodeQL (javascript)",
+          "requiredSteps": [
+            "^Perform CodeQL Analysis$"
+          ]
+        },
+        {
+          "name": "CodeQL (rust)",
+          "requiredSteps": [
+            "^Perform CodeQL Analysis$"
+          ]
+        }
+      ]
+    }
+  ],
+  "sourceRef": "hydro/complete-outstanding-work"
+}

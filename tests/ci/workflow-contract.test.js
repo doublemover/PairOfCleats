@@ -163,7 +163,7 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /tools\/release\/readiness-gate\.js[\s\S]*--release-git-sha\s+\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/,
     /uses:\s*actions\/download-artifact@v7\b/,
     /uses:\s*actions\/upload-artifact@v6\b/,
-    /uses:\s*actions\/attest-build-provenance@v3\b/,
+    /uses:\s*actions\/attest-build-provenance@v4\b/,
     /environment:\s*release/,
     /gh release create/,
     /gh release upload/

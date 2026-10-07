@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { mock } from 'node:test';
 
 import {
   __getToolingCommandProbeCacheStatsForTests,
@@ -11,7 +12,6 @@ import {
   invalidateProbeCacheOnInitializeFailure,
   resolveToolingCommandProfile
 } from '../../../src/index/tooling/command-resolver.js';
-import { sleep } from '../../../src/shared/sleep.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
@@ -115,6 +115,8 @@ try {
   assert.equal(failedSecond.probe.cached, true);
 
   __resetToolingCommandProbeCacheForTests();
+  const clockStartMs = Date.now();
+  mock.timers.enable({ apis: ['Date'], now: clockStartMs });
   __setToolingCommandProbeSuccessTtlMsForTests(25);
   const ttlToolingDir = path.join(tempRoot, 'ttl-tooling');
 
@@ -136,7 +138,7 @@ try {
   });
   assert.equal(ttlSecond.probe.cached, true);
 
-  await sleep(60);
+  mock.timers.setTime(clockStartMs + 26);
 
   const ttlThird = resolveToolingCommandProfile({
     providerId: 'gopls',
@@ -146,6 +148,8 @@ try {
     toolingConfig: { dir: ttlToolingDir, cache: { dir: ttlToolingDir } }
   });
   assert.equal(ttlThird.probe.cached, false);
+  mock.timers.reset();
+  __setToolingCommandProbeSuccessTtlMsForTests(null);
 
   const baseProbeEnv = { GOTOOLCHAIN: 'auto', RUSTUP_AUTO_INSTALL: '1' };
   const probeEnv = __resolveNoProvisionProbeEnvForTests(baseProbeEnv);
@@ -196,6 +200,7 @@ try {
 
   console.log('tooling doctor command profile probe cache matrix test passed');
 } finally {
+  mock.timers.reset();
   __setToolingCommandProbeSuccessTtlMsForTests(null);
   __resetToolingCommandProbeCacheForTests();
   fs.rmSync(tempRoot, { recursive: true, force: true });
