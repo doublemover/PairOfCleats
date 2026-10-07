@@ -21,7 +21,8 @@ jobs:
           - language: javascript
             build-mode: none
           - language: rust
-            build-mode: autobuild
+            # Rust's CodeQL extractor supports no-build analysis, not autobuild.
+            build-mode: none
     steps:
       - name: Rate limit (nightly)
         if: github.event_name == 'schedule'
@@ -85,10 +86,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.88.0
-
-      - name: Autobuild Rust
-        if: matrix.language == 'rust' && (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
-        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
         if: (github.event_name != 'push' || steps.rate.outputs.skip != 'true') && (github.event_name != 'schedule' || steps.nightly.outputs.skip != 'true')
