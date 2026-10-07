@@ -28,7 +28,7 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -100,7 +100,7 @@ jobs:
     needs: gate
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -144,7 +144,7 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -245,7 +245,7 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -337,7 +337,7 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v5
