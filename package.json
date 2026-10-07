@@ -55,7 +55,7 @@
     "@tree-sitter-grammars/tree-sitter-xml": "0.7.0",
     "@tree-sitter-grammars/tree-sitter-yaml": "0.7.1",
     "@vscode/ripgrep": "^1.17.0",
-    "@vue/compiler-sfc": "^3.5.28",
+    "@vue/compiler-sfc": "^3.5.43",
     "acorn": "8.18.0",
     "adm-zip": "0.6.1",
     "aho-corasick": "^0.1.3",
