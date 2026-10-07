@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseBenchLanguageArgs } from '../../../tools/bench/language/cli.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -40,14 +41,29 @@ const args = [
   '--config', configPath, '--root', path.join(fixture, 'repos'),
   '--results', results, '--cache-root', path.join(fixture, 'cache'),
   '--resource-root', path.join(fixture, 'home'), '--no-clone', '--no-provision',
-  '--build', '--stub-embeddings', '--no-ann', '--backend', 'memory',
-  '--threads', '1', '--heap-mb', '512', '--limit', '1', '--json',
+  // Exercise the real sparse build and query without an unrelated SQLite build.
+  '--build-index', '--stub-embeddings', '--no-ann', '--backend', 'memory',
+  '--threads', '1', '--heap-mb', '512', '--limit', '1', '--quiet', '--progress', 'off',
   '--out', path.join(results, 'receipt.json')
 ];
 assert.equal(parseBenchLanguageArgs(args).argv.ann, false);
+// Keep the memory-only child from eagerly loading the unrelated SQLite builder.
+const importGuard = path.join(fixture, 'memory-import-guard.mjs');
+const sqliteBuilderUrl = pathToFileURL(path.join(root, 'tests/helpers/sqlite-builder.js')).href;
+await fs.writeFile(importGuard, `
+  import { registerHooks } from 'node:module';
+  registerHooks({ load(url, context, nextLoad) {
+    if (url === ${JSON.stringify(sqliteBuilderUrl)}) {
+      throw new Error('Memory-only bench must not load the SQLite build pipeline');
+    }
+    return nextLoad(url, context);
+  } });
+`);
 runNode(['tools/bench/language-repos.js', ...args], 'real no-ANN language child', root, applyTestEnv({
   syncProcess: false,
+  testConfig: { indexing: { artifacts: { binaryColumnar: false } }, sqlite: { use: false } },
   extraEnv: {
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import=${pathToFileURL(importGuard).href}`.trim(),
     PAIROFCLEATS_HOME: path.join(fixture, 'home'),
     PAIROFCLEATS_DICT_DIR: dictionary,
     PAIROFCLEATS_WORKER_POOL: 'off', PAIROFCLEATS_EMBEDDINGS: 'off',
@@ -57,6 +73,9 @@ runNode(['tools/bench/language-repos.js', ...args], 'real no-ANN language child'
 const receipt = JSON.parse(await fs.readFile(path.join(results, 'receipt.json'), 'utf8'));
 const child = JSON.parse(await fs.readFile(path.join(results, 'javascript', 'test__no-ann.json'), 'utf8'));
 assert.equal(receipt.run.aggregateResultClass, 'passed');
+assert.equal(child.artifacts.corruption.ok, true, 'the real sparse artifacts must pass validation');
+assert.ok(child.summary.buildMs.index > 0, 'the fixture must run the real sparse index build');
+assert.equal(child.summary.buildMs.sqlite, undefined, 'memory-only coverage must not build SQLite');
 assert.equal(child.summary.queryCoverage.executedSearchesByBackend.memory, 1);
 assert.equal(child.summary.resultCountAvg.memory, 1);
 assert.equal(child.summary.annEnabled, false);

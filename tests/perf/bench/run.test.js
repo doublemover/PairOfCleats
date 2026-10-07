@@ -17,7 +17,6 @@ import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/s
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { formatBenchDuration as formatDuration, formatBenchDurationMs as formatDurationMs } from '../../helpers/duration-format.js';
-import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { sanitizeBenchNodeOptions } from '../../../tools/bench/language/node-options.js';
 import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-backends.js';
@@ -430,6 +429,7 @@ if (buildIndex || buildSqlite) {
   }
   if (buildSqlite) {
     const sqliteStarted = Date.now();
+    const { runSqliteBuild } = await import('../../helpers/sqlite-builder.js');
     await runSqliteBuild(runtimeRoot, {
       env: buildEnv,
       incremental: buildIncremental,
