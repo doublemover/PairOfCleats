@@ -1,5 +1,16 @@
 # Dependency security and compatibility
 
+## October 7 hosted checkpoint
+
+The completion and dependency proposals through PR540 are merged or specifically
+superseded. At the October 7 hosted inventory, all 216 Dependabot alerts are fixed;
+every matching lockfile path was compared with the advisory's affected range.
+The source-security review and fixes are recorded in
+[the closeout evidence](closeout-evidence-2026-10-07.md), including the remaining
+evaluated CodeQL notices, generic secret-scanning coverage gap and exact revision
+limits. These current receipts supersede the pending merge/rescan status below,
+without rewriting the historical October 2 and October 6 inventories.
+
 ## October 2026 remediation
 
 The pre-remediation npm audit reported 37 affected package entries containing
