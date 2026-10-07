@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { assertToolingCachePath, ensureToolingCacheDir } from '../../../../../index/tooling/cache-storage.js';
 import { writeJsonObjectFile } from '../../../../../shared/json-stream/json-writers.js';
 import { withGeneratedCacheMetadata } from '../../../../../shared/generated-artifact-cache.js';
 import {
@@ -174,6 +175,9 @@ export const loadLspRequestCache = async (cacheRoot, { log = null } = {}) => {
 
 export const persistLspRequestCache = async ({ cachePath, entries, maxEntries }) => {
   if (!cachePath || !(entries instanceof Map)) return;
+  const checkedCachePath = assertToolingCachePath(cachePath);
+  ensureToolingCacheDir(path.dirname(checkedCachePath));
+  assertToolingCachePath(checkedCachePath);
   const now = Date.now();
   const rows = Array.from(entries.entries())
     .map(([key, value]) => ({
@@ -184,7 +188,7 @@ export const persistLspRequestCache = async ({ cachePath, entries, maxEntries })
   rows.sort((a, b) => Number(b?.value?.at || 0) - Number(a?.value?.at || 0));
   const cap = clampIntRange(maxEntries, DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES, { min: 1000, max: 200000 });
   const limited = rows.length > cap ? rows.slice(0, cap) : rows;
-  await writeJsonObjectFile(cachePath, {
+  await writeJsonObjectFile(checkedCachePath, {
     trailingNewline: false,
     fields: withGeneratedCacheMetadata({
       version: LSP_REQUEST_CACHE_SCHEMA_VERSION,

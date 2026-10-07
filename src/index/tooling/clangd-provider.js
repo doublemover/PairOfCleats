@@ -4,7 +4,7 @@ import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { toPosix } from '../../shared/file-paths.js';
-import { atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
+import { writeToolingCacheJsonSync } from './cache-storage.js';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess/sync-command.js';
 import { invalidateProbeCacheOnInitializeFailure } from './command-resolver.js';
 import { resolveLspRuntimeConfig } from './lsp-runtime-config.js';
@@ -162,7 +162,7 @@ const persistTrackedHeaderDiskCache = (cachePath, entry) => {
     paths: Array.isArray(entry.paths) ? entry.paths : []
   };
   try {
-    atomicWriteJsonSync(cachePath, payload, {
+    writeToolingCacheJsonSync(cachePath, payload, {
       spaces: 0,
       newline: false,
       durable: false

@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/cache-roots.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
@@ -7,6 +6,7 @@ import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { writeJsonLinesFile } from '../../../shared/json-stream/jsonl-write.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
 import { readJsonlRows } from '../../../shared/merge.js';
+import { assertToolingCachePath, ensureToolingCacheDir } from '../cache-storage.js';
 import {
   VFS_COLD_START_DATA,
   VFS_COLD_START_DIR,
@@ -122,7 +122,7 @@ export const createVfsColdStartCache = async ({
   const resolvedCacheRoot = cacheRoot ? path.resolve(cacheRoot) : resolved.cacheRoot;
   if (!resolvedCacheRoot || !indexSignature || !manifestHash) return null;
 
-  const { baseDir, metaPath, dataPath } = resolveVfsColdStartPaths(resolvedCacheRoot);
+  const { metaPath, dataPath } = resolveVfsColdStartPaths(resolvedCacheRoot);
   let entries = [];
   if (fs.existsSync(metaPath) && fs.existsSync(dataPath)) {
     try {
@@ -176,9 +176,13 @@ export const createVfsColdStartCache = async ({
       maxBytes: resolved.maxBytes,
       maxAgeMs
     });
-    await fsPromises.mkdir(baseDir, { recursive: true });
-    await writeJsonLinesFile(dataPath, payload.entries, { atomic: true, compression: null });
-    await writeJsonObjectFile(metaPath, {
+    const checkedDataPath = assertToolingCachePath(dataPath);
+    const checkedMetaPath = assertToolingCachePath(metaPath);
+    ensureToolingCacheDir(path.dirname(checkedDataPath));
+    assertToolingCachePath(checkedDataPath);
+    await writeJsonLinesFile(checkedDataPath, payload.entries, { atomic: true, compression: null });
+    assertToolingCachePath(checkedMetaPath);
+    await writeJsonObjectFile(checkedMetaPath, {
       fields: {
         schemaVersion: VFS_COLD_START_SCHEMA_VERSION,
         indexSignature,
