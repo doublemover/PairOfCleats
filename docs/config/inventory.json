@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-06T21:54:48.512Z",
+  "generatedAt": "2026-10-07T01:27:46.810Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -308,6 +308,10 @@
       "indexing.embeddings.cache.maxGb",
       "indexing.embeddings.cache.scope",
       "indexing.embeddings.concurrency",
+      "indexing.embeddings.embeddinggemma2.dimensions",
+      "indexing.embeddings.embeddinggemma2.dtype",
+      "indexing.embeddings.embeddinggemma2.revision",
+      "indexing.embeddings.model",
       "indexing.embeddings.onnx.interOpNumThreads",
       "indexing.embeddings.onnx.intraOpNumThreads",
       "indexing.embeddings.provider",
@@ -575,8 +579,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 315,
-    "leafKeys": 263,
+    "totalKeys": 320,
+    "leafKeys": 267,
     "topLevel": [
       {
         "key": "cache",
@@ -584,7 +588,7 @@
       },
       {
         "key": "indexing",
-        "count": 140
+        "count": 145
       },
       {
         "key": "mcp",
@@ -827,6 +831,40 @@
     {
       "path": "indexing.embeddings.concurrency",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.embeddinggemma2",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.embeddinggemma2.dimensions",
+      "type": "integer",
+      "enum": [
+        "128",
+        "256",
+        "512",
+        "768"
+      ]
+    },
+    {
+      "path": "indexing.embeddings.embeddinggemma2.dtype",
+      "type": "string",
+      "enum": [
+        "fp32",
+        "q8",
+        "q4"
+      ]
+    },
+    {
+      "path": "indexing.embeddings.embeddinggemma2.revision",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.embeddings.model",
+      "type": "string",
       "enum": null
     },
     {
@@ -5546,6 +5584,7 @@
           "dims",
           "index-root",
           "mode",
+          "model",
           "progress",
           "quiet",
           "repo",
@@ -7764,6 +7803,14 @@
         "files": [
           "tests/indexing/vfs/cdc-min-file-bytes.test.js",
           "tests/indexing/vfs/cdc-segmentation-contract.test.js"
+        ]
+      },
+      {
+        "flag": "model",
+        "count": 2,
+        "files": [
+          "tools/build/embeddings/cli.js",
+          "tools/download/models.js"
         ]
       },
       {

@@ -5,6 +5,7 @@ import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.j
 import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shared/embedding-identity.js';
 import { resolveEmbeddingInputFormatting } from '../../../shared/embedding-input-format.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
+import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../shared/embedding-model-profile.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
 
@@ -108,6 +109,8 @@ export const resolveEmbeddingRuntime = async ({
   const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
+  const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
+  validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelsDir = modelConfig.dir;
   if (modelsDir) {
@@ -130,7 +133,8 @@ export const resolveEmbeddingRuntime = async ({
           modelsDir,
           provider: embeddingProvider,
           onnx: embeddingOnnx,
-          normalize: embeddingNormalize
+          normalize: embeddingNormalize,
+          modelProfile
         });
       }
       return embedder;
@@ -153,6 +157,7 @@ export const resolveEmbeddingRuntime = async ({
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
   const embeddingIdentity = buildEmbeddingIdentity({
+    modelProfile,
     modelId,
     provider: embeddingProvider,
     mode: resolvedEmbeddingMode,

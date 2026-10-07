@@ -776,6 +776,7 @@ export async function createBuildRuntime({
     ? `${embeddingOnnx?.intraOpNumThreads ?? 'd'}:${embeddingOnnx?.interOpNumThreads ?? 'd'}`
     : 'none';
   const embeddingWarmKey = [
+    embeddingIdentity?.modelProfile ? JSON.stringify(embeddingIdentity.modelProfile) : 'default-profile',
     embeddingProvider || 'unknown',
     modelId || 'none',
     modelsDir || 'none',
@@ -801,6 +802,7 @@ export async function createBuildRuntime({
       rootDir: root,
       provider: embeddingProvider,
       onnxConfig: embeddingOnnx,
+      modelProfile: embeddingIdentity?.modelProfile,
       normalize: embeddingNormalize,
       useStub: false,
       modelId,

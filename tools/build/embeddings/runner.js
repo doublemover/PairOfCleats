@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createEmbedder } from '../../../src/index/embedding.js';
+import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../src/shared/embedding-model-profile.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../../../src/index/build/build-state.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
@@ -1279,6 +1280,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
   } = createBuildEmbeddingsContext({ argv });
   const stubFastPathEnabled = useStubEmbeddings === true;
   const embeddingNormalize = embeddingsConfig.normalize !== false;
+  const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
+  validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
   const embeddingSampling = resolveEmbeddingSamplingConfig({ embeddingsConfig, env: configEnv });
   const lanceConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
   const binaryDenseVectors = embeddingsConfig.binaryDenseVectors !== false;
@@ -1423,7 +1426,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
-  let cacheDims = useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims;
+  let cacheDims = modelProfile?.dimensions ?? (useStubEmbeddings ? resolveStubDims(configuredDims) : configuredDims);
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
     ? resolveOnnxModelPath({
@@ -1436,6 +1439,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
   let runtimeEmbeddingProvider = embeddingProvider;
   const buildCacheIdentityForProvider = (provider) => {
     const identityPayload = buildCacheIdentity({
+      modelProfile,
       modelId,
       provider,
       mode: resolvedEmbeddingMode,
@@ -1660,7 +1664,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
       modelsDir,
       provider: embeddingProvider,
       onnx: embeddingOnnx,
-      normalize: embeddingNormalize
+      normalize: embeddingNormalize,
+      modelProfile
     });
   } catch (err) {
     crashLogger.logError({

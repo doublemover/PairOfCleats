@@ -5,6 +5,7 @@ import {
 } from '../shared/embedding-input-format.js';
 import { getEnvConfig } from '../shared/env/runtime.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
+import { resolveEmbeddingModelProfile } from '../shared/embedding-model-profile.js';
 
 const warnOnce = createWarnOnce();
 
@@ -39,12 +40,17 @@ export async function getQueryEmbedding({
   onnxConfig,
   rootDir,
   normalize,
-  inputFormatting = null
+  inputFormatting = null,
+  modelProfile = null
 }) {
   try {
     const envMode = resolveEnvEmbeddingMode(getEnvConfig().embeddings);
     if (envMode === 'off') return null;
     const resolvedUseStub = useStub === true || envMode === 'stub';
+    const profile = resolveEmbeddingModelProfile(modelId, modelProfile);
+    if (profile && dims != null && Number(dims) !== profile.dimensions) {
+      throw new Error('EmbeddingGemma 2 query dimensions do not match the persisted model profile. Rebuild the index.');
+    }
     const adapter = getEmbeddingAdapter({
       rootDir,
       useStub: resolvedUseStub,
@@ -53,7 +59,8 @@ export async function getQueryEmbedding({
       modelsDir: modelDir,
       provider,
       onnxConfig,
-      normalize
+      normalize,
+      modelProfile: profile
     });
     const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
       ? inputFormatting

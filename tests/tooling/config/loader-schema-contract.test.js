@@ -36,7 +36,11 @@ const sample = (node, variant) => {
     case 'number':
     case 'integer': return Math.max(node.minimum ?? 0, variant);
     case 'null': return null;
-    case 'string': return 'fixture';
+    case 'string': {
+      if (node.pattern === '^[a-fA-F0-9]{40}$') return String(variant).repeat(40);
+      assert.equal(node.pattern, undefined, 'new patterned strings need a valid fixture');
+      return 'fixture';
+    }
     default: throw new Error(`Unhandled schema shape: ${JSON.stringify(node)}`);
   }
 };
@@ -92,7 +96,10 @@ try {
     { search: { unsupportedSearchKey: true } },
     { search: { annDefault: 'false' } },
     { search: { denseVectorMode: 'unknown' } },
-    { indexing: { concurrency: '1' } }
+    { indexing: { concurrency: '1' } },
+    { indexing: { embeddings: { embeddinggemma2: { revision: 'main' } } } },
+    { indexing: { embeddings: { embeddinggemma2: { dimensions: 384 } } } },
+    { indexing: { embeddings: { embeddinggemma2: { dtype: 'fp16' } } } }
   ]) {
     await fs.writeFile(configPath, JSON.stringify(input));
     assert.throws(() => loadUserConfig(root), /Config errors/);
