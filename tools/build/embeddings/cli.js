@@ -17,6 +17,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       mode: { type: 'string', default: 'all' },
       repo: { type: 'string' },
       dims: { type: 'number' },
+      model: { type: 'string' },
       batch: { type: 'number' },
       'stub-embeddings': { type: 'boolean', default: false },
       'index-root': { type: 'string' },
@@ -35,7 +36,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const modelConfig = getModelConfig(root, userConfig);
-  const modelId = modelConfig.id;
+  const modelId = argv.model || modelConfig.id;
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const autoTune = loadEmbeddingsAutoTuneRecommendation({
     repoCacheRoot,

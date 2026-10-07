@@ -1,3 +1,5 @@
+import { isEmbeddingGemma2 } from './embedding-model-profile.js';
+
 const E5_MODEL_PATTERN = /(^|\/)(?:multilingual-)?e5(?:-|_|$)/i;
 const BGE_MODEL_PATTERN = /(^|\/)bge-(?:small|base|large|m3|micro|mini|maxi|en|zh|multilingual)/i;
 
@@ -39,6 +41,13 @@ const applyPrefix = (text, prefix) => {
  */
 export const resolveEmbeddingInputFormatting = (modelId) => {
   const normalized = normalizeModelId(modelId);
+  if (isEmbeddingGemma2(normalized)) {
+    return {
+      family: 'embeddinggemma2',
+      queryPrefix: 'task: code retrieval | query: ',
+      passagePrefix: 'title: none | text: '
+    };
+  }
   if (E5_MODEL_PATTERN.test(normalized)) {
     return {
       family: 'e5',

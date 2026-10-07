@@ -44,7 +44,7 @@
     "@es-joy/jsdoccomment": "^0.84.0",
     "@ganezdragon/tree-sitter-perl": "1.1.1",
     "@handlebars/parser": "^2.2.2",
-    "@huggingface/transformers": "^4.3.0",
+    "@huggingface/transformers": "4.3.1",
     "@lancedb/lancedb": "^0.26.2",
     "@mdx-js/mdx": "^3.1.1",
     "@sengac/tree-sitter-dart": "1.1.6",

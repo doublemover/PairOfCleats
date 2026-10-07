@@ -52,7 +52,8 @@ export function createEmbedder({
   modelsDir,
   provider,
   onnx,
-  normalize
+  normalize,
+  modelProfile
 }) {
   const adapter = getEmbeddingAdapter({
     rootDir,
@@ -62,7 +63,8 @@ export function createEmbedder({
     modelsDir,
     provider,
     onnxConfig: onnx,
-    normalize
+    normalize,
+    modelProfile
   });
   const inputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelAwareCharsPerToken = resolveModelAwareCharsPerToken(modelId);

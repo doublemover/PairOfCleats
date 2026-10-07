@@ -129,6 +129,10 @@ const KNOWN_CONFIG_KEYS = new Set([
   'indexing.embeddings.cache.maxGb',
   'indexing.embeddings.cache.scope',
   'indexing.embeddings.concurrency',
+  'indexing.embeddings.embeddinggemma2.dimensions',
+  'indexing.embeddings.embeddinggemma2.dtype',
+  'indexing.embeddings.embeddinggemma2.revision',
+  'indexing.embeddings.model',
   'indexing.embeddings.onnx.interOpNumThreads',
   'indexing.embeddings.onnx.intraOpNumThreads',
   'indexing.embeddings.provider',
@@ -819,4 +823,3 @@ export const buildInventory = async (options = {}) => {
 export { collectSchemaDefaults, collectSchemaEntries, getLeafEntries, mergeEntry };
 
 await buildInventory();
-

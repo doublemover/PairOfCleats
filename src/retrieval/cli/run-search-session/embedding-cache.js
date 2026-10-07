@@ -41,7 +41,7 @@ export function createEmbeddingResolver({
     }
   };
 
-  return async (modelId, dims, normalize, inputFormatting) => {
+  return async (modelId, dims, normalize, inputFormatting, modelProfile = null) => {
     throwIfAborted();
     if (!modelId) return null;
     const normalizeFlag = normalize !== false;
@@ -59,6 +59,7 @@ export function createEmbeddingResolver({
         dims: resolvedDims,
         normalize: normalizeFlag,
         inputFormatting: formatting,
+        modelProfile,
         stub: useStubEmbeddings
       }
     }).key;
@@ -81,7 +82,8 @@ export function createEmbeddingResolver({
       onnxConfig: embeddingOnnx,
       rootDir,
       normalize: normalizeFlag,
-      inputFormatting: formatting
+      inputFormatting: formatting,
+      modelProfile
     }).catch((error) => {
       embeddingCache.delete(cacheKeyLocal);
       throw error;

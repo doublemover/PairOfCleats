@@ -11,7 +11,7 @@ import { getModelsDir } from './cache.js';
 export function getModelConfig(repoRoot, userConfig = null) {
   const cfg = userConfig || loadUserConfig(repoRoot);
   const models = cfg.models || {};
-  const id = models.id || DEFAULT_MODEL_ID;
+  const id = cfg.indexing?.embeddings?.model || models.id || DEFAULT_MODEL_ID;
   return {
     id,
     dir: getModelsDir(repoRoot, cfg)

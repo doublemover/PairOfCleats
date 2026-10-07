@@ -5,6 +5,11 @@ import {
   touchEntry
 } from './embedding-adapter-helpers.js';
 import { createEmbeddingProviderAdapter } from './embedding-provider-adapters.js';
+import {
+  normalizeEmbeddingGemma2Output,
+  resolveEmbeddingModelProfile,
+  validateEmbeddingModelProfile
+} from './embedding-model-profile.js';
 
 const PIPELINE_CACHE_TTL_MS = 10 * 60 * 1000;
 const PIPELINE_CACHE_MAX_ENTRIES = 16;
@@ -55,8 +60,8 @@ async function loadTransformersModule(modelsDir) {
   return mod;
 }
 
-async function loadPipeline(modelId, modelsDir) {
-  const cacheKey = `${modelId || ''}:${modelsDir || ''}`;
+async function loadPipeline(modelId, modelsDir, modelProfile = null) {
+  const cacheKey = JSON.stringify([modelId || '', modelsDir || '', modelProfile]);
   const now = Date.now();
   pruneCache(pipelineCache, { maxEntries: PIPELINE_CACHE_MAX_ENTRIES, now });
   const cached = pipelineCache.get(cacheKey);
@@ -68,9 +73,36 @@ async function loadPipeline(modelId, modelsDir) {
     promise: loadTransformersModule(modelsDir)
       // v2 selected model_quantized.onnx by default. Keep the same weights and
       // cache identity after the Transformers.js migration (Node defaults to fp32).
-      .then(({ pipeline }) => pipeline('feature-extraction', modelId, { dtype: 'q8' }))
+      .then(async (mod) => {
+        if (!modelProfile) return mod.pipeline('feature-extraction', modelId, { dtype: 'q8' });
+        const { AutoConfig, AutoTokenizer, AutoModel } = mod;
+        if (!mod.EmbeddingGemma2Model || !AutoConfig || !AutoTokenizer || !AutoModel) {
+          throw new Error('EmbeddingGemma 2 requires the qualified Transformers.js 4.3.1 dependency.');
+        }
+        if (`transformers.js@${mod.env?.version}` !== modelProfile.runtime) {
+          throw new Error('EmbeddingGemma 2 runtime differs from its qualified cache identity. Rebuild with the pinned dependency.');
+        }
+        const options = { revision: modelProfile.revision, ...(modelsDir ? { cache_dir: modelsDir } : {}) };
+        const config = await AutoConfig.from_pretrained(modelId, options);
+        if (config.model_type !== 'embedding_gemma2') {
+          throw new Error('EmbeddingGemma 2 model configuration has an unexpected model_type.');
+        }
+        // Only the text encoder is required for code search. Do not load media encoders.
+        config.vision_config = null;
+        config.audio_config = null;
+        const tokenizer = await AutoTokenizer.from_pretrained(modelId, options);
+        const model = await AutoModel.from_pretrained(modelId, {
+          ...options, config, device: 'cpu', dtype: modelProfile.dtype
+        });
+        return async (texts) => {
+          const inputs = await tokenizer(texts, {
+            padding: true, truncation: true, max_length: modelProfile.maxLength
+          });
+          return normalizeEmbeddingGemma2Output(await model(inputs), texts.length, modelProfile.dimensions);
+        };
+      })
       .catch((err) => {
-        pipelineCache.delete(cacheKey);
+        if (pipelineCache.get(cacheKey) === entry) pipelineCache.delete(cacheKey);
         throw err;
       }),
     lastAccessAt: now,
@@ -107,6 +139,8 @@ export function getEmbeddingAdapter(options) {
   const resolvedProvider = normalizeEmbeddingProvider(options?.provider, { strict: true });
   const normalizedOnnxConfig = normalizeOnnxConfig(options?.onnxConfig);
   const normalize = options?.normalize !== false;
+  const modelProfile = resolveEmbeddingModelProfile(options?.modelId, options?.modelProfile);
+  validateEmbeddingModelProfile(modelProfile, { provider: resolvedProvider, normalize });
   const cacheKey = JSON.stringify({
     provider: resolvedProvider,
     modelId: options?.modelId || null,
@@ -115,7 +149,8 @@ export function getEmbeddingAdapter(options) {
     rootDir: options?.rootDir || null,
     useStub: options?.useStub === true,
     dims: options?.dims ?? null,
-    normalize
+    normalize,
+    modelProfile
   });
   const now = Date.now();
   pruneCache(adapterCache, { maxEntries: ADAPTER_CACHE_MAX_ENTRIES, now });
@@ -132,7 +167,8 @@ export function getEmbeddingAdapter(options) {
     modelsDir: options?.modelsDir,
     provider: resolvedProvider,
     onnxConfig: normalizedOnnxConfig,
-    normalize
+    normalize,
+    modelProfile
   });
   adapterCache.set(cacheKey, {
     adapter,

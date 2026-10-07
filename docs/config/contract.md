@@ -60,6 +60,11 @@ indexing.embeddings.cache.maxAgeDays (number)
 indexing.embeddings.cache.maxGb (number)
 indexing.embeddings.cache.scope (string) enum=global|repo|local
 indexing.embeddings.concurrency (number)
+indexing.embeddings.embeddinggemma2 (object)
+indexing.embeddings.embeddinggemma2.dimensions (integer) enum=128|256|512|768
+indexing.embeddings.embeddinggemma2.dtype (string) enum=fp32|q8|q4
+indexing.embeddings.embeddinggemma2.revision (string)
+indexing.embeddings.model (string)
 indexing.embeddings.onnx (object)
 indexing.embeddings.onnx.interOpNumThreads (number)
 indexing.embeddings.onnx.intraOpNumThreads (number)

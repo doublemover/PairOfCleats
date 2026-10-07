@@ -10,11 +10,11 @@ import {
   normalizeAdapterPrewarmTexts
 } from './embedding-adapter-helpers.js';
 
-export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline }) => {
+export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile }) => {
   let embedderPromise = null;
   const ensureEmbedder = () => {
     if (!embedderPromise) {
-      embedderPromise = loadPipeline(modelId, modelsDir).catch((err) => {
+      embedderPromise = loadPipeline(modelId, modelsDir, modelProfile).catch((err) => {
         embedderPromise = null;
         throw err;
       });
@@ -59,13 +59,14 @@ export const createEmbeddingProviderAdapter = ({
   modelsDir,
   provider,
   onnxConfig,
+  modelProfile,
   normalize,
   loadPipeline,
   normalizeEmbeddingProvider
 }) => {
   const resolvedProvider = normalizeEmbeddingProvider(provider, { strict: true });
   if (useStub) {
-    const safeDims = resolveStubDims(dims);
+    const safeDims = resolveStubDims(modelProfile?.dimensions ?? dims);
     const embed = async (texts) => {
       const list = Array.isArray(texts) ? texts : [];
       if (!list.length) return [];
@@ -177,5 +178,5 @@ export const createEmbeddingProviderAdapter = ({
     };
   }
 
-  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline });
+  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline, modelProfile });
 };

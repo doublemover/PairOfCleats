@@ -14,8 +14,8 @@ export const normalizeIdentityNumber = (value) => {
 export const normalizeIdentityInputFormatting = (value) => {
   if (!value || typeof value !== 'object') return null;
   const family = normalizeModel(value.family) || 'default';
-  const queryPrefix = normalizeModel(value.queryPrefix);
-  const passagePrefix = normalizeModel(value.passagePrefix);
+  const queryPrefix = normalizeModel(value.queryPrefix) ? value.queryPrefix : null;
+  const passagePrefix = normalizeModel(value.passagePrefix) ? value.passagePrefix : null;
   if (family === 'default' && !queryPrefix && !passagePrefix) return null;
   return {
     family,

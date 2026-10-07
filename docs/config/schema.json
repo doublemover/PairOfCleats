@@ -570,6 +570,16 @@
           "type": "object",
           "additionalProperties": true,
           "properties": {
+            "model": { "type": "string", "minLength": 1 },
+            "embeddinggemma2": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "dtype": { "type": "string", "enum": ["fp32", "q8", "q4"] },
+                "dimensions": { "type": "integer", "enum": [128, 256, 512, 768] },
+                "revision": { "type": "string", "pattern": "^[a-fA-F0-9]{40}$" }
+              }
+            },
             "concurrency": { "type": "number" },
             "cache": {
               "type": "object",
