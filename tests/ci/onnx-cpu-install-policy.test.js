@@ -28,7 +28,7 @@ for (const name of await fs.readdir(workflowDir)) {
     }
   }
 }
-assert.equal(installJobs, 15, 'cover main CI, CI-long, nightly and all release bootstrap jobs');
+assert.equal(installJobs, 16, 'cover main CI, CI-long, nightly, adaptive maintenance and all release bootstrap jobs');
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
 assert.ok(manifest.dependencies['onnxruntime-node']);
 assert.match(manifest.scripts['bootstrap:ci'], /tools\/setup\/rebuild-native\.js/);

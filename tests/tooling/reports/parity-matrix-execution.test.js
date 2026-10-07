@@ -53,19 +53,50 @@ const runNode = async (args, label, cwd, childEnv = env) => {
 let executionError;
 
 try {
-  // This reports contract needs real searchable artifacts, not full enrichment
-  // or the records mode. Keep setup in an owned, deadline-bound child.
-  const buildModule = pathToFileURL(path.join(root, 'src/integrations/core/build-index/index.js')).href;
+  // Seed canonical nonempty artifacts with the shared fixture writer, then build
+  // actual SQLite databases. Report execution still runs its real child and both
+  // search backends; parser/index-build acceptance belongs to indexing tests.
+  const fixtureModule = pathToFileURL(path.join(root, 'tests/indexing/validate/helpers.js')).href;
+  const pathsModule = pathToFileURL(path.join(root, 'tools/shared/dict-utils.js')).href;
   const sqliteModule = pathToFileURL(path.join(root, 'tests/helpers/sqlite-builder.js')).href;
-  const buildScript = `import { buildIndex } from ${JSON.stringify(buildModule)};
+  const versionModule = pathToFileURL(path.join(root, 'src/contracts/versioning.js')).href;
+  const buildScript = `import fs from 'node:fs/promises';
+    import path from 'node:path';
+    import { createBaseIndex } from ${JSON.stringify(fixtureModule)};
+    import { getRepoCacheRoot, loadUserConfig } from ${JSON.stringify(pathsModule)};
     import { runSqliteBuild } from ${JSON.stringify(sqliteModule)};
-    await buildIndex(${JSON.stringify(repo)}, { stage: 'stage1', modes: ['code', 'prose', 'extracted-prose'], threads: 1 });
+    import { ARTIFACT_SURFACE_VERSION } from ${JSON.stringify(versionModule)};
+    const repo = ${JSON.stringify(repo)};
+    const cache = getRepoCacheRoot(repo, loadUserConfig(repo));
+    const buildId = 'parity-fixture';
+    const buildRoot = path.join(cache, 'builds', buildId);
+    await fs.mkdir(buildRoot, { recursive: true });
+    const roots = {};
     for (const mode of ['code', 'prose', 'extracted-prose']) {
-      await runSqliteBuild(${JSON.stringify(repo)}, { mode });
-    }`;
-  const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture build', repo);
+      const empty = mode === 'extracted-prose';
+      const file = mode === 'code' ? 'cache.js' : 'README.md';
+      const { indexDir } = await createBaseIndex({ rootDir: path.join(buildRoot, mode),
+        chunkMeta: empty ? [] : [{ id: 0, file, start: 0, end: 14, startLine: 1, endLine: 1,
+          name: 'refreshCache', kind: mode, metaV2: {}, tokens: ['cache', 'refresh', 'refreshcache'] }],
+        tokenPostings: { vocab: empty ? [] : ['cache', 'refresh', 'refreshcache'],
+          postings: empty ? [] : [[[0,1]], [[0,1]], [[0,1]]],
+          docLengths: empty ? [] : [3], avgDocLen: empty ? 0 : 3, totalDocs: empty ? 0 : 1 },
+        indexState: { generatedAt: new Date().toISOString(), mode, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+          compatibilityKey: 'parity-fixture-v1' },
+        manifestOverrides: { mode, compatibilityKey: 'parity-fixture-v1' }
+      });
+      await fs.writeFile(path.join(indexDir, 'chunk_meta.meta.json'), JSON.stringify({ totalRecords: empty ? 0 : 1 }));
+      await fs.rename(indexDir, path.join(buildRoot, 'index-' + mode));
+      roots[mode] = 'builds/' + buildId;
+    }
+    await fs.writeFile(path.join(buildRoot, 'build_state.json'), JSON.stringify({ schemaVersion: 1, signatureVersion: 2,
+      buildId, configHash: 'parity-fixture', tool: { version: '1.0.0' },
+      validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] } }));
+    await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ buildId,
+      buildRoot: 'builds/' + buildId, buildRoots: roots }));
+    for (const mode of Object.keys(roots)) await runSqliteBuild(repo, { mode });`;
+  const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo);
   assert.equal(build.exitCode, 0, `${build.signal || ''}\n${build.stderr}`);
-  assert.doesNotMatch(build.stderr, /Worker pool enabled/, 'the fixture explicitly disables worker pools');
 
   // Ready indexes must not load the indexing pipeline in the report child.
   const importGuard = path.join(temp, 'parity-import-guard.mjs');
