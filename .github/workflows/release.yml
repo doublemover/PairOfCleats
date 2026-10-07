@@ -455,7 +455,7 @@ jobs:
           path: dist/release/trust
 
       - name: Attest release bundle provenance
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/release/bundle/**
