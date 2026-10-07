@@ -61,7 +61,7 @@
     "aho-corasick": "^0.1.3",
     "ajv": "^8.18.0",
     "apache-arrow": "^18.1.0",
-    "better-sqlite3": "12.6.2",
+    "better-sqlite3": "13.0.3",
     "chardet": "^2.1.1",
     "chokidar": "^5.0.0",
     "cjs-module-lexer": "^2.2.0",
