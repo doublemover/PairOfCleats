@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { runNode } from '../../helpers/run-node.js';
 import { killProcessTree } from '../../../src/shared/kill-tree.js';
 import { SubprocessTimeoutError, spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 import {
@@ -97,6 +99,58 @@ try {
     'expected raw sync timeout to terminate a descendant ignoring SIGTERM'
   );
 
+  // Test-owned Node commands must reap their descendants too. Otherwise a
+  // timeout can leave a child holding the fixture directory on Windows.
+  await fs.rm(childPidFile);
+  const helperResult = runNode(['-e', forceScript, childPidFile], 'owned helper timeout', tempRoot, process.env, {
+    stdio: 'ignore', timeoutMs: 2000, allowFailure: true
+  });
+  assert.equal(helperResult.error?.code, 'ETIMEDOUT');
+  spawnedChildPid = Number.parseInt(String(await waitForFile(childPidFile)).trim(), 10);
+  assert.ok(Number.isFinite(spawnedChildPid) && spawnedChildPid > 0);
+  assert.equal(await waitForPidExit(spawnedChildPid, 2500), true,
+    'expected timed-out runNode helper to reap its owned descendant');
+
+  const delayedOutput = ['-e', 'setTimeout(() => console.log("completed"), 50)'];
+  for (const timeout of [0, null, undefined, 2000]) {
+    const overridden = runNode(delayedOutput, 'timeout override', tempRoot, process.env, {
+      stdio: 'pipe', timeoutMs: 1, allowFailure: true, spawnOptions: { timeout }
+    });
+    assert.equal(overridden.status, 0, `spawnOptions.timeout=${timeout} overrides the helper deadline`);
+    assert.equal(overridden.stdout.trim(), 'completed');
+  }
+  assert.throws(() => runNode(['-e', ''], 'invalid timeout', tempRoot, process.env, {
+    timeoutMs: -1, stdio: 'ignore', allowFailure: true
+  }), { code: 'ERR_OUT_OF_RANGE' }, 'invalid spawn options must still throw synchronously');
+  const overriddenCwd = path.join(tempRoot, 'override cwd');
+  await fs.mkdir(overriddenCwd);
+  const transport = runNode(['-e', 'process.stdout.write(JSON.stringify({cwd:process.cwd(),value:process.env.TEST_HELPER_SENTINEL}));process.stderr.write("fixture stderr");process.exit(7)'],
+    'transport contract', tempRoot, process.env, {
+      stdio: 'pipe', encoding: 'buffer', timeoutMs: 2000, allowFailure: true,
+      spawnOptions: { cwd: overriddenCwd, env: { ...process.env, TEST_HELPER_SENTINEL: 'fixture-only' } },
+      onFailure() { assert.fail('allowFailure must bypass the failure callback'); }
+    });
+  assert.equal(transport.status, 7);
+  assert.equal(Buffer.isBuffer(transport.stdout), true, 'buffer encoding is preserved');
+  assert.equal(Buffer.isBuffer(transport.stderr), true);
+  assert.deepEqual(JSON.parse(transport.stdout.toString()), {
+    cwd: await fs.realpath(overriddenCwd), value: 'fixture-only'
+  }, 'cwd and environment overrides reach the real child');
+  assert.equal(transport.stderr.toString(), 'fixture stderr');
+  const failureMarker = path.join(tempRoot, 'failure-callback');
+  const helperUrl = pathToFileURL(path.join(process.cwd(), 'tests/helpers/run-node.js')).href;
+  const callbackScript = `import fs from 'node:fs'; import { runNode } from ${JSON.stringify(helperUrl)};
+    runNode(['-e', 'console.error("fixture failure"); process.exit(7)'], 'callback fixture', process.cwd(), process.env, {
+      stdio: 'pipe', timeoutMs: 2000, onFailure(result) { fs.writeFileSync(${JSON.stringify(failureMarker)}, String(result.status)); }
+    });`;
+  const failed = runNode(['--input-type=module', '--eval', callbackScript], 'failure contract', tempRoot, process.env, {
+    stdio: 'pipe', timeoutMs: 3000, allowFailure: true
+  });
+  assert.equal(failed.status, 7, 'default failure handling preserves the child exit status');
+  assert.match(failed.stderr, /Failed: callback fixture/);
+  assert.match(failed.stderr, /fixture failure/);
+  assert.equal(await fs.readFile(failureMarker, 'utf8'), '7', 'onFailure runs before exiting');
+
   if (process.platform !== 'win32') {
     const groupScript = [
       'const { spawnSync } = require("node:child_process");',
@@ -127,6 +181,24 @@ try {
     });
     const { pid, group } = JSON.parse(unbounded.stdout);
     assert.notEqual(group, pid, 'unbounded interactive dispatch must not acquire a new session');
+    for (const [helperOptions, ownsGroup] of [
+      [{ timeoutMs: 2000 }, true],
+      [{ timeoutMs: 2000, spawnOptions: { detached: false } }, false],
+      [{ timeoutMs: null, spawnOptions: { detached: true } }, true],
+      [{ timeoutMs: 0 }, false],
+      [{ timeoutMs: null }, false],
+      [{}, false],
+      [{ timeoutMs: 2000, spawnOptions: { timeout: 0 } }, false],
+      [{ timeoutMs: 2000, spawnOptions: { timeout: undefined } }, false],
+      [{ timeoutMs: 0, spawnOptions: { timeout: 2000 } }, true]
+    ]) {
+      const observed = runNode(['-e', groupScript], 'helper group contract', tempRoot, process.env, {
+        ...helperOptions, stdio: 'pipe', allowFailure: true
+      });
+      assert.equal(observed.status, 0, observed.stderr);
+      const { pid, group } = JSON.parse(observed.stdout);
+      assert.equal(group === pid, ownsGroup, `runNode: ${JSON.stringify(helperOptions)}`);
+    }
   }
 
   console.log('sync subprocess timeout child-tree reap test passed');
