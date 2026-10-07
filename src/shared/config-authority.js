@@ -58,7 +58,7 @@ export const applyRepoConfigAuthority = (config, repoRoot) => {
   for (const keys of [
     ['runtime', 'nodeOptions'], ['cache', 'root'],
     ['dictionary', 'dir'], ['models', 'dir'], ['extensions', 'dir'],
-    ['tooling', 'dir'], ['tooling', 'lsp', 'servers'],
+    ['tooling', 'dir'], ['tooling', 'cache', 'dir'], ['tooling', 'lsp', 'servers'],
     ['tooling', 'autoInstallOnDetect'],
     ['tooling', 'typescript', 'resolveOrder'],
     ['sqlite', 'vectorExtension'], ['security', 'downloads', 'allowlist']

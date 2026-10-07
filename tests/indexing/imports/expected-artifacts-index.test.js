@@ -4,6 +4,9 @@ import {
   createExpectedArtifactsIndex,
   matchGeneratedExpectationSpecifier
 } from '../../../src/index/build/import-resolution.js';
+import {
+  applyImportResolutionCacheFileSetDiffInvalidation
+} from '../../../src/index/build/import-resolution-cache.js';
 
 const entries = [
   'python/service/main.py',
@@ -104,5 +107,49 @@ const indexedMatch = matchGeneratedExpectationSpecifier({
 });
 assert.equal(indexedMatch.matched, true);
 assert.equal(indexedMatch.source, 'index');
+
+// Count the expensive delimiter search instead of asserting a wall-clock limit.
+// Both public consumers must handle dot-dense suffixes without rescanning the
+// complete basename for a slash at every dot. Restore the builtin even on failure.
+const assertBoundedDelimiterScans = (run) => {
+  const originalLastIndexOf = String.prototype.lastIndexOf;
+  let slashScans = 0;
+  String.prototype.lastIndexOf = function (search, ...args) {
+    if (search === '/' && this.length >= 65536) {
+      slashScans += 1;
+      assert.ok(slashScans <= 8, 'generated suffix parsing must bound full-basename slash scans');
+    }
+    return originalLastIndexOf.call(this, search, ...args);
+  };
+  try {
+    run();
+    assert.ok(slashScans > 0, 'expected to exercise the long generated suffix scanner');
+  } finally {
+    String.prototype.lastIndexOf = originalLastIndexOf;
+  }
+};
+
+for (const marker of ['.pb', '.grpc.pb']) {
+  const specifier = `./proto/client${marker}${'.'.repeat(65536)}ts`;
+  assertBoundedDelimiterScans(() => {
+    const matched = index.match({ importer: 'python/service/main.py', specifier });
+    assert.equal(matched.matched, true);
+    assert.equal(matched.sourcePath, 'python/service/proto/client.proto');
+  });
+  assertBoundedDelimiterScans(() => {
+    const cache = {
+      lookup: { fileSet: ['python/service/main.py'] },
+      files: {
+        'python/service/main.py': {
+          specs: { [specifier]: { resolvedType: 'unresolved' } }
+        }
+      }
+    };
+    const invalidation = applyImportResolutionCacheFileSetDiffInvalidation({ cache, entries });
+    assert.equal(invalidation.staleEdgeInvalidated, 1);
+    assert.equal(invalidation.staleEdgeBudgetExhausted, false);
+    assert.equal(Object.hasOwn(cache.files, 'python/service/main.py'), false);
+  });
+}
 
 console.log('expected artifacts index tests passed');
