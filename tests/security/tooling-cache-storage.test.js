@@ -11,7 +11,10 @@ import {
 import {
   writePersistentCommandProbeCache, readPersistentCommandProbeCache, invalidatePersistentCommandProbeCache
 } from '../../src/index/tooling/command-probe-persistent-cache.js';
-import { writeWorkspaceCommandPreflightCacheMarker } from '../../src/index/tooling/preflight/workspace-command-preflight-cache.js';
+import {
+  buildWorkspaceCommandPreflightFingerprint, readWorkspaceCommandPreflightCacheHit,
+  writeWorkspaceCommandPreflightCacheMarker
+} from '../../src/index/tooling/preflight/workspace-command-preflight-cache.js';
 import { persistPyrightPlannerHealth } from '../../src/index/tooling/pyright-planner.js';
 import { persistPyrightRuntimeHealth } from '../../src/index/tooling/pyright-runtime-health.js';
 import { persistLspRequestCache } from '../../src/integrations/tooling/providers/lsp/hover-types/cache.js';
@@ -34,6 +37,40 @@ const readProbeFiles = () => fs.readdirSync(probes).sort();
 const ancient = new Date('2000-01-01');
 
 try {
+  // Guarded persistence must preserve real watched-file invalidation. A missing
+  // fs import previously turned every digest into the same caught error value.
+  const watchedFile = path.join(tmp, 'watched.txt');
+  const preflightInputs = { repoRoot: tmp, cacheRoot: path.join(tmp, 'fingerprint-cache'),
+    namespace: 'fingerprint', command: 'inert', args: [] };
+  const contentInputs = { ...preflightInputs, watchedFiles: [{ path: watchedFile, mode: 'content' }] };
+  fs.writeFileSync(watchedFile, 'alpha');
+  const originalFingerprint = await buildWorkspaceCommandPreflightFingerprint(contentInputs);
+  assert.equal(await buildWorkspaceCommandPreflightFingerprint(contentInputs), originalFingerprint,
+    'unchanged content has a stable fingerprint');
+  await writeWorkspaceCommandPreflightCacheMarker({ ...preflightInputs, fingerprint: originalFingerprint });
+  assert.equal((await readWorkspaceCommandPreflightCacheHit({ ...preflightInputs, fingerprint: originalFingerprint })).hit, true);
+  fs.writeFileSync(watchedFile, 'bravo');
+  const changedFingerprint = await buildWorkspaceCommandPreflightFingerprint(contentInputs);
+  assert.notEqual(changedFingerprint, originalFingerprint, 'same-length content changes invalidate the fingerprint');
+  assert.equal((await readWorkspaceCommandPreflightCacheHit({ ...preflightInputs, fingerprint: changedFingerprint })).hit, false,
+    'changed watched content rejects both memory and persisted preflight markers');
+
+  const statInputs = { ...preflightInputs, watchedFiles: [watchedFile] };
+  fs.utimesSync(watchedFile, ancient, ancient);
+  const originalStatFingerprint = await buildWorkspaceCommandPreflightFingerprint(statInputs);
+  fs.utimesSync(watchedFile, ancient, new Date('2000-01-02'));
+  assert.notEqual(await buildWorkspaceCommandPreflightFingerprint(statInputs), originalStatFingerprint,
+    'default stat mode includes mtime');
+  fs.writeFileSync(watchedFile, 'longer fixture content');
+  fs.utimesSync(watchedFile, ancient, ancient);
+  assert.notEqual(await buildWorkspaceCommandPreflightFingerprint(statInputs), originalStatFingerprint,
+    'default stat mode includes size even with unchanged mtime');
+  fs.rmSync(watchedFile);
+  const missingFingerprint = await buildWorkspaceCommandPreflightFingerprint(contentInputs);
+  assert.notEqual(missingFingerprint, changedFingerprint, 'missing watched files have distinct fingerprints');
+  assert.equal(await buildWorkspaceCommandPreflightFingerprint(contentInputs), missingFingerprint,
+    'missing watched files remain deterministic');
+
   const systemAlias = { platform: 'darwin', lstat: () => ({ uid: 0, isSymbolicLink: () => true }),
     realpath: (prefix) => `/private${prefix}` };
   assert.equal(__resolveSystemCacheAliasForTests('/var/folders/cache', systemAlias), '/private/var/folders/cache');
@@ -158,7 +195,7 @@ try {
     assert.equal(result.byChunkUid.get('chunk-1')?.payload?.returnType, largeType, 'oversized provider output remains usable');
     assert.deepEqual(fs.readdirSync(largeCache), [], 'unreadable oversized cache entries must not accumulate');
   }
-  console.log('tooling cache storage: owned probe pruning/invalidation, bounded reads and nested link protection passed');
+  console.log('tooling cache storage: watched-file invalidation, owned probe pruning, bounded reads and nested link protection passed');
 } finally {
   TOOLING_PROVIDERS.delete('fixture-large-cache');
   fs.rmSync(tmp, { recursive: true, force: true });
