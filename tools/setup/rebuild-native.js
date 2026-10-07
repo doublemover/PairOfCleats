@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
 import { formatSpawnFailureReason } from './rebuild-native-exit.js';
+import { probeSqliteNative, rebuildSqliteNativeFromSource } from './rebuild-native-sqlite.js';
 import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
 
 const REQUIRED_NATIVE_PACKAGES = [
@@ -145,6 +146,11 @@ const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
     return packageNameResult;
   }
 
+  if (packageNameResult.pkgName === 'better-sqlite3' && buildFromSource
+    && Number(readInstalledPackageVersion(pkgName)?.split('.')[0]) >= 13) {
+    return rebuildSqliteNativeFromSource(root, runNpmCommand);
+  }
+
   const args = ['rebuild', packageNameResult.pkgName];
   return runNpmCommand(args, { buildFromSource });
 };
@@ -163,6 +169,7 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
 };
 
 const probePackage = async (pkgName) => {
+  if (pkgName === 'better-sqlite3') return probeSqliteNative(root);
   /**
    * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not
    * actually usable with rebuilt grammars. Probe parser activation explicitly
@@ -404,6 +411,13 @@ for (const pkgName of REQUIRED_NATIVE_PACKAGES) {
     console.error(`[rebuild:native] failed required package ${pkgName}: ${result.message}`);
     requiredFailures += 1;
     continue;
+  }
+  if (pkgName === 'better-sqlite3') {
+    const probe = probeSqliteNative(root);
+    if (!probe.ok) {
+      console.error(`[rebuild:native] SQLite runtime probe failed: ${probe.message}. Run node tools/setup/rebuild-native.js --repair.`);
+      requiredFailures += 1;
+    }
   }
   if (pkgName === TREE_SITTER_PERL_PACKAGE) {
     const perlPatchCheck = verifyPerlScannerPatch();
