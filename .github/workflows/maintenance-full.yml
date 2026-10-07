@@ -1,0 +1,153 @@
+name: Maintenance / full
+permissions:
+  contents: read
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+jobs:
+  nightly:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        - windows-latest
+        - macos-latest
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+      PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.source_sha }}
+        persist-credentials: false
+    - name: Verify and record source revision
+      shell: bash
+      env:
+        EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+      run: |
+        test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+        printf "Tested source: %s\n" "$EXPECTED_SOURCE_SHA"
+    - name: Setup Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: 24.21.0
+        cache: npm
+    - name: Restore PairOfCleats cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          .ci-cache/pairofcleats/models
+          .ci-cache/pairofcleats/dictionaries
+        key: pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.run_id
+          }}
+        restore-keys: |
+          pairofcleats-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+          pairofcleats-cache-${{ runner.os }}-
+    - name: Restore node_modules cache
+      id: node-modules-cache
+      uses: actions/cache@v5
+      with:
+        path: node_modules
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json',
+          'patches/**/*.patch') }}
+    - name: Install deps and report versions
+      shell: bash
+      run: |
+        node -e "require('fs').mkdirSync('.ci-cache/pairofcleats/models', { recursive: true }); require('fs').mkdirSync('.ci-cache/pairofcleats/dictionaries', { recursive: true });"
+        if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
+          npm run bootstrap:ci
+        else
+          echo "node_modules cache hit; verifying native modules."
+          if ! node tools/setup/rebuild-native.js --verify; then
+            echo "native verification failed; running targeted repair:native."
+            node tools/setup/rebuild-native.js --repair
+          fi
+        fi
+        node -v
+        npm -v
+    - name: Nightly suite
+      run: node tools/ci/run-suite.js --mode nightly
+    - name: Prune PairOfCleats cache
+      if: always()
+      shell: pwsh
+      run: |
+        $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
+        $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
+        node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
+    - name: Upload quality artifacts
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: nightly-quality-artifacts-${{ matrix.os }}
+        path: |
+          .diagnostics/test-summary.json
+          .diagnostics/test-timings.json
+          .diagnostics/test-profile.json
+          .diagnostics/coverage/**
+          .testLogs/junit.xml
+        if-no-files-found: ignore
+        include-hidden-files: true
+        compression-level: 0
+    - name: Upload test artifacts
+      if: failure()
+      uses: actions/upload-artifact@v6
+      with:
+        name: nightly-artifacts-${{ matrix.os }}
+        path: |
+          .testLogs/**
+          .diagnostics/**
+        if-no-files-found: ignore
+        include-hidden-files: true
+        compression-level: 0
+  rust-tui:
+    name: rust-tui-nightly
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.source_sha }}
+        persist-credentials: false
+    - name: Verify and record source revision
+      shell: bash
+      env:
+        EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+      run: |
+        test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+        printf "Tested source: %s\n" "$EXPECTED_SOURCE_SHA"
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.88.0
+        components: rustfmt, clippy
+    - name: Restore Cargo cache
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          crates/pairofcleats-tui/target
+        key: cargo-${{ runner.os }}-${{ hashFiles('crates/pairofcleats-tui/Cargo.lock') }}
+        restore-keys: |
+          cargo-${{ runner.os }}-
+    - name: Cargo fmt
+      working-directory: crates/pairofcleats-tui
+      run: cargo fmt --check
+    - name: Cargo check
+      working-directory: crates/pairofcleats-tui
+      run: cargo check --locked
+    - name: Cargo test
+      working-directory: crates/pairofcleats-tui
+      run: cargo test --locked
+    - name: Cargo clippy
+      working-directory: crates/pairofcleats-tui
+      run: cargo clippy --locked -- -D warnings
+'on':
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+        description: Immutable source SHA resolved by the trusted adaptive dispatcher
