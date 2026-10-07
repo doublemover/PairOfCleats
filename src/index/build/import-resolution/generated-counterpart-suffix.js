@@ -19,9 +19,11 @@ const stripGeneratedProtoBaseForMarker = (normalized, marker) => {
   if (typeof marker !== 'string' || !marker) return normalized;
   const lower = normalized.toLowerCase();
   const lowerMarker = marker.toLowerCase();
+  // The loop never crosses the final path separator. Reusing that boundary
+  // avoids rescanning a dot-dense basename once for every suffix component.
+  const slash = normalized.lastIndexOf('/');
   let cursor = normalized.length;
   while (cursor > 0) {
-    const slash = normalized.lastIndexOf('/', cursor - 1);
     const dot = normalized.lastIndexOf('.', cursor - 1);
     if (dot <= slash || dot <= 0) break;
     cursor = dot;
