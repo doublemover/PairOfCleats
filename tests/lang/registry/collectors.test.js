@@ -479,7 +479,9 @@ const cases = [
 ];
 
 for (const testCase of cases) {
-  const actual = testCase.fn(testCase.text);
+  // This table checks import semantics; deterministic deadline behavior is covered
+  // by ast-parser-initialization-budget and the collector scan-budget contracts.
+  const actual = testCase.fn(testCase.text, { collectorNow: () => 0 });
   expectSet(testCase.label, actual, testCase.expected);
 }
 

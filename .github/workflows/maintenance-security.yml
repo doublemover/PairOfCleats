@@ -1,0 +1,57 @@
+name: Maintenance / security
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: javascript
+          build-mode: none
+        - language: rust
+          build-mode: none
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ inputs.source_sha }}
+        persist-credentials: false
+    - name: Verify and record source revision
+      shell: bash
+      env:
+        EXPECTED_SOURCE_SHA: ${{ inputs.source_sha }}
+      run: |
+        test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
+        printf "Tested source: %s\n" "$EXPECTED_SOURCE_SHA"
+    - name: Setup Rust toolchain
+      if: matrix.language == 'rust'
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.88.0
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: /language:${{ matrix.language }}
+        ref: refs/heads/${{ inputs.source_ref }}
+        sha: ${{ inputs.source_sha }}
+'on':
+  workflow_call:
+    inputs:
+      source_sha:
+        type: string
+        required: true
+        description: Immutable source SHA resolved by the trusted adaptive dispatcher
+      source_ref:
+        type: string
+        required: true
+        description: Trusted source branch matching the resolved source SHA
