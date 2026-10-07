@@ -43,10 +43,10 @@ try {
   await fs.copyFile(path.join(tempRoot, 'capture.cjs'), path.join(relativeDir, 'capture.cjs'));
   await fs.copyFile(wrappers[0], relativeWrapper);
   const relativeLaunches = [
-    { command: path.join('relative wrappers', 'relative-tool.cmd'), options: { cwd: repoRoot } },
-    { command: 'relative-tool.cmd', options: { cwd: pathToFileURL(`${relativeDir}${path.sep}`) } },
+    { command: path.join('relative wrappers', 'relative-tool.cmd'), spawnOptions: { cwd: repoRoot } },
+    { command: 'relative-tool.cmd', spawnOptions: { cwd: pathToFileURL(`${relativeDir}${path.sep}`) } },
     {
-      command: 'relative-tool.cmd', options: {
+      command: 'relative-tool.cmd', spawnOptions: {
         cwd: repoRoot,
         env: { ...process.env, PATH: `relative wrappers${path.delimiter}${path.dirname(process.execPath)}` }
       }
@@ -99,12 +99,12 @@ try {
   const callsBeforeMissing = calls.length;
   assert.equal(runBinary(path.join(tempRoot, 'missing.cmd'), []).error?.code, 'ERR_WINDOWS_CMD_NOT_FOUND');
   assert.equal(calls.length, callsBeforeMissing, 'missing wrappers must fail closed');
-  for (const { command, options } of relativeLaunches) {
-    assert.equal(runBinary(command, literalArgs, options).status, 0);
+  for (const { command, spawnOptions } of relativeLaunches) {
+    assert.equal(runBinary(command, literalArgs, spawnOptions).status, 0);
     const expected = resolveWindowsCmdInvocation(relativeWrapper, literalArgs);
     assert.equal(calls.at(-1).command, expected.command);
     assert.deepEqual(calls.at(-1).args, expected.args, 'relative wrapper lookup must use the child cwd');
-    assert.equal(calls.at(-1).options.cwd, options.cwd, 'spawn cwd must remain unchanged');
+    assert.equal(calls.at(-1).options.cwd, spawnOptions.cwd, 'spawn cwd must remain unchanged');
   }
 
   const directArgs = [...literalArgs, 'literal\nnewline'];
@@ -158,8 +158,8 @@ try {
       await assert.rejects(fs.access(capturePath), 'guarded wrapper must not launch the fixture');
       await fs.rm(path.join(tempRoot, 'skip-launch'));
     }
-    for (const { command, options } of relativeLaunches) {
-      await assertCaptured(command, literalArgs, literalArgs, options);
+    for (const { command, spawnOptions } of relativeLaunches) {
+      await assertCaptured(command, literalArgs, literalArgs, spawnOptions);
     }
     await assertCaptured(straightWrapper, directArgs);
     await assertCaptured({ command: process.execPath, argsPrefix: [path.join(tempRoot, 'capture.cjs')] }, directArgs);
