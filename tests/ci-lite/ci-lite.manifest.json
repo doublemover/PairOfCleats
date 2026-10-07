@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 752,
+    "hero": 757,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5335,6 +5335,36 @@
     {
       "id": "security/tooling-cache-storage",
       "order": 887,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/archive",
+      "order": 888,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/correlation",
+      "order": 889,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/normalize",
+      "order": 890,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/security",
+      "order": 891,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/service",
+      "order": 892,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

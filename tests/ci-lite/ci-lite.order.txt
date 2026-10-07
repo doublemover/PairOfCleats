@@ -885,3 +885,8 @@ security/structural-windows-wrapper
 ci/codeql-workflow-contract
 security/tooling-cache-authority
 security/tooling-cache-storage
+integrations/inference-history/archive
+integrations/inference-history/correlation
+integrations/inference-history/normalize
+integrations/inference-history/security
+integrations/inference-history/service
