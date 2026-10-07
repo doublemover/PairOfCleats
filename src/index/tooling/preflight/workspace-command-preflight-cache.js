@@ -1,5 +1,6 @@
 import { withGeneratedCacheMetadata, withoutGeneratedCacheMetadata } from '../../../shared/generated-artifact-cache.js';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
 import { writeToolingCacheJson } from '../cache-storage.js';
