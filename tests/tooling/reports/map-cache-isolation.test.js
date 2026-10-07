@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
@@ -12,28 +13,33 @@ const temp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-map-
 const repo = path.join(temp, 'repo');
 await fs.mkdir(path.join(repo, 'src'), { recursive: true });
 await fs.writeFile(path.join(repo, 'src/cache.js'), 'export function refreshCache(value) { return value; }\n');
-const env = applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'off', testConfig: {
+const env = applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'off', testConfig: createFastIndexingTestConfig({
   indexing: { scm: { provider: 'none' }, workerPool: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false,
     riskAnalysisCrossFile: false, embeddings: { enabled: false, mode: 'off' } },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
-} });
+}) });
 const cli = (args) => {
   const result = runNode([path.join(root, 'bin', 'pairofcleats.js'), ...args], args.join(' '), repo, env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
   assert.equal(result.status, 0, `${result.error?.code || ''} ${result.signal || ''}\n${result.stderr}`);
   return result;
 };
-const build = () => {
-  const result = cli(['index', 'build', '--repo', repo, '--stage', 'stage1', '--mode', 'code', '--threads', '1']);
-  assert.doesNotMatch(result.stderr, /Worker pool enabled/, 'the fixture explicitly disables worker pools');
+const build = async () => {
+  // Cache ownership needs repeated real builds, without paying for a fresh CLI
+  // module graph each time. The map and stats surfaces still run as real CLIs.
+  const { buildIndex } = await import('../../../src/integrations/core/build-index/index.js');
+  const messages = [];
+  const result = await buildIndex(repo, { stage: 'stage1', modes: ['code'], threads: 1,
+    log: (message) => messages.push(String(message)) });
+  assert.doesNotMatch(messages.join('\n'), /Worker pool enabled/, 'the fixture explicitly disables worker pools');
   return result;
 };
 const stats = () => JSON.parse(cli(['index', 'stats', '--repo', repo, '--mode', 'code', '--json']).stdout);
 const map = (extra = []) => JSON.parse(cli(['report', 'map', '--repo', repo, '--format', 'json', ...extra]).stdout);
 
 try {
-  build();
+  await build();
   const before = stats();
   const firstMap = map();
   assert.ok(firstMap.nodes.length > 0);
@@ -55,12 +61,12 @@ try {
   if (process.platform !== 'win32') {
     await fs.writeFile(path.join(legacyCache, `code-map:lk1:${'a'.repeat(40)}.json`), JSON.stringify(firstMap, null, 2));
   }
-  build();
+  await build();
   assert.equal(stats().modes.code.chunkMeta.rows, before.modes.code.chunkMeta.rows,
     'build-map-rebuild must not ingest current, renamed or legacy map cache data');
   await fs.writeFile(path.join(explicit, 'authored.js'), 'export const intentionallySearchable = 1;\n');
   await fs.writeFile(path.join(legacyCache, 'authored.js'), 'export const legacySibling = 2;\n');
-  build();
+  await build();
   assert.equal(stats().modes.code.chunkMeta.rows, before.modes.code.chunkMeta.rows + 2,
     'authored source siblings in default and explicit cache directories must remain searchable');
   console.log('Map caches stay external, have portable names, and do not feed the next index build.');
