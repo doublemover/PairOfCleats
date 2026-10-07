@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 750,
     "matrix": 108,
-    "meta": 25,
+    "meta": 26,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -5319,6 +5319,12 @@
       "order": 884,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/codeql-workflow-contract",
+      "order": 885,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }
