@@ -7,7 +7,7 @@ import { normalizeMemberLinks } from './member-links.js';
 import { READ_GUARDS, visibleNode, searchHistory, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore } from './store.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
-import { ADAPTER_VERSION, PROJECTION_VERSION, digest, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
+import { ADAPTER_VERSION, PROJECTION_VERSION, digest, privateReference, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
 
 const denied = () => historyError('ERR_INFERENCE_HISTORY_DENIED', 'Inference-history access denied.');
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history request.');
@@ -29,7 +29,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
   verifyPrivateVault = null, limits: inputLimits, audit = null }) {
   if (typeof resolveAccess !== 'function') throw denied();
   const limits = resolveLimits(inputLimits);
-  const projectionFingerprint = digest(JSON.stringify([PROJECTION_VERSION, limits.maxTextChars]));
+  const projectionFingerprint = digest(JSON.stringify([ADAPTER_VERSION, PROJECTION_VERSION, limits.maxTextChars]));
   const accessFor = async (requestContext, partition, action) => {
     let access;
     try { access = await resolveAccess({ requestContext, partition, action }); } catch { throw denied(); }
@@ -99,6 +99,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       const authorizedSource = await sourceFor(request);
       db.exec('BEGIN IMMEDIATE');
       const scope = digest(partitionIdentity(_access));
+      const referenceKey = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
       let importId;
       let previous = null;
       let newSnapshots = 0;
@@ -135,12 +136,12 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
           const recordRef = digest(JSON.stringify([scope, normalized.evidenceKind, normalized.recordId]));
           const existing = db.prepare('SELECT deleted FROM records WHERE id=?').get(recordRef);
           if (existing?.deleted) { tombstonedRecords += 1; return; }
-          const snapshotRef = digest(JSON.stringify([recordRef, normalized.snapshotHash, projectionFingerprint]));
+          const snapshotRef = privateReference(referenceKey, JSON.stringify([recordRef, normalized.snapshotHash, digest(locator.raw), projectionFingerprint]));
           // Conflicting snapshots in one export must not pick a last-shard winner.
-          if (touched.has(recordRef) && touched.get(recordRef) !== snapshotRef) {
+          if (touched.has(recordRef) && touched.get(recordRef) !== normalized.snapshotHash) {
             throw historyError('ERR_INFERENCE_HISTORY_CONFLICT', 'Conflicting conversation snapshots in one import.');
           }
-          touched.set(recordRef, snapshotRef);
+          touched.set(recordRef, normalized.snapshotHash);
           db.prepare('INSERT OR IGNORE INTO records(id) VALUES (?)').run(recordRef);
           const added = db.prepare('INSERT OR IGNORE INTO snapshots VALUES (?, ?, ?, ?, ?, ?, ?)').run(
             snapshotRef, recordRef, normalized.evidenceKind, normalized.recordId, locator.raw,
@@ -156,11 +157,8 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
           }
           for (const node of normalized.nodes) {
             const nodeRevision = node.sourceRevision;
-            const sourceRef = digest(JSON.stringify([recordRef, node.nodeId, nodeRevision, projectionFingerprint]));
-            const fullText = normalized.evidenceKind === 'exported_codex_task'
-              ? (visibleNode(raw, normalized.evidenceKind, node.nodeId)?.text ?? '')
-              : node.parts.filter((part) => typeof part.text === 'string')
-                .map((part) => part.text).join('\n');
+            const sourceRef = privateReference(referenceKey, JSON.stringify([recordRef, node.nodeId, nodeRevision, projectionFingerprint]));
+            const fullText = visibleNode(raw, normalized.evidenceKind, node.nodeId)?.text ?? '';
             const projection = projectHistoryText(fullText, limits.maxTextChars);
             const metadata = {
               evidenceKind: normalized.evidenceKind,

@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { centeredSnippet } from '../../../src/integrations/inference-history/reader.js';
 import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
+for (const suffix of ['café', 'cafe\u0301']) {
+  const text = '😀 padding '.repeat(100) + suffix + ' trailing';
+  const snippet = centeredSnippet(text, ['cafe'], 80);
+  assert.ok(snippet.text.includes(suffix));
+  assert.deepEqual(snippet.matchedTokens, ['cafe']);
+  assert.equal(text.slice(snippet.start, snippet.end), snippet.text);
+}
 const root = await fs.realpath(await makeTempDir('poc-history-reader-'));
 const vaultRoot = path.join(root, 'vault'), sourcePath = path.join(root, 'authored.json');
 await fs.mkdir(vaultRoot, { mode: 0o700 });
@@ -88,6 +97,10 @@ try {
   assert.ok(!JSON.stringify(context).includes('hidden'));
   assert.equal(context.messages[1].projection.truncated, true);
   assert.equal(context.messages[1].artifacts[0].reference, 'sandbox:/mnt/data/authored-demo.html');
+  const anchorOnly = await service.readContext({ ...request, sourceRef: shared.sourceRef,
+    snapshotRef: shared.snapshotRef, before: 10, after: 10, top: 1 });
+  assert.equal(anchorOnly.messages.length, 1);
+  assert.equal(anchorOnly.messages[0].anchor, true);
   const contextPage = await service.readContext({ ...request, sourceRef: shared.sourceRef, snapshotRef: shared.snapshotRef, offset: 0, top: 1 });
   assert.equal(contextPage.nextOffset, 1);
   assert.equal((await service.readContext({ ...request, sourceRef: shared.sourceRef, snapshotRef: shared.snapshotRef, offset: 1, top: 1 })).messages[0].anchor, true);
@@ -118,5 +131,27 @@ try {
   assert.equal(capped.candidateMatches, 1001);
   assert.equal(capped.totalMatches, null);
   assert.equal(capped.observedGroups, 1000);
+  const databasePath = path.join(vaultRoot, (await fs.readdir(vaultRoot)).find(name => name.endsWith('.sqlite')));
+  const db = new Database(databasePath);
+  try {
+    const plan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM units WHERE json_extract(metadata,'$.messageId')=? ORDER BY id LIMIT 1001").all('unique-message');
+    assert.ok(plan.some(row => row.detail.includes('units_message')));
+    const seed = capped.hits[0];
+    const snapshot = db.prepare('SELECT * FROM snapshots WHERE id=?').get(seed.snapshotRef);
+    const insertSnapshot = db.prepare('INSERT INTO snapshots VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const insertUnit = db.prepare('INSERT INTO snapshot_units VALUES (?, ?, ?)');
+    db.transaction(() => {
+      for (let index = 0; index < 1001; index++) {
+        const id = index.toString(16).padStart(64, '0');
+        insertSnapshot.run(id, snapshot.record_id, snapshot.source_kind, snapshot.source_id,
+          '{}', snapshot.title, snapshot.diagnostics);
+        insertUnit.run(id, seed.sourceRef, 'unknown');
+      }
+    })();
+    await assert.rejects(service.search({ ...request, query: 'boundedlimit' }),
+      { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
+    await assert.rejects(service.readReferences({ ...request, sourceRef: seed.sourceRef }),
+      { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
+  } finally { db.close(); }
   console.log('Visible context, strict type/channel exclusion, snippets, filters, exact branch groups, provenance, pagination and tombstones passed.');
 } finally { await rmDirRecursive(root); }

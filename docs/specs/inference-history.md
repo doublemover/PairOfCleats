@@ -136,12 +136,16 @@ substrings, their byte-equivalent UTF-8 hashes, semantic canonical hashes, sourc
 member/ordinal occurrences and the member inventory. Both `raw` and `rawJson` are
 available only through `read_original` authority. `rawJson` preserves duplicate
 keys and formatting that JavaScript's parsed object cannot represent separately.
+Byte-distinct JSON creates a distinct snapshot even when canonical objects match;
+unchanged normalized units are shared across those snapshots. Vault format
+inference-history.v3 includes the required lookup indexes and private reference key.
+Older vault formats fail closed and are not migrated or modified implicitly.
 
 Conversation identity includes trusted source scope and source conversation ID.
 Node revision identity includes the mapping key and canonical raw node payload,
 not just text. Conversation snapshots own path membership; changing a selected
 leaf or title does not require recreating unchanged node projections. Projection
-identity includes the transform version and character budget. A changed transform
+identity includes the adapter version, projection version and character budget. A changed transform
 must change that version. Reimporting identical bytes under the same transform
 does not add versions. A later incomplete export does not delete old evidence.
 Conflicting snapshots for the same conversation in one import fail rather than
@@ -149,7 +153,7 @@ selecting an arbitrary last shard.
 
 Parent-only trees derive normalized child lists from explicit parent relationships;
 raw source fields are unchanged. Declared child arrays still undergo mismatch
-validation. Adapter revision chatgpt-export.v2 invalidates earlier import transforms.
+validation. Adapter revision chatgpt-export.v6 invalidates earlier import transforms.
 
 Graph validation preserves malformed evidence while reporting missing/dangling
 references, inconsistent edges and cycles. Invalid selected ancestry is `unknown`;
@@ -159,16 +163,26 @@ evidence. No assistant claim becomes verified repository state merely by import.
 Asset references stay `unresolved`. Original-read output provides their exact
 pointers and the checksum-bearing archive inventory; the pilot does not infer
 asset identity from a filename, opaque pointer or similar-looking image. Code
-parts remain ordered evidence and participate in bounded text retrieval.
+parts remain ordered raw evidence; hidden code payloads do not participate in visible text retrieval.
 
 ## Projection and retrieval
 
-Projection history-text.v3 retains the canonical node revision (including exported
-archived state for Codex turns) and a SHA-256 of full extracted source text.
-Codex searchable projections use only the same public message items admitted by the
-visible reader; exported turn dates remain available to date filters.
+Projection history-text.v4 retains canonical node revisions privately. Public
+projection metadata contains a digest of redacted, clipped text only. Search and
+context never expose raw text, raw occurrence or node revision hashes. Content-dependent
+snapshot, unit and group references are HMACs under a random per-vault key held in
+private vault metadata; predictable private text cannot be verified from these references.
+Conversation and Codex searchable projections use the same public text admitted by
+the visible reader; exported turn dates remain available to date filters.
 Reused normalized nodes count toward the import unit limit. Candidate counts stop
 at 1,001 to signal an incomplete result beyond the 1,000-unit read budget.
+Candidates are materialized before BM25 ordering, so ranking examines at most 1,000
+rows. Provenance location queries materialize at most 1,001 rows before sorting;
+indexed occurrence queries likewise return at most 1,001. Search and reference reads
+admit at most 1,000 locations and 1,000 occurrences in total, failing with
+ERR_INFERENCE_HISTORY_LIMIT before expanding an oversized result. These bounds
+apply before pagination; a small page does not authorize unrestricted expansion.
+Message-ID and snapshot occurrence indexes support bounded exact lookups.
 Bare Git repositories are rejected alongside worktree repository locations. Each query unit records its UTF-16 character
 budget, original/redacted/projected lengths, truncation flag and deterministic
 trim counters/reason. Full raw evidence remains subject to original-read authority.
@@ -247,7 +261,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 
 ## Codex records and declared member evidence
 
-`chatgpt-export.v5` uses vault format `inference-history.v2`. The current API exposes
+`chatgpt-export.v6` uses vault format `inference-history.v3`. The current API exposes
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn

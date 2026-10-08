@@ -250,7 +250,7 @@ assert.match(hashCanonicalJson(deep), /^[0-9a-f]{64}$/, 'deep unknown metadata h
 const longProjectionSource = 'first '.repeat(8000);
 const longProjection = projectHistoryText(longProjectionSource, 32768);
 assert.equal(longProjection.text.length, 32768);
-assert.equal(longProjection.metadata.sourceTextHash, createHash('sha256').update(longProjectionSource).digest('hex'));
+assert.equal(longProjection.metadata.projectedTextHash, createHash('sha256').update(longProjection.text).digest('hex'));
 assert.equal(longProjection.metadata.sourceTextChars, longProjectionSource.length);
 assert.equal(longProjection.metadata.truncated, true);
 assert.deepEqual(longProjection.metadata.trimReasonCounts, { character_budget: 1 });

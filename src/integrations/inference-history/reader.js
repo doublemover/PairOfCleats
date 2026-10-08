@@ -1,5 +1,5 @@
 import { hashCanonicalJson, normalizeTimestamp } from './normalize.js';
-import { digest, historyError, projectHistoryText, redactHistoryText } from './common.js';
+import { privateReference, historyError, projectHistoryText, redactHistoryText } from './common.js';
 
 export const READ_GUARDS = Symbol('history-read-guards');
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history read request.');
@@ -31,7 +31,7 @@ export function visibleNode(raw, kind, nodeId) {
     const node = raw.mapping?.[nodeId], message = node?.message;
     if (!visible(message) || !['text', 'multimodal_text'].includes(message.content?.content_type)) return null;
     return { nodeId, messageId: typeof message.id === 'string' ? message.id : null,
-      role: message.author.role, channel: message.channel ?? null, text: textParts(message.content),
+      role: message.author?.role ?? message.role, channel: message.channel ?? null, text: textParts(message.content),
       createdAt: normalizeTimestamp(message.create_time), payloadHash: hashCanonicalJson(message),
       attachments: Array.isArray(message.metadata?.attachments) ? message.metadata.attachments : [] };
   }
@@ -72,8 +72,19 @@ const matches = (text, tokens) => {
   return tokens.every(token => words(token).every(word => present.has(word)));
 };
 export function centeredSnippet(text, tokens, chars) {
-  const lowered = text.toLowerCase();
-  const positions = tokens.map(token => lowered.indexOf(token.toLowerCase())).filter(index => index >= 0);
+  let normalized = '';
+  const offsets = [];
+  for (let offset = 0; offset < text.length;) {
+    const character = String.fromCodePoint(text.codePointAt(offset));
+    const folded = character.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+    normalized += folded;
+    for (let index = 0; index < folded.length; index++) offsets.push(offset);
+    offset += character.length;
+  }
+  const positions = tokens.map(token => {
+    const index = normalized.indexOf(token.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase());
+    return index < 0 ? -1 : offsets[index];
+  }).filter(index => index >= 0);
   const position = positions.length ? Math.min(...positions) : 0;
   let start = Math.max(0, Math.min(position - Math.floor(chars / 3), text.length - chars));
   if (start > 0 && /[\uDC00-\uDFFF]/.test(text[start])) start--;
@@ -101,19 +112,30 @@ const cacheFor = (db, request) => {
   };
 };
 const locations = (db, sourceRef, { history = true, snapshot = null, pathState = 'all' } = {}) => db.prepare(`
-  SELECT s.id AS snapshotRef, s.record_id AS recordRef, s.title, su.path_state AS pathState
+  WITH candidates AS MATERIALIZED (SELECT s.id AS snapshotRef, s.record_id AS recordRef, s.title, su.path_state AS pathState,
+    (s.id=r.latest_snapshot) AS latest
   FROM snapshot_units su JOIN snapshots s ON s.id=su.snapshot_id JOIN records r ON r.id=s.record_id
   WHERE su.unit_id=? AND r.deleted=0 AND (?=1 OR s.id=r.latest_snapshot)
     AND (? IS NULL OR s.id=?) AND (?='all' OR su.path_state=?)
-  ORDER BY (s.id=r.latest_snapshot) DESC, s.id
+  LIMIT 1001) SELECT snapshotRef, recordRef, title, pathState FROM candidates ORDER BY latest DESC, snapshotRef
 `).all(sourceRef, history ? 1 : 0, snapshot, snapshot, pathState, pathState);
-const occurrences = (db, snapshotRef) => db.prepare(`SELECT import_id AS importRef, member, ordinal,
-  raw_sha256 AS rawSha256 FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal`).all(snapshotRef);
-const reference = (db, sourceRef, location) => ({ sourceRef, ...location, occurrences: occurrences(db, location.snapshotRef) });
+const occurrences = (db, snapshotRef) => db.prepare(`SELECT import_id AS importRef, member, ordinal
+  FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal LIMIT 1001`).all(snapshotRef);
+const boundedProvenance = () => {
+  let remaining = MAX_CANDIDATES;
+  return rows => {
+    remaining -= rows.length;
+    if (remaining < 0) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History provenance budget exceeded.');
+    return rows;
+  };
+};
+const reference = (db, sourceRef, location, admit) => ({
+  sourceRef, ...location, occurrences: admit(occurrences(db, location.snapshotRef))
+});
 const guard = (result, refs) => Object.defineProperty(result, READ_GUARDS, { value: refs });
 const groupKey = (row, node, namespace) => node.messageId
-  ? digest(JSON.stringify([namespace, row.evidenceKind, node.messageId, node.payloadHash, row.projectionFingerprint]))
-  : digest(JSON.stringify([namespace, row.sourceRef]));
+  ? privateReference(namespace, JSON.stringify([row.evidenceKind, node.messageId, node.payloadHash, row.projectionFingerprint]))
+  : privateReference(namespace, JSON.stringify([row.sourceRef]));
 
 function coverage(db) {
   if (!db) return { imports: 0, records: 0, units: 0, coverage: 'none', complete: false,
@@ -168,15 +190,17 @@ export function searchHistory(db, request) {
   const parameters = [query, from, from, to, to, history ? 1 : 0,
     request.snapshotRef ?? null, request.snapshotRef ?? null, pathState, pathState];
   const candidateCount = db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 ${sql} LIMIT ${MAX_CANDIDATES + 1})`).get(...parameters).n;
-  const rows = db.prepare(`SELECT units.id AS sourceRef, units.record_id AS recordRef,
+  const rows = db.prepare(`WITH candidates AS MATERIALIZED (SELECT units.id AS sourceRef, units.record_id AS recordRef,
     units.node_id AS nodeId, units.metadata, bm25(units_fts) AS score ${sql}
-    ORDER BY score, units.id LIMIT ?`).all(...parameters, MAX_CANDIDATES);
+    LIMIT ?) SELECT * FROM candidates ORDER BY score, sourceRef`).all(...parameters, MAX_CANDIDATES);
   const load = cacheFor(db, request), groups = new Map(), guards = [];
-  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='partition'").get().value;
+  const admitLocations = boundedProvenance(), admitOccurrences = boundedProvenance();
+  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   let matchedUnits = 0;
   for (const row of rows) {
     const metadata = JSON.parse(row.metadata);
     const locs = locations(db, row.sourceRef, { history, snapshot: request.snapshotRef ?? null, pathState });
+    if (locs.length > MAX_CANDIDATES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History provenance budget exceeded.');
     const first = locs[0];
     if (!first) continue;
     const snapshot = load(first.snapshotRef), node = visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId);
@@ -188,7 +212,8 @@ export function searchHistory(db, request) {
     let group = groups.get(key);
     if (!group) {
       const snippet = centeredSnippet(projection.text, tokens, snippetChars);
-      group = { ...metadata, sourceRef: row.sourceRef, recordRef: row.recordRef, snapshotRef: first.snapshotRef,
+      const { nodeRevision: _privateRevision, ...publicMetadata } = metadata;
+      group = { ...publicMetadata, sourceRef: row.sourceRef, recordRef: row.recordRef, snapshotRef: first.snapshotRef,
         title: first.title, pathState: first.pathState, role: node.role,
         createdAt: { utc: node.createdAt.utc, state: node.createdAt.state }, text: snippet.text, snippet,
         score: row.score, groupRef: key, groupCount: 0, artifacts: artifactReferences(node),
@@ -196,8 +221,8 @@ export function searchHistory(db, request) {
       groups.set(key, group);
     }
     group.groupCount++;
-    for (const location of locations(db, row.sourceRef)) {
-      const ref = reference(db, row.sourceRef, location);
+    for (const location of admitLocations(locations(db, row.sourceRef))) {
+      const ref = reference(db, row.sourceRef, location, admitOccurrences);
       group.references.push(ref); guards.push({ sourceRef: row.sourceRef, snapshotRef: location.snapshotRef });
     }
   }
@@ -241,7 +266,7 @@ export function readVisibleContext(db, request) {
   const anchorIndex = timeline.findIndex(({ node }) => node.nodeId === anchor.nodeId);
   if (anchorIndex < 0) return { snapshotRef: request.snapshotRef, sourceRef: request.sourceRef,
     messages: [], totalVisibleMessages: timeline.length, anchorVisible: false, instructionAuthority: 'none' };
-  const start = request.offset ?? Math.max(0, anchorIndex - before);
+  const start = request.offset ?? Math.max(0, anchorIndex - Math.min(before, top - 1));
   const end = request.offset == null ? Math.min(start + top, anchorIndex + after + 1) : start + top;
   const guards = [{ sourceRef: request.sourceRef, snapshotRef: request.snapshotRef }];
   const messages = timeline.slice(start, end).map(({ node }) => {
@@ -260,7 +285,7 @@ export function readVisibleContext(db, request) {
     totalVisibleMessages: timeline.length, anchorIndex, offset: start, nextOffset: start + messages.length < timeline.length ? start + messages.length : null,
     previousOffset: start > 0 ? Math.max(0, start - top) : null,
     order: 'timestamp_then_export_order_missing_dates_last', limits: { top, messageChars: chars, before, after },
-    provenance: { occurrences: occurrences(db, request.snapshotRef) }, instructionAuthority: 'none' }, guards);
+    provenance: { occurrences: boundedProvenance()(occurrences(db, request.snapshotRef)) }, instructionAuthority: 'none' }, guards);
 }
 
 export function readHistoryReferences(db, request) {
@@ -269,20 +294,24 @@ export function readHistoryReferences(db, request) {
   const seed = db?.prepare(`SELECT units.id AS sourceRef, units.node_id AS nodeId, units.metadata
     FROM units JOIN records r ON r.id=units.record_id WHERE units.id=? AND r.deleted=0`).get(request.sourceRef);
   if (!seed) return null;
-  const load = cacheFor(db, request), seedMeta = JSON.parse(seed.metadata), seedLocation = locations(db, seed.sourceRef)[0];
+  const load = cacheFor(db, request), seedMeta = JSON.parse(seed.metadata);
+  const seedLocations = locations(db, seed.sourceRef);
+  if (seedLocations.length > MAX_CANDIDATES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History provenance budget exceeded.');
+  const seedLocation = seedLocations[0];
   const seedNode = visibleNode(load(seedLocation.snapshotRef).raw, seedMeta.evidenceKind, seed.nodeId);
   if (!seedNode) return null;
-  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='partition'").get().value;
+  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   const key = groupKey({ ...seedMeta, ...seed }, seedNode, namespace);
   const rows = seedNode.messageId ? db.prepare(`SELECT u.id AS sourceRef, u.node_id AS nodeId, u.metadata
     FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND json_extract(u.metadata,'$.messageId')=?
     ORDER BY u.id LIMIT ?`).all(seedMeta.messageId, MAX_CANDIDATES + 1) : [seed];
   const references = [], guards = [];
+  const admitLocations = boundedProvenance(), admitOccurrences = boundedProvenance();
   for (const row of rows.slice(0, MAX_CANDIDATES)) {
-    const metadata = JSON.parse(row.metadata), locs = locations(db, row.sourceRef);
+    const metadata = JSON.parse(row.metadata), locs = admitLocations(locations(db, row.sourceRef));
     const node = visibleNode(load(locs[0].snapshotRef).raw, metadata.evidenceKind, row.nodeId);
     if (!node || groupKey({ ...metadata, ...row }, node, namespace) !== key) continue;
-    for (const location of locs) { references.push(reference(db, row.sourceRef, location));
+    for (const location of locs) { references.push(reference(db, row.sourceRef, location, admitOccurrences));
       guards.push({ sourceRef: row.sourceRef, snapshotRef: location.snapshotRef }); }
   }
   return guard({ sourceRef: request.sourceRef, groupRef: key, references: references.slice(offset, offset + top),

@@ -1,9 +1,10 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
-export const ADAPTER_VERSION = 'chatgpt-export.v5';
-export const PROJECTION_VERSION = 'history-text.v3';
+export const ADAPTER_VERSION = 'chatgpt-export.v6';
+export const PROJECTION_VERSION = 'history-text.v4';
 export const historyError = (code, message) => Object.assign(new Error(message), { code });
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
+export const privateReference = (key, value) => createHmac('sha256', Buffer.from(key, 'hex')).update(value).digest('hex');
 
 export const DEFAULT_LIMITS = Object.freeze({
   maxArchiveBytes: 256 * 1024 * 1024,
@@ -57,7 +58,7 @@ export function projectHistoryText(sourceText, maxTextChars) {
     text,
     metadata: {
       trimPolicyVersion: PROJECTION_VERSION,
-      sourceTextHash: digest(sourceText),
+      projectedTextHash: digest(text),
       sourceTextChars: sourceText.length,
       redactedTextChars: redacted.length,
       projectedTextChars: text.length,
