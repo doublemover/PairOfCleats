@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
-export const ADAPTER_VERSION = 'chatgpt-export.v4';
-export const PROJECTION_VERSION = 'history-text.v2';
+export const ADAPTER_VERSION = 'chatgpt-export.v5';
+export const PROJECTION_VERSION = 'history-text.v3';
 export const historyError = (code, message) => Object.assign(new Error(message), { code });
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 

@@ -167,7 +167,7 @@ export function searchHistory(db, request) {
   const history = request.includeHistory === true || request.snapshotRef != null;
   const parameters = [query, from, from, to, to, history ? 1 : 0,
     request.snapshotRef ?? null, request.snapshotRef ?? null, pathState, pathState];
-  const candidateCount = db.prepare(`SELECT COUNT(*) AS n ${sql}`).get(...parameters).n;
+  const candidateCount = db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 ${sql} LIMIT ${MAX_CANDIDATES + 1})`).get(...parameters).n;
   const rows = db.prepare(`SELECT units.id AS sourceRef, units.record_id AS recordRef,
     units.node_id AS nodeId, units.metadata, bm25(units_fts) AS score ${sql}
     ORDER BY score, units.id LIMIT ?`).all(...parameters, MAX_CANDIDATES);

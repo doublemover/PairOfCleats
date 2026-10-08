@@ -163,8 +163,13 @@ parts remain ordered evidence and participate in bounded text retrieval.
 
 ## Projection and retrieval
 
-Projection history-text.v2 retains the unchanged canonical node revision and a
-SHA-256 of full extracted source text. Each query unit records its UTF-16 character
+Projection history-text.v3 retains the canonical node revision (including exported
+archived state for Codex turns) and a SHA-256 of full extracted source text.
+Codex searchable projections use only the same public message items admitted by the
+visible reader; exported turn dates remain available to date filters.
+Reused normalized nodes count toward the import unit limit. Candidate counts stop
+at 1,001 to signal an incomplete result beyond the 1,000-unit read budget.
+Bare Git repositories are rejected alongside worktree repository locations. Each query unit records its UTF-16 character
 budget, original/redacted/projected lengths, truncation flag and deterministic
 trim counters/reason. Full raw evidence remains subject to original-read authority.
 Clipping preserves surrogate pairs; no archive or text cap is increased.
@@ -242,7 +247,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 
 ## Codex records and declared member evidence
 
-`chatgpt-export.v4` uses vault format `inference-history.v2`. The current API exposes
+`chatgpt-export.v5` uses vault format `inference-history.v2`. The current API exposes
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn

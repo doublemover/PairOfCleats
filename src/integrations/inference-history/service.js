@@ -4,7 +4,7 @@ import { visitChatGptExport } from './archive.js';
 import { hashCanonicalJson } from './normalize.js';
 import { normalizeHistoryRecord } from './records.js';
 import { normalizeMemberLinks } from './member-links.js';
-import { READ_GUARDS, searchHistory, readVisibleContext, readHistoryReferences } from './reader.js';
+import { READ_GUARDS, visibleNode, searchHistory, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore } from './store.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
 import { ADAPTER_VERSION, PROJECTION_VERSION, digest, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
@@ -128,6 +128,10 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         },
         onRecord: (raw, locator) => {
           const normalized = normalizeHistoryRecord(raw, locator.evidenceKind, limits);
+          seenUnits += normalized.nodes.length;
+          if (seenUnits > limits.maxUnits) {
+            throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'Conversation import exceeded the unit limit.');
+          }
           const recordRef = digest(JSON.stringify([scope, normalized.evidenceKind, normalized.recordId]));
           const existing = db.prepare('SELECT deleted FROM records WHERE id=?').get(recordRef);
           if (existing?.deleted) { tombstonedRecords += 1; return; }
@@ -151,13 +155,12 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
             return;
           }
           for (const node of normalized.nodes) {
-            if (++seenUnits > limits.maxUnits) {
-              throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'Conversation import exceeded the unit limit.');
-            }
             const nodeRevision = node.sourceRevision;
             const sourceRef = digest(JSON.stringify([recordRef, node.nodeId, nodeRevision, projectionFingerprint]));
-            const fullText = node.parts.filter((part) => typeof part.text === 'string')
-              .map((part) => part.text).join('\n');
+            const fullText = normalized.evidenceKind === 'exported_codex_task'
+              ? (visibleNode(raw, normalized.evidenceKind, node.nodeId)?.text ?? '')
+              : node.parts.filter((part) => typeof part.text === 'string')
+                .map((part) => part.text).join('\n');
             const projection = projectHistoryText(fullText, limits.maxTextChars);
             const metadata = {
               evidenceKind: normalized.evidenceKind,

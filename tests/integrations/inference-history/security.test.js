@@ -75,5 +75,14 @@ try {
   await fs.mkdir(path.join(repo, 'vault'), { mode: 0o700 });
   await assert.rejects(openHistoryStore(path.join(repo, 'vault'), 'a'.repeat(64), { create: true }),
     { code: 'ERR_INFERENCE_HISTORY_STORAGE' });
+  const bareRepo = path.join(root, 'synthetic-bare-repo');
+  await fs.mkdir(path.join(bareRepo, 'objects'), { recursive: true });
+  await fs.writeFile(path.join(bareRepo, 'HEAD'), 'ref: refs/heads/synthetic\n');
+  await fs.writeFile(path.join(bareRepo, 'config'), '[core]\n bare = true\n');
+  const bareVault = path.join(bareRepo, 'vault');
+  await fs.mkdir(bareVault, { mode: 0o700 });
+  await assert.rejects(openHistoryStore(bareVault, 'c'.repeat(64),
+    { create: true, verifyPrivateVault: () => true }), { code: 'ERR_INFERENCE_HISTORY_STORAGE' });
+  assert.deepEqual(await fs.readdir(bareVault), []);
   console.log('Inference history storage boundaries, projection identity and in-flight tombstones passed.');
 } finally { await rmDirRecursive(root); }
