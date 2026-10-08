@@ -7,20 +7,46 @@ import { collectGroovyImports } from '../../../src/index/language-registry/impor
 import { collectHandlebarsImports } from '../../../src/index/language-registry/import-collectors/handlebars.js';
 import { collectIniImports } from '../../../src/index/language-registry/import-collectors/ini.js';
 import { collectJsonImports } from '../../../src/index/language-registry/import-collectors/json.js';
-import { collectJinjaImports } from '../../../src/index/language-registry/import-collectors/jinja.js';
+import { createJinjaImportCollector } from '../../../src/index/language-registry/import-collectors/jinja.js';
 import { collectJuliaImports } from '../../../src/index/language-registry/import-collectors/julia.js';
 import { collectMakefileImports } from '../../../src/index/language-registry/import-collectors/makefile.js';
-import { collectMustacheImports } from '../../../src/index/language-registry/import-collectors/mustache.js';
+import { createMustacheImportCollector } from '../../../src/index/language-registry/import-collectors/mustache.js';
 import { collectNixImports } from '../../../src/index/language-registry/import-collectors/nix.js';
-import { collectProtoImports } from '../../../src/index/language-registry/import-collectors/proto.js';
+import { createProtoImportCollector } from '../../../src/index/language-registry/import-collectors/proto.js';
 import { collectRazorImports } from '../../../src/index/language-registry/import-collectors/razor.js';
 import { collectRImports } from '../../../src/index/language-registry/import-collectors/r.js';
 import { collectScalaImports } from '../../../src/index/language-registry/import-collectors/scala.js';
 import { collectStarlarkImports } from '../../../src/index/language-registry/import-collectors/starlark.js';
-import { collectTomlImports } from '../../../src/index/language-registry/import-collectors/toml.js';
-import { collectXmlImports } from '../../../src/index/language-registry/import-collectors/xml.js';
-import { collectYamlImports } from '../../../src/index/language-registry/import-collectors/yaml.js';
+import { createTomlImportCollector } from '../../../src/index/language-registry/import-collectors/toml.js';
+import { createXmlImportCollector } from '../../../src/index/language-registry/import-collectors/xml.js';
+import { createYamlImportCollector } from '../../../src/index/language-registry/import-collectors/yaml.js';
+import { createJinjaTemplateStructureParser } from '../../../src/shared/jinja-template-structure.js';
+import { createMustacheStructureParser } from '../../../src/shared/mustache-structure.js';
+import { createProtoStructureParser } from '../../../src/shared/proto-structure.js';
+import { createTomlStructureParser } from '../../../src/shared/toml-structure.js';
+import { createXmlStructureParser } from '../../../src/shared/xml-structure.js';
+import { createYamlStructureParser } from '../../../src/shared/yaml-structure.js';
 
+// Semantic cases use deterministic clocks in both the collector and its parser.
+// Separate parser boundary contracts retain production deadline coverage.
+const semanticYamlImports = createYamlImportCollector({
+  parseStructure: createYamlStructureParser({ now: () => 0 })
+});
+const semanticJinjaImports = createJinjaImportCollector({
+  parseStructure: createJinjaTemplateStructureParser({ now: () => 0 })
+});
+const semanticMustacheImports = createMustacheImportCollector({
+  parseStructure: createMustacheStructureParser({ now: () => 0 })
+});
+const semanticProtoImports = createProtoImportCollector({
+  parseStructure: createProtoStructureParser({ now: () => 0 })
+});
+const semanticTomlImports = createTomlImportCollector({
+  parseStructure: createTomlStructureParser({ now: () => 0 })
+});
+const semanticXmlImports = createXmlImportCollector({
+  parseStructure: createXmlStructureParser({ now: () => 0 })
+});
 const sort = (list) => list.slice().sort();
 const expectSet = (label, actual, expected) => {
   const actualSorted = sort(actual);
@@ -34,7 +60,7 @@ const expectSet = (label, actual, expected) => {
 const cases = [
   {
     label: 'xml',
-    fn: collectXmlImports,
+    fn: semanticXmlImports,
     text: [
       '<root xmlns:cfg="urn:cfg" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
       '  xsi:schemaLocation="urn:cfg ./cfg.xsd">',
@@ -63,7 +89,7 @@ const cases = [
   },
   {
     label: 'toml',
-    fn: collectTomlImports,
+    fn: semanticTomlImports,
     text: [
       '[dependencies]',
       'serde = "1.0"',
@@ -94,7 +120,7 @@ const cases = [
   },
   {
     label: 'yaml',
-    fn: collectYamlImports,
+    fn: semanticYamlImports,
     text: [
       'defaults: &defaults',
       '  image: node:20',
@@ -154,7 +180,7 @@ const cases = [
   },
   {
     label: 'proto',
-    fn: collectProtoImports,
+    fn: semanticProtoImports,
     text: [
       'import \"foo.proto\";',
       'import public \"bar.proto\";',
@@ -166,7 +192,7 @@ const cases = [
   },
   {
     label: 'proto-inline-block-comment-import',
-    fn: collectProtoImports,
+    fn: semanticProtoImports,
     text: '/* c */ import "real.proto";',
     expected: ['real.proto']
   },
@@ -400,31 +426,31 @@ const cases = [
   },
   {
     label: 'mustache',
-    fn: collectMustacheImports,
+    fn: semanticMustacheImports,
     text: '{{> other}}{{> partials/footer}}',
     expected: ['other', 'partials/footer']
   },
   {
     label: 'mustache-comment-suppression',
-    fn: collectMustacheImports,
+    fn: semanticMustacheImports,
     text: '{{! {{> ignored}} }}{{> partials/footer}}',
     expected: ['partials/footer']
   },
   {
     label: 'jinja',
-    fn: collectJinjaImports,
+    fn: semanticJinjaImports,
     text: '{% extends \"base.html\" %}',
     expected: ['base.html']
   },
   {
     label: 'jinja-multiline-include',
-    fn: collectJinjaImports,
+    fn: semanticJinjaImports,
     text: '{% include\n  \"partials/footer.html\"\n%}',
     expected: ['partials/footer.html']
   },
   {
     label: 'jinja-comment-suppression',
-    fn: collectJinjaImports,
+    fn: semanticJinjaImports,
     text: '{# {% include "ignored.html" %} #}\n{% include "partials/footer.html" %}',
     expected: ['partials/footer.html']
   },
