@@ -26,7 +26,7 @@ async function git(root, args, signal) {
   // Read object data only, without config-driven pagers, replacement objects,
   // ambient GIT_DIR overrides, textconv, external diffs or network operations.
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('GIT_')));
-  Object.assign(env, { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: devNull,
+  Object.assign(env, { GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : devNull,
     GIT_NO_REPLACE_OBJECTS: '1', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' });
   const result = await spawnSubprocess('git', ['--no-pager', '--no-replace-objects', '-C', root, ...args], {
     env, signal, timeoutMs: 2000, maxOutputBytes: 64 * 1024, rejectOnNonZeroExit: false,
