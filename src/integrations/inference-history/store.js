@@ -55,7 +55,7 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     db.pragma('temp_store = MEMORY');
     if (present?.size) {
       const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v1') throw unsafe();
+      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v2') throw unsafe();
     }
     if (create) {
       db.pragma('journal_mode = DELETE');
@@ -68,12 +68,21 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
           kind TEXT NOT NULL, bytes INTEGER NOT NULL, sha256 TEXT,
           PRIMARY KEY(import_id, name)
         );
-        CREATE TABLE IF NOT EXISTS conversations (
+        CREATE TABLE IF NOT EXISTS member_evidence (
+          import_id TEXT NOT NULL REFERENCES imports(id), name TEXT NOT NULL, kind TEXT NOT NULL, raw_json TEXT NOT NULL,
+          PRIMARY KEY(import_id, name)
+        );
+        CREATE TABLE IF NOT EXISTS member_links (
+          import_id TEXT NOT NULL REFERENCES imports(id), kind TEXT NOT NULL, logical_id TEXT NOT NULL,
+          path TEXT NOT NULL, declared_bytes INTEGER, state TEXT NOT NULL,
+          PRIMARY KEY(import_id, kind, logical_id, path)
+        );
+        CREATE TABLE IF NOT EXISTS records (
           id TEXT PRIMARY KEY, latest_snapshot TEXT, deleted INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS snapshots (
-          id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id),
-          source_id TEXT NOT NULL, raw_json TEXT NOT NULL, title TEXT NOT NULL, diagnostics TEXT NOT NULL
+          id TEXT PRIMARY KEY, record_id TEXT NOT NULL REFERENCES records(id),
+          source_kind TEXT NOT NULL, source_id TEXT NOT NULL, raw_json TEXT NOT NULL, title TEXT NOT NULL, diagnostics TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS occurrences (
           import_id TEXT NOT NULL REFERENCES imports(id), member TEXT NOT NULL, ordinal INTEGER NOT NULL,
@@ -81,7 +90,7 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
           PRIMARY KEY(import_id, member, ordinal)
         );
         CREATE TABLE IF NOT EXISTS units (
-          id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id),
+          id TEXT PRIMARY KEY, record_id TEXT NOT NULL REFERENCES records(id),
           node_id TEXT NOT NULL, text TEXT NOT NULL, metadata TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS snapshot_units (
@@ -89,9 +98,9 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
           unit_id TEXT NOT NULL REFERENCES units(id) ON DELETE CASCADE, path_state TEXT NOT NULL,
           PRIMARY KEY(snapshot_id, unit_id)
         );
-        CREATE INDEX IF NOT EXISTS units_conversation ON units(conversation_id);
+        CREATE INDEX IF NOT EXISTS units_record ON units(record_id);
         CREATE INDEX IF NOT EXISTS snapshot_units_unit ON snapshot_units(unit_id);
-        CREATE INDEX IF NOT EXISTS snapshots_conversation ON snapshots(conversation_id);
+        CREATE INDEX IF NOT EXISTS snapshots_record ON snapshots(record_id);
         CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(id UNINDEXED, text, tokenize='unicode61');
         CREATE TRIGGER IF NOT EXISTS units_insert AFTER INSERT ON units BEGIN
           INSERT INTO units_fts(id, text) VALUES(new.id, new.text);
@@ -101,10 +110,10 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
         END;
       `);
       db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
-      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v1');
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v2');
     }
     const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v1') throw unsafe();
+    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v2') throw unsafe();
     return db;
   } catch (error) { db.close(); throw error; }
 }

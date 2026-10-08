@@ -9,7 +9,7 @@ const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid or un
 const limited = () => historyError('ERR_INFERENCE_HISTORY_LIMIT', 'Conversation archive exceeded a resource limit.');
 
 /** Parse a top-level array one bounded object at a time, never buffering a shard. */
-export async function parseConversationArray(stream, { limits, check, onConversation }) {
+export async function parseEvidenceArray(stream, { limits, check, onRecord }) {
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let state = 'start';
   let raw = '';
@@ -36,7 +36,7 @@ export async function parseConversationArray(stream, { limits, check, onConversa
           if (Buffer.byteLength(raw) > limits.maxConversationBytes) throw limited();
           let conversation;
           try { conversation = JSON.parse(raw); } catch { throw invalid(); }
-          await onConversation(conversation, { ordinal, raw });
+          await onRecord(conversation, { ordinal, raw });
           ordinal += 1;
           raw = '';
           state = 'separator';
@@ -78,7 +78,7 @@ function safeMemberName(raw) {
  * The caller receives raw conversation objects and a checksum-bearing inventory.
  * Nested archives are inventoried as unsupported, never silently treated as parsed.
  */
-export async function visitChatGptExport({ sourcePath, limits: inputLimits, signal, onArchive, onConversation, onMember }) {
+export async function visitChatGptExport({ sourcePath, limits: inputLimits, signal, onArchive, onRecord, onMember, onMetadata }) {
   const limits = resolveLimits(inputLimits);
   const started = performance.now();
   const check = () => {
@@ -90,13 +90,16 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
   let activeStream;
   let totalExpanded = 0;
   let conversations = 0;
+  let tasks = 0;
   let members = 0;
   let unsupportedArchives = 0;
   const seen = new Set();
-  const countConversation = async (value, locator) => {
+  const countRecord = async (value, locator) => {
     check();
-    if (++conversations > limits.maxConversations) throw limited();
-    await onConversation(value, locator);
+    if (locator.evidenceKind === 'exported_codex_task') tasks += 1;
+    else conversations += 1;
+    if (conversations + tasks > limits.maxConversations) throw limited();
+    await onRecord(value, locator);
   };
   const consumeMember = async (stream, member, entry = null) => {
     activeStream = stream;
@@ -111,13 +114,25 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
         yield chunk;
       }
     };
-    if (member.kind === 'conversations') {
-      await parseConversationArray(measured(), {
+    if (member.kind === 'conversations' || member.kind === 'codex_tasks') {
+      await parseEvidenceArray(measured(), {
         limits, check,
-        onConversation: (value, locator) => countConversation(value, { ...locator, member: member.name })
+        onRecord: (value, locator) => countRecord(value, { ...locator, member: member.name,
+          evidenceKind: member.kind === 'codex_tasks' ? 'exported_codex_task' : 'exported_conversation' })
       });
     } else {
-      for await (const _chunk of measured()) { /* Inventory without buffering assets. */ }
+      const semantic = ['export_manifest', 'asset_names'].includes(member.kind);
+      const chunks = [];
+      for await (const chunk of measured()) {
+        if (semantic) {
+          if (bytes > limits.maxConversationBytes) throw limited();
+          chunks.push(chunk);
+        }
+      }
+      if (semantic) {
+        const rawJson = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+        await onMetadata({ member: member.name, kind: member.kind, rawJson, raw: JSON.parse(rawJson) });
+      }
     }
     if (entry && (bytes !== entry.uncompressedSize || checksum !== entry.crc32)) throw invalid();
     await onMember({ ...member, bytes, sha256: hash.digest('hex') });
@@ -166,7 +181,10 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
               return;
             }
             const kind = /(?:^|\/)conversations(?:[-_]\d+)?\.json$/i.test(name) ? 'conversations'
-              : /\.(?:zip|tar|gz|7z)$/i.test(name) ? 'unsupported_archive' : 'asset_or_unknown';
+              : /(?:^|\/)codex\.json$/i.test(name) ? 'codex_tasks'
+                : /(?:^|\/)export_manifest\.json$/i.test(name) ? 'export_manifest'
+                  : /(?:^|\/)conversation_asset_file_names\.json$/i.test(name) ? 'asset_names'
+                    : /\.(?:zip|tar|gz|7z)$/i.test(name) ? 'unsupported_archive' : 'asset_or_unknown';
             if (kind === 'unsupported_archive') unsupportedArchives += 1;
             const stream = await new Promise((resolveStream, rejectStream) => zip.openReadStream(entry,
               (error, value) => error ? rejectStream(error) : resolveStream(value)));
@@ -184,8 +202,8 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
     check();
     const final = await source.stat();
     if (initial.size !== final.size || initial.mtimeMs !== final.mtimeMs || initial.ctimeMs !== final.ctimeMs) throw invalid();
-    if (!conversations) throw invalid();
-    return { archiveSha256, members, conversations, unsupportedArchives, complete: unsupportedArchives === 0 };
+    if (!conversations && !tasks) throw invalid();
+    return { archiveSha256, members, conversations, tasks, unsupportedArchives, complete: unsupportedArchives === 0 };
   } catch (error) {
     if (error?.code?.startsWith('ERR_INFERENCE_HISTORY_')) throw error;
     throw invalid();

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { zipSync, strToU8 } from 'fflate';
 import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
@@ -9,7 +10,7 @@ ensureTestingEnv(process.env);
 const root = await makeTempDir('poc-history-service-');
 const vaultRoot = path.join(root, 'private-vault');
 await fs.mkdir(vaultRoot, { mode: 0o700 });
-const sourcePath = path.join(root, 'synthetic.json');
+let sourcePath = path.join(root, 'synthetic.json');
 const secret = 'sk-proj-SYNTHETICsecretvalue1234567890';
 const audit = [];
 let epoch = '1';
@@ -78,7 +79,7 @@ try {
   await service.importExport({ ...request, requestContext: 'foreign', sourcePath });
   const foreignHit = (await service.search({ ...request, requestContext: 'foreign', query: 'feature branch' })).hits[0];
   assert.notEqual(foreignHit.sourceRef, hit.sourceRef);
-  assert.notEqual(foreignHit.conversationRef, hit.conversationRef);
+  assert.notEqual(foreignHit.recordRef, hit.recordRef);
 
   // Title/current-path changes create a snapshot while retaining unchanged nodes.
   conversation = { ...conversation, title: 'Updated title', current_node: 'longer' };
@@ -133,16 +134,57 @@ try {
   await assert.rejects(changing.importExport({ ...request, sourcePath }), { code: 'ERR_INFERENCE_HISTORY_DENIED' });
   assert.equal((await service.search({ ...request, query: 'moonstone' })).hits.length, 0);
 
-  const deletion = await service.deleteConversation({ ...request, conversationRef: hit.conversationRef });
+  const deletion = await service.deleteRecord({ ...request, recordRef: hit.recordRef });
   assert.equal(deletion.tombstoned, true);
   assert.equal(deletion.originalArchiveRetainedByCaller, true);
   assert.equal(deletion.externalBackupsErased, false);
   assert.equal((await service.search({ ...request, query: 'cobalt', includeHistory: true })).hits.length, 0);
   assert.equal(await service.readOriginal({ ...request, snapshotRef: hit.snapshotRef }), null);
   const retry = await service.importExport({ ...request, sourcePath });
-  assert.equal(retry.tombstonedConversations, 1);
+  assert.equal(retry.tombstonedRecords, 1);
   assert.equal((await service.search({ ...request, query: 'moonstone', includeHistory: true })).hits.length, 0);
   assert.equal((await service.search({ ...request, requestContext: 'foreign', query: 'feature branch' })).hits.length, 1);
+
+  // Codex tasks retain independent identity, unknown selected paths, raw items,
+  // and gated manifest links without granting filesystem authority.
+  sourcePath = path.join(root, 'semantic.zip');
+  const task = { id: 'conversation', title: 'Synthetic Codex evidence', archived: false,
+    turns: [{ id: 'turn-one', previous_turn_id: 'outside-export', role: 'assistant',
+      branch: 'feature/synthetic', turn_status: 'completed',
+      input_items: [{ type: 'message', content: [{ type: 'input_text', text: 'quartz task input' }] }],
+      output_items: [{ type: 'patch', output_diff: 'quartz patch output', asset_pointer: 'attachment://sample' }] }] };
+  const manifest = { export_files: [{ path: 'codex.json', size_bytes: Buffer.byteLength(JSON.stringify([task])) },
+    { path: 'absent.dat', size_bytes: 3 }], logical_files: { tasks: { files: ['codex.json'], sharded: false } } };
+  const names = { 'absent.dat': 'Synthetic attachment label' };
+  await fs.writeFile(sourcePath, zipSync({
+    'codex.json': strToU8(JSON.stringify([task])),
+    'export_manifest.json': strToU8(JSON.stringify(manifest)),
+    'conversation_asset_file_names.json': strToU8(JSON.stringify(names)) }));
+  const taskImport = await service.importExport(request);
+  assert.equal(taskImport.tasks, 1);
+  assert.equal(taskImport.conversations, 0);
+  assert.equal(taskImport.records, 1);
+  assert.equal(taskImport.complete, false);
+  assert.equal(taskImport.memberLinkStates.linked_member, 2);
+  assert.equal(taskImport.memberLinkStates.not_in_selected_input, 2);
+  const taskHit = (await service.search({ ...request, query: 'quartz' })).hits[0];
+  assert.equal(taskHit.evidenceKind, 'exported_codex_task');
+  assert.equal(taskHit.pathState, 'unknown');
+  assert.notEqual(taskHit.recordRef, hit.recordRef);
+  assert.equal(taskHit.sourceDetails.branch, 'feature/synthetic');
+  const taskOriginal = await service.readOriginal({ ...request, snapshotRef: taskHit.snapshotRef });
+  assert.deepEqual(taskOriginal.raw, task);
+  assert.equal(taskOriginal.diagnostics[0].code, 'previous_turn_not_in_export');
+  assert.equal(taskOriginal.assetReferences[0].pointer, 'attachment://sample');
+  const memberRequest = { ...request, importRef: taskImport.importRef, member: 'export_manifest.json' };
+  const memberEvidence = await service.readMemberEvidence(memberRequest);
+  assert.deepEqual(memberEvidence.raw, manifest);
+  assert.equal(memberEvidence.filesystemAuthority, 'none');
+  await assert.rejects(searchOnly.readMemberEvidence(memberRequest), { code: 'ERR_INFERENCE_HISTORY_DENIED' });
+  await service.deleteRecord({ ...request, recordRef: taskHit.recordRef });
+  assert.equal(await service.readMemberEvidence(memberRequest), null);
+  assert.equal((await service.search({ ...request, query: 'quartz' })).hits.length, 0);
+  assert.equal((await service.importExport(request)).repeated, true);
 
   const auditText = JSON.stringify(audit);
   for (const value of [secret, 'cobalt', 'feature branch', sourcePath, 'Updated title']) assert.ok(!auditText.includes(value));

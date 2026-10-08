@@ -177,7 +177,7 @@ const collectAssets = (content) => {
   return assets;
 };
 
-const normalizeContent = (content, maxTextChars, diagnose) => {
+export const normalizeEvidenceContent = (content, maxTextChars, diagnose) => {
   const parts = [];
   const textChunks = [];
   let remaining = maxTextChars;
@@ -340,7 +340,7 @@ export const normalizeConversation = (raw, options = {}) => {
       children,
       role,
       pathState: 'unknown',
-      ...normalizeContent(ownValue(message, 'content'), maxTextChars, (code) => diagnose(code, nodeId)),
+      ...normalizeEvidenceContent(ownValue(message, 'content'), maxTextChars, (code) => diagnose(code, nodeId)),
       createdAt: normalizeTimestamp(ownValue(message, 'create_time'))
     };
     if (node.createdAt.state === 'invalid') diagnose('invalid_created_at', nodeId);
