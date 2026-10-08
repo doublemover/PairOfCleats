@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
+import { normalizeHistoryRecord } from '../../../src/integrations/inference-history/records.js';
+import { DEFAULT_LIMITS } from '../../../src/integrations/inference-history/common.js';
 import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
@@ -151,9 +153,21 @@ try {
   const task = { id: 'conversation', title: 'Synthetic Codex evidence', archived: false,
     turns: [{ id: 'turn-one', previous_turn_id: 'outside-export', role: 'assistant',
       branch: 'feature/synthetic', turn_status: 'completed',
-      input_items: [{ type: 'message', content: [{ type: 'input_text', text: 'quartz task input' }] }],
-      output_items: null }, { id: 'turn-two', previous_turn_id: 'turn-one', role: 'assistant',
-      input_items: null, output_items: [{ type: 'patch', output_diff: 'quartz patch output', asset_pointer: 'attachment://sample' }] }] };
+      input_items: [{ type: 'message', content: [{ type: 'input_text', text: 'quartz task input' }] }] }, { id: 'turn-two', previous_turn_id: 'turn-one', role: 'assistant',
+      output_items: [{ type: 'patch', output_diff: 'quartz patch output', asset_pointer: 'attachment://sample' }] }] };
+  const omitted = normalizeHistoryRecord(task, 'exported_codex_task', DEFAULT_LIMITS);
+  const nullableTask = { ...task, turns: [
+    { ...task.turns[0], output_items: null }, { ...task.turns[1], input_items: null }
+  ] };
+  const nullable = normalizeHistoryRecord(nullableTask, 'exported_codex_task', DEFAULT_LIMITS);
+  assert.deepEqual(omitted.nodes.map(node => node.text), nullable.nodes.map(node => node.text));
+  assert.equal(Object.hasOwn(omitted.raw.turns[0], 'output_items'), false);
+  assert.equal(Object.hasOwn(omitted.raw.turns[1], 'input_items'), false);
+  assert.equal(nullable.raw.turns[0].output_items, null);
+  assert.notEqual(omitted.snapshotHash, nullable.snapshotHash, 'absence and null retain distinct raw revisions');
+  assert.throws(() => normalizeHistoryRecord({ ...task, turns: [
+    { ...task.turns[0], output_items: 'malformed' }
+  ] }, 'exported_codex_task', DEFAULT_LIMITS), { code: 'ERR_INFERENCE_HISTORY_INPUT' });
   const manifest = { export_files: [{ path: 'codex.json', size_bytes: Buffer.byteLength(JSON.stringify([task])) },
     { path: 'absent.dat', size_bytes: 3 }], logical_files: { tasks: { files: ['codex.json'], sharded: false } } };
   const names = { 'absent.dat': 'Synthetic attachment label' };

@@ -17,8 +17,8 @@ export function normalizeHistoryRecord(raw, evidenceKind, limits) {
   const diagnostics = [], seen = new Set();
   const nodes = raw.turns.map(turn => {
     if (!object(turn) || !id(turn.id) || seen.has(turn.id)
-      || !(turn.input_items === null || Array.isArray(turn.input_items))
-      || !(turn.output_items === null || Array.isArray(turn.output_items))) throw invalid();
+      || !(!Object.hasOwn(turn, 'input_items') || turn.input_items === null || Array.isArray(turn.input_items))
+      || !(!Object.hasOwn(turn, 'output_items') || turn.output_items === null || Array.isArray(turn.output_items))) throw invalid();
     seen.add(turn.id);
     const parts = [], assets = [];
     for (const item of [...(turn.input_items ?? []), ...(turn.output_items ?? [])]) {
