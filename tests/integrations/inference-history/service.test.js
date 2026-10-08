@@ -251,7 +251,7 @@ try {
   const archivedHit = (await narrowTasks.search({ ...request, query: 'zircon' })).hits[0];
   assert.equal(archivedHit.sourceDetails.archived, true);
   assert.notEqual(archivedHit.sourceRef, visibleHit.sourceRef);
-  const hiddenTurns = { id: 'turn-visibility-review', turns: [
+  const hiddenTurns = { id: 'turn-visibility-review', title: 'Authored turn visibility', archived: false, turns: [
     { id: 'directed', role: 'user', recipient: 'tool', input_items: [
       { type: 'message', content: [{ type: 'input_text', text: 'turnrecipientword' }] } ] },
     { id: 'hidden', role: 'user', metadata: { is_visually_hidden_from_conversation: true }, input_items: [
@@ -289,6 +289,19 @@ try {
   await writeTasks([visibleTask, visibleTask]);
   await assert.rejects(unitBounded.importExport(request), { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
   assert.equal((await narrowTasks.search({ ...request, query: 'zircon' })).hits[0].sourceDetails.archived, true);
+  const largerTask = { id: 'larger-original-review', title: 'Authored large original', archived: false,
+    turns: Array.from({ length: DEFAULT_LIMITS.maxNodes + 1 }, (_, index) => ({ id: 'large-' + index,
+      role: 'user', input_items: index === 0
+        ? [{ type: 'message', content: [{ type: 'input_text', text: 'largeroriginalword' }] }] : [] })) };
+  const largerImporter = createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource,
+    verifyPrivateVault, limits: { maxNodes: largerTask.turns.length } });
+  await writeTasks([largerTask]);
+  await largerImporter.importExport(request);
+  const largerHit = (await service.search({ ...request, query: 'largeroriginalword' })).hits[0];
+  assert.ok(largerHit);
+  const largerOriginal = await service.readOriginal({ ...request, snapshotRef: largerHit.snapshotRef });
+  assert.equal(largerOriginal.rawJson, JSON.stringify(largerTask));
+  assert.equal(largerOriginal.assetReferencesComplete, false);
   const auditText = JSON.stringify(audit);
   for (const value of [secret, 'cobalt', 'feature branch', sourcePath, 'Updated title']) assert.ok(!auditText.includes(value));
   assert.ok(audit.some((row) => row.outcome === 'denied'));

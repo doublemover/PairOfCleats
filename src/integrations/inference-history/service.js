@@ -233,7 +233,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         nodeId: node.nodeId, pointer: asset.pointer, state: 'unresolved'
       })));
     } catch (error) {
-      if (error?.code !== 'ERR_INFERENCE_HISTORY_LIMIT') throw error;
+      if (!['ERR_INFERENCE_HISTORY_LIMIT', 'ERR_INFERENCE_HISTORY_INPUT'].includes(error?.code)) throw error;
       assetReferencesComplete = false;
     }
     const archiveMembers = db.prepare(`SELECT DISTINCT members.import_id AS importRef,
