@@ -7,7 +7,7 @@ import { normalizeMemberLinks } from './member-links.js';
 import { READ_GUARDS, visibleNode, searchHistory, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore } from './store.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
-import { ADAPTER_VERSION, PROJECTION_VERSION, digest, privateReference, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
+import { ADAPTER_VERSION, PROJECTION_VERSION, DEFAULT_LIMITS, digest, privateReference, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
 
 const denied = () => historyError('ERR_INFERENCE_HISTORY_DENIED', 'Inference-history access denied.');
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history request.');
@@ -184,6 +184,10 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
           db.prepare('UPDATE records SET latest_snapshot=? WHERE id=?').run(snapshotRef, recordRef);
         }
       });
+      if (tombstonedRecords) {
+        db.prepare('DELETE FROM member_evidence WHERE import_id=?').run(importId);
+        db.prepare('DELETE FROM member_links WHERE import_id=?').run(importId);
+      }
       const currentSource = await sourceFor(request);
       if (JSON.stringify(currentSource) !== JSON.stringify(authorizedSource)) throw denied();
       await reauthorize();
@@ -222,15 +226,21 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     const occurrences = db.prepare(`SELECT import_id AS importRef, member, ordinal, raw_sha256 AS rawSha256
       FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal`).all(request.snapshotRef);
     const raw = JSON.parse(row.raw_json);
-    const normalized = normalizeHistoryRecord(raw, row.source_kind, limits);
-    const assetReferences = normalized.nodes.flatMap((node) => node.assets.map((asset) => ({
-      nodeId: node.nodeId, pointer: asset.pointer, state: 'unresolved'
-    })));
+    let assetReferences = [], assetReferencesComplete = true;
+    try {
+      const normalized = normalizeHistoryRecord(raw, row.source_kind, DEFAULT_LIMITS);
+      assetReferences = normalized.nodes.flatMap((node) => node.assets.map((asset) => ({
+        nodeId: node.nodeId, pointer: asset.pointer, state: 'unresolved'
+      })));
+    } catch (error) {
+      if (error?.code !== 'ERR_INFERENCE_HISTORY_LIMIT') throw error;
+      assetReferencesComplete = false;
+    }
     const archiveMembers = db.prepare(`SELECT DISTINCT members.import_id AS importRef,
       members.name, members.kind, members.bytes, members.sha256 FROM members
       JOIN occurrences ON occurrences.import_id=members.import_id WHERE occurrences.snapshot_id=?
       ORDER BY members.import_id, members.name`).all(request.snapshotRef);
-    return { evidenceKind: row.source_kind, raw, rawJson: row.raw_json, diagnostics: JSON.parse(row.diagnostics), occurrences, assetReferences, archiveMembers };
+    return { evidenceKind: row.source_kind, raw, rawJson: row.raw_json, diagnostics: JSON.parse(row.diagnostics), occurrences, assetReferences, assetReferencesComplete, archiveMembers };
   });
 
   const readMemberEvidence = async (request) => perform({ ...request, action: 'read_original', target: 'member' }, false, async (db) => {
