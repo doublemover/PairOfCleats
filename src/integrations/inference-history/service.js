@@ -110,7 +110,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       const source = await visitChatGptExport({
         sourcePath: authorizedSource.path, limits, signal: request.signal,
         onArchive: (hash) => {
-          importId = digest(JSON.stringify([scope, hash, ADAPTER_VERSION, projectionFingerprint]));
+          importId = privateReference(referenceKey, JSON.stringify([scope, hash, ADAPTER_VERSION, projectionFingerprint]));
           previous = db.prepare('SELECT summary FROM imports WHERE id=?').get(importId);
           if (previous) return false;
           db.prepare('INSERT INTO imports VALUES (?, ?)').run(importId, '{}');
