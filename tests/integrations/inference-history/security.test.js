@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
 import { privateReference, digest } from '../../../src/integrations/inference-history/common.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -85,6 +86,16 @@ try {
   await assert.rejects(openHistoryStore(bareVault, 'c'.repeat(64),
     { create: true, verifyPrivateVault: () => true }), { code: 'ERR_INFERENCE_HISTORY_STORAGE' });
   assert.deepEqual(await fs.readdir(bareVault), []);
+  const databasePath = path.join(vaultRoot, (await fs.readdir(vaultRoot)).find(name => name.endsWith('.sqlite')));
+  const partitionKey = path.basename(databasePath, '.sqlite');
+  const db = new Database(databasePath);
+  db.prepare("DELETE FROM vault_meta WHERE key='reference_key'").run();
+  db.close();
+  await assert.rejects(openHistoryStore(vaultRoot, partitionKey,
+    { create: true, verifyPrivateVault: () => true }), { code: 'ERR_INFERENCE_HISTORY_STORAGE' });
+  const check = new Database(databasePath, { readonly: true });
+  assert.equal(check.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get(), undefined);
+  check.close();
   const rawCandidate = 'password=1234';
   const keyedA = privateReference('a'.repeat(64), rawCandidate);
   assert.notEqual(keyedA, digest(rawCandidate));

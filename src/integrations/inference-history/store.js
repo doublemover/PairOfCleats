@@ -60,7 +60,8 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     db.pragma('temp_store = MEMORY');
     if (present?.size) {
       const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v3') throw unsafe();
+      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v3'
+        || !/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
     }
     if (create) {
       db.pragma('journal_mode = DELETE');
