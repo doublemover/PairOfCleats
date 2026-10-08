@@ -52,7 +52,7 @@ Owner: `src/integrations/inference-history/service.js`.
 - `audit`: optional trusted protected sink receiving only principal/partition,
   policy epoch, action and outcome
 
-The methods are `importExport`, `search`, `readOriginal`, `correlate` and
+The methods are `importExport`, `search`, `readContext`, `readReferences`, `readOriginal`, `readMemberEvidence`, `correlate` and
 `deleteRecord`. They all accept an opaque `requestContext` and a `partition`
 selector. The selector, archive fields and retrieved text cannot supply identity.
 
@@ -273,3 +273,51 @@ relationship records or content; none may be inferred from page proximity or fil
 The present archive importer does not ingest this directory export or claim Pages coverage.
 A Pages adapter needs bounded parsing, exact raw provenance, separate page/revision identities,
 explicit link validation, and the same private original-read and deletion policies before use.
+
+## Visible reading and exact shared-branch groups
+
+`search` now returns bounded match-centered snippets. Its envelope declares literal
+Unicode word tokens joined with AND, BM25 ordering, `semanticMatching: false`, actual
+persisted import/record/unit counts, stored unit date bounds (including unknown dates),
+and unknown export cutoff/full archive window. Empty hits establish no visible matches
+in selected input under the supplied filters; they do not establish never-discussed.
+Optional `role` is `user` or `assistant`; `dateFrom`/`dateTo` accept UTC dates or ISO
+seconds/milliseconds ending in Z. Existing path/snapshot/history filters still apply.
+`top` defaults to 10 (maximum 100), `offset` defaults to 0, and `snippetChars` defaults
+to 600 (80..2000). Candidate scans stop at 1000 stored units and 64 MiB of raw snapshot
+JSON per read; totals are null with `complete: false` when the candidate cap is exceeded.
+`candidateMatches` includes candidates subsequently excluded by public visibility;
+`totalMatches` counts exact displayed groups, and `totalMatchedUnits` counts their
+matching source units. `nextOffset` pages observed groups, not unseen candidates.
+
+Default derivatives require public user/assistant messages, an absent/final/commentary
+channel, no tool recipient and no hidden flag. ChatGPT content must explicitly be
+text/multimodal_text; only string or explicitly typed text parts enter the view. Codex
+items must explicitly be messages with a single public role per turn. Reasoning, tool
+items and code payloads remain available only through explicitly authorized original
+reads. Every returned excerpt is evidence with no instruction authority; assistant
+proposals remain labelled assistant evidence and are not implementation claims.
+
+`readContext({sourceRef, snapshotRef, before, after, top, messageChars, offset})` needs
+separate `read_context` authority. It follows the snapshot's selected ancestry; for an
+off-path hit it follows that hit's ancestry without choosing an unknown descendant.
+It displays visible messages chronologically by exported timestamp, then export order,
+with missing dates last. Defaults are three messages before/after, six messages per
+page and 1200 characters per message; maxima are 10 before/after, 20 messages and 4000
+characters. Explicit `offset` pages the visible timeline; next/previous offsets allow
+reading beyond the initial window. Role, date, anchor, path, truncation, source refs and
+snapshot import/member/ordinal/hash provenance accompany the text. Artifact references
+are bounded (16 per message), unresolved, and always have `availability: unknown` and
+no filesystem authority. No linked artifact is fetched or claimed to exist.
+
+Exact group collapse requires the same evidence namespace, exported message ID,
+canonical complete message payload and projection fingerprint. Equal bodies with
+different IDs or changed payloads stay separate. Storage and raw originals are not
+deduplicated. Each hit includes matching-unit `groupCount`, three compact snapshot
+references with occurrence provenance and a `readReferences` expansion hint.
+`readReferences({sourceRef, top, offset})` needs separate `read_references` authority;
+it pages all retained identical-message source/snapshot/occurrence references (20 by
+default, maximum 50 per page), subject to the same candidate/evidence caps. Historical
+references can include snapshots outside the current search filters. Authorization,
+epoch and tombstones are checked again before any derivative is emitted. Original
+read behavior and the persisted schema/adapter/projection versions remain unchanged.

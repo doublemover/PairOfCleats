@@ -4,6 +4,7 @@ import { visitChatGptExport } from './archive.js';
 import { hashCanonicalJson } from './normalize.js';
 import { normalizeHistoryRecord } from './records.js';
 import { normalizeMemberLinks } from './member-links.js';
+import { READ_GUARDS, searchHistory, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore } from './store.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
 import { ADAPTER_VERSION, PROJECTION_VERSION, digest, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
@@ -62,12 +63,14 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       await recheck(access, request);
       // A concurrent tombstone must also gate an in-flight response, even when
       // host policy did not need to change its epoch for this local deletion.
-      if (db && ['search', 'read_original', 'correlate'].includes(request.action)) {
+      if (db && ['search', 'read_original', 'read_context', 'read_references', 'correlate'].includes(request.action)) {
         const visibleUnit = db.prepare(`SELECT 1 FROM units JOIN records
           ON records.id=units.record_id WHERE units.id=? AND records.deleted=0`);
         const visibleSnapshot = db.prepare(`SELECT 1 FROM snapshots JOIN records
           ON records.id=snapshots.record_id WHERE snapshots.id=? AND records.deleted=0`);
-        if (result?.hits?.some((hit) => !visibleUnit.get(hit.sourceRef) || !visibleSnapshot.get(hit.snapshotRef))
+        if (result?.[READ_GUARDS]?.some(ref => !visibleUnit.get(ref.sourceRef) || !visibleSnapshot.get(ref.snapshotRef))
+          || (request.action === 'read_context' && result && !visibleSnapshot.get(request.snapshotRef))
+          || result?.hits?.some((hit) => !visibleUnit.get(hit.sourceRef) || !visibleSnapshot.get(hit.snapshotRef))
           || (request.action === 'read_original' && request.target !== 'member' && result && !visibleSnapshot.get(request.snapshotRef))
           || (request.target === 'member' && result && !db.prepare('SELECT 1 FROM member_evidence WHERE import_id=? AND name=?').get(request.importRef, request.member))
           || (request.action === 'correlate' && result?.sourceRef && !visibleUnit.get(result.sourceRef))) throw denied();
@@ -203,44 +206,12 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       return result;
     });
 
-  const search = async (request) => perform({ ...request, action: 'search' }, false, async (db) => {
-    if (typeof request.query !== 'string' || request.query.length > 4096) throw invalid();
-    const tokens = [...new Set(request.query.match(/[\p{L}\p{N}_]+/gu) || [])];
-    if (!tokens.length || tokens.length > 32) throw invalid();
-    const top = request.top ?? 10;
-    if (!Number.isSafeInteger(top) || top < 1 || top > 100) throw invalid();
-    const pathState = request.pathState ?? 'all';
-    if (!['all', 'on_selected_path', 'off_selected_path', 'unknown'].includes(pathState)) throw invalid();
-    if (request.snapshotRef != null && !opaqueId(request.snapshotRef)) throw invalid();
-    if (!db) return { hits: [] };
-    const query = tokens.map((token) => `"${token}"`).join(' AND ');
-    const history = request.includeHistory === true || request.snapshotRef ? 1 : 0;
-    const snapshot = request.snapshotRef ?? null;
-    const rows = db.prepare(`
-      SELECT units.id AS sourceRef, units.record_id AS recordRef,
-        units.text, units.metadata, bm25(units_fts) AS score
-      FROM units_fts JOIN units ON units.id=units_fts.id
-      JOIN records ON records.id=units.record_id
-      WHERE units_fts MATCH ? AND records.deleted=0
-        AND EXISTS (SELECT 1 FROM snapshot_units WHERE snapshot_units.unit_id=units.id
-          AND (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot)
-          AND (? IS NULL OR snapshot_units.snapshot_id=?)
-          AND (?='all' OR snapshot_units.path_state=?))
-      ORDER BY score, units.id LIMIT ?
-    `).all(query, history, snapshot, snapshot, pathState, pathState, top);
-    const locate = db.prepare(`SELECT snapshots.id AS snapshotRef, snapshots.title,
-        snapshot_units.path_state AS pathState FROM snapshot_units
-      JOIN snapshots ON snapshots.id=snapshot_units.snapshot_id
-      JOIN records ON records.id=snapshots.record_id
-      WHERE snapshot_units.unit_id=? AND (?=1 OR snapshots.id=records.latest_snapshot)
-        AND (? IS NULL OR snapshots.id=?) AND (?='all' OR snapshot_units.path_state=?)
-      ORDER BY (snapshots.id=records.latest_snapshot) DESC, snapshots.id LIMIT 1`);
-    return { hits: rows.map(({ metadata, ...row }) => ({ ...row, ...JSON.parse(metadata),
-      ...locate.get(row.sourceRef, history, snapshot, snapshot, pathState, pathState),
-      instructionAuthority: 'none'
-    })) };
-  });
-
+  const search = async (request) => perform({ ...request, action: 'search' }, false,
+    async db => searchHistory(db, request));
+  const readContext = async (request) => perform({ ...request, action: 'read_context' }, false,
+    async db => readVisibleContext(db, request));
+  const readReferences = async (request) => perform({ ...request, action: 'read_references' }, false,
+    async db => readHistoryReferences(db, request));
   const readOriginal = async (request) => perform({ ...request, action: 'read_original', target: 'record' }, false, async (db) => {
     if (!opaqueId(request.snapshotRef)) throw invalid();
     const row = db?.prepare(`SELECT snapshots.raw_json, snapshots.diagnostics, snapshots.source_kind FROM snapshots
@@ -306,5 +277,5 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         importInventoryRetained: true, externalBackupsErased: false };
     });
 
-  return Object.freeze({ importExport, search, readOriginal, readMemberEvidence, correlate, deleteRecord });
+  return Object.freeze({ importExport, search, readContext, readReferences, readOriginal, readMemberEvidence, correlate, deleteRecord });
 }
