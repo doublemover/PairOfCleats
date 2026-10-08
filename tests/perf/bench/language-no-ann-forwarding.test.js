@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseBenchLanguageArgs } from '../../../tools/bench/language/cli.js';
+import { buildBenchChildArgs } from '../../../tools/bench/language-repos/run-loop.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -46,7 +47,19 @@ const args = [
   '--threads', '1', '--heap-mb', '512', '--limit', '1', '--quiet', '--progress', 'off',
   '--out', path.join(results, 'receipt.json')
 ];
-assert.equal(parseBenchLanguageArgs(args).argv.ann, false);
+const { argv } = parseBenchLanguageArgs(args);
+assert.equal(argv.ann, false);
+// Exercise the same parser-to-child command owner as the campaign. The fixture
+// owns its tiny repository and needs no campaign provisioning or six unrelated
+// guardrail snapshots inside the sparse build/query's unchanged 25-second limit.
+const childReport = path.join(results, 'child.json');
+const childArgs = buildBenchChildArgs({
+  benchScript: path.join(root, 'tests/perf/bench/run.test.js'),
+  repoPath: repo, queriesPath: queries, outFile: childReport,
+  autoBuildIndex: false, autoBuildSqlite: false,
+  buildRequested: Boolean(argv.build), buildIndexFlag: Boolean(argv['build-index']),
+  buildSqliteFlag: Boolean(argv['build-sqlite']), argv, effectiveThreads: Number(argv.threads)
+});
 // Keep the memory-only child from eagerly loading the unrelated SQLite builder.
 const importGuard = path.join(fixture, 'memory-import-guard.mjs');
 const sqliteBuilderUrl = pathToFileURL(path.join(root, 'tests/helpers/sqlite-builder.js')).href;
@@ -59,7 +72,8 @@ await fs.writeFile(importGuard, `
     return nextLoad(url, context);
   } });
 `);
-runNode(['tools/bench/language-repos.js', ...args], 'real no-ANN language child', root, applyTestEnv({
+const result = runNode(childArgs, 'real no-ANN language child', root, applyTestEnv({
+  cacheRoot: path.join(fixture, 'cache'),
   syncProcess: false,
   testConfig: { indexing: { artifacts: { binaryColumnar: false } }, sqlite: { use: false } },
   extraEnv: {
@@ -70,9 +84,8 @@ runNode(['tools/bench/language-repos.js', ...args], 'real no-ANN language child'
     UV_THREADPOOL_SIZE: '1', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1'
   }
 }), { timeoutMs: 25000, stdio: 'pipe' });
-const receipt = JSON.parse(await fs.readFile(path.join(results, 'receipt.json'), 'utf8'));
-const child = JSON.parse(await fs.readFile(path.join(results, 'javascript', 'test__no-ann.json'), 'utf8'));
-assert.equal(receipt.run.aggregateResultClass, 'passed');
+const child = JSON.parse(await fs.readFile(childReport, 'utf8'));
+assert.equal(result.status, 0, 'the real forwarded child must succeed');
 assert.equal(child.artifacts.corruption.ok, true, 'the real sparse artifacts must pass validation');
 assert.ok(child.summary.buildMs.index > 0, 'the fixture must run the real sparse index build');
 assert.equal(child.summary.buildMs.sqlite, undefined, 'memory-only coverage must not build SQLite');
