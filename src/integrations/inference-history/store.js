@@ -25,6 +25,10 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     const entry = await inspect(control);
     if (entry && (!entry.isDirectory() || await inspect(path.join(control, 'HEAD'))
       || await inspect(path.join(control, 'config')))) throw unsafe();
+    // Bare repositories have no .git child, but still contain private storage controls.
+    if (await inspect(path.join(directory, 'HEAD'))
+      && await inspect(path.join(directory, 'config'))
+      && await inspect(path.join(directory, 'objects'))) throw unsafe();
     if (path.dirname(directory) === directory) break;
   }
   const file = path.join(root, `${partitionKey}.sqlite`);

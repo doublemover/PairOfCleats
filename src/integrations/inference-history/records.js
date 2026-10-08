@@ -1,4 +1,4 @@
-import { hashCanonicalJson, normalizeConversation, normalizeEvidenceContent } from './normalize.js';
+import { hashCanonicalJson, normalizeConversation, normalizeEvidenceContent, normalizeTimestamp } from './normalize.js';
 import { historyError } from './common.js';
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history evidence record.');
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -39,7 +39,8 @@ export function normalizeHistoryRecord(raw, evidenceKind, limits) {
     return { nodeId: turn.id, messageId: null, parentId: id(turn.previous_turn_id) ? turn.previous_turn_id : null,
       children: [], role: typeof turn.role === 'string' ? turn.role : null, pathState: 'unknown',
       parts, assets, text: parts.filter(part => typeof part.text === 'string').map(part => part.text).join('\n').slice(0, limits.maxTextChars),
-      createdAt: { utc: null, state: 'missing', raw: null }, sourceDetails, sourceRevision: hashCanonicalJson(turn) };
+      createdAt: normalizeTimestamp(turn.create_time), sourceDetails,
+      sourceRevision: hashCanonicalJson({ turn, archived: raw.archived }) };
   });
   for (const node of nodes) {
     if (node.parentId && !seen.has(node.parentId)) diagnostics.push({ code: 'previous_turn_not_in_export', nodeId: node.nodeId });

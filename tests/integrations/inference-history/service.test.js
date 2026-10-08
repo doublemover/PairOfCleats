@@ -201,6 +201,37 @@ try {
   assert.equal((await service.search({ ...request, query: 'quartz' })).hits.length, 0);
   assert.equal((await service.importExport(request)).repeated, true);
 
+  // Authored task revisions retain visible text, exported dates and current archive state.
+  const visibleTask = { ...structuredClone(task), id: 'review-fixture-task', turns: [
+    { ...task.turns[0], create_time: '2026-04-15T12:00:00.000Z', input_items: [
+      { type: 'reasoning', content: 'hidden-prefix '.repeat(100) },
+      { type: 'message', content: [{ type: 'input_text', text: 'zircon visible review fixture' }] }
+    ] }, task.turns[1]
+  ] };
+  const narrowTasks = createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource,
+    verifyPrivateVault, limits: { maxTextChars: 80 } });
+  const writeTasks = tasks => fs.writeFile(sourcePath, zipSync({
+    'codex.json': strToU8(JSON.stringify(tasks))
+  }));
+  await writeTasks([visibleTask]);
+  await narrowTasks.importExport(request);
+  const visibleHit = (await narrowTasks.search({ ...request, query: 'zircon',
+    dateFrom: '2026-04-15', dateTo: '2026-04-15' })).hits[0];
+  assert.ok(visibleHit);
+  assert.equal(visibleHit.createdAt.utc, '2026-04-15T12:00:00.000Z');
+  assert.equal(visibleHit.sourceDetails.archived, false);
+  assert.equal((await narrowTasks.search({ ...request, query: 'hidden prefix' })).hits.length, 0);
+  visibleTask.archived = true;
+  await writeTasks([visibleTask]);
+  await narrowTasks.importExport(request);
+  const archivedHit = (await narrowTasks.search({ ...request, query: 'zircon' })).hits[0];
+  assert.equal(archivedHit.sourceDetails.archived, true);
+  assert.notEqual(archivedHit.sourceRef, visibleHit.sourceRef);
+  const unitBounded = createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource,
+    verifyPrivateVault, limits: { maxTextChars: 80, maxUnits: 2 } });
+  await writeTasks([visibleTask, visibleTask]);
+  await assert.rejects(unitBounded.importExport(request), { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
+  assert.equal((await narrowTasks.search({ ...request, query: 'zircon' })).hits[0].sourceDetails.archived, true);
   const auditText = JSON.stringify(audit);
   for (const value of [secret, 'cobalt', 'feature branch', sourcePath, 'Updated title']) assert.ok(!auditText.includes(value));
   assert.ok(audit.some((row) => row.outcome === 'denied'));

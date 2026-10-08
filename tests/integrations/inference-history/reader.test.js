@@ -105,5 +105,18 @@ try {
     if (action === 'read_context' && !deleted) { deleted = true; await service.deleteRecord({ ...request, recordRef: shared.recordRef }); }
   } });
   await assert.rejects(raced.readContext({ ...request, sourceRef: shared.sourceRef, snapshotRef: shared.snapshotRef }), { code: 'ERR_INFERENCE_HISTORY_DENIED' });
+  // More than the candidate budget reports a lower bound without an unrestricted count.
+  const bounded = { id: 'bounded-fixture', title: 'Authored candidate limit', current_node: null,
+    mapping: Object.fromEntries(Array.from({ length: 1002 }, (_, index) => {
+      const id = 'bounded-' + index;
+      return [id, message(id, null, 'user', 'boundedlimit authored text')];
+    })) };
+  await fs.writeFile(sourcePath, JSON.stringify([bounded]));
+  await service.importExport(request);
+  const capped = await service.search({ ...request, query: 'boundedlimit' });
+  assert.equal(capped.complete, false);
+  assert.equal(capped.candidateMatches, 1001);
+  assert.equal(capped.totalMatches, null);
+  assert.equal(capped.observedGroups, 1000);
   console.log('Visible context, strict type/channel exclusion, snippets, filters, exact branch groups, provenance, pagination and tombstones passed.');
 } finally { await rmDirRecursive(root); }
