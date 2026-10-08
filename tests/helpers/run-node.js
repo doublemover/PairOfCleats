@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { formatCommandFailure } from './command-failure.js';
 import { isSyncCommandTimedOut, killTimedOutSyncProcessTree } from '../../src/shared/subprocess/sync-command.js';
+import { killProcessTreeSync } from '../../src/shared/kill-tree.js';
 
 /**
  * Run Node script via `spawnSync` with standard failure handling and owned
@@ -43,7 +44,13 @@ export const runNode = (args, label, cwd, env, options = {}) => {
   }
   const result = spawnSync(process.execPath, args, resolvedSpawnOptions);
   if (isSyncCommandTimedOut(result)) {
-    killTimedOutSyncProcessTree(result.pid, resolvedSpawnOptions.timeout, true, resolvedSpawnOptions.detached === true);
+    if (process.platform === 'win32') {
+      // spawnSync has already reaped the direct child. The Windows owner can
+      // discover surviving descendants even when taskkill cannot find that PID.
+      killProcessTreeSync(result.pid, { killTree: true, detached: resolvedSpawnOptions.detached === true });
+    } else {
+      killTimedOutSyncProcessTree(result.pid, resolvedSpawnOptions.timeout, true, resolvedSpawnOptions.detached === true);
+    }
   }
 
   if (result.status !== 0 && !allowFailure) {

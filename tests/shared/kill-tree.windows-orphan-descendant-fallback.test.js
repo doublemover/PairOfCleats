@@ -22,8 +22,9 @@ const parentScript = [
   "const { spawn } = require('node:child_process');",
   "const fs = require('node:fs');",
   "const pidPath = process.argv[1];",
-  "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60000);'], {",
+  "const child = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 25000); setInterval(() => {}, 60000);'], {",
   "  detached: true,",
+  "  windowsHide: true,",
   "  stdio: 'ignore'",
   "});",
   'child.unref();',
@@ -71,16 +72,17 @@ const assertProcessAlive = (pid) => {
 const assertProcessDead = (pid) => {
   try {
     process.kill(pid, 0);
-    throw new Error(`expected process ${pid} to be terminated`);
   } catch (error) {
-    if (error?.code === 'EPERM') {
-      throw new Error(`expected process ${pid} terminated, but process still alive (EPERM)`);
-    }
+    if (error?.code === 'ESRCH') return;
+    throw new Error(`expected process ${pid} terminated, but liveness check failed (${error?.code || error})`);
   }
+  throw new Error(`expected process ${pid} to be terminated`);
 };
 
 try {
   assertProcessAlive(childPid);
+  assert.throws(() => assertProcessDead(childPid), /expected process .* to be terminated/,
+    'a live child must fail the death assertion before cleanup');
   const result = await killProcessTree(parent.pid, {
     killTree: true,
     detached: false,
