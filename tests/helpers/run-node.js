@@ -1,8 +1,11 @@
 import { spawnSync } from 'node:child_process';
 import { formatCommandFailure } from './command-failure.js';
+import { isSyncCommandTimedOut, killTimedOutSyncProcessTree } from '../../src/shared/subprocess/sync-command.js';
+import { killProcessTreeSync } from '../../src/shared/kill-tree.js';
 
 /**
- * Run Node script via `spawnSync` with standard failure handling.
+ * Run Node script via `spawnSync` with standard failure handling and owned
+ * timeout cleanup. Explicit spawn options retain Node's override semantics.
  *
  * @param {string[]} args
  * @param {string} label
@@ -21,7 +24,7 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     onFailure
   } = options;
 
-  const result = spawnSync(process.execPath, args, {
+  const resolvedSpawnOptions = {
     cwd,
     env,
     stdio,
@@ -29,7 +32,26 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     timeout: timeoutMs,
     killSignal: 'SIGTERM',
     ...spawnOptions
-  });
+  };
+  // Keep raw spawnSync validation and results, including zero/undefined timeout
+  // opt-outs. Only bounded commands acquire a private POSIX process group;
+  // an explicit detached choice remains the caller's responsibility.
+  if (resolvedSpawnOptions.detached === undefined
+    && Number.isFinite(resolvedSpawnOptions.timeout)
+    && resolvedSpawnOptions.timeout > 0
+    && process.platform !== 'win32') {
+    resolvedSpawnOptions.detached = true;
+  }
+  const result = spawnSync(process.execPath, args, resolvedSpawnOptions);
+  if (isSyncCommandTimedOut(result)) {
+    if (process.platform === 'win32') {
+      // spawnSync has already reaped the direct child. The Windows owner can
+      // discover surviving descendants even when taskkill cannot find that PID.
+      killProcessTreeSync(result.pid, { killTree: true, detached: resolvedSpawnOptions.detached === true });
+    } else {
+      killTimedOutSyncProcessTree(result.pid, resolvedSpawnOptions.timeout, true, resolvedSpawnOptions.detached === true);
+    }
+  }
 
   if (result.status !== 0 && !allowFailure) {
     const timeoutHint = result.error?.code === 'ETIMEDOUT' && Number.isFinite(timeoutMs)
