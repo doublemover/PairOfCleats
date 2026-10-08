@@ -47,6 +47,10 @@ export async function correlateAuthorizedCode(text, access, { signal } = {}) {
     signal.throwIfAborted();
     const root = await fs.realpath(repo.root);
     if (root !== path.resolve(repo.root)) throw invalid();
+    if (commits.length) {
+      const discovered = await git(root, ['rev-parse', '--show-toplevel'], signal);
+      if (!discovered || await fs.realpath(discovered) !== root) throw invalid();
+    }
     for (const mention of commits) {
       const oid = await git(root, ['rev-parse', '--verify', '--quiet', `${mention}^{object}`], signal);
       if (!oid || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(oid)) continue;

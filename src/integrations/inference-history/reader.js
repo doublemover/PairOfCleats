@@ -36,7 +36,9 @@ export function visibleNode(raw, kind, nodeId) {
       attachments: Array.isArray(message.metadata?.attachments) ? message.metadata.attachments : [] };
   }
   const turn = raw.turns?.find(value => value.id === nodeId);
-  if (!turn || !safeChannel(turn)) return null;
+  if (!turn || !safeChannel(turn) || (turn.recipient != null && turn.recipient !== 'all')
+    || (turn.metadata?.is_visually_hidden_from_conversation != null
+      && turn.metadata.is_visually_hidden_from_conversation !== false)) return null;
   const items = [...(turn.input_items ?? []), ...(turn.output_items ?? [])].filter(item =>
     item?.type === 'message' && visible({ ...item, role: item.role ?? turn.role }));
   if (!items.length) return null;
@@ -140,13 +142,11 @@ const groupKey = (row, node, namespace) => node.messageId
 function coverage(db) {
   if (!db) return { imports: 0, records: 0, units: 0, coverage: 'none', complete: false,
     indexedMessageBounds: { first: null, last: null, unknownDates: 0 }, exportCutoff: null, fullCorpusWindow: null };
-  const imports = db.prepare(`SELECT COUNT(*) AS n, MIN(COALESCE(json_extract(summary,'$.complete'),0)) AS complete FROM imports`).get();
-  const dates = db.prepare(`SELECT MIN(json_extract(metadata,'$.createdAt.utc')) AS first,
-    MAX(json_extract(metadata,'$.createdAt.utc')) AS last,
-    SUM(CASE WHEN json_extract(metadata,'$.createdAt.utc') IS NULL THEN 1 ELSE 0 END) AS unknownDates FROM units`).get();
-  return { imports: imports.n, records: db.prepare('SELECT COUNT(*) AS n FROM records WHERE deleted=0').get().n,
-    units: db.prepare('SELECT COUNT(*) AS n FROM units').get().n, coverage: imports.n ? 'selected_input' : 'none',
-    complete: imports.n > 0 && imports.complete === 1, indexedMessageBounds: dates,
+  const stats = db.prepare('SELECT * FROM history_stats WHERE singleton=1').get();
+  return { imports: stats.imports, records: stats.records,
+    units: stats.units, coverage: stats.imports ? 'selected_input' : 'none',
+    complete: stats.imports > 0 && stats.incomplete_imports === 0,
+    indexedMessageBounds: { first: stats.first_date, last: stats.last_date, unknownDates: stats.unknown_dates },
     exportCutoff: null, fullCorpusWindow: null,
     caveats: ['Bounds describe stored unit dates, not complete archive coverage or an export cutoff.',
       'No media decoding, Pages-directory ingestion, embeddings or semantic retrieval are provided.'] };

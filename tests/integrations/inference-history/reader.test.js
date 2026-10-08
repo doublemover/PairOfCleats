@@ -136,6 +136,12 @@ try {
   try {
     const plan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM units WHERE json_extract(metadata,'$.messageId')=? ORDER BY id LIMIT 1001").all('unique-message');
     assert.ok(plan.some(row => row.detail.includes('units_message')));
+    const stats = db.prepare('SELECT * FROM history_stats WHERE singleton=1').get();
+    assert.equal(stats.units, db.prepare('SELECT COUNT(*) AS n FROM units').get().n);
+    assert.equal(stats.records, db.prepare('SELECT COUNT(*) AS n FROM records WHERE deleted=0').get().n);
+    assert.equal(stats.imports, db.prepare('SELECT COUNT(*) AS n FROM imports').get().n);
+    assert.equal(stats.unknown_dates, db.prepare("SELECT COUNT(*) AS n FROM units WHERE json_extract(metadata,'$.createdAt.utc') IS NULL").get().n);
+    assert.equal(stats.first_date, db.prepare("SELECT MIN(json_extract(metadata,'$.createdAt.utc')) AS value FROM units").get().value);
     const seed = capped.hits[0];
     const snapshot = db.prepare('SELECT * FROM snapshots WHERE id=?').get(seed.snapshotRef);
     const insertSnapshot = db.prepare('INSERT INTO snapshots VALUES (?, ?, ?, ?, ?, ?, ?)');

@@ -56,6 +56,14 @@ try {
   assert.deepEqual(result.unresolvedCommitMentions, ['deadbeef']);
   assert.equal(result.instructionAuthority, 'none');
 
+  const subdirectory = path.join(repoRoot, 'subdir');
+  await fs.mkdir(subdirectory);
+  const subtree = createInferenceHistoryService({ vaultRoot, verifyPrivateVault: () => true,
+    resolveAccess: () => access, resolveCodeAccess: () => ({ policyEpoch: '1', repositories: [
+      { repositoryId: 'synthetic/subtree', root: subdirectory, markdownPaths: [] }
+    ] }) });
+  await assert.rejects(subtree.correlate({ ...request, sourceRef: hit.sourceRef }),
+    { code: 'ERR_INFERENCE_HISTORY_CODE_SCOPE' });
   codeAllowed = false;
   assert.deepEqual((await service.correlate({ ...request, sourceRef: hit.sourceRef })).relations, []);
   let checks = 0;

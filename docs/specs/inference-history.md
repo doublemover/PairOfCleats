@@ -138,7 +138,7 @@ available only through `read_original` authority. `rawJson` preserves duplicate
 keys and formatting that JavaScript's parsed object cannot represent separately.
 Byte-distinct JSON creates a distinct snapshot even when canonical objects match;
 unchanged normalized units are shared across those snapshots. Vault format
-inference-history.v3 includes the required lookup indexes and private reference key.
+inference-history.v4 includes the required lookup indexes and private reference key.
 Older vault formats fail closed and are not migrated or modified implicitly.
 
 Conversation identity includes trusted source scope and source conversation ID.
@@ -167,7 +167,7 @@ parts remain ordered raw evidence; hidden code payloads do not participate in vi
 
 ## Projection and retrieval
 
-Projection history-text.v4 retains canonical node revisions privately. Public
+Projection history-text.v5 retains canonical node revisions privately. Public
 projection metadata contains a digest of redacted, clipped text only. Search and
 context never expose raw text, raw occurrence or node revision hashes. Content-dependent
 snapshot, unit and group references are HMACs under a random per-vault key held in
@@ -183,6 +183,13 @@ admit at most 1,000 locations and 1,000 occurrences in total, failing with
 ERR_INFERENCE_HISTORY_LIMIT before expanding an oversized result. These bounds
 apply before pagination; a small page does not authorize unrestricted expansion.
 Message-ID and snapshot occurrence indexes support bounded exact lookups.
+Coverage counts and date bounds are maintained transactionally in one statistics row;
+search reads that row instead of aggregating the corpus. Date indexes support extrema
+updates after deletion. Turn-level visibility restrictions also gate Codex items.
+Git object discovery must resolve to the exact authorized root. Imports containing
+tombstoned records remove their newly collected member evidence and links.
+Original reads do not apply current ingestion limits; optional asset extraction uses
+fixed read bounds and reports assetReferencesComplete=false when those bounds are exceeded.
 Bare Git repositories are rejected alongside worktree repository locations. Each query unit records its UTF-16 character
 budget, original/redacted/projected lengths, truncation flag and deterministic
 trim counters/reason. Full raw evidence remains subject to original-read authority.
@@ -261,7 +268,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 
 ## Codex records and declared member evidence
 
-`chatgpt-export.v6` uses vault format `inference-history.v3`. The current API exposes
+`chatgpt-export.v6` uses vault format `inference-history.v4`. The current API exposes
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn

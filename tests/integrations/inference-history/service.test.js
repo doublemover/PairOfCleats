@@ -76,6 +76,10 @@ try {
     JSON.stringify(conversation, null, 2));
   assert.equal((await service.readOriginal({ ...request, snapshotRef: hit.snapshotRef })).rawJson,
     JSON.stringify(conversation));
+  const tighterReader = createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource,
+    verifyPrivateVault, limits: { maxNodes: 1 } });
+  assert.equal((await tighterReader.readOriginal({ ...request, snapshotRef: hit.snapshotRef })).rawJson,
+    JSON.stringify(conversation));
   const searchOnly = createInferenceHistoryService({ vaultRoot, verifyPrivateVault,
     resolveAccess: (input) => input.action === 'search' ? resolveAccess(input) : null });
   assert.equal((await searchOnly.search({ ...request, query: 'feature branch' })).hits.length, 1);
@@ -214,6 +218,12 @@ try {
   assert.equal(await service.readMemberEvidence(memberRequest), null);
   assert.equal((await service.search({ ...request, query: 'quartz' })).hits.length, 0);
   assert.equal((await service.importExport(request)).repeated, true);
+  await fs.writeFile(sourcePath, zipSync({ 'codex.json': strToU8(JSON.stringify([task])),
+    'export_manifest.json': strToU8(JSON.stringify(manifest)), 'new-padding.dat': strToU8('authored') }));
+  const tombstoneImport = await service.importExport(request);
+  assert.equal(tombstoneImport.tombstonedRecords, 1);
+  assert.equal(await service.readMemberEvidence({ ...request, importRef: tombstoneImport.importRef,
+    member: 'export_manifest.json' }), null);
 
   // Authored task revisions retain visible text, exported dates and current archive state.
   const visibleTask = { ...structuredClone(task), id: 'review-fixture-task', turns: [
@@ -241,6 +251,22 @@ try {
   const archivedHit = (await narrowTasks.search({ ...request, query: 'zircon' })).hits[0];
   assert.equal(archivedHit.sourceDetails.archived, true);
   assert.notEqual(archivedHit.sourceRef, visibleHit.sourceRef);
+  const hiddenTurns = { id: 'turn-visibility-review', turns: [
+    { id: 'directed', role: 'user', recipient: 'tool', input_items: [
+      { type: 'message', content: [{ type: 'input_text', text: 'turnrecipientword' }] } ] },
+    { id: 'hidden', role: 'user', metadata: { is_visually_hidden_from_conversation: true }, input_items: [
+      { type: 'message', content: [{ type: 'input_text', text: 'turnhiddenword' }] } ] },
+    { id: 'public', role: 'assistant', output_items: [
+      { type: 'message', content: [{ type: 'output_text', text: 'turnpublicword' }] } ] }
+  ] };
+  await writeTasks([hiddenTurns]);
+  await narrowTasks.importExport(request);
+  assert.equal((await narrowTasks.search({ ...request, query: 'turnrecipientword' })).hits.length, 0);
+  assert.equal((await narrowTasks.search({ ...request, query: 'turnhiddenword' })).hits.length, 0);
+  const publicTurn = (await narrowTasks.search({ ...request, query: 'turnpublicword' })).hits[0];
+  assert.ok(publicTurn);
+  assert.equal((await narrowTasks.readContext({ ...request, sourceRef: publicTurn.sourceRef,
+    snapshotRef: publicTurn.snapshotRef })).messages.length, 1);
   sourcePath = path.join(root, 'visible-conversation.json');
   const visibleConversation = { id: 'visible-conversation-review', current_node: 'v', mapping: {
     v: { id: 'v', parent: null, children: [], message: { id: 'visible-message-review',

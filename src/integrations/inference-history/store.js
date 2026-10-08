@@ -60,7 +60,7 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     db.pragma('temp_store = MEMORY');
     if (present?.size) {
       const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v3'
+      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v4'
         || !/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
     }
     if (create) {
@@ -109,6 +109,46 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
         CREATE INDEX IF NOT EXISTS snapshot_units_unit ON snapshot_units(unit_id, snapshot_id);
         CREATE INDEX IF NOT EXISTS snapshots_record ON snapshots(record_id);
         CREATE INDEX IF NOT EXISTS occurrences_snapshot ON occurrences(snapshot_id, import_id, member, ordinal);
+
+        CREATE TABLE IF NOT EXISTS history_stats (
+          singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+          imports INTEGER NOT NULL, incomplete_imports INTEGER NOT NULL,
+          records INTEGER NOT NULL, units INTEGER NOT NULL, unknown_dates INTEGER NOT NULL,
+          first_date TEXT, last_date TEXT
+        );
+        INSERT OR IGNORE INTO history_stats VALUES (1, 0, 0, 0, 0, 0, NULL, NULL);
+        CREATE INDEX IF NOT EXISTS units_date ON units(json_extract(metadata,'$.createdAt.utc'));
+        CREATE TRIGGER IF NOT EXISTS stats_import_insert AFTER INSERT ON imports BEGIN
+          UPDATE history_stats SET imports=imports+1,
+            incomplete_imports=incomplete_imports+(COALESCE(json_extract(new.summary,'$.complete'),0)=0);
+        END;
+        CREATE TRIGGER IF NOT EXISTS stats_import_update AFTER UPDATE OF summary ON imports BEGIN
+          UPDATE history_stats SET incomplete_imports=incomplete_imports
+            +(COALESCE(json_extract(new.summary,'$.complete'),0)=0)
+            -(COALESCE(json_extract(old.summary,'$.complete'),0)=0);
+        END;
+        CREATE TRIGGER IF NOT EXISTS stats_record_insert AFTER INSERT ON records BEGIN
+          UPDATE history_stats SET records=records+(new.deleted=0);
+        END;
+        CREATE TRIGGER IF NOT EXISTS stats_record_update AFTER UPDATE OF deleted ON records BEGIN
+          UPDATE history_stats SET records=records+old.deleted-new.deleted;
+        END;
+        CREATE TRIGGER IF NOT EXISTS stats_unit_insert AFTER INSERT ON units BEGIN
+          UPDATE history_stats SET units=units+1,
+            unknown_dates=unknown_dates+(json_extract(new.metadata,'$.createdAt.utc') IS NULL),
+            first_date=CASE WHEN first_date IS NULL THEN json_extract(new.metadata,'$.createdAt.utc')
+              WHEN json_extract(new.metadata,'$.createdAt.utc')<first_date THEN json_extract(new.metadata,'$.createdAt.utc')
+              ELSE first_date END,
+            last_date=CASE WHEN last_date IS NULL THEN json_extract(new.metadata,'$.createdAt.utc')
+              WHEN json_extract(new.metadata,'$.createdAt.utc')>last_date THEN json_extract(new.metadata,'$.createdAt.utc')
+              ELSE last_date END;
+        END;
+        CREATE TRIGGER IF NOT EXISTS stats_unit_delete AFTER DELETE ON units BEGIN
+          UPDATE history_stats SET units=units-1,
+            unknown_dates=unknown_dates-(json_extract(old.metadata,'$.createdAt.utc') IS NULL),
+            first_date=(SELECT MIN(json_extract(metadata,'$.createdAt.utc')) FROM units),
+            last_date=(SELECT MAX(json_extract(metadata,'$.createdAt.utc')) FROM units);
+        END;
         CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(id UNINDEXED, text, tokenize='unicode61');
         CREATE TRIGGER IF NOT EXISTS units_insert AFTER INSERT ON units BEGIN
           INSERT INTO units_fts(id, text) VALUES(new.id, new.text);
@@ -118,11 +158,11 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
         END;
       `);
       db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
-      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v3');
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v4');
       db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));
     }
     const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v3') throw unsafe();
+    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v4') throw unsafe();
     if (!/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
     return db;
   } catch (error) { db.close(); throw error; }
