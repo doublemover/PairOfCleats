@@ -321,3 +321,78 @@ default, maximum 50 per page), subject to the same candidate/evidence caps. Hist
 references can include snapshots outside the current search filters. Authorization,
 epoch and tombstones are checked again before any derivative is emitted. Original
 read behavior and the persisted schema/adapter/projection versions remain unchanged.
+### Reader invocation examples
+
+These are library calls against a service created by a trusted host with its own
+`resolveAccess` and Windows vault verification callbacks. There is no new product
+CLI, HTTP route or implicit original-read grant. The context and partition below
+must come from the authenticated host, never from retrieved evidence.
+
+```js
+const scope = { requestContext, partition: selectedOwnedPartition };
+const page = await service.search({
+  ...scope,
+  query: 'renderer settings', // literal words ANDed; no semantic matching
+  role: 'user',
+  dateFrom: '2026-01-01',
+  dateTo: '2026-12-31',
+  pathState: 'on_selected_path',
+  top: 5,
+  offset: 0,
+  snippetChars: 600
+});
+
+const hit = page.hits[0];
+if (hit) {
+  const contextRequest = {
+    ...scope,
+    sourceRef: hit.sourceRef,
+    snapshotRef: hit.snapshotRef,
+    before: 3,
+    after: 3,
+    top: 6,
+    messageChars: 1200
+  };
+  const context = await service.readContext(contextRequest);
+  if (context?.nextOffset != null) {
+    const nextContext = await service.readContext({
+      ...contextRequest,
+      offset: context.nextOffset
+    });
+    // Display nextContext messages using their role/date/projection metadata.
+  }
+
+  const refs = await service.readReferences({ ...scope, sourceRef: hit.sourceRef, top: 20 });
+  if (refs?.nextOffset != null) {
+    const nextRefs = await service.readReferences({
+      ...scope,
+      sourceRef: hit.sourceRef,
+      top: 20,
+      offset: refs.nextOffset
+    });
+    // Preserve nextRefs source/snapshot/import/member/ordinal/hash provenance.
+  }
+}
+
+if (page.nextOffset != null) {
+  const nextHits = await service.search({
+    ...scope,
+    query: 'renderer settings',
+    role: 'user',
+    dateFrom: '2026-01-01',
+    dateTo: '2026-12-31',
+    pathState: 'on_selected_path',
+    top: 5,
+    offset: page.nextOffset,
+    snippetChars: 600
+  });
+  // Preserve the same filters across pages and inspect complete/coverage caveats.
+}
+```
+
+The host must authorize `search`, `read_context` and `read_references` separately.
+A context page may omit long message tails; request a larger bounded `messageChars`
+when useful. Pagination changes the visible-message window, not a message's text cap.
+Use `readOriginal` only under a separate explicit `read_original` grant when raw
+exported evidence is needed. Snippet/group/context output is a derivative and is not
+an artifact-existence check, implementation certification or complete archive audit.
