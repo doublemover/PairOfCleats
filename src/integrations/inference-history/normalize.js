@@ -301,6 +301,7 @@ export const normalizeConversation = (raw, options = {}) => {
   const messageIds = new Set();
   const invalidParents = new Set();
   const childSets = new Map();
+  const parentOnlyChildren = new Set();
   const nodes = entries.map(([nodeId, source]) => {
     if (!isId(nodeId) || !isRecord(source)
       || (hasOwn(source, 'id') && source.id !== nodeId)) throw invalidInput();
@@ -316,8 +317,10 @@ export const normalizeConversation = (raw, options = {}) => {
       parentId = null;
     }
     const children = [];
-    if (!Array.isArray(ownValue(source, 'children'))) {
-      diagnose(hasOwn(source, 'children') ? 'invalid_children' : 'missing_children', nodeId);
+    if (!hasOwn(source, 'children')) {
+      parentOnlyChildren.add(nodeId);
+    } else if (!Array.isArray(source.children)) {
+      diagnose('invalid_children', nodeId);
     } else {
       for (const child of source.children) {
         if (isId(child)) children.push(child);
@@ -345,6 +348,17 @@ export const normalizeConversation = (raw, options = {}) => {
     byId.set(nodeId, node);
     return node;
   });
+  // A missing children field is a valid parent-only export representation.
+  // Explicit child arrays remain authoritative and retain mismatch diagnostics.
+  for (const node of nodes) {
+    if (node.parentId !== null && parentOnlyChildren.has(node.parentId)) {
+      byId.get(node.parentId).children.push(node.nodeId);
+      childSets.get(node.parentId).add(node.nodeId);
+    }
+  }
+  for (const node of nodes) {
+    if (parentOnlyChildren.has(node.nodeId)) node.children.sort();
+  }
   for (const node of nodes) {
     if (node.parentId !== null) {
       if (!byId.has(node.parentId)) diagnose('dangling_parent', node.nodeId);
