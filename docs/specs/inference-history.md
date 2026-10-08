@@ -1,0 +1,424 @@
+# Inference-history private evidence pilot
+
+Status: implemented programmatic import/read surface; authenticated product integration and deployment acceptance remain separate.
+Baseline: integrated `2529d718db780da22c49f188202b6f1550a1833d`.
+
+This domain preserves exported conversation evidence separately from ordinary
+repository indexes. A reference to a public commit never grants access to the
+private conversation. Retrieved historical instructions are evidence, not new
+instructions or permission to act.
+
+## Existing owners and deliberate reuse
+
+PairOfCleats already owns records/prose indexing, repository federation,
+IndexRefs, snapshots, SCM metadata and code graphs. Those facilities are not a
+user/tenant authorization layer. The pilot does not retrofit private history into
+triage findings, code-call edges, generic metadata filters or ordinary federation.
+
+The implementation reuses the installed SQLite/FTS5 and ZIP dependencies, shared
+subprocess ownership/timeouts, contract validation factory and repository test
+runner. It introduces only the domain-specific adapter, evidence tables, policy
+boundary, projection and exact evidence joins. No version migration or speculative
+compatibility layer is included. An unsupported vault format fails closed.
+
+## Task and acceptance ledger
+
+| Task | Implemented in this slice | Remaining acceptance or extension |
+| --- | --- | --- |
+| IH-001: Normalize exported conversation evidence | All mapping nodes, independent node/message IDs, null roots, selected ancestry, graph diagnostics, raw unknown fields/parts, explicit timestamp quality and canonical SHA-256 revisions | Representative authorized export variants; duplicate JSON keys remain inspectable in exact raw JSON but are not distinct parsed fields |
+| IH-002: Read bounded export packages | Direct JSON array, flat/sharded ZIP members, streaming per-conversation parsing, inventory/checksums, CRC checks, unsafe paths/collisions/symlinks rejected, transactional rollback | Nested archives are inventoried as unsupported with `complete: false`; oversized individual conversations are rejected rather than spooled; no resumable mid-import checkpoint |
+| IH-003: Isolate evidence and derivatives | Physically separate SQLite database per trusted tenant/owner/source scope; policy before any store open; policy epoch and tombstone rechecks before emission; separate action permissions | Actual identity-provider/API integration, deployment/key isolation and native-platform acceptance |
+| IH-004: Search versioned private history | Redacted bounded text, partition-local FTS5 statistics, exact source references, selected/alternative paths, import/node reuse, metadata-only invalidation and original-read permission | Engineering selection UI, ordinary retrieval-backend integration, qualified vector/media retrieval |
+| IH-005: Correlate authorized code evidence | Exact Git object verification, ambiguous/unresolved SHA retention, separately authorized Markdown task/commit mentions, content revisions, independent code-policy rechecks | Hosted PR/task events, dated branch observations, patch equivalence and reviewed inferred relationships |
+| IH-006: Exercise privacy lifecycle | Synthetic cross-user/org/tenant negatives, in-flight revocation, deletion tombstones, source/derivative row removal and explicit retained-source limits | Small private sample, full archive, backup-restore deletion ledger, complete erasure/deployment audit |
+
+The tests establish this bounded implementation surface, not production-ready
+shared hosting, a full release gate, performance/quality measurements or a real
+export's completeness. The canonical project execution queue remains
+[the roadmap](../roadmap.md).
+
+## Programmatic boundary
+
+Owner: `src/integrations/inference-history/service.js`.
+
+`createInferenceHistoryService` accepts:
+
+- `vaultRoot`: an explicitly provisioned private directory outside Git repositories
+- `resolveAccess`: trusted authentication/authorization callback
+- `resolveImportSource`: trusted upload/source authorization callback
+- `resolveCodeAccess`: separate trusted callback for optional code correlation
+- `verifyPrivateVault`: host ACL verification required on Windows
+- `limits`: positive integer overrides for documented resource caps
+- `audit`: optional trusted protected sink receiving only principal/partition,
+  policy epoch, action and outcome
+
+The methods are `importExport`, `search`, `readContext`, `readReferences`, `readOriginal`, `readMemberEvidence`, `correlate` and
+`deleteRecord`. They all accept an opaque `requestContext` and a `partition`
+selector. The selector, archive fields and retrieved text cannot supply identity.
+
+The host's `resolveAccess({requestContext, partition, action})` must authenticate
+the session and authorize the entire physical partition for that exact action. It
+returns the strict registered `inference-history-access` contract:
+
+- `allowed: true`
+- authenticated `principalId`
+- `tenantId`, `ownerType` (`individual`, `organization`, or `collection`), `ownerId`
+- originating `sourceScope`
+- current `policyEpoch`
+
+Missing/invalid policy, callback failure, changed identity or changed epoch denies
+the operation. Repository membership, infrastructure administration and organization
+membership have no implicit history grant. The trusted adapter must decide grants
+and expiry explicitly. A callback returning request-supplied owner/tenant fields
+would violate this contract. There is intentionally no permissive default adapter.
+
+Imports take an opaque `source` selector. `resolveImportSource` authenticates that
+source independently and returns its approved absolute `path` and current
+`policyEpoch`. A caller-supplied `sourcePath` is never opened. Source authorization
+is rechecked before commit, preventing an import grant from becoming arbitrary
+server-filesystem read access. The host must map only authorized uploads or
+explicitly granted local files, without passing through client paths.
+
+One partition is one authorization/ranking unit. A host needing narrower audiences
+must create distinct partitions; it must not claim per-node ACL enforcement by
+filtering returned top-k hits. No result/vector/query cache is shared between
+partitions, and logical IDs include the partition namespace.
+
+The service is not mounted into CLI dispatch, HTTP, MCP or workspace federation.
+Before exposing it, implement authenticated adapters and test their transport
+schemas, filesystem authority and every supported derivative path. The internal
+JavaScript library does not sandbox another program running as the same OS user.
+
+## Filesystem and deployment boundary
+
+The host provisions the vault; the service never falls back to a repository cache
+or creates a private store inside a source checkout. On POSIX, the vault must have
+no group/other access, and database files are created with mode 0600. Symlinked
+vault paths, database links, hardlinked database files and unsafe SQLite sidecars
+are rejected. Windows requires an explicit trusted ACL-verification callback and
+must be verified by the deploying host; synthetic fixtures do not verify real vault ACLs.
+
+The host must protect the vault, its ancestors and authorized repository paths
+from concurrent malicious filesystem mutation. Final-component no-follow and
+path/inode checks reduce substitution risk; JavaScript pathname operations are
+not a capability-secure filesystem sandbox against a same-user attacker. Git is
+invoked read-only with bounded owned subprocesses, no ambient Git directory
+overrides, replacement objects, pagers, textconv, network requests or shell command
+construction.
+
+Encryption, keys, backup isolation and protection from privileged host operators
+are deployment responsibilities and are not implemented by SQLite file modes.
+Keep raw exports, vaults and their backups outside all ordinary code-index roots.
+Never publish private fixtures or raw vault files to the repository.
+
+## Archive and evidence contract
+
+Supported ZIP shard basenames are `conversations.json`, `conversations-<digits>.json`
+and `conversations_<digits>.json`, including directory prefixes. Each shard must be
+a UTF-8 top-level array of conversation objects. An initial UTF-8 BOM is accepted;
+other JSON syntax remains strict. Input is read only; no archive member is
+extracted or executed. Unknown members are inventoried with size and SHA-256.
+Nested archive bytes are hashed but not opened, and their presence makes coverage
+incomplete. Media bytes are not decoded, stored separately, fetched from URLs or
+sent to model providers.
+
+Default caps:
+
+- 256 MiB archive; 512 MiB expanded bytes; 128 MiB per member
+- 8 MiB per conversation; nesting depth 128
+- 10,000 entries; 10,000 conversations; 10,000 nodes per conversation
+- 100,000 processed units; 32,768 characters per text projection
+- 30 seconds per import; ten seconds for bounded code correlation
+
+Oversized, corrupt, malformed or interrupted imports roll back as a unit. The
+original archive remains caller-owned. The vault retains exact conversation JSON
+substrings, their byte-equivalent UTF-8 hashes, semantic canonical hashes, source
+member/ordinal occurrences and the member inventory. Both `raw` and `rawJson` are
+available only through `read_original` authority. `rawJson` preserves duplicate
+keys and formatting that JavaScript's parsed object cannot represent separately.
+Byte-distinct JSON creates a distinct snapshot even when canonical objects match;
+unchanged normalized units are shared across those snapshots. Vault format
+inference-history.v4 includes the required lookup indexes and private reference key.
+Older vault formats fail closed and are not migrated or modified implicitly.
+
+Conversation identity includes trusted source scope and source conversation ID.
+Node revision identity includes the mapping key and canonical raw node payload,
+not just text. Conversation snapshots own path membership; changing a selected
+leaf or title does not require recreating unchanged node projections. Projection
+identity includes the adapter version, projection version and character budget. A changed transform
+must change that version. Reimporting identical bytes under the same transform
+does not add versions. A later incomplete export does not delete old evidence.
+Conflicting snapshots for the same conversation in one import fail rather than
+selecting an arbitrary last shard.
+
+Parent-only trees derive normalized child lists from explicit parent relationships;
+raw source fields are unchanged. Declared child arrays still undergo mismatch
+validation. Adapter revision chatgpt-export.v6 invalidates earlier import transforms.
+
+Graph validation preserves malformed evidence while reporting missing/dangling
+references, inconsistent edges and cycles. Invalid selected ancestry is `unknown`;
+no longest-path fallback is labeled selected. Unknown roles/content remain raw
+evidence. No assistant claim becomes verified repository state merely by import.
+
+Asset references stay `unresolved`. Original-read output provides their exact
+pointers and the checksum-bearing archive inventory; the pilot does not infer
+asset identity from a filename, opaque pointer or similar-looking image. Code
+parts remain ordered raw evidence; hidden code payloads do not participate in visible text retrieval.
+
+## Projection and retrieval
+
+Projection history-text.v5 retains canonical node revisions privately. Public
+projection metadata contains a digest of redacted, clipped text only. Search and
+context never expose raw text, raw occurrence or node revision hashes. Content-dependent
+snapshot, unit and group references are HMACs under a random per-vault key held in
+private vault metadata; predictable private text cannot be verified from these references.
+Conversation and Codex searchable projections use the same public text admitted by
+the visible reader; exported turn dates remain available to date filters.
+Reused normalized nodes count toward the import unit limit. Candidate counts stop
+at 1,001 to signal an incomplete result beyond the 1,000-unit read budget.
+Candidates are materialized before BM25 ordering, so ranking examines at most 1,000
+rows. Provenance location queries materialize at most 1,001 rows before sorting;
+indexed occurrence queries likewise return at most 1,001. Search and reference reads
+admit at most 1,000 locations and 1,000 occurrences in total, failing with
+ERR_INFERENCE_HISTORY_LIMIT before expanding an oversized result. These bounds
+apply before pagination; a small page does not authorize unrestricted expansion.
+Message-ID and snapshot occurrence indexes support bounded exact lookups.
+Coverage counts and date bounds are maintained transactionally in one statistics row;
+search reads that row instead of aggregating the corpus. Date indexes support extrema
+updates after deletion. Turn-level visibility restrictions also gate Codex items.
+Git object discovery must resolve to the exact authorized root. Imports containing
+tombstoned records remove their newly collected member evidence and links.
+Original reads do not apply current ingestion limits; optional asset extraction uses
+fixed read bounds and reports assetReferencesComplete=false when those bounds are exceeded.
+Bare Git repositories are rejected alongside worktree repository locations. Each query unit records its UTF-16 character
+budget, original/redacted/projected lengths, truncation flag and deterministic
+trim counters/reason. Full raw evidence remains subject to original-read authority.
+Clipping preserves surrogate pairs; no archive or text cap is increased.
+
+Redaction runs over complete extracted text before clipping. It masks common API
+token forms, private-key blocks, bearer values, credential assignments and
+credential-bearing URL parameters. Exact Git OIDs are retained. This is a
+high-confidence accidental-disclosure reduction, not a proof that arbitrary
+private content is sanitized for publication. Search titles/metadata are separately
+bounded and redacted; raw timestamps, arbitrary payloads and attachment metadata
+never enter query output.
+
+Search accepts literal Unicode word terms, ANDs them safely, and caps query length,
+term count and top-k. It returns bounded text and opaque conversation, snapshot and
+source references. `pathState` supports `all`, `on_selected_path`,
+`off_selected_path`, and `unknown`. Default results use the latest imported
+snapshot; `includeHistory` retains earlier versions, and `snapshotRef` selects an
+exact retained snapshot. Shared unchanged nodes are not duplicated merely because
+they occur in multiple snapshots. Every hit says `instructionAuthority: none`.
+
+No embeddings, summarization, OCR, transcripts, automatic external asset loading
+or remote processing are enabled. The existing records full-body embedding and
+sidecar invalidation issues are not bypassed by claiming those paths were fixed;
+this isolated slice does not use that builder.
+
+## Correlation and permission inheritance
+
+`resolveCodeAccess` supplies a policy epoch plus at most eight authorized repository
+IDs/roots and up to 64 explicit Markdown paths per repository. Those inputs come
+from the trusted host, not the archive or query payload. Its authorization is
+rechecked separately from history access before returning relationships.
+
+Git references are verified against local objects. A hexadecimal prefix must
+resolve uniquely to an actual commit. The result retains repository identity,
+full OID, tree, parents, author/committer dates and a bounded subject. An unresolved
+prefix remains unresolved. An exact object join says `implementationClaim: false`:
+it proves a mention refers to an object, not that the object implemented intent.
+
+Markdown joins require an exact task-style identifier or commit mention. They
+return the authorized path, line, current file-content hash and bounded excerpt.
+They are working-tree observations, not historical branch evidence. Time proximity,
+similarity, branch names and patch equivalence are not silently promoted to exact
+joins. Correlation results are transient history-restricted derivatives. A code-only
+caller cannot ask the service whether a private conversation references that code.
+
+## Deletion and revocation
+
+Each operation obtains policy before opening any partition and rechecks it before
+response emission. Imports/deletions also reauthorize immediately before commit.
+In-flight search/original/correlation output checks source tombstones, so deletion
+does not depend on a host policy-epoch change.
+
+Deletion tombstones a logical conversation and removes its raw snapshot, occurrence,
+unit and FTS rows. Reimport cannot resurrect that namespace. The result explicitly
+reports that the caller's original archive and external backups remain outside
+this operation, and that import-level inventory is retained. It does not promise
+forensic erasure from storage snapshots or erase another tenant's copy. A future
+backup restoration path must apply the deletion ledger before serving restored
+content. Publishing sanitized decisions needs a separate explicit review and
+permission-change workflow; no such publication operation exists in this slice.
+
+## Focused validation
+
+Run the bounded synthetic group:
+
+```text
+node tests/run.js integrations/inference-history --lane all --timeout-ms 30000
+```
+
+The group covers graph fidelity, dangerous JSON keys, archive CRC/path/size controls,
+scope isolation, policy rechecks, private storage paths, projection limits/revisions,
+metadata-only updates, incomplete snapshots, in-flight tombstones, exact Git/Markdown
+joins and unresolved evidence. No real private export is present in the fixtures.
+
+
+## Codex records and declared member evidence
+
+`chatgpt-export.v6` uses vault format `inference-history.v4`. The current API exposes
+`recordRef` and `deleteRecord`; retired conversation-only storage and API names are
+not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
+`codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn
+references, input/output item structure (including omitted or explicitly null item arrays), branch and pull-request/status fields. Known text
+and code enter bounded redacted search projections. Unknown item payloads remain raw
+original evidence; attachment pointers remain unresolved. Tasks have unknown selected paths
+and missing timestamps unless exported explicitly; no conversation leaf is fabricated.
+
+`export_manifest.json` and `conversation_asset_file_names.json` retain exact raw JSON behind
+original-read authority through `readMemberEvidence`. Declared relative archive-member paths
+are checked against the checksum inventory and reported as `linked_member`,
+`not_in_selected_input`, or `size_mismatch`. These links grant no filesystem or instruction
+authority and never cause external files to be opened. Coverage is always `selected_input`;
+missing declared members prevent a complete result. Deleting a record prunes shared member
+metadata for its imports, along with its snapshots and units, while preserving tombstones.
+
+## Observed Pages export coverage gap
+
+A separately approved read-only Pages dump contains per-page `metadata.json`,
+`content/current.json`, `content/history/*.json`, `content/checkpoints/*.json`, and
+`relationships/*.json`. Metadata supplies `page_id`, owner/creator IDs, namespace, home,
+document type and timestamps. Current content supplies head revision/checkpoint/sequence
+identity and a projection with title, preview and `materialized_search_text`.
+These are distinct page content and revision evidence, not conversation records.
+Embedded `https://chatgpt.com/space/page_*` links are observable in projected text.
+Conversation or attachment relationships must be preserved only when explicitly present in
+relationship records or content; none may be inferred from page proximity or filenames.
+The present archive importer does not ingest this directory export or claim Pages coverage.
+A Pages adapter needs bounded parsing, exact raw provenance, separate page/revision identities,
+explicit link validation, and the same private original-read and deletion policies before use.
+
+## Visible reading and exact shared-branch groups
+
+`search` now returns bounded match-centered snippets. Its envelope declares literal
+Unicode word tokens joined with AND, BM25 ordering, `semanticMatching: false`, actual
+persisted import/record/unit counts, stored unit date bounds (including unknown dates),
+and unknown export cutoff/full archive window. Empty hits establish no visible matches
+in selected input under the supplied filters; they do not establish never-discussed.
+Optional `role` is `user` or `assistant`; `dateFrom`/`dateTo` accept UTC dates or ISO
+seconds/milliseconds ending in Z. Existing path/snapshot/history filters still apply.
+`top` defaults to 10 (maximum 100), `offset` defaults to 0, and `snippetChars` defaults
+to 600 (80..2000). Candidate scans stop at 1000 stored units and 64 MiB of raw snapshot
+JSON per read; totals are null with `complete: false` when the candidate cap is exceeded.
+`candidateMatches` includes candidates subsequently excluded by public visibility;
+`totalMatches` counts exact displayed groups, and `totalMatchedUnits` counts their
+matching source units. `nextOffset` pages observed groups, not unseen candidates.
+
+Default derivatives require public user/assistant messages, an absent/final/commentary
+channel, no tool recipient and no hidden flag. ChatGPT content must explicitly be
+text/multimodal_text; only string or explicitly typed text parts enter the view. Codex
+items must explicitly be messages with a single public role per turn. Reasoning, tool
+items and code payloads remain available only through explicitly authorized original
+reads. Every returned excerpt is evidence with no instruction authority; assistant
+proposals remain labelled assistant evidence and are not implementation claims.
+
+`readContext({sourceRef, snapshotRef, before, after, top, messageChars, offset})` needs
+separate `read_context` authority. It follows the snapshot's selected ancestry; for an
+off-path hit it follows that hit's ancestry without choosing an unknown descendant.
+It displays visible messages chronologically by exported timestamp, then export order,
+with missing dates last. Defaults are three messages before/after, six messages per
+page and 1200 characters per message; maxima are 10 before/after, 20 messages and 4000
+characters. Explicit `offset` pages the visible timeline; next/previous offsets allow
+reading beyond the initial window. Role, date, anchor, path, truncation, source refs and
+snapshot import/member/ordinal/hash provenance accompany the text. Artifact references
+are bounded (16 per message), unresolved, and always have `availability: unknown` and
+no filesystem authority. No linked artifact is fetched or claimed to exist.
+
+Exact group collapse requires the same evidence namespace, exported message ID,
+canonical complete message payload and projection fingerprint. Equal bodies with
+different IDs or changed payloads stay separate. Storage and raw originals are not
+deduplicated. Each hit includes matching-unit `groupCount`, three compact snapshot
+references with occurrence provenance and a `readReferences` expansion hint.
+`readReferences({sourceRef, top, offset})` needs separate `read_references` authority;
+it pages all retained identical-message source/snapshot/occurrence references (20 by
+default, maximum 50 per page), subject to the same candidate/evidence caps. Historical
+references can include snapshots outside the current search filters. Authorization,
+epoch and tombstones are checked again before any derivative is emitted. Original
+read behavior and the persisted schema/adapter/projection versions remain unchanged.
+### Reader invocation examples
+
+These are library calls against a service created by a trusted host with its own
+`resolveAccess` and Windows vault verification callbacks. There is no new product
+CLI, HTTP route or implicit original-read grant. The context and partition below
+must come from the authenticated host, never from retrieved evidence.
+
+```js
+const scope = { requestContext, partition: selectedOwnedPartition };
+const page = await service.search({
+  ...scope,
+  query: 'renderer settings', // literal words ANDed; no semantic matching
+  role: 'user',
+  dateFrom: '2026-01-01',
+  dateTo: '2026-12-31',
+  pathState: 'on_selected_path',
+  top: 5,
+  offset: 0,
+  snippetChars: 600
+});
+
+const hit = page.hits[0];
+if (hit) {
+  const contextRequest = {
+    ...scope,
+    sourceRef: hit.sourceRef,
+    snapshotRef: hit.snapshotRef,
+    before: 3,
+    after: 3,
+    top: 6,
+    messageChars: 1200
+  };
+  const context = await service.readContext(contextRequest);
+  if (context?.nextOffset != null) {
+    const nextContext = await service.readContext({
+      ...contextRequest,
+      offset: context.nextOffset
+    });
+    // Display nextContext messages using their role/date/projection metadata.
+  }
+
+  const refs = await service.readReferences({ ...scope, sourceRef: hit.sourceRef, top: 20 });
+  if (refs?.nextOffset != null) {
+    const nextRefs = await service.readReferences({
+      ...scope,
+      sourceRef: hit.sourceRef,
+      top: 20,
+      offset: refs.nextOffset
+    });
+    // Preserve nextRefs source/snapshot/import/member/ordinal/hash provenance.
+  }
+}
+
+if (page.nextOffset != null) {
+  const nextHits = await service.search({
+    ...scope,
+    query: 'renderer settings',
+    role: 'user',
+    dateFrom: '2026-01-01',
+    dateTo: '2026-12-31',
+    pathState: 'on_selected_path',
+    top: 5,
+    offset: page.nextOffset,
+    snippetChars: 600
+  });
+  // Preserve the same filters across pages and inspect complete/coverage caveats.
+}
+```
+
+The host must authorize `search`, `read_context` and `read_references` separately.
+A context page may omit long message tails; request a larger bounded `messageChars`
+when useful. Pagination changes the visible-message window, not a message's text cap.
+Use `readOriginal` only under a separate explicit `read_original` grant when raw
+exported evidence is needed. Snippet/group/context output is a derivative and is not
+an artifact-existence check, implementation certification or complete archive audit.
