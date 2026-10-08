@@ -1,6 +1,6 @@
 # Inference-history source integration handoff
 
-Prepared 2026-10-08. Source checkpoint only; no push, PR creation or merge is authorized.
+Prepared 2026-10-08. Historical source checkpoint: publication was unapproved at that point.
 The [reader specification](../specs/inference-history.md#reader-invocation-examples)
 contains the current context/search/reference invocation examples.
 
@@ -66,3 +66,15 @@ Keep the private vault, export/corpus, manifests containing private identifiers,
 query outputs, model reviews and machine-local receipts outside tracked source.
 No import, reindex, embedding, raw-original or model query rerun is needed to prepare
 this handoff. Future integrated validation must honor the owner's exact requested scope.
+
+## Authorized draft publication disposition
+
+The owner subsequently approved publishing this completed source and documentation
+on `codex/inference-history-import-reader-20261008` with a draft PR against `main`.
+The branch was confirmed unused and current main was rechecked at
+`5bcc2b061019068553eaa2c441735af76b0c3917`. Integration preserves all nine original
+source/documentation commits and merges current main without rewriting either history.
+P-G2 and all private corpus, vault, query, review and personal-history material remain
+outside this publication. Reader CI registration is completed in the integration.
+The exact pushed head and draft PR URL belong in the publication receipt; publication
+authority does not authorize merging main, promotion or repository-setting changes.
