@@ -4,7 +4,7 @@ import { visitChatGptExport } from './archive.js';
 import { normalizeConversation, hashCanonicalJson } from './normalize.js';
 import { openHistoryStore } from './store.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
-import { ADAPTER_VERSION, PROJECTION_VERSION, digest, historyError, redactHistoryText, resolveLimits } from './common.js';
+import { ADAPTER_VERSION, PROJECTION_VERSION, digest, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
 
 const denied = () => historyError('ERR_INFERENCE_HISTORY_DENIED', 'Inference-history access denied.');
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history request.');
@@ -141,20 +141,21 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
             }
             const nodeRevision = hashCanonicalJson(raw.mapping[node.nodeId]);
             const sourceRef = digest(JSON.stringify([conversationRef, node.nodeId, nodeRevision, projectionFingerprint]));
+            const fullText = node.parts.filter((part) => typeof part.text === 'string')
+              .map((part) => part.text).join('\n');
+            const projection = projectHistoryText(fullText, limits.maxTextChars);
             const metadata = {
               messageId: redactHistoryText(node.messageId).slice(0, 512), role: redactHistoryText(node.role).slice(0, 128),
               createdAt: { utc: node.createdAt.utc, state: node.createdAt.state },
               // Asset payloads and arbitrary metadata require original-read authority.
               assetCount: node.assets.length, partCount: node.parts.length,
-              nodeRevision, projectionVersion: PROJECTION_VERSION, projectionFingerprint
+              nodeRevision, projectionVersion: PROJECTION_VERSION, projectionFingerprint, projection: projection.metadata
             };
             // Redact complete extracted parts before clipping; otherwise a
             // credential cut by the projection boundary could evade detection.
-            const fullText = node.parts.filter((part) => typeof part.text === 'string')
-              .map((part) => part.text).join('\n');
             const inserted = db.prepare('INSERT OR IGNORE INTO units VALUES (?, ?, ?, ?, ?)').run(
               sourceRef, conversationRef, node.nodeId,
-              redactHistoryText(fullText).slice(0, limits.maxTextChars), JSON.stringify(metadata)
+              projection.text, JSON.stringify(metadata)
             );
             newUnits += inserted.changes;
             db.prepare('INSERT OR IGNORE INTO snapshot_units VALUES (?, ?, ?)')

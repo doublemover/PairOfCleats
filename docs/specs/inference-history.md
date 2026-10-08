@@ -163,6 +163,12 @@ parts remain ordered evidence and participate in bounded text retrieval.
 
 ## Projection and retrieval
 
+Projection history-text.v2 retains the unchanged canonical node revision and a
+SHA-256 of full extracted source text. Each query unit records its UTF-16 character
+budget, original/redacted/projected lengths, truncation flag and deterministic
+trim counters/reason. Full raw evidence remains subject to original-read authority.
+Clipping preserves surrogate pairs; no archive or text cap is increased.
+
 Redaction runs over complete extracted text before clipping. It masks common API
 token forms, private-key blocks, bearer values, credential assignments and
 credential-bearing URL parameters. Exact Git OIDs are retained. This is a
