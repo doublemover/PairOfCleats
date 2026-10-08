@@ -246,7 +246,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn
-references, input/output item structure, branch and pull-request/status fields. Known text
+references, input/output item structure (including explicitly null item arrays), branch and pull-request/status fields. Known text
 and code enter bounded redacted search projections. Unknown item payloads remain raw
 original evidence; attachment pointers remain unresolved. Tasks have unknown selected paths
 and missing timestamps unless exported explicitly; no conversation leaf is fabricated.

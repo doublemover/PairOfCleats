@@ -17,10 +17,11 @@ export function normalizeHistoryRecord(raw, evidenceKind, limits) {
   const diagnostics = [], seen = new Set();
   const nodes = raw.turns.map(turn => {
     if (!object(turn) || !id(turn.id) || seen.has(turn.id)
-      || !Array.isArray(turn.input_items) || !Array.isArray(turn.output_items)) throw invalid();
+      || !(turn.input_items === null || Array.isArray(turn.input_items))
+      || !(turn.output_items === null || Array.isArray(turn.output_items))) throw invalid();
     seen.add(turn.id);
     const parts = [], assets = [];
-    for (const item of [...turn.input_items, ...turn.output_items]) {
+    for (const item of [...(turn.input_items ?? []), ...(turn.output_items ?? [])]) {
       if (!object(item)) throw invalid();
       let content = item.content;
       if (content === undefined && typeof item.body === 'string') content = item.body;
