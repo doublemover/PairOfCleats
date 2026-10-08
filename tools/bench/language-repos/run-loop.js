@@ -412,12 +412,12 @@ export const resolveBenchCrashQuarantineDecision = ({
  *   buildRequested:boolean,
  *   buildIndexFlag:boolean,
  *   buildSqliteFlag:boolean,
- *   benchArgsPrefix:string[],
- *   benchArgsSuffix:string[]
+ *   argv:object,
+ *   effectiveThreads:number|null
  * }} input
  * @returns {string[]}
  */
-const buildBenchArgs = ({
+export const buildBenchChildArgs = ({
   benchScript,
   repoPath,
   queriesPath,
@@ -427,9 +427,24 @@ const buildBenchArgs = ({
   buildRequested,
   buildIndexFlag,
   buildSqliteFlag,
-  benchArgsPrefix,
-  benchArgsSuffix
+  argv,
+  effectiveThreads
 }) => {
+  const benchArgsPrefix = [argv['stub-embeddings'] ? '--stub-embeddings' : '--real-embeddings'];
+  const benchArgsSuffix = [];
+  if (argv.incremental) benchArgsSuffix.push('--incremental');
+  if (argv.ann === true) benchArgsSuffix.push('--ann');
+  if (argv.ann === false || argv['no-ann'] === true) benchArgsSuffix.push('--no-ann');
+  if (argv.backend) benchArgsSuffix.push('--backend', String(argv.backend));
+  if (argv.top) benchArgsSuffix.push('--top', String(argv.top));
+  if (argv.limit) benchArgsSuffix.push('--limit', String(argv.limit));
+  const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
+  benchArgsSuffix.push('--progress', childProgressMode);
+  if (argv.verbose) benchArgsSuffix.push('--verbose');
+  if (argv.quiet || argv.json) benchArgsSuffix.push('--quiet');
+  if (Number.isFinite(effectiveThreads)) {
+    benchArgsSuffix.push('--threads', String(effectiveThreads));
+  }
   const args = [
     benchScript,
     '--repo',
@@ -531,19 +546,6 @@ export const runBenchExecutionLoop = async ({
   const buildIndexRequested = buildRequested || buildIndexFlag;
   const buildSqliteRequested = buildRequested || buildSqliteFlag;
   const autoBuildEnabled = !(buildRequested || buildIndexFlag || buildSqliteFlag);
-  const benchArgsPrefix = [argv['stub-embeddings'] ? '--stub-embeddings' : '--real-embeddings'];
-  const benchArgsSuffix = [];
-  if (argv.incremental) benchArgsSuffix.push('--incremental');
-  if (argv.ann === true) benchArgsSuffix.push('--ann');
-  if (argv.ann === false || argv['no-ann'] === true) benchArgsSuffix.push('--no-ann');
-  if (argv.backend) benchArgsSuffix.push('--backend', String(argv.backend));
-  if (argv.top) benchArgsSuffix.push('--top', String(argv.top));
-  if (argv.limit) benchArgsSuffix.push('--limit', String(argv.limit));
-  const childProgressMode = argv.progress === 'off' ? 'off' : 'jsonl';
-  benchArgsSuffix.push('--progress', childProgressMode);
-  if (argv.verbose) benchArgsSuffix.push('--verbose');
-  if (argv.quiet || argv.json) benchArgsSuffix.push('--quiet');
-
   const runtimeConfigCache = new Map();
   const artifactStateCache = new Map();
   const lineStatsCache = new Map();
@@ -842,11 +844,7 @@ export const runBenchExecutionLoop = async ({
         continue;
       }
 
-      const perRepoBenchArgsSuffix = benchArgsSuffix.slice();
-      if (Number.isFinite(effectiveThreads)) {
-        perRepoBenchArgsSuffix.push('--threads', String(effectiveThreads));
-      }
-      const benchArgs = buildBenchArgs({
+      const benchArgs = buildBenchChildArgs({
         benchScript,
         repoPath,
         queriesPath: task.queriesPath,
@@ -856,8 +854,8 @@ export const runBenchExecutionLoop = async ({
         buildRequested,
         buildIndexFlag,
         buildSqliteFlag,
-        benchArgsPrefix,
-        benchArgsSuffix: perRepoBenchArgsSuffix
+        argv,
+        effectiveThreads
       });
 
       progressRuntime.update();
