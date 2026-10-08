@@ -54,6 +54,34 @@ assert.equal(byId(normalized, 'root').pathState, 'on_selected_path');
 assert.equal(byId(normalized, 'longest').pathState, 'off_selected_path', 'never select the newest or longest branch');
 assert.deepEqual(normalized.diagnostics, []);
 
+const parentOnlyRaw = conversation({
+  root: { id: 'root', parent: null, message: null },
+  b: { id: 'b', parent: 'root', message: message('m-b', 'alternate') },
+  a: { id: 'a', parent: 'root', message: message('m-a', 'selected') }
+}, 'a');
+const parentOnlyBefore = canonicalJson(parentOnlyRaw);
+const parentOnly = normalizeConversation(parentOnlyRaw);
+assert.deepEqual(parentOnly.diagnostics, []);
+assert.deepEqual(byId(parentOnly, 'root').children, ['a', 'b']);
+assert.equal(byId(parentOnly, 'a').pathState, 'on_selected_path');
+assert.equal(byId(parentOnly, 'b').pathState, 'off_selected_path');
+assert.equal(canonicalJson(parentOnlyRaw), parentOnlyBefore, 'derived edges never modify raw evidence');
+const parentOnlyDangling = normalizeConversation(conversation({
+  a: { parent: 'absent', message: null }
+}, 'a'));
+assert(codes(parentOnlyDangling).has('dangling_parent'));
+assert(codes(parentOnlyDangling).has('incomplete_selected_path'));
+const parentOnlyCycle = normalizeConversation(conversation({
+  a: { parent: 'b', message: null }, b: { parent: 'a', message: null }
+}, 'a'));
+assert(codes(parentOnlyCycle).has('parent_cycle'));
+assert(codes(parentOnlyCycle).has('child_cycle'));
+const invalidChildren = normalizeConversation(conversation({
+  root: { parent: null, message: null, children: null },
+  a: { parent: 'root', message: null }
+}, 'a'));
+assert(codes(invalidChildren).has('invalid_children'));
+assert(codes(invalidChildren).has('parent_child_mismatch'));
 const noCurrent = normalizeConversation({ ...raw, current_node: null });
 assert(noCurrent.nodes.every((entry) => entry.pathState === 'unknown'));
 assert(codes(noCurrent).has('missing_current_node'));

@@ -147,6 +147,10 @@ does not add versions. A later incomplete export does not delete old evidence.
 Conflicting snapshots for the same conversation in one import fail rather than
 selecting an arbitrary last shard.
 
+Parent-only trees derive normalized child lists from explicit parent relationships;
+raw source fields are unchanged. Declared child arrays still undergo mismatch
+validation. Adapter revision chatgpt-export.v2 invalidates earlier import transforms.
+
 Graph validation preserves malformed evidence while reporting missing/dangling
 references, inconsistent edges and cycles. Invalid selected ancestry is `unknown`;
 no longest-path fallback is labeled selected. Unknown roles/content remain raw
