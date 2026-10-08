@@ -1,6 +1,6 @@
 # Inference-history private evidence pilot
 
-Status: implemented local synthetic vertical slice; private-data and deployment acceptance pending.
+Status: implemented programmatic import/read surface; authenticated product integration and deployment acceptance remain separate.
 Baseline: integrated `2529d718db780da22c49f188202b6f1550a1833d`.
 
 This domain preserves exported conversation evidence separately from ordinary
@@ -28,7 +28,7 @@ compatibility layer is included. An unsupported vault format fails closed.
 | IH-001: Normalize exported conversation evidence | All mapping nodes, independent node/message IDs, null roots, selected ancestry, graph diagnostics, raw unknown fields/parts, explicit timestamp quality and canonical SHA-256 revisions | Representative authorized export variants; duplicate JSON keys remain inspectable in exact raw JSON but are not distinct parsed fields |
 | IH-002: Read bounded export packages | Direct JSON array, flat/sharded ZIP members, streaming per-conversation parsing, inventory/checksums, CRC checks, unsafe paths/collisions/symlinks rejected, transactional rollback | Nested archives are inventoried as unsupported with `complete: false`; oversized individual conversations are rejected rather than spooled; no resumable mid-import checkpoint |
 | IH-003: Isolate evidence and derivatives | Physically separate SQLite database per trusted tenant/owner/source scope; policy before any store open; policy epoch and tombstone rechecks before emission; separate action permissions | Actual identity-provider/API integration, deployment/key isolation and native-platform acceptance |
-| IH-004: Search versioned private history | Redacted bounded text, partition-local FTS5 statistics, exact source references, selected/alternative paths, import/node reuse, metadata-only invalidation and original-read permission | Engineering selection UI, date/role controls, ordinary retrieval-backend integration, qualified vector/media retrieval |
+| IH-004: Search versioned private history | Redacted bounded text, partition-local FTS5 statistics, exact source references, selected/alternative paths, import/node reuse, metadata-only invalidation and original-read permission | Engineering selection UI, ordinary retrieval-backend integration, qualified vector/media retrieval |
 | IH-005: Correlate authorized code evidence | Exact Git object verification, ambiguous/unresolved SHA retention, separately authorized Markdown task/commit mentions, content revisions, independent code-policy rechecks | Hosted PR/task events, dated branch observations, patch equivalence and reviewed inferred relationships |
 | IH-006: Exercise privacy lifecycle | Synthetic cross-user/org/tenant negatives, in-flight revocation, deletion tombstones, source/derivative row removal and explicit retained-source limits | Small private sample, full archive, backup-restore deletion ledger, complete erasure/deployment audit |
 
@@ -96,7 +96,7 @@ or creates a private store inside a source checkout. On POSIX, the vault must ha
 no group/other access, and database files are created with mode 0600. Symlinked
 vault paths, database links, hardlinked database files and unsafe SQLite sidecars
 are rejected. Windows requires an explicit trusted ACL-verification callback and
-remains unvalidated by the Linux synthetic receipt.
+must be verified by the deploying host; synthetic fixtures do not verify real vault ACLs.
 
 The host must protect the vault, its ancestors and authorized repository paths
 from concurrent malicious filesystem mutation. Final-component no-follow and

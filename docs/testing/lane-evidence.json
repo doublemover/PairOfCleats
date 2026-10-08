@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T16:53:42.301Z",
+  "generatedAt": "2026-10-08T19:03:13.628Z",
   "summary": {
     "lanes": 5,
-    "tests": 1077,
+    "tests": 1078,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 280,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1003
+      "missingTests": 1004
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 892,
+      "totalTests": 893,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 843
+        "missing": 844
       }
     },
     {
@@ -421,6 +421,12 @@
       "unknownDurationCount": 7
     },
     {
+      "key": "integrations/inference-history",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
       "key": "runner/harness",
       "count": 6,
       "knownDurationMs": 0,
@@ -458,12 +464,6 @@
     },
     {
       "key": "indexing/stage1",
-      "count": 5,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 5
-    },
-    {
-      "key": "integrations/inference-history",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
