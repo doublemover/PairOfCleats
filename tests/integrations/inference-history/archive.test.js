@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
+import { normalizeMemberLinks } from '../../../src/integrations/inference-history/member-links.js';
 import { visitChatGptExport } from '../../../src/integrations/inference-history/archive.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
@@ -14,7 +15,7 @@ const json = strToU8(JSON.stringify(sample));
 const rows = [];
 const members = [];
 const read = (options = {}) => visitChatGptExport({ sourcePath: file,
-  onConversation: (value, locator) => rows.push({ value, locator }), onMember: (member) => members.push(member), ...options });
+  onRecord: (value, locator) => rows.push({ value, locator }), onMember: (member) => members.push(member), ...options });
 try {
   await fs.writeFile(file, zipSync({ 'conversations-001.json': json, 'nested/conversations_002.json': json,
     'assets/photo.dat': new Uint8Array([1, 2, 3]) }));
@@ -49,6 +50,22 @@ try {
   await assert.rejects(read({ limits: { maxEntries: 1 } }), { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
   await assert.rejects(read({ limits: { maxConversationBytes: 8 } }), { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
   await assert.rejects(read({ signal: AbortSignal.abort() }), { code: 'ERR_INFERENCE_HISTORY_ABORTED' });
+
+  const metadata = [];
+  await fs.writeFile(file, zipSync({ 'codex.json': strToU8('[{"id":"task"}]'),
+    'export_manifest.json': strToU8('{"export_files":[],"logical_files":{}}') }));
+  const taskResult = await read({ onMetadata: row => metadata.push(row) });
+  assert.equal(taskResult.tasks, 1);
+  assert.equal(taskResult.conversations, 0);
+  assert.equal(rows.at(-1).locator.evidenceKind, 'exported_codex_task');
+  assert.equal(metadata[0].kind, 'export_manifest');
+  assert.deepEqual(normalizeMemberLinks({ export_files: [{ path: 'a.dat', size_bytes: 3 }],
+    logical_files: { asset: { files: ['a.dat'], sharded: false } } }, 'export_manifest',
+  'export/export_manifest.json', 8).map(link => link.memberPath), ['export/a.dat', 'export/a.dat']);
+  assert.throws(() => normalizeMemberLinks({ '../bad': 'label' }, 'asset_names', 'names.json', 8),
+    { code: 'ERR_INFERENCE_HISTORY_INPUT' });
+  assert.throws(() => normalizeMemberLinks({ 'a.dat': 'label' }, 'asset_names', 'names.json', 0),
+    { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
 
   const corrupted = Buffer.from(zipSync({ 'conversations.json': json }));
   const central = corrupted.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));

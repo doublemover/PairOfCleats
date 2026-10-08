@@ -51,7 +51,7 @@ try {
   const inFlight = createInferenceHistoryService({ ...options, audit: async ({ action, outcome }) => {
     if (action === 'search' && outcome === 'allowed' && !deleted) {
       deleted = true;
-      await wide.deleteConversation({ ...request, conversationRef: hit.conversationRef });
+      await wide.deleteRecord({ ...request, recordRef: hit.recordRef });
     }
   } });
   await assert.rejects(inFlight.search({ ...request, query: 'tungsten' }), { code: 'ERR_INFERENCE_HISTORY_DENIED' });

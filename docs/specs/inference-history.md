@@ -53,7 +53,7 @@ Owner: `src/integrations/inference-history/service.js`.
   policy epoch, action and outcome
 
 The methods are `importExport`, `search`, `readOriginal`, `correlate` and
-`deleteConversation`. They all accept an opaque `requestContext` and a `partition`
+`deleteRecord`. They all accept an opaque `requestContext` and a `partition`
 selector. The selector, archive fields and retrieved text cannot supply identity.
 
 The host's `resolveAccess({requestContext, partition, action})` must authenticate
@@ -238,3 +238,38 @@ The group covers graph fidelity, dangerous JSON keys, archive CRC/path/size cont
 scope isolation, policy rechecks, private storage paths, projection limits/revisions,
 metadata-only updates, incomplete snapshots, in-flight tombstones, exact Git/Markdown
 joins and unresolved evidence. No real private export is present in the fixtures.
+
+
+## Codex records and declared member evidence
+
+`chatgpt-export.v3` uses vault format `inference-history.v2`. The current API exposes
+`recordRef` and `deleteRecord`; retired conversation-only storage and API names are
+not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
+`codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn
+references, input/output item structure, branch and pull-request/status fields. Known text
+and code enter bounded redacted search projections. Unknown item payloads remain raw
+original evidence; attachment pointers remain unresolved. Tasks have unknown selected paths
+and missing timestamps unless exported explicitly; no conversation leaf is fabricated.
+
+`export_manifest.json` and `conversation_asset_file_names.json` retain exact raw JSON behind
+original-read authority through `readMemberEvidence`. Declared relative archive-member paths
+are checked against the checksum inventory and reported as `linked_member`,
+`not_in_selected_input`, or `size_mismatch`. These links grant no filesystem or instruction
+authority and never cause external files to be opened. Coverage is always `selected_input`;
+missing declared members prevent a complete result. Deleting a record prunes shared member
+metadata for its imports, along with its snapshots and units, while preserving tombstones.
+
+## Observed Pages export coverage gap
+
+A separately approved read-only Pages dump contains per-page `metadata.json`,
+`content/current.json`, `content/history/*.json`, `content/checkpoints/*.json`, and
+`relationships/*.json`. Metadata supplies `page_id`, owner/creator IDs, namespace, home,
+document type and timestamps. Current content supplies head revision/checkpoint/sequence
+identity and a projection with title, preview and `materialized_search_text`.
+These are distinct page content and revision evidence, not conversation records.
+Embedded `https://chatgpt.com/space/page_*` links are observable in projected text.
+Conversation or attachment relationships must be preserved only when explicitly present in
+relationship records or content; none may be inferred from page proximity or filenames.
+The present archive importer does not ingest this directory export or claim Pages coverage.
+A Pages adapter needs bounded parsing, exact raw provenance, separate page/revision identities,
+explicit link validation, and the same private original-read and deletion policies before use.
