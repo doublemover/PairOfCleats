@@ -9,7 +9,7 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
-const root = await makeTempDir('poc-history-service-');
+const root = await fs.realpath(await makeTempDir('poc-history-service-'));
 const vaultRoot = path.join(root, 'private-vault');
 await fs.mkdir(vaultRoot, { mode: 0o700 });
 let sourcePath = path.join(root, 'synthetic.json');

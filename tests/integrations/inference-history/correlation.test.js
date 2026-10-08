@@ -7,7 +7,7 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
-const root = await makeTempDir('poc-history-correlation-');
+const root = await fs.realpath(await makeTempDir('poc-history-correlation-'));
 const repoRoot = path.join(root, 'repo');
 const vaultRoot = path.join(root, 'vault');
 const sourcePath = path.join(root, 'synthetic.json');

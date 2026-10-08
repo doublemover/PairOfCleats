@@ -6,7 +6,7 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
-const root = await makeTempDir('poc-history-reader-');
+const root = await fs.realpath(await makeTempDir('poc-history-reader-'));
 const vaultRoot = path.join(root, 'vault'), sourcePath = path.join(root, 'authored.json');
 await fs.mkdir(vaultRoot, { mode: 0o700 });
 const request = { requestContext: 'owned', partition: 'own' };
