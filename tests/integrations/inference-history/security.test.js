@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { privateReference, digest } from '../../../src/integrations/inference-history/common.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
@@ -84,5 +85,10 @@ try {
   await assert.rejects(openHistoryStore(bareVault, 'c'.repeat(64),
     { create: true, verifyPrivateVault: () => true }), { code: 'ERR_INFERENCE_HISTORY_STORAGE' });
   assert.deepEqual(await fs.readdir(bareVault), []);
+  const rawCandidate = 'password=1234';
+  const keyedA = privateReference('a'.repeat(64), rawCandidate);
+  assert.notEqual(keyedA, digest(rawCandidate));
+  assert.notEqual(keyedA, privateReference('b'.repeat(64), rawCandidate));
+  assert.equal(keyedA, privateReference('a'.repeat(64), rawCandidate));
   console.log('Inference history storage boundaries, projection identity and in-flight tombstones passed.');
 } finally { await rmDirRecursive(root); }

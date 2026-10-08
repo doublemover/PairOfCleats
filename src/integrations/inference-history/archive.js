@@ -184,7 +184,7 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
               : /(?:^|\/)codex\.json$/i.test(name) ? 'codex_tasks'
                 : /(?:^|\/)export_manifest\.json$/i.test(name) ? 'export_manifest'
                   : /(?:^|\/)conversation_asset_file_names\.json$/i.test(name) ? 'asset_names'
-                    : /\.(?:zip|tar|gz|7z)$/i.test(name) ? 'unsupported_archive' : 'asset_or_unknown';
+                    : /\.(?:zip|tar|gz|7z|tgz|bz2|tbz2|xz|txz|rar|zst|lz|lzma|cab)$/i.test(name) ? 'unsupported_archive' : 'asset_or_unknown';
             if (kind === 'unsupported_archive') unsupportedArchives += 1;
             const stream = await new Promise((resolveStream, rejectStream) => zip.openReadStream(entry,
               (error, value) => error ? rejectStream(error) : resolveStream(value)));

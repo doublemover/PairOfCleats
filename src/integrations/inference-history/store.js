@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -59,7 +60,7 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     db.pragma('temp_store = MEMORY');
     if (present?.size) {
       const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v2') throw unsafe();
+      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v3') throw unsafe();
     }
     if (create) {
       db.pragma('journal_mode = DELETE');
@@ -103,8 +104,10 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
           PRIMARY KEY(snapshot_id, unit_id)
         );
         CREATE INDEX IF NOT EXISTS units_record ON units(record_id);
-        CREATE INDEX IF NOT EXISTS snapshot_units_unit ON snapshot_units(unit_id);
+        CREATE INDEX IF NOT EXISTS units_message ON units(json_extract(metadata,'$.messageId'), id);
+        CREATE INDEX IF NOT EXISTS snapshot_units_unit ON snapshot_units(unit_id, snapshot_id);
         CREATE INDEX IF NOT EXISTS snapshots_record ON snapshots(record_id);
+        CREATE INDEX IF NOT EXISTS occurrences_snapshot ON occurrences(snapshot_id, import_id, member, ordinal);
         CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(id UNINDEXED, text, tokenize='unicode61');
         CREATE TRIGGER IF NOT EXISTS units_insert AFTER INSERT ON units BEGIN
           INSERT INTO units_fts(id, text) VALUES(new.id, new.text);
@@ -114,10 +117,12 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
         END;
       `);
       db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
-      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v2');
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v3');
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));
     }
     const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v2') throw unsafe();
+    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v3') throw unsafe();
+    if (!/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
     return db;
   } catch (error) { db.close(); throw error; }
 }

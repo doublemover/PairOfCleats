@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
 import { normalizeHistoryRecord } from '../../../src/integrations/inference-history/records.js';
-import { DEFAULT_LIMITS } from '../../../src/integrations/inference-history/common.js';
+import { DEFAULT_LIMITS, digest } from '../../../src/integrations/inference-history/common.js';
 import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
@@ -62,6 +62,20 @@ try {
   assert.equal(original.occurrences[0].ordinal, 0);
   assert.equal(original.occurrences[0].member, 'conversations.json');
   assert.match(original.occurrences[0].rawSha256, /^[a-f0-9]{64}$/);
+  assert.ok(!JSON.stringify(hit).includes('sourceTextHash'));
+  assert.ok(!Object.hasOwn(hit, 'nodeRevision'));
+  assert.equal(hit.projection.projectedTextHash, digest(hit.text));
+  assert.ok(!JSON.stringify(hit.provenance).includes('rawSha256'));
+  await fs.writeFile(sourcePath, '[' + JSON.stringify(conversation, null, 2) + ']');
+  const formatted = await service.importExport(request);
+  assert.equal(formatted.newSnapshots, 1);
+  assert.equal(formatted.newUnits, 0);
+  const formattedHit = (await service.search({ ...request, query: 'feature branch' })).hits[0];
+  assert.notEqual(formattedHit.snapshotRef, hit.snapshotRef);
+  assert.equal((await service.readOriginal({ ...request, snapshotRef: formattedHit.snapshotRef })).rawJson,
+    JSON.stringify(conversation, null, 2));
+  assert.equal((await service.readOriginal({ ...request, snapshotRef: hit.snapshotRef })).rawJson,
+    JSON.stringify(conversation));
   const searchOnly = createInferenceHistoryService({ vaultRoot, verifyPrivateVault,
     resolveAccess: (input) => input.action === 'search' ? resolveAccess(input) : null });
   assert.equal((await searchOnly.search({ ...request, query: 'feature branch' })).hits.length, 1);
@@ -227,6 +241,23 @@ try {
   const archivedHit = (await narrowTasks.search({ ...request, query: 'zircon' })).hits[0];
   assert.equal(archivedHit.sourceDetails.archived, true);
   assert.notEqual(archivedHit.sourceRef, visibleHit.sourceRef);
+  sourcePath = path.join(root, 'visible-conversation.json');
+  const visibleConversation = { id: 'visible-conversation-review', current_node: 'v', mapping: {
+    v: { id: 'v', parent: null, children: [], message: { id: 'visible-message-review',
+      role: 'user', content: { content_type: 'multimodal_text', parts: [
+        { type: 'code', text: 'hidden-payload '.repeat(100) },
+        { type: 'text', text: 'tourmaline visible conversation' }
+      ] } } }
+  } };
+  await fs.writeFile(sourcePath, JSON.stringify([visibleConversation]));
+  await narrowTasks.importExport(request);
+  const fallbackHit = (await narrowTasks.search({ ...request, query: 'tourmaline' })).hits[0];
+  assert.ok(fallbackHit);
+  assert.equal(fallbackHit.role, 'user');
+  assert.equal((await narrowTasks.readContext({ ...request, sourceRef: fallbackHit.sourceRef,
+    snapshotRef: fallbackHit.snapshotRef })).messages[0].role, 'user');
+  assert.equal((await narrowTasks.search({ ...request, query: 'hidden payload' })).hits.length, 0);
+  sourcePath = path.join(root, 'semantic.zip');
   const unitBounded = createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource,
     verifyPrivateVault, limits: { maxTextChars: 80, maxUnits: 2 } });
   await writeTasks([visibleTask, visibleTask]);

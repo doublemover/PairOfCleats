@@ -35,6 +35,13 @@ try {
   assert.equal(partial.complete, false);
   assert.equal(partial.unsupportedArchives, 1);
 
+  await fs.writeFile(file, zipSync({ 'conversations.json': json,
+    'backup.tgz': new Uint8Array([0]), 'bundle.xz': new Uint8Array([0]),
+    'archive.rar': new Uint8Array([0]) }));
+  const nested = await read();
+  assert.equal(nested.unsupportedArchives, 3);
+  assert.equal(nested.complete, false);
+
   for (const entries of [
     { '../conversations.json': json },
     { '/conversations.json': json },
