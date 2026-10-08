@@ -152,7 +152,8 @@ try {
     turns: [{ id: 'turn-one', previous_turn_id: 'outside-export', role: 'assistant',
       branch: 'feature/synthetic', turn_status: 'completed',
       input_items: [{ type: 'message', content: [{ type: 'input_text', text: 'quartz task input' }] }],
-      output_items: [{ type: 'patch', output_diff: 'quartz patch output', asset_pointer: 'attachment://sample' }] }] };
+      output_items: null }, { id: 'turn-two', previous_turn_id: 'turn-one', role: 'assistant',
+      input_items: null, output_items: [{ type: 'patch', output_diff: 'quartz patch output', asset_pointer: 'attachment://sample' }] }] };
   const manifest = { export_files: [{ path: 'codex.json', size_bytes: Buffer.byteLength(JSON.stringify([task])) },
     { path: 'absent.dat', size_bytes: 3 }], logical_files: { tasks: { files: ['codex.json'], sharded: false } } };
   const names = { 'absent.dat': 'Synthetic attachment label' };
@@ -167,7 +168,7 @@ try {
   assert.equal(taskImport.complete, false);
   assert.equal(taskImport.memberLinkStates.linked_member, 2);
   assert.equal(taskImport.memberLinkStates.not_in_selected_input, 2);
-  const taskHit = (await service.search({ ...request, query: 'quartz' })).hits[0];
+  const taskHit = (await service.search({ ...request, query: 'quartz input' })).hits[0];
   assert.equal(taskHit.evidenceKind, 'exported_codex_task');
   assert.equal(taskHit.pathState, 'unknown');
   assert.notEqual(taskHit.recordRef, hit.recordRef);
