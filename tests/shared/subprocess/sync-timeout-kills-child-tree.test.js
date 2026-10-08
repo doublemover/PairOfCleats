@@ -102,10 +102,17 @@ try {
   // Test-owned Node commands must reap their descendants too. Otherwise a
   // timeout can leave a child holding the fixture directory on Windows.
   await fs.rm(childPidFile);
-  const helperResult = runNode(['-e', forceScript, childPidFile], 'owned helper timeout', tempRoot, process.env, {
+  // A detached Windows descendant survives its parent's exit and requires the
+  // orphan-aware owner. Keep the fixture self-limiting if the test is interrupted.
+  const helperScript = process.platform === 'win32'
+    ? forceScript.replace('{ stdio: "ignore" }', '{ stdio: "ignore", detached: true, windowsHide: true }')
+      .replace('setInterval(() => {}, 60000);', 'setTimeout(() => process.exit(0), 25000); setInterval(() => {}, 60000);')
+    : forceScript;
+  const helperResult = runNode(['-e', helperScript, childPidFile], 'owned helper timeout', tempRoot, process.env, {
     stdio: 'ignore', timeoutMs: 2000, allowFailure: true
   });
   assert.equal(helperResult.error?.code, 'ETIMEDOUT');
+  assert.equal(isPidAlive(helperResult.pid), false, 'the timed-out direct parent has exited');
   spawnedChildPid = Number.parseInt(String(await waitForFile(childPidFile)).trim(), 10);
   assert.ok(Number.isFinite(spawnedChildPid) && spawnedChildPid > 0);
   assert.equal(await waitForPidExit(spawnedChildPid, 2500), true,
