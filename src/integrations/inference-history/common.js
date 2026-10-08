@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 export const ADAPTER_VERSION = 'chatgpt-export.v2';
-export const PROJECTION_VERSION = 'history-text.v1';
+export const PROJECTION_VERSION = 'history-text.v2';
 export const historyError = (code, message) => Object.assign(new Error(message), { code });
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 
@@ -42,4 +42,31 @@ export function redactHistoryText(input) {
     .replace(/([?&](?:access_token|api_key|token|key|password|secret)=)[^\s&#)]+/gi, '$1[REDACTED credential]')
     .replace(/\b((?:password|api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*)["']?[^\s"',;]+["']?/gi,
       '$1[REDACTED credential]');
+}
+
+/** Derive bounded query text while retaining deterministic source/trimming provenance. */
+export function projectHistoryText(sourceText, maxTextChars) {
+  if (typeof sourceText !== 'string' || !Number.isSafeInteger(maxTextChars) || maxTextChars < 0) {
+    throw historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid history projection input.');
+  }
+  const redacted = redactHistoryText(sourceText);
+  let text = redacted.slice(0, maxTextChars);
+  if (text.length < redacted.length && /[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1);
+  const truncated = text.length < redacted.length;
+  return {
+    text,
+    metadata: {
+      trimPolicyVersion: PROJECTION_VERSION,
+      sourceTextHash: digest(sourceText),
+      sourceTextChars: sourceText.length,
+      redactedTextChars: redacted.length,
+      projectedTextChars: text.length,
+      characterBudget: maxTextChars,
+      units: 'utf16_code_units',
+      truncated,
+      trimmedRows: truncated ? 1 : 0,
+      trimmedFields: truncated ? 1 : 0,
+      trimReasonCounts: truncated ? { character_budget: 1 } : {}
+    }
+  };
 }

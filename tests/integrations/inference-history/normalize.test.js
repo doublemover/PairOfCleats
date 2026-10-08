@@ -7,6 +7,7 @@ import {
   normalizeConversation,
   normalizeTimestamp
 } from '../../../src/integrations/inference-history/normalize.js';
+import { projectHistoryText } from '../../../src/integrations/inference-history/common.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv();
@@ -244,5 +245,26 @@ rejectInput(() => normalizeConversation(conversation({ ...largeMapping, extra: n
 let deep = 'leaf';
 for (let index = 0; index < 10000; index += 1) deep = { nested: deep };
 assert.match(hashCanonicalJson(deep), /^[0-9a-f]{64}$/, 'deep unknown metadata hashes without recursive call-stack growth');
+
+
+const longProjectionSource = 'first '.repeat(8000);
+const longProjection = projectHistoryText(longProjectionSource, 32768);
+assert.equal(longProjection.text.length, 32768);
+assert.equal(longProjection.metadata.sourceTextHash, createHash('sha256').update(longProjectionSource).digest('hex'));
+assert.equal(longProjection.metadata.sourceTextChars, longProjectionSource.length);
+assert.equal(longProjection.metadata.truncated, true);
+assert.deepEqual(longProjection.metadata.trimReasonCounts, { character_budget: 1 });
+assert.equal(JSON.stringify(projectHistoryText(longProjectionSource, 32768)), JSON.stringify(longProjection));
+const exactBoundary = projectHistoryText('abcd', 4);
+assert.equal(exactBoundary.text, 'abcd');
+assert.equal(exactBoundary.metadata.truncated, false);
+assert.equal(exactBoundary.metadata.trimmedRows, 0);
+assert.deepEqual(exactBoundary.metadata.trimReasonCounts, {});
+const unicodeBoundary = projectHistoryText('ab😀tail', 3);
+assert.equal(unicodeBoundary.text, 'ab', 'projection cannot end with a high surrogate');
+assert.equal(unicodeBoundary.metadata.projectedTextChars, 2);
+const credentialBoundary = projectHistoryText('password=' + 'x'.repeat(100), 20);
+assert.equal(credentialBoundary.text, 'password=[REDACTED c');
+assert(!credentialBoundary.text.includes('xxxx'), 'redaction precedes clipping over complete text');
 
 console.log('inference history normalization test passed');
