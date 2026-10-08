@@ -533,7 +533,9 @@ const expandSimpleBraceAlternates = (value) => {
 {
   const roadmapText = await fsPromises.readFile(path.join(root, 'docs', 'roadmap.md'), 'utf8');
   assert.match(roadmapText, /^Last audited: \d{4}-\d{2}-\d{2}$/m, 'current roadmap must identify its latest audit date');
-  assert.match(roadmapText, /Current reconciliation, 2026-10-02:/);
+  const roadmapAuditDate = roadmapText.match(/^Last audited: (\d{4}-\d{2}-\d{2})$/m)[1];
+  assert.ok(roadmapText.includes(`Current reconciliation, ${roadmapAuditDate}:`),
+    'current reconciliation must match the roadmap audit date');
   const initiativesTable = readMarkdownTableAfterHeading(roadmapText, '## Current Initiatives');
   assert.deepEqual(initiativesTable.header, ['Initiative', 'Status', 'Done now', 'Remaining / next']);
   const expectedStatuses = new Map([
@@ -564,9 +566,19 @@ const expandSimpleBraceAlternates = (value) => {
   assert.match(byName.get('Shared-module reduction')['Remaining / next'],
     /No known shared-module implementation batch remains open.*concrete/);
   assert.match(byName.get('Duplicate-code reduction')['Remaining / next'], /future intentional full audit refresh/);
-  assert.match(roadmapText, /477 tests passed[\s\S]*seven timeouts remain unverified/,
-    'preserve the incomplete aggregate run rather than rewriting it as a pass');
-  assert.match(roadmapText, /Broad gate\/CI, platform, hosted security,[\s\S]*optional-backend and measured-performance campaigns are deferred/);
+  const integrationArchive = await fsPromises.readFile(
+    path.join(root, 'docs', 'archived', 'ordinary-integration-roadmap-2026-10-06.md'), 'utf8'
+  );
+  assert.match(integrationArchive, /477 tests passed[\s\S]*seven timeouts remain unverified/,
+    'preserve the incomplete aggregate run in its historical checkpoint rather than rewriting it as a pass');
+  assert.match(roadmapText, /archived\/ordinary-integration-roadmap-2026-10-06\.md/);
+  assert.match(roadmapText, /Hosted CI is bounded validation,[\s\S]*not release-wide readiness/,
+    'fresh platform CI must not imply release-wide acceptance');
+  assert.match(roadmapText, /Release-wide acceptance,[\s\S]*optional-backend and measured-performance campaigns remain deferred/);
+  assert.doesNotMatch(roadmapText, /draft PR519|All final integrated checks remain pending|Node24 and SQLite 12\.6\.2 remain unchanged/,
+    'closed integration and upgraded dependencies must not retain obsolete active status');
+  assert.match(roadmapText, /guides\/closeout-evidence-2026-10-07\.md/,
+    'updated completion status must link the revision-specific closeout evidence');
   assert.match(roadmapText, /old green results have not been relabeled as fresh proof/);
   assert.match(roadmapText, /diagnostic callback failures[\s\S]*were reproduced[\s\S]*cannot bypass[\s\S]*finalization/,
     'record the reproduced finalization correction rather than retaining a stale unverified item');

@@ -1,19 +1,18 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-06
+Last audited: 2026-10-07
 Canonical for: initiative status, execution order, and remaining work
 
 PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
-The current completion branch adds targeted correctness, dependency and resource-lifecycle
-fixes, and reconciles older branches by behavior. Release-wide acceptance remains open.
-The ordinary integration combines published `29398b4a`, earlier cache/ingestion
-follow-on `09309e75`, Sublime worktree fix `154c3982`, and native-hardware repairs
-`212ad438`, with the packaged Windows cmd mirror synchronized to its shared owner.
-The final integrated commit still requires its own bounded validation. Historical
-component passes do not establish an integrated pass or release-wide readiness. Use this
-page for current status, the linked contracts for behavior, and the archived
-worklogs for historical evidence.
+The completion integration, dependency updates, CI repairs and scoped security fixes
+have landed on main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542),
+commit `2529d718db780da22c49f188202b6f1550a1833d`. Its exact source tree passed the
+hosted platform and gate checks before merge. Release-wide acceptance remains open.
+Use this page for current status, the [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
+for revision-specific receipts and limits, the linked contracts for behavior, and
+the archived worklogs for historical evidence. Hosted CI is bounded validation,
+not release-wide readiness.
 
 ## Source-of-Truth Rules
 
@@ -39,31 +38,32 @@ head. None is a blanket release-readiness claim.
 | USR consolidated contract and rollout program | `implemented` | Language/framework matrices, canonical schemas, validators and the full-language conformance surface are present. | Refresh technical acceptance; the former approval-lock process is archived and is not a release blocker. |
 | Shared-module reduction | `checkpoint clean` | Six recorded ownership batches are complete or checkpoint clean; their machine-readable backlog and boundary tests remain authoritative. | No known shared-module implementation batch remains open. Reopen only for a concrete ownership, correctness or measured performance signal. |
 | Duplicate-code reduction | `checkpoint clean` | The May saved-report exact-current refresh found no still-current fragments among its 212 saved candidates. | A future intentional full audit refresh, not ad hoc rework of stale saved-report entries, establishes a new repository-wide baseline. |
-| Production readiness | `deferred validation` | Release tooling, schemas and workflow contracts exist; focused fixes and dependency checks are recorded. | Run production verification and release-readiness evidence against the final candidate. Hosted security closure requires merge and rescan. |
+| Production readiness | `deferred validation` | Release tooling, schemas and workflow contracts exist; bounded platform CI and the dependency/security closeout are recorded. | Run production verification and release-readiness evidence against the final candidate; later security changes require their own merge and rescan. |
 | Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, fixture expectations, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change. |
 | Worklogs and benchmark JSON under `docs/worklogs/**` | `historical evidence` | Historical measurements and authored worklogs are retained. | Keep new execution status here; label measurements with their exact revision and environment. |
 
 ## Canonical Next Queue
 
-PR519's published head is `29398b4a`. Its [hosted run](https://github.com/doublemover/PairOfCleats/actions/runs/37428326764)
-passes gate, Rust TUI, Ubuntu 827/827 and macOS 827/827. Windows records 824 passes,
-two failures, one declared POSIX-signal skip and no runner timeouts. The canonical
-path fixture passes; remaining failures are the cmd conditional syntax case and
-parity cleanup EBUSY. Clean dependency/native installation and the full-graph audit
-passed on the published dependency graph. The [dependency migration](guides/dependency-security.md#october-6-current-advisory-follow-through)
-and explicit worker precedence remain in the ordinary integration.
+PR519 is merged and bugs #513-517 are closed with regression evidence. The
+dependency/CI proposals through PR540 are merged or specifically superseded.
+PR541 adds linear generated-import scanning, protected Windows structural-tool
+invocation, confined tooling-cache persistence/pruning and Rust CodeQL compatibility.
+PR542 restores a filesystem import lost during that migration and proves real
+watched-file invalidation. The [exact-head run](https://github.com/doublemover/PairOfCleats/actions/runs/37642969134)
+passes gate, Rust TUI, Ubuntu, macOS and Windows. The ordered lane has 887 entries;
+the declared POSIX-signal skip remains explicit on Windows.
 
-Unpublished hardware repairs preserve literal cmd forwarding and conditional exit
-behavior, real parser-to-child `--no-ann` intent, visible-state TUI redraws and
-separate cancelled-job counts. Nine focused normal-token Windows checks pass; a
-separate bounded parity fixture times out without EBUSY and leaves no observed
-owned children. This does not diagnose or repair the original EBUSY cleanup case.
-Mac arm64 tiny CLI and native-terminal checks establish their limited recorded
-scope. All final integrated checks remain pending. The isolated SQLite/Node26
-comparison `5faa768b` is excluded. The separately authorized dependency update
-in PR539 upgrades better-sqlite3 to 13.0.3 with native runtime verification and
-source-recovery compatibility; retain Node24 policy. This upgrade does not
-establish acceptance of the excluded SQLite/Node26 experiment.
+The parity report regression now seeds canonical artifacts and exercises real
+SQLite construction, child report execution and memory/SQLite search. It does not
+exercise the former cold full-index setup or diagnose its original EBUSY cleanup
+failure. Preserve that distinct platform investigation below rather than calling
+a fixture repair a production cleanup fix.
+
+The [dependency migration](guides/dependency-security.md) and explicit worker
+precedence are integrated. Better-sqlite3 13.0.3 has native runtime and source-recovery
+compatibility coverage; Node24 policy remains. The isolated SQLite/Node26 comparison
+`5faa768b` remains excluded. Mac arm64 interactive receipts retain their recorded
+scope; broad final-native and real-project acceptance remains separate.
 
 Historical `82528215` platform and lifecycle results remain in the
 [integration checkpoint archive](archived/ordinary-integration-roadmap-2026-10-06.md).
@@ -72,15 +72,13 @@ ahead of broader validation and retain historical measurements as dated evidence
 
 ### Concrete Platform and Product Queue
 
-1. **Validate integrated Windows transport and diagnose parity cleanup.** Preserve
-   the original cmd exit255 failure and its stderr. The isolated repair passes
-   literal argument rotation, conventional percent-tilde batch version expansion,
-   authored exit7, injection controls and meaningful timeouts on normal-token
-   Windows. Keep shared and packaged VS Code cmd owners byte-identical, with the
-   existing equality regression intact. Rerun on the integrated source. Capture
-   the parity primary failure separately from finally cleanup, then establish
-   actual owned-child cleanup before closing EBUSY. The later bounded timeout
-   without EBUSY is not a repair receipt.
+1. **Diagnose original Windows cold-index parity cleanup.** Current hosted Windows
+   CI and the structural-wrapper regression pass. Keep shared and packaged VS Code
+   cmd owners byte-identical, with the existing equality regression intact. Preserve
+   the archived cmd exit255 and parity EBUSY evidence. Reproduce the cold setup in
+   a bounded owned fixture, capturing its primary failure separately from finally
+   cleanup, then establish actual owned-child cleanup before closing EBUSY. A
+   seeded report pass or a bounded timeout without EBUSY is not a repair receipt.
 2. **Retain cold Pyright isolation without changing production deadlines.** The
    published installed-tool integration case passes with its bounded explicit
    allowance and cannot pass through persistent cache reuse. Preserve deterministic
@@ -122,16 +120,17 @@ output and summary; successful publication is not a crash-atomic two-file transa
 Closed setup input reports an actionable error; explicit strict search remains opt-in.
 
 Optional-tool degradation produces one bounded, deduplicated summary per pass,
-with redacted provider details in the application-owned default cache. The draft
-retains 48 underlying checks and a healthy contribution; integrated execution is
-pending. Trust, chunk identity and required output contracts remain strict. No
+with redacted provider details in the application-owned default cache. The integrated
+source retains 48 underlying checks and a healthy contribution; current hosted
+lane receipts are linked above. Trust, chunk identity and required output contracts remain strict. No
 tool install/upgrade or generic automatic binary fallback is enabled.
 
-Published `29398b4a` has 827 ordered CI-lite entries. The companion extends the
-836-entry foundation union to 837 entries, preserving the published prefix and
-earlier additions. Historical component passes are archived; the combined lane
-requires its own exact-revision receipt. The no-ANN forwarding regression is
-mandatory outside the ordered lane. Node24 and SQLite 12.6.2 remain unchanged.
+The current ordered CI-lite manifest has 887 entries, preserving the earlier
+prefix and additions. Platform receipts identify pass and declared-skip counts
+for their exact revision; they do not establish every optional backend or SDK.
+The no-ANN forwarding regression remains mandatory. Node24 is retained and
+better-sqlite3 is 13.0.3; older 827/837-entry and SQLite 12.6.2 statements describe
+historical checkpoints only.
 
 Map/core/cache classification follows the [ownership contract](guides/generated-artifact-ownership.md),
 [core contract](guides/generated-core-artifact-metadata.md) and
@@ -152,12 +151,13 @@ evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion
 
 ### Ongoing Review and Release Discipline
 
-1. **Maintain the consolidated draft review.** The completion branch is published in
-   [draft PR519](https://github.com/doublemover/PairOfCleats/pull/519). The seven older
-   reviewed proposals were closed with specific approved supersession explanations;
-   original branches remain preserved. Keep the draft summary current without
-   treating publication or focused checks as merge/release acceptance. See the
-   [branch and capability review](branch-capability-review-2026-10-02.md).
+1. **Preserve the verified integration lineage.** [PR519](https://github.com/doublemover/PairOfCleats/pull/519)
+   and the subsequent closeout are merged. Older proposals retain specific
+   supersession explanations and original ancestry. Start follow-on validation
+   from the recorded integrated revision, determine each intended destination
+   from the current task and lineage, and do not equate merge with release acceptance.
+   See the [branch and capability review](branch-capability-review-2026-10-02.md)
+   and [October 7 evidence](guides/closeout-evidence-2026-10-07.md).
 2. **Maintain concrete lifecycle fixes.** Full-build diagnostic callback failures
    were reproduced against the frozen branch with a real one-chunk SQLite bundle:
    a failed checkpoint plus a throwing warning callback left the database open.
@@ -165,8 +165,8 @@ evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion
    finalization; genuine promotion/build failures retain their original errors.
    The finalization and prior startup-ownership fixtures pass locally. See the
    [bounded recovery and resource guide](guides/recovery-low-load-2026-10-03.md).
-3. **Run release acceptance when scheduled.** Broad gate/CI, platform, hosted security,
-   optional-backend and measured-performance campaigns are deferred. Follow the
+3. **Run release acceptance when scheduled.** Release-wide acceptance,
+   optional-backend and measured-performance campaigns remain deferred. Follow the
    [release validation plan](roadmap-release-validation-plan.md); do not substitute
    historical logs or focused tests for its acceptance criteria.
 4. **Maintain documentation from evidence.** Update the affected owner/spec and this
@@ -191,24 +191,24 @@ evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion
 
 ## Current Validation Boundary
 
-Current reconciliation, 2026-10-02: the completion pass verified focused graph,
-semantic retrieval, configuration, embeddings, metadata/risk, LSP/JSON-RPC,
-IndexRef, cache, SQLite, HTTP and runner contracts. New lifecycle cases are
-registered in the ordered `ci-lite` manifest. The
+Current reconciliation, 2026-10-07: the completion pass and follow-on corrections
+cover graph, semantic retrieval, configuration, embeddings, metadata/risk,
+LSP/JSON-RPC, IndexRef, cache, SQLite, HTTP and runner contracts. The integrated
+887-entry `ci-lite` lane has exact-head platform receipts. The
 [capability review](branch-capability-review-2026-10-02.md) names the affected
-regressions and distinguishes source findings from executed checks.
+earlier regressions; the [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
+records subsequent fixes, hosted analyses and explicit residual limits.
 
 Dependency evidence includes the recorded JavaScript remediation, native grammar
 activation, q8/ONNX inference and RustSec/toolchain checks. See
 [dependency security](guides/dependency-security.md). An audit snapshot is dated
 proof, and does not certify future advisories or close hosted alerts by itself.
 
-The earlier interrupted `ci-lite` run is incomplete: 477 tests passed before
-resource pressure; two deterministic fixture failures received targeted fixes,
-and seven timeouts remain unverified. Later focused passes do not convert that
-run into a full-lane pass. Other-platform and interactive TUI behavior, a fresh
-full duplicate audit, and representative end-to-end performance measurements
-remain separate checks.
+The earlier interrupted `ci-lite` run remains an incomplete historical run in
+the [integration checkpoint archive](archived/ordinary-integration-roadmap-2026-10-06.md).
+New exact-head lane receipts do not rewrite that history. Interactive TUI behavior,
+optional native platforms, a fresh full duplicate audit and representative
+end-to-end performance measurements remain separate checks.
 
 May 20â€“22 validation and USR Gate A/B/C statements are historical checkpoint
 records. The Gate B1-B7 technical, compatibility, matrix, conformance,
