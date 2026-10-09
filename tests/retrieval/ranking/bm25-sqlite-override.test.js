@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {rankBM25, rankBM25Fields} from '../../../src/retrieval/rankers.js';
+import {createJsBm25Provider} from '../../../src/retrieval/sparse/providers/js-bm25.js';
+const index={chunkMeta:[{tokens:['alpha']},{tokens:['alpha','alpha','alpha','alpha','alpha']}]};
+const postings={vocab:['alpha'],postings:[[[0,1],[1,5]]],docLengths:[1,5],avgDocLen:3,totalDocs:2};
+const provider=createJsBm25Provider({rankBM25,rankBM25Fields});
+const request={idx:index,queryTokens:['alpha'],topN:2,tokenIndexOverride:postings};
+const expected=rankBM25({idx:index,tokens:['alpha'],topN:2,tokenIndexOverride:postings});
+const fallback=provider.search({...request,fieldWeights:{body:1}});
+assert.equal(fallback.type,'bm25');assert.deepEqual(fallback.hits,expected);
+assert.notEqual(expected[0].score,expected[1].score);
+assert.deepEqual(rankBM25Fields({...request,tokens:['alpha'],fieldWeights:{body:1}}),expected);
+const fielded={...index,fieldPostings:{fields:{name:postings}}};
+const weighted=provider.search({...request,idx:fielded,fieldWeights:{name:2,body:1}});
+assert.equal(weighted.type,'bm25-fielded');assert.ok(weighted.hits[0].score>expected[0].score);
+console.log('SQLite-style postings survive body/fallback ranking; genuine weighted fields retain their label');

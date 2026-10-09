@@ -185,13 +185,14 @@ export function rankBM25Fields({
   tokens,
   topN,
   fieldWeights,
+  tokenIndexOverride = null,
   allowedIdx = null,
   k1 = 1.2,
   b = 0.75
 }) {
   const fields = idx.fieldPostings?.fields;
   if (!fields || !fieldWeights || !tokens.length) {
-    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx });
+    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride });
   }
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
@@ -200,7 +201,7 @@ export function rankBM25Fields({
   // because the unfielded token index already covers the body and maintaining both
   // roughly doubles memory. When that happens we treat "body" as an alias of the
   // unfielded token index at query time.
-  const tokenIndex = getTokenIndex(idx);
+  const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
 
   const qtf = buildQueryTermFrequency(tokens);
 

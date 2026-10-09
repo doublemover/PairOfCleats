@@ -18,12 +18,17 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
         && Object.values(fieldWeights).some((value) => (
           Number.isFinite(Number(value)) && Number(value) > 0
         ));
-      const hits = fieldWeightsEnabled
+      const hasWeightedFields = fieldWeightsEnabled && Object.entries(fieldWeights).some(([field, weight]) => (
+        Number(weight) > 0 && Array.isArray(idx.fieldPostings?.fields?.[field]?.vocab)
+        && idx.fieldPostings.fields[field].vocab.length > 0
+      ));
+      const hits = hasWeightedFields
         ? rankBM25Fields({
           idx,
           tokens: queryTokens,
           topN,
           fieldWeights,
+          tokenIndexOverride,
           allowedIdx: allowedIds,
           k1,
           b
@@ -37,7 +42,7 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           k1,
           b
         });
-      return { hits, type: fieldWeightsEnabled ? 'bm25-fielded' : 'bm25' };
+      return { hits, type: hasWeightedFields ? 'bm25-fielded' : 'bm25' };
     }
   };
 }
