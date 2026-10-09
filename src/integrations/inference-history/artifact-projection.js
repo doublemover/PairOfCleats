@@ -19,14 +19,15 @@ export function sanitizeArtifactJson(value, depth = 0, options = {}) {
   return Object.fromEntries(Object.entries(value).filter(([key]) => !blocked.test(key))
     .map(([key, item]) => [key, sanitizeNamedAssetPayload(key, item, options.audit) ?? sanitizeArtifactJson(item, depth + 1, options)]));
 }
-export function projectArtifact({ text, sourceSha256, locator, kind = 'document', createdAt = null, dateBasis = 'unknown', chunkChars = 4000, audit }) {
+export function projectArtifact({ text, sourceSha256, locator, kind = 'document', createdAt = null, dateBasis = 'unknown', chunkChars = 4000, audit, originalTextChars = text?.length, sourceTransformed = false }) {
   if (typeof text !== 'string' || !/^[a-f0-9]{64}$/.test(sourceSha256)
-    || !Number.isSafeInteger(chunkChars) || chunkChars < 256 || chunkChars > 8000) throw new Error('Invalid artifact projection.');
+    || !Number.isSafeInteger(chunkChars) || chunkChars < 256 || chunkChars > 8000
+    || !Number.isSafeInteger(originalTextChars) || originalTextChars < 0 || typeof sourceTransformed !== 'boolean') throw new Error('Invalid artifact projection.');
   if (hasHiddenTraceMarker(text)) return [];
   const sanitized = sanitizeEmbeddedAssetText(redactHistoryText(text), audit).replace(/(["'](?:password|token|api_key|access_token|secret|client_secret)["']\s*:\s*)["'][^"'\r\n]*["']/gi, '$1"[REDACTED credential]"');
   // Mapping is deliberately coarse over changed redacted content, never a raw byte offset.
-  const transformation = { original_start: 0, original_end: text.length, sanitized_start: 0,
-    sanitized_end: sanitized.length, kind: text === sanitized ? 'identity' : 'redacted_coarse' };
+  const transformation = { original_start: 0, original_end: originalTextChars, sanitized_start: 0,
+    sanitized_end: sanitized.length, kind: !sourceTransformed && originalTextChars === text.length && text === sanitized ? 'identity' : 'redacted_coarse' };
   const safeLocator = redactHistoryText(String(locator ?? '')).slice(0, 1024);
   const result = [];
   for (let start = 0; start < sanitized.length;) {
@@ -40,3 +41,4 @@ export function projectArtifact({ text, sourceSha256, locator, kind = 'document'
   }
   return result;
 }
+

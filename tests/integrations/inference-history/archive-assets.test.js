@@ -1,4 +1,7 @@
-import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import Database from 'better-sqlite3';
+import { prepareFileEvidenceArtifacts } from '../../../src/integrations/inference-history/artifact-preparation.js';import assert from 'node:assert/strict';
 import { archiveStructuralSpans } from '../../../src/integrations/inference-history/archive-structure.js';
 import { digest, DEFAULT_LIMITS } from '../../../src/integrations/inference-history/common.js';
 import { ARTIFACT_PROJECTION_VERSION, projectArtifact, sanitizeArtifactJson } from '../../../src/integrations/inference-history/artifact-projection.js';
@@ -39,3 +42,46 @@ const safeSpans = archiveStructuralSpans(safeCode, { locator: 'consumers.js', ki
 assert.equal(safeSpans.length, 2); assert.ok(safeSpans[0].title.includes('first')); assert.ok(safeSpans[1].title.includes('second'));
 assert.ok(safeSpans[0].text.includes('first asset consumer')); assert.ok(safeSpans[1].text.includes('second consumer'));
 assert.equal(safeSpans.map(row => row.text).join(''), safeCode);
+
+// Catalog normalization happens before projection: mapping still covers the recovered source.
+const originalJsonText = JSON.stringify(source);
+const safeJsonText = JSON.stringify(sanitized, null, 2);
+const jsonRecords = projectArtifact({ text: safeJsonText, sourceSha256: 'b'.repeat(64), locator: 'source.json',
+  originalTextChars: originalJsonText.length, sourceTransformed: true });
+assert.equal(jsonRecords[0].provenance.transformation.original_end, originalJsonText.length);
+assert.equal(jsonRecords[0].provenance.transformation.sanitized_end, safeJsonText.length);
+assert.equal(jsonRecords[0].provenance.transformation.kind, 'redacted_coarse');
+normalizeHistoryRecord(jsonRecords[0], 'recovered_artifact', DEFAULT_LIMITS);
+const sameLengthChange = projectArtifact({ text: 'abc', sourceSha256: 'b'.repeat(64), locator: 'fixture.txt',
+  originalTextChars: 3, sourceTransformed: true });
+assert.equal(sameLengthChange[0].provenance.transformation.kind, 'redacted_coarse');
+assert.throws(() => projectArtifact({ text: 'safe', sourceSha256: 'b'.repeat(64), originalTextChars: -1 }));
+assert.throws(() => projectArtifact({ text: 'safe', sourceSha256: 'b'.repeat(64), sourceTransformed: 'yes' }));
+
+
+const fixtureBase = path.resolve('temp/tasks/archive-source-mapping');
+await fs.mkdir(fixtureBase, { recursive: true });
+const fixtureRoot = await fs.realpath(await fs.mkdtemp(path.join(fixtureBase, 'catalog-')));
+const catalog = path.join(fixtureRoot, 'file-evidence.sqlite');
+const fixtureDb = new Database(catalog);
+fixtureDb.exec('CREATE TABLE meta(key TEXT,value TEXT); CREATE TABLE sources(id INTEGER,name TEXT,sha256 TEXT); CREATE TABLE documents(sha256 TEXT,format TEXT,text TEXT,status TEXT)');
+fixtureDb.prepare('INSERT INTO meta VALUES(?,?)').run('format', 'private-file-evidence.v1');
+fixtureDb.prepare('INSERT INTO sources VALUES(?,?,?)').run(1, 'source.json', 'b'.repeat(64));
+fixtureDb.prepare('INSERT INTO documents VALUES(?,?,?,?)').run('b'.repeat(64), 'json', originalJsonText, 'supported');
+const html = '<html><body>retained readable label</body></html>';
+fixtureDb.prepare('INSERT INTO sources VALUES(?,?,?)').run(2, 'source.html', 'c'.repeat(64));
+fixtureDb.prepare('INSERT INTO documents VALUES(?,?,?,?)').run('c'.repeat(64), 'html', html, 'supported');
+fixtureDb.close();
+const preparedRoot = path.join(fixtureRoot, 'prepared');
+const preparation = await prepareFileEvidenceArtifacts({ catalogPaths: [catalog], outputRoot: preparedRoot,
+  authorizePaths: ({ catalogPaths, outputRoot }) => catalogPaths[0] === catalog && outputRoot === preparedRoot });
+assert.equal(preparation.unsafeRecordsOmitted, 0);
+const prepared = [];
+for (const shard of preparation.shards) prepared.push(...JSON.parse(await fs.readFile(path.join(preparedRoot, shard.name))));
+for (const row of prepared) {
+  const sourceChars = row.provenance.source_sha256 === 'b'.repeat(64) ? originalJsonText.length : html.length;
+  assert.equal(row.provenance.transformation.original_end, sourceChars);
+  assert.equal(row.provenance.transformation.kind, 'redacted_coarse');
+  normalizeHistoryRecord(row, 'recovered_artifact', DEFAULT_LIMITS);
+}
+console.log('JSON and HTML catalog preparation retain original decoded-source transformation extents');
