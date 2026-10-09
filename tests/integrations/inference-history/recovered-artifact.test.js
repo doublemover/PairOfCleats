@@ -55,3 +55,21 @@ const fontKey='00112233-4455-6677-8899-aabbccddeeff',key=Buffer.from(fontKey.rep
 for(let i=0;i<32;i++)obfuscated[i]^=key[i%16];
 assert.deepEqual(decodeObfuscatedFont(obfuscated,fontKey).bytes,font);
 assert.throws(()=>decodeObfuscatedFont(obfuscated,'invalid'),/key/);
+
+const {decodeUtf8Evidence}=await import('../../../src/integrations/inference-history/file-evidence-recovery.js');
+const valid=Buffer.from('café 😀\n');
+assert.equal(decodeUtf8Evidence(valid).text,'café 😀\n');
+assert.deepEqual(decodeUtf8Evidence(valid).metadata.invalidByteOffsets,[]);
+const damaged=Buffer.concat([Buffer.from('Aé'),Buffer.from([0xff,0x14,0xe0,0x80,0xaf]),Buffer.from('\tZ')]);
+const preserved=Buffer.from(damaged),decoded=decodeUtf8Evidence(damaged);
+assert.equal(decoded.text,'Aé\\xFF\\x14\\xE0\\x80\\xAF\tZ');
+assert.deepEqual(decoded.metadata.invalidByteOffsets,[3,5,6,7]);
+assert.deepEqual(decoded.metadata.escapedControlOffsets,[4]);
+assert.deepEqual(damaged,preserved);
+for(const sequence of [[0xc0,0xaf],[0xed,0xa0,0x80],[0xf4,0x90,0x80,0x80],[0xf0,0x9f]]){
+  const result=decodeUtf8Evidence(Buffer.from(sequence));
+  assert.equal(result.metadata.invalidByteOffsets.length,sequence.length);
+  assert.ok(!result.text.includes('\uFFFD'));
+}
+assert.equal(decodeUtf8Evidence(Buffer.alloc(0)).text,'');
+console.log('UTF-8 evidence preserves valid spans and exact corrupt/control byte offsets');
