@@ -2,7 +2,10 @@ import { historyError } from './common.js';
 import { ARCHIVE_CHUNK_VERSION, archiveStructuralSpans } from './archive-structure.js';
 export const HISTORY_SEMANTIC_CHUNKER_VERSION = ARCHIVE_CHUNK_VERSION;
 export function normalizeHistoryVector(value, dimensions) {
-  if ((!Array.isArray(value) && !ArrayBuffer.isView(value)) || value.length !== dimensions || !Array.from(value).every(Number.isFinite)) {
+  if ((!Array.isArray(value) && !ArrayBuffer.isView(value)) || value.length !== dimensions) {
+    throw historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid semantic vector.');
+  }
+  for (const item of value) if (!Number.isFinite(item)) {
     throw historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid semantic vector.');
   }
   const norm = Math.hypot(...value);

@@ -35,10 +35,17 @@ const runtime = (documentKey='doc',dimensions=4,query='query') => ({
   async encodeQuery(){return Array(dimensions).fill(1);}
 });
 const db=fixture();
+const originalPrepare = db.prepare.bind(db);
+let generationPrepares = 0;
+db.prepare = sql => {
+  if (sql.startsWith('SELECT key,value FROM vault_meta')) generationPrepares++;
+  return originalPrepare(sql);
+};
 add(db,'a','same text');add(db,'b','same text');add(db,'c','different text');
 let index=createPersistentHistorySemanticIndex(db,runtime());
 const result=await index.refresh({maxUnits:10});
 assert.equal(result.indexedUnits,3);assert.equal(result.indexedSpans,3);
+assert.equal(generationPrepares,1,'live generation checks reuse a prepared statement');
 assert.equal(result.encodedSpans,2);assert.equal(result.uniqueInputs,2);
 assert.equal(db.prepare('SELECT count(*) n FROM history_embedding_spans_v2').get().n,3,'all occurrences retained');
 const priorCalls=calls;

@@ -1,9 +1,15 @@
 import { historyError, privateReference, PROJECTION_VERSION } from './common.js';
+const generationStatements = new WeakMap();
 export const HISTORY_STORE_FORMAT = 'inference-history.v7';
 export function historyIndexState(db) {
   if (!db) return { schema: HISTORY_STORE_FORMAT, generation: null, generationRef: null,
     state: 'missing', updatedAt: null, projection: PROJECTION_VERSION, exportFreshness: 'unknown' };
-  const values = Object.fromEntries(db.prepare("SELECT key,value FROM vault_meta WHERE key IN ('partition','reference_key','generation','updated_at')").all().map(row => [row.key,row.value]));
+  let statement = generationStatements.get(db);
+  if (!statement) {
+    statement = db.prepare("SELECT key,value FROM vault_meta WHERE key IN ('partition','reference_key','generation','updated_at')");
+    generationStatements.set(db, statement);
+  }
+  const values = Object.fromEntries(statement.all().map(row => [row.key,row.value]));
   const generation = Number(values.generation);
   if (!Number.isSafeInteger(generation) || generation < 0 || !/^[a-f0-9]{64}$/.test(values.reference_key ?? '')
     || !/^\d+$/.test(values.generation ?? '') || !Number.isFinite(Date.parse(values.updated_at ?? ''))) {
