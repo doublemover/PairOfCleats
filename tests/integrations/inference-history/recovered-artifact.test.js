@@ -21,7 +21,7 @@ assert.equal(classifyBinaryEvidence(mesh).metadata.triangles,1);
 assert.equal(classifyBinaryEvidence(mesh.subarray(0,133)).status,'unresolved_schema');
 const root=await fs.realpath(await makeTempDir('recovered-artifact-'));
 const vaultRoot=path.join(root,'vault'),sourcePath=path.join(root,'artifacts-0001.json');
-await fs.mkdir(vaultRoot);await fs.writeFile(sourcePath,JSON.stringify(records));
+await fs.mkdir(vaultRoot,{mode:0o700});await fs.writeFile(sourcePath,JSON.stringify(records));
 const request={requestContext:'synthetic',partition:'own'};
 const access={principalId:'fixture',tenantId:'fixture',ownerType:'individual',ownerId:'fixture',sourceScope:'synthetic',policyEpoch:'1',allowed:true};
 const service=createInferenceHistoryService({vaultRoot,audit:()=>({persisted:true}),verifyPrivateVault:()=>true,
