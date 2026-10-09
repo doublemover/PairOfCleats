@@ -930,3 +930,4 @@ integrations/inference-history/eg2-checkpoint-conversion
 integrations/inference-history/eg2-worker-runtime
 integrations/inference-history/eg2-worker-disconnect
 integrations/inference-history/eg2-service-cancellation
+integrations/inference-history/sqlite-readiness
