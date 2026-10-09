@@ -266,7 +266,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Build/maintain/route optional Porter and trigram FTS tables, retain omitted-limit defaults, push large selective allowlists into SQLite, and report executed tokenizer identity.
 - [ ] Complete stage-level reuse for lexical/enrichment/embedding changes. Separate dependency identities are implemented; batch/scheduling and blame-disabled HEAD changes retain bundles, and output-only changes rebuild artifacts without reparsing.
 - [x] Feed cross-file embedding microbatches concurrently with count/byte admission bounds; build HNSW afterward from canonical chunk-ID slots without an additional reorder buffer.
-- [ ] Batch live vector-cache I/O and budget/compact actual cache-owned physical storage.
+- [x] Batch live per-file/global vector-cache I/O; budget actual encoded/shard/index bytes; compact registered shards within an I/O budget and prevent stale worker pointer resurrection.
 - [ ] Discover independent sparse/vector hybrid candidates while retaining explicit lexical reranking.
 - [ ] Route before query embedding and reuse model/generation-scoped state in current API/MCP processes.
 - [ ] Use symmetric versioned multilingual analysis alongside identifier representations.

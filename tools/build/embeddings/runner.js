@@ -72,6 +72,10 @@ import {
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
+  createCacheBatchReader,
+  readCacheEntries,
+  writeCacheEntries,
+  flushCacheIndex,
   resolveCacheDir,
   resolveCacheRoot,
   resolveGlobalChunkCacheDir,
@@ -2171,6 +2175,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
         if (globalChunkCacheDir) {
           await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
         }
+        const globalChunkCacheIndex = globalChunkCacheDir ? await scheduleIo(() => readCacheIndex(globalChunkCacheDir, cacheIdentityKey)) : null;
+        const cacheBatchReader = createCacheBatchReader({cacheDir,cacheIndex,scheduleIo});
         const globalChunkCacheMemo = new Map();
         const globalChunkCacheExistingKeys = new Set();
         const globalChunkCachePendingWrites = new Set();
@@ -2181,7 +2187,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let globalChunkCacheMisses = 0;
         let globalChunkCacheRejected = 0;
         let globalChunkCacheStores = 0;
-        const resolveGlobalChunkVectors = async (chunkHash) => {
+        const resolveGlobalChunkVectors = async (chunkHash, prefetched = undefined) => {
           if (!modeGlobalChunkCacheEnabled || !globalChunkCacheDir) return null;
           globalChunkCacheAttempts += 1;
           const cacheKey = buildGlobalChunkCacheKey({
@@ -2195,7 +2201,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (!pending) {
             pending = (async () => {
               try {
-                const cachedResult = await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey));
+                const cachedResult = prefetched === undefined
+                  ? await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey, globalChunkCacheIndex)) : prefetched;
                 const cached = cachedResult?.entry || null;
                 if (!cached) {
                   globalChunkCacheMisses += 1;
@@ -2291,6 +2298,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               scheduleIo
             });
             cacheIndexDirty = flushState.cacheIndexDirty;
+            if (flushState.flushResult?.budgetExceeded) warn(`[embeddings-cache] Physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
           })();
           try {
             await cacheIndexFlushInFlight;
@@ -3116,11 +3124,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     })
                   );
                   await writerQueue.enqueue(async () => {
+                    let persisted;
+                    try {
+                      persisted = await writeCacheEntries(globalChunkCacheDir, globalChunkCacheIndex,
+                        encodedWrites.map(write => ({ ...write, cacheKey: write.globalCacheKey })),
+                        { shardHandlePool: cacheShardHandlePool });
+                    } catch {
+                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      return;
+                    }
+                    if (!persisted) {
+                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      return;
+                    }
                     for (const write of encodedWrites) {
                       try {
-                        await writeCacheEntry(globalChunkCacheDir, write.globalCacheKey, write.payload, {
-                          encodedBuffer: write.encodedPayload
-                        });
                         globalChunkCacheExistingKeys.add(write.globalCacheKey);
                         globalChunkCacheMemo.set(
                           write.globalCacheKey,
@@ -3253,7 +3271,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               })) {
                 cacheFastRejects += 1;
               } else {
-                cachedResult = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+                cachedResult = await cacheBatchReader.read(cacheKey);
               }
             }
             const cached = cachedResult?.entry;
@@ -3409,7 +3427,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 })) {
                   cacheFastRejects += 1;
                 } else {
-                  cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+                  cachedAfterHash = await cacheBatchReader.read(cacheKey);
                 }
               }
               const cached = cachedAfterHash?.entry;
@@ -3524,7 +3542,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   const fingerprintMatches = !canCheckFingerprint
                   || priorIndexEntry.chunkHashesFingerprint === chunkHashesFingerprint;
                   const priorResult = fingerprintMatches
-                    ? await scheduleIo(() => readCacheEntry(cacheDir, priorKey, cacheIndex))
+                    ? await cacheBatchReader.read(priorKey)
                     : null;
                   const priorEntry = priorResult?.entry;
                   if (!priorEntry) {
@@ -3561,6 +3579,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 }
               }
             }
+            const globalBatchResults = new Map();
+            if (modeGlobalChunkCacheEnabled && Array.isArray(chunkHashes)) {
+              const missing = [...new Set(chunkHashes.filter((hash, index) =>
+                hash && !reuse.code[index] && !crossFileChunkDedupe?.get(hash)))];
+              const keys = missing.map(chunkHash => buildGlobalChunkCacheKey({
+                identityKey: cacheIdentityKey, chunkHash, pathPolicy: 'posix'
+              }));
+              const results = await scheduleIo(() => readCacheEntries(globalChunkCacheDir, keys, globalChunkCacheIndex));
+              missing.forEach((hash,index)=>globalBatchResults.set(hash,results[index]));
+            }
             for (let i = 0; i < items.length; i += 1) {
               if (
                 !reuse.code[i]
@@ -3593,7 +3621,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               ) {
                 const chunkHash = chunkHashes[i];
                 if (chunkHash) {
-                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash);
+                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash, globalBatchResults.get(chunkHash));
                   const vectors = globalChunkCached?.vectors || null;
                   if (
                     vectors
@@ -3661,6 +3689,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (typeof computeFileEmbeddings?.drain === 'function') {
             await computeFileEmbeddings.drain();
           }
+          await cacheBatchReader.drain();
           await writerQueue.onIdle();
           await cacheShardHandlePool.close();
           emitProgressSnapshot({ force: true, summary: true });
@@ -3675,6 +3704,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           writerTask.done({ message: 'writer queue drained' });
         }
         await flushCacheIndexMaybe({ force: true });
+        if (globalChunkCacheIndex) {
+          const globalFlush = await scheduleIo(() => flushCacheIndex(globalChunkCacheDir, globalChunkCacheIndex, {identityKey:cacheIdentityKey, maxBytes:cacheMaxBytes, maxAgeMs:cacheMaxAgeMs}));
+          if (globalFlush.budgetExceeded) warn(`[embeddings-cache] Global physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
+        }
 
         stageCheckpoints.record({
           stage: 'stage3',
