@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse } from 'yaml';
+import { escapeRegex } from '../../src/shared/text/escape-regex.js';
 
 ensureTestingEnv(process.env);
 
@@ -19,11 +20,17 @@ const workflow = fs.readFileSync(workflowPath, 'utf8');
 const toolchainPath = path.join(root, 'crates', 'pairofcleats-tui', 'rust-toolchain.toml');
 const pinnedToolchain = fs.readFileSync(toolchainPath, 'utf8').match(/channel\s*=\s*"(\d+\.\d+\.\d+)"/)?.[1];
 if (!pinnedToolchain) throw new Error(`Missing exact Rust toolchain in ${toolchainPath}`);
+// Check full literal escaping, including backslashes and regex metacharacters.
+for (const value of ['24.1.2', 'tool\\chain.+(x)[y]{z}^$|?*']) {
+  const literal = new RegExp('^' + escapeRegex(value) + '$');
+  assert.ok(literal.test(value));
+  assert.equal(literal.test(value + 'extra'), false);
+}
 const requiredPatterns = [
   /- language:\s*javascript/,
   /- language:\s*rust/,
   /build-mode:\s*\$\{\{\s*matrix\.build-mode\s*\}\}/,
-  new RegExp(`toolchain:\\s*${pinnedToolchain.replace(/\./g, '\\.')}\\b`),
+  new RegExp(`toolchain:\\s*${escapeRegex(pinnedToolchain)}\\b`),
   /uses:\s*dtolnay\/rust-toolchain@stable/,
   /category:\s*['"]?\/language:\$\{\{\s*matrix\.language\s*\}\}['"]?/
 ];
