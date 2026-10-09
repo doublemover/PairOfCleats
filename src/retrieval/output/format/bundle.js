@@ -1,6 +1,6 @@
 import { compareText } from './display-meta.js';
 
-export const RESULT_BUNDLE_SCHEMA_VERSION = 1;
+export const RESULT_BUNDLE_SCHEMA_VERSION = 2;
 
 const BUNDLE_MODE_ORDER = Object.freeze(['code', 'extractedProse', 'prose', 'records']);
 const BUNDLE_MODE_RANK = new Map(BUNDLE_MODE_ORDER.map((mode, index) => [mode, index]));
@@ -34,8 +34,8 @@ export const buildResultBundles = ({
         bundle = {
           key,
           file,
-          totalScore: 0,
-          topScore: Number.NEGATIVE_INFINITY,
+          rankScore: 0,
+          bestRankContribution: Number.NEGATIVE_INFINITY,
           hitCount: 0,
           modes: new Set(),
           firstSeenModeRank: modeRank,
@@ -45,8 +45,9 @@ export const buildResultBundles = ({
         bundles.set(key, bundle);
       }
       const score = Number.isFinite(Number(hit?.score)) ? Number(hit.score) : 0;
-      bundle.totalScore += score;
-      bundle.topScore = Math.max(bundle.topScore, score);
+      const rankContribution = 1 / (60 + index + 1);
+      bundle.rankScore += rankContribution;
+      bundle.bestRankContribution = Math.max(bundle.bestRankContribution, rankContribution);
       bundle.hitCount += 1;
       bundle.modes.add(mode);
       if (modeRank < bundle.firstSeenModeRank || (
@@ -72,7 +73,7 @@ export const buildResultBundles = ({
   const groups = Array.from(bundles.values())
     .map((bundle) => {
       bundle.hits.sort((a, b) => (
-        (b.score - a.score)
+        ((a.index ?? 0) - (b.index ?? 0))
         || ((a.modeRank ?? Number.MAX_SAFE_INTEGER) - (b.modeRank ?? Number.MAX_SAFE_INTEGER))
         || (a.index - b.index)
         || compareText(a.id, b.id)
@@ -81,8 +82,8 @@ export const buildResultBundles = ({
         bundleId: bundle.file || bundle.key,
         file: bundle.file,
         hitCount: bundle.hitCount,
-        totalScore: bundle.totalScore,
-        topScore: Number.isFinite(bundle.topScore) ? bundle.topScore : 0,
+        rankScore: bundle.rankScore,
+        bestRankContribution: Number.isFinite(bundle.bestRankContribution) ? bundle.bestRankContribution : 0,
         modeCount: bundle.modes.size,
         modes: Array.from(bundle.modes).sort((a, b) => (
           (BUNDLE_MODE_RANK.get(a) ?? Number.MAX_SAFE_INTEGER) - (BUNDLE_MODE_RANK.get(b) ?? Number.MAX_SAFE_INTEGER)
@@ -100,14 +101,15 @@ export const buildResultBundles = ({
       };
     });
   groups.sort((a, b) => (
-    (b.totalScore - a.totalScore)
-    || (b.topScore - a.topScore)
+    (b.rankScore - a.rankScore)
+    || (b.bestRankContribution - a.bestRankContribution)
     || (b.modeCount - a.modeCount)
     || compareText(a.file || '', b.file || '')
     || compareText(a.bundleId, b.bundleId)
   ));
   return {
     schemaVersion: RESULT_BUNDLE_SCHEMA_VERSION,
+    rankMethod: 'reciprocal-rank',
     groups
   };
 };

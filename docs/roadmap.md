@@ -270,7 +270,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Discover independent sparse/vector hybrid candidates by default; apply structured, phrase, exclusion and explicit Boolean eligibility before ANN top-N. Expose explicit lexical reranking through --ann-candidates lexical-rerank.
 - [x] Route before resolving lazy query embeddings; reuse bounded normalized query/model/provider/generation embedding entries across sessions and provider health/preflight state for each cached index generation.
 - [x] Use shared Unicode/ICU-versioned scoring boundaries for index and query; preserve complete Unicode identifiers and ASCII identifier splits. Canonically normalize literal phrase evidence; analyzer changes require rebuilding affected indexes.
-- [ ] Add modest evidence diversity, an optional real reranker and honest federated rank labels.
+- [x] Select modest source-span diversity before graph ranking fixes membership; accept a bounded supplied real reranker without synthetic scores or model acquisition. Use rank contributions for cross-mode bundles and label federated RRF while retaining native scores.
 - [ ] Map fast/hybrid/investigate controls to execution; preserve identity/span/followup fields in compact output.
 - [ ] Add archive-native title/path/facet discovery, original grouping and role-aware context presets. Scalable persistent semantics and selective media enrichment remain conditional on supplied adapters and explicit use.
 

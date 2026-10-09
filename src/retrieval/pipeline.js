@@ -19,6 +19,7 @@ import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
+import { rerankEvidence } from './pipeline/evidence-reranker.js';
 import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
@@ -250,6 +251,7 @@ export function createSearchPipeline(context) {
     rrf,
     graphRankingConfig,
     stageTracker,
+    reranker = null,
     candidatePool: candidatePoolInput,
     scoreBufferPool: scoreBufferPoolInput,
     createAnnProviders: createAnnProvidersInput
@@ -768,7 +770,7 @@ export function createSearchPipeline(context) {
         })
       ));
 
-      return ranked;
+      return await rerankEvidence({adapter:reranker,query,hits:ranked,signal});
     } finally {
       for (const set of releaseSets) {
         candidatePool.release(set);

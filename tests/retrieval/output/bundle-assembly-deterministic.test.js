@@ -23,16 +23,16 @@ assert.equal(first.schemaVersion, RESULT_BUNDLE_SCHEMA_VERSION, 'expected bundle
 assert.equal(first.groups.length, 3, 'expected grouped bundles by file');
 assert.deepEqual(
   first.groups.map((group) => group.file),
-  ['src/a.js', 'src/b.js', 'src/z.js'],
+  ['src/a.js', 'src/z.js', 'src/b.js'],
   'expected deterministic cross-bundle ordering with tie-breakers'
 );
 
 const topBundle = first.groups[0];
-assert.equal(topBundle.file, 'src/a.js', 'expected highest aggregate-score file first');
+assert.equal(topBundle.file, 'src/a.js', 'expected highest reciprocal-rank file first');
 assert.deepEqual(
   topBundle.hits.map((hit) => hit.mode),
-  ['code', 'prose'],
-  'expected deterministic in-bundle tie-breaker order'
+  ['prose', 'code'],
+  'expected deterministic in-bundle native rank order'
 );
 
 const noFileFixture = {

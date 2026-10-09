@@ -1,3 +1,4 @@
+import { selectDiverseEvidence } from './evidence-selection.js';
 import { createTopKReducer } from './topk.js';
 import { applyGraphRanking } from './graph-ranking.js';
 import { createScoreBreakdown } from '../output/score-breakdown.js';
@@ -252,7 +253,7 @@ export const runRankStage = ({
     }
   }
 
-  let scored = reducer.finish({ limit: searchTopN });
+  let scored = selectDiverseEvidence(reducer.finish({ limit: searchTopN + topkSlack }), searchTopN);
   const poolStatsEnd = poolSnapshot();
   rankMetrics.topk = {
     k: searchTopN,
