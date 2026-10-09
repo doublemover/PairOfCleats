@@ -51,6 +51,12 @@ const stats = {
   occurrences: 0,
   definitions: 0,
   references: 0,
+  imports: 0,
+  writes: 0,
+  reads: 0,
+  generated: 0,
+  tests: 0,
+  forwardDefinitions: 0,
   errors: 0,
   kinds: {},
   languages: {}
@@ -58,11 +64,22 @@ const stats = {
 
 let writeStream = null;
 
+// https://github.com/scip-code/scip/blob/main/scip.proto#L502-L528
 const roleInfo = (roles) => {
-  const value = Number(roles) || 0;
-  const isDefinition = (value & 1) === 1;
-  const isReference = (value & 2) === 2;
-  return { isDefinition, isReference };
+  const parsed = Number(roles);
+  const symbolRoles = Number.isInteger(parsed) ? parsed : 0;
+  const isDefinition = (symbolRoles & 1) !== 0;
+  return {
+    symbolRoles,
+    isDefinition,
+    isReference: !isDefinition,
+    isImport: (symbolRoles & 2) !== 0,
+    isWriteAccess: (symbolRoles & 4) !== 0,
+    isReadAccess: (symbolRoles & 8) !== 0,
+    isGenerated: (symbolRoles & 16) !== 0,
+    isTest: (symbolRoles & 32) !== 0,
+    isForwardDefinition: (symbolRoles & 64) !== 0
+  };
 };
 
 const normalizeRange = (range) => {
@@ -114,7 +131,14 @@ const writeOccurrence = async (doc, occurrence, symbolInfo) => {
     endLine: range ? range.endLine : null,
     startChar: range ? range.startChar : null,
     endChar: range ? range.endChar : null,
-    role: role.isDefinition ? 'definition' : (role.isReference ? 'reference' : 'other'),
+    role: role.isDefinition ? 'definition' : 'reference',
+    symbolRoles: role.symbolRoles,
+    isImport: role.isImport,
+    isWriteAccess: role.isWriteAccess,
+    isReadAccess: role.isReadAccess,
+    isGenerated: role.isGenerated,
+    isTest: role.isTest,
+    isForwardDefinition: role.isForwardDefinition,
     language: info.language || doc.language || null,
     scope: info.scope || null,
     scopeKind: info.scopeKind || null
@@ -122,6 +146,12 @@ const writeOccurrence = async (doc, occurrence, symbolInfo) => {
   stats.occurrences += 1;
   if (role.isDefinition) stats.definitions += 1;
   if (role.isReference) stats.references += 1;
+  if (role.isImport) stats.imports += 1;
+  if (role.isWriteAccess) stats.writes += 1;
+  if (role.isReadAccess) stats.reads += 1;
+  if (role.isGenerated) stats.generated += 1;
+  if (role.isTest) stats.tests += 1;
+  if (role.isForwardDefinition) stats.forwardDefinitions += 1;
   bumpStat(stats.kinds, entry.kind || 'unknown');
   bumpStat(stats.languages, entry.language || 'unknown');
   await writeJsonLine(writeStream, entry);
