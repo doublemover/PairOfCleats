@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { addDictionaryWordsFromText } from '../../shared/dictionary-wordlists.js';
-import { archiveLiteralWords, createArchiveLexicalAnalyzer } from './lexical-analyzer.js';
+import { DICTIONARY_IDENTIFIER_VERSION } from '../../shared/dictionary-identifiers.js';
+import { archiveLiteralWords, createArchiveLexicalAnalyzer, ARCHIVE_ANALYZER_VERSION } from './lexical-analyzer.js';
 import { ARCHIVE_ASSET_POLICY_VERSION, sanitizeEmbeddedAssetText } from './embedded-assets.js';
 import { hasHiddenTraceMarker, sanitizeArtifactJson } from './artifact-projection.js';
 import { digest, historyError, redactHistoryText } from './common.js';
@@ -74,5 +75,5 @@ export function extractArchiveVocabulary(sources, { minCount = 3 } = {}) {
   }
   const entries = [...counts].filter(([, count]) => count >= minCount).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return { words: entries.map(([word]) => word), counts: entries, sourceCount: content.length,
-    languages: [...languages].sort(), assetPolicyVersion: ARCHIVE_ASSET_POLICY_VERSION, contentSignature: digest(JSON.stringify([ARCHIVE_ASSET_POLICY_VERSION, content])) };
+    languages: [...languages].sort(), assetPolicyVersion: ARCHIVE_ASSET_POLICY_VERSION, analyzerVersion: ARCHIVE_ANALYZER_VERSION, identifierVersion: DICTIONARY_IDENTIFIER_VERSION, contentSignature: digest(JSON.stringify([ARCHIVE_ASSET_POLICY_VERSION, ARCHIVE_ANALYZER_VERSION, DICTIONARY_IDENTIFIER_VERSION, process.versions.icu, content])) };
 }
