@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 804,
+    "hero": 806,
     "matrix": 108,
     "meta": 27,
     "soak": 1,
@@ -5655,6 +5655,18 @@
       "order": 940,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/install/postinstall-multifile-patch",
+      "order": 941,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/transformers-tokenizer-options",
+      "order": 942,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

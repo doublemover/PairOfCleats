@@ -10,8 +10,10 @@ const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 64 * 1024 * 1024;
 const MAX_PATCHES = 32;
+const MAX_FILES_PER_PATCH = 16;
+const MAX_TARGETS = 128;
 
-// Only existing, single-file text modifications are supported. Git applies
+// Only bounded existing text-file modifications are supported. Git applies
 // hunks to a disposable staging file, never to a path from a package patch.
 const checkedPath = (root, relative, directory = false) => {
   let current = root;
@@ -90,19 +92,29 @@ const parsePatch = (name, buffer) => {
   const packageName = `${match[1] ? `${match[1].slice(0, -1)}/` : ''}${match[2]}`;
   const lines = decodeText(buffer).replace(/\r\n/g, '\n').split('\n');
   if (lines.at(-1) === '') lines.pop();
-  const header = /^diff --git a\/(\S+) b\/(\S+)$/.exec(lines[0]);
-  const relative = header?.[1];
-  if (!relative || relative !== header[2] || !relative.startsWith(`node_modules/${packageName}/`)
-    || !/^index [a-f0-9]+\.\.[a-f0-9]+ 100(?:644|755)$/.test(lines[1])
-    || lines[2] !== `--- a/${relative}` || lines[3] !== `+++ b/${relative}`) {
-    throw new Error(`Unsupported or malformed single-file text patch: ${name}`);
+  const sections = [];
+  for (const line of lines) {
+    if (line.startsWith('diff --git ')) sections.push([]);
+    if (!sections.length) throw new Error('Missing package patch header.');
+    sections.at(-1).push(line);
   }
-  validateHunks(lines.slice(4));
-  // Preserve the checked-in licensed patch. Rewrite only its in-memory headers.
-  lines[0] = 'diff --git a/target b/target';
-  lines[2] = '--- a/target';
-  lines[3] = '+++ b/target';
-  return { name, packageName, version: match[3], relative, patch: `${lines.join('\n')}\n` };
+  if (!sections.length || sections.length > MAX_FILES_PER_PATCH) {
+    throw new Error('Package patch exceeds file section limit.');
+  }
+  return sections.map(section => {
+    const header = /^diff --git a\/(\S+) b\/(\S+)$/.exec(section[0]);
+    const relative = header?.[1];
+    if (!relative || relative !== header[2] || !relative.startsWith(`node_modules/${packageName}/`)
+      || !/^index [a-f0-9]+\.\.[a-f0-9]+ 100(?:644|755)$/.test(section[1])
+      || section[2] !== `--- a/${relative}` || section[3] !== `+++ b/${relative}`) {
+      throw new Error(`Unsupported or malformed existing-file text patch: ${name}`);
+    }
+    validateHunks(section.slice(4));
+    section[0] = 'diff --git a/target b/target';
+    section[2] = '--- a/target';
+    section[3] = '+++ b/target';
+    return { name, packageName, version: match[3], relative, patch: `${section.join('\n')}\n` };
+  });
 };
 
 const runGit = (stage, patch, args) => {
@@ -152,39 +164,42 @@ export const applyPatches = (cwd = process.cwd()) => {
     const targets = new Set();
     let totalBytes = 0;
     for (const name of names.sort()) {
-      const patch = parsePatch(name, readBounded(checkedPath(root, `patches/${name}`), MAX_PATCH_BYTES));
-      const packageJsonPath = checkedPath(root, `node_modules/${patch.packageName}/package.json`);
-      const installed = JSON.parse(decodeText(readBounded(packageJsonPath, MAX_PATCH_BYTES)));
-      if (installed.name !== patch.packageName || installed.version !== patch.version) {
-        throw new Error(`${name} requires exactly ${patch.packageName}@${patch.version}; found ${installed.name}@${installed.version}`);
-      }
-      const target = checkedPath(root, patch.relative);
-      if (targets.has(target.toLowerCase())) throw new Error(`Multiple patches target the same file: ${patch.relative}`);
-      targets.add(target.toLowerCase());
-      const before = readBounded(target, MAX_FILE_BYTES);
-      totalBytes += before.length;
-      if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Package patches exceed total input size limit.');
-      const source = decodeText(before);
-      const crlf = source.includes('\r\n');
-      if (crlf && /(^|[^\r])\n/.test(source)) throw new Error(`Mixed line endings are unsupported: ${patch.relative}`);
-      fs.writeFileSync(path.join(stage, 'target'), source.replace(/\r\n/g, '\n'));
-      const forward = runGit(stage, patch.patch, ['--check']);
-      if (forward.status !== 0) {
-        const reverse = runGit(stage, patch.patch, ['--reverse', '--check']);
-        if (reverse.status !== 0) {
-          throw new Error(`Required patch ${name} cannot apply and is not fully applied:\n${forward.stderr.trim()}`);
+      const sections = parsePatch(name, readBounded(checkedPath(root, `patches/${name}`), MAX_PATCH_BYTES));
+      for (const patch of sections) {
+        const packageJsonPath = checkedPath(root, `node_modules/${patch.packageName}/package.json`);
+        const installed = JSON.parse(decodeText(readBounded(packageJsonPath, MAX_PATCH_BYTES)));
+        if (installed.name !== patch.packageName || installed.version !== patch.version) {
+          throw new Error(`${name} requires exactly ${patch.packageName}@${patch.version}; found ${installed.name}@${installed.version}`);
         }
-        prepared.push({ ...patch, target, before, after: null });
-        continue;
+        const target = checkedPath(root, patch.relative);
+        if (targets.has(target.toLowerCase())) throw new Error(`Multiple patches target the same file: ${patch.relative}`);
+        targets.add(target.toLowerCase());
+        if (targets.size > MAX_TARGETS) throw new Error('Package patches exceed target file limit.');
+        const before = readBounded(target, MAX_FILE_BYTES);
+        totalBytes += before.length;
+        if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Package patches exceed total input size limit.');
+        const source = decodeText(before);
+        const crlf = source.includes('\r\n');
+        if (crlf && /(^|[^\r])\n/.test(source)) throw new Error(`Mixed line endings are unsupported: ${patch.relative}`);
+        fs.writeFileSync(path.join(stage, 'target'), source.replace(/\r\n/g, '\n'));
+        const forward = runGit(stage, patch.patch, ['--check']);
+        if (forward.status !== 0) {
+          const reverse = runGit(stage, patch.patch, ['--reverse', '--check']);
+          if (reverse.status !== 0) {
+            throw new Error(`Required patch ${name} cannot apply and is not fully applied:\n${forward.stderr.trim()}`);
+          }
+          prepared.push({ ...patch, target, before, after: null });
+          continue;
+        }
+        const result = runGit(stage, patch.patch, []);
+        if (result.status !== 0) throw new Error(`Failed to apply ${name}: ${result.stderr.trim()}`);
+        const afterText = decodeText(readBounded(path.join(stage, 'target'), MAX_FILE_BYTES));
+        const after = Buffer.from(crlf ? afterText.replace(/\n/g, '\r\n') : afterText);
+        if (before.equals(after) || runGit(stage, patch.patch, ['--reverse', '--check']).status !== 0) {
+          throw new Error(`Required patch was not completely applied: ${name}`);
+        }
+        prepared.push({ ...patch, target, before, after });
       }
-      const result = runGit(stage, patch.patch, []);
-      if (result.status !== 0) throw new Error(`Failed to apply ${name}: ${result.stderr.trim()}`);
-      const afterText = decodeText(readBounded(path.join(stage, 'target'), MAX_FILE_BYTES));
-      const after = Buffer.from(crlf ? afterText.replace(/\n/g, '\r\n') : afterText);
-      if (before.equals(after) || runGit(stage, patch.patch, ['--reverse', '--check']).status !== 0) {
-        throw new Error(`Required patch was not completely applied: ${name}`);
-      }
-      prepared.push({ ...patch, target, before, after });
     }
     // Validate all patches first, then recheck paths and bytes before publishing.
     for (const item of prepared) {
