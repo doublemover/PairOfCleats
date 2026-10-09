@@ -64,6 +64,7 @@ export async function executeSearchAndEmit(input) {
     relationBoostPerUse,
     relationBoostMaxBoost,
     annCandidateCap,
+    annDiscovery,
     annCandidateMinDocCount,
     annCandidateMaxDocCount,
     maxCandidates,
@@ -179,6 +180,7 @@ export async function executeSearchAndEmit(input) {
       maxBoost: relationBoostMaxBoost
     },
     annCandidateCap,
+    annDiscovery,
     annCandidateMinDocCount,
     annCandidateMaxDocCount,
     maxCandidates,

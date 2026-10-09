@@ -43,7 +43,8 @@ assert.ok(
   'expected policy output mode contract'
 );
 assert.ok(
-  annPolicy.reason === 'tooSmallNoFilters'
+  annPolicy.reason === 'independentDiscovery'
+  || annPolicy.reason === 'tooSmallNoFilters'
   || annPolicy.reason === 'ok'
   || annPolicy.reason === 'filtersActiveAllowedIdx'
   || annPolicy.reason === 'tooLarge'

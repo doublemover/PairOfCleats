@@ -149,7 +149,9 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
     return evalNode(queryAst);
   };
 
+  const hasExclusion = node => !!node && (node.type === 'not' || hasExclusion(node.left) || hasExclusion(node.right) || hasExclusion(node.child));
   return {
+    hasHardSemanticConstraints: requiresLiteral || !allowSemanticTerms || hasExclusion(queryAst),
     matchesQueryAst,
     getPhraseMatchInfo,
     resolvedPhraseRange

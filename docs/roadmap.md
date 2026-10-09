@@ -267,7 +267,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [ ] Complete stage-level reuse for lexical/enrichment/embedding changes. Separate dependency identities are implemented; batch/scheduling and blame-disabled HEAD changes retain bundles, and output-only changes rebuild artifacts without reparsing.
 - [x] Feed cross-file embedding microbatches concurrently with count/byte admission bounds; build HNSW afterward from canonical chunk-ID slots without an additional reorder buffer.
 - [x] Batch live per-file/global vector-cache I/O; budget actual encoded/shard/index bytes; compact registered shards within an I/O budget and prevent stale worker pointer resurrection.
-- [ ] Discover independent sparse/vector hybrid candidates while retaining explicit lexical reranking.
+- [x] Discover independent sparse/vector hybrid candidates by default; apply structured, phrase, exclusion and explicit Boolean eligibility before ANN top-N. Expose explicit lexical reranking through --ann-candidates lexical-rerank.
 - [ ] Route before query embedding and reuse model/generation-scoped state in current API/MCP processes.
 - [ ] Use symmetric versioned multilingual analysis alongside identifier representations.
 - [ ] Add modest evidence diversity, an optional real reranker and honest federated rank labels.
