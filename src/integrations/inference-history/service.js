@@ -73,7 +73,8 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     catch { throw denied(); }
     if (!source || typeof source.path !== 'string' || !path.isAbsolute(source.path)
       || typeof source.policyEpoch !== 'string' || !source.policyEpoch) throw denied();
-    return { path: source.path, policyEpoch: source.policyEpoch };
+    if(source.sha256!==undefined&&!opaqueId(source.sha256))throw denied();
+    return { path: source.path, policyEpoch: source.policyEpoch,sha256:source.sha256 };
   };
   const perform = async (request, create, operation) => {
     let db;
@@ -142,6 +143,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       const source = await visitChatGptExport({
         sourcePath: authorizedSource.path, limits, signal: request.signal,
         onArchive: (hash) => {
+          if(authorizedSource.sha256!==undefined&&authorizedSource.sha256!==hash)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Authorized source hash changed.');
           importId = privateReference(referenceKey, JSON.stringify([scope, hash, ADAPTER_VERSION, projectionFingerprint]));
           previous = db.prepare('SELECT summary FROM imports WHERE id=?').get(importId);
           if (previous) return false;
@@ -395,7 +397,7 @@ export async function createLocalSourceHistoryService({sources,initialRequest,au
   }
   let current=null;
   const service=createInferenceHistoryService({resolveAccess:boundAccess,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,
-    resolveImportSource:()=>({path:current.path,policyEpoch:sourcePolicyEpoch})});
+    resolveImportSource:()=>({path:current.path,policyEpoch:sourcePolicyEpoch,sha256:current.sha256})});
   try{
     for(const source of selected){current=source;const result=await service.importExport(scope);
       if(result.archiveSha256!==source.sha256)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Authorized source hash changed.');

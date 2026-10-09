@@ -14,13 +14,14 @@ await fs.writeFile(source,JSON.stringify(projectArtifact({text:'synthetic cobalt
 const bytes=await fs.readFile(source),before=await fs.readdir(root),sourceMode=(await fs.stat(source)).mode;
 const request={requestContext:'local-fixture',partition:'own'};
 const access={principalId:'fixture',tenantId:'fixture',ownerType:'individual',ownerId:'fixture',sourceScope:'synthetic-local',policyEpoch:'1',allowed:true};
-let revoked=false,audits=0;
+let revoked=false,audits=0,lastAudit=null;
 const options={sources:[{path:source,sha256:digest(bytes)}],initialRequest:request,sourcePolicyEpoch:'synthetic-source',
   authorizeSources:()=>true,inspectSourcePermissions:()=>({warnings:['inherited_acl','other_principal_read']}),
-  resolveAccess:()=>revoked?null:access,audit:()=>{audits++;return {persisted:true};}};
+  resolveAccess:()=>revoked?null:access,audit:event=>{audits++;lastAudit=event;return {persisted:true};}};
 await assert.rejects(createLocalSourceHistoryService({...options,authorizeSources:()=>false}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
 await assert.rejects(createLocalSourceHistoryService({...options,maxSourceBytes:1}),{code:'ERR_INFERENCE_HISTORY_LIMIT'});
 await assert.rejects(createLocalSourceHistoryService({...options,sources:[{path:source,sha256:'b'.repeat(64)}]}),{code:'ERR_INFERENCE_HISTORY_INPUT'});
+assert.equal(lastAudit.outcome,'denied');
 await assert.rejects(createLocalSourceHistoryService({...options,audit:()=>({persisted:false})}),{code:'ERR_INFERENCE_HISTORY_AUDIT'});
 const local=await createLocalSourceHistoryService(options);
 const result=await local.search({...request,query:'cobalt',role:'artifact'});
