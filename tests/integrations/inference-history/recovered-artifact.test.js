@@ -48,3 +48,10 @@ assert.ok(recovery.formats.some(item=>item.format==='ini'));
 const prepared=await prepareFileEvidenceArtifacts({catalogPaths:[extraction.catalogPath],outputRoot:path.join(root,'prepared'),authorizePaths:()=>true});
 assert.equal(prepared.activation,'not_imported');assert.ok(prepared.records>0);
 console.log('gap overlay preserves originals; bounded fact completion and preparation passed');
+
+const {decodeObfuscatedFont}=await import('../../../src/integrations/inference-history/file-evidence-recovery.js');
+const font=Buffer.alloc(40);font.writeUInt32BE(0x10000,0);font.writeUInt16BE(1,4);font.write('test',12);font.writeUInt32BE(28,20);font.writeUInt32BE(12,24);
+const fontKey='00112233-4455-6677-8899-aabbccddeeff',key=Buffer.from(fontKey.replaceAll('-',''),'hex').reverse(),obfuscated=Buffer.from(font);
+for(let i=0;i<32;i++)obfuscated[i]^=key[i%16];
+assert.deepEqual(decodeObfuscatedFont(obfuscated,fontKey).bytes,font);
+assert.throws(()=>decodeObfuscatedFont(obfuscated,'invalid'),/key/);
