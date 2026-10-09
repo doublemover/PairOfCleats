@@ -113,7 +113,7 @@ in 1.086 seconds and replay preserved committed vectors. The shared 89,059-unit 
 stopped with legacy derived embedding tables removed under owner authorization and no new
 embedding tables introduced. All original trial/cleanup receipts remain intact. No further
 inference, full indexing or GPU work is authorized by these tracking updates. Evidence and
-limits: [representative CPU report](guides/eg2-representative-cpu-trial-20261009.md).
+limits: [representative CPU report](../guides/eg2-representative-cpu-trial-20261009.md).
 
 ### Recovered archive structure and vocabulary audit — 2026-10-09
 
@@ -125,13 +125,13 @@ limits: [representative CPU report](guides/eg2-representative-cpu-trial-20261009
 - [ ] Run the verified Kingfisher normal-repository CPU embedding benchmark after readiness gates, using current source, judged queries and bounded supervision. It is now medium; no historical comparison or extra guardrail campaigns.
 - [ ] Use the normal-repository results plus separate archive integration acceptance and final workload plan before the authorized recovered-corpus sequence; fix/report material quality or workload problems first. CPU only.
 
-Policy, limits and evidence: [archive pipeline integration](guides/archive-pipeline-integration-20261009.md).
+Policy, limits and evidence: [archive pipeline integration](../guides/archive-pipeline-integration-20261009.md).
 
 - [ ] Eliminate repeated whole-source reconstruction with bounded generation/content-aware source-plan reuse before the costly corpus stage; validate call counts and privacy invalidation without inference.
 
 ### CLI, Setup and Generated-Artifact Acceptance
 
-The [October 6 record](guides/cli-acceptance-2026-10-06.md) preserves the 58-route
+The [October 6 record](../guides/cli-acceptance-2026-10-06.md) preserves the 58-route
 CLI/setup/service acceptance, strict option controls, subprocess cleanup and
 staged ingest output preservation. Input/dependency/producer failures retain old
 output and summary; successful publication is not a crash-atomic two-file transaction.
@@ -150,9 +150,9 @@ The no-ANN forwarding regression remains mandatory. Node24 is retained and
 better-sqlite3 is 13.0.3; older 827/837-entry and SQLite 12.6.2 statements describe
 historical checkpoints only.
 
-Map/core/cache classification follows the [ownership contract](guides/generated-artifact-ownership.md),
-[core contract](guides/generated-core-artifact-metadata.md) and
-[object-cache contract](guides/generated-object-cache-metadata.md). Fifteen audited
+Map/core/cache classification follows the [ownership contract](../guides/generated-artifact-ownership.md),
+[core contract](../guides/generated-core-artifact-metadata.md) and
+[object-cache contract](../guides/generated-object-cache-metadata.md). Fifteen audited
 object/runtime families carry first-field provenance. Explicit record roots/globs
 win; malformed/unrecognized input remains indexable. Ordinary paths add no marker
 I/O; renamed admission uses the existing content read. Bounded prefix validation,
@@ -161,10 +161,8 @@ preserved. Native descendants are not excluded by manifest claims.
 
 Remaining artifact batches cover exact-member linkage, remaining runtime state,
 reports/editor output and native/package/TUI surfaces. Preserve schemas, JSONL/array
-shapes, checksums and useful searchable reports. The [Mac checklist](guides/mac-acceptance-2026-10-06.md)
+shapes, checksums and useful searchable reports. The [Mac checklist](../guides/mac-acceptance-2026-10-06.md)
 and [archived checkpoints](archived/ordinary-integration-roadmap-2026-10-06.md) are
 historical plans/results. Final native, snapshot recovery, dependency bootstrap,
 retrieval quality, watch readiness and representative performance require current
 evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion.
-
-
