@@ -287,26 +287,29 @@ Use focused behavioral checks for each slice. No hosted CI wait, historical comp
 ## Archive EG2 acceleration audit (October 9, 2026)
 
 Source: [independent acceleration audit](https://chatgpt.com/space/page_a02fd879bed08191a5a62a64a07f2759).
-The current CPU/fp32/768d batch-4 process continues with its already-loaded code and durable checkpoints.
-Do not open its archive database with the new schema, change its identity, restart it, or trial GPU paths.
+The old CPU/fp32/768d batch-4 job was stopped at owner request on October 9 at 15:53:39 UTC.
+Its native process and descendants exited after cancellation, with 2,442 units / 10,326 spans retained.
+Do not restart full indexing or trial GPU paths. Original DATs and extracted corpus remain preserved.
+The old archive database also contains source units; permanent derived-table cleanup awaits explicit approval.
 
-- [ ] Add bounded actual-token-length scheduling over complete prefixed inputs; cap padded linear and
+- [x] Add bounded actual-token-length scheduling over complete prefixed inputs; cap padded linear and
   attention work, preserve Unicode offsets/output mapping, flush tails fairly, and avoid tokenizing twice.
-- [ ] Coalesce exact effective inputs and persist computation reuse while keeping every source occurrence,
+- [x] Coalesce exact effective inputs and persist computation reuse while keeping every source occurrence,
   citation and visibility rule. Collect unused derived vectors on redaction/deletion; do not drop artifacts.
-- [ ] Separate document computation, query policy and representation identities. Retain full 768d vectors
-  and derive approved lower dimensions without inference. Convert old saved schemas explicitly on a copy
-  after the active writer finishes; preserve the original database and receipts.
-- [ ] Expose allowlisted CPU session options and requested/observed telemetry, including model/session
+- [x] Separate document computation, query policy and representation identities. Retain full 768d vectors
+  and derive approved lower dimensions without inference. An explicit copy-only converter is supplied and synthetically checked;
+  no real checkpoint conversion or duplicate run copy was performed.
+- [x] Expose allowlisted CPU session options and requested/observed telemetry, including model/session
   lifecycle, actual token padding, preparation/inference/output/commit timings, and profiling/optimized graphs.
-- [ ] Inspect the real optimized operators and fallback logs in a separate CPU trial directory/database.
+- [ ] Complete CPU numerical/relevance qualification. A separate real W8 accuracy-level4 trial
+  recorded optimized operators and fallback logs for 32 documents / two queries.
   Missing MatMulNBits accuracy_level=0 and predicted q8 unpacked-FP32 fallback remain source inference
   until actual dispatch is qualified. Prepare explicit W8A8/W4A8 graph derivatives with hashes and test
   one candidate at a time against finite outputs, drift and judged retrieval quality.
-- [ ] Prepare a bounded loopback EG2 GGUF adapter and LM Studio command flow. Gate every use on exact
+- [x] Prepare a bounded loopback EG2 GGUF adapter and LM Studio command flow. Gate every use on exact
   engine architecture support, local model instance/backend, GGUF/tokenizer hashes, canonical prompts,
   learned 768d projection/pooling and query/document parity. Research/preparation only; no GPU trial.
-- [ ] Preserve single-flight admission after uncertain native/transport timeouts; timeout is not proof
+- [x] Preserve single-flight admission after uncertain native/transport timeouts; timeout is not proof
   that native work stopped. Diagnose before resubmission and keep crash-safe batch checkpoints.
 - [ ] Reduce output copies and repeated statement/status preparation where safe; measure accumulated
   checkpoint-prefix scans before introducing a queue. Retain secure deletion and DELETE journaling.
@@ -318,3 +321,12 @@ Do not open its archive database with the new schema, change its identity, resta
   hard filters and source visibility. Dimensional truncation improves storage/search, not transformer speed.
 - [ ] Keep alternative compiled PyTorch, LiteRT-LM, OpenVINO, ROCm and MLX routes as qualified fallback
   research; no new installs, machine transfers or runtime changes are implied by this backlog.
+
+The first explicit CPU pilot used the pinned q8 graph derivative (146 NBits nodes, accuracy_level=4),
+2 intra-op / 1 inter-op threads, sequential execution, spinning off, batch 4 and single-flight.
+All 34 outputs were finite normalized 768d vectors; top-10 overlap with exact-input FP32 was 100%.
+Maximum cosine drift was 0.000155105 for documents and 0.000144067 for queries. The 66.17-second
+run contended with the old CPU index, so this establishes no uncontended speedup. The observed
+CPU profile retained MatMulNBits and ordinary MatMul; operator names do not prove integer-kernel
+execution. Zero held-out judged queries means Recall/MRR/nDCG qualification and promotion remain open.
+W4 was not tried. Full-index restart, GGUF/LM Studio execution and GPU work remain unperformed.
