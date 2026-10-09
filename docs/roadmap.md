@@ -268,7 +268,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Feed cross-file embedding microbatches concurrently with count/byte admission bounds; build HNSW afterward from canonical chunk-ID slots without an additional reorder buffer.
 - [x] Batch live per-file/global vector-cache I/O; budget actual encoded/shard/index bytes; compact registered shards within an I/O budget and prevent stale worker pointer resurrection.
 - [x] Discover independent sparse/vector hybrid candidates by default; apply structured, phrase, exclusion and explicit Boolean eligibility before ANN top-N. Expose explicit lexical reranking through --ann-candidates lexical-rerank.
-- [ ] Route before query embedding and reuse model/generation-scoped state in current API/MCP processes.
+- [x] Route before resolving lazy query embeddings; reuse bounded normalized query/model/provider/generation embedding entries across sessions and provider health/preflight state for each cached index generation.
 - [ ] Use symmetric versioned multilingual analysis alongside identifier representations.
 - [ ] Add modest evidence diversity, an optional real reranker and honest federated rank labels.
 - [ ] Map fast/hybrid/investigate controls to execution; preserve identity/span/followup fields in compact output.
