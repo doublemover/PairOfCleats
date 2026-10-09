@@ -250,3 +250,13 @@ Remaining ordered gates:
 
 No GPU, arbitrary installs or unrelated measurements are implied. PR547 publication is
 approved; merge remains unapproved. Hosted results apply to exact heads.
+## Viewer replacement after embedding qualification - 2026-10-09
+
+The owner requests new visuals, interactions and renderer implementation. Keep this
+behind the current Swift/archive embedding setup. Compare fresh Three.js with custom
+WebGL2 on representative measured cases before backend selection. Address actual
+semantic shapes/stacking, selective directed edges, semantic zoom, scalable graph tiles,
+and the supplied truncation/aggregate/shape and geometry/fog/disposal findings.
+[Deferred viewer queue](guides/viewer-replacement-queue-20261009.md) preserves the source
+plan and acceptance boundary. Defuddle remains optional future offline HTML cleanup;
+no dependency or network fallback is added now.
