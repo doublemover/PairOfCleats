@@ -219,7 +219,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
               ownerRedacted:policy.redactions.length>0,
               nodeRevision, projectionVersion: PROJECTION_VERSION, projectionFingerprint, projection: projection.metadata
             };
-            if(policy.redactions.length){metadata.sourceDetails={};metadata.messageId=null;}
+            if(policy.redactions.length){metadata.sourceDetails=normalized.evidenceKind==='recovered_artifact'?{projectionVersion:node.sourceDetails.projectionVersion}:{};metadata.messageId=null;}
             // Redact complete extracted parts before clipping; otherwise a
             // credential cut by the projection boundary could evade detection.
             const inserted = db.prepare('INSERT OR IGNORE INTO units VALUES (?, ?, ?, ?, ?)').run(
@@ -459,4 +459,5 @@ export async function createLocalSourceHistoryService(options) {
   }
   const local=Object.freeze(api);localServices.add(local);return local;
 }
+
 

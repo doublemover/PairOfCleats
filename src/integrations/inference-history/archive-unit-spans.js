@@ -1,10 +1,14 @@
 import { historySemanticSpans } from './semantic-values.js';
 import { archiveStructuralSpans } from './archive-structure.js';
 import { historyError } from './common.js';
+import { ARTIFACT_PROJECTION_VERSION } from './artifact-projection.js';
 
 /** Reconstruct only current-policy sanitized fragments. References stay unit-local. */
 export function planArchiveUnitSpans(unit, siblings, config) {
   const metadata = JSON.parse(unit.metadata), details = metadata.sourceDetails;
+  if ((details?.sourceSha256 || metadata.evidenceKind === 'recovered_artifact') && details?.projectionVersion !== ARTIFACT_PROJECTION_VERSION) {
+    throw historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Archive asset policy requires explicit source reprojection and reimport.');
+  }
   if (!details?.sourceSha256) {
     return Array.from(historySemanticSpans(unit.text, config.chunkChars, config.overlapChars, metadata)).map(span => ({ ...span, sourceStart: span.start, sourceEnd: span.end, unitStart: 0, unitEnd: unit.text.length }));
   }
@@ -19,6 +23,9 @@ export function planArchiveUnitSpans(unit, siblings, config) {
   const belongs = row => row.metadata.sourceDetails.sanitizedStart === details.sanitizedStart && row.metadata.sourceDetails.sanitizedEnd === details.sanitizedEnd && row.text === unit.text;
   for (const row of rows) {
     const source = row.metadata.sourceDetails;
+    if (source.projectionVersion !== ARTIFACT_PROJECTION_VERSION) {
+      throw historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Archive asset policy requires explicit source reprojection and reimport.');
+    }
     if (!Number.isSafeInteger(source.sanitizedStart) || source.sanitizedEnd - source.sanitizedStart !== row.text.length) {
       throw historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Archive sanitized source offsets require explicit reimport.');
     }
@@ -90,6 +97,7 @@ export async function boundArchiveTokenSpans(spans, measure, maxTokens = 8192) {
   }
   return [...unique.values()];
 }
+
 
 
 
