@@ -747,8 +747,8 @@ export const processChunks = async (context) => {
     const fieldChargramTokens = null;
 
     let tokenPayload = null;
-    let pretokenized = null;
-    const useLineTokenStream = effectiveTokenizeEnabled
+    let pretokenized = context.cachedLexicalBySpan?.get(c.start+':'+c.end) || null;
+    const useLineTokenStream = !pretokenized && effectiveTokenizeEnabled
       && tokenizationFileStreamEnabled
       && tokenText === ctext
       && canUseLineTokenStreamSlice({

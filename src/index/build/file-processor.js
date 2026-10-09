@@ -578,6 +578,9 @@ export function createFileProcessor(options) {
           vfsManifestRows: cachedOutcome.result.vfsManifestRows
         });
       }
+      if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+      }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
@@ -724,6 +727,7 @@ export function createFileProcessor(options) {
       rel,
       relKey,
       text: artifacts.text,
+      cachedStageBundle: artifacts.cachedBundle,
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,
@@ -834,6 +838,7 @@ export function createFileProcessor(options) {
       fileStat,
       fileHash: artifacts.fileHash,
       fileChunks,
+      parseCheckpoint: cpuResult?.parseCheckpoint || null,
       fileRelations,
       vfsManifestRows,
       fileEncoding: artifacts.fileEncoding || null,

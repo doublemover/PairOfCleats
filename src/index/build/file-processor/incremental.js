@@ -1,3 +1,4 @@
+import { resolveStageRefresh } from '../incremental/stage-reuse.js';
 import { readCachedBundle, writeIncrementalBundle } from '../incremental.js';
 
 export async function loadCachedBundleForFile({
@@ -7,7 +8,7 @@ export async function loadCachedBundleForFile({
   relKey,
   fileStat
 }) {
-  return runIo(() => readCachedBundle({
+  const result = await runIo(() => readCachedBundle({
     enabled: incrementalState.enabled,
     absPath,
     relKey,
@@ -17,6 +18,8 @@ export async function loadCachedBundleForFile({
     bundleFormat: incrementalState.bundleFormat,
     sharedReadState: incrementalState.readHashCache || null
   }));
+  if (result.cachedBundle) result.cachedBundle.stageRefresh = resolveStageRefresh(incrementalState.manifest.dependencySignatures, incrementalState.manifest.files?.[relKey]?.dependencySignatures);
+  return result;
 }
 
 export async function writeBundleForFile({
@@ -26,6 +29,7 @@ export async function writeBundleForFile({
   fileStat,
   fileHash,
   fileChunks,
+  parseCheckpoint = null,
   fileRelations,
   vfsManifestRows,
   fileEncoding = null,
@@ -42,6 +46,8 @@ export async function writeBundleForFile({
     fileStat,
     fileHash,
     fileChunks,
+    parseCheckpoint,
+    dependencySignatures: incrementalState.manifest.dependencySignatures,
     fileRelations,
     vfsManifestRows,
     bundleFormat: incrementalState.bundleFormat,

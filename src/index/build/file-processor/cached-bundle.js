@@ -93,6 +93,7 @@ export function reuseCachedBundle({
       };
     }
   }
+  if(cachedBundle.stageRefresh?.parse || cachedBundle.stageRefresh?.lexical || cachedBundle.stageRefresh?.enrichment) return {result:null,skip:null};
   const cachedEntry = incrementalState.manifest?.files?.[relKey] || null;
   const resolvedHash = fileHash || cachedEntry?.hash || null;
   const resolvedHashAlgo = fileHashAlgo || cachedEntry?.hashAlgo || null;
@@ -122,6 +123,7 @@ export function reuseCachedBundle({
   const manifestBundleNames = resolveManifestBundleNames(cachedEntry);
   const manifestBundleFormat = normalizeBundleFormat(cachedEntry?.bundleFormat);
   const manifestEntry = cachedEntry ? {
+    dependencySignatures: incrementalState.manifest.dependencySignatures,
     hash: resolvedHash,
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
@@ -141,6 +143,7 @@ export function reuseCachedBundle({
     : null;
   const updatedChunks = cachedBundle.chunks.map((cachedChunk) => {
     const updatedChunk = { ...cachedChunk };
+    if(cachedBundle.stageRefresh?.embeddings) {updatedChunk.embedding=[];updatedChunk.embed_doc=[];updatedChunk.embed_code=[];}
     if (!updatedChunk.fileHash && fileHash) updatedChunk.fileHash = fileHash;
     if (!updatedChunk.fileHashAlgo && fileHashAlgo) updatedChunk.fileHashAlgo = fileHashAlgo;
     if (updatedChunk.codeRelations) {

@@ -1,3 +1,4 @@
+import { captureChunkingCheckpoint, resolveChunkingCheckpoint } from '../incremental/stage-reuse.js';
 import { assignSegmentUids, discoverSegments } from '../../segments.js';
 import { toRepoPosixPath } from '../../scm/paths.js';
 import { buildLineAuthors } from '../../scm/annotate.js';
@@ -115,6 +116,7 @@ export const processFileCpu = async (context) => {
     rel,
     relKey,
     text,
+    cachedStageBundle = null,
     documentExtraction,
     fileStat,
     fileHash,
@@ -854,7 +856,7 @@ export const processFileCpu = async (context) => {
   };
   updateCrashStage('chunking');
   try {
-    const chunkingResult = await chunkWithScheduler({
+    const chunkingInput = {
       segments,
       tokenMode,
       mustUseTreeSitterScheduler,
@@ -871,7 +873,8 @@ export const processFileCpu = async (context) => {
       lineIndex,
       logLine,
       updateCrashStage
-    });
+    };
+    const chunkingResult = await resolveChunkingCheckpoint({cached:cachedStageBundle?.stageRefresh?.parse === false ? cachedStageBundle.parseCheckpoint : null,textLength:text.length,chunker:chunkWithScheduler,input:chunkingInput});
     sc = chunkingResult.chunks;
     chunkingDiagnostics = chunkingResult.chunkingDiagnostics;
   } catch (err) {
@@ -919,9 +922,12 @@ export const processFileCpu = async (context) => {
     usedHeuristicCodeChunking: chunkingDiagnostics.usedHeuristicCodeChunking
   });
 
+  const parseCheckpoint = captureChunkingCheckpoint(sc, chunkingDiagnostics, text.length);
+  const cachedLexicalBySpan = cachedStageBundle?.stageRefresh?.lexical === false ? new Map(cachedStageBundle.chunks.map(chunk=>[chunk.start+':'+chunk.end,{tokens:chunk.tokens,seq:chunk.seq}])) : null;
   updateCrashStage('process-chunks');
   const chunkResult = await processChunks({
     sc,
+    cachedLexicalBySpan,
     text,
     ext,
     rel,
@@ -1001,6 +1007,7 @@ export const processFileCpu = async (context) => {
 
   return {
     chunks: chunkResult.chunks,
+    parseCheckpoint,
     fileRelations,
     lexiconFilterStats,
     vfsManifestRows: chunkResult.vfsManifestRows || null,
