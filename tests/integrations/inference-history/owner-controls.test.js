@@ -60,11 +60,17 @@ const current=(await service.search({...request,query:'cobalt'})).index;
 const adapter=createLocalHistorySemanticAdapter({modelId:'synthetic',modelVersion:'toy1',dimensions:1,indexGenerationRef:current.generationRef,
   encodeQuery:()=>[1],searchIndex:()=>({candidates:[{sourceRef:state.sourceRef,snapshotRef:state.snapshotRef,text:'SecretParcel'}],complete:true})});
 const hybrid=createInferenceHistoryService({...options,semantic:adapter});
+for(const invalidPage of [{top:0},{top:101},{top:'10'},{offset:-1},{offset:'0'},{offset:100001},{rerank:'true'}]){
+  await assert.rejects(hybrid.search({...request,query:'planning',mode:'hybrid',...invalidPage}),{code:'ERR_INFERENCE_HISTORY_INPUT'});
+}
 assert.ok(!JSON.stringify((await hybrid.search({...request,query:'planning',mode:'semantic'})).hits).includes('SecretParcel'));
 const spanAdapter=createLocalHistorySemanticAdapter({modelId:'synthetic',modelVersion:'toy1',dimensions:1,indexGenerationRef:current.generationRef,
   encodeQuery:()=>[1],searchIndex:()=>({candidates:[{sourceRef:state.sourceRef,snapshotRef:state.snapshotRef,span:{start:5,end:21}}],complete:true})});
 const spanResult=await createInferenceHistoryService({...options,semantic:spanAdapter}).search({...request,query:'planning',mode:'semantic'});
 assert.equal(spanResult.hits[0].snippet.start,5);
+assert.equal(spanResult.totalMatchedUnits,null);assert.equal(spanResult.candidateMatches,null);
+assert.equal(spanResult.channels.lexical.totalMatchedUnits,0);
+assert.equal(spanResult.channels.semantic.authorizedGroups,1);
 assert.equal(spanResult.hits[0].text,sanitized.text.slice(5,21));
 const invalidSpan=createLocalHistorySemanticAdapter({modelId:'synthetic',modelVersion:'toy1',dimensions:1,indexGenerationRef:current.generationRef,
   encodeQuery:()=>[1],searchIndex:()=>({candidates:[{sourceRef:state.sourceRef,snapshotRef:state.snapshotRef,span:{start:0,end:99999}}],complete:true})});
