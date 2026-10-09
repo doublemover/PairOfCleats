@@ -37,7 +37,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
   if(localSourceToken!==null&&localSourceToken!==LOCAL_SOURCE_TOKEN)throw denied();
   const memoryStores=new Map();let disposed=false;
   if (typeof resolveAccess !== 'function') throw denied();
-  if(typeof audit!=='function') throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Durable audit sink required.');
+  if(localSourceToken!==LOCAL_SOURCE_TOKEN&&typeof audit!=='function') throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Durable audit sink required.');
   if (semantic!==null && (semantic.kind!=='local' || !Object.isFrozen(semantic) || typeof semantic.search!=='function'
     || !opaqueId(semantic.indexGenerationRef))) throw invalid();
   const limits = resolveLimits(inputLimits);
@@ -58,6 +58,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       || (request.ownerIdentity && (request.ownerIdentity.channel!=='human' || request.ownerIdentity.principalId!==access.principalId))) throw denied();
   };
   const persistAudit=async(event)=>{
+    if(localSourceToken===LOCAL_SOURCE_TOKEN){if(typeof audit==='function')try{await audit(event);}catch{}return;}
     try{if((await audit(event))?.persisted!==true)throw new Error();}
     catch{throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Audit persistence required before release.');}
   };
@@ -364,55 +365,49 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
 }
 
 /**
- * Explicit operator-only source reads. Index/temporary SQL live in RAM; the
- * independently supplied durable audit sink retains its strict storage policy.
+ * Explicit local file selection: ordinary OS permissions, RAM-only index,
+ * optional logging. This mode cannot be used by authenticated service adapters.
  */
-export async function createLocalSourceHistoryService({sources,initialRequest,authorizeSources,
-  inspectSourcePermissions=null,sourcePolicyEpoch,resolveAccess,audit,limits,maxSourceBytes=512*1024*1024,maxUnits=100000}) {
-  if(!Array.isArray(sources)||sources.length<1||sources.length>200||typeof authorizeSources!=='function'
-  ||typeof sourcePolicyEpoch!=='string'||!sourcePolicyEpoch||sourcePolicyEpoch.length>512
-  ||!Number.isSafeInteger(maxSourceBytes)||maxSourceBytes<1||maxSourceBytes>1024*1024*1024
-  ||!Number.isSafeInteger(maxUnits)||maxUnits<1||maxUnits>1000000
-  ||typeof initialRequest?.requestContext==='undefined'||typeof initialRequest?.partition!=='string')throw denied();
+export async function createLocalSourceHistoryService(options) {
+  if(!options||typeof options!=='object'||Array.isArray(options)
+    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits'].includes(key)))throw invalid();
+  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000}=options;
+  if(!Array.isArray(sources)||sources.length<1||sources.length>200
+    ||(audit!==null&&typeof audit!=='function')
+    ||!Number.isSafeInteger(maxSourceBytes)||maxSourceBytes<1||maxSourceBytes>1024*1024*1024
+    ||!Number.isSafeInteger(maxUnits)||maxUnits<1||maxUnits>1000000)throw invalid();
   const selected=sources.map(source=>{
-    if(!source||typeof source.path!=='string'||!path.isAbsolute(source.path)||!opaqueId(source.sha256))throw denied();
+    if(!source||typeof source.path!=='string'||!path.isAbsolute(source.path)||!opaqueId(source.sha256))throw invalid();
     return Object.freeze({path:path.resolve(source.path),sha256:source.sha256});
   });
-  if(new Set(selected.map(source=>source.path)).size!==selected.length
-  ||await authorizeSources({mode:'local_source_readonly',sources:selected,request:initialRequest})!==true)throw denied();
-  const scope=Object.freeze({requestContext:initialRequest.requestContext,partition:initialRequest.partition});
-  const firstAccess=await resolveAccess({...scope,action:'import'});if(!validateInferenceHistoryAccess(firstAccess).ok)throw denied();
-  const pinnedIdentity=securityIdentity(firstAccess);
-  const boundAccess=async input=>{if(input.requestContext!==scope.requestContext||input.partition!==scope.partition)return null;const access=await resolveAccess(input);return validateInferenceHistoryAccess(access).ok&&securityIdentity(access)===pinnedIdentity?access:null;};
-  const fs=await import('node:fs/promises');let totalBytes=0;const warnings=new Set();
-  const warningCodes=new Set(['inherited_acl','other_principal_read','other_principal_write','permission_check_unavailable']);
+  if(new Set(selected.map(source=>source.path)).size!==selected.length)throw invalid();
+  const scope=Object.freeze({requestContext:Symbol('local-source'),partition:'local'});
+  const access=Object.freeze({principalId:'local-operator',tenantId:'local',ownerType:'individual',
+    ownerId:'local-operator',sourceScope:digest(JSON.stringify(selected)),policyEpoch:'local-selected-files',allowed:true});
+  const fs=await import('node:fs/promises');let totalBytes=0;
   for(const source of selected){
     const stat=await fs.lstat(source.path);
-    if(!stat.isFile()||stat.isSymbolicLink()||await fs.realpath(source.path)!==source.path)throw denied();
+    if(!stat.isFile()||stat.isSymbolicLink()||await fs.realpath(source.path)!==source.path)throw invalid();
     totalBytes+=stat.size;if(totalBytes>maxSourceBytes)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local source byte budget exceeded.');
-    try{const report=await inspectSourcePermissions?.(source.path);
-      if(!Array.isArray(report?.warnings))warnings.add('permission_check_unavailable');
-      else for(const warning of report.warnings){if(!warningCodes.has(warning))throw new Error();warnings.add(warning);}
-    }catch{warnings.add('permission_check_unavailable');}
   }
   let current=null;
-  const service=createInferenceHistoryService({resolveAccess:boundAccess,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,
-    resolveImportSource:()=>({path:current.path,policyEpoch:sourcePolicyEpoch,sha256:current.sha256})});
+  const service=createInferenceHistoryService({resolveAccess:()=>access,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,
+    resolveImportSource:()=>({path:current.path,policyEpoch:'local-selected-files',sha256:current.sha256})});
   try{
     for(const source of selected){current=source;const result=await service.importExport(scope);
-      if(result.archiveSha256!==source.sha256)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Authorized source hash changed.');
+      if(result.archiveSha256!==source.sha256)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Selected source hash changed.');
       if(service.memoryUnitCount()>maxUnits)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local source unit budget exceeded.');
     }
   }catch(error){service.dispose();throw error;}
-  const metadata=Object.freeze({mode:'local_source_readonly',storage:'memory_only',warnings:Object.freeze([...warnings].sort()),
-    sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:false});
+  const metadata=Object.freeze({mode:'local_source_readonly',storage:'memory_only',
+    audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:false});
   let pending=Promise.resolve(),closed=false;
   const api={executionContext:'local_source_readonly',localSource:metadata,
     async dispose(){closed=true;await pending;service.dispose();}};
   for(const method of ['search','readContext','readTimeline','readReferences','readOriginal','readMemberEvidence']){
     api[method]=request=>{
       if(closed)return Promise.reject(denied());
-      const operation=pending.then(()=>service[method](request)).then(result=>({...result,localSource:metadata}));
+      const operation=pending.then(()=>service[method]({...request,...scope})).then(result=>({...result,localSource:metadata}));
       pending=operation.catch(()=>{});return operation;
     };
   }
