@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 767,
+    "hero": 785,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5425,6 +5425,114 @@
     {
       "id": "integrations/inference-history/local-source",
       "order": 902,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/cache/batched-physical-storage",
+      "order": 903,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/pipeline/global-admission-bounds",
+      "order": 904,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/hnsw-post-fill-order",
+      "order": 905,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/packed-committed-checksums",
+      "order": 906,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/dependency-scoped-signatures",
+      "order": 907,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/stage-checkpoint-refresh",
+      "order": 908,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tokenization/multilingual-symmetry",
+      "order": 909,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/native-discovery",
+      "order": 910,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/ranked-continuation",
+      "order": 911,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/fts-null-defaults-and-execution",
+      "order": 912,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/fts-optional-tables",
+      "order": 913,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cache/embedding-process-reuse",
+      "order": 914,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/search-controls",
+      "order": 915,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/pipeline/ann-independent-discovery",
+      "order": 916,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/query/literal-phrase-and-eligibility",
+      "order": 917,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/ranking/bm25-sqlite-override",
+      "order": 918,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/ranking/evidence-selection-reranker",
+      "order": 919,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/fts-optional-build-compaction",
+      "order": 920,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
