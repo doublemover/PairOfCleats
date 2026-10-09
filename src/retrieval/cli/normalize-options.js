@@ -455,6 +455,8 @@ export function normalizeSearchOptions({
   const sqliteFtsStemming = argv['fts-stemming'] === true
     || userConfig?.search?.sqliteFtsStemming === true;
 
+  const annDiscovery = argv['ann-candidates'] || searchConfig.annDiscovery || 'independent';
+  if (!['independent', 'lexical-rerank'].includes(annDiscovery)) throw new Error('Invalid --ann-candidates. Use independent|lexical-rerank.');
   const explain = argv.explain === true || argv.why === true;
   const explainTier = explain
     ? (argv.why === true ? 'full' : 'summary')
@@ -563,6 +565,7 @@ export function normalizeSearchOptions({
     sqliteFtsWeights,
     sqliteFtsTrigram,
     sqliteFtsStemming,
+    annDiscovery,
     sqliteTailLatencyTuning,
     sqliteFtsOverfetch,
     preferMemoryBackendOnCacheHit,

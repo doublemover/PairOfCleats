@@ -224,6 +224,7 @@ export function createSearchPipeline(context) {
     annAdaptiveProviders,
     scoreBlend,
     annCandidateCap,
+    annDiscovery = 'independent',
     annCandidateMinDocCount,
     annCandidateMaxDocCount,
     minhashMaxDocs,
@@ -370,7 +371,7 @@ export function createSearchPipeline(context) {
     if (!exportsList || !chunk.name) return false;
     return exportsList.includes(chunk.name);
   };
-  const { matchesQueryAst, getPhraseMatchInfo } = createQueryAstHelpers({
+  const { matchesQueryAst, getPhraseMatchInfo, hasHardSemanticConstraints } = createQueryAstHelpers({
     queryAst,
     phraseNgramSet,
     phraseRange
@@ -640,6 +641,9 @@ export function createSearchPipeline(context) {
           allowedCount,
           filtersEnabled,
           annCandidatePolicyConfig,
+          annDiscovery,
+          matchesQueryAst,
+          hasHardSemanticConstraints,
           minhashLimit,
           hasAllowedId,
           ensureAllowedSet,

@@ -29,6 +29,7 @@ const buildTokenIndex = (token, docCount) => ({
       ]
     ])
   });
+  context.annDiscovery = 'lexical-rerank';
   context.annBackend = 'auto';
   context.annAdaptiveProviders = true;
   context.queryTokens = ['alpha'];
