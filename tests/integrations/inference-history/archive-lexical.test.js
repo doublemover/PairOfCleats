@@ -33,6 +33,20 @@ const extracted = extractArchiveVocabulary([{ sanitizedText: 'NASA HTTPServer na
 assert.ok(extracted.words.includes('nasa')); assert.ok(extracted.words.includes('http'));
 assert.deepEqual(extracted.languages, ['javascript']);
 assert.throws(() => extractArchiveVocabulary([{ text: '{"wrapper":"JSON"}' }]), /sanitizedText/);
+for (const unsafe of [
+  '<analysis>hidden internal reasoning</analysis>',
+  '{"channel":"analysis","text":"hidden"}',
+  'scratchpad hidden internal notes',
+  'sk-' + 'x'.repeat(32),
+  'password=synthetic-secret',
+  'Bearer ' + 'x'.repeat(24)
+]) {
+  assert.throws(() => extractArchiveVocabulary([{ sanitizedText: unsafe }]), /trace omission and credential redaction/);
+}
+const safeRedacted = extractArchiveVocabulary([{ sanitizedText: 'public report [REDACTED credential] safely omitted' }], { minCount: 1 });
+assert.ok(safeRedacted.words.includes('report'));
+assert.ok(!safeRedacted.words.includes('synthetic-secret'));
+
 
 const source = path.join(root, 'artifacts-0001.json');
 const text = 'NASA HTTPServer foo_bar rainbow naïve 東京大学 exact quoted phrase';
