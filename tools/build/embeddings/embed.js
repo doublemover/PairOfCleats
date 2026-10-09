@@ -206,12 +206,9 @@ export const validateCachedDims = ({ vectors, expectedDims, mode }) => {
 };
 
 export const buildQuantizedVectors = ({
-  chunkIndex,
   codeVector,
   docVector,
   zeroVector,
-  addHnswVector,
-  addHnswVectors,
   quantization,
   normalize = true
 }) => {
@@ -227,12 +224,6 @@ export const buildQuantizedVectors = ({
   const docVec = embedDoc.length
     ? (shouldNormalize ? normalizeEmbeddingVector(embedDoc) : embedDoc)
     : [];
-  const mergedHook = addHnswVectors?.merged || addHnswVector;
-  const docHook = addHnswVectors?.doc || null;
-  const codeHook = addHnswVectors?.code || null;
-  if (mergedHook && mergedVec.length) mergedHook(chunkIndex, mergedVec);
-  if (docHook && docVec.length) docHook(chunkIndex, docVec);
-  if (codeHook && codeVec.length) codeHook(chunkIndex, codeVec);
   const quantizedCode = codeVec.length
     ? quantizeVecUint8(codeVec, resolved.minVal, resolved.maxVal, resolved.levels)
     : new Uint8Array(0);
