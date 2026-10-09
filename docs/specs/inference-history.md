@@ -481,14 +481,16 @@ New imports maintain history-discovery.v1. Existing collections require explicit
 
 ## Local EG2 archive embeddings
 
-The selected-source factory now accepts an explicit embeddings configuration.
-This owns vectors in the selected archive SQLite database, separately from code
-indexes. Ordinary code-search defaults remain MiniLM. Enabling archive embeddings
-selects onnx-community/embeddinggemma-2-ONNX at immutable revision
-daa72c51243991dfcaf9f9137d2c573d8f7790c0, Transformers.js 4.3.1, fp32 and 768
-dimensions. q8/q4 and 128/256/512 dimensions are validated alternatives.
+The selected-source factory accepts explicit archive embeddings configuration.
+Vectors live in the selected archive SQLite database, separately from code
+indexes. Ordinary code-search defaults remain MiniLM. Archive execution is
+CPU-only: onnx-community/embeddinggemma-2-ONNX at immutable revision
+daa72c51243991dfcaf9f9137d2c573d8f7790c0, Transformers.js 4.3.1, fp32 and full
+768-dimensional document vectors. q8/q4 graph profiles are validated alternatives;
+validation is not evidence of faster CPU kernels or acceptable retrieval quality.
+Ordinary fp16 is not a generic acceleration option for EG2.
 
-Example collection configuration (paths are relative to the CLI manifest):
+Example collection configuration:
 
     {
       "sources": [{"path": "artifacts-0001.json", "sha256": "<verified SHA256>"}],
@@ -500,63 +502,147 @@ Example collection configuration (paths are relative to the CLI manifest):
         "task": "search",
         "batchSize": 4,
         "chunkChars": 1000,
-        "overlapChars": 200
+        "overlapChars": 200,
+        "lookahead": 32,
+        "maxPaddedTokens": 32768,
+        "maxAttentionTokens": 67108864,
+        "maxCacheInputs": 1000000,
+        "maxCacheBytes": 8589934592,
+        "sessionOptions": {"intraOpNumThreads": 6, "executionMode": "sequential"}
       }
     }
 
-The existing shared adapter runs real CPU inference; no synthetic fallback is
-available in this path. The pinned dependency must already be installed through
-the project's dependency workflow. modelsDir is an explicit Transformers.js
-cache directory. Offline loading is the default. allowDownloads:true or the
-explicit CLI --allow-downloads enables model provisioning; it does not install
-runtime dependencies.
+The example's thread count is explicit configuration, not a measured optimum.
+Unset thread counts and executionMode remain unset at the public session boundary;
+execution information does not invent effective native pool sizes. Relative
+manifest sources, indexPath, catalogs, modelsDir and sessionOptions output paths
+(profileFilePrefix, optimizedModelFilePath) resolve beside the selected manifest.
+CLI --models-dir resolves against the working directory; path values inside CLI
+--session-options JSON must be absolute, explicitly approved output paths.
+Other identity strings and modelFileName are never resolved as filesystem paths.
 
-Task search uses the upstream document-retrieval query prefix. code and
-question-answering select their corresponding upstream prefixes. Passages use
-title:none because the indexed surface is the redacted body projection, rather
-than unredacted source titles. Identity persists model/revision/runtime/dtype,
-dimensions, query/passage prompts, normalization and chunk geometry. Changing any
-of these invalidates the derived vector space. Batch size and cache location do
-not invalidate vectors. Prompt definitions follow the
+The shared adapter performs real CPU inference with no synthetic fallback.
+Provision the locked runtime through the project dependency workflow. modelsDir
+selects the Transformers.js cache. Offline loading is the default.
+allowDownloads:true or --allow-downloads permits model provisioning without
+installing runtime dependencies.
+
+### Independent computation identities and exact input reuse
+
+The v2 document identity includes immutable model/tokenizer revision, full
+768-dimensional profile, dtype/numerical recipe, optional verified graph SHA256
+and graph basename, exact passage formatting, chunk geometry, tokenizer
+truncation and normalization. Task/query prefix and requested dimensions have
+separate query-policy and representation identities. Changing query task or
+selecting 128/256/512 output dimensions retains document vectors: retrieval
+truncates retained full vectors and normalizes the resulting prefix.
+
+Changing document computation creates an independent generation instead of
+erasing prior generations. Batch/session bounds and cache location do not change
+document identity. An alternate transformed graph must declare graphSha256,
+modelFileName and numericalRecipe; tokenizerIdentity must accurately identify its
+tokenizer. Declaring a hash does not itself qualify a graph's operator behavior
+or retrieval quality. Alternative precision/runtime trials use a separate
+selected database. The current running CPU job and its identity remain unchanged.
+
+Task search uses the upstream retrieval query prefix; code and
+question-answering select their corresponding query prefixes. Every passage is
+exactly "title: none | text: " plus redacted projected body text. The cache key
+covers the complete effective passage input and document identity. It reuses
+computation while preserving each unit/span occurrence and all original citation
+provenance. Source text/metadata changes invalidate occurrence references in every
+generation. Exclusion/deletion removes references and garbage-collects cached
+input text/vector when its last occurrence disappears. No media is decoded or
+embedded. Prompt definitions follow the
 [upstream EG2 model card](https://huggingface.co/google/embeddinggemma-2).
 
+A database containing v1 embedding tables is rejected with a conversion-required
+error. There is no automatic migration, deletion or checkpoint rewriting.
+Conversion must explicitly operate on a verified copy, preserve source/citation
+identity and qualify the full-vector recipe before use. Keep the active original
+checkpoint unchanged.
+
+### Bounded scheduling and native settlement
+
     pairofcleats history local --collection collection.json embedding-status
+    pairofcleats history local --collection collection.json embedding-execution-info
     pairofcleats history local --collection collection.json embed --max-units 100 --max-ms 30000
     pairofcleats history local --collection collection.json search --query "desired evidence" --mode hybrid
 
-embed requires an explicit persistent indexPath. Repeat the same command to
-resume. --batch-size (1..64) and --max-batch-chars (chunk size..256000) bound
-dispatch; --max-units (1..1000000) and --max-ms (100..600000) bound each job.
---models-dir, --dtype, --dimensions and --task override manifest configuration.
-Each completed batch is durable, including partial units. A unit is published
-to retrieval only when every expected span is durable; interrupted jobs resume
-missing spans instead of encoding the completed ones again. Changed unit text
-or metadata and deleted units invalidate their derived vectors. Excluded units
-are never selected or released.
+embed requires persistent indexPath. Repeat to resume only after prior native work
+settles. Scheduling tokenizes a bounded lookahead once, uses actual token lengths,
+packs similar lengths with stable mapping and drains each window before admitting
+another, so long tail inputs cannot starve. Prepared subsets reuse private token
+IDs; padding is constructed for the selected batch without tokenizing twice.
 
-Status reports indexed/pending units, durable spans, full selected-input
-coverage, identity and archive generation. Successful bounded work is not proof
-of whole-corpus coverage. Cancellation/deadline returns stopped and the retained
-coverage. Native inference itself is cooperative; an in-flight CPU call can
-finish after the deadline, but its late output is not committed. No background
-indexing starts when opening a collection.
+Controls and defaults:
 
-When completed units exist, auto selects hybrid body-evidence retrieval.
-Without completed embeddings, auto remains lexical and does not call the model.
-Explicit semantic/hybrid requires a configured nonempty index and never falls
-back to synthetic vectors. Semantic candidates are independently discovered with
-an exact bounded-memory cosine scan over persisted vectors; role/date/snapshot/
-branch/phrase/exclusion eligibility applies before top-N. Existing archive
-rehydration, provenance and rank fusion remain authoritative. Partial index or
-candidate coverage is reported as incomplete. Metadata surfaces and original
-grouping remain native lexical searches; auto preserves that choice, and explicit
-semantic mode rejects those surfaces. Media encoders/decoding are not provided by
-this text integration.
+| Control | Default | Valid bounds / meaning |
+|---|---:|---|
+| --batch-size | 4 | 1..64 unique effective inputs |
+| --lookahead | min(256, batchSize*8) | batchSize..256 prepared unique inputs |
+| --max-padded-tokens | 32768 | 1..524288; batch size times longest token length |
+| --max-attention-tokens | 67108864 | 1..4294967296; batch size times longest token length squared |
+| --max-batch-chars | 16000 | chunkChars..256000 projected characters |
+| --max-cache-inputs | 1000000 | 1..10000000 cached inputs across retained generations |
+| --max-cache-bytes | 8589934592 | full-vector bytes..68719476736; vector blobs plus UTF8 effective input, excluding SQLite overhead |
+| --max-units | 100 | 1..1000000 admitted units per refresh |
+| --max-ms | 30000 | 100..600000 per refresh, not a corpus-wide terminal limit |
 
-Unit checks use an explicitly injected synthetic adapter and label that fact.
-Real-model acceptance requires the actual pinned runtime and cached model weights;
-the implementation and synthetic checks alone do not establish real inference,
-quality, performance or complete archive coverage.
+Each input also respects the 8192-token model cap. Oversized single inputs fail
+rather than escaping padded/attention budgets. Duplicate fanout and reused
+occurrence transactions are bounded. Cache capacity is checked before committing
+a batch; prepared statements are reused and capacity accounting is initialized
+once per refresh. Returned telemetry includes actual/padded tokens and preparation,
+encoding and transaction times.
+
+Each completed batch is durable, including partial units; retrieval publishes a
+unit only after every expected span is durable. Status reports document/query/
+representation identities, complete units, pending units, durable occurrences,
+unique cached inputs and nativeWorkPending. Partial successful work does not
+establish whole-corpus coverage.
+
+Cancellation/deadline returns retained coverage and discards late output.
+Timeout is not evidence that native inference stopped. A refresh refuses another
+submission while its preparation/inference promise remains unsettled; the runtime
+also bounds native admission. Generation changes prevent late commits. Do not
+automatically resubmit timed-out work or treat a watchdog kill as native
+cancellation. Opening a collection starts no background indexing.
+
+### CPU session configuration and execution information
+
+--session-options accepts an object encoded as at most 16384 UTF8 bytes. Supported
+fields are intraOpNumThreads/interOpNumThreads (1..256), executionMode
+(sequential|parallel), graphOptimizationLevel (disabled|basic|extended|all),
+enableCpuMemArena, enableMemPattern, enableProfiling, logSeverityLevel (0..4),
+profileFilePrefix and optimizedModelFilePath. extra accepts only
+session.intra_op.allow_spinning and session.inter_op.allow_spinning, each "0" or
+"1". Unsupported options, providers or device fields fail validation.
+--graph-sha256, --model-file-name, --tokenizer-identity and --numerical-recipe
+override corresponding manifest identity fields.
+
+embedding-execution-info is synchronous configuration inspection. It creates no
+native session, loads no model and opens no selected database. Before inference,
+its loader/session counters remain unloaded; effective native thread counts are
+reported only when actually known. Explicit profiling/optimized-graph outputs
+require approved paths and a separately authorized real trial. Provider stays CPU.
+
+### Retrieval behavior
+
+With completed units, auto selects hybrid body-evidence retrieval; otherwise auto
+remains lexical without calling the model. Explicit semantic/hybrid requires a
+configured nonempty index. Semantic candidates are independently discovered with
+an exact bounded-memory cosine scan over persisted full vectors, deriving the
+requested representation; role/date/snapshot/branch/phrase/exclusion eligibility
+applies before top-N. Existing rehydration, provenance and rank fusion remain
+authoritative. Metadata surfaces and original grouping stay lexical in auto;
+explicit semantic rejects those surfaces.
+
+Unit checks use labeled synthetic adapters. Real-model acceptance requires the
+actual pinned runtime and cached weights. Source checks establish no real
+inference quality, performance or full archive coverage. The historical
+acceptance below describes its original implementation and checkpoint, not a
+qualification of new v2 scheduling, graph transformations or alternative runtimes.
 
 ### Real-model acceptance record (October 9, 2026)
 
