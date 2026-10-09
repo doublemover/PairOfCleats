@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 // Optional metadata for sampled signatures; legacy schema-12 stores remain readable.
 export const CREATE_MINHASH_META_SQL = `
@@ -60,6 +60,7 @@ export const CREATE_TABLES_BASE_SQL = `
     postContext TEXT,
     weight REAL,
     tokens TEXT,
+    phrase_tokens TEXT,
     ngrams TEXT,
     codeRelations TEXT,
     docmeta TEXT,

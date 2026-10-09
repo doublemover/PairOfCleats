@@ -1,5 +1,6 @@
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../sparse/requirements.js';
-import { FTS_UNAVAILABLE_CODE, SQLITE_IN_LIMIT } from './constants.js';
+import { bitmapHas } from '../bitmap.js';
+import { FTS_UNAVAILABLE_CODE } from './constants.js';
 
 const emitSparseUnavailable = (diagnostics, reason, mode, extra = {}) => {
   if (!Array.isArray(diagnostics)) return;
@@ -48,8 +49,21 @@ export const runCandidateStage = ({
   bm25K1,
   bm25B,
   getTokenIndexForQuery,
-  candidateMetrics
+  candidateMetrics,
+  matchesQueryAst = null
 }) => {
+  let sparseAllowedIds = allowedIdx;
+  if (typeof matchesQueryAst === 'function') {
+    sparseAllowedIds = new Set();
+    for (let id = 0; id < idx.chunkMeta.length; id++) {
+      const chunk = idx.chunkMeta[id];
+      if (chunk && (!allowedIdx || bitmapHas(allowedIdx, id)) && matchesQueryAst(idx, id, chunk, false)) {
+        sparseAllowedIds.add(id);
+      }
+    }
+  }
+  const sparseFiltersEnabled = filtersEnabled || sparseAllowedIds !== allowedIdx;
+  const sparseAllowedCount = sparseAllowedIds instanceof Set ? sparseAllowedIds.size : allowedCount;
   let candidates = null;
   let bmHits = [];
   let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
@@ -65,10 +79,9 @@ export const runCandidateStage = ({
     ? checkRequiredTables(mode, sqliteFtsRequiredTables)
     : [];
   const sqliteFtsCanPushdown = !!(
-    filtersEnabled
-    && allowedIdx
-    && allowedCount > 0
-    && allowedCount <= SQLITE_IN_LIMIT
+    sparseFiltersEnabled
+    && sparseAllowedIds
+    && sparseAllowedCount > 0
   );
   const sqliteFtsEligible = sqliteEnabledForMode
     && !sparseDeniedByProfile
@@ -77,7 +90,7 @@ export const runCandidateStage = ({
     && sqliteFtsCompilation.match.trim().length > 0
     && sqliteFtsMissingTables.length === 0
     && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
-    && (!filtersEnabled || sqliteFtsCanPushdown);
+    && (!sparseFiltersEnabled || sqliteFtsCanPushdown);
   const wantsTantivy = normalizedSparseBackend === 'tantivy';
   const sparseMissingTables = sqliteEnabledForMode
     ? checkRequiredTables(mode, sparseRequiredTables)
@@ -112,7 +125,7 @@ export const runCandidateStage = ({
       queryTokens,
       mode,
       topN: expandedTopN,
-      allowedIds: allowedIdx
+      allowedIds: sparseAllowedIds
     });
     bmHits = tantivyResult.hits;
     sparseType = tantivyResult.type;
@@ -121,7 +134,7 @@ export const runCandidateStage = ({
     }
   } else if (sqliteFtsEligible) {
     if (sqliteFtsCanPushdown) {
-      sqliteFtsAllowed = ensureAllowedSet(allowedIdx);
+      sqliteFtsAllowed = ensureAllowedSet(sparseAllowedIds);
     }
     const ftsResult = sqliteFtsProvider.search({
       idx,
@@ -164,7 +177,7 @@ export const runCandidateStage = ({
           queryTokens,
           mode,
           topN: expandedTopN,
-          allowedIds: allowedIdx,
+          allowedIds: sparseAllowedIds,
           fieldWeights,
           k1: bm25K1,
           b: bm25B,
@@ -186,7 +199,8 @@ export const runCandidateStage = ({
   candidateMetrics.counts = {
     allowed: allowedIdx ? allowedCount : null,
     candidates: candidates ? candidates.size : null,
-    bmHits: bmHits.length
+    bmHits: bmHits.length,
+    eligibleSparse: sparseAllowedCount
   };
   const unavailableDiagnostic = sqliteFtsDiagnostics.find(
     (entry) => entry?.code === FTS_UNAVAILABLE_CODE

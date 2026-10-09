@@ -1,3 +1,4 @@
+import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { CHUNK_ID_ALGO_VERSION } from '../../../contracts/compatibility.js';
 import {
@@ -87,6 +88,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     : {};
   return {
     signatureVersion: SIGNATURE_VERSION,
+    literalAnalyzer: TEXT_ANALYZER_VERSION,
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,

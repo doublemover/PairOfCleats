@@ -580,7 +580,8 @@ export function createSearchPipeline(context) {
           bm25K1,
           bm25B,
           getTokenIndexForQuery,
-          candidateMetrics
+          candidateMetrics,
+          matchesQueryAst: queryAst ? matchesQueryAst : null
         })
       ));
       let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;

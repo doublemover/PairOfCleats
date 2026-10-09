@@ -26,6 +26,8 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
     return hasExplicitBoolean(node.left) || hasExplicitBoolean(node.right) || hasExplicitBoolean(node.child);
   };
   const allowSemanticTerms = !hasExplicitBoolean(queryAst);
+  const hasPhrase = node => !!node && (node.type === 'phrase' || hasPhrase(node.left) || hasPhrase(node.right) || hasPhrase(node.child));
+  const requiresLiteral = hasPhrase(queryAst);
 
   const resolveChunk = (idx, chunkId, chunk) => (
     chunk || idx?.chunkMeta?.[chunkId] || null
@@ -111,6 +113,8 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
   const matchesQueryAst = (idx, chunkId, chunk, semantic = false) => {
     if (!queryAst) return true;
     const chunkRecord = resolveChunk(idx, chunkId, chunk);
+    if (requiresLiteral && (chunkRecord?.phraseTokensComplete === false
+      || chunkRecord?.phraseTokens === null)) return false;
     const tokens = resolveChunkTokens(idx, chunkId, chunkRecord);
     const tokenSet = getCachedTokenSet(chunkRecord, chunkId, tokens);
     const evalNode = (node, relaxTerms = semantic && allowSemanticTerms) => {
@@ -123,13 +127,13 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
           return node.tokens.some((tok) => tokenSet.has(tok));
         }
         case 'phrase': {
-          if (node.ngramSet && node.ngramSet.size) {
-            const matchInfo = getPhraseMatchInfo(idx, chunkId, node.ngramSet, tokens, chunkRecord);
-            return matchInfo.matches > 0;
+          const literal = chunkRecord?.phraseTokens ?? tokens;
+          const phrase = node.tokens ?? [];
+          if (!phrase.length || literal.length < phrase.length) return false;
+          for (let start = 0; start <= literal.length - phrase.length; start++) {
+            if (phrase.every((token, offset) => literal[start + offset] === token)) return true;
           }
-          if (!node.tokens || !node.tokens.length) return false;
-          if (!tokenSet) return false;
-          return node.tokens.some((tok) => tokenSet.has(tok));
+          return false;
         }
         case 'not':
           return !evalNode(node.child, false);
