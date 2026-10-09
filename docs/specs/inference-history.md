@@ -138,7 +138,7 @@ available only through `read_original` authority. `rawJson` preserves duplicate
 keys and formatting that JavaScript's parsed object cannot represent separately.
 Byte-distinct JSON creates a distinct snapshot even when canonical objects match;
 unchanged normalized units are shared across those snapshots. Vault format
-inference-history.v5 includes the required lookup indexes and private reference key.
+inference-history.v6 includes the required lookup indexes and private reference key.
 Older vault formats fail closed and are not migrated or modified implicitly.
 
 Conversation identity includes trusted source scope and source conversation ID.
@@ -153,7 +153,7 @@ selecting an arbitrary last shard.
 
 Parent-only trees derive normalized child lists from explicit parent relationships;
 raw source fields are unchanged. Declared child arrays still undergo mismatch
-validation. Adapter revision chatgpt-export.v6 invalidates earlier import transforms.
+validation. Adapter revision chatgpt-export.v7 invalidates earlier import transforms.
 
 Graph validation preserves malformed evidence while reporting missing/dangling
 references, inconsistent edges and cycles. Invalid selected ancestry is `unknown`;
@@ -167,7 +167,7 @@ parts remain ordered raw evidence; hidden code payloads do not participate in vi
 
 ## Projection and retrieval
 
-Projection history-text.v5 retains canonical node revisions privately. Public
+Projection history-text.v6 retains canonical node revisions privately. Public
 projection metadata contains a digest of redacted, clipped text only. Search and
 context never expose raw text, raw occurrence or node revision hashes. Content-dependent
 snapshot, unit and group references are HMACs under a random per-vault key held in
@@ -268,7 +268,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 
 ## Codex records and declared member evidence
 
-`chatgpt-export.v6` uses vault format `inference-history.v5`. The current API exposes
+`chatgpt-export.v7` uses vault format `inference-history.v6`. The current API exposes
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn
@@ -427,7 +427,7 @@ an artifact-existence check, implementation certification or complete archive au
 
 The history-agent.v1 read-only presentation facade and history-search.v2 query contract are documented in [agent tool usability](../guides/agent-tool-usability.md). Strict matching retains lexical AND; explicit relaxed and facade-default auto support bounded lexical relaxation while preserving phrases, exclusions, role/time/path/snapshot filters and the existing service authority. The old survey remains pinned separately. A separately provisioned trusted local adapter can supply semantic candidates and reranking; no dense archive index is built and no network/model fallback is introduced.
 
-Generation/context cutover: new stores require inference-history.v5 with transactional generation counters and opaque generation references. Import changes and first-time tombstones advance the counter; repeated identical imports do not. Continuations and citation actions pin the generation. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Old v4 stores are rejected without mutation or migration; the old survey uses its unchanged old source. No production reimport is authorized by this source implementation. Export completeness/freshness remains unknown, separately from index-update time.
+Generation/context cutover: new stores require inference-history.v6 with transactional generation counters and opaque generation references. Import changes and first-time tombstones advance the counter; repeated identical imports do not. Continuations and citation actions pin the generation. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Old v5 stores are rejected without mutation or migration; the old survey uses its unchanged old source. No production reimport is authorized by this source implementation. Export completeness/freshness remains unknown, separately from index-update time.
 
 The timeline command retrieves an exact conversation branch in oldest/newest order with role/date filtering. Correction-language markers are unverified text signals, never an assertion of user acceptance. mergeHistoryContexts deduplicates overlapping returned messages within one generation and reports omitted spans; it performs no reads and cannot establish full conversation completeness.
 
@@ -452,3 +452,7 @@ The builder performs no archive reads, filesystem persistence, model downloads o
 `console.page` authenticates human scope, reads bounded inventory and partition-scoped audit, rechecks scope and generation, and renders escaped HTML without active scripts or external resources. Privacy forms remain disabled unless the host explicitly supplies a same-origin POST path and a session-bound mutation token. The controller requires a trusted `verifyHumanMutation({requestContext,csrfToken})` acknowledgement before writing; absent, rejected or throwing verifiers deny the write. The host must implement the actual session/nonce mechanism. No such mechanism or server is installed here.
 
 `parseHistoryOwnerPrivacyForm` admits only bounded privacy fields and translates checkbox/JSON form values; it cannot provide request context, principal, partition or policy. The authenticated host supplies those separately. HTML escapes annotations, queries and form values so archive/log text cannot become markup. The source page/controller/parser are implemented and tested; binding and deployment of the protected human endpoint remain unverified.
+
+### Recovered file artifacts
+
+Adapter v7 accepts explicitly prepared artifacts-NNNN.json shards. Artifact units have their own role and document/code/activity/tool_activity/metadata kind; they never imply conversation authorship. Sanitized citation bodies retain source SHA-256, locator, date basis, and chunk offsets. Unknown chronology stays unknown. Hidden trace markers and unsafe provenance fail closed. Preparation reports oversized, trace-bearing, and unsafe omissions. Tool activity exposes metadata only. Originals and earlier failed statuses remain unchanged; recovery overlays classify formats and complete bounded fact indexes. Preparation does not activate retrieval or relax host ACL checks. Old v5 stores are rejected without migration.

@@ -1,5 +1,5 @@
 import { historyError, privateReference, PROJECTION_VERSION } from './common.js';
-export const HISTORY_STORE_FORMAT = 'inference-history.v5';
+export const HISTORY_STORE_FORMAT = 'inference-history.v6';
 export function historyIndexState(db) {
   if (!db) return { schema: HISTORY_STORE_FORMAT, generation: null, generationRef: null,
     state: 'missing', updatedAt: null, projection: PROJECTION_VERSION, exportFreshness: 'unknown' };

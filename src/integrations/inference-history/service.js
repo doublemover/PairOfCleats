@@ -226,7 +226,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         .all(importId).map(row => [row.state, row.count]));
       const result = {
         importRef: importId, archiveSha256: source.archiveSha256,
-        conversations: source.conversations, tasks: source.tasks, records: source.conversations + source.tasks, members: source.members,
+        conversations: source.conversations, tasks: source.tasks, artifacts: source.artifacts, records: source.conversations + source.tasks + source.artifacts, members: source.members,
         memberLinkStates: linkStates, coverage: 'selected_input',
         unsupportedArchives: source.unsupportedArchives, complete: source.complete && !linkStates.not_in_selected_input && !linkStates.size_mismatch,
         newSnapshots, newUnits, tombstonedRecords, repeated: false,

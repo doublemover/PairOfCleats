@@ -34,7 +34,8 @@ export const HISTORY_AGENT_REQUESTS = {
       "role": {
         "enum": [
           "user",
-          "assistant"
+          "assistant",
+          "artifact"
         ]
       },
       "dateFrom": {
@@ -182,7 +183,7 @@ HISTORY_AGENT_REQUESTS.timeline = {
     top: {type:'integer',minimum:1,maximum:20,default:10},
     offset: {type:'integer',minimum:0,maximum:10000,default:0},
     messageChars: {type:'integer',minimum:80,maximum:4000,default:1200},
-    role: {enum:['user','assistant']}, order: {enum:['oldest','newest'],default:'oldest'},
+    role: {enum:['user','assistant','artifact']}, order: {enum:['oldest','newest'],default:'oldest'},
     dateFrom: {...HISTORY_AGENT_REQUESTS.search.properties.dateFrom},
     dateTo: {...HISTORY_AGENT_REQUESTS.search.properties.dateTo}
   }
