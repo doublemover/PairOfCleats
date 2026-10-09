@@ -1,3 +1,4 @@
+import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery } from './query.js';
 import { hashCanonicalJson, normalizeTimestamp } from './normalize.js';
 import { privateReference, historyError, projectHistoryText, redactHistoryText } from './common.js';
 
@@ -161,8 +162,19 @@ const dateBound = (value, end) => {
 
 export function searchHistory(db, request) {
   if (typeof request.query !== 'string' || request.query.length > 4096) throw invalid();
-  const tokens = [...new Set(request.query.match(/[\p{L}\p{N}_]+/gu) ?? [])];
-  if (!tokens.length || tokens.length > 32) throw invalid();
+  const matchMode = request.match ?? 'strict';
+  if (!['strict', 'relaxed', 'auto'].includes(matchMode)) throw invalid();
+  const parsed = parseHistoryQuery(request.query), { tokens } = parsed;
+  if (matchMode === 'auto') {
+    const strict = searchHistory(db, { ...request, match: 'strict' });
+    if (strict.complete === false || strict.totalMatches !== 0) {
+      strict.query.requestedMatch = 'auto'; strict.query.relaxed = false; return strict;
+    }
+    const relaxed = searchHistory(db, { ...request, match: 'relaxed' });
+    relaxed.query.requestedMatch = 'auto'; relaxed.query.relaxed = true;
+    relaxed.query.reason = 'Strict matching found no visible hits under exactly the same filters.';
+    return relaxed;
+  }
   const top = integer(request.top, 10, 1, 100), offset = integer(request.offset, 0, 0, 100000);
   const snippetChars = integer(request.snippetChars, 600, 80, 2000);
   const pathState = request.pathState ?? 'all';
@@ -172,13 +184,16 @@ export function searchHistory(db, request) {
   if (role !== null && !['user', 'assistant'].includes(role)) throw invalid();
   const from = dateBound(request.dateFrom, false), to = dateBound(request.dateTo, true);
   if (from && to && from > to) throw invalid();
-  const envelope = { query: { tokens, semantics: 'literal_word_AND', semanticMatching: false },
-    filters: { role, dateFrom: from, dateTo: to, pathState, snapshotRef: request.snapshotRef ?? null,
-      includeHistory: request.includeHistory === true }, coverage: coverage(db),
-    limits: { top, offset, snippetChars, candidateUnits: MAX_CANDIDATES, rawEvidenceBytes: MAX_RAW_BYTES },
-    caveat: 'Empty hits mean no matching visible units under these filters and selected-input coverage; never-discussed is not established.' };
+  const envelope = { query: { version: HISTORY_SEARCH_VERSION, original: request.query, tokens,
+    excluded: parsed.excluded, phrases: parsed.phrases, effectiveMatch: matchMode,
+    semantics: matchMode === 'strict' ? 'literal_word_AND' : 'literal_word_OR_with_required_phrases_and_exclusions',
+    semanticMatching: false },
+  filters: { role, dateFrom: from, dateTo: to, pathState, snapshotRef: request.snapshotRef ?? null,
+    includeHistory: request.includeHistory === true }, coverage: coverage(db),
+  limits: { top, offset, snippetChars, candidateUnits: MAX_CANDIDATES, rawEvidenceBytes: MAX_RAW_BYTES },
+  caveat: 'Empty hits mean no matching visible units under these filters and selected-input coverage; never-discussed is not established.' };
   if (!db) return { ...envelope, hits: [], totalMatches: 0, totalMatchedUnits: 0, complete: true, nextOffset: null };
-  const query = tokens.map(token => `"${token}"`).join(' AND ');
+  const query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
   const sql = `FROM units_fts JOIN units ON units.id=units_fts.id JOIN records ON records.id=units.record_id
     WHERE units_fts MATCH ? AND records.deleted=0
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')>=?)
@@ -206,7 +221,7 @@ export function searchHistory(db, request) {
     const snapshot = load(first.snapshotRef), node = visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId);
     if (!node || (role !== null && node.role !== role)) continue;
     const projection = projectHistoryText(node.text, metadata.projection.characterBudget);
-    if (!matches(projection.text, tokens)) continue;
+    if (!matchesHistoryQuery(projection.text, parsed, matchMode)) continue;
     matchedUnits++;
     const key = groupKey({ ...metadata, ...row }, node, namespace);
     let group = groups.get(key);

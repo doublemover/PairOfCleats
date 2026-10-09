@@ -146,11 +146,20 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('search', ['search'], 'tools/search/cli-entry.js', 'Query indexed data.', {
     helpGroup: 'Search',
     expectedArtifacts: ['metrics:search'],
-    helpExamples: ['pairofcleats search --repo . foo'],
+    helpExamples: [
+      'pairofcleats search "symbol" --repo . --mode code --json',
+      'pairofcleats search "cache AND refresh" --repo . --top 5 --json',
+      'pairofcleats search --help --all --json'
+    ],
     metadata: {
       backendEnum: ['auto', 'sqlite', 'sqlite-fts', 'fts', 'lmdb', 'tantivy', 'memory'],
       ...SEARCH_DISPATCH_METADATA
     }
+  }),
+  entry('history.help', ['history', 'help'], 'tools/history/help.js', 'Discover the private archive reader; reads require a trusted host.', {
+    helpGroup: 'Search',
+    capability: false,
+    helpExamples: ['pairofcleats history help --json', 'pairofcleats history help --all --json']
   }),
   entry('workspace.manifest', ['workspace', 'manifest'], 'tools/workspace/manifest.js', 'Generate workspace manifest.', {
     helpGroup: 'Workspace'

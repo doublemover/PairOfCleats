@@ -42,6 +42,12 @@ head. None is a blanket release-readiness claim.
 | Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, fixture expectations, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change. |
 | Worklogs and benchmark JSON under `docs/worklogs/**` | `historical evidence` | Historical measurements and authored worklogs are retained. | Keep new execution status here; label measurements with their exact revision and environment. |
 
+## Private-history usability follow-up
+
+Implemented with focused synthetic validation: versioned progressive help, exact continuation/citation actions, bounded auto lexical relaxation, role/time/provenance packets and honest coverage/output-budget diagnostics. Pure local fusion/diversity/rerank guards are available. See [agent tool usability](guides/agent-tool-usability.md) for contracts and research evidence.
+
+Remaining owner-requested implementation: a trusted local semantic candidate adapter and generation manifest; correction/temporal/small-span evidence coverage; owner-only audit, protected console, exclusions/redactions/context annotations. No private archive embedding run has been performed. Model downloads, full-archive embedding computation and external providers remain separately authorized operations.
+
 ## Canonical Next Queue
 
 PR519 is merged and bugs #513-517 are closed with regression evidence. The

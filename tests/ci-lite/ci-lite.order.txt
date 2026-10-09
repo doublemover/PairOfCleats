@@ -891,3 +891,7 @@ integrations/inference-history/normalize
 integrations/inference-history/security
 integrations/inference-history/service
 integrations/inference-history/reader
+
+cli/search/agent-help
+integrations/inference-history/agent-reader
+integrations/inference-history/ranking
