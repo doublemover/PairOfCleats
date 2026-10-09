@@ -896,3 +896,4 @@ cli/search/agent-help
 integrations/inference-history/agent-reader
 integrations/inference-history/ranking
 integrations/inference-history/owner-controls
+integrations/inference-history/semantic-index

@@ -45,7 +45,7 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
   const result={...lexical,hits:all.slice(offset,offset+top),
     query:{...lexical.query,retrievalMode:effectiveMode,requestedMode:mode,semanticMatching:true},
     semantic:{modelId:semantic.modelId,modelVersion:semantic.modelVersion,dimensions:semantic.dimensions,
-      indexGenerationRef:semantic.indexGenerationRef,candidateLimit,reranked:request.rerank===true,fusion:fused.method},
+      indexGenerationRef:semantic.indexGenerationRef,contentManifestHash:semantic.contentManifestHash??null,candidateLimit,reranked:request.rerank===true,fusion:fused.method},
     limits:{...lexical.limits,top,offset,candidateLimit},complete,totalMatches:complete?all.length:null,
     observedGroups:all.length,totalMatchedUnits:null,candidateMatches:null,
     channels:{lexical:{candidateMatches:lexical.candidateMatches,totalMatchedUnits:lexical.totalMatchedUnits,complete:lexical.complete},

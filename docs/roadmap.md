@@ -44,7 +44,7 @@ head. None is a blanket release-readiness claim.
 
 ## Private-history usability follow-up
 
-Implemented with synthetic checks: progressive help, generation-pinned evidence/context, lexical relaxation, optional local semantic fusion/reranking, acknowledged audit and human owner privacy controls. See [agent tool usability](guides/agent-tool-usability.md).
+Implemented with synthetic checks: progressive help, generation-pinned evidence/context, lexical relaxation, incremental local semantic fusion/reranking, acknowledged audit and escaped human owner privacy controls. See [agent tool usability](guides/agent-tool-usability.md).
 
 Pending: actual semantic index and human console integration, process-level audit protection and approved archive evaluation. No private embedding run or new deployment is claimed.
 
