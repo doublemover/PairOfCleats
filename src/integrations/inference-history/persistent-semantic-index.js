@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { normalizeHistoryVector } from './semantic-values.js';
-import { planArchiveUnitSpans, boundArchiveTokenSpans } from './archive-unit-spans.js';
+import { planArchiveUnitSpans, boundArchiveTokenSpans, createArchiveSourcePlan } from './archive-unit-spans.js';
 import { digest, historyError } from './common.js';
 import { historyIndexState } from './generation.js';
 import { createLocalHistorySemanticAdapter } from './semantic-adapter.js';
@@ -9,6 +9,7 @@ import { runHistoryCallback } from './bounded-callback.js';
 import { planHistoryTokenBatches } from './token-batches.js';
 
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid archive embedding controls.');
+const sourceGroup = "json_array(CASE WHEN json_extract(u.metadata,'$.sourceDetails.sourceSha256') IS NULL THEN 'unit' ELSE 'source' END,coalesce(json_extract(u.metadata,'$.sourceDetails.sourceSha256'),u.id),json_extract(u.metadata,'$.sourceDetails.locator'),json_extract(u.metadata,'$.sourceDetails.artifactKind'))";
 const visible = 'FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot)';
 
 /** Independent document generations, full-vector cache and source occurrence references. */
@@ -24,6 +25,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     'CREATE TABLE IF NOT EXISTS history_embedding_units_v2 (document_key TEXT NOT NULL REFERENCES history_embedding_generations_v2(document_key),unit_id TEXT NOT NULL REFERENCES units(id) ON DELETE CASCADE,content_hash TEXT NOT NULL,expected_spans INTEGER NOT NULL,complete INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(document_key,unit_id));',
     'CREATE TABLE IF NOT EXISTS history_embedding_inputs_v2 (document_key TEXT NOT NULL REFERENCES history_embedding_generations_v2(document_key),input_key TEXT NOT NULL,effective_input TEXT NOT NULL,vector BLOB NOT NULL,PRIMARY KEY(document_key,input_key));',
     'CREATE TABLE IF NOT EXISTS history_embedding_spans_v2 (document_key TEXT NOT NULL,unit_id TEXT NOT NULL,start INTEGER NOT NULL,end INTEGER NOT NULL,input_key TEXT NOT NULL,PRIMARY KEY(document_key,unit_id,start,end),FOREIGN KEY(document_key,unit_id) REFERENCES history_embedding_units_v2(document_key,unit_id) ON DELETE CASCADE,FOREIGN KEY(document_key,input_key) REFERENCES history_embedding_inputs_v2(document_key,input_key));',
+    'CREATE INDEX IF NOT EXISTS units_semantic_source_order ON units(' + sourceGroup.replaceAll('u.', '') + ',id);',
     'CREATE INDEX IF NOT EXISTS history_embedding_refs_v2 ON history_embedding_spans_v2(document_key,input_key);',
     'CREATE TRIGGER IF NOT EXISTS history_embedding_changed_v2 AFTER UPDATE OF text,metadata ON units BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id=new.id; END;',
     "CREATE TRIGGER IF NOT EXISTS history_embedding_source_changed_v3 AFTER UPDATE OF text,metadata ON units WHEN json_extract(old.metadata,'$.sourceDetails.sourceSha256') IS NOT NULL BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT id FROM units WHERE json_extract(metadata,'$.sourceDetails.sourceSha256')=json_extract(old.metadata,'$.sourceDetails.sourceSha256') AND json_extract(metadata,'$.sourceDetails.locator') IS json_extract(old.metadata,'$.sourceDetails.locator')); END;",
@@ -41,7 +43,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     indexed: db.prepare('SELECT count(*) AS n ' + visible + ' AND EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1)'),
     spans: db.prepare('SELECT count(*) AS n FROM history_embedding_spans_v2 e JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id WHERE e.document_key=? AND r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot)'),
     vectors: db.prepare('SELECT count(DISTINCT e.input_key) AS n FROM history_embedding_spans_v2 e JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id WHERE e.document_key=? AND r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot)'),
-    pending: db.prepare('SELECT u.id,u.text,u.metadata ' + visible + ' AND u.id>? AND NOT EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1) ORDER BY u.id LIMIT ?'),
+    pending: db.prepare('SELECT u.id,u.text,u.metadata,' + sourceGroup + ' AS source_group ' + visible + ' AND (' + sourceGroup + '>? OR (' + sourceGroup + '=? AND u.id>?)) AND NOT EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1) ORDER BY source_group,u.id LIMIT ?'),
     siblings: db.prepare('SELECT u.id,u.text,u.metadata ' + visible + " AND json_extract(u.metadata,'$.sourceDetails.sourceSha256')=? AND json_extract(u.metadata,'$.sourceDetails.locator') IS ? AND json_extract(u.metadata,'$.sourceDetails.artifactKind')=? AND EXISTS (SELECT 1 FROM snapshot_units su WHERE su.unit_id=u.id AND su.snapshot_id=r.latest_snapshot) ORDER BY u.id LIMIT 5001"),
     unit: db.prepare('SELECT content_hash FROM history_embedding_units_v2 WHERE document_key=? AND unit_id=?'),
     dependency: db.prepare('SELECT u.text,u.metadata ' + visible + ' AND u.id=? AND EXISTS (SELECT 1 FROM snapshot_units su WHERE su.unit_id=u.id AND su.snapshot_id=r.latest_snapshot)'),
@@ -105,6 +107,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     const generation = historyIndexState(db).generationRef;
     capacity = { ...statements.capacity.get(), maxInputs: maxCacheInputs, maxBytes: maxCacheBytes };
     const timings = { prepareMs: 0, encodeMs: 0, transactionMs: 0 };
+    const sourcePreparation = { groups: 0, siblingQueries: 0, reconstructions: 0, structuralParses: 0, dependencyChecks: 0, peakPlanSpans: 0, peakPlanInputChars: 0 };
     let encoded = 0, reused = 0, processed = 0, batches = 0, stopped = null, nativeCancellation = null, paddedTokens = 0, actualTokens = 0;
     const check = () => {
       signal.throwIfAborted();
@@ -112,7 +115,14 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     };
     const write = (inputs, occurrences) => {
       check();
-      for (const row of occurrences) for (const dependency of row.dependencies ?? []) {
+      const dependencies = new Map();
+      for (const rows of new Set(occurrences.map(row => row.dependencies))) for (const dependency of rows ?? []) {
+        const prior = dependencies.get(dependency.id);
+        if (prior && prior.hash !== dependency.hash) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Archive source changed during embedding refresh.');
+        dependencies.set(dependency.id, dependency);
+      }
+      for (const dependency of dependencies.values()) {
+        sourcePreparation.dependencyChecks++;
         const current = statements.dependency.get(dependency.id);
         if (!current || digest(JSON.stringify([current.text, current.metadata])) !== dependency.hash) {
           throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Archive source changed during embedding refresh.');
@@ -120,7 +130,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
       }
       const started = performance.now(); commit(inputs, occurrences); timings.transactionMs += performance.now() - started;
     };
-    let pending = new Map(), pendingOccurrences = 0, pendingCached = [], last = '';
+    let pending = new Map(), pendingOccurrences = 0, pendingCached = [], last = '', lastGroup = '', currentGroup = null;
     const flushCached = () => { if (pendingCached.length) { write([], pendingCached); pendingCached = []; } };
     const reuse = occurrence => { pendingCached.push(occurrence); reused++; if (pendingCached.length >= lookahead * 4) flushCached(); };
     const flush = async () => {
@@ -160,14 +170,29 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     try {
       while (processed < maxUnits) {
         check();
-        const units = statements.pending.all(last, documentKey, Math.min(100, maxUnits - processed));
+        const units = statements.pending.all(lastGroup, lastGroup, last, documentKey, Math.min(100, maxUnits - processed));
         if (!units.length) break;
         for (const unit of units) {
-          check(); last = unit.id;
+          check(); last = unit.id; lastGroup = unit.source_group;
           const metadata = JSON.parse(unit.metadata), details = metadata.sourceDetails;
-          const siblings = details?.sourceSha256 ? statements.siblings.all(details.sourceSha256, details.locator ?? null, details.artifactKind) : [unit];
+          if (currentGroup?.key !== unit.source_group) {
+            if (currentGroup?.plan || details?.sourceSha256) await flush();
+            check();
+            const siblings = details?.sourceSha256 ? statements.siblings.all(details.sourceSha256, details.locator ?? null, details.artifactKind) : [unit];
+            sourcePreparation.groups++;
+            if (details?.sourceSha256) sourcePreparation.siblingQueries++;
+            const plan = details?.sourceSha256 ? createArchiveSourcePlan(siblings, config) : null;
+            const dependencies = plan?.dependencies ?? Object.freeze(siblings.map(row => Object.freeze({ id: row.id, hash: digest(JSON.stringify([row.text, row.metadata])) })));
+            currentGroup = { key: unit.source_group, siblings, plan, dependencies };
+            if (plan) {
+              sourcePreparation.reconstructions += plan.statistics.reconstructions;
+              sourcePreparation.structuralParses += plan.statistics.structuralParses;
+              sourcePreparation.peakPlanSpans = Math.max(sourcePreparation.peakPlanSpans, plan.statistics.spans);
+              sourcePreparation.peakPlanInputChars = Math.max(sourcePreparation.peakPlanInputChars, plan.statistics.inputChars);
+            }
+          }
           nativePending = true;
-          const measurement = boundArchiveTokenSpans(planArchiveUnitSpans(unit, siblings, config), documents => runtime.measureBatch(documents, { signal }));
+          const measurement = boundArchiveTokenSpans(planArchiveUnitSpans(unit, currentGroup.siblings, config, currentGroup.plan), documents => runtime.measureBatch(documents, { signal }));
           nativeWork = measurement;
           measurement.finally(() => { if (nativeWork === measurement) { nativePending = false; nativeWork = null; } }).catch(() => {});
           const spans = await runHistoryCallback(() => measurement, signal);
@@ -182,7 +207,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
             if (existing.has(span.start + ':' + span.end)) { reused++; continue; }
             const document = { text: span.text, title: span.title ?? metadata.title ?? details?.locator ?? undefined };
             const effectiveInput = runtime.effectiveInput(document), inputKey = digest(JSON.stringify([documentKey, effectiveInput]));
-            const occurrence = { unitId: unit.id, start: span.start, end: span.end, inputKey, dependencies: siblings.map(row => ({ id: row.id, hash: digest(JSON.stringify([row.text, row.metadata])) })) };
+            const occurrence = { unitId: unit.id, start: span.start, end: span.end, inputKey, dependencies: currentGroup.dependencies };
             const cached = statements.cached.get(documentKey, inputKey);
             if (cached) {
               if (cached.effective_input !== effectiveInput) throw historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Archive input digest collision.');
@@ -224,10 +249,10 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
         }
       }
       else throw error;
-    } finally { running = false; capacity = null; }
+    } finally { running = false; capacity = null; currentGroup = null; }
     const coverage = status();
     return { ...coverage, admittedUnits: processed, encodedSpans: encoded, reusedSpans: reused, batches, stopped, nativeCancellation,
-      actualTokens, paddedTokens, timings, resumable: true, exhaustiveCoverage: coverage.complete };
+      actualTokens, paddedTokens, timings, sourcePreparation, resumable: true, exhaustiveCoverage: coverage.complete };
   };
   const adapter = () => {
     const coverage = status();
@@ -271,10 +296,3 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
   };
   return Object.freeze({ status, refresh, adapter });
 }
-
-
-
-
-
-
-

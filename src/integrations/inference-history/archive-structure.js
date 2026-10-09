@@ -205,19 +205,29 @@ export function archiveStructuralSpans(text, options = {}) {
       }
     } else appendPacked(range, null);
   }
-  const output = [];
+  const maxSpans = options.maxSpans ?? Infinity, maxSpanChars = options.maxSpanChars ?? Infinity;
+  if ((maxSpans !== Infinity && (!Number.isSafeInteger(maxSpans) || maxSpans < 1))
+    || (maxSpanChars !== Infinity && (!Number.isSafeInteger(maxSpanChars) || maxSpanChars < 1))) throw new Error('Invalid archive source plan budget.');
+  const output = []; let spanChars = 0;
   for (const range of packed) {
     if (range.end <= intersectStart || range.start >= intersectEnd) continue;
     let start = range.start;
     while (start < range.end && start < intersectEnd) {
       let end = Math.min(range.end, start + chunkChars);
       if (end < range.end) {
-        const line = text.lastIndexOf('\n', end);
-        if (line > start + chunkChars / 2) end = line + 1;
+        const line = text.slice(start, end + 1).lastIndexOf('\n');
+        if (line > chunkChars / 2) end = start + line + 1;
         if (/[\uD800-\uDBFF]/.test(text[end - 1])) end--;
       }
       const title = archiveContextTitle(locator, range.name, classification);
-      if (end > intersectStart) output.push({ start, end, text: text.slice(start, end), title, contextTitle: title, classification });
+      if (end > intersectStart) {
+        const inputChars = end - start + title.length + 23;
+        if (output.length >= maxSpans || spanChars + inputChars > maxSpanChars) {
+          throw Object.assign(new Error('Archive source plan exceeds explicit span/input budgets.'), { code: 'ERR_INFERENCE_HISTORY_LIMIT' });
+        }
+        spanChars += inputChars;
+        output.push({ start, end, text: text.slice(start, end), title, contextTitle: title, classification });
+      }
       if (end === range.end) break;
       start = Math.max(start + 1, end - overlapChars);
       if (/[\uDC00-\uDFFF]/.test(text[start])) start++;
@@ -227,6 +237,3 @@ export function archiveStructuralSpans(text, options = {}) {
   for (const span of output) span.text = text.slice(span.start, span.end);
   return output;
 }
-
-
-
