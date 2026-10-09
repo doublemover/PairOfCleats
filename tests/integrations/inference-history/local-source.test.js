@@ -8,61 +8,55 @@ import { createInferenceHistoryService, createLocalSourceHistoryService } from '
 import { createHistoryAgentBroker } from '../../../src/integrations/inference-history/agent-broker.js';
 import { createHistoryOwnerConsole } from '../../../src/integrations/inference-history/owner-console.js';
 import { createHistoryAgentReader } from '../../../src/integrations/inference-history/agent-reader.js';
+import { createHistoryAuditLedger } from '../../../src/integrations/inference-history/audit.js';
+import { createHistoryOwnerHttpHandler } from '../../../src/integrations/inference-history/owner-http.js';
+
 const root=await fs.realpath(await makeTempDir('local-source-history-'));
 const source=path.join(root,'artifacts-0001.json');
 await fs.writeFile(source,JSON.stringify(projectArtifact({text:'synthetic cobalt artifact',sourceSha256:'a'.repeat(64),locator:'fixture.txt'})));
 const bytes=await fs.readFile(source),before=await fs.readdir(root),sourceMode=(await fs.stat(source)).mode;
-const request={requestContext:'local-fixture',partition:'own'};
-const access={principalId:'fixture',tenantId:'fixture',ownerType:'individual',ownerId:'fixture',sourceScope:'synthetic-local',policyEpoch:'1',allowed:true};
-let revoked=false,audits=0,lastAudit=null;
-const options={sources:[{path:source,sha256:digest(bytes)}],initialRequest:request,sourcePolicyEpoch:'synthetic-source',
-  authorizeSources:()=>true,inspectSourcePermissions:()=>({warnings:['inherited_acl','other_principal_read']}),
-  resolveAccess:()=>revoked?null:access,audit:event=>{audits++;lastAudit=event;return {persisted:true};}};
-await assert.rejects(createLocalSourceHistoryService({...options,authorizeSources:()=>false}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
+const options={sources:[{path:source,sha256:digest(bytes)}]};
 await assert.rejects(createLocalSourceHistoryService({...options,maxSourceBytes:1}),{code:'ERR_INFERENCE_HISTORY_LIMIT'});
 await assert.rejects(createLocalSourceHistoryService({...options,sources:[{path:source,sha256:'b'.repeat(64)}]}),{code:'ERR_INFERENCE_HISTORY_INPUT'});
-assert.equal(lastAudit.outcome,'denied');
-await assert.rejects(createLocalSourceHistoryService({...options,audit:()=>({persisted:false})}),{code:'ERR_INFERENCE_HISTORY_AUDIT'});
+await assert.rejects(createLocalSourceHistoryService({sources:[{path:'../escape.json',sha256:digest(bytes)}]}),{code:'ERR_INFERENCE_HISTORY_INPUT'});
+await assert.rejects(createLocalSourceHistoryService({...options,resolveAccess:()=>true}),{code:'ERR_INFERENCE_HISTORY_INPUT'});
 const local=await createLocalSourceHistoryService(options);
-const result=await local.search({...request,query:'cobalt',role:'artifact'});
+const result=await local.search({query:'cobalt',role:'artifact'});
 assert.equal(result.totalMatches,1);
-assert.deepEqual(result.localSource.warnings,['inherited_acl','other_principal_read']);
+assert.equal(result.localSource.audit,'disabled');
 assert.equal(result.localSource.filesystemIndexWrites,false);
 assert.equal(result.localSource.storage,'memory_only');
-assert.ok(audits>=2);
 for(const action of ['importExport','deleteRecord','ownerSetPrivacy','ownerInventory'])assert.equal(local[action],undefined);
 assert.throws(()=>createHistoryAgentBroker({service:local,boundary:{bind(){}}}),/authenticated/);
 assert.throws(()=>createHistoryAgentBroker({service:{...local},boundary:{bind(){}}}),/authenticated/);
 assert.throws(()=>createHistoryOwnerConsole({service:local,authenticateHuman:()=>{},auditLedger:{}}),/owner host/);
-const reader=createHistoryAgentReader({service:local,...request});
+const reader=createHistoryAgentReader({service:local});
 const packet=await reader.execute('search',{query:'cobalt'});
-assert.equal(packet.localSource.storage,'memory_only');
-await assert.rejects(local.search({...request,requestContext:'foreign',query:'cobalt'}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
-revoked=true;await assert.rejects(local.search({...request,query:'cobalt'}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
-await local.dispose();await assert.rejects(local.search({...request,query:'cobalt'}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
+assert.equal(packet.ok,true);assert.equal(packet.page.totalMatches,1);
+await local.dispose();await assert.rejects(local.search({query:'cobalt'}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
 assert.deepEqual(await fs.readdir(root),before);
 assert.deepEqual(await fs.readFile(source),bytes);
 assert.equal((await fs.stat(source)).mode,sourceMode);
-assert.throws(()=>createInferenceHistoryService({resolveAccess:()=>access,audit:()=>({persisted:true}),localSourceToken:'local'}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
-console.log('local-source memory reads, ACL warnings, source hashes, audit enforcement, revocation, write exclusion and transport guards passed');
+for(const audit of [()=>({persisted:false}),()=>{throw Error('optional log unavailable');}]){
+  const logged=await createLocalSourceHistoryService({...options,audit});
+  assert.equal((await logged.search({query:'cobalt'})).totalMatches,1);
+  assert.equal(logged.localSource.audit,'optional_callback');await logged.dispose();
+}
+console.log('selected local reads without host/audit/ACL prerequisites, optional log failures, source preservation and transport guards passed');
 
-const {createHistoryAuditLedger}=await import('../../../src/integrations/inference-history/audit.js');
-const {createHistoryOwnerHttpHandler}=await import('../../../src/integrations/inference-history/owner-http.js');
+const access={principalId:'fixture',tenantId:'fixture',ownerType:'individual',ownerId:'fixture',sourceScope:'synthetic',policyEpoch:'1',allowed:true};
+assert.throws(()=>createInferenceHistoryService({resolveAccess:()=>access}),{code:'ERR_INFERENCE_HISTORY_AUDIT'});
+assert.throws(()=>createInferenceHistoryService({resolveAccess:()=>access,audit:()=>({persisted:true}),localSourceToken:'local'}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
+assert.throws(()=>createHistoryAgentReader({service:{search(){}}}),/partition/);
 const broadVault=path.join(root,'synthetic-broad-vault');await fs.mkdir(broadVault,{mode:0o755});
 const strict=createInferenceHistoryService({vaultRoot:broadVault,resolveAccess:()=>access,audit:()=>({persisted:true}),verifyPrivateVault:()=>false});
-await assert.rejects(strict.search({...request,query:'cobalt'}),{code:'ERR_INFERENCE_HISTORY_STORAGE'});
+await assert.rejects(strict.search({requestContext:'fixture',partition:'own',query:'cobalt'}),{code:'ERR_INFERENCE_HISTORY_STORAGE'});
 const ledger=createHistoryAuditLedger({auditRoot:broadVault,verifyPrivateVault:()=>false});
 await assert.rejects(ledger.append({action:'synthetic'}),{code:'ERR_INFERENCE_HISTORY_STORAGE'});
 assert.deepEqual(await fs.readdir(broadVault),[]);
 assert.throws(()=>createHistoryOwnerHttpHandler({console:{executionContext:'local_source_readonly',page(){},audit(){},setPrivacy(){}},boundary:{bind(){}},origin:'https://fixture.invalid'}),/trusted owner/);
-revoked=false;
-await assert.rejects(createLocalSourceHistoryService({...options,maxUnits:0}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
-const unknownPermissions=await createLocalSourceHistoryService({...options,inspectSourcePermissions:()=>{throw new Error('synthetic inspector failure');}});
-assert.deepEqual(unknownPermissions.localSource.warnings,['permission_check_unavailable']);await unknownPermissions.dispose();
-console.log('strict persistent/audit guards and local-only HTTP rejection remain enforced');
-
-const manyPath=path.join(root,'artifacts-0002.json');
-const manyBytes=Buffer.from(JSON.stringify(projectArtifact({text:'bounded artifact '.repeat(1000),sourceSha256:'c'.repeat(64),locator:'many.txt'})));
+await assert.rejects(createLocalSourceHistoryService({...options,maxUnits:0}),{code:'ERR_INFERENCE_HISTORY_INPUT'});
+const manyPath=path.join(root,'artifacts-0002.json'),manyBytes=Buffer.from(JSON.stringify(projectArtifact({text:'bounded artifact '.repeat(1000),sourceSha256:'c'.repeat(64),locator:'many.txt'})));
 await fs.writeFile(manyPath,manyBytes);
 await assert.rejects(createLocalSourceHistoryService({...options,sources:[{path:manyPath,sha256:digest(manyBytes)}],maxUnits:1}),{code:'ERR_INFERENCE_HISTORY_LIMIT'});
-console.log('corpus-wide local memory unit cap passed');
+console.log('service audit/storage/authentication guards and local corpus limits remain enforced');

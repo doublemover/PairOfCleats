@@ -1,3 +1,4 @@
+import { isLocalSourceHistoryService } from './service.js';
 import { createHash } from 'node:crypto';
 import { HISTORY_AGENT_VERSION, historyAgentHelp, validateHistoryAgentRequest } from './agent-contract.js';
 
@@ -17,8 +18,9 @@ const ERROR_HINTS = {
   ERR_INFERENCE_HISTORY_STORAGE: 'Ask the host to inspect the private store; do not retry or reimport automatically.'
 };
 
-/** Adapter around an already-authenticated service, never a filesystem/policy entrypoint. */
+/** Adapter over an authenticated service or an explicitly selected local reader. */
 export function createHistoryAgentReader({ service, requestContext, partition }) {
+  if(isLocalSourceHistoryService(service)){partition='local';requestContext=null;}
   if (!service || typeof partition !== 'string' || !partition) throw new TypeError('Trusted service and partition required.');
   return {
     help: historyAgentHelp,
