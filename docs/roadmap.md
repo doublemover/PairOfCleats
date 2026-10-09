@@ -246,8 +246,9 @@ Remaining ordered gates:
    [Exact verification and limits](guides/kingfisher-cpu-verification-20261009.md).
 3. Fresh archive import/reopen/original guards passed: 87,973 records, zero gaps and
    1,675,434 effective words. Exact current plan: 422,836 inputs / 135,932,568 tokens.
-   Current-policy CPU relevance/citations/throughput qualification precedes corpus inference.
-   Frozen diagnostic counts/old throughput do not establish its ETA. CPU only.
+   Current-policy native qualification passed admission, finite normalized vectors and durable replay; semantic source recall@10=1, anchor recall@10=0.875 under the unit-citation contract.
+   Measured 270.8 useful tokens/s; approximate full-token extrapolation 139.4h is uncertain.
+   First bounded slice persisted 100 units / 555 vectors; read-only reopen passed after a reporting-heartbeat failure. Ranking/citation selection limits product quality; CPU only.
 4. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
    Search scaling, output-copy/statement reuse and parent-death lifetime retain the detailed
    acceptance gates in the linked checkpoint; alternative engines remain research.
