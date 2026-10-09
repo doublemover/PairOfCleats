@@ -46,7 +46,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     putSpan: db.prepare('INSERT OR IGNORE INTO history_embedding_spans_v2 VALUES (?,?,?,?,?)'),
     finish: db.prepare('UPDATE history_embedding_units_v2 SET complete=1 WHERE document_key=? AND unit_id=? AND expected_spans=(SELECT count(*) FROM history_embedding_spans_v2 WHERE document_key=? AND unit_id=?)')
   };
-  let running = false, nativePending = false, capacity = null;
+  let running = false, nativePending = false, nativeWork = null, capacity = null;
   const status = () => {
     const total = statements.total.get().n, indexed = statements.indexed.get(documentKey).n;
     return { identityKey: documentKey, documentIdentityKey: documentKey, queryIdentityKey: config.queryIdentityKey,
@@ -97,7 +97,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     const generation = historyIndexState(db).generationRef;
     capacity = { ...statements.capacity.get(), maxInputs: maxCacheInputs, maxBytes: maxCacheBytes };
     const timings = { prepareMs: 0, encodeMs: 0, transactionMs: 0 };
-    let encoded = 0, reused = 0, processed = 0, batches = 0, stopped = null, paddedTokens = 0, actualTokens = 0;
+    let encoded = 0, reused = 0, processed = 0, batches = 0, stopped = null, nativeCancellation = null, paddedTokens = 0, actualTokens = 0;
     const check = () => {
       signal.throwIfAborted();
       if (historyIndexState(db).generationRef !== generation) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Archive changed during embedding refresh.');
@@ -115,7 +115,9 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
       const rows = [...pending.values()], prepareStart = performance.now();
       nativePending = true;
       const preparation = Promise.resolve().then(() => runtime.prepareBatch(rows.map(row => row.text), { signal }));
-      preparation.then(() => { nativePending = false; }, () => { nativePending = false; });
+      nativeWork = preparation;
+      preparation.then(() => { if (nativeWork === preparation) { nativePending = false; nativeWork = null; } },
+        () => { if (nativeWork === preparation) { nativePending = false; nativeWork = null; } });
       const prepared = await runHistoryCallback(() => preparation, signal);
       timings.prepareMs += performance.now() - prepareStart; check();
       const lengths = prepared.map(row => row.tokenLength);
@@ -125,7 +127,9 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
         const encodeStart = performance.now();
         nativePending = true;
         const work = Promise.resolve().then(() => runtime.encodePrepared(indices.map(index => prepared[index]), { signal }));
-        work.then(() => { nativePending = false; }, () => { nativePending = false; });
+        nativeWork = work;
+        work.then(() => { if (nativeWork === work) { nativePending = false; nativeWork = null; } },
+          () => { if (nativeWork === work) { nativePending = false; nativeWork = null; } });
         const results = await runHistoryCallback(() => work, signal);
         timings.encodeMs += performance.now() - encodeStart; check();
         if (!Array.isArray(results) || results.length !== indices.length) throw invalid();
@@ -181,11 +185,24 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
       }
       await flush();
     } catch (error) {
-      if (signal.aborted) stopped = inputSignal?.aborted ? 'cancelled' : 'deadline';
+      if (signal.aborted) {
+        stopped = inputSignal?.aborted ? 'cancelled' : 'deadline';
+        nativeCancellation = { supported: typeof runtime.cancel === 'function', requestAccepted: false, workerStopped: false };
+        if (nativeCancellation.supported) {
+          try {
+            const receipt = await runtime.cancel(stopped);
+            if (receipt && typeof receipt === 'object') nativeCancellation = { ...receipt, supported: true };
+            if (nativeCancellation.workerStopped === true && nativeWork) await Promise.allSettled([nativeWork]);
+          } catch (cancelError) {
+            nativeCancellation = { supported: true, requestAccepted: null, workerStopped: false,
+              errorCode: typeof cancelError?.code === 'string' ? cancelError.code : 'ERR_INFERENCE_HISTORY_CANCEL' };
+          }
+        }
+      }
       else throw error;
     } finally { running = false; capacity = null; }
     const coverage = status();
-    return { ...coverage, admittedUnits: processed, encodedSpans: encoded, reusedSpans: reused, batches, stopped,
+    return { ...coverage, admittedUnits: processed, encodedSpans: encoded, reusedSpans: reused, batches, stopped, nativeCancellation,
       actualTokens, paddedTokens, timings, resumable: true, exhaustiveCoverage: coverage.complete };
   };
   const adapter = () => {

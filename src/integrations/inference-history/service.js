@@ -417,15 +417,29 @@ export async function createLocalSourceHistoryService(options) {
   try{semanticState=embeddingRuntime?service.configureLocalSemantic(embeddingRuntime):null;}catch(error){service.dispose();evidence.close();throw error;}
   const metadata=Object.freeze({semantic:semanticState,discoveryRebuild,mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
     audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:!!indexPath});
-  let pending=Promise.resolve(),closed=false;
+  let pending=Promise.resolve(),closed=false,disposal=null;
+  const indexingStop=new AbortController();
   const api={executionContext:'local_source_readonly',localSource:metadata,
-    async dispose(){closed=true;await pending;await embeddingRuntime?.waitForIdle();service.dispose();evidence.close();},
+    async dispose(){
+      if(disposal)return disposal;
+      closed=true;indexingStop.abort(new Error('Archive embedding service disposed.'));
+      disposal=(async()=>{
+        await embeddingRuntime?.dispose?.();
+        await pending;await embeddingRuntime?.waitForIdle();service.dispose();evidence.close();
+      })();
+      return disposal;
+    },
+    async cancelEmbeddings(reason='cancelled'){
+      indexingStop.abort(new Error('Archive embedding cancellation requested.'));
+      return embeddingRuntime?.cancel?.(reason)??{requestAccepted:false,workerStopped:true,reason:'not_configured'};
+    },
     embeddingExecutionInfo(){if(closed)throw denied();return embeddingRuntime?.executionInfo()??null;},
     async endEmbeddingProfiling(){if(closed)throw denied();await pending;return embeddingRuntime?.endProfiling()??null;},
     embeddingStatus(){if(closed)throw denied();return service.localEmbeddingStatus();},
     indexEmbeddings(controls={}){
       if(closed)return Promise.reject(denied());
-      const operation=pending.then(()=>service.indexLocalEmbeddings({...scope,controls}));
+      const signal=AbortSignal.any([indexingStop.signal,...(controls.signal?[controls.signal]:[])]);
+      const operation=pending.then(()=>service.indexLocalEmbeddings({...scope,controls:{...controls,signal}}));
       pending=operation.catch(()=>{});return operation;
     }};
   for(const method of ['search','readContext','readTimeline','readReferences','readOriginal','readMemberEvidence']){

@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { HISTORY_SEMANTIC_CHUNKER_VERSION, normalizeHistoryVector } from './semantic-values.js';
-import { getEmbeddingAdapter } from '../../shared/embedding-adapter.js';
+import { HISTORY_SEMANTIC_CHUNKER_VERSION } from './semantic-values.js';
+import { createEg2WorkerRuntime } from './eg2-worker-runtime.js';
 import { normalizeEg2SessionOptions } from '../../shared/embedding-prepared.js';
 import { EMBEDDING_GEMMA2_REVISION, resolveEmbeddingModelProfile } from '../../shared/embedding-model-profile.js';
 import { digest, historyError } from './common.js';
@@ -92,60 +92,13 @@ export function resolveArchiveEmbeddingOptions(options) {
     maxPaddedTokens, maxAttentionTokens, maxCacheInputs, maxCacheBytes, sessionOptions, modelFileName });
 }
 
+let workerFactory = createEg2WorkerRuntime;
+
+/** Test transport injection; production always uses the owned child process. */
+export const __setArchiveWorkerFactoryForTests = factory => {
+  workerFactory = typeof factory === 'function' ? factory : createEg2WorkerRuntime;
+};
+
 export function createArchiveEmbeddingRuntime(options) {
-  const config = resolveArchiveEmbeddingOptions(options);
-  const adapter = getEmbeddingAdapter({
-    provider: 'xenova', modelId: config.modelId, modelsDir: config.modelsDir,
-    modelProfile: config.fullProfile, normalize: true, localFilesOnly: config.localFilesOnly,
-    sessionOptions: config.sessionOptions, modelFileName: config.modelFileName
-  });
-  let active = null;
-  const effectiveInput = text => config.passagePrefix + text;
-  const invoke = async (callback, signal) => {
-    signal?.throwIfAborted();
-    if (active) throw historyError('ERR_INFERENCE_HISTORY_LIMIT',
-      'Native embedding work remains unsettled; no new submission is admitted.');
-    const promise = Promise.resolve().then(callback);
-    active = promise;
-    try {
-      const result = await promise;
-      signal?.throwIfAborted();
-      return result;
-    } catch (error) {
-      if (signal?.aborted) throw signal.reason;
-      if (error.code === 'ERR_INFERENCE_HISTORY_LIMIT') throw error;
-      throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE',
-        'Archive EG2 encoder unavailable; inspect the pinned runtime and selected model cache.');
-    } finally { if (active === promise) active = null; }
-  };
-  return Object.freeze({
-    config, effectiveInput,
-    async prepareBatch(texts, { signal } = {}) {
-      signal?.throwIfAborted();
-      if (typeof adapter.prepare !== 'function') {
-        throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE', 'Prepared EG2 tokenizer unavailable.');
-      }
-      const prepared = await adapter.prepare(texts.map(effectiveInput));
-      signal?.throwIfAborted();
-      return prepared;
-    },
-    encodePrepared(prepared, { signal } = {}) {
-      return invoke(() => adapter.embedPrepared(prepared), signal);
-    },
-    encodeBatch(texts, { signal } = {}) {
-      return invoke(() => adapter.embed(texts.map(effectiveInput)), signal);
-    },
-    async encodeQuery(query, { signal } = {}) {
-      const vector = await invoke(() => adapter.embedOne(config.queryPrefix + query), signal);
-      return normalizeHistoryVector(Array.from(vector).slice(0, config.profile.dimensions),
-        config.profile.dimensions);
-    },
-    executionInfo() {
-      return { ...adapter.executionInfo?.(), cpuOnly: true, activeNativeCalls: active ? 1 : 0,
-        documentIdentityKey: config.documentIdentityKey, queryIdentityKey: config.queryIdentityKey,
-        representationIdentityKey: config.representationIdentityKey };
-    },
-    waitForIdle() { return active ? Promise.allSettled([active]) : Promise.resolve(); },
-    endProfiling() { return adapter.endProfiling?.(); }
-  });
+  return workerFactory(resolveArchiveEmbeddingOptions(options));
 }

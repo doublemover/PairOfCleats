@@ -5,8 +5,7 @@ import Database from 'better-sqlite3';
 import { digest } from '../../../src/integrations/inference-history/common.js';
 import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
-import { resolveArchiveEmbeddingOptions, ARCHIVE_EG2_QUERY_PREFIX } from '../../../src/integrations/inference-history/embedding-runtime.js';
-import { __setAdapterFactoryForTests } from '../../../src/shared/embedding-adapter.js';
+import { resolveArchiveEmbeddingOptions, ARCHIVE_EG2_QUERY_PREFIX, __setArchiveWorkerFactoryForTests } from '../../../src/integrations/inference-history/embedding-runtime.js';
 const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR||path.resolve('temp/tasks/archive-eg2-tests');
 await fs.mkdir(base,{recursive:true});
 const root=await fs.realpath(await fs.mkdtemp(path.join(base,'persistent-eg2-')));
@@ -29,14 +28,17 @@ assert.equal(resolveArchiveEmbeddingOptions({...config,task:'code'}).documentIde
 let calls=0,cancelAt=Infinity,cancel=null,queryCalls=0;
 let durableSpans=0;
 const inputs=[];
-__setAdapterFactoryForTests(options=>{
+__setArchiveWorkerFactoryForTests(options=>{
   assert.equal(options.localFilesOnly,true);
-  const dimensions=options.modelProfile.dimensions;
+  const dimensions=options.fullProfile.dimensions;
   const vector=text=>{const value=new Float32Array(dimensions);value[/rocket|spacecraft/.test(text)?0:1]=1;return value;};
   return {
-    async prepare(texts){return texts.map(text=>({text,tokenLength:text.length}));},
-    async embedPrepared(items){calls++;const texts=items.map(item=>item.text);inputs.push(...texts);if(calls===cancelAt)cancel.abort();return texts.map(vector);},
-    async embedOne(text){queryCalls++;assert.ok(text.startsWith(ARCHIVE_EG2_QUERY_PREFIX));return vector(text);}
+    config:options,effectiveInput:text=>options.passagePrefix+text,
+    waitForIdle:async()=>{},dispose:async()=>{},
+    cancel:async()=>({requestAccepted:true,workerStopped:true,forced:false,exitCode:0,signal:null}),
+    async prepareBatch(texts){return texts.map(text=>({text:options.passagePrefix+text,tokenLength:text.length+options.passagePrefix.length}));},
+    async encodePrepared(items){calls++;const texts=items.map(item=>item.text);inputs.push(...texts);if(calls===cancelAt)cancel.abort();return texts.map(vector);},
+    async encodeQuery(text){queryCalls++;const effective=options.queryPrefix+text;assert.ok(effective.startsWith(ARCHIVE_EG2_QUERY_PREFIX));return vector(effective).slice(0,options.profile.dimensions);}
   };
 });
 const options={sources:[{path:sources,sha256:digest(await fs.readFile(sources))}],indexPath:path.join(root,'archive.sqlite'),embeddings:config};
@@ -94,4 +96,4 @@ try{
   assert.equal(service.embeddingStatus().pendingUnits,1);
   await service.dispose();service=null;
   console.log('SYNTHETIC encoder: local factory wiring, prompt/default identity, persisted resume, cancellation, incremental invalidation, independent hybrid candidates and pre-cap eligibility passed');
-}finally{await service?.dispose();__setAdapterFactoryForTests(null);}
+}finally{await service?.dispose();__setArchiveWorkerFactoryForTests(null);}
