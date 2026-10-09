@@ -138,7 +138,7 @@ available only through `read_original` authority. `rawJson` preserves duplicate
 keys and formatting that JavaScript's parsed object cannot represent separately.
 Byte-distinct JSON creates a distinct snapshot even when canonical objects match;
 unchanged normalized units are shared across those snapshots. Vault format
-inference-history.v6 includes the required lookup indexes and private reference key.
+inference-history.v7 includes the required lookup indexes and private reference key.
 Older vault formats fail closed and are not migrated or modified implicitly.
 
 Conversation identity includes trusted source scope and source conversation ID.
@@ -167,7 +167,7 @@ parts remain ordered raw evidence; hidden code payloads do not participate in vi
 
 ## Projection and retrieval
 
-Projection history-text.v6 retains canonical node revisions privately. Public
+Projection history-text.v7 retains canonical node revisions privately. Public
 projection metadata contains a digest of redacted, clipped text only. Search and
 context never expose raw text, raw occurrence or node revision hashes. Content-dependent
 snapshot, unit and group references are HMACs under a random per-vault key held in
@@ -268,7 +268,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 
 ## Codex records and declared member evidence
 
-`chatgpt-export.v7` uses vault format `inference-history.v6`. The current API exposes
+`chatgpt-export.v7` uses vault format `inference-history.v7`. The current API exposes
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn
@@ -427,7 +427,7 @@ an artifact-existence check, implementation certification or complete archive au
 
 The history-agent.v1 read-only presentation facade and history-search.v2 query contract are documented in [agent tool usability](../guides/agent-tool-usability.md). Strict matching retains lexical AND; explicit relaxed and facade-default auto support bounded lexical relaxation while preserving phrases, exclusions, role/time/path/snapshot filters and the existing service authority. The old survey remains pinned separately. A separately provisioned trusted local adapter can supply semantic candidates and reranking; no dense archive index is built and no network/model fallback is introduced.
 
-Generation/context cutover: new stores require inference-history.v6 with transactional generation counters and opaque generation references. Import changes and first-time tombstones advance the counter; repeated identical imports do not. Continuations and citation actions pin the generation. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Old v5 stores are rejected without mutation or migration; the old survey uses its unchanged old source. No production reimport is authorized by this source implementation. Export completeness/freshness remains unknown, separately from index-update time.
+Generation/context cutover: new stores require inference-history.v7 with transactional generation counters and opaque generation references. Import changes and first-time tombstones advance the counter; repeated identical imports do not. Continuations and citation actions pin the generation. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Previous store formats are rejected without mutation or migration; the old survey uses its unchanged old source. No production reimport is authorized by this source implementation. Export completeness/freshness remains unknown, separately from index-update time.
 
 The timeline command retrieves an exact conversation branch in oldest/newest order with role/date filtering. Correction-language markers are unverified text signals, never an assertion of user acceptance. mergeHistoryContexts deduplicates overlapping returned messages within one generation and reports omitted spans; it performs no reads and cannot establish full conversation completeness.
 
@@ -687,8 +687,8 @@ configured nonempty index. Semantic candidates are independently discovered with
 an exact bounded-memory cosine scan over persisted full vectors, deriving the
 requested representation; role/date/snapshot/branch/phrase/exclusion eligibility
 applies before top-N. Existing rehydration, provenance and rank fusion remain
-authoritative. Metadata surfaces and original grouping stay lexical in auto;
-explicit semantic rejects those surfaces.
+authoritative. Explicit metadata surfaces stay lexical in auto;
+explicit semantic rejects those fields. Original grouping is available in hybrid/semantic with source diversity limits.
 
 Unit checks use labeled synthetic adapters. Real-model acceptance requires the
 actual pinned runtime and cached weights. Source checks establish no real
@@ -712,3 +712,5 @@ Original DAT SHA256 remained unchanged. No encoder injection or synthetic fallba
 was used for this acceptance. The selected 89,059-unit corpus uses a separate
 bounded resumable job; its reported coverage must not be inferred from this
 small completed check.
+
+Current structural/lexical policy and acceptance gates: [archive pipeline integration](../guides/archive-pipeline-integration-20261009.md).
