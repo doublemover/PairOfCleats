@@ -143,6 +143,35 @@ Private `current-token-plan.json` SHA256:
 `be2315f77813573046f0b9001a49adf04e224e9040afcd1b2a770ff2f56856a2`.
 Current-policy representative CPU qualification is the next inference gate.
 
+## Canonical offline tokenizer prerequisite
+
+Actual current-policy qualification exposed a locked Transformers.js 4.3.1 defect
+before model inference: tokenizer discovery did not forward explicit revision,
+cache directory and local-files-only options to file metadata lookup. Default
+cache/revision discovery returned no tokenizer config despite verified pinned
+files. The earlier trial's direct-leaf loader bypassed this path and did not
+qualify canonical cache discovery.
+
+The existing package-patch workflow now handles bounded existing-file sections
+within one exact package/version (16 sections per patch, 128 targets total).
+All sections retain path/regular-file/size/hunk checks and are validated before
+publication. Each file rename is atomic; this is not a filesystem transaction
+across all file renames. Cross-package, duplicate, outside, new/renamed,
+nonregular and over-limit targets fail closed.
+
+The canonical patch forwards tokenizer options in source and Node ESM/CJS/web
+exports. No dependency version, model/tokenizer bytes, numerical setting, custom
+loader or cache mirror changed. Offline pinned-revision/custom-cache ESM+CJS
+regression, existing patch enforcement, multi-file safety and scoped lint passed.
+The isolated runtime's original files are preserved and every patched output is
+hash-verified. Source prerequisite commit:
+`6e56e9538703af69f3c4046771e165a046e9ac6f`.
+
+The task observation preload also required a Windows file URL rather than a raw
+absolute import path. Both pre-native failures and corrected no-model checks
+remain in private qualification receipts. No input was encoded in those failed
+startup attempts. Actual native qualification started only after these checks.
+
 ## Exact count-only evidence
 
 The final diagnostic used the fixed local EG2 tokenizer with no truncation or model
