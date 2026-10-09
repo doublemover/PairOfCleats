@@ -8,6 +8,7 @@ import { runWithOperationalFailurePolicy } from '../../../../shared/ops/failure-
 import {
   SIGNATURE_VERSION,
   buildIncrementalSignature,
+  buildDependencySignatures,
   buildIncrementalSignatureSummary,
   buildTokenizationKey
 } from '../signatures.js';
@@ -153,12 +154,14 @@ export const runPipelineStageOrchestrator = async ({
   }
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
   const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
+  const dependencySignatures = buildDependencySignatures(runtimeRef, mode, tokenizationKey);
   const cacheSignatureSummary = buildIncrementalSignatureSummary(runtimeRef, mode, tokenizationKey);
   await updateBuildState(runtimeRef.buildRoot, {
     signatures: {
       [mode]: {
         tokenizationKey,
         cacheSignature,
+        dependencySignatures,
         signatureVersion: SIGNATURE_VERSION
       }
     }
@@ -181,6 +184,7 @@ export const runPipelineStageOrchestrator = async ({
     tokenizationKey,
     cacheSignature,
     cacheSignatureSummary,
+    dependencySignatures,
     cacheReporter
   });
   if (reused) {
