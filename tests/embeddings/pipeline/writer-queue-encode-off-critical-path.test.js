@@ -91,3 +91,16 @@ assert.deepEqual(
 );
 
 console.log('embeddings writer queue encode off critical path test passed');
+
+for(const options of [{maxPending:1},{maxPending:8,maxPendingBytes:4}]){
+  let active=0,peak=0;
+  const queue=createBoundedWriterQueue(options);
+  await Promise.all(Array.from({length:8},(_,i)=>queue.enqueue(async()=>{
+    active++;peak=Math.max(peak,active);try{await delay(2);if(i===2)throw Error('synthetic rejection');}finally{active--;}
+  },{bytes:4})));
+  await queue.onIdle();assert.equal(peak,1);assert.equal(queue.stats().peakPending,1);
+  assert.equal(queue.stats().pendingBytes,0);assert.equal(queue.stats().failed,1);
+}
+const smallQueue=createBoundedWriterQueue({maxPendingBytes:3});
+await assert.rejects(smallQueue.enqueue(()=>{}, {bytes:4}),RangeError);
+console.log('Concurrent writer count/byte reservations and rejection release passed');
