@@ -8,8 +8,10 @@ Sources:
 ## Top-level namespaces
 
 - cache
+- dictionary
 - indexing
 - mcp
+- models
 - quality
 - retrieval
 - runtime
@@ -24,6 +26,17 @@ Sources:
 ```
 cache (object)
 cache.root (string)
+dictionary (object)
+dictionary.dir (string)
+dictionary.dpMaxTokenLength (number)
+dictionary.dpMaxTokenLengthByFileCount (array)
+dictionary.enableRepoDictionary (boolean)
+dictionary.files (array)
+dictionary.includeSlang (boolean)
+dictionary.languages (array)
+dictionary.segmentation (string) enum=auto|dp|greedy|aho
+dictionary.slangDirs (array)
+dictionary.slangFiles (array)
 indexing (object)
 indexing.artifacts (object)
 indexing.artifacts.chunkMetaFormat (string) enum=auto|json|jsonl|columnar
@@ -175,6 +188,9 @@ mcp.mode (string) enum=legacy|sdk|auto
 mcp.queueMax (number)
 mcp.toolTimeoutMs (number)
 mcp.toolTimeouts (object)
+models (object)
+models.dir (string)
+models.id (string)
 quality (string) enum=auto|fast|balanced|max
 retrieval (object)
 retrieval.annCandidateCap (number)
