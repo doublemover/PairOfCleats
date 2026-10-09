@@ -6,7 +6,6 @@ export const writeHnswBackends = async ({
   hnswConfig,
   hnswIsolate,
   isolateState,
-  hnswBuilders,
   hnswPaths,
   vectors,
   vectorsPaths,
@@ -104,39 +103,27 @@ export const writeHnswBackends = async ({
           });
         }
       } else {
-        const builder = hnswBuilders?.[entry.target];
-        if (builder) {
-          results[entry.target] = await builder.writeIndex({
-            indexPath: entry.paths.indexPath,
-            metaPath: entry.paths.metaPath,
-            modelId,
-            dims,
-            quantization,
-            scale
-          });
-        } else {
-          results[entry.target] = await writeHnswIndex({
-            indexPath: entry.paths.indexPath,
-            metaPath: entry.paths.metaPath,
-            modelId,
-            dims,
-            quantization,
-            scale,
-            vectors: entry.vectors,
-            vectorsPath: entry.vectorsPath,
-            normalize,
-            config: hnswConfig,
-            isolate: false,
-            logger
-          });
-          if (isolateFailureMessage) {
-            if (!loggedReuseAfterFallback) {
-              log(
-                `[embeddings] ${mode}: using in-process HNSW writer ` +
+        results[entry.target] = await writeHnswIndex({
+          indexPath: entry.paths.indexPath,
+          metaPath: entry.paths.metaPath,
+          modelId,
+          dims,
+          quantization,
+          scale,
+          vectors: entry.vectors,
+          vectorsPath: entry.vectorsPath,
+          normalize,
+          config: hnswConfig,
+          isolate: false,
+          logger
+        });
+        if (isolateFailureMessage) {
+          if (!loggedReuseAfterFallback) {
+            log(
+              `[embeddings] ${mode}: using in-process HNSW writer ` +
                 `after isolate fallback (${isolateFailureMessage}).`
-              );
-              loggedReuseAfterFallback = true;
-            }
+            );
+            loggedReuseAfterFallback = true;
           }
         }
       }

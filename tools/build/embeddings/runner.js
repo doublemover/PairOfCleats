@@ -8,7 +8,6 @@ import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../.
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
@@ -28,8 +27,7 @@ import {
   countNonEmptyVectors,
   clampQuantizedVectorsInPlace,
   isNonEmptyVector,
-  isVectorLike,
-  normalizeEmbeddingVectorInPlace
+  isVectorLike
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
@@ -74,6 +72,10 @@ import {
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
+  createCacheBatchReader,
+  readCacheEntries,
+  writeCacheEntries,
+  flushCacheIndex,
   resolveCacheDir,
   resolveCacheRoot,
   resolveGlobalChunkCacheDir,
@@ -96,7 +98,6 @@ import {
   validateCachedDims
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
-import { createHnswBuilder } from './hnsw.js';
 import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
@@ -198,15 +199,13 @@ const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
 /**
  * Resolve per-file embedding compute concurrency.
  *
- * HNSW writes are forced single-threaded to preserve deterministic builder
- * behavior while non-HNSW runs can fan out by config or token budget.
+ * HNSW is built after vector fill in chunk-ID order; compute uses scheduler caps.
  *
  * @param {{
  *   indexingConfig:object,
  *   computeTokensTotal:number|null,
  *   cpuConcurrency?:number|null,
  *   fdConcurrencyCap?:number|null,
- *   hnswEnabled:boolean
  * }} input
  * @returns {number}
  */
@@ -214,10 +213,8 @@ export const resolveEmbeddingsFileParallelism = ({
   indexingConfig,
   computeTokensTotal,
   cpuConcurrency = null,
-  fdConcurrencyCap = null,
-  hnswEnabled
+  fdConcurrencyCap = null
 }) => {
-  if (hnswEnabled) return 1;
   const cpuCap = coercePositiveIntMinOne(cpuConcurrency);
   const configured = coercePositiveIntMinOne(indexingConfig?.embeddings?.fileParallelism);
   const tokenDriven = coercePositiveIntMinOne(computeTokensTotal);
@@ -939,19 +936,6 @@ const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
   const seed = envSeed || configSeed || 'default';
   return { maxFiles, seed };
 };
-
-/**
- * Inline HNSW builders are fed during per-file embedding compute and therefore
- * only observe processed files. When sampling is active we must defer HNSW
- * construction until after missing vectors are filled so backend counts remain
- * aligned with chunk_meta length for validation.
- *
- * @param {{enabled:boolean,hnswIsolate:boolean,samplingActive:boolean}} input
- * @returns {boolean}
- */
-const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) => (
-  enabled === true && hnswIsolate !== true && samplingActive !== true
-);
 
 /**
  * Rewrite incremental bundle files with updated `embedding_u8` vectors produced
@@ -2149,75 +2133,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const hnswIsolate = hnswConfig.enabled
           ? (hnswIsolateOverride ?? isTestingEnv())
           : false;
-        const hnswEnabled = shouldUseInlineHnswBuilders({
-          enabled: hnswConfig.enabled,
-          hnswIsolate,
-          samplingActive
-        });
-        if (hnswConfig.enabled && !hnswIsolate && samplingActive) {
-          log(
-            `[embeddings] ${mode}: deferring HNSW build until post-fill because sampling is active ` +
-            `(${sampledChunkCount}/${totalChunks} chunks).`
-          );
-        }
-        const hnswBuilders = hnswEnabled ? {
-          merged: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          }),
-          doc: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          }),
-          code: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          })
-        } : null;
-        /**
-         * Append float vector to HNSW builder for one target collection.
-         *
-         * @param {'merged'|'doc'|'code'} target
-         * @param {number} chunkIndex
-         * @param {Float32Array|number[]} floatVec
-         * @returns {void}
-         */
-        const addHnswFloatVector = (target, chunkIndex, floatVec) => {
-          if (!hnswEnabled || !floatVec || !floatVec.length) return;
-          const builder = hnswBuilders?.[target];
-          if (!builder) return;
-          builder.addVector(chunkIndex, floatVec);
-        };
-        /**
-         * Dequantize uint8 vector then append to HNSW builder.
-         *
-         * @param {'merged'|'doc'|'code'} target
-         * @param {number} chunkIndex
-         * @param {Uint8Array|number[]} quantizedVec
-         * @returns {void}
-         */
-        const addHnswFromQuantized = (target, chunkIndex, quantizedVec) => {
-          if (!hnswEnabled || !quantizedVec || !quantizedVec.length) return;
-          const floatVec = dequantizeUint8ToFloat32(
-            quantizedVec,
-            quantization.minVal,
-            quantization.maxVal,
-            quantization.levels
-          );
-          if (floatVec && embeddingNormalize) {
-            normalizeEmbeddingVectorInPlace(floatVec);
-          }
-          if (floatVec) addHnswFloatVector(target, chunkIndex, floatVec);
-        };
         const hnswResults = { merged: null, doc: null, code: null };
 
         const modePersistentCacheEnabled = !stubFastPathEnabled;
@@ -2260,6 +2175,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
         if (globalChunkCacheDir) {
           await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
         }
+        const globalChunkCacheIndex = globalChunkCacheDir ? await scheduleIo(() => readCacheIndex(globalChunkCacheDir, cacheIdentityKey)) : null;
+        const cacheBatchReader = createCacheBatchReader({cacheDir,cacheIndex,scheduleIo});
         const globalChunkCacheMemo = new Map();
         const globalChunkCacheExistingKeys = new Set();
         const globalChunkCachePendingWrites = new Set();
@@ -2270,7 +2187,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let globalChunkCacheMisses = 0;
         let globalChunkCacheRejected = 0;
         let globalChunkCacheStores = 0;
-        const resolveGlobalChunkVectors = async (chunkHash) => {
+        const resolveGlobalChunkVectors = async (chunkHash, prefetched = undefined) => {
           if (!modeGlobalChunkCacheEnabled || !globalChunkCacheDir) return null;
           globalChunkCacheAttempts += 1;
           const cacheKey = buildGlobalChunkCacheKey({
@@ -2284,7 +2201,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (!pending) {
             pending = (async () => {
               try {
-                const cachedResult = await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey));
+                const cachedResult = prefetched === undefined
+                  ? await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey, globalChunkCacheIndex)) : prefetched;
                 const cached = cachedResult?.entry || null;
                 if (!cached) {
                   globalChunkCacheMisses += 1;
@@ -2380,6 +2298,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               scheduleIo
             });
             cacheIndexDirty = flushState.cacheIndexDirty;
+            if (flushState.flushResult?.budgetExceeded) warn(`[embeddings-cache] Physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
           })();
           try {
             await cacheIndexFlushInFlight;
@@ -2491,8 +2410,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           indexingConfig,
           computeTokensTotal,
           cpuConcurrency: envelopeCpuConcurrency,
-          fdConcurrencyCap,
-          hnswEnabled
+          fdConcurrencyCap
         });
         const adaptiveFileParallelismEnabled = fileParallelism > 1
           && indexingConfig?.embeddings?.adaptiveFileParallelism !== false;
@@ -3050,11 +2968,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
               codeVectors[chunkIndex] = reusedCode;
               docVectors[chunkIndex] = reusedDoc;
               mergedVectors[chunkIndex] = reusedMerged;
-              if (hnswEnabled) {
-                addHnswFromQuantized('merged', chunkIndex, reusedMerged);
-                addHnswFromQuantized('doc', chunkIndex, reusedDoc);
-                addHnswFromQuantized('code', chunkIndex, reusedCode);
-              }
               cachedCodeVectors.push(reusedCode);
               cachedDocVectors.push(reusedDoc);
               cachedMergedVectors.push(reusedMerged);
@@ -3063,15 +2976,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
             const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : zeroVec;
             const quantized = buildQuantizedVectors({
-              chunkIndex,
               codeVector: embedCode,
               docVector: embedDoc,
               zeroVector: zeroVec,
-              addHnswVectors: hnswEnabled ? {
-                merged: (id, vec) => addHnswFloatVector('merged', id, vec),
-                doc: (id, vec) => addHnswFloatVector('doc', id, vec),
-                code: (id, vec) => addHnswFloatVector('code', id, vec)
-              } : null,
               quantization,
               normalize: embeddingNormalize
             });
@@ -3149,7 +3056,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   }, shardEntry);
                   markCacheIndexDirty();
                 }
-              });
+              }, {bytes: encodedPayload.length});
             } catch {
             // Ignore cache write failures.
             }
@@ -3217,11 +3124,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     })
                   );
                   await writerQueue.enqueue(async () => {
+                    let persisted;
+                    try {
+                      persisted = await writeCacheEntries(globalChunkCacheDir, globalChunkCacheIndex,
+                        encodedWrites.map(write => ({ ...write, cacheKey: write.globalCacheKey })),
+                        { shardHandlePool: cacheShardHandlePool });
+                    } catch {
+                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      return;
+                    }
+                    if (!persisted) {
+                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      return;
+                    }
                     for (const write of encodedWrites) {
                       try {
-                        await writeCacheEntry(globalChunkCacheDir, write.globalCacheKey, write.payload, {
-                          encodedBuffer: write.encodedPayload
-                        });
                         globalChunkCacheExistingKeys.add(write.globalCacheKey);
                         globalChunkCacheMemo.set(
                           write.globalCacheKey,
@@ -3238,7 +3155,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                         globalChunkCachePendingWrites.delete(write.globalCacheKey);
                       }
                     }
-                  });
+                  }, {bytes: encodedWrites.reduce((sum, write) => sum + write.encodedPayload.length, 0)});
                 } catch (err) {
                   for (const write of writes) {
                     globalChunkCachePendingWrites.delete(write.globalCacheKey);
@@ -3354,7 +3271,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               })) {
                 cacheFastRejects += 1;
               } else {
-                cachedResult = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+                cachedResult = await cacheBatchReader.read(cacheKey);
               }
             }
             const cached = cachedResult?.entry;
@@ -3395,11 +3312,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     codeVectors[chunkIndex] = codeVec;
                     docVectors[chunkIndex] = docVec;
                     mergedVectors[chunkIndex] = mergedVec;
-                    if (hnswEnabled) {
-                      addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                      addHnswFromQuantized('doc', chunkIndex, docVec);
-                      addHnswFromQuantized('code', chunkIndex, codeVec);
-                    }
                   }
                   if (hasEmptyCached) {
                     throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
@@ -3515,7 +3427,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 })) {
                   cacheFastRejects += 1;
                 } else {
-                  cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+                  cachedAfterHash = await cacheBatchReader.read(cacheKey);
                 }
               }
               const cached = cachedAfterHash?.entry;
@@ -3556,11 +3468,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
                       codeVectors[chunkIndex] = codeVec;
                       docVectors[chunkIndex] = docVec;
                       mergedVectors[chunkIndex] = mergedVec;
-                      if (hnswEnabled) {
-                        addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                        addHnswFromQuantized('doc', chunkIndex, docVec);
-                        addHnswFromQuantized('code', chunkIndex, codeVec);
-                      }
                     }
                     if (hasEmptyCached) {
                       throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
@@ -3635,7 +3542,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   const fingerprintMatches = !canCheckFingerprint
                   || priorIndexEntry.chunkHashesFingerprint === chunkHashesFingerprint;
                   const priorResult = fingerprintMatches
-                    ? await scheduleIo(() => readCacheEntry(cacheDir, priorKey, cacheIndex))
+                    ? await cacheBatchReader.read(priorKey)
                     : null;
                   const priorEntry = priorResult?.entry;
                   if (!priorEntry) {
@@ -3672,6 +3579,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 }
               }
             }
+            const globalBatchResults = new Map();
+            if (modeGlobalChunkCacheEnabled && Array.isArray(chunkHashes)) {
+              const missing = [...new Set(chunkHashes.filter((hash, index) =>
+                hash && !reuse.code[index] && !crossFileChunkDedupe?.get(hash)))];
+              const keys = missing.map(chunkHash => buildGlobalChunkCacheKey({
+                identityKey: cacheIdentityKey, chunkHash, pathPolicy: 'posix'
+              }));
+              const results = await scheduleIo(() => readCacheEntries(globalChunkCacheDir, keys, globalChunkCacheIndex));
+              missing.forEach((hash,index)=>globalBatchResults.set(hash,results[index]));
+            }
             for (let i = 0; i < items.length; i += 1) {
               if (
                 !reuse.code[i]
@@ -3704,7 +3621,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               ) {
                 const chunkHash = chunkHashes[i];
                 if (chunkHash) {
-                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash);
+                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash, globalBatchResults.get(chunkHash));
                   const vectors = globalChunkCached?.vectors || null;
                   if (
                     vectors
@@ -3772,6 +3689,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (typeof computeFileEmbeddings?.drain === 'function') {
             await computeFileEmbeddings.drain();
           }
+          await cacheBatchReader.drain();
           await writerQueue.onIdle();
           await cacheShardHandlePool.close();
           emitProgressSnapshot({ force: true, summary: true });
@@ -3786,6 +3704,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           writerTask.done({ message: 'writer queue drained' });
         }
         await flushCacheIndexMaybe({ force: true });
+        if (globalChunkCacheIndex) {
+          const globalFlush = await scheduleIo(() => flushCacheIndex(globalChunkCacheDir, globalChunkCacheIndex, {identityKey:cacheIdentityKey, maxBytes:cacheMaxBytes, maxAgeMs:cacheMaxAgeMs}));
+          if (globalFlush.budgetExceeded) warn(`[embeddings-cache] Global physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
+        }
 
         stageCheckpoints.record({
           stage: 'stage3',
@@ -3900,7 +3822,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
             hnswConfig,
             hnswIsolate,
             isolateState: hnswIsolateState,
-            hnswBuilders,
             hnswPaths: stagedHnswPaths,
             vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
             vectorsPaths: {

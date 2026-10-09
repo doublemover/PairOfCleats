@@ -1,3 +1,5 @@
+import { buildResultBundles } from './format/bundle.js';
+import { compactHit } from '../cli/render-output.js';
 export const SCORE_BREAKDOWN_SCHEMA_VERSION = 1;
 
 export const OUTPUT_BUDGET_DEFAULTS = Object.freeze({
@@ -21,6 +23,7 @@ const normalizePositiveInt = (value, fallback) => {
 export const normalizeOutputBudgetPolicy = (input = null) => {
   const source = input && typeof input === 'object' ? input : {};
   return {
+    totalMaxBytes: normalizePositiveInt(source.totalMaxBytes,null),
     maxBytes: normalizePositiveInt(source.maxBytes, OUTPUT_BUDGET_DEFAULTS.maxBytes),
     maxFields: normalizePositiveInt(source.maxFields, OUTPUT_BUDGET_DEFAULTS.maxFields),
     maxExplainItems: normalizePositiveInt(source.maxExplainItems, OUTPUT_BUDGET_DEFAULTS.maxExplainItems)
@@ -131,6 +134,25 @@ export const applyOutputBudgetPolicy = (payload, policy = null) => {
   }
   if (isPlainObject(out.stats)) {
     out.stats = clampPayloadStats(out.stats, budget);
+  }
+  if (budget.totalMaxBytes) {
+    const modes=['code','prose','extractedProse','records'];
+    let omitted=0;
+    const measure=()=>Buffer.byteLength(JSON.stringify(out),'utf8');
+    if(measure()>budget.totalMaxBytes){
+      delete out.stats;
+      for(const mode of modes) if(Array.isArray(out[mode])) out[mode]=out[mode].map(hit=>compactHit(hit,false));
+      out.outputBudget={maxBytes:budget.totalMaxBytes,truncated:true,omittedHits:0};
+      const rebuild=()=>{out.bundles=buildResultBundles(out);out.outputBudget.omittedHits=omitted;};
+      rebuild();
+      for(let step=0;measure()>budget.totalMaxBytes&&step<64;step++){
+        const mode=modes.filter(key=>out[key]?.length).sort((a,b)=>out[b].length-out[a].length)[0];
+        if(!mode)break;
+        const remove=Math.max(1,Math.floor(out[mode].length/4));
+        omitted+=remove;out[mode]=out[mode].slice(0,-remove);rebuild();
+      }
+      if(measure()>budget.totalMaxBytes)throw new RangeError('Output budget cannot retain required retrieval identity metadata');
+    }
   }
   return out;
 };

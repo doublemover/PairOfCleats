@@ -24,6 +24,7 @@ export const loadIncrementalPlan = async ({
   tokenizationKey,
   cacheSignature,
   cacheSignatureSummary,
+  dependencySignatures,
   cacheReporter
 }) => {
   const incrementalState = await loadIncrementalState({
@@ -33,6 +34,7 @@ export const loadIncrementalPlan = async ({
     tokenizationKey,
     cacheSignature,
     cacheSignatureSummary,
+    dependencySignatures,
     bundleFormat: runtime.incrementalBundleFormat,
     log
   });
@@ -48,7 +50,7 @@ export const loadIncrementalPlan = async ({
     reporter: cacheReporter
   });
   let reused = false;
-  if (incrementalState?.enabled) {
+  if (incrementalState?.enabled && !incrementalState.artifactNeedsRebuild) {
     const reuse = await shouldReuseIncrementalIndex({
       outDir,
       entries,

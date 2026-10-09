@@ -94,7 +94,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const indexCache = options.indexCache || null;
   const sqliteCache = options.sqliteCache || null;
   const generationContext = options.generationContext || null;
-  const signal = options.signal || null;
+  let signal = options.signal || null;
   const scoreModeOverride = options.scoreMode ?? null;
   const t0 = Date.now();
   let queryPlanCache = options.queryPlanCache ?? null;
@@ -113,6 +113,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     recordSearchMetrics
   });
 
+  if (argv['deadline-ms'] != null) {
+    const timeout = Number(argv['deadline-ms']);
+    if (!Number.isInteger(timeout) || timeout < 1 || timeout > 600000) throw new RangeError('Invalid --deadline-ms');
+    const deadlineSignal = AbortSignal.timeout(timeout);
+    signal = signal ? AbortSignal.any([signal,deadlineSignal]) : deadlineSignal;
+  }
   const jsonOutput = argv.json === true;
   const jsonCompact = argv.compact === true;
   const positionalQuery = extractPositionalQuery(argv);
@@ -255,6 +261,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       relationBoostPerUse,
       relationBoostMaxBoost,
       annCandidateCap,
+      annDiscovery,
       annCandidateMinDocCount,
       annCandidateMaxDocCount,
       minhashMaxDocs,
@@ -817,6 +824,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const planStart = stageTracker.mark();
     const planConfigSignature = queryPlanCache?.enabled !== false
       ? buildQueryPlanConfigSignature({
+        queryMatch: argv.match || 'auto',
         dictConfig,
         dictSize: dict?.size ?? null,
         postingsConfig,
@@ -1132,6 +1140,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const payload = await executeSearchAndEmit({
+      outputMaxBytes: argv['output-bytes'] ?? null,
       t0,
       emitOutput,
       jsonOutput,
@@ -1186,6 +1195,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       relationBoostPerUse,
       relationBoostMaxBoost,
       annCandidateCap,
+      annDiscovery,
       annCandidateMinDocCount,
       annCandidateMaxDocCount,
       maxCandidates,

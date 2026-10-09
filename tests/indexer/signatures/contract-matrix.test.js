@@ -135,7 +135,7 @@ assert.notEqual(sigA, buildIncrementalSignature({
     typescript: { parser: 'typescript', importsOnly: false }
   }
 }, 'code', tokenKeyA));
-assert.notEqual(sigA, buildIncrementalSignature({ ...runtimeA, embeddingBatchSize: 64 }, 'code', tokenKeyA));
+assert.equal(sigA, buildIncrementalSignature({ ...runtimeA, embeddingBatchSize: 64 }, 'code', tokenKeyA));
 assert.notEqual(sigA, buildIncrementalSignature({ ...runtimeA, toolInfo: { version: '1.0.1' } }, 'code', tokenKeyA));
 assert.notEqual(sigA, buildIncrementalSignature({ ...runtimeA, profile: { id: 'vector_only', schemaVersion: 1 } }, 'code', tokenKeyA));
 

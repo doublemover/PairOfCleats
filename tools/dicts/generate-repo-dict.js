@@ -7,7 +7,7 @@ import { createCli } from '../../src/shared/cli.js';
 import ignore from 'ignore';
 import { getDictConfig, getRepoDictPath, resolveRepoConfig } from '../shared/dict-utils.js';
 import { toPosix } from '../../src/shared/file-paths.js';
-import { splitId } from '../../src/shared/tokenize.js';
+import { countDictionaryIdentifiers, sortedDictionaryCounts } from '../../src/shared/dictionary-identifiers.js';
 
 const argv = createCli({
   scriptName: 'generate-repo-dict',
@@ -93,7 +93,7 @@ async function listFiles() {
 
 const files = await listFiles();
 const counts = new Map();
-const tokenRegex = /[A-Za-z][A-Za-z0-9_]{2,}/g;
+
 
 for (const relPath of files) {
   const ext = path.extname(relPath).toLowerCase();
@@ -106,20 +106,10 @@ for (const relPath of files) {
     continue;
   }
 
-  const matches = text.match(tokenRegex);
-  if (!matches) continue;
-  for (const raw of matches) {
-    const parts = splitId(raw);
-    for (const part of parts) {
-      if (part.length < 3) continue;
-      counts.set(part, (counts.get(part) || 0) + 1);
-    }
-  }
+  countDictionaryIdentifiers(text, counts);
 }
 
-const sorted = [...counts.entries()]
-  .filter(([, count]) => count >= minCount)
-  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+const sorted = sortedDictionaryCounts(counts, minCount);
 
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
 const output = sorted.map(([word]) => word).join('\n');

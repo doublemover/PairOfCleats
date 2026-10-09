@@ -76,6 +76,7 @@ export async function loadIncrementalState({
   tokenizationKey = null,
   cacheSignature = null,
   cacheSignatureSummary = null,
+  dependencySignatures = null,
   bundleFormat = null,
   log = null
 }) {
@@ -86,6 +87,7 @@ export async function loadIncrementalState({
     ? normalizeBundleFormat(bundleFormat)
     : null;
   const defaultBundleFormat = requestedBundleFormat || 'json';
+  let artifactNeedsRebuild = false;
   let manifest = {
     version: 5,
     signatureVersion: SIGNATURE_VERSION,
@@ -93,6 +95,7 @@ export async function loadIncrementalState({
     tokenizationKey: tokenizationKey || null,
     cacheSignature: cacheSignature || null,
     signatureSummary: cacheSignatureSummary || null,
+    dependencySignatures,
     bundleFormat: defaultBundleFormat,
     bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
     files: {},
@@ -125,10 +128,10 @@ export async function loadIncrementalState({
         const signatureVersionMismatch = loadedSignatureVersion !== SIGNATURE_VERSION;
         const bundleChecksumSchemaMismatch = loadedBundleChecksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION;
         if (
-          signatureMismatch
+          (signatureMismatch && (!dependencySignatures?.parse || dependencySignatures.parse !== loaded.dependencySignatures?.parse))
           || signatureVersionMismatch
           || bundleChecksumSchemaMismatch
-          || (tokenizationKey && loadedKey !== tokenizationKey)
+          || (tokenizationKey && loadedKey !== tokenizationKey && (!dependencySignatures?.parse || dependencySignatures.parse !== loaded.dependencySignatures?.parse))
         ) {
           if (typeof log === 'function') {
             let reason = 'tokenization config changed';
@@ -151,13 +154,15 @@ export async function loadIncrementalState({
             }
           }
         } else {
+          artifactNeedsRebuild = signatureMismatch || (!!dependencySignatures && dependencySignatures.artifacts !== loaded.dependencySignatures?.artifacts);
           manifest = {
             version: loaded.version || 1,
             signatureVersion: loadedSignatureVersion ?? SIGNATURE_VERSION,
             mode,
-            tokenizationKey: loadedKey || tokenizationKey || null,
-            cacheSignature: loadedSignature || cacheSignature || null,
-            signatureSummary: loaded.signatureSummary || cacheSignatureSummary || null,
+            tokenizationKey: tokenizationKey || loadedKey || null,
+            cacheSignature: cacheSignature || loadedSignature || null,
+            signatureSummary: cacheSignatureSummary || loaded.signatureSummary || null,
+            dependencySignatures,
             bundleFormat: effectiveBundleFormat,
             bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
             files: loaded.files || {},
@@ -191,6 +196,7 @@ export async function loadIncrementalState({
     manifestPath,
     manifest,
     bundleFormat: manifest.bundleFormat,
+    artifactNeedsRebuild,
     readHashCache: new Map()
   };
 }
@@ -305,6 +311,13 @@ export async function shouldReuseIncrementalIndex({
     return fail('signatureVersion mismatch');
   }
   const manifestFiles = manifest.files || {};
+  if (manifest.dependencySignatures && entries.some(entry => (
+    ['parse', 'lexical', 'enrichment', 'embeddings'].some(key => (
+      manifestFiles[entry.rel]?.dependencySignatures?.[key] !== manifest.dependencySignatures[key]
+    ))
+  ))) {
+    return fail('per-file dependencies changed');
+  }
   const indexStatePath = path.join(outDir, 'index_state.json');
   const piecesPath = path.join(outDir, 'pieces', 'manifest.json');
   const [indexStateExists, piecesExists] = await Promise.all([

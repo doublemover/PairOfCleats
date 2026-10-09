@@ -37,6 +37,15 @@ This document defines the CLI interface and output contract for **search**.
 - `--tag <name>`: filter repos/workspaces by tag
 - `--debug-include-paths`: include debug path traces in structured output
 
+### Retrieval controls
+
+- `--preset fast|hybrid|investigate`: select bounded retrieval defaults.
+- `--match all|any|auto`: select query-token eligibility.
+- `--candidates <n>`: bound candidate discovery separately from final results.
+- `--ann-candidates independent|lexical-rerank`: discover vector candidates independently or rerank lexical candidates.
+- `--deadline-ms <n>`: set a cooperative search deadline.
+- `--output-bytes <n>`: bound structured output while retaining citation/follow-up fields.
+
 ### Filter flags
 - `--file`, `--path`, `--lang`, `--ext`, `--type`
 - `--case`, `--case-file`, `--case-tokens`

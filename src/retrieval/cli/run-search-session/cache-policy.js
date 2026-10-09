@@ -96,6 +96,7 @@ export async function resolveQueryCacheLookup({
   annAdaptiveProviders,
   relationBoost,
   annCandidateCap,
+  annDiscovery,
   annCandidateMinDocCount,
   annCandidateMaxDocCount,
   bm25K1,
@@ -192,6 +193,7 @@ export async function resolveQueryCacheLookup({
     annAdaptiveProviders,
     relationBoost,
     annCandidatePolicy: {
+      discovery: annDiscovery || 'independent',
       cap: annCandidateCap,
       minDocCount: annCandidateMinDocCount,
       maxDocCount: annCandidateMaxDocCount

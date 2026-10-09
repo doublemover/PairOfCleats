@@ -50,6 +50,7 @@ __setAdapterFactoryForTests((options) => {
 });
 try {
   let firstIdentityKey = null;
+  let firstVectors = null;
   for (const [run, dtype] of ['q8', 'q8', 'q4'].entries()) {
     const config = parseBuildEmbeddingsArgs([
       '--repo', repoRoot, '--index-root', indexRoot, '--mode', 'code', '--progress', 'off', '--model', modelId
@@ -67,10 +68,19 @@ try {
     assert.equal(vectors.dims, 128);
     assert.equal(state.embeddings.embeddingIdentityKey, buildEmbeddingIdentityKey(identity));
     assert.equal(state.embeddings.ready, true);
-    if (run === 0) firstIdentityKey = state.embeddings.embeddingIdentityKey;
+    if (run === 0) {
+      firstIdentityKey = state.embeddings.embeddingIdentityKey;
+      firstVectors = await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin'));
+    }
     if (run === 1) {
       assert(state.embeddings.cacheStats.hits > 0, 'matching profile should reuse cached embeddings');
       assert.equal(state.embeddings.embeddingIdentityKey, firstIdentityKey);
+      assert.equal(calls, callsBefore, 'matching profile must not repeat inference');
+      assert.deepEqual(
+        await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin')),
+        firstVectors,
+        'matching profile must preserve the persisted vectors'
+      );
     }
     if (run === 2) {
       assert.notEqual(state.embeddings.embeddingIdentityKey, firstIdentityKey);

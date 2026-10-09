@@ -1,3 +1,4 @@
+import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
 import {
@@ -113,7 +114,8 @@ export async function incrementalUpdateDatabase({
   inputBytes,
   batchSize,
   buildPragmas,
-  stats
+  stats,
+  ftsVariants = []
 }) {
   const warn = (message) => {
     if (!emitOutput || !message) return;
@@ -231,6 +233,10 @@ export async function incrementalUpdateDatabase({
       return { used: false, reason: 'schema missing' };
     }
 
+    const actualFtsVariants = listOptionalFtsTables(db).map(table => table.replace('chunks_fts_', '')).sort();
+    if (JSON.stringify(actualFtsVariants) !== JSON.stringify(normalizeFtsVariants(ftsVariants))) {
+      return { used: false, reason: 'FTS variants changed; full rebuild required' };
+    }
     const changePlan = resolveIncrementalChangePlan({
       db,
       mode,

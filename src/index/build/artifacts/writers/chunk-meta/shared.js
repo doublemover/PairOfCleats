@@ -304,6 +304,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   addTrimReason(stats, TRIM_REASONS.chunkMetaFallbackMinimal);
   recordTrimmedField(stats, 'fallback');
   const fallback = {
+    phraseTokens: null,
     id: toFiniteOrNull(trimmed.id),
     start: toFiniteOrNull(trimmed.start),
     end: toFiniteOrNull(trimmed.end),

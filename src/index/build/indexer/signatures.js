@@ -1,3 +1,5 @@
+import { SCORING_ANALYZER_VERSION } from '../../../shared/tokenize-identifiers.js';
+import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { CHUNK_ID_ALGO_VERSION } from '../../../contracts/compatibility.js';
 import {
@@ -11,7 +13,7 @@ import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-export const SIGNATURE_VERSION = 2;
+export const SIGNATURE_VERSION = 4;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -87,6 +89,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     : {};
   return {
     signatureVersion: SIGNATURE_VERSION,
+    literalAnalyzer: TEXT_ANALYZER_VERSION,
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
@@ -183,6 +186,7 @@ export const buildTokenizationKey = (runtime, mode) => {
   const { dir: _dictDir, ...dictConfigPayload } = dictConfig;
   const payload = {
     signatureVersion: SIGNATURE_VERSION,
+    scoringAnalyzer: SCORING_ANALYZER_VERSION,
     mode,
     dictConfig: dictConfigPayload,
     postingsConfig: runtime.postingsConfig || {},
@@ -207,6 +211,34 @@ export const buildTokenizationKey = (runtime, mode) => {
  * @returns {string}
  */
 export const buildIncrementalSignature = (runtime, mode, tokenizationKey) => {
+  const { artifacts: _artifacts, ...bundleDependencies } = buildDependencySignatures(runtime, mode, tokenizationKey);
+  return sha1(stableStringifyForSignature(bundleDependencies));
+};
+
+/** Dependency identities separate cached per-file content from output-only settings. */
+export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   const payload = buildIncrementalSignaturePayload(runtime, mode, tokenizationKey);
-  return sha1(stableStringifyForSignature(payload));
+  const hash = value => sha1(stableStringifyForSignature(value));
+  const parse = {
+    signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
+    parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
+    kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
+    fileCaps: payload.fileCaps, fileScan: payload.fileScan,
+    segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}
+  };
+  const lexical = { mode, tokenizationKey, literalAnalyzer: payload.literalAnalyzer, lexicon: payload.lexicon, profile: payload.profile };
+  const enrichment = {
+    features: payload.features, riskInterproceduralConfig: payload.riskInterproceduralConfig,
+    riskRules: payload.riskRules, riskCaps: payload.riskCaps, importScan: payload.importScan,
+    scm: payload.features.gitBlameEnabled ? payload.scm : payload.scm ? {provider: payload.scm.provider} : null
+  };
+  const { batchSize: _batchSize, ...embeddings } = payload.embeddings;
+  const artifacts = {
+    artifactSchemaHash: payload.artifactSchemaHash, artifacts: payload.artifacts,
+    incrementalBundleFormat: payload.incrementalBundleFormat, profile: payload.profile
+  };
+  return {
+    parse: hash(parse), lexical: hash(lexical), enrichment: hash(enrichment),
+    embeddings: hash(embeddings), artifacts: hash(artifacts)
+  };
 };

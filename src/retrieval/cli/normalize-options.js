@@ -1,3 +1,4 @@
+import { resolveSearchControls } from './search-controls.js';
 import { getVectorExtensionConfig } from '../../../tools/sqlite/vector-extension.js';
 import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
@@ -128,6 +129,7 @@ export function normalizeSearchOptions({
   metricsDir,
   policy
 }) {
+  const controls = resolveSearchControls(argv);
   const jsonOutput = argv.json === true;
   const missingValueMessages = getMissingFlagMessages(argv, rawArgs);
   const query = argv._.join(' ').trim();
@@ -223,13 +225,13 @@ export function normalizeSearchOptions({
   const searchConfig = userConfig?.search || {};
   const retrievalConfig = userConfig?.retrieval || {};
   const envConfig = getEnvConfig();
-  const maxCandidates = normalizeOptionalNumber(searchConfig.maxCandidates);
+  const maxCandidates = controls.candidates ?? normalizeOptionalNumber(searchConfig.maxCandidates);
   const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
   const policyAnn = policy?.retrieval?.ann?.enabled;
   const annDefault = typeof searchConfig.annDefault === 'boolean'
     ? searchConfig.annDefault
     : null;
-  const annEnabled = annFlagPresent ? argv.ann : (annDefault ?? policyAnn ?? true);
+  const annEnabled = controls.preset === 'fast' ? false : (annFlagPresent ? argv.ann : (controls.preset ? true : (annDefault ?? policyAnn ?? true)));
   const allowSparseFallback = argv['allow-sparse-fallback'] === true
     || argv.allowSparseFallback === true;
   const allowUnsafeMix = argv['allow-unsafe-mix'] === true
@@ -411,16 +413,16 @@ export function normalizeSearchOptions({
   };
 
   const contextExpansionConfig = userConfig?.retrieval?.contextExpansion || {};
-  const contextExpansionEnabled = contextExpansionConfig.enabled === true;
+  const contextExpansionEnabled = controls.preset === 'investigate' || (!controls.preset && contextExpansionConfig.enabled === true);
   const contextExpansionOptions = {
-    maxPerHit: normalizeOptionalNumber(contextExpansionConfig.maxPerHit),
-    maxTotal: normalizeOptionalNumber(contextExpansionConfig.maxTotal),
+    maxPerHit: normalizeOptionalNumber(contextExpansionConfig.maxPerHit) ?? (controls.preset === 'investigate' ? 2 : null),
+    maxTotal: normalizeOptionalNumber(contextExpansionConfig.maxTotal) ?? (controls.preset === 'investigate' ? 10 : null),
     includeCalls: contextExpansionConfig.includeCalls ?? null,
     includeImports: contextExpansionConfig.includeImports ?? null,
     includeExports: contextExpansionConfig.includeExports ?? null,
     includeUsages: contextExpansionConfig.includeUsages ?? null,
-    maxWorkUnits: normalizeOptionalNumber(contextExpansionConfig.maxWorkUnits),
-    maxWallClockMs: normalizeOptionalNumber(contextExpansionConfig.maxWallClockMs),
+    maxWorkUnits: normalizeOptionalNumber(contextExpansionConfig.maxWorkUnits) ?? (controls.preset === 'investigate' ? 1000 : null),
+    maxWallClockMs: normalizeOptionalNumber(contextExpansionConfig.maxWallClockMs) ?? (controls.preset === 'investigate' ? 100 : null),
     maxCallEdges: normalizeOptionalNumber(contextExpansionConfig.maxCallEdges),
     maxUsageEdges: normalizeOptionalNumber(contextExpansionConfig.maxUsageEdges),
     maxImportEdges: normalizeOptionalNumber(contextExpansionConfig.maxImportEdges),
@@ -455,6 +457,8 @@ export function normalizeSearchOptions({
   const sqliteFtsStemming = argv['fts-stemming'] === true
     || userConfig?.search?.sqliteFtsStemming === true;
 
+  const annDiscovery = argv['ann-candidates'] || searchConfig.annDiscovery || 'independent';
+  if (!['independent', 'lexical-rerank'].includes(annDiscovery)) throw new Error('Invalid --ann-candidates. Use independent|lexical-rerank.');
   const explain = argv.explain === true || argv.why === true;
   const explainTier = explain
     ? (argv.why === true ? 'full' : 'summary')
@@ -563,6 +567,7 @@ export function normalizeSearchOptions({
     sqliteFtsWeights,
     sqliteFtsTrigram,
     sqliteFtsStemming,
+    annDiscovery,
     sqliteTailLatencyTuning,
     sqliteFtsOverfetch,
     preferMemoryBackendOnCacheHit,

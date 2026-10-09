@@ -1,3 +1,4 @@
+import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
 import {
   createOrderedCompletionTracker as createSharedOrderedCompletionTracker
@@ -630,8 +631,9 @@ export const processFiles = async ({
   let treeSitterScheduler = null;
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
+    const cachedParseFiles = await preloadParseCheckpoints({entries,incrementalState});
     const plannerInput = resolveTreeSitterPlannerEntries({
-      entries,
+      entries: entries.filter(entry=>!cachedParseFiles.has(entry.abs)),
       root: runtime.root
     });
     if (plannerInput.skipped > 0) {

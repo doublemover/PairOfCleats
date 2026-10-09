@@ -1,3 +1,4 @@
+import { applyQueryMatchPolicy } from './search-controls.js';
 import { hasActiveFilters } from '../filters.js';
 import { buildHighlightRegex } from './highlight.js';
 import {
@@ -73,7 +74,7 @@ export function buildQueryPlan({
   };
   const parseResult = parseQueryWithFallback(query);
   const parsedQuery = parseResult.parsed;
-  const queryAst = annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig);
+  const queryAst = applyQueryMatchPolicy(annotateQueryAst(parsedQuery.ast, dict, tokenizationOptions, postingsConfig), argv.match || 'auto');
   const includeTokens = tokenizeQueryTerms(parsedQuery.includeTerms, dict, tokenizationOptions);
   const phraseTokens = parsedQuery.phrases
     .map((phrase) => tokenizePhrase(phrase, dict, tokenizationOptions))

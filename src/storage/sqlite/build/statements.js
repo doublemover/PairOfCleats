@@ -1,3 +1,4 @@
+import { createFtsInserter } from '../fts-variants.js';
 /**
  * Create and return the sqlite insert statement set for one build pass.
  * @param {any} db
@@ -20,22 +21,19 @@ export const createInsertStatements = (db, options = {}) => {
   const insertChunk = db.prepare(`
     ${insertClause} INTO chunks (
       id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
-      metaV2_json, headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      metaV2_json, headline, preContext, postContext, weight, tokens, phrase_tokens, ngrams, codeRelations,
       docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
       churn, churn_added, churn_deleted, churn_commits, chunk_authors
     ) VALUES (
       @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
-      @name, @metaV2_json, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @name, @metaV2_json, @headline, @preContext, @postContext, @weight, @tokens, @phrase_tokens, @ngrams,
       @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
       @last_modified, @last_author, @churn, @churn_added, @churn_deleted, @churn_commits,
       @chunk_authors
     );
   `);
 
-  const insertFts = db.prepare(`
-    ${insertClause} INTO chunks_fts (rowid, file, name, signature, kind, headline, doc, tokens)
-    VALUES (@id, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
-  `);
+  const insertFts = createFtsInserter(db, insertClause);
 
   const insertTokenVocab = db.prepare(
     `${insertClause} INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)`

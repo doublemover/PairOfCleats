@@ -34,7 +34,10 @@ export const createScoreBreakdownHits = async () => {
     topN: 3,
     buildCandidateSetSqlite: () => new Set([0]),
     getTokenIndexForQuery: () => createAlphaTokenIndex(),
-    rankSqliteFts: () => [{ idx: 0, score: 2 }],
+    rankSqliteFts: (idx, tokens, mode, topN, normalize, allowed, options) => {
+      options.onExecution({ table: 'chunks_fts', tokenizer: 'unicode61', variant: 'unicode61' });
+      return [{ idx: 0, score: 2 }];
+    },
     sqliteHasFts: (mode) => mode === 'prose'
   });
 

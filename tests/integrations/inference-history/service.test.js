@@ -4,9 +4,10 @@ import path from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
 import { normalizeHistoryRecord } from '../../../src/integrations/inference-history/records.js';
 import { DEFAULT_LIMITS, digest } from '../../../src/integrations/inference-history/common.js';
-import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
+import { createInferenceHistoryService as createService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+const createInferenceHistoryService=options=>createService({audit:()=>({persisted:true}),...options});
 
 ensureTestingEnv(process.env);
 const root = await fs.realpath(await makeTempDir('poc-history-service-'));
@@ -27,7 +28,7 @@ const resolveAccess = async ({ requestContext, partition }) => contexts[requestC
 const verifyPrivateVault = () => true; // This host owns the synthetic temporary fixture.
 const resolveImportSource = () => ({ path: sourcePath, policyEpoch: '1' });
 const service = createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource,
-  verifyPrivateVault, audit: (row) => audit.push(row) });
+  verifyPrivateVault, audit: (row) => {audit.push(row);return {persisted:true};} });
 const request = { requestContext: 'alice', partition: 'own', source: 'trusted-synthetic-upload' };
 const node = (id, parent, children, text, extra = {}) => ({ id, parent, children,
   message: { id: `message-${id}`, author: { role: 'user' }, content: { content_type: 'text', parts: [text] }, ...extra } });
@@ -60,7 +61,7 @@ try {
   const original = await service.readOriginal({ ...request, snapshotRef: hit.snapshotRef });
   assert.deepEqual(original.raw, conversation);
   assert.equal(original.occurrences[0].ordinal, 0);
-  assert.equal(original.occurrences[0].member, 'conversations.json');
+  assert.equal(original.occurrences[0].member, path.basename(sourcePath));
   assert.match(original.occurrences[0].rawSha256, /^[a-f0-9]{64}$/);
   assert.ok(!JSON.stringify(hit).includes('sourceTextHash'));
   assert.ok(!Object.hasOwn(hit, 'nodeRevision'));
@@ -303,8 +304,9 @@ try {
   assert.equal(largerOriginal.rawJson, JSON.stringify(largerTask));
   assert.equal(largerOriginal.assetReferencesComplete, false);
   const auditText = JSON.stringify(audit);
-  for (const value of [secret, 'cobalt', 'feature branch', sourcePath, 'Updated title']) assert.ok(!auditText.includes(value));
+  for (const value of [secret, sourcePath, 'Updated title']) assert.ok(!auditText.includes(value));
   assert.ok(audit.some((row) => row.outcome === 'denied'));
+  assert.ok(audit.some(row=>row.query==='cobalt'));
   assert.throws(() => createInferenceHistoryService({ vaultRoot }), { code: 'ERR_INFERENCE_HISTORY_DENIED' });
   console.log('Inference history scoped storage, revisions, search, revocation and deletion passed.');
 } finally { await rmDirRecursive(root); }

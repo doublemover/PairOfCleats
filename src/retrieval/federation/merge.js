@@ -29,7 +29,11 @@ const compactMergedHit = (entry) => {
   } = entry;
   return {
     ...hit,
+    sourceScore: hit.score,
+    sourceScoreType: hit.scoreType || null,
     score: Number(rrfScore.toFixed(12)),
+    scoreType: 'federated_rrf',
+    rankMethod: 'reciprocal-rank',
     repoPriority
   };
 };

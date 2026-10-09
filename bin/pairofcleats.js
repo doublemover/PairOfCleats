@@ -29,6 +29,7 @@ import { spawnSubprocess } from '../src/shared/subprocess/runner.js';
 import { exitLikeChild } from '../src/tui/wrapper-exit.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
 import {
+  getSearchHelp,
   SEARCH_OPTION_NAMES,
   SEARCH_SHORT_VALUE_FLAG_NAMES,
   SEARCH_VALUE_FLAG_NAMES
@@ -62,17 +63,12 @@ export async function main(rawArgs = process.argv.slice(2)) {
 
   if (command === 'help') {
     printRequestedHelp(args.slice(1));
-    process.exit(0);
+    process.exit(process.exitCode || 0);
   }
 
   if (!command || isHelpCommand(command) || isHelpAllCommand(command)) {
-    printHelp({
-      includeAll: isHelpAllCommand(command) || args.includes('--all'),
-      topicTokens: (isHelpCommand(command) || isHelpAllCommand(command))
-        ? args.slice(1).filter((arg) => arg !== '--all')
-        : []
-    });
-    process.exit(0);
+    printRequestedHelp([...(isHelpAllCommand(command) ? ['--all'] : []), ...args.slice(1)]);
+    process.exit(process.exitCode || 0);
   }
 
   if (isVersionCommand(command)) {
@@ -100,6 +96,17 @@ export async function main(rawArgs = process.argv.slice(2)) {
  * @returns {{script:string,extraArgs:string[],args:string[]}|null}
  */
 function resolveCommand(primary, rest) {
+  if (primary === 'history') {
+    const sub = rest.shift();
+    if (!sub || sub === 'help' || isHelpCommand(sub)) {
+      validateArgs(rest, ['all', 'json'], []);
+      return { script: 'tools/history/help.js', extraArgs: [], args: rest };
+    }
+    if(sub==='local')return {script:'tools/history/local.js',extraArgs:[],args:rest};
+    failCli('Use the selected local collection reader or an authenticated host adapter.', {
+      hint: 'Use pairofcleats history help --all --json for the read-only contract.'
+    });
+  }
   if (primary === 'index') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
@@ -1220,6 +1227,21 @@ function printHelp({ includeAll = false, topicTokens = [] } = {}) {
 }
 
 function printRequestedHelp(helpArgs) {
+  if (helpArgs.includes('--json')) {
+    const all = helpArgs.includes('--all');
+    const topic = helpArgs.filter(arg => !['--json', '--all', '--help', '-h'].includes(arg)).join(' ');
+    const entries = listCommandRegistry({ supportTiers: all ? ['stable', 'operator', 'internal', 'experimental'] : DEFAULT_HELP_SUPPORT_TIERS })
+      .filter(entry => !topic || entry.commandPath.join(' ') === topic || entry.commandPath[0] === topic);
+    if (topic && !entries.length) {
+      process.stdout.write(JSON.stringify({ ok: false, error: { code: ERROR_CODES.INVALID_REQUEST,
+        message: 'Unknown or hidden help topic.', hint: 'Use pairofcleats help --all --json.' } }) + '\n');
+      process.exitCode = 1;
+      return;
+    }
+    process.stdout.write(JSON.stringify({ version: 'command-help.v1', topic: topic || null, commands: entries.map(entry => all ? entry : ({ command: entry.commandPath.join(' '), description: entry.description, supportTier: entry.supportTier, examples: entry.helpExamples })),
+      ...(topic === 'search' ? { guide: getSearchHelp({ full: all }) } : {}) }) + '\n');
+    return;
+  }
   const includeAll = helpArgs.includes('--all');
   const topicTokens = helpArgs.filter((arg) => arg !== '--all' && arg !== '--help' && arg !== '-h');
   printHelp({ includeAll, topicTokens });

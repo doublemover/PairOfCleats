@@ -1,3 +1,4 @@
+import { insertOptionalFtsFromStage } from '../../fts-variants.js';
 import { performance } from 'node:perf_hooks';
 import {
   buildFileManifestRows,
@@ -236,6 +237,7 @@ export const createChunkIngestor = (ctx) => {
         postContext,
         weight,
         tokens,
+        phrase_tokens,
         ngrams,
         codeRelations,
         docmeta,
@@ -269,6 +271,7 @@ export const createChunkIngestor = (ctx) => {
         c.postContext,
         c.weight,
         c.tokens,
+        c.phrase_tokens,
         c.ngrams,
         c.codeRelations,
         c.docmeta,
@@ -302,6 +305,7 @@ export const createChunkIngestor = (ctx) => {
     const durationMs = performance.now() - start;
     recordTable('chunks', chunkCount, durationMs);
     recordTable('chunks_fts', chunkCount, durationMs);
+    insertOptionalFtsFromStage(db);
     db.exec('DELETE FROM chunks_stage;');
   };
 

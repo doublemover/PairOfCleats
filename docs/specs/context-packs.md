@@ -216,7 +216,7 @@ not change the canonical pack schema.
 
 Retrieval result bundles (outside full context-pack generation) follow a reduced deterministic contract:
 - group by `file` (fallback synthetic bundle for missing file)
-- order bundles by `totalScore`, then `topScore`, then `modeCount`, then `file`, then `bundleId`
+- order bundles by `rankScore`, then `bestRankContribution`, then `modeCount`, then `file`, then `bundleId`
 - order items inside each bundle by `score`, mode precedence, source index, then stable id key
 
 This alignment keeps bundle previews deterministic and compatible with context-pack ordering expectations.

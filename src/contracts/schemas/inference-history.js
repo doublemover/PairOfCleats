@@ -1,3 +1,4 @@
+import { HISTORY_AGENT_REQUESTS } from './inference-history-agent.js';
 const identity = { type: 'string', minLength: 1, maxLength: 512 };
 
 // This envelope is produced by trusted host policy, never by an export or client.
@@ -19,5 +20,6 @@ export const INFERENCE_HISTORY_ACCESS_SCHEMA = {
 };
 
 export const INFERENCE_HISTORY_SCHEMA_DEFS = {
-  'inference-history-access': INFERENCE_HISTORY_ACCESS_SCHEMA
+  'inference-history-access': INFERENCE_HISTORY_ACCESS_SCHEMA,
+  ...Object.fromEntries(Object.entries(HISTORY_AGENT_REQUESTS).map(([name, value]) => ['inference-history-agent-' + name, value]))
 };

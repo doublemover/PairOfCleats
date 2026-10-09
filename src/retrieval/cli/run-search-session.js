@@ -216,7 +216,7 @@ async function resolveQueryEmbeddingsByMode({
   for (const mode of EMBEDDING_MODE_ORDER) {
     const state = modeState[mode];
     if (!(state.run && state.hasAnn)) continue;
-    embeddingsByMode[mode] = await getEmbeddingForModel(
+    embeddingsByMode[mode] = () => getEmbeddingForModel(
       state.modelId,
       state.embeddingDims,
       state.embeddingNormalize,
@@ -376,6 +376,7 @@ export async function runSearchSession({
   symbolBoost,
   relationBoost,
   annCandidateCap,
+  annDiscovery,
   annCandidateMinDocCount,
   annCandidateMaxDocCount,
   maxCandidates,
@@ -489,6 +490,7 @@ export async function runSearchSession({
     symbolBoost,
     relationBoost,
     annCandidateCap,
+    annDiscovery,
     annCandidateMinDocCount,
     annCandidateMaxDocCount,
     maxCandidates,
@@ -584,6 +586,7 @@ export async function runSearchSession({
       annAdaptiveProviders,
       relationBoost,
       annCandidateCap,
+      annDiscovery,
       annCandidateMinDocCount,
       annCandidateMaxDocCount,
       bm25K1,
@@ -649,7 +652,8 @@ export async function runSearchSession({
     useStubEmbeddings,
     embeddingProvider,
     embeddingOnnx,
-    rootDir
+    rootDir,
+    generation: indexSignaturePayload || indexDirByMode
   });
   const queryEmbeddingsByMode = await resolveQueryEmbeddingsByMode({
     modeState,

@@ -30,17 +30,23 @@ head. None is a blanket release-readiness claim.
 
 | Initiative | Status | Done now | Remaining / next |
 | --- | --- | --- | --- |
-| Execution, storage and download authority | `implemented; focused validation` | Launch-owned configuration, editor execution/credential gates, pinned TUI companion paths, bounded worker pools, native-artifact provenance, download transactions and descriptor-backed reads are covered by synthetic regressions. | Preserve the explicit authority boundaries in the [guide](guides/execution-authority.md); native TUI and non-Linux platform acceptance remain separate. |
-| Stage1 ordered throughput cutover | `implemented` | Contiguous window planning, commit cursor ordering, no-gap-recovery assertions and targeted Stage1 tests are present. | Refresh perf and memory budget tests in the release gate before release. |
-| Phase 10 interprocedural risk flows | `implemented` | Risk summaries/flows/call-sites, validators and consumers are implemented; the completion pass fixes capped results, source deduplication and zero-confidence handling. | Run the affected risk and release acceptance lanes on the final release candidate. |
-| Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | IndexRefs, snapshot/diff tools and API routes are present; cache-boundary checks and historical LMDB/HNSW resolution are corrected. | Refresh cross-platform and end-to-end snapshot acceptance before release. |
-| Lexicon, relation boosts, chargram enrichment, and ANN candidate safety | `implemented` | Lexicon/relation/chargram surfaces and ANN filtering exist; semantic-query constraints and Tantivy filtered overfetch have focused regression coverage. | Measure representative search quality and optional native backends before release. |
-| USR consolidated contract and rollout program | `implemented` | Language/framework matrices, canonical schemas, validators and the full-language conformance surface are present. | Refresh technical acceptance; the former approval-lock process is archived and is not a release blocker. |
-| Shared-module reduction | `checkpoint clean` | Six recorded ownership batches are complete or checkpoint clean; their machine-readable backlog and boundary tests remain authoritative. | No known shared-module implementation batch remains open. Reopen only for a concrete ownership, correctness or measured performance signal. |
-| Duplicate-code reduction | `checkpoint clean` | The May saved-report exact-current refresh found no still-current fragments among its 212 saved candidates. | A future intentional full audit refresh, not ad hoc rework of stale saved-report entries, establishes a new repository-wide baseline. |
-| Production readiness | `deferred validation` | Release tooling, schemas and workflow contracts exist; bounded platform CI and the dependency/security closeout are recorded. | Run production verification and release-readiness evidence against the final candidate; later security changes require their own merge and rescan. |
-| Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, fixture expectations, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change. |
-| Worklogs and benchmark JSON under `docs/worklogs/**` | `historical evidence` | Historical measurements and authored worklogs are retained. | Keep new execution status here; label measurements with their exact revision and environment. |
+| Execution, storage and download authority | `implemented; focused validation` | Launch authority, native artifacts and bounded storage/download paths have regressions. | Preserve the explicit authority boundaries in the [guide](guides/execution-authority.md); native TUI and non-Linux platform acceptance remain separate.. |
+| Stage1 ordered throughput cutover | `implemented` | Ordered windows, commit cursors and no-gap recovery have targeted tests. | Refresh perf and memory budget tests in the release gate before release.. |
+| Phase 10 interprocedural risk flows | `implemented` | Risk flows, validators and consumers retain capped/deduplicated results. | Run the affected risk and release acceptance lanes on the final release candidate.. |
+| Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | Snapshot and IndexRef contracts include historical/cache-boundary corrections. | Refresh cross-platform and end-to-end snapshot acceptance before release.. |
+| Lexicon, relation boosts, chargram enrichment, and ANN candidate safety | `implemented` | Lexicon/chargram controls, ANN filtering and semantic constraints are implemented. | Measure representative search quality and optional native backends before release.. |
+| USR consolidated contract and rollout program | `implemented` | Language/framework matrices, canonical schemas and conformance surfaces are present. | Refresh technical acceptance; the former approval-lock process is archived and is not a release blocker. |
+| Shared-module reduction | `checkpoint clean` | Six ownership batches retain their authoritative backlog and boundary checks. | No known shared-module implementation batch remains open. Reopen only for a concrete ownership, correctness or measured performance signal. |
+| Duplicate-code reduction | `checkpoint clean` | The May refresh found no current fragments among 212 saved candidates. | A future intentional full audit refresh, not ad hoc rework of stale saved-report entries, establishes a new repository-wide baseline. |
+| Production readiness | `deferred validation` | Release tooling and bounded platform/security receipts remain revision-specific. | Run production verification and release-readiness evidence against the final candidate; later security changes require their own merge and rescan. |
+| Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change.. |
+| Worklogs and benchmark JSON under `docs/worklogs/**` | `historical evidence` | Historical measurements and authored worklogs remain preserved. | Keep new execution status here; label measurements with their exact revision and environment.. |
+
+## Private-history usability follow-up
+
+Progressive help, pinned evidence, privacy controls and local persistent semantics are implemented.
+See [agent usability](guides/agent-tool-usability.md) and the archive gates below.
+Exposed deployment isolation and approved archive evaluation remain separate.
 
 ## Canonical Next Queue
 
@@ -113,42 +119,16 @@ ahead of broader validation and retain historical measurements as dated evidence
 
 ### CLI, Setup and Generated-Artifact Acceptance
 
-The [October 6 record](guides/cli-acceptance-2026-10-06.md) preserves the 58-route
-CLI/setup/service acceptance, strict option controls, subprocess cleanup and
-staged ingest output preservation. Input/dependency/producer failures retain old
-output and summary; successful publication is not a crash-atomic two-file transaction.
-Closed setup input reports an actionable error; explicit strict search remains opt-in.
-
-Optional-tool degradation produces one bounded, deduplicated summary per pass,
-with redacted provider details in the application-owned default cache. The integrated
-source retains 48 underlying checks and a healthy contribution; current hosted
-lane receipts are linked above. Trust, chunk identity and required output contracts remain strict. No
-tool install/upgrade or generic automatic binary fallback is enabled.
-
-The current ordered CI-lite manifest has 887 entries, preserving the earlier
-prefix and additions. Platform receipts identify pass and declared-skip counts
-for their exact revision; they do not establish every optional backend or SDK.
-The no-ANN forwarding regression remains mandatory. Node24 is retained and
-better-sqlite3 is 13.0.3; older 827/837-entry and SQLite 12.6.2 statements describe
-historical checkpoints only.
-
-Map/core/cache classification follows the [ownership contract](guides/generated-artifact-ownership.md),
-[core contract](guides/generated-core-artifact-metadata.md) and
-[object-cache contract](guides/generated-object-cache-metadata.md). Fifteen audited
-object/runtime families carry first-field provenance. Explicit record roots/globs
-win; malformed/unrecognized input remains indexable. Ordinary paths add no marker
-I/O; renamed admission uses the existing content read. Bounded prefix validation,
-legacy cache reads, keys/TTL/health, complete payloads and streaming byte caps are
-preserved. Native descendants are not excluded by manifest claims.
-
-Remaining artifact batches cover exact-member linkage, remaining runtime state,
-reports/editor output and native/package/TUI surfaces. Preserve schemas, JSONL/array
-shapes, checksums and useful searchable reports. The [Mac checklist](guides/mac-acceptance-2026-10-06.md)
-and [archived checkpoints](archived/ordinary-integration-roadmap-2026-10-06.md) are
-historical plans/results. Final native, snapshot recovery, dependency bootstrap,
-retrieval quality, watch readiness and representative performance require current
-evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion.
-
+The [October 6 acceptance](guides/cli-acceptance-2026-10-06.md) and
+[October 9 checkpoint](archived/archive-retrieval-checkpoint-2026-10-09.md) preserve
+completed CLI/setup and generated-artifact receipts. Required trust, chunk identity,
+output provenance, input failure preservation and explicit install authority remain.
+Node24 and better-sqlite3 13.0.3 are current; the historical 887-entry lane is not a
+current optional-backend or SDK acceptance claim. Keep no-ANN forwarding mandatory.
+Remaining exact-member linkage, runtime state, reports/editor and native/package/TUI
+families require current schema, checksum and searchable-report evidence. Final
+snapshot recovery, dependency bootstrap, retrieval quality, watch readiness and
+representative performance remain open; isolated measurements do not promote runtime.
 ### Ongoing Review and Release Discipline
 
 1. **Preserve the verified integration lineage.** [PR519](https://github.com/doublemover/PairOfCleats/pull/519)
@@ -247,3 +227,43 @@ Choose only affected checks and respect the execution environment's resource
 budget. Do not run a full index build, release campaign or duplicate scan merely
 to update a status page. Reproduce behavioral failures with small fixtures before
 expanding validation.
+
+## Archive retrieval and CPU qualification - 2026-10-09
+
+Completed work and original receipts: [October 9 checkpoint](archived/archive-retrieval-checkpoint-2026-10-09.md),
+[CPU trial](guides/eg2-representative-cpu-trial-20261009.md) and [current archive policy/gates](guides/archive-pipeline-integration-20261009.md).
+The old corpus job stays stopped; authorized cleanup removed legacy derived vectors,
+preserving original DATs/source units. Old throughput/ETA applies to the old policy.
+Frozen diagnostic v3 plan: 422,794 inputs / 135,924,462 tokens; 24 large-source checks pass.
+
+Remaining ordered gates:
+
+1. Bounded source-plan reuse and seven no-model checks passed. SCIP definition/reference
+   classification is corrected with independent role flags and focused mask/count tests.
+2. One current Kingfisher CPU benchmark passed in 8m23s with real dictionaries and valid
+   persisted 384-dimensional vectors. Declared natural-sentence sparse-only queries had
+   zero target recall under documented implicit AND; semantic retrieval remains unmeasured.
+   [Exact verification and limits](guides/kingfisher-cpu-verification-20261009.md).
+3. Fresh archive import/reopen/original guards passed: 87,973 records, zero gaps and
+   1,675,434 effective words. Exact current plan: 422,836 inputs / 135,932,568 tokens.
+   Current-policy native qualification passed admission, finite normalized vectors and durable replay; semantic source recall@10=1, anchor recall@10=0.875 under the unit-citation contract.
+   Measured 270.8 useful tokens/s; approximate full-token extrapolation 139.4h is uncertain.
+   First bounded slice persisted 100 units / 555 vectors; read-only reopen passed after a reporting-heartbeat failure. Ranking/citation selection limits product quality; CPU only.
+4. [Acceleration and selective-embedding experiment](guides/archive-selective-embedding-20261009.md): native inference is 95.4% of wall; source/input/anchor ranking misses are diagnosed. Statement/copy fixes pass. A bounded 297-input /49,997-token held-out slice completed; expanded lexical + selected fusion anchor recall@10 is 0.667 versus lexical 0.583, cheap graph adds no gain. Existing guarded context recovers the secondary wrong-span anchor; primary candidate-ranking miss remains. Full corpus remains stopped at 100 units /555 vectors; selector is not activated.
+5. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
+   Search scaling, output-copy/statement reuse and parent-death lifetime retain the detailed
+   acceptance gates in the linked checkpoint; alternative engines remain research.
+
+No GPU, arbitrary installs or unrelated measurements are implied. PR547 publication is
+approved; merge remains unapproved. Hosted results apply to exact heads.
+
+## Viewer replacement after embedding qualification - 2026-10-09
+
+The owner requests new visuals, interactions and renderer implementation. Keep this
+behind the current Swift/archive embedding setup. Compare fresh Three.js with custom
+WebGL2 on representative measured cases before backend selection. Address actual
+semantic shapes/stacking, selective directed edges, semantic zoom, scalable graph tiles,
+and the supplied truncation/aggregate/shape and geometry/fog/disposal findings.
+[Deferred viewer queue](guides/viewer-replacement-queue-20261009.md) preserves the source
+plan and acceptance boundary. Defuddle remains optional future offline HTML cleanup;
+no dependency or network fallback is added now.

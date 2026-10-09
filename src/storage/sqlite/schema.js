@@ -1,6 +1,6 @@
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 14;
 
-// Optional metadata for sampled signatures; legacy schema-12 stores remain readable.
+// Metadata for sampled signatures.
 export const CREATE_MINHASH_META_SQL = `
   CREATE TABLE IF NOT EXISTS minhash_meta (
     mode TEXT PRIMARY KEY,
@@ -26,6 +26,8 @@ export const REQUIRED_TABLES = [
 ];
 
 export const CREATE_TABLES_BASE_SQL = `
+  DROP TABLE IF EXISTS chunks_fts_trigram;
+  DROP TABLE IF EXISTS chunks_fts_porter;
   DROP TABLE IF EXISTS chunks_fts;
   DROP TABLE IF EXISTS chunks;
   DROP TABLE IF EXISTS token_postings;
@@ -60,6 +62,7 @@ export const CREATE_TABLES_BASE_SQL = `
     postContext TEXT,
     weight REAL,
     tokens TEXT,
+    phrase_tokens TEXT,
     ngrams TEXT,
     codeRelations TEXT,
     docmeta TEXT,

@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import { fuseHistoryRanks, applyHistoryRerank } from '../../../src/integrations/inference-history/ranking.js';
+const row = (number, groupRef) => ({ sourceRef: String(number).padStart(64, '0'),
+  snapshotRef: 'a'.repeat(64), groupRef });
+const a = row(1, 'conversation-a'), b = row(2, 'conversation-a'), c = row(3, 'conversation-b');
+const lexical = [a, b, c], semantic = [c, a];
+const fused = fuseHistoryRanks({ lexical, semantic });
+assert.equal(fused.results[0].sourceRef, a.sourceRef);
+assert.equal(fused.results[1].sourceRef, c.sourceRef);
+assert.equal(fused.candidateCount, 3);
+assert.deepEqual(fused.results[0].ranks, { lexical: 1, semantic: 2 });
+assert.equal(fuseHistoryRanks({ lexical, semantic, maxPerGroup: 1 }).results.length, 2);
+assert.deepEqual(applyHistoryRerank(lexical, [c, a, b]), [c, a, b]);
+assert.strictEqual(applyHistoryRerank(lexical, [c, a, b])[0], c);
+assert.throws(() => applyHistoryRerank(lexical, [a, a, b]), /repeated/);
+assert.throws(() => applyHistoryRerank(lexical, [a, b, row(9)]), /introduced/);
+assert.throws(() => fuseHistoryRanks({ lexical, lexicalWeight: Infinity }), /controls/);
+assert.throws(() => fuseHistoryRanks({ lexical: [a], semantic: [{ ...a, groupRef: 'other' }] }), /Conflicting/);
+assert.equal(fuseHistoryRanks({ lexical: [a, a] }).candidateCount, 1);
+assert.equal(fuseHistoryRanks({ lexical, semantic, lexicalWeight: 0 }).candidateCount, 2);
+assert.deepEqual(lexical, [a, b, c]);
+console.log('synthetic history rank fusion, diversity and reranker boundary tests passed');
+const sharedOriginal=[{...a,originalRef:'source-sha'},{...c,originalRef:'source-sha'}, {...row(4,'conversation-c'),originalRef:'other-sha'}];
+assert.equal(fuseHistoryRanks({lexical:sharedOriginal,maxPerOriginal:1}).results.length,2);
+assert.equal(fuseHistoryRanks({lexical:sharedOriginal,maxPerOriginal:1,maxPerGroup:1}).results.length,2);
+assert.throws(()=>fuseHistoryRanks({lexical:[sharedOriginal[0]],semantic:[{...sharedOriginal[0],originalRef:'conflict'}]}),/original provenance/);
+assert.throws(()=>fuseHistoryRanks({lexical,maxPerOriginal:0}),/controls/);

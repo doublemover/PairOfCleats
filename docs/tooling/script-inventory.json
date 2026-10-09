@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-20T13:08:59.959Z",
+  "generatedAt": "2026-10-09T08:56:18.652Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -218,6 +218,16 @@
       "command": "pairofcleats graph-context",
       "summary": "Build a graph context pack for a seed.",
       "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats history help",
+      "summary": "Discover the private archive reader; reads require a trusted host.",
+      "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats history local",
+      "summary": "Read a selected local collection of conversations and recovered artifacts.",
+      "supportTier": "stable"
     },
     {
       "command": "pairofcleats impact",

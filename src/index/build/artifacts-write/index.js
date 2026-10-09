@@ -1638,6 +1638,7 @@ export async function writeIndexArtifacts(input) {
       enqueueJsonObject: tokenPostingWrites.enqueueJsonObject,
       enqueueWrite: tokenPostingWrites.enqueueWrite,
       addPieceFile,
+      updatePieceMetadata,
       formatArtifactLabel
     });
   }

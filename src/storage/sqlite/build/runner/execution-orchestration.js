@@ -1,3 +1,4 @@
+import { normalizeFtsVariants } from '../../fts-variants.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -91,6 +92,9 @@ export const executeSqliteModeBuilds = async ({
   envConfig,
   threadLimits
 }) => {
+  const requestedFtsVariants = normalizeFtsVariants(argv['fts-variants'] ?? [
+    ...(userConfig?.search?.sqliteFtsStemming === true ? ['porter'] : [])
+  ]);
   const { log, warn, error } = logger;
   const buildModeTask = taskFactory('SQLite', { total: modeList.length, stage: 'sqlite' });
   let done = 0;
@@ -384,6 +388,7 @@ export const executeSqliteModeBuilds = async ({
         && recordsIncrementalSupported
       ) {
         const updateResult = await incrementalUpdateDatabase({
+          ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           outPath: outputPath,
           mode,
@@ -468,6 +473,7 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite incremental`
         });
         const bundleResult = await buildDatabaseFromBundles({
+          ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           outPath: tempOutputPath,
           mode,
@@ -513,6 +519,7 @@ export const executeSqliteModeBuilds = async ({
             repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
           });
           await buildDatabaseFromArtifacts({
+            ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
             Database,
             index: pieces,
             indexDir: modeIndexDir,
@@ -541,6 +548,7 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite artifacts`
         });
         await buildDatabaseFromArtifacts({
+          ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           index: pieces,
           indexDir: modeIndexDir,

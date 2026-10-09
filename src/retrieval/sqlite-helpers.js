@@ -1,3 +1,6 @@
+import { compileFtsMatchFromAst } from './fts-query.js';
+import { createQueryAstHelpers } from './pipeline/query-ast.js';
+import { FTS_VARIANT_TABLES } from '../storage/sqlite/fts-variants.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
 import { chunkArray } from '../storage/sqlite/utils.js';
@@ -201,6 +204,8 @@ export function createSqliteHelpers(options) {
       preContext: parseJson(row.preContext, []),
       postContext: parseJson(row.postContext, []),
       tokens: parseArrayField(row.tokens),
+      phraseTokens: parseArrayField(row.phrase_tokens),
+      phraseTokensComplete: row.phrase_tokens != null,
       ngrams: parseJson(row.ngrams, []),
       codeRelations: parseJson(row.codeRelations, null),
       docmeta: parseJson(row.docmeta, null),
@@ -585,13 +590,13 @@ export function createSqliteHelpers(options) {
     options = {}
   ) {
     const topLimit = Math.max(1, Math.floor(Number(topN) || 1));
-    const overfetchRowCap = Number.isFinite(Number(options?.overfetchRowCap))
+    const overfetchRowCap = options?.overfetchRowCap != null && Number.isFinite(Number(options.overfetchRowCap))
       ? Math.max(topLimit, Math.floor(Number(options.overfetchRowCap)))
       : Math.max(FTS_OVERFETCH_MIN_ROWS, FTS_OVERFETCH_MULTIPLIER * topLimit);
-    const overfetchTimeBudgetMs = Number.isFinite(Number(options?.overfetchTimeBudgetMs))
+    const overfetchTimeBudgetMs = options?.overfetchTimeBudgetMs != null && Number.isFinite(Number(options.overfetchTimeBudgetMs))
       ? Math.max(1, Math.floor(Number(options.overfetchTimeBudgetMs)))
       : FTS_OVERFETCH_TIME_BUDGET_MS;
-    const overfetchChunkSize = Number.isFinite(Number(options?.overfetchChunkSize))
+    const overfetchChunkSize = options?.overfetchChunkSize != null && Number.isFinite(Number(options.overfetchChunkSize))
       ? Math.max(1, Math.floor(Number(options.overfetchChunkSize)))
       : Math.min(512, overfetchRowCap);
     const emitDiagnostic = (reason, error = null) => {
@@ -613,9 +618,16 @@ export function createSqliteHelpers(options) {
       return [];
     }
     if (allowedIds && allowedIds.size === 0) return [];
-    if (!hasFtsTable(mode)) {
+    const variant = mode === 'code' && options?.ftsVariant === 'porter' ? 'unicode61' : options?.ftsVariant || 'unicode61';
+    const table = FTS_VARIANT_TABLES[variant];
+    if (!table || !hasTable(mode, table)) {
       emitDiagnostic('missing_table');
       return [];
+    }
+    if (typeof options?.onExecution === 'function') {
+      const definition = db.prepare("SELECT sql FROM sqlite_master WHERE name = ?").get(table)?.sql || '';
+      const tokenizer = /tokenize\s*=\s*'([^']+)'/i.exec(definition)?.[1] || 'unicode61';
+      options.onExecution({ table, tokenizer, variant });
     }
     const explicitMatch = typeof options?.ftsMatch === 'string'
       ? options.ftsMatch.trim()
@@ -627,61 +639,65 @@ export function createSqliteHelpers(options) {
       : '';
     const ftsQuery = explicitMatch || fallbackMatch;
     if (!ftsQuery) return [];
-    const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights);
+    if (options.queryAst) {
+      const termRows = new Map();
+      const collect = node => {
+        if (!node) return;
+        if (node.type === 'term') {
+          const match = compileFtsMatchFromAst(node);
+          if (!termRows.has(match)) {
+            const rows = db.prepare(`SELECT rowid AS id FROM ${table} WHERE ${table} MATCH ?`).all(match);
+            termRows.set(match, new Set(rows.map(row => row.id)));
+          }
+        }
+        collect(node.left); collect(node.right); collect(node.child);
+      };
+      collect(options.queryAst);
+      const matcher = createQueryAstHelpers({
+        queryAst: options.queryAst,
+        termMatches: (node, id) => termRows.get(compileFtsMatchFromAst(node))?.has(id) === true
+      }).matchesQueryAst;
+      const eligible = new Set();
+      for (let id = 0; id < idx.chunkMeta.length; id++) {
+        const chunk = idx.chunkMeta[id];
+        if (chunk && (!allowedIds || allowedIds.has(id)) && matcher(idx, id, chunk)) eligible.add(id);
+      }
+      allowedIds = eligible;
+      options.onEligibility?.(matcher);
+      if (!eligible.size) return [];
+    }
+    const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights, table);
     const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
-    const canPushdown = !!(allowedList && allowedList.length <= SQLITE_IN_LIMIT);
+    const canPushdown = Boolean(allowedList);
+    const jsonPushdown = canPushdown && allowedList.length > SQLITE_IN_LIMIT;
     const allowedClause = canPushdown
-      ? ` AND chunks_fts.rowid IN (${allowedList.map(() => '?').join(',')})`
+      ? jsonPushdown ? ` AND ${table}.rowid IN (SELECT value FROM json_each(?))`
+        : ` AND ${table}.rowid IN (${allowedList.map(() => '?').join(',')})`
       : '';
-    const fetchSql = (withOffset = false) => `SELECT chunks_fts.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
-       FROM chunks_fts
-       JOIN chunks ON chunks.id = chunks_fts.rowid
-       WHERE chunks_fts MATCH ? AND chunks.mode = ?
+    const fetchSql = (withOffset = false) => `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+       FROM ${table}
+       JOIN chunks ON chunks.id = ${table}.rowid
+       WHERE ${table} MATCH ? AND chunks.mode = ?
        ${allowedClause}
-       ORDER BY score ASC, chunks_fts.rowid ASC LIMIT ?${withOffset ? ' OFFSET ?' : ''}`;
+       ORDER BY score ASC, ${table}.rowid ASC LIMIT ?${withOffset ? ' OFFSET ?' : ''}`;
     let rows = [];
     const startedAt = Date.now();
     let rowsScanned = 0;
     let truncated = false;
     try {
-      if (allowedIds && !canPushdown) {
-        const stmt = getCachedStatement(db, 'rankSqliteFtsPaged', fetchSql(true));
-        let offset = 0;
-        while (rowsScanned < overfetchRowCap) {
-          const elapsed = Date.now() - startedAt;
-          if (elapsed >= overfetchTimeBudgetMs) {
-            truncated = true;
-            break;
-          }
-          const pageLimit = Math.min(overfetchChunkSize, overfetchRowCap - rowsScanned);
-          const page = stmt.all(ftsQuery, mode, pageLimit, offset);
-          if (!page.length) break;
-          rowsScanned += page.length;
-          offset += page.length;
-          for (const row of page) {
-            if (allowedIds.has(row.id)) rows.push(row);
-          }
-          if (rowsScanned >= overfetchRowCap) {
-            truncated = true;
-            break;
-          }
-          if (page.length < pageLimit) break;
-        }
-      } else {
-        const stmtKey = canPushdown
-          ? `rankSqliteFtsPushdown:${allowedList.length}`
-          : 'rankSqliteFts';
-        const stmt = getCachedStatement(db, stmtKey, fetchSql(false));
-        const queryLimit = canPushdown
-          ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
-          : overfetchRowCap;
-        const params = canPushdown
-          ? [ftsQuery, mode, ...allowedList, queryLimit]
-          : [ftsQuery, mode, queryLimit];
-        rows = stmt.all(...params);
-        rowsScanned = rows.length;
-        truncated = rows.length >= overfetchRowCap;
-      }
+      const stmtKey = canPushdown
+        ? `rankSqliteFtsPushdown:${table}:${allowedList.length}`
+        : 'rankSqliteFts:'+table;
+      const stmt = getCachedStatement(db, stmtKey, fetchSql(false));
+      const queryLimit = canPushdown
+        ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
+        : overfetchRowCap;
+      const params = canPushdown
+        ? [ftsQuery, mode, ...(jsonPushdown ? [JSON.stringify(allowedList)] : allowedList), queryLimit]
+        : [ftsQuery, mode, queryLimit];
+      rows = stmt.all(...params);
+      rowsScanned = rows.length;
+      truncated = rows.length >= overfetchRowCap;
     } catch (error) {
       emitDiagnostic('query_failed', error);
       return [];

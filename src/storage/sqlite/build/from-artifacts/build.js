@@ -63,7 +63,8 @@ export async function buildDatabaseFromArtifacts({
   statementStrategy,
   buildPragmas,
   optimize,
-  stats
+  stats,
+  ftsVariants = []
 }) {
   const resolvedOutPath = typeof outputPath === 'string' ? outputPath : outPath;
   if (!resolvedOutPath || typeof resolvedOutPath !== 'string') {
@@ -155,7 +156,8 @@ export async function buildDatabaseFromArtifacts({
     outPath: resolvedOutPath,
     batchStats,
     inputBytes,
-    useBuildPragmas
+    useBuildPragmas,
+    ftsVariants
   });
 
   let count = 0;
@@ -226,6 +228,7 @@ export async function buildDatabaseFromArtifacts({
         postContext TEXT,
         weight REAL,
         tokens TEXT,
+        phrase_tokens TEXT,
         tokensText TEXT,
         ngrams TEXT,
         codeRelations TEXT,
@@ -303,6 +306,7 @@ export async function buildDatabaseFromArtifacts({
         postContext,
         weight,
         tokens,
+        phrase_tokens,
         tokensText,
         ngrams,
         codeRelations,
@@ -339,6 +343,7 @@ export async function buildDatabaseFromArtifacts({
         @postContext,
         @weight,
         @tokens,
+        @phrase_tokens,
         @tokensText,
         @ngrams,
         @codeRelations,
