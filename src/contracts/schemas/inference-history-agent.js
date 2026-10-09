@@ -200,6 +200,7 @@ Object.assign(HISTORY_AGENT_REQUESTS.search.properties,{
   rankConstant:{type:'integer',minimum:1,maximum:10000,default:60},
   lexicalWeight:{type:'integer',minimum:0,maximum:100,default:1},
   semanticWeight:{type:'integer',minimum:0,maximum:100,default:1},
-  maxPerConversation:{type:'integer',minimum:1,maximum:100},
+  maxPerConversation:{type:'integer',minimum:1,maximum:100,default:3},
+  maxPerOriginal:{type:'integer',minimum:1,maximum:100,default:3},
   rerank:{type:'boolean',default:false}
 });

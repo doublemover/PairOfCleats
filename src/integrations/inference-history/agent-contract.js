@@ -7,7 +7,7 @@ export { HISTORY_AGENT_REQUESTS } from '../../contracts/schemas/inference-histor
 export function historyAgentHelp({ full = false } = {}) {
   return {
     version: HISTORY_AGENT_VERSION,
-    capabilities: { lexical: true, boundedRelaxation: true, context: true, dense: 'trusted_host_optional', rerank: 'trusted_host_optional' },
+    capabilities: { lexical: true, boundedRelaxation: true, context: true, dense: 'trusted_host_optional', rerank: 'trusted_host_optional_unavailable_in_persistent_adapter', metadataHybrid: true, originalSourceDiversity: true },
     interface: 'Trusted host: reader.execute(command, request, options). CLI discovery: pairofcleats history help --json',
     commands: Object.keys(HISTORY_AGENT_REQUESTS),
     semantics: {
