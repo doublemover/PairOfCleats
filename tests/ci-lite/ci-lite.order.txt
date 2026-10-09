@@ -921,3 +921,9 @@ retrieval/ranking/bm25-sqlite-override
 retrieval/ranking/evidence-selection-reranker
 storage/sqlite/fts-optional-build-compaction
 integrations/inference-history/persistent-eg2
+indexing/embeddings/embeddinggemma2-prepared
+integrations/inference-history/eg2-runtime-identity
+integrations/inference-history/persistent-eg2-scheduler
+integrations/inference-history/gguf-embedding-runtime
+integrations/inference-history/eg2-cpu-qualification
+integrations/inference-history/eg2-checkpoint-conversion

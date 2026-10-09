@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 786,
+    "hero": 792,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5539,6 +5539,42 @@
     {
       "id": "integrations/inference-history/persistent-eg2",
       "order": 921,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/embeddinggemma2-prepared",
+      "order": 922,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-runtime-identity",
+      "order": 923,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/persistent-eg2-scheduler",
+      "order": 924,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/gguf-embedding-runtime",
+      "order": 925,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-cpu-qualification",
+      "order": 926,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-checkpoint-conversion",
+      "order": 927,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
