@@ -1,3 +1,4 @@
+import { installHistoryDiscoveryIndex } from './discovery-index.js';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -177,6 +178,7 @@ function initializeHistoryStore(db,partitionKey) {
       DELETE FROM units_fts WHERE id=old.id;
     END;
   `);
+  installHistoryDiscoveryIndex(db);
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', HISTORY_STORE_FORMAT);
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));

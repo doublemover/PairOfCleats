@@ -43,12 +43,12 @@ export function createHistoryAgentReader({ service, requestContext, partition })
         const evidence = rows.map(row => {
           const snapshotRef = row.snapshotRef ?? result.snapshotRef;
           const selected = pick(row, ['sourceRef', 'snapshotRef', 'messageId', 'evidenceKind', 'score', 'scoreKind', 'retrievalRanks', 'groupRef', 'role', 'createdAt', 'title', 'pathState',
-            'anchor', 'signals', 'artifacts', 'snippet', 'projection', 'occurrences']);
+            'searchField','originalHash','groupCount','anchor', 'signals', 'artifacts', 'snippet', 'projection', 'occurrences']);
           if (snapshotRef) selected.snapshotRef = snapshotRef;
           if (row.text !== undefined) selected.text = row.snippet?.text ?? row.text;
           if (selected.snippet) {
             selected.snippet = pick(selected.snippet, ['start', 'end', 'totalChars', 'truncated', 'matchedTokens']);
-            selected.span = { surface: 'redacted_projected_text', units: 'utf16_code_units',
+            selected.span = { surface: row.searchField && row.searchField !== 'text' ? 'archive_discovery_' + row.searchField : 'redacted_projected_text', units: 'utf16_code_units',
               start: selected.snippet.start, end: selected.snippet.end };
           }
           if (row.provenance) selected.provenance = row.provenance;

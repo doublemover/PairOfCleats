@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 import { createLocalSourceHistoryService } from '../../src/integrations/inference-history/service.js';
 import { createHistoryAgentReader } from '../../src/integrations/inference-history/agent-reader.js';
 const {values,positionals}=parseArgs({allowPositionals:true,options:{
-  collection:{type:'string'},request:{type:'string'},query:{type:'string'},help:{type:'boolean'}}});
+  'rebuild-discovery':{type:'boolean'},collection:{type:'string'},request:{type:'string'},query:{type:'string'},help:{type:'boolean'}}});
 if(values.help||!values.collection){
   console.log('pairofcleats history local --collection <manifest.json> search --query <text>\npairofcleats history local --collection <manifest.json> context|references|original --request <JSON>\nManifest: {sources:[{path,sha256}], indexPath?, catalogs?:[{path,sourceRoot}]}. Conversations and artifact shards share this collection.');
 }else{
@@ -15,6 +15,7 @@ if(values.help||!values.collection){
   const manifest=JSON.parse(await fs.readFile(file,'utf8'));
   const resolve=value=>path.resolve(path.dirname(file),value);
   const service=await createLocalSourceHistoryService({
+    rebuildDiscovery:values['rebuild-discovery'] === true,
     sources:manifest.sources.map(s=>({path:resolve(s.path),sha256:s.sha256})),
     indexPath:manifest.indexPath?resolve(manifest.indexPath):null,
     catalogs:(manifest.catalogs??[]).map(c=>({path:resolve(c.path),sourceRoot:resolve(c.sourceRoot)}))

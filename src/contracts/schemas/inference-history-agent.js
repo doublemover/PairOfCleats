@@ -9,6 +9,8 @@ export const HISTORY_AGENT_REQUESTS = {
     "properties": {
       "continuation": {"type":"string","minLength":1,"maxLength":2048,"description":"Exact returned generation-bound ranked cursor; preserve query, filters and budgets."},
       "match": {"enum":["strict","relaxed","auto"],"default":"auto"},
+      "searchField": {"enum":["text","title","path","facets","metadata"],"default":"text"},
+      "groupBy": {"enum":["evidence","original"],"default":"evidence"},
       "query": {
         "type": "string",
         "minLength": 1,
@@ -76,6 +78,8 @@ export const HISTORY_AGENT_REQUESTS = {
       "snapshotRef"
     ],
     "properties": {
+      "preset": {"enum":["adjacent","user-assistant","user","assistant"],"default":"adjacent"},
+      "role": {"enum":["user","assistant","artifact"]},
       "sourceRef": {
         "type": "string",
         "pattern": "^[a-f0-9]{64}$"
