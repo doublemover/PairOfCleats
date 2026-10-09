@@ -234,18 +234,20 @@ Completed work and original receipts: [October 9 checkpoint](archived/archive-re
 [CPU trial](guides/eg2-representative-cpu-trial-20261009.md) and [current archive policy/gates](guides/archive-pipeline-integration-20261009.md).
 The old corpus job stays stopped; authorized cleanup removed legacy derived vectors,
 preserving original DATs/source units. Old throughput/ETA applies to the old policy.
-Final read-only v3 plan: 422,794 inputs / 135,924,462 tokens; 24 large-source checks pass.
+Frozen diagnostic v3 plan: 422,794 inputs / 135,924,462 tokens; 24 large-source checks pass.
 
 Remaining ordered gates:
 
 1. Bounded source-plan reuse and seven no-model checks passed. SCIP definition/reference
    classification is corrected with independent role flags and focused mask/count tests.
-2. Kingfisher current checkout, exact isolated runtime and eight source-backed judgments
-   are ready. Finish real dictionary wiring, then run one bounded CPU embedding benchmark.
-   Missing SourceKit is optional degraded capability, not an embedding-core failure.
-3. Current-policy derivative reprojection/reimport and vocabulary regeneration are underway;
-   qualify archive relevance, citations, preparation/throughput and scheduling parity before
-   the recovered-corpus sequence. Fix/report material failures first; CPU only.
+2. One current Kingfisher CPU benchmark passed in 8m23s with real dictionaries and valid
+   persisted 384-dimensional vectors. Declared natural-sentence sparse-only queries had
+   zero target recall under documented implicit AND; semantic retrieval remains unmeasured.
+   [Exact verification and limits](guides/kingfisher-cpu-verification-20261009.md).
+3. Fresh archive reprojection has 87,973 records, zero gaps and 1,675,434 effective words.
+   Import/persistence checks and exact current token counts precede archive relevance,
+   citations, preparation/throughput and scheduling qualification, then corpus inference.
+   Frozen diagnostic counts/old throughput do not establish its ETA. CPU only.
 4. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
    Search scaling, output-copy/statement reuse and parent-death lifetime retain the detailed
    acceptance gates in the linked checkpoint; alternative engines remain research.
