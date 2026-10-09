@@ -98,6 +98,18 @@ const PUBLIC_CLI_FLAGS = new Set([
   'workspaceId'
 ]);
 const KNOWN_CONFIG_KEYS = new Set([
+  'dictionary.dir',
+  'dictionary.dpMaxTokenLength',
+  'dictionary.dpMaxTokenLengthByFileCount',
+  'dictionary.enableRepoDictionary',
+  'dictionary.files',
+  'dictionary.includeSlang',
+  'dictionary.languages',
+  'dictionary.segmentation',
+  'dictionary.slangDirs',
+  'dictionary.slangFiles',
+  'models.dir',
+  'models.id',
   'cache.root',
   'indexing.artifacts.chunkMetaFormat',
   'indexing.artifacts.chunkMetaJsonlThreshold',
@@ -398,6 +410,11 @@ const KNOWN_CONFIG_KEYS = new Set([
   'tooling.vfs.tokenMode'
 ]);
 const KNOWN_ENV_VARS = new Set([
+  'PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR',
+  'PAIROFCLEATS_DEPENDENCY_TEST_DIR',
+  'PAIROFCLEATS_EMBEDDING_TEST_DIR',
+  'PAIROFCLEATS_FTS_TEST_DIR',
+  'PAIROFCLEATS_VECTOR_CACHE_TEST_DIR',
   'PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS',
   'PAIROFCLEATS_ANN_BACKEND',
   'PAIROFCLEATS_API_TOKEN',
