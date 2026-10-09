@@ -26,14 +26,14 @@ Assembly/output cost only 0.0116/0.0579 seconds. Statement and copy optimization
 cannot remove the dominant native inference bill. The 139.4-hour token-linear
 extrapolation is workload-dependent, not a commitment to embed the complete corpus.
 
-The earlier trial used the same FP32 graph, requested CPU 4/1 threads and batch8,
-but 103 inputs / 24,484 tokens, mean237.71 and 29.99% padding. Current mean length
+The earlier trial used the same FP32 graph, requested CPU 4/1 threads and batch 8,
+but 103 inputs / 24,484 tokens, mean 237.71 and 29.99% padding. Current mean length
 is 40.8% higher. These are different content/shape distributions, not a matched
 performance regression. Current captured worker CPU consumption is approximately
 1.79 core equivalents over sampled native intervals, versus about four in the
 prior trial. Effective thread pool/kernel dispatch was never measured. Lower
 parallel utilization is observed; its cause remains unresolved. Kingfisher ended
-19:39:12Z before current native inference started20:21:54Z. The known service,
+19:39:12Z before current native inference started 20:21:54Z. The known service,
 frozen, cancellation and replay jobs were sequential; other machine contention
 was not recorded and cannot be claimed or excluded.
 
@@ -48,8 +48,8 @@ unchanged. Three affected no-model tests and scoped lint passed. The scheduler
 fixture asserts one prepared generation statement across live checks and retains
 its stale-generation/cancellation/privacy checks.
 
-One matched JS normalization comparison (same768d Float32Array, five samples of
-2,000 calls) measured medians140.445ms before /111.867ms after, with exact array
+One matched JS normalization comparison (same 768-dimensional Float32Array, five samples of
+2,000 calls) measured medians 140.445 ms before / 111.867 ms after, with exact array
 agreement and invalid/zero/nonfinite guards. This is a local JS result, not a model
 or whole-pipeline throughput claim. The initial operator heartbeat is cleared
 before disposal now; its original file and failure log remain preserved. The
@@ -58,12 +58,12 @@ unexecuted resume operator already had this ordering. Both syntax checks pass.
 ## Missing anchor diagnosis
 
 One newly captured query vector reproduced the authentic service top ten exactly.
-The primary progress anchor inputs rank103/114 by raw cosine; their units rank24/22.
+The primary progress anchor inputs rank 103/114 by raw cosine; their units rank 24/22.
 Those vectors were admitted and persisted. Transport-alias deduplication alone
-cannot recover this anchor at top10. The secondary anchor inputs rank132/144;
-its unit ranks3 through a higher-scoring different span at32000-32807, which
-intersects only seven anchor characters beyond the600-character snippet.
-Source-group recall1.0, anchor-region recall0.875 and frozen-pool input recall0.8125
+cannot recover this anchor at top10. The secondary anchor inputs rank 132/144;
+its unit ranks 3 through a higher-scoring different span at 32000-32807, which
+intersects only seven anchor characters beyond the 600-character snippet.
+Source-group recall 1.0, anchor-region recall 0.875 and frozen-pool input recall 0.8125
 therefore remain separate measurements. The frozen pool's perfect anchor coverage
 is not authentic-path quality. Query and document vectors now support future
 read-only counterfactual replay; no corpus model rerun is needed for this diagnosis.
@@ -78,18 +78,18 @@ once; source/unit/snapshot/range aliases remain attached. No evaluation query,
 judgment or embedding score was used to select anchors. This heuristic is not
 proof that a heading, docstring or rare extension benefits most from embeddings.
 
-Actual selection:255 groups /354 units /3,805 unique inputs /428,951 tokens;
-all51 observed kind/extension strata represented. This is0.31556% of tokens,
-0.89988% of unique inputs and0.40240% of units. A0.5% token target was not filled
-because the input budget reserves423 further inputs beneath the strict4,228-input
-ceiling. Unit ceiling879; token reserve ceiling1,223,393 (0.9%). The three axes
+Actual selection: 255 groups /354 units /3,805 unique inputs /428,951 tokens;
+all 51 observed kind/extension strata represented. This is 0.31556% of tokens,
+0.89988% of unique inputs and0.40240% of units. A 0.5% token target was not filled
+because the input budget reserves 423 further inputs beneath the strict 4,228-input
+ceiling. Unit ceiling 879; token reserve ceiling 1,223,393 (0.9%). The three axes
 must be enforced separately. Original lexical/discovery coverage and citations
 remain complete. The manifest is selected, not encoded or activated.
 
-Baseline denominators:135,932,568 tokens /422,836 inputs /87,973 units. Token
-budgets0.1%/0.5%/1% are approximately135,933/679,663/1,359,326 tokens. At the
-sample's270.8 useful tokens/s these imply roughly8.4/41.8/83.7 minutes, with
-workload uncertainty. One32-token summary per unit already exceeds2% of the token
+Baseline denominators: 135,932,568 tokens /422,836 inputs /87,973 units. Token
+budgets 0.1%/0.5%/1% are approximately 135,933/679,663/1,359,326 tokens. At the
+sample's 270.8 useful tokens/s these imply roughly 8.4/41.8/83.7 minutes, with
+workload uncertainty. One 32-token summary per unit already exceeds 2% of the token
 baseline before prefixes. Existing dedup savings cannot be counted again.
 
 ## Code hooks and next bounded experiment
@@ -132,7 +132,7 @@ Report candidate/final recall, MRR/nDCG, tail strata, input/source/anchor recall
 citation validity, cold/warm latency, RSS, graph/preparation/native/persistence
 costs and update invalidation. On-demand encoding needs cumulative unique-token
 and latency bounds, including evicted/recomputed inputs. Benchmark exhaustive dot
-products for approximately4,000 anchors before choosing ANN. Cross-encoder costs
+products for approximately 4,000 anchors before choosing ANN. Cross-encoder costs
 require their own measurement. No held-out comparison or selection inference ran
 here; sub-1% quality remains a hypothesis. Widen only for evidenced misses.
 

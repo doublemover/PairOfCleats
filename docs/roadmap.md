@@ -249,7 +249,7 @@ Remaining ordered gates:
    Current-policy native qualification passed admission, finite normalized vectors and durable replay; semantic source recall@10=1, anchor recall@10=0.875 under the unit-citation contract.
    Measured 270.8 useful tokens/s; approximate full-token extrapolation 139.4h is uncertain.
    First bounded slice persisted 100 units / 555 vectors; read-only reopen passed after a reporting-heartbeat failure. Ranking/citation selection limits product quality; CPU only.
-4. [Acceleration and selective-embedding experiment](guides/archive-selective-embedding-20261009.md): native inference is95.4% of wall; source/input/anchor ranking misses are diagnosed. Statement/copy fixes pass; a no-inference manifest preserves complete lexical coverage. Held-out budgeted quality comparison is next; full corpus remains stopped.
+4. [Acceleration and selective-embedding experiment](guides/archive-selective-embedding-20261009.md): native inference is 95.4% of wall; source/input/anchor ranking misses are diagnosed. Statement/copy fixes pass; a no-inference manifest preserves complete lexical coverage. Held-out budgeted quality comparison is next; full corpus remains stopped.
 5. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
    Search scaling, output-copy/statement reuse and parent-death lifetime retain the detailed
    acceptance gates in the linked checkpoint; alternative engines remain research.
