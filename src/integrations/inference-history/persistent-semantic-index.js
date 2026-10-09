@@ -39,8 +39,8 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
   const statements = {
     total: db.prepare('SELECT count(*) AS n ' + visible),
     indexed: db.prepare('SELECT count(*) AS n ' + visible + ' AND EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1)'),
-    spans: db.prepare('SELECT count(*) AS n FROM history_embedding_spans_v2 e JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id WHERE e.document_key=? AND r.deleted=0 AND r.excluded=0'),
-    vectors: db.prepare('SELECT count(*) AS n FROM history_embedding_inputs_v2 WHERE document_key=?'),
+    spans: db.prepare('SELECT count(*) AS n FROM history_embedding_spans_v2 e JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id WHERE e.document_key=? AND r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot)'),
+    vectors: db.prepare('SELECT count(DISTINCT e.input_key) AS n FROM history_embedding_spans_v2 e JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id WHERE e.document_key=? AND r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot)'),
     pending: db.prepare('SELECT u.id,u.text,u.metadata ' + visible + ' AND u.id>? AND NOT EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1) ORDER BY u.id LIMIT ?'),
     siblings: db.prepare('SELECT u.id,u.text,u.metadata ' + visible + " AND json_extract(u.metadata,'$.sourceDetails.sourceSha256')=? AND json_extract(u.metadata,'$.sourceDetails.locator') IS ? AND json_extract(u.metadata,'$.sourceDetails.artifactKind')=? AND EXISTS (SELECT 1 FROM snapshot_units su WHERE su.unit_id=u.id AND su.snapshot_id=r.latest_snapshot) ORDER BY u.id LIMIT 5001"),
     unit: db.prepare('SELECT content_hash FROM history_embedding_units_v2 WHERE document_key=? AND unit_id=?'),
@@ -271,6 +271,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
   };
   return Object.freeze({ status, refresh, adapter });
 }
+
 
 
 
