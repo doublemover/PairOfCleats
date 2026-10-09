@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-07T13:21:23.882Z",
+  "generatedAt": "2026-10-09T19:59:24.196Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -95,6 +95,7 @@
       "PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS",
       "PAIROFCLEATS_ANN_BACKEND",
       "PAIROFCLEATS_API_TOKEN",
+      "PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR",
       "PAIROFCLEATS_BENCH_ANTIVIRUS_STATE",
       "PAIROFCLEATS_BENCH_CPU_GOVERNOR",
       "PAIROFCLEATS_BENCH_MIRROR_REFRESH_MS",
@@ -120,6 +121,7 @@
       "PAIROFCLEATS_DEBUG_ORDERED",
       "PAIROFCLEATS_DEBUG_PERF_EVENTS",
       "PAIROFCLEATS_DENSE_BINARY_MAX_INLINE_MB",
+      "PAIROFCLEATS_DEPENDENCY_TEST_DIR",
       "PAIROFCLEATS_DICT_DIR",
       "PAIROFCLEATS_DISCOVERY_STAT_CONCURRENCY",
       "PAIROFCLEATS_DISPATCH_STRICT",
@@ -128,10 +130,12 @@
       "PAIROFCLEATS_EMBEDDINGS",
       "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
       "PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED",
+      "PAIROFCLEATS_EMBEDDING_TEST_DIR",
       "PAIROFCLEATS_ENV_ALLOWLIST",
       "PAIROFCLEATS_EXTENSIONS_DIR",
       "PAIROFCLEATS_FILE_CACHE_MAX",
       "PAIROFCLEATS_FORCE_CHUNK_AUTHOR_HYDRATION",
+      "PAIROFCLEATS_FTS_TEST_DIR",
       "PAIROFCLEATS_HOME",
       "PAIROFCLEATS_IMPORT_GRAPH",
       "PAIROFCLEATS_INCREMENTAL_BUNDLE_UPDATE_CONCURRENCY",
@@ -267,6 +271,7 @@
       "PAIROFCLEATS_TUI_WORKSPACE_ROOT",
       "PAIROFCLEATS_UPDATE_SNAPSHOTS",
       "PAIROFCLEATS_UV_THREADPOOL_SIZE",
+      "PAIROFCLEATS_VECTOR_CACHE_TEST_DIR",
       "PAIROFCLEATS_VERBOSE",
       "PAIROFCLEATS_WATCHER_BACKEND",
       "PAIROFCLEATS_WORKER_POOL",
@@ -278,6 +283,16 @@
     ],
     "knownConfigKeys": [
       "cache.root",
+      "dictionary.dir",
+      "dictionary.dpMaxTokenLength",
+      "dictionary.dpMaxTokenLengthByFileCount",
+      "dictionary.enableRepoDictionary",
+      "dictionary.files",
+      "dictionary.includeSlang",
+      "dictionary.languages",
+      "dictionary.segmentation",
+      "dictionary.slangDirs",
+      "dictionary.slangFiles",
       "indexing.artifacts.chunkMetaFormat",
       "indexing.artifacts.chunkMetaJsonlThreshold",
       "indexing.artifacts.chunkMetaShardSize",
@@ -421,6 +436,8 @@
       "mcp.queueMax",
       "mcp.toolTimeoutMs",
       "mcp.toolTimeouts",
+      "models.dir",
+      "models.id",
       "quality",
       "retrieval.annCandidateCap",
       "retrieval.annCandidateMaxDocCount",
@@ -579,12 +596,16 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 320,
-    "leafKeys": 267,
+    "totalKeys": 334,
+    "leafKeys": 279,
     "topLevel": [
       {
         "key": "cache",
         "count": 2
+      },
+      {
+        "key": "dictionary",
+        "count": 11
       },
       {
         "key": "indexing",
@@ -593,6 +614,10 @@
       {
         "key": "mcp",
         "count": 6
+      },
+      {
+        "key": "models",
+        "count": 3
       },
       {
         "key": "quality",
@@ -637,6 +662,66 @@
     {
       "path": "cache.root",
       "type": "string",
+      "enum": null
+    },
+    {
+      "path": "dictionary",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLength",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.enableRepoDictionary",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "dictionary.files",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.includeSlang",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "dictionary.languages",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.segmentation",
+      "type": "string",
+      "enum": [
+        "auto",
+        "dp",
+        "greedy",
+        "aho"
+      ]
+    },
+    {
+      "path": "dictionary.slangDirs",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.slangFiles",
+      "type": "array",
       "enum": null
     },
     {
@@ -1437,6 +1522,21 @@
     {
       "path": "mcp.toolTimeouts",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "models",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "models.dir",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "models.id",
+      "type": "string",
       "enum": null
     },
     {
@@ -2340,6 +2440,16 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR",
+      "files": [
+        "tests/integrations/inference-history/eg2-cpu-qualification.test.js",
+        "tests/integrations/inference-history/native-discovery.test.js",
+        "tests/integrations/inference-history/persistent-eg2.test.js",
+        "tests/integrations/inference-history/sqlite-readiness.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_BENCH_ANTIVIRUS_STATE",
       "files": [
         "src/shared/env/runtime.js",
@@ -2593,6 +2703,15 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_DEPENDENCY_TEST_DIR",
+      "files": [
+        "tests/indexing/incremental/dependency-scoped-signatures.test.js",
+        "tests/indexing/incremental/stage-checkpoint-build.test.js",
+        "tests/indexing/incremental/stage-checkpoint-refresh.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env/runtime.js",
@@ -2637,6 +2756,13 @@
         "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/tooling/download/shared-fetch-contract.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_EMBEDDING_TEST_DIR",
+      "files": [
+        "tests/embeddings/runner/hnsw-post-fill-order.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -2720,6 +2846,13 @@
       "name": "PAIROFCLEATS_FORCE_CHUNK_AUTHOR_HYDRATION",
       "files": [
         "src/retrieval/cli/chunk-authors.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
+      "name": "PAIROFCLEATS_FTS_TEST_DIR",
+      "files": [
+        "tests/storage/sqlite/fts-optional-build-compaction.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3956,6 +4089,13 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_VECTOR_CACHE_TEST_DIR",
+      "files": [
+        "tests/embeddings/cache/batched-physical-storage.test.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_VERBOSE",
       "files": [
         "src/shared/env/runtime.js",
@@ -4010,6 +4150,7 @@
         "tests/indexing/file-processor/skip-minified-binary.test.js",
         "tests/indexing/git/blame-range.test.js",
         "tests/indexing/incremental/cache-signature.test.js",
+        "tests/indexing/incremental/stage-checkpoint-build.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/map/code-map-guardrail-matrix.test.js",
         "tests/indexing/piece-assembly/core.test.js",
@@ -4093,7 +4234,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 463,
+    "totalFlags": 476,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4220,6 +4361,7 @@
       "ci-test-summary",
       "clean",
       "code",
+      "collection",
       "collectorDiagnostics",
       "collectorNow",
       "collectorScanBudget",
@@ -4269,6 +4411,7 @@
       "engine",
       "event-log-dir",
       "evidence",
+      "expected-sha256",
       "expires",
       "ext",
       "extensions",
@@ -4298,12 +4441,15 @@
       "git-sha",
       "global",
       "grace-days",
+      "graph",
       "graphFixture",
       "groups",
       "handshake-timeout-ms",
       "hashes",
       "head",
       "heap-mb",
+      "help",
+      "identity",
       "import-rate",
       "in",
       "include",
@@ -4346,7 +4492,9 @@
       "lod-zoom-low",
       "log",
       "log-dir",
+      "logs",
       "lookups",
+      "manifest",
       "markdown",
       "maskBits",
       "match-mode",
@@ -4392,6 +4540,7 @@
       "model",
       "model-out",
       "models",
+      "models-dir",
       "module",
       "no-ann",
       "node-list-out",
@@ -4438,6 +4587,8 @@
       "queries-dir",
       "query",
       "queue-dir",
+      "rebuild-discovery",
+      "receipt",
       "recipe",
       "record",
       "recursive",
@@ -4451,6 +4602,7 @@
       "repeats",
       "repo-current",
       "report",
+      "request",
       "requestedBatchSize",
       "require",
       "require-closure",
@@ -4535,6 +4687,7 @@
       "translateTime",
       "treeSitter",
       "treeSitterMissingLanguages",
+      "trial-root",
       "trust-root",
       "tui-verify-root",
       "tui-verify-targets",
@@ -4558,6 +4711,7 @@
       "with-sqlite",
       "write",
       "write-report",
+      "writer-stopped",
       "yes",
       "zoom-sensitivity"
     ],
@@ -5963,6 +6117,52 @@
         ]
       },
       {
+        "file": "tools/history/eg2-convert-checkpoint.js",
+        "flags": [
+          "destination",
+          "evidence",
+          "models-dir",
+          "source",
+          "writer-stopped"
+        ]
+      },
+      {
+        "file": "tools/history/eg2-qualify-run.js",
+        "flags": [
+          "help",
+          "manifest",
+          "run",
+          "trial-root"
+        ]
+      },
+      {
+        "file": "tools/history/eg2-qualify.js",
+        "flags": [
+          "expected-sha256",
+          "graph",
+          "help",
+          "identity",
+          "logs",
+          "output",
+          "profile",
+          "receipt",
+          "samples",
+          "trial-root"
+        ]
+      },
+      {
+        "file": "tools/history/local.js",
+        "flags": [
+          "collection",
+          "mode",
+          "models-dir",
+          "query",
+          "rebuild-discovery",
+          "request",
+          "type"
+        ]
+      },
+      {
         "file": "tools/index/assemble-pieces.js",
         "flags": [
           "force",
@@ -6705,7 +6905,7 @@
       },
       {
         "flag": "mode",
-        "count": 33,
+        "count": 34,
         "files": [
           "bin/pairofcleats.js",
           "tests/map/build-contract-matrix.test.js",
@@ -6733,6 +6933,7 @@
           "tools/ci/tooling-lsp-replay-gate.js",
           "tools/ci/tooling-lsp-slo-gate.js",
           "tools/docs/script-inventory.js",
+          "tools/history/local.js",
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
           "tools/index/reconcile-identity.js",
@@ -6800,7 +7001,7 @@
       },
       {
         "flag": "samples",
-        "count": 11,
+        "count": 12,
         "files": [
           "tools/bench/micro/hash.js",
           "tools/bench/vfs/bloom-negative-lookup.js",
@@ -6812,7 +7013,8 @@
           "tools/bench/vfs/partial-lsp-open.js",
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
-          "tools/bench/vfs/vfsidx-lookup.js"
+          "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/history/eg2-qualify.js"
         ]
       },
       {
@@ -7273,6 +7475,16 @@
         ]
       },
       {
+        "flag": "run",
+        "count": 4,
+        "files": [
+          "tools/history/eg2-qualify-run.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/scip.js"
+        ]
+      },
+      {
         "flag": "runs",
         "count": 4,
         "files": [
@@ -7431,15 +7643,6 @@
         ]
       },
       {
-        "flag": "run",
-        "count": 3,
-        "files": [
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/scip.js"
-        ]
-      },
-      {
         "flag": "segments",
         "count": 3,
         "files": [
@@ -7449,12 +7652,30 @@
         ]
       },
       {
+        "flag": "source",
+        "count": 3,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/history/eg2-convert-checkpoint.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
         "flag": "tooling-root",
         "count": 3,
         "files": [
           "tools/tooling/install-clangd.js",
           "tools/tooling/install-lua-language-server.js",
           "tools/tooling/install-phpactor-phar.js"
+        ]
+      },
+      {
+        "flag": "type",
+        "count": 3,
+        "files": [
+          "src/contracts/schemas/analysis/api.js",
+          "src/integrations/mcp/defs.js",
+          "tools/history/local.js"
         ]
       },
       {
@@ -7539,6 +7760,14 @@
         ]
       },
       {
+        "flag": "destination",
+        "count": 2,
+        "files": [
+          "src/shared/progress-runtime.js",
+          "tools/history/eg2-convert-checkpoint.js"
+        ]
+      },
+      {
         "flag": "diagnostics",
         "count": 2,
         "files": [
@@ -7611,6 +7840,14 @@
         ]
       },
       {
+        "flag": "evidence",
+        "count": 2,
+        "files": [
+          "tools/history/eg2-convert-checkpoint.js",
+          "tools/triage/decision.js"
+        ]
+      },
+      {
         "flag": "ext",
         "count": 2,
         "files": [
@@ -7640,6 +7877,14 @@
         "files": [
           "src/map/build-map.js",
           "tests/shared/cache/contract-matrix.test.js"
+        ]
+      },
+      {
+        "flag": "help",
+        "count": 2,
+        "files": [
+          "tools/history/eg2-qualify-run.js",
+          "tools/history/eg2-qualify.js"
         ]
       },
       {
@@ -7827,6 +8072,14 @@
         ]
       },
       {
+        "flag": "models-dir",
+        "count": 2,
+        "files": [
+          "tools/history/eg2-convert-checkpoint.js",
+          "tools/history/local.js"
+        ]
+      },
+      {
         "flag": "no-ann",
         "count": 2,
         "files": [
@@ -7883,6 +8136,14 @@
         ]
       },
       {
+        "flag": "output",
+        "count": 2,
+        "files": [
+          "bin/pairofcleats.js",
+          "tools/history/eg2-qualify.js"
+        ]
+      },
+      {
         "flag": "platform",
         "count": 2,
         "files": [
@@ -7891,11 +8152,27 @@
         ]
       },
       {
+        "flag": "profile",
+        "count": 2,
+        "files": [
+          "tools/history/eg2-qualify.js",
+          "tools/reports/show-throughput/options.js"
+        ]
+      },
+      {
         "flag": "provider",
         "count": 2,
         "files": [
           "tools/download/extensions.js",
           "tools/sqlite/verify-extensions.js"
+        ]
+      },
+      {
+        "flag": "query",
+        "count": 2,
+        "files": [
+          "tools/bench/micro/run.js",
+          "tools/history/local.js"
         ]
       },
       {
@@ -8019,14 +8296,6 @@
         ]
       },
       {
-        "flag": "source",
-        "count": 2,
-        "files": [
-          "bin/pairofcleats.js",
-          "tools/triage/ingest.js"
-        ]
-      },
-      {
         "flag": "sqlite",
         "count": 2,
         "files": [
@@ -8067,11 +8336,11 @@
         ]
       },
       {
-        "flag": "type",
+        "flag": "trial-root",
         "count": 2,
         "files": [
-          "src/contracts/schemas/analysis/api.js",
-          "src/integrations/mcp/defs.js"
+          "tools/history/eg2-qualify-run.js",
+          "tools/history/eg2-qualify.js"
         ]
       },
       {
@@ -8154,6 +8423,7 @@
       "src/shared/cli-option-validators.js",
       "src/shared/cli.js",
       "src/shared/concurrency/scheduler-core/index.js",
+      "src/shared/embedding-adapter.js",
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/lifecycle/build-entry-failure-no-unsettled-warning.test.js",
       "tests/indexing/tree-sitter/chunk-cache-reuse.test.js",

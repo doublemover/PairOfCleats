@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 804,
     "matrix": 108,
-    "meta": 26,
+    "meta": 27,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -5649,6 +5649,12 @@
       "order": 939,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/config-inventory/root-scan",
+      "order": 940,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }

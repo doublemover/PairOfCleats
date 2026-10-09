@@ -939,3 +939,4 @@ integrations/inference-history/eg2-structural-runtime
 integrations/inference-history/archive-assets
 shared/dictionary-identifiers
 config/schema-dictionary-models
+tooling/config-inventory/root-scan
