@@ -419,7 +419,9 @@ export async function createLocalSourceHistoryService(options) {
     audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:!!indexPath});
   let pending=Promise.resolve(),closed=false;
   const api={executionContext:'local_source_readonly',localSource:metadata,
-    async dispose(){closed=true;await pending;service.dispose();evidence.close();},
+    async dispose(){closed=true;await pending;await embeddingRuntime?.waitForIdle();service.dispose();evidence.close();},
+    embeddingExecutionInfo(){if(closed)throw denied();return embeddingRuntime?.executionInfo()??null;},
+    async endEmbeddingProfiling(){if(closed)throw denied();await pending;return embeddingRuntime?.endProfiling()??null;},
     embeddingStatus(){if(closed)throw denied();return service.localEmbeddingStatus();},
     indexEmbeddings(controls={}){
       if(closed)return Promise.reject(denied());

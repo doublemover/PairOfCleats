@@ -12,7 +12,7 @@ await fs.mkdir(base,{recursive:true});
 const root=await fs.realpath(await fs.mkdtemp(path.join(base,'persistent-eg2-')));
 const sources=path.join(root,'artifacts-0001.json');
 const docs=[
-  ...projectArtifact({text:'rocket orbit launch '.repeat(150),sourceSha256:'a'.repeat(64),locator:'rocket.txt',kind:'code',chunkChars:8000}),
+  ...projectArtifact({text:Array.from({length:150},(_,i)=>'rocket orbit launch '+i+' ').join(''),sourceSha256:'a'.repeat(64),locator:'rocket.txt',kind:'code',chunkChars:8000}),
   ...projectArtifact({text:'gardening flower soil '.repeat(40),sourceSha256:'b'.repeat(64),locator:'garden.txt',kind:'code',chunkChars:8000})
 ];
 await fs.writeFile(sources,JSON.stringify(docs));
@@ -20,18 +20,22 @@ const config={modelsDir:path.join(root,'models'),dimensions:128,chunkChars:80,ov
 const standard=resolveArchiveEmbeddingOptions({modelsDir:config.modelsDir});
 assert.equal(standard.profile.dtype,'fp32');assert.equal(standard.profile.dimensions,768);
 assert.equal(standard.localFilesOnly,true);
-assert.notEqual(resolveArchiveEmbeddingOptions({...config,dimensions:256}).identityKey,resolveArchiveEmbeddingOptions(config).identityKey);
+assert.equal(resolveArchiveEmbeddingOptions({...config,dimensions:256}).documentIdentityKey,resolveArchiveEmbeddingOptions(config).documentIdentityKey);
+assert.notEqual(resolveArchiveEmbeddingOptions({...config,dimensions:256}).representationIdentityKey,resolveArchiveEmbeddingOptions(config).representationIdentityKey);
 assert.equal(resolveArchiveEmbeddingOptions({...config,batchSize:8}).identityKey,resolveArchiveEmbeddingOptions(config).identityKey);
 assert.throws(()=>resolveArchiveEmbeddingOptions({...config,dimensions:129}));
-for(const change of [{dtype:'q8'},{revision:'c'.repeat(40)},{task:'code'}])assert.notEqual(resolveArchiveEmbeddingOptions({...config,...change}).identityKey,resolveArchiveEmbeddingOptions(config).identityKey);
+for(const change of [{dtype:'q8'},{revision:'c'.repeat(40)}])assert.notEqual(resolveArchiveEmbeddingOptions({...config,...change}).identityKey,resolveArchiveEmbeddingOptions(config).identityKey);
+assert.equal(resolveArchiveEmbeddingOptions({...config,task:'code'}).documentIdentityKey,resolveArchiveEmbeddingOptions(config).documentIdentityKey);
 let calls=0,cancelAt=Infinity,cancel=null,queryCalls=0;
+let durableSpans=0;
 const inputs=[];
 __setAdapterFactoryForTests(options=>{
   assert.equal(options.localFilesOnly,true);
   const dimensions=options.modelProfile.dimensions;
   const vector=text=>{const value=new Float32Array(dimensions);value[/rocket|spacecraft/.test(text)?0:1]=1;return value;};
   return {
-    async embed(texts){calls++;inputs.push(...texts);if(calls===cancelAt)cancel.abort();return texts.map(vector);},
+    async prepare(texts){return texts.map(text=>({text,tokenLength:text.length}));},
+    async embedPrepared(items){calls++;const texts=items.map(item=>item.text);inputs.push(...texts);if(calls===cancelAt)cancel.abort();return texts.map(vector);},
     async embedOne(text){queryCalls++;assert.ok(text.startsWith(ARCHIVE_EG2_QUERY_PREFIX));return vector(text);}
   };
 });
@@ -45,15 +49,15 @@ try{
   cancel=new AbortController();cancelAt=calls+2;
   const stopped=await service.indexEmbeddings({maxUnits:1,batchSize:2,signal:cancel.signal});
   assert.equal(stopped.stopped,'cancelled');assert.equal(stopped.indexedUnits,0);
-  assert.equal(stopped.indexedSpans,2,'first batch remains durable before cancellation');
+  durableSpans=stopped.indexedSpans;assert.ok(durableSpans>=2,'first batch remains durable before cancellation');
   assert.equal((await service.search({query:'rocket'})).query.retrievalMode,'lexical','incomplete units must not publish vectors');
   await assert.rejects(service.search({query:'rocket',mode:'semantic'}),{code:'ERR_INFERENCE_HISTORY_UNAVAILABLE'});
   await service.dispose();
   cancelAt=Infinity;
   service=await createLocalSourceHistoryService(options);
-  assert.equal(service.embeddingStatus().indexedSpans,2);
+  assert.equal(service.embeddingStatus().indexedSpans,durableSpans);
   const resumed=await service.indexEmbeddings({maxUnits:1,batchSize:2});
-  assert.equal(resumed.reusedSpans,2,'resume skips durable spans');
+  assert.ok(resumed.reusedSpans>=durableSpans,'resume skips durable spans and exact repeated inputs');
   assert.equal(resumed.indexedUnits,1);assert.equal(resumed.complete,false);
   await service.dispose();
   service=await createLocalSourceHistoryService(options);
@@ -80,14 +84,14 @@ try{
   db.pragma('foreign_keys=ON');
   const unit=db.prepare('SELECT id FROM units ORDER BY id LIMIT 1').get();
   db.prepare('UPDATE units SET text=text||? WHERE id=?').run(' changed',unit.id);
-  assert.equal(db.prepare('SELECT count(*) AS n FROM history_embedding_units WHERE unit_id=?').get(unit.id).n,0,'source update invalidates vectors');
+  assert.equal(db.prepare('SELECT count(*) AS n FROM history_embedding_units_v2 WHERE unit_id=?').get(unit.id).n,0,'source update invalidates vectors');
   db.close();
   service=await createLocalSourceHistoryService(options);
   assert.equal(service.embeddingStatus().pendingUnits,1);
   await service.dispose();
   service=await createLocalSourceHistoryService({...options,embeddings:{...config,dimensions:256}});
-  assert.equal(service.embeddingStatus().indexedSpans,0,'different dimensions hard-invalidate derived space');
-  assert.equal(service.embeddingStatus().pendingUnits,2);
+  assert.ok(service.embeddingStatus().indexedSpans>0,'different dimensions derive from retained full vectors');
+  assert.equal(service.embeddingStatus().pendingUnits,1);
   await service.dispose();service=null;
   console.log('SYNTHETIC encoder: local factory wiring, prompt/default identity, persisted resume, cancellation, incremental invalidation, independent hybrid candidates and pre-cap eligibility passed');
 }finally{await service?.dispose();__setAdapterFactoryForTests(null);}
