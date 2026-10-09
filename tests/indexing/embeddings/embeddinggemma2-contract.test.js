@@ -109,6 +109,11 @@ try {
     'mismatched dimensions must disable ANN instead of scoring incompatible vectors');
   await getEmbeddingAdapter({ ...options, modelProfile: { ...profile, dtype: 'q4' } }).embedOne('x');
   assert.equal(calls.loads.length, 2, 'different precision must not reuse the same loaded model');
+  const offline = getEmbeddingAdapter({ ...options, localFilesOnly: true });
+  assert.notEqual(offline, adapter, 'offline loading policy must not share an online adapter');
+  await offline.embedOne('archive');
+  assert.equal(calls.loads.at(-1).options.local_files_only, true);
+  assert.equal(calls.loads.at(-1).options.cache_dir, options.modelsDir);
   await getEmbeddingAdapter({ modelId: 'legacy-model', provider: 'xenova' }).embedOne('x');
   assert.equal(calls.generic, 1);
 
