@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { HISTORY_SEMANTIC_CHUNKER_VERSION } from './semantic-values.js';
+import { ARCHIVE_CLASSIFICATION_VERSION, ARCHIVE_CONTEXT_VERSION } from './archive-structure.js';
 import { createEg2WorkerRuntime } from './eg2-worker-runtime.js';
 import { normalizeEg2SessionOptions } from '../../shared/embedding-prepared.js';
 import { EMBEDDING_GEMMA2_REVISION, resolveEmbeddingModelProfile } from '../../shared/embedding-model-profile.js';
@@ -7,7 +8,7 @@ import { digest, historyError } from './common.js';
 
 export const ARCHIVE_EG2_MODEL = 'onnx-community/embeddinggemma-2-ONNX';
 export const ARCHIVE_EG2_QUERY_PREFIX = 'task: search result | query: ';
-export const ARCHIVE_EG2_PASSAGE_PREFIX = 'title: none | text: ';
+export const ARCHIVE_EG2_PASSAGE_PREFIX = 'title: {context} | text: ';
 
 const invalid = message => historyError('ERR_INFERENCE_HISTORY_INPUT', message);
 const integer = (value, min, max) => Number.isSafeInteger(value) && value >= min && value <= max;
@@ -72,10 +73,10 @@ export function resolveArchiveEmbeddingOptions(options) {
   catch { throw invalid('Invalid CPU archive session options.'); }
   const fullProfile = Object.freeze({ ...profile, dimensions: 768 });
   Object.freeze(profile);
-  const documentIdentity = Object.freeze({ schema: 'history-eg2-document.v2', modelId,
+  const documentIdentity = Object.freeze({ schema: 'history-eg2-document.v3', modelId,
     profile: fullProfile, graphSha256, modelFileName, tokenizerIdentity, numericalRecipe,
     passagePrefix: ARCHIVE_EG2_PASSAGE_PREFIX, chunkChars, overlapChars,
-    chunker: HISTORY_SEMANTIC_CHUNKER_VERSION, normalization: 'full_768_l2' });
+    chunker: HISTORY_SEMANTIC_CHUNKER_VERSION, classification: ARCHIVE_CLASSIFICATION_VERSION, context: ARCHIVE_CONTEXT_VERSION, normalization: 'full_768_l2' });
   const documentIdentityKey = digest(JSON.stringify(documentIdentity));
   const queryIdentity = Object.freeze({ schema: 'history-eg2-query.v2', documentIdentityKey,
     task, queryPrefix: queryPrefixes[task] });
@@ -102,3 +103,5 @@ export const __setArchiveWorkerFactoryForTests = factory => {
 export function createArchiveEmbeddingRuntime(options) {
   return workerFactory(resolveArchiveEmbeddingOptions(options));
 }
+
+

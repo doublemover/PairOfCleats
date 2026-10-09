@@ -1,3 +1,4 @@
+import { archiveDocumentInput } from '../../../src/integrations/inference-history/document-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -12,8 +13,8 @@ let entered,releaseWork,confirmExit,accepted=false,closed=false;
 const started=new Promise(resolve=>{entered=resolve;});
 const workerExit=new Promise(resolve=>{confirmExit=resolve;});
 __setArchiveWorkerFactoryForTests(config=>({
-  config,effectiveInput:text=>config.passagePrefix+text,
-  prepareBatch:async texts=>texts.map(text=>({text,tokenLength:text.length})),
+  config,effectiveInput:archiveDocumentInput, measureBatch: async documents=>documents.map(document=>archiveDocumentInput(document).length),
+  prepareBatch:async texts=>texts.map(document=>({text:archiveDocumentInput(document),tokenLength:archiveDocumentInput(document).length})),
   encodePrepared:()=>{entered();return new Promise(resolve=>{releaseWork=resolve;});},
   cancel:()=>{accepted=true;return workerExit;},
   dispose:async()=>{const receipt=await workerExit;assert.equal(receipt.workerStopped,true);closed=true;},
@@ -34,3 +35,5 @@ try{
   await service.dispose();assert.equal(closed,true);service=null;
 }finally{await service?.dispose();__setArchiveWorkerFactoryForTests(null);}
 console.log('Public archive cancellation waits for verified worker exit and discards interrupted batch (mock worker).');
+
+

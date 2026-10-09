@@ -48,7 +48,7 @@ for (const [exitCode, mode, forced] of [[23, 'self-watchdog', true], [0, 'cooper
   };
   child.kill = () => { throw new Error('Cooperative/self-watchdog exit must not need parent kill.'); };
   const runtime = createEg2WorkerRuntime(config, { spawnImpl: () => child, graceMs: 50 });
-  const rejected = assert.rejects(runtime.encodeBatch(['x']), /cancelled/);
+  const rejected = assert.rejects(runtime.encodeBatch([{ text: 'x' }]), /cancelled/);
   await new Promise(resolve => setTimeout(resolve, 1));
   const receipt = await runtime.cancel();
   await rejected;
@@ -82,3 +82,4 @@ try {
   if (!exited) child.kill('SIGKILL');
 }
 console.log('EG2 child IPC-loss watchdog, signal admission and pre-load metadata passed (no model inference).');
+

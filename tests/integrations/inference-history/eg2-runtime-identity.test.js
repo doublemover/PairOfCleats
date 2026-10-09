@@ -35,8 +35,9 @@ try {
   assert.equal(seen.fullProfile.dimensions,768);
   assert.equal(seen.profile.dimensions,256);
   assert.equal(seen.sessionOptions.intraOpNumThreads,2);
-  assert.equal(seen.passagePrefix,'title: none | text: ');
+  assert.equal(seen.passagePrefix,'title: {context} | text: ');
   assert.equal(runtime.executionInfo().loaded,false);
   assert.equal(runtime.executionInfo().documentIdentityKey,initial.documentIdentityKey);
 } finally {__setArchiveWorkerFactoryForTests(null);}
 console.log('archive EG2 separated identities and worker configuration passed (mock transport)');
+

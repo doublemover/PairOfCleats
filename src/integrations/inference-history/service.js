@@ -205,7 +205,12 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
             const metadata = {
               evidenceKind: normalized.evidenceKind,
               sourceDetails: Object.fromEntries(Object.entries(node.sourceDetails || {})
-                .filter(([, value]) => value === null || ['string', 'boolean'].includes(typeof value))
+                .filter(([key, value]) => value === null || ['string', 'boolean'].includes(typeof value)
+                  || ['sanitizedStart', 'sanitizedEnd', 'totalChars'].includes(key) && Number.isSafeInteger(value) && value >= 0
+                  || key === 'transformation' && value && typeof value === 'object'
+                    && Object.keys(value).sort().join(',') === 'kind,original_end,original_start,sanitized_end,sanitized_start'
+                    && ['identity', 'redacted_coarse'].includes(value.kind)
+                    && ['original_start', 'original_end', 'sanitized_start', 'sanitized_end'].every(field => Number.isSafeInteger(value[field]) && value[field] >= 0))
                 .map(([key, value]) => [key, typeof value === 'string' ? redactHistoryText(value).slice(0, 512) : value])),
               messageId: redactHistoryText(node.messageId).slice(0, 512), role: redactHistoryText(node.role).slice(0, 128),
               createdAt: { utc: node.createdAt.utc, state: node.createdAt.state },
@@ -454,3 +459,4 @@ export async function createLocalSourceHistoryService(options) {
   }
   const local=Object.freeze(api);localServices.add(local);return local;
 }
+

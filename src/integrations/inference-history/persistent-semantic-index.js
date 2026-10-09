@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
-import { historySemanticSpans, normalizeHistoryVector } from './semantic-values.js';
+import { normalizeHistoryVector } from './semantic-values.js';
+import { planArchiveUnitSpans, boundArchiveTokenSpans } from './archive-unit-spans.js';
 import { digest, historyError } from './common.js';
 import { historyIndexState } from './generation.js';
 import { createLocalHistorySemanticAdapter } from './semantic-adapter.js';
@@ -25,7 +26,12 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     'CREATE TABLE IF NOT EXISTS history_embedding_spans_v2 (document_key TEXT NOT NULL,unit_id TEXT NOT NULL,start INTEGER NOT NULL,end INTEGER NOT NULL,input_key TEXT NOT NULL,PRIMARY KEY(document_key,unit_id,start,end),FOREIGN KEY(document_key,unit_id) REFERENCES history_embedding_units_v2(document_key,unit_id) ON DELETE CASCADE,FOREIGN KEY(document_key,input_key) REFERENCES history_embedding_inputs_v2(document_key,input_key));',
     'CREATE INDEX IF NOT EXISTS history_embedding_refs_v2 ON history_embedding_spans_v2(document_key,input_key);',
     'CREATE TRIGGER IF NOT EXISTS history_embedding_changed_v2 AFTER UPDATE OF text,metadata ON units BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id=new.id; END;',
+    "CREATE TRIGGER IF NOT EXISTS history_embedding_source_changed_v3 AFTER UPDATE OF text,metadata ON units WHEN json_extract(old.metadata,'$.sourceDetails.sourceSha256') IS NOT NULL BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT id FROM units WHERE json_extract(metadata,'$.sourceDetails.sourceSha256')=json_extract(old.metadata,'$.sourceDetails.sourceSha256') AND json_extract(metadata,'$.sourceDetails.locator') IS json_extract(old.metadata,'$.sourceDetails.locator')); END;",
     'CREATE TRIGGER IF NOT EXISTS history_embedding_hidden_v2 AFTER UPDATE OF deleted,excluded ON records WHEN new.deleted!=0 OR new.excluded!=0 BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT id FROM units WHERE record_id=new.id); END;',
+    "CREATE TRIGGER IF NOT EXISTS history_embedding_source_hidden_v3 AFTER UPDATE OF deleted,excluded ON records WHEN new.deleted!=0 OR new.excluded!=0 BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT sibling.id FROM units sibling JOIN units hidden ON json_extract(sibling.metadata,'$.sourceDetails.sourceSha256')=json_extract(hidden.metadata,'$.sourceDetails.sourceSha256') AND json_extract(sibling.metadata,'$.sourceDetails.locator') IS json_extract(hidden.metadata,'$.sourceDetails.locator') WHERE hidden.record_id=new.id); END;",
+    "CREATE TRIGGER IF NOT EXISTS history_embedding_source_deleted_v3 BEFORE DELETE ON units BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT id FROM units WHERE json_extract(metadata,'$.sourceDetails.sourceSha256')=json_extract(old.metadata,'$.sourceDetails.sourceSha256') AND json_extract(metadata,'$.sourceDetails.locator') IS json_extract(old.metadata,'$.sourceDetails.locator')); END;",
+    "CREATE TRIGGER IF NOT EXISTS history_embedding_source_added_v3 AFTER INSERT ON units BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT id FROM units WHERE json_extract(metadata,'$.sourceDetails.sourceSha256')=json_extract(new.metadata,'$.sourceDetails.sourceSha256') AND json_extract(metadata,'$.sourceDetails.locator') IS json_extract(new.metadata,'$.sourceDetails.locator')); END;",
+    "CREATE TRIGGER IF NOT EXISTS history_embedding_snapshot_changed_v3 AFTER UPDATE OF latest_snapshot ON records WHEN old.latest_snapshot IS NOT new.latest_snapshot BEGIN DELETE FROM history_embedding_units_v2 WHERE unit_id IN (SELECT sibling.id FROM units sibling JOIN units changed ON json_extract(sibling.metadata,'$.sourceDetails.sourceSha256')=json_extract(changed.metadata,'$.sourceDetails.sourceSha256') AND json_extract(sibling.metadata,'$.sourceDetails.locator') IS json_extract(changed.metadata,'$.sourceDetails.locator') WHERE changed.record_id=new.id); END;",
     'CREATE TRIGGER IF NOT EXISTS history_embedding_gc_v2 AFTER DELETE ON history_embedding_spans_v2 BEGIN DELETE FROM history_embedding_inputs_v2 WHERE document_key=old.document_key AND input_key=old.input_key AND NOT EXISTS (SELECT 1 FROM history_embedding_spans_v2 s WHERE s.document_key=old.document_key AND s.input_key=old.input_key); END;'
   ].join('\n'));
   db.prepare('INSERT OR IGNORE INTO history_embedding_generations_v2 VALUES (?,?)').run(documentKey, JSON.stringify(config.documentIdentity));
@@ -35,8 +41,10 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     indexed: db.prepare('SELECT count(*) AS n ' + visible + ' AND EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1)'),
     spans: db.prepare('SELECT count(*) AS n FROM history_embedding_spans_v2 e JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id WHERE e.document_key=? AND r.deleted=0 AND r.excluded=0'),
     vectors: db.prepare('SELECT count(*) AS n FROM history_embedding_inputs_v2 WHERE document_key=?'),
-    pending: db.prepare('SELECT u.id,u.text ' + visible + ' AND u.id>? AND NOT EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1) ORDER BY u.id LIMIT ?'),
+    pending: db.prepare('SELECT u.id,u.text,u.metadata ' + visible + ' AND u.id>? AND NOT EXISTS (SELECT 1 FROM history_embedding_units_v2 e WHERE e.document_key=? AND e.unit_id=u.id AND e.complete=1) ORDER BY u.id LIMIT ?'),
+    siblings: db.prepare('SELECT u.id,u.text,u.metadata ' + visible + " AND json_extract(u.metadata,'$.sourceDetails.sourceSha256')=? AND json_extract(u.metadata,'$.sourceDetails.locator') IS ? AND json_extract(u.metadata,'$.sourceDetails.artifactKind')=? AND EXISTS (SELECT 1 FROM snapshot_units su WHERE su.unit_id=u.id AND su.snapshot_id=r.latest_snapshot) ORDER BY u.id LIMIT 5001"),
     unit: db.prepare('SELECT content_hash FROM history_embedding_units_v2 WHERE document_key=? AND unit_id=?'),
+    dependency: db.prepare('SELECT u.text,u.metadata ' + visible + ' AND u.id=? AND EXISTS (SELECT 1 FROM snapshot_units su WHERE su.unit_id=u.id AND su.snapshot_id=r.latest_snapshot)'),
     dropUnit: db.prepare('DELETE FROM history_embedding_units_v2 WHERE document_key=? AND unit_id=?'),
     addUnit: db.prepare('INSERT INTO history_embedding_units_v2 VALUES (?,?,?,?,0)'),
     existing: db.prepare('SELECT start,end FROM history_embedding_spans_v2 WHERE document_key=? AND unit_id=?'),
@@ -103,7 +111,14 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
       if (historyIndexState(db).generationRef !== generation) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Archive changed during embedding refresh.');
     };
     const write = (inputs, occurrences) => {
-      check(); const started = performance.now(); commit(inputs, occurrences); timings.transactionMs += performance.now() - started;
+      check();
+      for (const row of occurrences) for (const dependency of row.dependencies ?? []) {
+        const current = statements.dependency.get(dependency.id);
+        if (!current || digest(JSON.stringify([current.text, current.metadata])) !== dependency.hash) {
+          throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Archive source changed during embedding refresh.');
+        }
+      }
+      const started = performance.now(); commit(inputs, occurrences); timings.transactionMs += performance.now() - started;
     };
     let pending = new Map(), pendingOccurrences = 0, pendingCached = [], last = '';
     const flushCached = () => { if (pendingCached.length) { write([], pendingCached); pendingCached = []; } };
@@ -114,7 +129,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
       check();
       const rows = [...pending.values()], prepareStart = performance.now();
       nativePending = true;
-      const preparation = Promise.resolve().then(() => runtime.prepareBatch(rows.map(row => row.text), { signal }));
+      const preparation = Promise.resolve().then(() => runtime.prepareBatch(rows.map(row => row.document), { signal }));
       nativeWork = preparation;
       preparation.then(() => { if (nativeWork === preparation) { nativePending = false; nativeWork = null; } },
         () => { if (nativeWork === preparation) { nativePending = false; nativeWork = null; } });
@@ -149,7 +164,15 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
         if (!units.length) break;
         for (const unit of units) {
           check(); last = unit.id;
-          const spans = Array.from(historySemanticSpans(unit.text, config.chunkChars, config.overlapChars)), hash = digest(unit.text);
+          const metadata = JSON.parse(unit.metadata), details = metadata.sourceDetails;
+          const siblings = details?.sourceSha256 ? statements.siblings.all(details.sourceSha256, details.locator ?? null, details.artifactKind) : [unit];
+          nativePending = true;
+          const measurement = boundArchiveTokenSpans(planArchiveUnitSpans(unit, siblings, config), documents => runtime.measureBatch(documents, { signal }));
+          nativeWork = measurement;
+          measurement.finally(() => { if (nativeWork === measurement) { nativePending = false; nativeWork = null; } }).catch(() => {});
+          const spans = await runHistoryCallback(() => measurement, signal);
+          check();
+          const hash = digest(JSON.stringify([unit.text, unit.metadata, spans.map(span => [span.start, span.end, span.text, span.title])]));
           if (statements.unit.get(documentKey, unit.id)?.content_hash !== hash) db.transaction(() => {
             statements.dropUnit.run(documentKey, unit.id);
             statements.addUnit.run(documentKey, unit.id, hash, spans.length);
@@ -157,8 +180,9 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
           const existing = new Set(statements.existing.all(documentKey, unit.id).map(span => span.start + ':' + span.end));
           for (const span of spans) {
             if (existing.has(span.start + ':' + span.end)) { reused++; continue; }
-            const effectiveInput = runtime.effectiveInput(span.text), inputKey = digest(JSON.stringify([documentKey, effectiveInput]));
-            const occurrence = { unitId: unit.id, start: span.start, end: span.end, inputKey };
+            const document = { text: span.text, title: span.title ?? metadata.title ?? details?.locator ?? undefined };
+            const effectiveInput = runtime.effectiveInput(document), inputKey = digest(JSON.stringify([documentKey, effectiveInput]));
+            const occurrence = { unitId: unit.id, start: span.start, end: span.end, inputKey, dependencies: siblings.map(row => ({ id: row.id, hash: digest(JSON.stringify([row.text, row.metadata])) })) };
             const cached = statements.cached.get(documentKey, inputKey);
             if (cached) {
               if (cached.effective_input !== effectiveInput) throw historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Archive input digest collision.');
@@ -176,7 +200,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
               if (queued.effectiveInput !== effectiveInput) throw historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Archive input digest collision.');
               queued.occurrences.push(occurrence); reused++;
             }
-            else pending.set(inputKey, { text: span.text, effectiveInput, inputKey, occurrences: [occurrence] });
+            else pending.set(inputKey, { text: effectiveInput, document, effectiveInput, inputKey, occurrences: [occurrence] });
             pendingOccurrences++;
           }
           if (!spans.length) statements.finish.run(documentKey, unit.id, documentKey, unit.id);
@@ -247,3 +271,8 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
   };
   return Object.freeze({ status, refresh, adapter });
 }
+
+
+
+
+
