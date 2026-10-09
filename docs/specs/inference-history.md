@@ -557,3 +557,20 @@ Unit checks use an explicitly injected synthetic adapter and label that fact.
 Real-model acceptance requires the actual pinned runtime and cached model weights;
 the implementation and synthetic checks alone do not establish real inference,
 quality, performance or complete archive coverage.
+
+### Real-model acceptance record (October 9, 2026)
+
+Windows Node 26.8.1 and the exact locked Transformers.js 4.3.1 dependency ran the
+pinned official fp32/768 text model against 11 authorized preserved DAT units.
+The eight required config/tokenizer/text graph files were acquired without
+credentials; published large-file SHA256 hashes were verified. The fp32 external
+weight SHA256 is 9fd452bfc6916e5a92f080f8dada35598ca4512b21c65897d4c5974d5f9630a2.
+
+Actual inference persisted 55 finite vectors with L2 norms between
+0.9999999863242878 and 1.000000029164629. Both semantic and hybrid searches returned
+three evidence items while the lexical channel had zero candidates. Reopening
+retained all 11 indexed units; a repeat resume encoded zero additional spans.
+Original DAT SHA256 remained unchanged. No encoder injection or synthetic fallback
+was used for this acceptance. The selected 89,059-unit corpus uses a separate
+bounded resumable job; its reported coverage must not be inferred from this
+small completed check.
