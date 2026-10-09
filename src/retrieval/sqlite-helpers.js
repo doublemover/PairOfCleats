@@ -587,13 +587,13 @@ export function createSqliteHelpers(options) {
     options = {}
   ) {
     const topLimit = Math.max(1, Math.floor(Number(topN) || 1));
-    const overfetchRowCap = Number.isFinite(Number(options?.overfetchRowCap))
+    const overfetchRowCap = options?.overfetchRowCap != null && Number.isFinite(Number(options.overfetchRowCap))
       ? Math.max(topLimit, Math.floor(Number(options.overfetchRowCap)))
       : Math.max(FTS_OVERFETCH_MIN_ROWS, FTS_OVERFETCH_MULTIPLIER * topLimit);
-    const overfetchTimeBudgetMs = Number.isFinite(Number(options?.overfetchTimeBudgetMs))
+    const overfetchTimeBudgetMs = options?.overfetchTimeBudgetMs != null && Number.isFinite(Number(options.overfetchTimeBudgetMs))
       ? Math.max(1, Math.floor(Number(options.overfetchTimeBudgetMs)))
       : FTS_OVERFETCH_TIME_BUDGET_MS;
-    const overfetchChunkSize = Number.isFinite(Number(options?.overfetchChunkSize))
+    const overfetchChunkSize = options?.overfetchChunkSize != null && Number.isFinite(Number(options.overfetchChunkSize))
       ? Math.max(1, Math.floor(Number(options.overfetchChunkSize)))
       : Math.min(512, overfetchRowCap);
     const emitDiagnostic = (reason, error = null) => {
@@ -618,6 +618,11 @@ export function createSqliteHelpers(options) {
     if (!hasFtsTable(mode)) {
       emitDiagnostic('missing_table');
       return [];
+    }
+    if (typeof options?.onExecution === 'function') {
+      const definition = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'chunks_fts'").get()?.sql || '';
+      const tokenizer = /tokenize\s*=\s*'([^']+)'/i.exec(definition)?.[1] || 'unicode61';
+      options.onExecution({ table: 'chunks_fts', tokenizer, variant: tokenizer.split(/\s+/)[0] });
     }
     const explicitMatch = typeof options?.ftsMatch === 'string'
       ? options.ftsMatch.trim()
