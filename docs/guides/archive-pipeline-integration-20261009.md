@@ -106,6 +106,43 @@ current-policy archive relevance, citations, preparation/throughput and scheduli
 before the recovered-corpus sequence. Fix/report material failures first. This is
 CPU only; no GPU/DirectML, arbitrary software or extra benchmark campaign is implied.
 
+## Fresh production derivative and exact current plan
+
+One production import completed using actual better-sqlite3 13.0.3 / SQLite 3.53.4.
+The new derivative contains 87,973 units, records and snapshots in 89 imports;
+discovery has 87,973 rows. Native integrity/foreign-key checks, lexical/context and
+preserved-original metadata checks passed. Close/reopen retained identical source
+and snapshot references and analyzer identity. Original full SHA256, size, mtime,
+schema and row-count guards are unchanged. No embeddings or model were loaded.
+
+Captured config-write to final-receipt wall time is 881.66 seconds. The coarse
+855.10-second internal marker includes import, discovery and verification; exact
+internal stage times were not captured and are not reconstructed.
+
+A single current-policy count pass used the actual production source planner,
+unit intersections and complete document prefixes. It covers 20,390 groups and
+289,530,708 sanitized UTF-16 characters with no semantic exclusions or gaps:
+
+- 448,784 source spans; 335,158,500 span characters (15.76% overlap).
+- 512,831 unit-span occurrences; 422,836 unique complete prefixed inputs.
+- 135,932,568 useful tokens; maximum 1,054 tokens; none exceeds 8,192.
+- Batch4/lookahead32: 105,709 planned batches, 141,957,164 padded tokens,
+  4.24395% padding fraction and attention proxy 60,262,060,452.
+- Batch8/lookahead32: 52,855 planned batches, 149,388,420 padded tokens,
+  9.00729% padding fraction and attention proxy 65,387,807,652.
+
+Count preparation took 38.194 seconds: 422,787 hash-verified cache hits and
+49 new inputs in one actual tokenizer call (0.186 seconds). Cache reuse/counting
+is not native model throughput. Scheduling figures describe this traversal and
+input packing, not inference time or kernel work. The older frozen overlay below
+is preserved diagnostic evidence; it is not the current derivative's exact plan.
+
+Private `archive-derivative-v3-20261009/production-import-receipt.json` SHA256:
+`bfb7247108dcff8adc5ad3cc63edd378f84678d1928825bc60f958bd497a8b2a`.
+Private `current-token-plan.json` SHA256:
+`be2315f77813573046f0b9001a49adf04e224e9040afcd1b2a770ff2f56856a2`.
+Current-policy representative CPU qualification is the next inference gate.
+
 ## Exact count-only evidence
 
 The final diagnostic used the fixed local EG2 tokenizer with no truncation or model

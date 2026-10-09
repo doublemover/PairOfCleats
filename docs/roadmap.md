@@ -244,9 +244,9 @@ Remaining ordered gates:
    persisted 384-dimensional vectors. Declared natural-sentence sparse-only queries had
    zero target recall under documented implicit AND; semantic retrieval remains unmeasured.
    [Exact verification and limits](guides/kingfisher-cpu-verification-20261009.md).
-3. Fresh archive reprojection has 87,973 records, zero gaps and 1,675,434 effective words.
-   Import/persistence checks and exact current token counts precede archive relevance,
-   citations, preparation/throughput and scheduling qualification, then corpus inference.
+3. Fresh archive import/reopen/original guards passed: 87,973 records, zero gaps and
+   1,675,434 effective words. Exact current plan: 422,836 inputs / 135,932,568 tokens.
+   Current-policy CPU relevance/citations/throughput qualification precedes corpus inference.
    Frozen diagnostic counts/old throughput do not establish its ETA. CPU only.
 4. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
    Search scaling, output-copy/statement reuse and parent-death lifetime retain the detailed
