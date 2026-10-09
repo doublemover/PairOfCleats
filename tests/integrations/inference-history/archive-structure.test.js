@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import { archiveStructuralSpans, classifyArchiveSource, reassembleArchiveFragments } from '../../../src/integrations/inference-history/archive-structure.js';
+import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
+import { normalizeHistoryRecord } from '../../../src/integrations/inference-history/records.js';
+import { DEFAULT_LIMITS } from '../../../src/integrations/inference-history/common.js';
+const hash = 'a'.repeat(64);
+const text = '/** HTTPParser preserves API_ID. */\nfunction HTTPParser(){return "café 🚀";}\n\n/** Parse the second request. */\nfunction parseSecond(){return 2;}';
+const spans = archiveStructuralSpans(text, { locator: 'src/parser.mjs', kind: 'code', chunkChars: 1000, overlapChars: 200 });
+assert.equal(spans.length, 2);
+assert.ok(spans[0].text.includes('HTTPParser preserves API_ID'));
+assert.ok(spans[1].text.includes('Parse the second request'));
+assert.ok(!spans[0].text.includes('parseSecond'));
+assert.ok(spans[0].title.includes('HTTPParser'));
+assert.equal(spans.map(row => row.text).join(''), text);
+for (const row of spans) assert.equal(row.text, text.slice(row.start, row.end));
+const markdown = '# Guide\nBefore fence.\n\n```js\n# pretendHeading\nfunction HTTPParser() { return "API_ID"; }\n```\n\n# Next\nAfter fence.';
+const md = archiveStructuralSpans(markdown, { locator: 'docs/guide.md', chunkChars: 1000, overlapChars: 200 });
+assert.ok(md.some(row => row.text.includes('```js') && row.text.includes('pretendHeading') && row.text.endsWith('```') && !row.text.includes('# Next')));
+assert.ok(md.some(row => row.title.includes('Next')));
+const long = text.repeat(8);
+const records = projectArtifact({ text: long, sourceSha256: hash, locator: 'src/parser.mjs', kind: 'code', chunkChars: 256 });
+const assembled = reassembleArchiveFragments([...records].reverse());
+assert.equal(assembled.length, 1); assert.equal(assembled[0].text, long);
+assert.equal(assembled[0].fragments.length, records.length);
+assert.equal(reassembleArchiveFragments([...records, records[0]])[0].text, long);
+assert.equal(reassembleArchiveFragments(records.filter((_, index) => index !== 1)).length, 2);
+assert.throws(() => reassembleArchiveFragments([...records, { ...records[0], body: 'Z' + records[0].body.slice(1) }]), /Overlapping/);
+const normalized = normalizeHistoryRecord(records[1], 'recovered_artifact', DEFAULT_LIMITS);
+assert.equal(normalized.nodes[0].sourceDetails.sanitizedStart, 256);
+assert.equal(normalized.nodes[0].sourceDetails.language, 'javascript');
+assert.throws(() => normalizeHistoryRecord({ ...records[0], provenance: { ...records[0].provenance, chunk_end: 255 } }, 'recovered_artifact', DEFAULT_LIMITS));
+for (const kind of ['metadata', 'tool_activity']) assert.equal(classifyArchiveSource({ kind }).proposedSemanticEligibility, false);
+assert.equal(classifyArchiveSource({ locator: 'generated/API_ID.ts', text: 'important searchable facts' }).lexicalOnlyReason, 'generated_material_proposal');
+assert.equal(classifyArchiveSource({ locator: 'config/settings.yaml' }).format, 'config');
+const bounded = archiveStructuralSpans('long sentence 🚀 '.repeat(500), { chunkChars: 100, overlapChars: 20 });
+assert.ok(bounded.every(row => row.text.length <= 100));
+assert.ok(bounded.every(row => !/[\uD800-\uDBFF]$/.test(row.text) && !/^[\uDC00-\uDFFF]/.test(row.text)));
+console.log('archive structural reconstruction, comments, Markdown fences, Unicode offsets and lexical-only preservation passed');
+
+
+
+const opaque = classifyArchiveSource({ locator: 'recovered/source.dat', text });
+assert.equal(opaque.language, 'javascript'); assert.equal(opaque.languageConfidence, 'medium');
+assert.equal(opaque.classificationReason, 'javascript_function_heuristic');
+assert.equal(classifyArchiveSource({ locator: 'opaque.dat', text: 'Ordinary research prose.' }).fallbackReason, 'no_confident_structure');
+const redacted = projectArtifact({ text: 'before sk-abcdefghijklmnop after', sourceSha256: hash, locator: 'x.txt' })[0];
+assert.equal(redacted.provenance.offset_basis, 'sanitized_utf16');
+assert.equal(redacted.provenance.transformation.kind, 'redacted_coarse');
+assert.equal(redacted.provenance.transformation.original_end, 32);
+assert.equal(redacted.provenance.transformation.sanitized_end, redacted.body.length);
+assert.equal(normalizeHistoryRecord(redacted, 'recovered_artifact', DEFAULT_LIMITS).nodes[0].sourceDetails.offsetBasis, 'sanitized_utf16');
+assert.equal(classifyArchiveSource({ kind: 'metadata' }).semanticEligible, true);
+
