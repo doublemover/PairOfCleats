@@ -76,6 +76,7 @@ export async function loadIncrementalState({
   tokenizationKey = null,
   cacheSignature = null,
   cacheSignatureSummary = null,
+  dependencySignatures = null,
   bundleFormat = null,
   log = null
 }) {
@@ -86,6 +87,7 @@ export async function loadIncrementalState({
     ? normalizeBundleFormat(bundleFormat)
     : null;
   const defaultBundleFormat = requestedBundleFormat || 'json';
+  let artifactNeedsRebuild = false;
   let manifest = {
     version: 5,
     signatureVersion: SIGNATURE_VERSION,
@@ -93,6 +95,7 @@ export async function loadIncrementalState({
     tokenizationKey: tokenizationKey || null,
     cacheSignature: cacheSignature || null,
     signatureSummary: cacheSignatureSummary || null,
+    dependencySignatures,
     bundleFormat: defaultBundleFormat,
     bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
     files: {},
@@ -151,6 +154,7 @@ export async function loadIncrementalState({
             }
           }
         } else {
+          artifactNeedsRebuild = !!dependencySignatures && dependencySignatures.artifacts !== loaded.dependencySignatures?.artifacts;
           manifest = {
             version: loaded.version || 1,
             signatureVersion: loadedSignatureVersion ?? SIGNATURE_VERSION,
@@ -158,6 +162,7 @@ export async function loadIncrementalState({
             tokenizationKey: loadedKey || tokenizationKey || null,
             cacheSignature: loadedSignature || cacheSignature || null,
             signatureSummary: loaded.signatureSummary || cacheSignatureSummary || null,
+            dependencySignatures,
             bundleFormat: effectiveBundleFormat,
             bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
             files: loaded.files || {},
@@ -191,6 +196,7 @@ export async function loadIncrementalState({
     manifestPath,
     manifest,
     bundleFormat: manifest.bundleFormat,
+    artifactNeedsRebuild,
     readHashCache: new Map()
   };
 }
