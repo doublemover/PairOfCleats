@@ -20,4 +20,8 @@ assert.equal(
   'expected csharp global qualifier stripping'
 );
 
+for (const languageId of ['javascript', 'typescript', 'tsx', 'jsx']) {
+  assert.equal(canonicalizeTypeText('boolean | Boolean', { languageId }).displayText, 'boolean | boolean',
+    'lowercase boolean is preserved and the boxed alias is normalized');
+}
 console.log('shared type normalization test passed');
