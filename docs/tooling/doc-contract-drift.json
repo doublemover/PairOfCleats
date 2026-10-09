@@ -1,20 +1,27 @@
 {
-  "generatedAt": "2026-05-22T05:30:21.401Z",
-  "ok": true,
+  "generatedAt": "2026-10-09T18:01:23.035Z",
+  "ok": false,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
       "source": "src/retrieval/cli-args.js",
-      "sourceCount": 95,
+      "sourceCount": 101,
       "docCount": 95,
-      "missingInDocs": [],
+      "missingInDocs": [
+        "--ann-candidates",
+        "--candidates",
+        "--deadline-ms",
+        "--match",
+        "--output-bytes",
+        "--preset"
+      ],
       "extraInDocs": []
     },
     "searchContractFlags": {
       "doc": "docs/contracts/search-contract.md",
       "source": "src/retrieval/cli-args.js",
-      "sourceCount": 95,
-      "docCount": 19,
+      "sourceCount": 101,
+      "docCount": 24,
       "nonBlocking": true,
       "missingInDocs": [
         "--alias",
@@ -22,6 +29,7 @@
         "--allow-unsafe-mix",
         "--ann",
         "--ann-backend",
+        "--ann-candidates",
         "--as-of",
         "--async",
         "--author",
