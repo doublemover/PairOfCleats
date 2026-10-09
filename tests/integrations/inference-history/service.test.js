@@ -61,7 +61,7 @@ try {
   const original = await service.readOriginal({ ...request, snapshotRef: hit.snapshotRef });
   assert.deepEqual(original.raw, conversation);
   assert.equal(original.occurrences[0].ordinal, 0);
-  assert.equal(original.occurrences[0].member, 'conversations.json');
+  assert.equal(original.occurrences[0].member, path.basename(sourcePath));
   assert.match(original.occurrences[0].rawSha256, /^[a-f0-9]{64}$/);
   assert.ok(!JSON.stringify(hit).includes('sourceTextHash'));
   assert.ok(!Object.hasOwn(hit, 'nodeRevision'));

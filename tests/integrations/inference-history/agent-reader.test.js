@@ -57,7 +57,7 @@ assert.equal(context.evidence.find(value => value.sourceRef === first.evidence[0
 const provenance = await reader.execute('references', first.evidence[0].actions.references.request);
 assert.equal(provenance.ok, true);
 assert.equal(provenance.page.totalReferences, 1);
-assert.equal(provenance.evidence[0].occurrences[0].member, 'conversations.json');
+assert.equal(provenance.evidence[0].occurrences[0].member, path.basename(source));
 const exact = await reader.execute('original', first.evidence[0].actions.original.request);
 assert.equal(exact.result.raw.id, conversation.id);
 assert.equal((await reader.execute('search', { query: 'Cobalt missingword', match: 'strict' })).evidence.length, 0);
