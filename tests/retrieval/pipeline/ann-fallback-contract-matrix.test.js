@@ -52,6 +52,7 @@ const createBasePipeline = ({
   filtersActive,
   topN: 3,
   annCandidateCap,
+  overrides: { annDiscovery: 'lexical-rerank' }
 });
 
 const sortedCandidateSet = (candidateSet) => (

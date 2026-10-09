@@ -297,7 +297,7 @@ export const runAnnStage = async ({
     } else {
       providerAvailable = providerCount > 0;
     }
-    if (!providerAvailable && !bypassToSparse && annCandidateBase && annCandidateBase.size > 0) {
+    if (!providerAvailable && !bypassToSparse && (independentDiscovery || annCandidateBase?.size > 0)) {
       warnAnnFallback(`Vector ANN unavailable for ${mode}.`);
       warned = true;
     }
