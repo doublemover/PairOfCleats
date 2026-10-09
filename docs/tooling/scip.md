@@ -37,5 +37,5 @@ scip print --format=json --input index.scip | node tools/ingest/scip.js --repo .
 ## Notes
 
 - When `--input` points to a file, the tool first tries to parse it as a full JSON document; if that fails, it falls back to JSONL.
-- Roles are derived from `symbolRoles` bit flags (definition/reference/other).
+- Roles follow [the upstream SCIP bitset](https://github.com/scip-code/scip/blob/main/scip.proto): bit 1 defines a symbol; every other nonempty-symbol occurrence is a reference. Bit 2 is Import, never a reference marker. Each row retains raw `symbolRoles` and independent `isImport`, `isWriteAccess`, `isReadAccess`, `isGenerated`, `isTest`, and `isForwardDefinition` flags. Summary counts retain these roles independently; a definition with Import is counted once as a definition, with its import count preserved.
 - Paths are normalized relative to the repo root.
