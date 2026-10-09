@@ -261,7 +261,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Preserve SQLite BM25 postings through weighted fallback and report actual field capability.
 - [x] Retain ordered literal phrase evidence and apply sparse Boolean eligibility before top-N.
 - [x] Reserve embedding writer count and encoded-byte capacity before yielding; release after settlement.
-- [ ] Reuse checksums from committed packed artifact bytes.
+- [x] Reuse checksums from committed packed artifact bytes.
 - [x] Rank/filter archive candidates before caps; add generation-bound continuation and generation-cached coverage.
 - [ ] Route actual FTS tokenizer tables, normalize omitted limits, and support large selective allowlists.
 - [ ] Separate parsing, lexical analysis, enrichment, embedding and artifact invalidation identities.
