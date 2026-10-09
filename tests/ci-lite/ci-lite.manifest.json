@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 763,
+    "hero": 764,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5401,6 +5401,12 @@
     {
       "id": "integrations/inference-history/semantic-index",
       "order": 898,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/host-adapters",
+      "order": 899,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
