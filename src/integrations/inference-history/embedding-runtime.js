@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { ARTIFACT_PROJECTION_VERSION } from './artifact-projection.js';
+import { ARCHIVE_ASSET_POLICY_VERSION } from './embedded-assets.js';
 import { HISTORY_SEMANTIC_CHUNKER_VERSION } from './semantic-values.js';
 import { ARCHIVE_CLASSIFICATION_VERSION, ARCHIVE_CONTEXT_VERSION } from './archive-structure.js';
 import { createEg2WorkerRuntime } from './eg2-worker-runtime.js';
@@ -73,10 +75,10 @@ export function resolveArchiveEmbeddingOptions(options) {
   catch { throw invalid('Invalid CPU archive session options.'); }
   const fullProfile = Object.freeze({ ...profile, dimensions: 768 });
   Object.freeze(profile);
-  const documentIdentity = Object.freeze({ schema: 'history-eg2-document.v3', modelId,
+  const documentIdentity = Object.freeze({ schema: 'history-eg2-document.v4', modelId,
     profile: fullProfile, graphSha256, modelFileName, tokenizerIdentity, numericalRecipe,
     passagePrefix: ARCHIVE_EG2_PASSAGE_PREFIX, chunkChars, overlapChars,
-    chunker: HISTORY_SEMANTIC_CHUNKER_VERSION, classification: ARCHIVE_CLASSIFICATION_VERSION, context: ARCHIVE_CONTEXT_VERSION, sourceScope: 'latest-snapshot.v1', normalization: 'full_768_l2' });
+    projectionVersion: ARTIFACT_PROJECTION_VERSION, assetPolicy: ARCHIVE_ASSET_POLICY_VERSION, chunker: HISTORY_SEMANTIC_CHUNKER_VERSION, classification: ARCHIVE_CLASSIFICATION_VERSION, context: ARCHIVE_CONTEXT_VERSION, sourceScope: 'latest-snapshot.v1', normalization: 'full_768_l2' });
   const documentIdentityKey = digest(JSON.stringify(documentIdentity));
   const queryIdentity = Object.freeze({ schema: 'history-eg2-query.v2', documentIdentityKey,
     task, queryPrefix: queryPrefixes[task] });
@@ -103,6 +105,7 @@ export const __setArchiveWorkerFactoryForTests = factory => {
 export function createArchiveEmbeddingRuntime(options) {
   return workerFactory(resolveArchiveEmbeddingOptions(options));
 }
+
 
 
 

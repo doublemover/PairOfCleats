@@ -1,3 +1,4 @@
+import { ARTIFACT_PROJECTION_VERSION } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { archiveStructuralSpans } from '../../../src/integrations/inference-history/archive-structure.js';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
@@ -6,10 +7,17 @@ import { planArchiveUnitSpans, boundArchiveTokenSpans } from '../../../src/integ
 import { createPersistentHistorySemanticIndex } from '../../../src/integrations/inference-history/persistent-semantic-index.js';
 
 const whole = 'HTTPServer uses Unicode café identifiers and preserves comments with its function body.';
-const details = { sourceSha256: 'a'.repeat(64), locator: 'src/HTTPServer.js', artifactKind: 'code' };
+const details = { projectionVersion: ARTIFACT_PROJECTION_VERSION, sourceSha256: 'a'.repeat(64), locator: 'src/HTTPServer.js', artifactKind: 'code' };
 const row = (id, start, end) => ({ id, text: whole.slice(start, end), metadata: JSON.stringify({ sourceDetails: { ...details, sanitizedStart: start, sanitizedEnd: end } }) });
 const rows = [row('a', 0, 40), row('b', 40, whole.length)];
 const config = { chunkChars: 1000, overlapChars: 200 };
+for (const projectionVersion of [undefined, 'artifact-projection.v2']) {
+  const stale = { ...rows[0], metadata: JSON.stringify({ sourceDetails: { ...details, projectionVersion, sanitizedStart: 0, sanitizedEnd: 40 } }) };
+  assert.throws(() => planArchiveUnitSpans(stale, [stale, rows[1]], config), /explicit source reprojection and reimport/);
+  assert.throws(() => planArchiveUnitSpans(rows[1], [stale, rows[1]], config), /explicit source reprojection and reimport/, 'older sibling cannot contaminate a current anchor');
+}
+const ownerRedacted = { id: 'redacted', text: 'Owner approved public remainder', metadata: JSON.stringify({ evidenceKind: 'recovered_artifact', ownerRedacted: true, sourceDetails: { projectionVersion: ARTIFACT_PROJECTION_VERSION } }) };
+assert.ok(planArchiveUnitSpans(ownerRedacted, [ownerRedacted], config).every(span => span.text === ownerRedacted.text), 'current policy marker allows owner-redacted artifact without restoring original context');
 const first = planArchiveUnitSpans(rows[0], rows, config), second = planArchiveUnitSpans(rows[1], rows, config);
 assert.equal(first.length, 1); assert.equal(second.length, 1);
 assert.equal(first[0].text, whole); assert.equal(second[0].text, whole);
@@ -96,3 +104,5 @@ const all = archiveStructuralSpans(sample, { locator: 'server.js', artifactKind:
 assert.deepEqual(archiveStructuralSpans(sample, { locator: 'server.js', artifactKind: 'code', chunkChars: 80, overlapChars: 20, intersectStart: 121, intersectEnd: 200 }), all.filter(span => span.start < 200 && span.end > 121), 'intersection filtering preserves identical source-global fallback alignment');
 assert.throws(() => archiveStructuralSpans(sample, { intersectStart: -1 }), /intersection/);
 console.log('11.48M-character source planning admits bounded first/middle/final unit spans with complete exact offset coverage (no model).');
+
+

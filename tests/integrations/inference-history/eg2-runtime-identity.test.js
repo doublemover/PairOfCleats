@@ -1,9 +1,18 @@
+import { digest } from '../../../src/integrations/inference-history/common.js';
+import { ARTIFACT_PROJECTION_VERSION } from '../../../src/integrations/inference-history/artifact-projection.js';
+import { ARCHIVE_ASSET_POLICY_VERSION } from '../../../src/integrations/inference-history/embedded-assets.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveArchiveEmbeddingOptions, createArchiveEmbeddingRuntime, __setArchiveWorkerFactoryForTests } from '../../../src/integrations/inference-history/embedding-runtime.js';
 
 const base = { modelsDir: path.resolve('temp/tasks/eg2-runtime-identity-tests/models') };
 const initial = resolveArchiveEmbeddingOptions(base);
+assert.equal(initial.documentIdentity.schema, 'history-eg2-document.v4');
+assert.equal(initial.documentIdentity.projectionVersion, ARTIFACT_PROJECTION_VERSION);
+assert.equal(initial.documentIdentity.assetPolicy, ARCHIVE_ASSET_POLICY_VERSION);
+for (const changed of [{ projectionVersion: 'artifact-projection.v2' }, { assetPolicy: 'archive-assets.other' }]) {
+  assert.notEqual(digest(JSON.stringify({ ...initial.documentIdentity, ...changed })), initial.documentIdentityKey, 'projection and asset policies independently fence cached document computations');
+}
 for (const option of [{ task: 'code' }, { task: 'question-answering' }, { dimensions: 256 },
   { batchSize: 8 }, { maxCacheInputs: 10, maxCacheBytes: 4096 }, { sessionOptions: { intraOpNumThreads: 2, executionMode: 'sequential' } }]) {
   assert.equal(resolveArchiveEmbeddingOptions({ ...base, ...option }).documentIdentityKey,
@@ -40,4 +49,5 @@ try {
   assert.equal(runtime.executionInfo().documentIdentityKey,initial.documentIdentityKey);
 } finally {__setArchiveWorkerFactoryForTests(null);}
 console.log('archive EG2 separated identities and worker configuration passed (mock transport)');
+
 
