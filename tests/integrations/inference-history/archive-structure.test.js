@@ -15,7 +15,7 @@ assert.equal(spans.map(row => row.text).join(''), text);
 for (const row of spans) assert.equal(row.text, text.slice(row.start, row.end));
 const markdown = '# Guide\nBefore fence.\n\n```js\n# pretendHeading\nfunction HTTPParser() { return "API_ID"; }\n```\n\n# Next\nAfter fence.';
 const md = archiveStructuralSpans(markdown, { locator: 'docs/guide.md', chunkChars: 1000, overlapChars: 200 });
-assert.ok(md.some(row => row.text.includes('```js') && row.text.includes('pretendHeading') && row.text.endsWith('```') && !row.text.includes('# Next')));
+assert.ok(md.some(row => row.text.includes('```js') && row.text.includes('pretendHeading') && row.text.trimEnd().endsWith('```') && !row.text.includes('# Next')));
 assert.ok(md.some(row => row.title.includes('Next')));
 const long = text.repeat(8);
 const records = projectArtifact({ text: long, sourceSha256: hash, locator: 'src/parser.mjs', kind: 'code', chunkChars: 256 });
@@ -52,7 +52,7 @@ assert.equal(normalizeHistoryRecord(redacted, 'recovered_artifact', DEFAULT_LIMI
 assert.equal(classifyArchiveSource({ kind: 'metadata' }).semanticEligible, true);
 
 
-for (const field of ['offset_basis', 'transformation']) {
+for (const field of ['offset_basis', 'transformation', 'projection_version']) {
   const provenance = { ...records[0].provenance }; delete provenance[field];
   assert.throws(() => normalizeHistoryRecord({ ...records[0], provenance }, 'recovered_artifact', DEFAULT_LIMITS), /Invalid inference-history evidence record/);
 }
@@ -67,3 +67,33 @@ assert.equal(unicodeSpans.at(-1).end, unicodeText.length);
 assert.throws(() => normalizeHistoryRecord({ ...records[0], provenance: { ...records[0].provenance,
   transformation: { ...records[0].provenance.transformation, original_end: records[0].provenance.total_chars + 1 }
 } }, 'recovered_artifact', DEFAULT_LIMITS), /Invalid inference-history evidence record/);
+
+const jsonText = JSON.stringify(Object.fromEntries(Array.from({ length: 80 }, (_, i) => ['setting_' + i, 'value_' + i])), null, 2);
+const jsonSpans = archiveStructuralSpans(jsonText, { locator: 'settings.json', chunkChars: 1000, overlapChars: 200 });
+assert.ok(jsonSpans.length < 10);
+assert.equal(jsonSpans.map(row => row.text).join(''), jsonText);
+assert.ok(jsonSpans.every(row => row.text.length <= 1000));
+const yamlText = 'first: 1\nsecond: 2\nsection:\n  child: true\n  other: false\nlast: 3\n';
+const yamlSpans = archiveStructuralSpans(yamlText, { locator: 'settings.yaml', chunkChars: 1000, overlapChars: 200 });
+assert.equal(yamlSpans.length, 1); assert.equal(yamlSpans[0].text, yamlText);
+const proseText = 'One short paragraph about the HTTPParser interface.\n\n'.repeat(30);
+const proseSpans = archiveStructuralSpans(proseText, { locator: 'notes.txt', chunkChars: 1000, overlapChars: 200 });
+assert.equal(proseSpans.length, 2); assert.equal(proseSpans.map(row => row.text).join(''), proseText);
+assert.ok(proseSpans.every(row => row.text.length <= 1000));
+const codeWithBlank = text + '\n\n';
+const packedCode = archiveStructuralSpans(codeWithBlank, { locator: 'parser.js', chunkChars: 1000, overlapChars: 200 });
+assert.equal(packedCode.length, 2); assert.equal(packedCode.map(row => row.text).join(''), codeWithBlank);
+assert.ok(packedCode.every(row => row.text.trim()));
+const sameHeading = '# Repeated\nfirst section.\n\n# Repeated\nsecond section.';
+assert.equal(archiveStructuralSpans(sameHeading, { locator: 'guide.md', chunkChars: 1000, overlapChars: 200 }).length, 2);
+const logs = 'INFO first record\n  first continuation\nINFO second record\n  second continuation\n';
+const logSpans = archiveStructuralSpans(logs, { locator: 'service.log', chunkChars: 1000, overlapChars: 200 });
+assert.equal(logSpans.length, 2); assert.equal(logSpans.map(row => row.text).join(''), logs);
+
+const opaqueLocator = 'collection/42/file_' + 'a'.repeat(32) + '.dat';
+const opaqueSpans = archiveStructuralSpans(text, { locator: opaqueLocator, kind: 'code' });
+assert.ok(opaqueSpans[0].title.includes('HTTPParser'));
+assert.ok(!opaqueSpans[0].title.includes('file_'));
+const activityTitle = archiveStructuralSpans('Visible activity report.', { locator: opaqueLocator + '/activity/10', kind: 'activity' })[0].title;
+assert.equal(activityTitle, 'Activity');
+assert.ok(archiveStructuralSpans('Ordinary prose.', { locator: 'notes/meeting-record' })[0].title.includes('notes/meeting-record'));
