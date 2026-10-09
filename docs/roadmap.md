@@ -263,7 +263,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Reserve embedding writer count and encoded-byte capacity before yielding; release after settlement.
 - [x] Reuse checksums from committed packed artifact bytes.
 - [x] Rank/filter archive candidates before caps; add generation-bound continuation and generation-cached coverage.
-- [ ] Route actual optional FTS tokenizer tables. Omitted/null scan limits and large selective allowlists are fixed; diagnostics now distinguish requested variants from the executed table/tokenizer.
+- [x] Build/maintain/route optional Porter and trigram FTS tables, retain omitted-limit defaults, push large selective allowlists into SQLite, and report executed tokenizer identity.
 - [ ] Separate parsing, lexical analysis, enrichment, embedding and artifact invalidation identities.
 - [ ] Feed cross-file embedding microbatches concurrently with deterministic, byte-bounded ordered HNSW insertion.
 - [ ] Batch live vector-cache I/O and budget/compact actual cache-owned physical storage.

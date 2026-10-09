@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createOptionalFtsTables, listOptionalFtsTables, createFtsInserter } from '../../src/storage/sqlite/fts-variants.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -156,6 +157,7 @@ export async function compactDatabase(input) {
   const outDb = new Database(tempPath);
   const pragmaState = applyBuildPragmas(outDb, { inputBytes: sourceSize });
   outDb.exec(CREATE_TABLES_SQL);
+  createOptionalFtsTables(outDb, listOptionalFtsTables(sourceDb).map(table => table.replace('chunks_fts_', '')));
   outDb.pragma(`user_version = ${SCHEMA_VERSION}`);
 
   let vectorAnnLoaded = false;
@@ -185,22 +187,19 @@ export async function compactDatabase(input) {
   const insertChunk = outDb.prepare(`
     INSERT OR REPLACE INTO chunks (
       id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
-      metaV2_json, headline, preContext, postContext, weight, tokens, ngrams, codeRelations,
+      metaV2_json, headline, preContext, postContext, weight, tokens, phrase_tokens, ngrams, codeRelations,
       docmeta, stats, complexity, lint, externalDocs, last_modified, last_author,
       churn, churn_added, churn_deleted, churn_commits, chunk_authors
     ) VALUES (
       @id, @chunk_id, @mode, @file, @start, @end, @startLine, @endLine, @ext, @kind,
-      @name, @metaV2_json, @headline, @preContext, @postContext, @weight, @tokens, @ngrams,
+      @name, @metaV2_json, @headline, @preContext, @postContext, @weight, @tokens, @phrase_tokens, @ngrams,
       @codeRelations, @docmeta, @stats, @complexity, @lint, @externalDocs,
       @last_modified, @last_author, @churn, @churn_added, @churn_deleted, @churn_commits,
       @chunk_authors
     );
   `);
 
-  const insertFts = outDb.prepare(`
-    INSERT OR REPLACE INTO chunks_fts (rowid, file, name, signature, kind, headline, doc, tokens)
-    VALUES (@id, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
-  `);
+  const insertFts = createFtsInserter(outDb);
 
   const insertTokenVocab = outDb.prepare(
     'INSERT OR REPLACE INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)'

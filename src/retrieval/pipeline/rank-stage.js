@@ -41,6 +41,7 @@ export const runRankStage = ({
   sqliteFtsProfile,
   sqliteFtsCompilation,
   sqliteFtsExecution,
+  sqliteFtsMatchesQueryAst,
   sqliteFtsUnavailable,
   profileId,
   fieldWeightsEnabled,
@@ -97,7 +98,9 @@ export const runRankStage = ({
     const semanticCandidate = annCandidate && entry.annSource !== 'minhash';
     queryGate.evaluated += 1;
     if (annCandidate) queryGate.annEvaluated += 1;
-    if (!matchesQueryAst(idx, idxVal, chunk, semanticCandidate)) {
+    const matcher = sparseTypeValue === 'fts' && !semanticCandidate && sqliteFtsMatchesQueryAst
+      ? sqliteFtsMatchesQueryAst : matchesQueryAst;
+    if (!matcher(idx, idxVal, chunk, semanticCandidate)) {
       queryGate.rejected += 1;
       if (annCandidate) queryGate.annRejected += 1;
       return;

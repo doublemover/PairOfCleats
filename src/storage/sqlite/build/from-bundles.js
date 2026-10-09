@@ -81,7 +81,8 @@ export async function buildDatabaseFromBundles({
   buildPragmas,
   optimize,
   vocabLookupCacheMaxEntries,
-  stats
+  stats,
+  ftsVariants = []
 }) {
   const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
@@ -167,7 +168,8 @@ export async function buildDatabaseFromBundles({
     outPath,
     batchStats,
     inputBytes,
-    useBuildPragmas
+    useBuildPragmas,
+    ftsVariants
   });
   let succeeded = false;
   try {

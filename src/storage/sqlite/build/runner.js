@@ -55,6 +55,7 @@ export async function buildSqliteIndex(options = {}) {
     'prose-dir': options.proseDir || null,
     'extracted-prose-dir': options.extractedProseDir || null,
     'records-dir': options.recordsDir || null,
+    'fts-variants': options.ftsVariants ?? null,
     'batch-size': options.batchSize ?? null,
     progress: options.progress || 'auto',
     verbose: options.verbose === true,

@@ -15,7 +15,8 @@ for (const overfetch of [null, { rowCap: null, timeBudgetMs: null, chunkSize: nu
   assert.deepEqual(result.hits.map(hit => hit.idx), [1000, 1001, 1002, 1003, 1004]);
   assert.equal(stats.rowCap, 5000);
   assert.equal(stats.timeBudgetMs, 150);
-  assert.equal(stats.rowsScanned, 2000);
+  assert.equal(stats.rowsScanned, 1001);
+  assert.equal(stats.canPushdown, true);
   assert.deepEqual(result.execution, { table: 'chunks_fts', tokenizer: 'unicode61', variant: 'unicode61' });
 }
 const provider = createSqliteFtsProvider({
