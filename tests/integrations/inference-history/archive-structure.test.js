@@ -51,3 +51,19 @@ assert.equal(redacted.provenance.transformation.sanitized_end, redacted.body.len
 assert.equal(normalizeHistoryRecord(redacted, 'recovered_artifact', DEFAULT_LIMITS).nodes[0].sourceDetails.offsetBasis, 'sanitized_utf16');
 assert.equal(classifyArchiveSource({ kind: 'metadata' }).semanticEligible, true);
 
+
+for (const field of ['offset_basis', 'transformation']) {
+  const provenance = { ...records[0].provenance }; delete provenance[field];
+  assert.throws(() => normalizeHistoryRecord({ ...records[0], provenance }, 'recovered_artifact', DEFAULT_LIMITS), /Invalid inference-history evidence record/);
+}
+const password = projectArtifact({ text: 'before password=SuperSecret after', sourceSha256: hash, locator: 'credentials.txt' })[0];
+assert.equal(normalizeHistoryRecord(password, 'recovered_artifact', DEFAULT_LIMITS).nodes[0].sourceDetails.transformation.kind, 'redacted_coarse');
+const unicodeText = 'caf\u00e9 \u{1F680} '.repeat(100);
+const unicodeSpans = archiveStructuralSpans(unicodeText, { chunkChars: 100, overlapChars: 20 });
+assert.ok(unicodeSpans.every(row => !/[\uD800-\uDBFF]$/.test(row.text) && !/^[\uDC00-\uDFFF]/.test(row.text)));
+assert.equal(unicodeSpans[0].start, 0);
+assert.equal(unicodeSpans.at(-1).end, unicodeText.length);
+
+assert.throws(() => normalizeHistoryRecord({ ...records[0], provenance: { ...records[0].provenance,
+  transformation: { ...records[0].provenance.transformation, original_end: records[0].provenance.total_chars + 1 }
+} }, 'recovered_artifact', DEFAULT_LIMITS), /Invalid inference-history evidence record/);
