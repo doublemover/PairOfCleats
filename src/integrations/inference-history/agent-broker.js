@@ -1,9 +1,10 @@
+import { isLocalSourceHistoryService } from './service.js';
 import { createHistoryAgentReader } from './agent-reader.js';
 const commands=new Set(['help','search','context','timeline','references','original','member']);
 const failed=(code)=>({version:'history-agent-broker.v1',ok:false,error:{code,message:'Broker request denied without releasing evidence.'}});
 /** Narrow transport-independent agent broker. Transport facts are supplied out of band by the host. */
 export function createHistoryAgentBroker({service,boundary}) {
-  if(!service||typeof boundary?.bind!=='function')throw new TypeError('Isolated authenticated broker host required.');
+  if(isLocalSourceHistoryService(service)||!service||typeof boundary?.bind!=='function')throw new TypeError('Isolated authenticated broker host required.');
   return async function execute(serialized,transport){
     try{
       if(typeof serialized!=='string'||Buffer.byteLength(serialized)>16384)return failed('INPUT_BUDGET');

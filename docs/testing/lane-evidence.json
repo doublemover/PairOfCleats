@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-09T06:10:03.283Z",
+  "generatedAt": "2026-10-09T06:57:56.867Z",
   "summary": {
     "lanes": 5,
-    "tests": 1086,
+    "tests": 1087,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 280,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1012
+      "missingTests": 1013
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 901,
+      "totalTests": 902,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 852
+        "missing": 853
       }
     },
     {
@@ -361,6 +361,12 @@
       "unknownDurationCount": 14
     },
     {
+      "key": "integrations/inference-history",
+      "count": 14,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 14
+    },
+    {
       "key": "perf/bench",
       "count": 14,
       "knownDurationMs": 0,
@@ -368,12 +374,6 @@
     },
     {
       "key": "indexing/vfs",
-      "count": 13,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 13
-    },
-    {
-      "key": "integrations/inference-history",
       "count": 13,
       "knownDurationMs": 0,
       "unknownDurationCount": 13

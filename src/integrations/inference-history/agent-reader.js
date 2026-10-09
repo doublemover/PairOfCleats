@@ -81,6 +81,7 @@ export function createHistoryAgentReader({ service, requestContext, partition })
           semantic: result?.semantic ?? null,
           channels: result?.channels ?? null,
           index: result?.index ?? null,
+          ...(result?.localSource?{localSource:result.localSource}:{}),
           diagnostics: {
             state: result === null ? 'reference_not_visible' : result?.coverage?.imports === 0 ? 'no_imported_index'
               : result?.complete === false ? 'resource_truncated'

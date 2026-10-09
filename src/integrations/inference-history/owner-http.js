@@ -1,3 +1,4 @@
+import { isLocalSourceHistoryService } from './service.js';
 import { runHistoryCallback } from './bounded-callback.js';
 import { parseHistoryOwnerPrivacyForm } from './owner-page.js';
 const MAX_BODY=65536,MAX_OUTPUT=2*1024*1024;
@@ -48,7 +49,7 @@ const formBody=async request=>{
 /** Fetch-compatible handler only: no socket, cookies, credential generation or session fallback. */
 export function createHistoryOwnerHttpHandler({console:ownerConsole,boundary,origin}) {
   const allowed=new URL(origin);
-  if(allowed.origin!==origin||allowed.username||allowed.password
+  if(isLocalSourceHistoryService(ownerConsole)||allowed.origin!==origin||allowed.username||allowed.password
     || !(allowed.protocol==='https:' || allowed.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(allowed.hostname))
     || typeof boundary?.bind!=='function'||!['page','audit','setPrivacy'].every(key=>typeof ownerConsole?.[key]==='function'))throw new TypeError('Explicit trusted owner origin/controller required.');
   return async function handle(request,transport){
