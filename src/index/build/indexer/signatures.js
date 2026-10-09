@@ -1,3 +1,4 @@
+import { SCORING_ANALYZER_VERSION } from '../../../shared/tokenize-identifiers.js';
 import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
 import { CHUNK_ID_ALGO_VERSION } from '../../../contracts/compatibility.js';
@@ -185,6 +186,7 @@ export const buildTokenizationKey = (runtime, mode) => {
   const { dir: _dictDir, ...dictConfigPayload } = dictConfig;
   const payload = {
     signatureVersion: SIGNATURE_VERSION,
+    scoringAnalyzer: SCORING_ANALYZER_VERSION,
     mode,
     dictConfig: dictConfigPayload,
     postingsConfig: runtime.postingsConfig || {},
