@@ -253,3 +253,25 @@ Choose only affected checks and respect the execution environment's resource
 budget. Do not run a full index build, release campaign or duplicate scan merely
 to update a status page. Reproduce behavioral failures with small fixtures before
 expanding validation.
+
+## Retrieval improvement queue (October 9, 2026)
+
+Extend the existing retrieval and archive paths in this order. Keep completed local archive persistence, citations, chunk context, declared relationships, original bytes and CLI behavior.
+
+- [x] Preserve SQLite BM25 postings through weighted fallback and report actual field capability.
+- [x] Retain ordered literal phrase evidence and apply sparse Boolean eligibility before top-N.
+- [x] Reserve embedding writer count and encoded-byte capacity before yielding; release after settlement.
+- [ ] Reuse checksums from committed packed artifact bytes.
+- [ ] Rank/filter archive candidates before caps; add generation-bound continuation and generation-cached coverage.
+- [ ] Route actual FTS tokenizer tables, normalize omitted limits, and support large selective allowlists.
+- [ ] Separate parsing, lexical analysis, enrichment, embedding and artifact invalidation identities.
+- [ ] Feed cross-file embedding microbatches concurrently with deterministic, byte-bounded ordered HNSW insertion.
+- [ ] Batch live vector-cache I/O and budget/compact actual cache-owned physical storage.
+- [ ] Discover independent sparse/vector hybrid candidates while retaining explicit lexical reranking.
+- [ ] Route before query embedding and reuse model/generation-scoped state in current API/MCP processes.
+- [ ] Use symmetric versioned multilingual analysis alongside identifier representations.
+- [ ] Add modest evidence diversity, an optional real reranker and honest federated rank labels.
+- [ ] Map fast/hybrid/investigate controls to execution; preserve identity/span/followup fields in compact output.
+- [ ] Add archive-native title/path/facet discovery, original grouping and role-aware context presets. Scalable persistent semantics and selective media enrichment remain conditional on supplied adapters and explicit use.
+
+Use focused behavioral checks for each slice. No hosted CI wait, historical comparison campaign, model download or new local access/audit layer is required. The original conversation transfer remains a separate input blocker for real conversation/artifact examples; it does not block generic changes or DAT retrieval.
