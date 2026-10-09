@@ -63,7 +63,8 @@ export async function buildDatabaseFromArtifacts({
   statementStrategy,
   buildPragmas,
   optimize,
-  stats
+  stats,
+  ftsVariants = []
 }) {
   const resolvedOutPath = typeof outputPath === 'string' ? outputPath : outPath;
   if (!resolvedOutPath || typeof resolvedOutPath !== 'string') {
@@ -155,7 +156,8 @@ export async function buildDatabaseFromArtifacts({
     outPath: resolvedOutPath,
     batchStats,
     inputBytes,
-    useBuildPragmas
+    useBuildPragmas,
+    ftsVariants
   });
 
   let count = 0;

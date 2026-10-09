@@ -1,3 +1,4 @@
+import { createFtsInserter } from '../fts-variants.js';
 /**
  * Create and return the sqlite insert statement set for one build pass.
  * @param {any} db
@@ -32,10 +33,7 @@ export const createInsertStatements = (db, options = {}) => {
     );
   `);
 
-  const insertFts = db.prepare(`
-    ${insertClause} INTO chunks_fts (rowid, file, name, signature, kind, headline, doc, tokens)
-    VALUES (@id, @file, @name, @signature, @kind, @headline, @doc, @tokensText);
-  `);
+  const insertFts = createFtsInserter(db, insertClause);
 
   const insertTokenVocab = db.prepare(
     `${insertClause} INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)`

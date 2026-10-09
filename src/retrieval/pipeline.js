@@ -581,6 +581,7 @@ export function createSearchPipeline(context) {
           bm25B,
           getTokenIndexForQuery,
           candidateMetrics,
+          queryAst,
           matchesQueryAst: queryAst ? matchesQueryAst : null
         })
       ));
@@ -751,6 +752,7 @@ export function createSearchPipeline(context) {
           sqliteFtsProfile,
           sqliteFtsCompilation,
           sqliteFtsExecution: candidateMetrics.fts,
+          sqliteFtsMatchesQueryAst: candidateResult.sqliteFtsMatchesQueryAst,
           sqliteFtsUnavailable,
           profileId,
           fieldWeightsEnabled,

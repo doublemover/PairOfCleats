@@ -50,10 +50,13 @@ export const runCandidateStage = ({
   bm25B,
   getTokenIndexForQuery,
   candidateMetrics,
-  matchesQueryAst = null
+  matchesQueryAst = null,
+  queryAst = null
 }) => {
   let sparseAllowedIds = allowedIdx;
-  if (typeof matchesQueryAst === 'function') {
+  const nativeFtsGate = sqliteEnabledForMode && sqliteFtsDesiredForMode
+    && sqliteFtsCompilation.variant !== 'unicode61';
+  if (typeof matchesQueryAst === 'function' && !nativeFtsGate) {
     sparseAllowedIds = new Set();
     for (let id = 0; id < idx.chunkMeta.length; id++) {
       const chunk = idx.chunkMeta[id];
@@ -63,7 +66,7 @@ export const runCandidateStage = ({
     }
   }
   const sparseFiltersEnabled = filtersEnabled || sparseAllowedIds !== allowedIdx;
-  const sparseAllowedCount = sparseAllowedIds instanceof Set ? sparseAllowedIds.size : allowedCount;
+  let sparseAllowedCount = sparseAllowedIds instanceof Set ? sparseAllowedIds.size : allowedCount;
   let candidates = null;
   let bmHits = [];
   let sparseType = fieldWeightsEnabled ? 'bm25-fielded' : 'bm25';
@@ -71,10 +74,11 @@ export const runCandidateStage = ({
   const sqliteFtsDiagnostics = [];
   let sqliteFtsOverfetch = null;
   let sqliteFtsExecution = null;
+  let sqliteFtsMatchesQueryAst = null;
   const sparseDeniedByProfile = vectorOnlyProfile === true;
   let sqliteFtsAllowed = null;
   const sqliteFtsRequiredTables = typeof sqliteFtsProvider.requireTables === 'function'
-    ? sqliteFtsProvider.requireTables({ postingsConfig })
+    ? sqliteFtsProvider.requireTables({ postingsConfig, variant: sqliteFtsCompilation.variant, mode })
     : ['chunks_fts'];
   const sqliteFtsMissingTables = sqliteEnabledForMode
     ? checkRequiredTables(mode, sqliteFtsRequiredTables)
@@ -141,6 +145,8 @@ export const runCandidateStage = ({
       idx,
       queryTokens,
       ftsMatch: sqliteFtsCompilation.match,
+      ftsVariant: sqliteFtsCompilation.variant,
+      queryAst: nativeFtsGate ? queryAst : null,
       mode,
       topN: expandedTopN,
       allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null,
@@ -154,6 +160,7 @@ export const runCandidateStage = ({
       }
     });
     sqliteFtsExecution = ftsResult.execution;
+    sqliteFtsMatchesQueryAst = ftsResult.matchesQueryAst;
     bmHits = ftsResult.hits;
     sqliteFtsUsed = bmHits.length > 0;
     if (sqliteFtsUsed) {
@@ -163,6 +170,14 @@ export const runCandidateStage = ({
   }
 
   if (!bmHits.length && !wantsTantivy && !sparseDeniedByProfile) {
+    if (nativeFtsGate && typeof matchesQueryAst === 'function') {
+      sparseAllowedIds = new Set();
+      for (let id = 0; id < idx.chunkMeta.length; id++) {
+        const chunk = idx.chunkMeta[id];
+        if (chunk && (!allowedIdx || bitmapHas(allowedIdx, id)) && matchesQueryAst(idx, id, chunk, false)) sparseAllowedIds.add(id);
+      }
+      sparseAllowedCount = sparseAllowedIds.size;
+    }
     if (sparseMissingTables.length) {
       emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
         provider: bm25Provider.id || 'js-bm25',
@@ -252,5 +267,5 @@ export const runCandidateStage = ({
     sparseFallbackAllowed: modeProfilePolicy?.allowSparseFallback === true
   };
 
-  return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics };
+  return { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics, sqliteFtsMatchesQueryAst };
 };

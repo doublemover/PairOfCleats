@@ -242,7 +242,7 @@ export const optimizeFtsTable = (db, tableName, options = {}) => {
   const target = typeof tableName === 'string' ? tableName.trim() : '';
   if (!target) return;
   // Avoid SQL injection. Stage4 only optimizes known internal tables.
-  if (target !== 'chunks_fts') {
+  if (!['chunks_fts', 'chunks_fts_trigram', 'chunks_fts_porter'].includes(target)) {
     throw new Error(`[sqlite] Unsupported FTS optimize target: ${target}`);
   }
   const stats = options.stats && typeof options.stats === 'object' ? options.stats : null;

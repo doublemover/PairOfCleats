@@ -1,3 +1,4 @@
+import { listOptionalFtsTables } from '../fts-variants.js';
 import { chunkArray } from '../utils.js';
 
 const deleteStatementCache = new WeakMap();
@@ -29,6 +30,9 @@ export function deleteDocIds(db, mode, docIds, extraTables = []) {
     { table: 'dense_vectors', column: 'doc_id' },
     { table: 'doc_lengths', column: 'doc_id' }
   ];
+  for (const table of listOptionalFtsTables(db)) {
+    deleteTargets.push({ table, column: 'rowid', withMode: false });
+  }
   for (const extra of extraTables) {
     if (extra?.table && extra?.column) deleteTargets.push(extra);
   }

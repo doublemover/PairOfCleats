@@ -7,7 +7,7 @@ import { createVocabIndex } from '../vocab-index.js';
  * @param {{queryAst:object,phraseNgramSet?:Set<string>,phraseRange?:object}} input
  * @returns {object}
  */
-export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange }) => {
+export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, termMatches = null }) => {
   const resolvePhraseRangeFor = (phraseSet) => resolvePhraseRange(phraseSet, phraseRange);
   const resolvedPhraseRange = resolvePhraseRangeFor(phraseNgramSet);
   const tokenSetCache = new WeakMap();
@@ -122,6 +122,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange })
       switch (node.type) {
         case 'term': {
           if (relaxTerms) return true;
+          if (termMatches) return termMatches(node, chunkId);
           if (!node.tokens || !node.tokens.length) return false;
           if (!tokenSet) return false;
           return node.tokens.some((tok) => tokenSet.has(tok));
