@@ -141,7 +141,7 @@ Private `archive-derivative-v3-20261009/production-import-receipt.json` SHA256:
 `bfb7247108dcff8adc5ad3cc63edd378f84678d1928825bc60f958bd497a8b2a`.
 Private `current-token-plan.json` SHA256:
 `be2315f77813573046f0b9001a49adf04e224e9040afcd1b2a770ff2f56856a2`.
-Current-policy representative CPU qualification is the next inference gate.
+Current-policy representative CPU qualification completed below. Corpus product quality remains limited by unit-level ranking/citation selection.
 
 ## Canonical offline tokenizer prerequisite
 
@@ -228,10 +228,95 @@ reconstruction and structural parse per group, exact first/middle/final large-so
 ranges, privacy/edit invalidation, newline-splitting equivalence and overlap limits.
 The prefix-wide newline search is now bounded to its active window. These checks
 establish correctness and bounded reuse, not measured preparation speed. Transactional
-dependency revalidation and current-policy throughput remain real-workload gates.
+dependency revalidation and current-policy throughput were subsequently exercised by the native qualification below.
 
 Local closeout repaired generated search-contract drift and active-roadmap size,
 preserving completed transcripts in a linked archive. Generator side effects from the
 incomplete normal runtime were saved privately; only files proven clean beforehand
 were restored. Command-surface and generated-freshness checks passed. This does not
 certify a complete normal-repository runtime or hosted CI.
+
+## Current-policy native CPU qualification
+
+Qualification ran source head `6e56e9538703af69f3c4046771e165a046e9ac6f`
+with actual better-sqlite3 13.0.3 and canonical pinned EmbeddingGemma 2 FP32:
+`onnx-community/embeddinggemma-2-ONNX`, revision
+`daa72c51243991dfcaf9f9137d2c573d8f7790c0`. Graph SHA256:
+`bc47de15f81208a5c99e5ab10f746d5e33b51ea228b7dc0bef9c133a94f1c1c3`.
+Full 768-dimensional `sentence_embedding`, 8,192-token maximum; CPU requested
+intra-op 4/inter-op 1, sequential execution without spinning, batch 8/lookahead 32.
+Effective native thread count and kernel dispatch remain unobserved.
+
+The authentic service subset admitted four complete source groups: 48 units,
+296 unique full prefixed inputs and 99,077 useful tokens, with 349 citation
+occurrences. Every input hash equals the fresh derivative's exact plan. One
+sibling query, reconstruction and structural parse per group was observed.
+All 48 units completed; all 296 persisted vectors are finite FP32 with 768
+components and norms 0.999999970-1.000000030. All eight lexical/semantic query
+responses had valid source/snapshot citations.
+
+Service wall time was 365.840 seconds (270.8 useful tokens/second); measured
+native inference was 348.89 seconds (284.0 tokens/second). Forty batches had
+106,440 padded tokens, or 6.92% padding. Peak observed qualification worker RSS
+was 3,952,381,952 bytes. Token-linear extrapolation to the exact current corpus
+is approximately 139.4 hours, with sample/content/shape/preparation/contention
+uncertainty. It is not a certified ETA or a matched historical speedup.
+
+A separate frozen pool encoded 128 exact current inputs / 38,813 tokens in
+119.44 seconds (325.0 tokens/second). Eight predeclared queries covered 15
+original anchor regions; input-level mean recall@10 was 0.8125 and MRR 0.9167.
+Source-group and anchor-region recall@10 were both 1.0. This pool does not
+substitute for authentic complete-group service admission or held-out quality.
+
+Authentic service assessment includes four queries whose judged groups were
+admitted; unavailable groups are explicitly excluded. Semantic source-group
+recall@10/MRR were both 1.0, but anchor-region recall@10 was 0.875 and MRR 0.625.
+Natural-sentence lexical AND retrieval had zero judged recall, separately from
+OR experimentation. No judgment or deadline was relaxed.
+
+The missed progress anchor was present in persisted vectors and complete units.
+`persistent-semantic-index.js` selects the highest-scoring span per source/unit
+snapshot; `archive-unit-spans.js` fans a full contextual input into each fragment's
+local intersection. Consequently, adjacent transport units can consume separate
+rank positions, and a selected span can overlap only seven anchor characters
+outside the displayed 600-character snippet. Existing scheduler and structural
+runtime tests explicitly establish this unit-citation contract. This is a
+measured ranking/citation-selection limitation, not vector admission loss.
+Captured ranked responses and persisted document vectors are preserved; query
+float vectors were not serialized. Full-corpus product quality is not certified.
+
+Actual cancellation interrupted the second native call after eight durable
+inputs. Owned-worker exit was confirmed in 1,207.6 milliseconds; the interrupted
+batch made no late writes. A new owned worker resumed with 288 new inputs and
+61 occurrence cache reuses. All eight pre-cancel vectors remained bit-identical.
+All qualification workers were disposed. Original and pre-inference derivative
+SHA/count/schema/analyzer guards passed before the initial production slice.
+
+Private evidence under `archive-current-policy-cpu-20261009`:
+
+| Receipt | SHA256 |
+| --- | --- |
+| `campaign-receipt.json` | `0f629b29d7c7a134ae3c6b322b22fc78293e66b57e62db004790cdde4f22bcad` |
+| `qualification-assessment.json` | `6c4005621d8ca113fecb2092525e9a1cc520d0a1caf84bfa60a5f3c0451cce78` |
+| `active-cancellation-receipt.json` | `41850b2035b88297173bcacf33fe4a46b96cf059ddae3752c3e933bec72da758` |
+| `durable-replay-receipt.json` | `d8d4de3c990705401afa651a3ef7de7e142afc676c49a42a64260b6c71a0bd9c` |
+
+## First bounded production checkpoint
+
+Exactly one authorized initial slice ran source head
+`6e56e9538703af69f3c4046771e165a046e9ac6f` against the new derivative,
+with max 100 units / 600,000 milliseconds, outer 660,000 milliseconds / 8 GiB
+and the qualification's FP32 CPU settings. Durable reopen verifies 100 of
+87,973 units indexed, 87,873 pending, 555 unique vectors and 589 occurrences.
+All vectors have 768 finite components and norms 0.999999970-1.000000030.
+All six source-table hashes/counts, lexical identity and original DB SHA remain
+unchanged. The owned native worker exited and was absent at verification.
+
+A task-only reporting heartbeat dereferenced the disposed service during
+post-verification and crashed after durable progress. The original failure/log
+remain preserved. Read-only reopen verified the checkpoint without loading a
+model or repeating inference. Index-start to final native-call completion was
+142.154 seconds; the refresh-result wall time was lost to the reporting failure
+and is not claimed. The unexecuted resume operator stops its heartbeat before
+disposal. No second slice or full 139-hour campaign ran. This checkpoint proves
+bounded production persistence; the ranking/citation limitation above remains.
