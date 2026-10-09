@@ -920,3 +920,4 @@ retrieval/query/literal-phrase-and-eligibility
 retrieval/ranking/bm25-sqlite-override
 retrieval/ranking/evidence-selection-reranker
 storage/sqlite/fts-optional-build-compaction
+integrations/inference-history/persistent-eg2

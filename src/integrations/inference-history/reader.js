@@ -163,7 +163,7 @@ function coverage(db) {
     indexedMessageBounds: { first: stats.first_date, last: stats.last_date, unknownDates: stats.unknown_dates },
     exportCutoff: null, fullCorpusWindow: null,
     caveats: ['Bounds describe stored unit dates, not complete archive coverage or an export cutoff.',
-      'No media decoding or Pages-directory ingestion is provided. Optional semantic candidates require a separately provisioned trusted local adapter.'] };
+      'No media decoding or Pages-directory ingestion is provided. Semantic candidates require configured pinned local EG2 runtime/cache or a trusted host adapter.'] };
   coverageByGeneration.set(generation, result);
   if (coverageByGeneration.size > 16) coverageByGeneration.delete(coverageByGeneration.keys().next().value);
   return structuredClone(result);

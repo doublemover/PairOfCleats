@@ -1,3 +1,5 @@
+import { createArchiveEmbeddingRuntime } from './embedding-runtime.js';
+import { createPersistentHistorySemanticIndex } from './persistent-semantic-index.js';
 import { rebuildHistoryDiscoveryIndex } from './discovery-index.js';
 import { readDocumentContext, openArtifactCatalogs } from './artifact-collection.js';
 import { historyAuditEvent } from './audit.js';
@@ -37,7 +39,7 @@ const securityIdentity = (access) => JSON.stringify([
 export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource = null, resolveCodeAccess = null,
   verifyPrivateVault = null, limits: inputLimits, audit = null, semantic = null, resolveOwnerAccess = null, localSourceToken = null, localIndexPath = null, localEvidence = null }) {
   if((localSourceToken!==null&&localSourceToken!==LOCAL_SOURCE_TOKEN)||((localIndexPath!==null||localEvidence!==null)&&localSourceToken!==LOCAL_SOURCE_TOKEN))throw denied();
-  const memoryStores=new Map();let disposed=false;
+  const memoryStores=new Map();let disposed=false,localSemanticIndex=null;
   if (typeof resolveAccess !== 'function') throw denied();
   if(localSourceToken!==LOCAL_SOURCE_TOKEN&&typeof audit!=='function') throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Durable audit sink required.');
   if (semantic!==null && (semantic.kind!=='local' || !Object.isFrozen(semantic) || typeof semantic.search!=='function'
@@ -253,7 +255,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     });
 
   const search = async (request) => perform({ ...request, action: 'search' }, false,
-    async (db,_access,reauthorize) => searchHybridHistory(db,request,semantic,reauthorize));
+    async (db,_access,reauthorize) => searchHybridHistory(db,request,localSemanticIndex?localSemanticIndex.adapter():semantic,reauthorize));
   const readContext = async (request) => perform({ ...request, action: 'read_context' }, false,
     async db => {const result=readDocumentContext(db, request);if(result&&localEvidence){const raw=JSON.parse(db.prepare('SELECT raw_json FROM snapshots WHERE id=?').get(request.snapshotRef).raw_json);result.archiveRelations=localEvidence.relations(db,raw);}return result;});
   const readTimeline = async (request) => perform({ ...request, action: 'read_context' }, false,
@@ -362,20 +364,24 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
 
   const service=Object.freeze({ importExport, search, readContext, readTimeline, readReferences, readOriginal, readMemberEvidence, correlate, deleteRecord, ownerInventory, ownerSetPrivacy,
     executionContext:localSourceToken===LOCAL_SOURCE_TOKEN?'local_source_readonly':'service',
-    ...(localSourceToken===LOCAL_SOURCE_TOKEN?{rebuildLocalDiscovery(){return [...memoryStores.values()].map(entry=>rebuildHistoryDiscoveryIndex(entry.db));},memoryUnitCount(){return [...memoryStores.values()].reduce((sum,entry)=>sum+entry.db.prepare('SELECT units FROM history_stats WHERE singleton=1').get().units,0);},dispose(){disposed=true;for(const entry of memoryStores.values())entry.close();memoryStores.clear();}}:{}) });
+    ...(localSourceToken===LOCAL_SOURCE_TOKEN?{configureLocalSemantic(runtime){
+      const db=[...memoryStores.values()][0]?.db;if(!db)throw invalid();
+      localSemanticIndex=createPersistentHistorySemanticIndex(db,runtime);return localSemanticIndex.status();
+    },indexLocalEmbeddings(request){return perform({...request,action:'semantic_index'},true,()=>{if(!localSemanticIndex)throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Archive embeddings not configured.');return localSemanticIndex.refresh(request.controls);});},localEmbeddingStatus(){return localSemanticIndex?.status()??null;},rebuildLocalDiscovery(){return [...memoryStores.values()].map(entry=>rebuildHistoryDiscoveryIndex(entry.db));},memoryUnitCount(){return [...memoryStores.values()].reduce((sum,entry)=>sum+entry.db.prepare('SELECT units FROM history_stats WHERE singleton=1').get().units,0);},dispose(){disposed=true;for(const entry of memoryStores.values())entry.close();memoryStores.clear();}}:{}) });
   if(localSourceToken===LOCAL_SOURCE_TOKEN)localServices.add(service);
   return service;
 }
 
 /**
- * Explicit local file selection: ordinary OS permissions, RAM-only index,
+ * Explicit local file selection: ordinary OS permissions, RAM or selected archive cache,
  * optional logging. This mode cannot be used by authenticated service adapters.
  */
 export async function createLocalSourceHistoryService(options) {
   if(!options||typeof options!=='object'||Array.isArray(options)
-    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs','rebuildDiscovery'].includes(key)))throw invalid();
-  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000,indexPath=null,catalogs=[],rebuildDiscovery=false}=options;
+    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs','rebuildDiscovery','embeddings'].includes(key)))throw invalid();
+  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000,indexPath=null,catalogs=[],rebuildDiscovery=false,embeddings=null}=options;
   if(typeof rebuildDiscovery !== 'boolean') throw invalid();
+  const embeddingRuntime=embeddings===null||embeddings===false?null:createArchiveEmbeddingRuntime(embeddings);
   if(indexPath!==null&&(typeof indexPath!=='string'||!path.isAbsolute(indexPath)))throw invalid();
   if(!Array.isArray(sources)||sources.length<1||sources.length>200
     ||(audit!==null&&typeof audit!=='function')
@@ -407,15 +413,23 @@ export async function createLocalSourceHistoryService(options) {
     }
   }catch(error){service.dispose();evidence.close();throw error;}
   const discoveryRebuild = rebuildDiscovery ? service.rebuildLocalDiscovery() : null;
-  const metadata=Object.freeze({discoveryRebuild,mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
+  let semanticState=null;
+  try{semanticState=embeddingRuntime?service.configureLocalSemantic(embeddingRuntime):null;}catch(error){service.dispose();evidence.close();throw error;}
+  const metadata=Object.freeze({semantic:semanticState,discoveryRebuild,mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
     audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:!!indexPath});
   let pending=Promise.resolve(),closed=false;
   const api={executionContext:'local_source_readonly',localSource:metadata,
-    async dispose(){closed=true;await pending;service.dispose();evidence.close();}};
+    async dispose(){closed=true;await pending;service.dispose();evidence.close();},
+    embeddingStatus(){if(closed)throw denied();return service.localEmbeddingStatus();},
+    indexEmbeddings(controls={}){
+      if(closed)return Promise.reject(denied());
+      const operation=pending.then(()=>service.indexLocalEmbeddings({...scope,controls}));
+      pending=operation.catch(()=>{});return operation;
+    }};
   for(const method of ['search','readContext','readTimeline','readReferences','readOriginal','readMemberEvidence']){
     api[method]=request=>{
       if(closed)return Promise.reject(denied());
-      const operation=pending.then(()=>service[method]({...request,...scope})).then(result=>({...result,localSource:metadata}));
+      const operation=pending.then(()=>service[method]({...request,...scope})).then(result=>({...result,localSource:{...metadata,semantic:service.localEmbeddingStatus()}}));
       pending=operation.catch(()=>{});return operation;
     };
   }

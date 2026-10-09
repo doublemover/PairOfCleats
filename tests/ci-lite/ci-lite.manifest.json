@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 785,
+    "hero": 786,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5533,6 +5533,12 @@
     {
       "id": "storage/sqlite/fts-optional-build-compaction",
       "order": 920,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/persistent-eg2",
+      "order": 921,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
