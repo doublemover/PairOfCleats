@@ -269,7 +269,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Batch live per-file/global vector-cache I/O; budget actual encoded/shard/index bytes; compact registered shards within an I/O budget and prevent stale worker pointer resurrection.
 - [x] Discover independent sparse/vector hybrid candidates by default; apply structured, phrase, exclusion and explicit Boolean eligibility before ANN top-N. Expose explicit lexical reranking through --ann-candidates lexical-rerank.
 - [x] Route before resolving lazy query embeddings; reuse bounded normalized query/model/provider/generation embedding entries across sessions and provider health/preflight state for each cached index generation.
-- [ ] Use symmetric versioned multilingual analysis alongside identifier representations.
+- [x] Use shared Unicode/ICU-versioned scoring boundaries for index and query; preserve complete Unicode identifiers and ASCII identifier splits. Canonically normalize literal phrase evidence; analyzer changes require rebuilding affected indexes.
 - [ ] Add modest evidence diversity, an optional real reranker and honest federated rank labels.
 - [ ] Map fast/hybrid/investigate controls to execution; preserve identity/span/followup fields in compact output.
 - [ ] Add archive-native title/path/facet discovery, original grouping and role-aware context presets. Scalable persistent semantics and selective media enrichment remain conditional on supplied adapters and explicit use.
