@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
+import { createInferenceHistoryService as createService } from '../../../src/integrations/inference-history/service.js';
 import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+const createInferenceHistoryService=options=>createService({audit:()=>({persisted:true}),...options});
 
 ensureTestingEnv(process.env);
 const root = await fs.realpath(await makeTempDir('poc-history-correlation-'));

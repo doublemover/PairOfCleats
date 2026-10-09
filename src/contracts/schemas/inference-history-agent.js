@@ -171,3 +171,29 @@ export const HISTORY_AGENT_REQUESTS = {
     }
   }
 };
+
+for (const schema of Object.values(HISTORY_AGENT_REQUESTS)) schema.properties.expectedGeneration = {type:"string",pattern:"^[a-f0-9]{64}$"};
+
+HISTORY_AGENT_REQUESTS.timeline = {
+  type: 'object', additionalProperties: false, required: ['sourceRef','snapshotRef'],
+  properties: {
+    sourceRef: {type:'string',pattern:'^[a-f0-9]{64}$'}, snapshotRef: {type:'string',pattern:'^[a-f0-9]{64}$'},
+    expectedGeneration: {type:'string',pattern:'^[a-f0-9]{64}$'},
+    top: {type:'integer',minimum:1,maximum:20,default:10},
+    offset: {type:'integer',minimum:0,maximum:10000,default:0},
+    messageChars: {type:'integer',minimum:80,maximum:4000,default:1200},
+    role: {enum:['user','assistant']}, order: {enum:['oldest','newest'],default:'oldest'},
+    dateFrom: {...HISTORY_AGENT_REQUESTS.search.properties.dateFrom},
+    dateTo: {...HISTORY_AGENT_REQUESTS.search.properties.dateTo}
+  }
+};
+
+Object.assign(HISTORY_AGENT_REQUESTS.search.properties,{
+  mode:{enum:['auto','lexical','hybrid','semantic'],default:'auto'},
+  candidateLimit:{type:'integer',minimum:1,maximum:100,default:50},
+  rankConstant:{type:'integer',minimum:1,maximum:10000,default:60},
+  lexicalWeight:{type:'integer',minimum:0,maximum:100,default:1},
+  semanticWeight:{type:'integer',minimum:0,maximum:100,default:1},
+  maxPerConversation:{type:'integer',minimum:1,maximum:100},
+  rerank:{type:'boolean',default:false}
+});

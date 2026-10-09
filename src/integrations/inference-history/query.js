@@ -22,6 +22,10 @@ export function parseHistoryQuery(query) {
   }
   return { tokens, excluded: [...new Set(excluded)], phrases };
 }
+export function matchesHistoryHardConstraints(text, parsed) {
+  const sequence = words(text), present = new Set(sequence);
+  return !parsed.excluded.some(token => present.has(token)) && !parsed.phrases.some(phrase => !sequence.some((_,index) => phrase.every((token,offset) => sequence[index+offset]===token)));
+}
 export function matchesHistoryQuery(text, parsed, mode) {
   const sequence = words(text), present = new Set(sequence);
   if (parsed.excluded.some(token => present.has(token))) return false;

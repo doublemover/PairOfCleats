@@ -49,11 +49,11 @@ Owner: `src/integrations/inference-history/service.js`.
 - `resolveCodeAccess`: separate trusted callback for optional code correlation
 - `verifyPrivateVault`: host ACL verification required on Windows
 - `limits`: positive integer overrides for documented resource caps
-- `audit`: optional trusted protected sink receiving only principal/partition,
-  policy epoch, action and outcome
+- `audit`: required trusted protected sink acknowledging `{persisted:true}` before evidence release; events contain authenticated scope, bounded credential-redacted query/settings, opaque references and outcome, never archive bodies or source paths
+- `semantic`: optional frozen local model/index adapter; default auto uses lexical without it
+- `resolveOwnerAccess`: separate trusted human-channel authentication for owner inventory and privacy actions
 
-The methods are `importExport`, `search`, `readContext`, `readReferences`, `readOriginal`, `readMemberEvidence`, `correlate` and
-`deleteRecord`. They all accept an opaque `requestContext` and a `partition`
+The methods are `importExport`, `search`, `readContext`, `readTimeline`, `readReferences`, `readOriginal`, `readMemberEvidence`, `correlate`, `deleteRecord`, `ownerInventory` and `ownerSetPrivacy`. They all accept an opaque `requestContext` and a `partition`
 selector. The selector, archive fields and retrieved text cannot supply identity.
 
 The host's `resolveAccess({requestContext, partition, action})` must authenticate
@@ -138,7 +138,7 @@ available only through `read_original` authority. `rawJson` preserves duplicate
 keys and formatting that JavaScript's parsed object cannot represent separately.
 Byte-distinct JSON creates a distinct snapshot even when canonical objects match;
 unchanged normalized units are shared across those snapshots. Vault format
-inference-history.v4 includes the required lookup indexes and private reference key.
+inference-history.v5 includes the required lookup indexes and private reference key.
 Older vault formats fail closed and are not migrated or modified implicitly.
 
 Conversation identity includes trusted source scope and source conversation ID.
@@ -268,7 +268,7 @@ joins and unresolved evidence. No real private export is present in the fixtures
 
 ## Codex records and declared member evidence
 
-`chatgpt-export.v6` uses vault format `inference-history.v4`. The current API exposes
+`chatgpt-export.v6` uses vault format `inference-history.v5`. The current API exposes
 `recordRef` and `deleteRecord`; retired conversation-only storage and API names are
 not accepted. Conversation and Codex task IDs occupy distinct evidence-kind namespaces.
 `codex.json` tasks retain their original IDs, archived state, ordered turns, previous-turn
@@ -346,7 +346,7 @@ it pages all retained identical-message source/snapshot/occurrence references (2
 default, maximum 50 per page), subject to the same candidate/evidence caps. Historical
 references can include snapshots outside the current search filters. Authorization,
 epoch and tombstones are checked again before any derivative is emitted. Original
-read behavior and the persisted schema/adapter/projection versions remain unchanged.
+read authorization remains separately granted; privacy-controlled originals are blocked and new stores require the v5 cutover below.
 ### Reader invocation examples
 
 These are library calls against a service created by a trusted host with its own
@@ -358,7 +358,8 @@ must come from the authenticated host, never from retrieved evidence.
 const scope = { requestContext, partition: selectedOwnedPartition };
 const page = await service.search({
   ...scope,
-  query: 'renderer settings', // literal words ANDed; no semantic matching
+  query: 'renderer settings',
+  mode: 'lexical', // explicitly retain literal matching
   role: 'user',
   dateFrom: '2026-01-01',
   dateTo: '2026-12-31',
@@ -424,4 +425,20 @@ exported evidence is needed. Snippet/group/context output is a derivative and is
 an artifact-existence check, implementation certification or complete archive audit.
 ## Versioned agent reader
 
-The history-agent.v1 read-only presentation facade and history-search.v2 query contract are documented in [agent tool usability](../guides/agent-tool-usability.md). Strict matching retains lexical AND; explicit relaxed and facade-default auto support bounded lexical relaxation while preserving phrases, exclusions, role/time/path/snapshot filters and the existing service authority. The old survey remains pinned separately. No dense archive index or network/model fallback is introduced.
+The history-agent.v1 read-only presentation facade and history-search.v2 query contract are documented in [agent tool usability](../guides/agent-tool-usability.md). Strict matching retains lexical AND; explicit relaxed and facade-default auto support bounded lexical relaxation while preserving phrases, exclusions, role/time/path/snapshot filters and the existing service authority. The old survey remains pinned separately. A separately provisioned trusted local adapter can supply semantic candidates and reranking; no dense archive index is built and no network/model fallback is introduced.
+
+Generation/context cutover: new stores require inference-history.v5 with transactional generation counters and opaque generation references. Import changes and first-time tombstones advance the counter; repeated identical imports do not. Continuations and citation actions pin the generation. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Old v4 stores are rejected without mutation or migration; the old survey uses its unchanged old source. No production reimport is authorized by this source implementation. Export completeness/freshness remains unknown, separately from index-update time.
+
+The timeline command retrieves an exact conversation branch in oldest/newest order with role/date filtering. Correction-language markers are unverified text signals, never an assertion of user acceptance. mergeHistoryContexts deduplicates overlapping returned messages within one generation and reports omitted spans; it performs no reads and cannot establish full conversation completeness.
+
+## Owner audit and privacy
+
+Every host must supply a durable audit sink. `createHistoryAuditLedger` provides a SQLite FULL-synchronous append ledger in a separately verified private root outside repositories. The sink acknowledges only after COMMIT. Audit failure blocks evidence release; a mutation committed before a sink failure may already have taken effect, so inspect state rather than blindly retrying. Prepared allowed events carry `releaseState: awaiting_final_checks`; subsequent policy, tombstone or generation failures produce denied events. This records preparation, not a proof that the caller received data. Local hash chains are not independently anchored tamper proof.
+
+`createHistoryOwnerConsole` is a host-only human controller, not an agent tool, HTTP server or account configuration. Its trusted human callback and the service's independent `resolveOwnerAccess` must both authenticate the session. Owner policy must match the authenticated principal, tenant, owner and epoch with `channel: human` and `allowed: true`. Caller identity fields are insufficient. Audit inspection is partition-scoped and rechecked after its asynchronous read. Queries are private log data and untrusted text, never instructions. Deployment must separately protect the human channel and audit root from agent processes; same-user JavaScript interfaces do not establish OS isolation.
+
+Owner inventory pages opaque records and privacy state without opening raw evidence. Owner privacy updates atomically replace a record-wide exclusion flag, up to 32 exact case-sensitive literal redactions (1..256 UTF-16 units each), and a bounded credential-redacted annotation. Longest overlapping literal matches win. Annotations are owner context with no instruction authority and are absent from ordinary agent results. Privacy changes advance the generation; identical replacements do not.
+
+Exclusions remove FTS candidates and visible coverage, context, original and semantic access while retaining raw storage. Redactions rebuild searchable derivatives, apply before context/semantic snippets, mask titles/provenance labels and suppress metadata/attachment details. Controlled original and shared-member raw reads are blocked rather than providing a bypass. Future imports retain the rules. Removing a rule intentionally restores access from retained source. Tombstoning still removes vault rows and prevents reimport; external archives/backups are not erased.
+
+Optional semantic candidates can specify an exact bounded span within the authorized redacted projection. Span coordinates and text are validated against source, not provider payloads. Multiple provider spans of the same evidence unit collapse to the first ranked unit. Actual chunk indexing, model provisioning and archive evaluation remain separately unverified. Synthetic checks cover privacy across reimport, lexical/context/provenance/semantic surfaces, audit failure, human-only controls, revocation and byte-preserving v4 refusal.

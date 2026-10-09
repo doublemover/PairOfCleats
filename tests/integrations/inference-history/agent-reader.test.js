@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
+import { createInferenceHistoryService as createService } from '../../../src/integrations/inference-history/service.js';
 import { createHistoryAgentReader, renderHistoryAgentSummary, resolveHistoryCitation } from '../../../src/integrations/inference-history/agent-reader.js';
 import { historyAgentHelp, validateHistoryAgentRequest } from '../../../src/integrations/inference-history/agent-contract.js';
+const createInferenceHistoryService=options=>createService({audit:()=>({persisted:true}),...options});
 
 // Entirely synthetic source; retained task artifacts, no personal archive reads.
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-agent-usability-'));
@@ -42,7 +43,7 @@ assert.equal(first.evidence.length, 1);
 assert.equal(first.evidence[0].role, 'user');
 assert.ok(first.evidence[0].createdAt.utc);
 assert.match(first.evidence[0].citation, /^h-[a-f0-9]{20}$/);
-assert.deepEqual(first.page.next.request, { ...first.request, offset: 1 });
+assert.deepEqual(first.page.next.request, { ...first.request, offset: 1, expectedGeneration: first.index.generationRef });
 const second = await reader.execute(first.page.next.command, first.page.next.request);
 assert.equal(second.evidence.length, 1);
 assert.notEqual(second.evidence[0].sourceRef, first.evidence[0].sourceRef);
@@ -118,3 +119,59 @@ const oversized = await reader.execute('x'.repeat(100000), {});
 assert.ok(Buffer.byteLength(JSON.stringify(oversized)) < 4096);
 const mutableHelp = reader.help({full:true}); mutableHelp.requests.search.properties.top.default=99;
 assert.equal(reader.help({full:true}).requests.search.properties.top.default,5);
+
+const timeline = await reader.execute('timeline', { ...contextAction.request, role:'user', order:'newest', dateTo:'2026-10-07', top:1 });
+assert.equal(timeline.evidence[0].createdAt.utc,'2026-10-07T23:59:59.999Z');
+assert.equal(timeline.evidence[0].role,'user');
+assert.ok(timeline.page.next);
+const originalGeneration = first.index.generationRef;
+const repeatImport = await service.importExport({requestContext:'synthetic-owner',partition:'synthetic',source:'synthetic'});
+assert.equal(repeatImport.index.generationRef,originalGeneration);
+conversation.mapping.c.message.content.parts = ['Actually, Cobalt MIDI should use fixed velocity instead.'];
+await fs.writeFile(source,JSON.stringify([conversation]));
+const updated = await service.importExport({requestContext:'synthetic-owner',partition:'synthetic',source:'synthetic'});
+assert.equal(updated.index.generation,first.index.generation+1);
+assert.notEqual(updated.index.generationRef,originalGeneration);
+assert.equal((await reader.execute(first.page.next.command,first.page.next.request)).error.code,'ERR_INFERENCE_HISTORY_STALE');
+const fresh = await reader.execute('search',{query:'fixed velocity',role:'user'});
+const correction = await reader.execute('timeline',{...fresh.evidence[0].actions.timeline.request,role:'user',dateTo:'2026-10-07'});
+assert.equal(correction.evidence[0].signals.correctionLanguage,true);
+assert.equal(correction.evidence[0].signals.meaning,'text_signal_only_acceptance_not_inferred');
+assert.equal(fresh.index.exportFreshness,'unknown');
+
+const {mergeHistoryContexts} = await import('../../../src/integrations/inference-history/context-bundle.js');
+const merged = mergeHistoryContexts([context,context]);
+assert.equal(merged.totalUniqueMessages,context.evidence.length);
+assert.equal(merged.evidence.filter(row=>row.anchor).length,1);
+assert.equal(mergeHistoryContexts([context],{maxMessages:1}).truncated,true);
+assert.throws(()=>mergeHistoryContexts([context,correction]),/generations/);
+
+const {createLocalHistorySemanticAdapter} = await import('../../../src/integrations/inference-history/semantic-adapter.js');
+const authoritative = await service.search({requestContext:'synthetic-owner',partition:'synthetic',query:'Cobalt',role:'user',top:10});
+const refs=authoritative.hits.map(row=>({sourceRef:row.sourceRef,snapshotRef:row.snapshotRef,text:'PROVIDER text is not evidence'}));
+const provider=createLocalHistorySemanticAdapter({
+  modelId:'synthetic-test-vector',modelVersion:'1',dimensions:2,indexGenerationRef:authoritative.index.generationRef,
+  encodeQuery:async()=>[1,0],searchIndex:async()=>({complete:true,candidates:refs}),
+  rerank:async(_query,candidates)=>candidates.map(row=>({sourceRef:row.sourceRef,snapshotRef:row.snapshotRef})).reverse()
+});
+const hybridService=createInferenceHistoryService({
+  vaultRoot:vault,verifyPrivateVault:()=>true,semantic:provider,
+  resolveAccess:({requestContext,partition})=>requestContext==='synthetic-owner' && partition==='synthetic'
+    ? {principalId:'synthetic-owner',tenantId:'synthetic',ownerType:'individual',ownerId:'synthetic-owner',sourceScope:'synthetic-export',policyEpoch:'1',allowed:true}:null
+});
+const hybridReader=createHistoryAgentReader({service:hybridService,requestContext:'synthetic-owner',partition:'synthetic'});
+const paraphrase=await hybridReader.execute('search',{query:'sequencer transport precision',role:'user',dateTo:'2026-10-07',mode:'semantic'});
+assert.equal(paraphrase.ok,true);
+assert.ok(paraphrase.evidence.length>0);
+assert.ok(paraphrase.evidence.every(row=>row.role==='user' && !row.text.includes('PROVIDER')));
+assert.equal(paraphrase.semantic.modelId,'synthetic-test-vector');
+assert.equal(paraphrase.semantics.semanticMatching,true);
+const hardPhrase=await hybridReader.execute('search',{query:'"not in the source"',mode:'semantic'});
+assert.equal(hardPhrase.evidence.length,0);
+const negative=await hybridReader.execute('search',{query:'transport -Cobalt',mode:'semantic'});
+assert.equal(negative.evidence.length,0);
+const reranked=await hybridReader.execute('search',{query:'Cobalt',mode:'hybrid',rerank:true});
+assert.equal(reranked.semantic.reranked,true);
+assert.equal((await reader.execute('search',{query:'Cobalt',mode:'semantic'})).error.code,'ERR_INFERENCE_HISTORY_UNAVAILABLE');
+const foreignSemantic=createHistoryAgentReader({service:hybridService,requestContext:'foreign',partition:'synthetic'});
+assert.equal((await foreignSemantic.execute('search',{query:'Cobalt',mode:'semantic'})).error.code,'ERR_INFERENCE_HISTORY_DENIED');

@@ -3,9 +3,10 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { centeredSnippet } from '../../../src/integrations/inference-history/reader.js';
-import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
+import { createInferenceHistoryService as createService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+const createInferenceHistoryService=options=>createService({audit:()=>({persisted:true}),...options});
 
 ensureTestingEnv(process.env);
 for (const suffix of ['café', 'cafe\u0301']) {
@@ -116,6 +117,7 @@ try {
   let deleted = false;
   const raced = createInferenceHistoryService({ ...options, audit: async ({ action }) => {
     if (action === 'read_context' && !deleted) { deleted = true; await service.deleteRecord({ ...request, recordRef: shared.recordRef }); }
+    return {persisted:true};
   } });
   await assert.rejects(raced.readContext({ ...request, sourceRef: shared.sourceRef, snapshotRef: shared.snapshotRef }), { code: 'ERR_INFERENCE_HISTORY_DENIED' });
   // More than the candidate budget reports a lower bound without an unrestricted count.

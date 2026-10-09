@@ -3,10 +3,11 @@ import Database from 'better-sqlite3';
 import { privateReference, digest } from '../../../src/integrations/inference-history/common.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createInferenceHistoryService } from '../../../src/integrations/inference-history/service.js';
+import { createInferenceHistoryService as createService } from '../../../src/integrations/inference-history/service.js';
 import { openHistoryStore } from '../../../src/integrations/inference-history/store.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
+const createInferenceHistoryService=options=>createService({audit:()=>({persisted:true}),...options});
 
 ensureTestingEnv(process.env);
 const root = await fs.realpath(await makeTempDir('poc-history-security-'));
@@ -55,6 +56,7 @@ try {
       deleted = true;
       await wide.deleteRecord({ ...request, recordRef: hit.recordRef });
     }
+    return {persisted:true};
   } });
   await assert.rejects(inFlight.search({ ...request, query: 'tungsten' }), { code: 'ERR_INFERENCE_HISTORY_DENIED' });
 

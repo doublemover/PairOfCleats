@@ -1,49 +1,51 @@
 # Agent tool usability
 
-Versioned help and private-reader presentation make discovery, continuation and attribution explicit without changing retrieval or authorization.
+Versioned help and private-reader presentation make discovery, continuation and attribution explicit.
 
 ## Choose the surface
 
-- Code search: `pairofcleats search --help --json`. Every parser option: `pairofcleats search --help --all --json`.
+- Code search: `pairofcleats search --help --json`; every option: `pairofcleats search --help --all --json`.
 - Commands: `pairofcleats help --json`; add `--all` for expert commands.
-- Private history: `pairofcleats history help --json`; add `--all` for request schemas. This opens no vault and executes no archive reads.
+- Private history: `pairofcleats history help --json`; add `--all` for request schemas. Help opens no vault.
 
-Sparse code search has implicit AND; ANN free text expresses semantic intent. Explicit Boolean operators and filters constrain both. Private history has literal Unicode-word AND only. Start with a distinctive term; refine deliberately. Code modification filters differ from message-date filters.
-Code search supports top-k, not offset pagination. Keep query/filter/scope fixed when increasing top and compare returned chunk identities/locations. Use `context-pack --repo . --seed file:src/index.js --hops 1` for related code. Current `-n` and `-h` aliases are documented; no retired flags are restored.
+Sparse code search has implicit AND; ANN free text expresses semantic intent. Explicit Boolean operators and filters constrain both. Private history uses Unicode words, required quoted phrases and -word exclusions. Its lexical match knob selects strict AND, relaxed OR, or auto: one relaxed pass only after a complete zero-match strict result under identical filters. An empty later page never broadens the query. OR in private-history text is an ordinary word.
+
+Code search supports top-k, not offset pagination. Keep scope and filters fixed when increasing top. Use `context-pack --repo . --seed file:src/index.js --hops 1` for related code. Code modification dates differ from history message dates.
 
 ## Trusted-host private reader
 
-Construct `createHistoryAgentReader({service,requestContext,partition})` with an authenticated service. Existing action grants, policy rechecks, vault verification and source boundaries remain authoritative. There are no caller-supplied principals, vault paths, imports or policy defaults.
-Execute `reader.execute('search',{query:'Cobalt',role:'user',top:2})`. The packet carries effective requests, roles/dates, coverage, short citation labels, full IDs, exact context/references/original actions and `page.next`. Copy returned requests mechanically; short labels are display handles, never lookup authority.
-Role=user can contain quoted third-party or hypothetical text. Inspect context before attributing biography. Occurrences are locations, not independent conversation counts. Artifact references do not prove availability.
-Default summary omits the bulky raw envelope. `{detail:'full'}` preserves it. Exact original/member requests retain raw results and require existing original-read permission. Snippet/projection metadata and readable summaries disclose text truncation.
-Compact JSON plus newline defaults to a 65536-byte cap, configurable from 4096 to 2097152. An oversized response returns OUTPUT_BUDGET with no partial evidence. Reduce top/text sizes or explicitly increase the cap; no automatic retries. Hosts must bound their enclosing protocols and readable rendering separately.
+Construct `createHistoryAgentReader({service,requestContext,partition})` with an authenticated service. Existing action grants, policy rechecks, vault verification and source boundaries remain authoritative. No caller-supplied principal, vault path or policy defaults are accepted.
 
-## Version and scope
+Execute `reader.execute('search',{query:'Cobalt',role:'user',top:2})`. Packets contain effective requests, role/date labels, coverage, full references, short citation labels, exact follow-up actions and generation-pinned `page.next`. Copy returned requests mechanically. `resolveHistoryCitation` resolves a label only inside its packet; the service still authorizes the returned action.
 
-`history-agent.v1`, `search-help.v1`, and `command-help.v1` identify these new interfaces. The underlying history schema version and old survey helper/snapshot remain unchanged; no new changes are credited to old trial results.
-The earlier trial motivates discovery and mechanical bookkeeping; it does not establish comparative model performance or justify specializing around six prompts. Checks here use synthetic evidence. No external model evaluation, private snippet read or embedding run was performed.
+User-role text can quote third parties or describe hypotheticals. Inspect context before attributing biography. Occurrences are locations, not independent conversation counts. Artifact references do not prove availability. Scores describe relevance, never factual confidence.
 
-## Retrieval follow-up backlog
+Default summary omits the bulky raw envelope; `{detail:'full'}` preserves it. Original/member actions require original-read authority. Compact JSON plus newline defaults to 65536 bytes, configurable from 4096 to 2097152. Oversized responses return OUTPUT_BUDGET with no partial evidence. Hosts must also bound their enclosing protocols and readable rendering.
 
-Owner-requested: effortless defaults with expert controls; relevance/context/diversity and provenance; research-backed lexical/hybrid and optional reranking abstractions. The current archive is FTS5/BM25, not a separately embedded archive. The import receipt and schema/table definitions confirm this; general code embedding support is a separate domain.
-Next implementation: optional trusted local candidate/rerank hooks behind partition authorization; explicit capability/mode reporting; retain lexical expert controls and exact provenance. Add source-policy rechecks after any asynchronous ranker, deterministic fusion/diversity and bounded context. Research selection is pending the parent's evidence.
-Deferred operations: private full-archive embedding computation, model downloads, software installs and external paid embedding APIs require their applicable approval. This source change authorizes none of those. Owner audit/console/exclusions remain a separate unfinished implementation queue.
+## Generation, timelines and context
 
-Implemented building blocks: ranking.js provides bounded deterministic weighted reciprocal-rank fusion, optional per-provenance-group diversity and a reranker permutation guard. These pure utilities perform no retrieval, permission checks or embedding. They are not wired into private archive execution; a future trusted hybrid adapter must fetch/filter candidates within one partition and recheck policy before emission. Defaults retain proven lexical behavior until that adapter is accepted.
+New stores require `inference-history.v5`. Transactional generation counters advance on new imports and first tombstones; identical repeated imports do not advance them. Opaque generation references pin continuations and citation actions. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Old v4 stores are rejected without mutation or migration. The old survey remains pinned to its unchanged old source; this implementation authorizes no production reimport.
 
-## Research rationale and remaining integration
+Privacy rule changes also advance the generation. Index update time does not establish export freshness or full archive coverage. Diagnostics distinguish missing index, unavailable references, exhausted pages, no matches under filters and bounded truncation. Filter impact is not guessed by querying outside filters.
 
-- BEIR: keep a lexical baseline; dense retrieval does not justify replacing it across domains. https://arxiv.org/abs/2104.08663
-- ALCE: preserve retrievable evidence and inspectable citations; citation presence alone does not prove support. https://arxiv.org/abs/2305.14627
-- LongMemEval: distinguish extraction, temporal questions, corrections and honest abstention. https://arxiv.org/abs/2410.10813
-- RRF: implemented rank-list fusion uses reciprocal ranks rather than incomparable raw scores. https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf
-- MMR: diversity is an optional control, not a reason to drop decision chains. The current per-group cap is a simple deterministic control, not a full MMR implementation. https://www.cs.cmu.edu/~jgc/publication/MMR_DiversityBased_Reranking_SIGIR_1998.pdf
-- Retrieve/rerank: optional shortlist reranking follows recall, not a substitute for it. https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html
-- Lost in the Middle motivates bounded relevant context rather than dumping entire conversations. https://arxiv.org/abs/2307.03172
+The timeline command retrieves the selected conversation path or an off-path anchor's ancestry in oldest/newest order with role/date filters. Correction-language markers are text signals; they do not establish acceptance. `mergeHistoryContexts` deduplicates overlapping messages from one generation, rejects inconsistent spans and reports omissions. It performs no reads and cannot establish full conversation completeness.
 
-These sources inform design; no gain on the owner's archive is claimed.
-Implemented: auto matching first performs strict matching; only a complete zero-match result permits one bounded relaxed pass. All date/role/path/snapshot filters, quoted phrases and -word exclusions remain fixed. Explicit strict and relaxed knobs remain. A later empty page does not trigger relaxation. This is a declared retrieval policy, not a hidden query rewrite.
-Implemented: packet-scoped resolveHistoryCitation returns the exact context/references/original action, rejecting missing or ambiguous labels. The service still authorizes it.
-Diagnostics disclose no index, unavailable references, exhausted pages, no matches under filters and resource truncation. Filter impact is not guessed by querying outside filters. Generation/freshness are explicitly unknown where the store records no such identity; a future manifest is still required.
-Remaining requested work: actual local semantic candidate adapter with model/index identities and incremental content hashes; correction-aware/temporal retrieval, small-span conversation indexing, overlapping-context merge, accepted-preference evidence tests, and optional query rewriting that retains the original. Preserve branch ancestry and role attribution already provided by the reader. Heavy graph/ColBERT/RAPTOR and hypothetical personal-history generation remain optional/deferred.
+## Optional local semantic retrieval
+
+Without an adapter, auto mode uses lexical retrieval. A trusted host can provision `createLocalHistorySemanticAdapter` with explicit model ID/version, dimensions, index generation and local encode/search callbacks. No models, networks, packages or embeddings are created by this interface. The host must vet callback locality; the JavaScript interface is not an OS sandbox.
+
+Hybrid mode fuses authorized lexical and semantic ranks using weighted RRF; semantic-only mode omits lexical rank membership. Provider references are rehydrated from the authorized partition. Provider text is never evidence. Optional candidate spans are validated against the authorized redacted projection; text is extracted from that projection. Role/date/path/snapshot filters, phrases and exclusions remain enforced. Policy and generation are checked after asynchronous callbacks and before release. Optional reranking must return an exact permutation of the authorized shortlist. Callback waits are bounded to ten seconds; hosts remain responsible for stopping their own computation after cancellation.
+
+Controls expose candidate limits, lexical/semantic weights, rank constant, per-conversation cap and optional reranking. A missing or stale configured index fails explicitly; there is no network fallback. Source fixtures use toy vectors only. Actual model provisioning, incremental index construction and measured recall remain unverified.
+
+## Research rationale and verification scope
+
+- BEIR motivates retaining a lexical baseline: https://arxiv.org/abs/2104.08663
+- ALCE motivates inspectable evidence and citations without treating citation presence as support: https://arxiv.org/abs/2305.14627
+- LongMemEval motivates temporal questions, corrections and honest abstention: https://arxiv.org/abs/2410.10813
+- RRF uses reciprocal ranks rather than incomparable raw scores: https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf
+- MMR motivates optional diversity; the per-group cap here is not full MMR: https://www.cs.cmu.edu/~jgc/publication/MMR_DiversityBased_Reranking_SIGIR_1998.pdf
+- Retrieve/rerank follows recall: https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html
+- Lost in the Middle motivates bounded relevant context: https://arxiv.org/abs/2307.03172
+
+These sources inform design; no improvement on the owner's archive is claimed. `history-agent.v1`, `search-help.v1` and `command-help.v1` identify the new interfaces. Synthetic checks do not rewrite old trial receipts. Private snippet reads, real embeddings, model downloads, installs and paid APIs remain held. Query rewriting, graph/ColBERT/RAPTOR retrieval and hypothetical personal-history generation are deferred. Owner audit/console/privacy is implemented as trusted-host source, with focused synthetic checks. Every service requires audit persistence acknowledgement before release. The optional local ledger uses a separate verified private root. The human-only controller has independent service authentication and partition-scoped audit reads. Record exclusions, exact literal redactions and untrusted owner annotations persist across imports; controlled originals cannot bypass them. No live human console service, ACL change, private audit inspection or backup erasure is claimed. See the [history specification](../specs/inference-history.md) for host contracts and limits.
