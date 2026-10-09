@@ -76,7 +76,7 @@ export function resolveArchiveEmbeddingOptions(options) {
   const documentIdentity = Object.freeze({ schema: 'history-eg2-document.v3', modelId,
     profile: fullProfile, graphSha256, modelFileName, tokenizerIdentity, numericalRecipe,
     passagePrefix: ARCHIVE_EG2_PASSAGE_PREFIX, chunkChars, overlapChars,
-    chunker: HISTORY_SEMANTIC_CHUNKER_VERSION, classification: ARCHIVE_CLASSIFICATION_VERSION, context: ARCHIVE_CONTEXT_VERSION, normalization: 'full_768_l2' });
+    chunker: HISTORY_SEMANTIC_CHUNKER_VERSION, classification: ARCHIVE_CLASSIFICATION_VERSION, context: ARCHIVE_CONTEXT_VERSION, sourceScope: 'latest-snapshot.v1', normalization: 'full_768_l2' });
   const documentIdentityKey = digest(JSON.stringify(documentIdentity));
   const queryIdentity = Object.freeze({ schema: 'history-eg2-query.v2', documentIdentityKey,
     task, queryPrefix: queryPrefixes[task] });
@@ -103,5 +103,6 @@ export const __setArchiveWorkerFactoryForTests = factory => {
 export function createArchiveEmbeddingRuntime(options) {
   return workerFactory(resolveArchiveEmbeddingOptions(options));
 }
+
 
 

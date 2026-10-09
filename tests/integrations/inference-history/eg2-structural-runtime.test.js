@@ -36,6 +36,8 @@ for (const unit of rows) {
   db.prepare('INSERT INTO units VALUES (?,?,?,?)').run(unit.id, unit.id, unit.text, unit.metadata);
   db.prepare('INSERT INTO snapshot_units VALUES (?,?,?)').run(unit.id, 'snapshot', 'present');
 }
+db.prepare('INSERT INTO units VALUES (?,?,?,?)').run('historical', 'a', 'OLD PRIVATE SNAPSHOT', '{}');
+db.prepare('INSERT INTO snapshot_units VALUES (?,?,?)').run('historical', 'old-snapshot', 'present');
 const inputs = [];
 const runtime = {
   config: { ...config, documentIdentityKey: 'structural', documentIdentity: {}, fullDimensions: 4, profile: { dimensions: 4, revision: 'fixture' }, batchSize: 2 },
@@ -46,6 +48,9 @@ const runtime = {
 };
 const index = createPersistentHistorySemanticIndex(db, runtime);
 const indexed = await index.refresh({ maxUnits: 10 });
+assert.equal(indexed.totalUnits, 2, 'historical units are preserved but never admitted to current semantic scope');
+assert.equal(indexed.scope, 'latest_snapshot_visible_redacted_projected_text');
+assert.equal(db.prepare('SELECT text FROM units WHERE id=?').get('historical').text, 'OLD PRIVATE SNAPSHOT');
 assert.equal(indexed.indexedUnits, 2); assert.equal(indexed.uniqueInputs, 1);
 assert.equal(inputs.length, 1, 'full contextual input is encoded once and fanned out to exact fragment citations');
 assert.ok(inputs[0].endsWith(whole));
@@ -59,4 +64,5 @@ db.prepare('UPDATE units SET text=text||? WHERE id=?').run('!', 'b');
 assert.equal(index.status().indexedUnits, 0, 'sibling edits invalidate every cross-fragment vector');
 db.close();
 console.log('Contextual source reassembly, exact occurrence offsets, token fallback and duplicate cache identity passed (no model).');
+
 
