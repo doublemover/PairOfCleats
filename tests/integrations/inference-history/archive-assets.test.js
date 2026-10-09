@@ -67,7 +67,8 @@ const fixtureDb = new Database(catalog);
 fixtureDb.exec('CREATE TABLE meta(key TEXT,value TEXT); CREATE TABLE sources(id INTEGER,name TEXT,sha256 TEXT); CREATE TABLE documents(sha256 TEXT,format TEXT,text TEXT,status TEXT)');
 fixtureDb.prepare('INSERT INTO meta VALUES(?,?)').run('format', 'private-file-evidence.v1');
 fixtureDb.prepare('INSERT INTO sources VALUES(?,?,?)').run(1, 'source.json', 'b'.repeat(64));
-fixtureDb.prepare('INSERT INTO documents VALUES(?,?,?,?)').run('b'.repeat(64), 'json', originalJsonText, 'supported');
+const fixtureJsonText = JSON.stringify({ ...source, activity_messages: [{ message: { author: { role: 'assistant' }, channel: 'analysis', content: { parts: ['synthetic hidden item'] } } }] });
+fixtureDb.prepare('INSERT INTO documents VALUES(?,?,?,?)').run('b'.repeat(64), 'json', fixtureJsonText, 'supported');
 const html = '<html><body>retained readable label</body></html>';
 fixtureDb.prepare('INSERT INTO sources VALUES(?,?,?)').run(2, 'source.html', 'c'.repeat(64));
 fixtureDb.prepare('INSERT INTO documents VALUES(?,?,?,?)').run('c'.repeat(64), 'html', html, 'supported');
@@ -76,10 +77,15 @@ const preparedRoot = path.join(fixtureRoot, 'prepared');
 const preparation = await prepareFileEvidenceArtifacts({ catalogPaths: [catalog], outputRoot: preparedRoot,
   authorizePaths: ({ catalogPaths, outputRoot }) => catalogPaths[0] === catalog && outputRoot === preparedRoot });
 assert.equal(preparation.unsafeRecordsOmitted, 0);
+assert.equal(preparation.hiddenActivityOmitted, 1);
+assert.equal(preparation.omissionLedger[0].reason, 'hidden_activity');
+assert.equal(preparation.omissionLedger[0].sourceSha256, 'b'.repeat(64));
+assert.equal(preparation.omissionLedgerOverflow, 0);
+assert.ok(!JSON.stringify(preparation.omissionLedger).includes('synthetic hidden item'));
 const prepared = [];
 for (const shard of preparation.shards) prepared.push(...JSON.parse(await fs.readFile(path.join(preparedRoot, shard.name))));
 for (const row of prepared) {
-  const sourceChars = row.provenance.source_sha256 === 'b'.repeat(64) ? originalJsonText.length : html.length;
+  const sourceChars = row.provenance.source_sha256 === 'b'.repeat(64) ? fixtureJsonText.length : html.length;
   assert.equal(row.provenance.transformation.original_end, sourceChars);
   assert.equal(row.provenance.transformation.kind, 'redacted_coarse');
   normalizeHistoryRecord(row, 'recovered_artifact', DEFAULT_LIMITS);
