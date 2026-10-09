@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { archiveStructuralSpans } from '../../../src/integrations/inference-history/archive-structure.js';
 import { digest, DEFAULT_LIMITS } from '../../../src/integrations/inference-history/common.js';
 import { ARTIFACT_PROJECTION_VERSION, projectArtifact, sanitizeArtifactJson } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { normalizeHistoryRecord } from '../../../src/integrations/inference-history/records.js';
@@ -28,3 +29,13 @@ assert.equal(sanitizeEmbeddedAssetText('ordinaryBase64 = ' + payload), 'ordinary
 assert.equal(sanitizeEmbeddedAssetText('data:image/png,not-base64-data'), 'data:image/png,not-base64-data');
 assert.equal(source.image, 'data:image/png;base64,' + payload);
 console.log('narrow embedded asset payload omission preserves surrounding source, facts, original identity and audit counts');
+
+assert.doesNotThrow(() => new Function(reconstructed));
+const codeWithFunctions = '/** first asset consumer */\nfunction first(){ const asset = "data:image/png;base64,' + payload + '"; return asset; }\n\n/** second consumer */\nfunction second(){return 2;}';
+const codeRecords = projectArtifact({ text: codeWithFunctions, sourceSha256: 'a'.repeat(64), locator: 'consumers.js', kind: 'code' });
+const safeCode = codeRecords.map(row => row.body).join('');
+assert.doesNotThrow(() => new Function(safeCode));
+const safeSpans = archiveStructuralSpans(safeCode, { locator: 'consumers.js', kind: 'code', chunkChars: 1000, overlapChars: 200 });
+assert.equal(safeSpans.length, 2); assert.ok(safeSpans[0].title.includes('first')); assert.ok(safeSpans[1].title.includes('second'));
+assert.ok(safeSpans[0].text.includes('first asset consumer')); assert.ok(safeSpans[1].text.includes('second consumer'));
+assert.equal(safeSpans.map(row => row.text).join(''), safeCode);

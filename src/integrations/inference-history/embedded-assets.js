@@ -26,7 +26,9 @@ export function sanitizeNamedAssetPayload(field, value, audit) {
 export function sanitizeEmbeddedAssetText(text, audit) {
   return String(text).replace(payloadPattern, (url, mediaType, payload) => {
     const facts = factsFor(payload, mediaType.toLowerCase(), audit);
-    return '[Embedded asset omitted: ' + JSON.stringify(facts) + ']';
+    return '[Embedded asset omitted: media_type=' + facts.media_type
+      + '; encoded_chars=' + facts.encoded_chars + '; payload_sha256=' + facts.payload_sha256
+      + '; policy_version=' + facts.policy_version + '; omission_reason=' + facts.omission_reason + ']';
   });
 }
 
