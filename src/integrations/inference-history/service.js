@@ -308,7 +308,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     return {version:'history-owner.v1',records:rows.slice(0,top).map(row=>{
       const policy=historyPrivacy(db,row.id);
       return {recordRef:row.id,excluded:row.excluded===1,deleted:row.deleted===1,redactionCount:policy.redactions.length,
-        annotation:policy.annotation,instructionAuthority:'none'};
+        redactions:[...policy.redactions],annotation:policy.annotation,instructionAuthority:'none'};
     }),nextOffset:rows.length>top?offset+top:null,
     auditScope:{tenantId:access.tenantId,ownerType:access.ownerType,ownerId:access.ownerId,sourceScope:access.sourceScope,policyEpoch:access.policyEpoch,principalId:access.principalId}};
   });

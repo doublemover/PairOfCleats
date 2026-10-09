@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-09T02:57:48.792Z",
+  "generatedAt": "2026-10-09T03:22:51.454Z",
   "summary": {
     "lanes": 5,
-    "tests": 1082,
+    "tests": 1083,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 280,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1008
+      "missingTests": 1009
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 897,
+      "totalTests": 898,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 848
+        "missing": 849
       }
     },
     {
@@ -385,6 +385,12 @@
       "unknownDurationCount": 10
     },
     {
+      "key": "integrations/inference-history",
+      "count": 10,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 10
+    },
+    {
       "key": "conformance/language-shards",
       "count": 9,
       "knownDurationMs": 0,
@@ -392,12 +398,6 @@
     },
     {
       "key": "indexing/policy",
-      "count": 9,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 9
-    },
-    {
-      "key": "integrations/inference-history",
       "count": 9,
       "knownDurationMs": 0,
       "unknownDurationCount": 9

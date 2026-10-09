@@ -1,3 +1,5 @@
+import { createLocalHistorySemanticIndex } from '../../../src/integrations/inference-history/semantic-index.js';
+import { renderHistoryOwnerPage, parseHistoryOwnerPrivacyForm } from '../../../src/integrations/inference-history/owner-page.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -25,7 +27,8 @@ const options={vaultRoot,verifyPrivateVault:()=>true,resolveAccess,resolveOwnerA
 assert.throws(()=>createInferenceHistoryService({...options,audit:null}),{code:'ERR_INFERENCE_HISTORY_AUDIT'});
 const service=createInferenceHistoryService(options);
 const console=createHistoryOwnerConsole({service,auditLedger:ledger,
-  authenticateHuman:context=>context==='human-session'?{channel:'human',principalId:'alice'}:null});
+  authenticateHuman:context=>context==='human-session'?{channel:'human',principalId:'alice'}:null,
+  verifyHumanMutation:()=>true});
 const node=(id,text)=>({id,parent:null,children:[],message:{id,author:{role:'user'},create_time:1800000000,
   content:{content_type:'text',parts:[text]}}});
 const raw={id:'fixture-record',title:'SecretParcel planning',current_node:'a',mapping:{a:node('a','Keep SecretParcel plans with cobalt.')}};
@@ -39,6 +42,24 @@ await assert.rejects(createInferenceHistoryService({...options,resolveOwnerAcces
 let inventory=await console.inventory(request);
 assert.equal(inventory.records[0].recordRef,hit.recordRef);
 assert.match(renderHistoryOwnerInventory(inventory),/visible/);
+const humanIdentity=()=>({channel:'human',principalId:'alice'});
+const protectedConsole=createHistoryOwnerConsole({service,auditLedger:ledger,authenticateHuman:humanIdentity,
+  verifyHumanMutation:({csrfToken})=>csrfToken==='synthetic-token'});
+await assert.rejects(protectedConsole.setPrivacy({...request,recordRef:hit.recordRef,excluded:false,redactions:[],annotation:''}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
+const noMutation=createHistoryOwnerConsole({service,auditLedger:ledger,authenticateHuman:humanIdentity});
+await assert.rejects(noMutation.setPrivacy({...request,csrfToken:'synthetic-token',recordRef:hit.recordRef,excluded:false,redactions:[],annotation:''}),{code:'ERR_INFERENCE_HISTORY_DENIED'});
+const ownerPage=await protectedConsole.page(request,{privacyAction:'/owner/privacy',csrfToken:'synthetic-token'});
+assert.match(ownerPage,/Save privacy rules/);
+assert.match(await protectedConsole.page(request),/Read-only view/);
+assert.throws(()=>renderHistoryOwnerPage({inventory},{privacyAction:'https://outside.invalid',csrfToken:'synthetic-token'}));
+assert.throws(()=>parseHistoryOwnerPrivacyForm({requestContext:'spoofed'}));
+const injected=structuredClone(inventory);injected.records[0].annotation='<script>alert(1)</script>';
+const escaped=renderHistoryOwnerPage({inventory:injected,audit:{events:[{query:'</td><script>bad()</script>'}]}});
+assert.ok(!escaped.includes('<script>'));assert.ok(escaped.includes('&lt;script&gt;'));
+const form=parseHistoryOwnerPrivacyForm({recordRef:hit.recordRef,expectedGeneration:inventory.index.generationRef,
+  csrfToken:'synthetic-token',redactions:'[]',annotation:'Owner supplied <script> note'});
+assert.equal((await protectedConsole.setPrivacy({...request,...form})).changed,true);
+inventory=await console.inventory(request);
 const policy={...request,recordRef:hit.recordRef,excluded:false,redactions:['SecretParcel'],annotation:'Owner note, not instructions.'};
 const changed=await console.setPrivacy(policy);
 assert.equal(changed.changed,true);
@@ -57,6 +78,15 @@ await assert.rejects(service.search({...request,query:'cobalt',expectedGeneratio
 assert.equal(privacyText('price $5, [private], 😀',{redactions:['$5','[private]','😀']}),'price [REDACTED owner], [REDACTED owner], [REDACTED owner]');
 const state=sanitized;
 const current=(await service.search({...request,query:'cobalt'})).index;
+const localIndex=createLocalHistorySemanticIndex({modelId:'synthetic-local-pipeline',modelVersion:'1',dimensions:2,
+  encodeText:text=>/cobalt|sequencer/i.test(text)?[1,0]:[0,1],chunkChars:80,overlapChars:20});
+const indexReceipt=await localIndex.refresh({documents:[{sourceRef:sanitized.sourceRef,snapshotRef:sanitized.snapshotRef,text:sanitized.text}],
+  generationRef:current.generationRef},{reauthorize:()=>{}});
+const integrated=createInferenceHistoryService({...options,semantic:localIndex.adapter()});
+const integratedPacket=await integrated.search({...request,query:'sequencer',mode:'semantic'});
+assert.equal(integratedPacket.hits[0].sourceRef,sanitized.sourceRef);
+assert.equal(integratedPacket.semantic.contentManifestHash,indexReceipt.contentManifestHash);
+assert.ok(!JSON.stringify(integratedPacket.hits).includes('SecretParcel'));
 const adapter=createLocalHistorySemanticAdapter({modelId:'synthetic',modelVersion:'toy1',dimensions:1,indexGenerationRef:current.generationRef,
   encodeQuery:()=>[1],searchIndex:()=>({candidates:[{sourceRef:state.sourceRef,snapshotRef:state.snapshotRef,text:'SecretParcel'}],complete:true})});
 const hybrid=createInferenceHistoryService({...options,semantic:adapter});

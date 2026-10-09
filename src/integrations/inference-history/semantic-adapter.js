@@ -1,14 +1,15 @@
 import { historyError } from './common.js';
 /** Trusted host owns and vets both callbacks; this is not a network/model loader. */
 export function createLocalHistorySemanticAdapter({
-  modelId, modelVersion, indexGenerationRef, dimensions, encodeQuery, searchIndex, rerank = null
+  modelId, modelVersion, indexGenerationRef, dimensions, encodeQuery, searchIndex, rerank = null, contentManifestHash = null
 }) {
   if (![modelId,modelVersion].every(value=>typeof value==='string' && value.length>0 && value.length<=200)
     || !/^[a-f0-9]{64}$/.test(indexGenerationRef ?? '') || !Number.isSafeInteger(dimensions)
     || dimensions<1 || dimensions>4096 || typeof encodeQuery!=='function' || typeof searchIndex!=='function'
-    || (rerank!==null && typeof rerank!=='function')) throw new TypeError('Versioned local model/index callbacks required.');
+    || (rerank!==null && typeof rerank!=='function')
+    || (contentManifestHash!==null && !/^[a-f0-9]{64}$/.test(contentManifestHash))) throw new TypeError('Versioned local model/index callbacks required.');
   return Object.freeze({
-    kind:'local',modelId,modelVersion,indexGenerationRef,dimensions,rerank,
+    kind:'local',modelId,modelVersion,indexGenerationRef,dimensions,rerank,contentManifestHash,
     async search({query,top,generationRef}, {signal,reauthorize}) {
       if (generationRef!==indexGenerationRef) throw historyError('ERR_INFERENCE_HISTORY_STALE','Semantic index generation differs.');
       signal?.throwIfAborted();
