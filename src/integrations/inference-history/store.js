@@ -118,6 +118,8 @@ function initializeHistoryStore(db,partitionKey) {
       PRIMARY KEY(snapshot_id, unit_id)
     );
     CREATE INDEX IF NOT EXISTS units_record ON units(record_id);
+    CREATE INDEX IF NOT EXISTS units_artifact_source ON units(json_extract(metadata,'$.sourceDetails.sourceSha256'));
+    CREATE INDEX IF NOT EXISTS snapshots_artifact_source ON snapshots(json_extract(raw_json,'$.provenance.source_sha256'),json_extract(raw_json,'$.provenance.locator'),json_extract(raw_json,'$.provenance.chunk_start')) WHERE source_kind='recovered_artifact';
     CREATE INDEX IF NOT EXISTS units_message ON units(json_extract(metadata,'$.messageId'), id);
     CREATE INDEX IF NOT EXISTS snapshot_units_unit ON snapshot_units(unit_id, snapshot_id);
     CREATE INDEX IF NOT EXISTS snapshots_record ON snapshots(record_id);
@@ -186,4 +188,23 @@ export function openMemoryHistoryStore(partitionKey) {
   const db=new Database(':memory:');
   try{db.pragma('foreign_keys = ON');db.pragma('temp_store = MEMORY');initializeHistoryStore(db,partitionKey);historyIndexState(db);return db;}
   catch(error){db.close();throw error;}
+}
+
+/** Explicit local collection cache; ordinary filesystem permissions, no service vault policy. */
+export async function openLocalArchiveStore(indexPath,partitionKey) {
+  if(typeof indexPath!=='string'||!path.isAbsolute(indexPath)||!/^[a-f0-9]{64}$/.test(partitionKey))throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');
+  const file=path.resolve(indexPath),parent=path.dirname(file);
+  if(await fsPromises.realpath(parent)!==parent)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');
+  for(const suffix of ['', '-journal','-wal','-shm']){
+    const stat=await fsPromises.lstat(file+suffix).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+    if(stat&&(!stat.isFile()||stat.isSymbolicLink()||stat.nlink!==1))throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');
+  }
+  const db=new Database(file,{timeout:0});
+  try{
+    db.pragma('foreign_keys = ON');db.pragma('temp_store = MEMORY');
+    const exists=db.prepare("SELECT 1 FROM sqlite_schema WHERE name='vault_meta'").get();
+    if(exists){const meta=Object.fromEntries(db.prepare('SELECT key,value FROM vault_meta').all().map(r=>[r.key,r.value]));
+      if(meta.partition!==partitionKey||meta.format!==HISTORY_STORE_FORMAT)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');}
+    initializeHistoryStore(db,partitionKey);historyIndexState(db);return db;
+  }catch(error){db.close();throw error;}
 }

@@ -102,7 +102,8 @@ function resolveCommand(primary, rest) {
       validateArgs(rest, ['all', 'json'], []);
       return { script: 'tools/history/help.js', extraArgs: [], args: rest };
     }
-    failCli('Archive reads require an authenticated host adapter.', {
+    if(sub==='local')return {script:'tools/history/local.js',extraArgs:[],args:rest};
+    failCli('Use the selected local collection reader or an authenticated host adapter.', {
       hint: 'Use pairofcleats history help --all --json for the read-only contract.'
     });
   }
