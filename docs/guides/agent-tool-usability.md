@@ -24,7 +24,7 @@ Default summary omits the bulky raw envelope; `{detail:'full'}` preserves it. Or
 
 ## Generation, timelines and context
 
-New stores require `inference-history.v6`. Transactional generation counters advance on new imports and first tombstones; identical repeated imports do not advance them. Opaque generation references pin continuations and citation actions. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Old v5 stores are rejected without mutation or migration. The old survey remains pinned to its unchanged old source; this implementation authorizes no production reimport.
+New stores require `inference-history.v7`. Transactional generation counters advance on new imports and first tombstones; identical repeated imports do not advance them. Opaque generation references pin continuations and citation actions. Concurrent changes fail closed with ERR_INFERENCE_HISTORY_STALE. Previous store formats are rejected without mutation or migration. The old survey remains pinned to its unchanged old source; this implementation authorizes no production reimport.
 
 Privacy rule changes also advance the generation. Index update time does not establish export freshness or full archive coverage. Diagnostics distinguish missing index, unavailable references, exhausted pages, no matches under filters and bounded truncation. Filter impact is not guessed by querying outside filters.
 

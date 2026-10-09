@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 796,
+    "hero": 801,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5599,6 +5599,36 @@
     {
       "id": "integrations/inference-history/sqlite-readiness",
       "order": 931,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/archive-structure",
+      "order": 932,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/archive-lexical",
+      "order": 933,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/hybrid-source-diversity",
+      "order": 934,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/redaction-idempotence",
+      "order": 935,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-structural-runtime",
+      "order": 936,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

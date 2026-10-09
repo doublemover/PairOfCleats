@@ -366,3 +366,15 @@ stopped with legacy derived embedding tables removed under owner authorization a
 embedding tables introduced. All original trial/cleanup receipts remain intact. No further
 inference, full indexing or GPU work is authorized by these tracking updates. Evidence and
 limits: [representative CPU report](guides/eg2-representative-cpu-trial-20261009.md).
+
+### Recovered archive structure and vocabulary audit — 2026-10-09
+
+- [x] Connect structural source reconstruction, bounded contextual document inputs and exact tokenizer-budget fallback; preserve current-source citations and cross-fragment invalidation.
+- [x] Unify archive body/discovery/query lexical analysis with explicit effective vocabulary receipts; preserve whole identifiers, acronyms, Unicode and literal constraints.
+- [x] Add original-source diversity and metadata-reference hybrid rehydration; report real reranker availability and preserve hard filters/privacy.
+- [x] Validate six integrated no-model acceptance checks and the owning runtime regressions. Production SQLite13.0.3 remains verified on Windows Node26.8.1.
+- [ ] Freeze final read-only corpus coverage/vocabulary/token/padding/attention plan. Preserve intermediate receipts and record lexical-only proposals separately from retained semantic coverage.
+- [ ] Run the verified Kingfisher normal-repository CPU embedding benchmark after readiness gates, using current source, judged queries and bounded supervision. It is now medium; no historical comparison or extra guardrail campaigns.
+- [ ] Use the normal-repository results plus separate archive integration acceptance and final workload plan before the authorized recovered-corpus sequence; fix/report material quality or workload problems first. CPU only.
+
+Policy, limits and evidence: [archive pipeline integration](guides/archive-pipeline-integration-20261009.md).

@@ -931,3 +931,8 @@ integrations/inference-history/eg2-worker-runtime
 integrations/inference-history/eg2-worker-disconnect
 integrations/inference-history/eg2-service-cancellation
 integrations/inference-history/sqlite-readiness
+integrations/inference-history/archive-structure
+integrations/inference-history/archive-lexical
+integrations/inference-history/hybrid-source-diversity
+integrations/inference-history/redaction-idempotence
+integrations/inference-history/eg2-structural-runtime
