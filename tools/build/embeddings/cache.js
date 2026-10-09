@@ -982,7 +982,7 @@ export const buildCacheKey = ({
       signature: signature || null
     }
   });
-  return keyInfo.key;
+  return `file-${keyInfo.version}-${keyInfo.digest}`;
 };
 
 /**
