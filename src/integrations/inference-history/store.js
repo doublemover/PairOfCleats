@@ -118,6 +118,7 @@ function initializeHistoryStore(db,partitionKey) {
       PRIMARY KEY(snapshot_id, unit_id)
     );
     CREATE INDEX IF NOT EXISTS units_record ON units(record_id);
+    CREATE INDEX IF NOT EXISTS units_role_date ON units(json_extract(metadata,'$.role'),json_extract(metadata,'$.createdAt.utc'));
     CREATE INDEX IF NOT EXISTS units_artifact_source ON units(json_extract(metadata,'$.sourceDetails.sourceSha256'));
     CREATE INDEX IF NOT EXISTS snapshots_artifact_source ON snapshots(json_extract(raw_json,'$.provenance.source_sha256'),json_extract(raw_json,'$.provenance.locator'),json_extract(raw_json,'$.provenance.chunk_start')) WHERE source_kind='recovered_artifact';
     CREATE INDEX IF NOT EXISTS units_message ON units(json_extract(metadata,'$.messageId'), id);

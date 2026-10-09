@@ -7,6 +7,7 @@ export const HISTORY_AGENT_REQUESTS = {
       "query"
     ],
     "properties": {
+      "continuation": {"type":"string","minLength":1,"maxLength":2048,"description":"Exact returned generation-bound ranked cursor; preserve query, filters and budgets."},
       "match": {"enum":["strict","relaxed","auto"],"default":"auto"},
       "query": {
         "type": "string",

@@ -18,7 +18,7 @@ export function historyAgentHelp({ full = false } = {}) {
       timeline: 'Exact conversation branch, oldest/newest visible messages, optional role and inclusive UTC bounds. Correction-language signals are not verified changes of preference; assistant advice is not user acceptance.',
       provenance: 'Occurrences are locations, not a count of independent conversations. Artifacts are references with unknown availability.',
       coverage: 'Empty results do not establish absence from full history. Coverage and candidate completeness are separate.',
-      continuation: 'Execute page.next exactly; it preserves query, filters, scope and budgets, changing only offset.',
+      continuation: 'Execute page.next exactly; it preserves query, filters, scope and budgets, using the returned offset or generation-bound ranked cursor. Exact totals remain null when the full candidate enumeration is unavailable.',
       citations: 'Short citation labels are display handles. Reuse the full IDs in actions; labels never grant access.'
     },
     defaults: Object.fromEntries(Object.entries(HISTORY_AGENT_REQUESTS).map(([command, schema]) => [

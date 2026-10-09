@@ -71,9 +71,11 @@ export function createHistoryAgentReader({ service, requestContext, partition })
                 : 'No matching visible evidence under these filters; full-history absence is not established.',
           evidence,
           page: {
-            next: Number.isSafeInteger(result?.nextOffset) ? action(command, { ...effective, offset: result.nextOffset, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }) : null,
+            next: Number.isSafeInteger(result?.nextOffset) ? action(command, { ...effective, offset: result.nextOffset, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }) : result?.continuation ? action(command,{...effective,offset:0,continuation:result.continuation,...(result.index?.generationRef?{expectedGeneration:result.index.generationRef}:{})}) : null,
             previous: Number.isSafeInteger(result?.previousOffset) ? action(command, { ...effective, offset: result.previousOffset, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }) : null,
             complete: result?.complete ?? null,
+            totalsAvailable: result?.totalsAvailable ?? null,
+            candidateWindowComplete: result?.candidateWindowComplete ?? null,
             ...(result?.totalMatches !== undefined ? { totalMatches: result.totalMatches } : {}),
             ...(result?.totalReferences !== undefined ? { totalReferences: result.totalReferences } : {}),
             ...(result?.totalVisibleMessages !== undefined ? { totalVisibleMessages: result.totalVisibleMessages } : {})
