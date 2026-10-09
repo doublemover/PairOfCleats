@@ -13,8 +13,8 @@ export async function prepareFileEvidenceArtifacts({catalogPaths,outputRoot,auth
   const summary={version:ARTIFACT_PROJECTION_VERSION,classificationVersion:ARCHIVE_CLASSIFICATION_VERSION,lexicalOnlyProposals:0,assetOmissions:{},activation:'not_imported',records:0,unsafeRecordsOmitted:0,documents:0,visibleActivity:0,toolMetadata:0,hiddenActivityOmitted:0,traceDocumentsOmitted:0,oversizeDocuments:0,recordLimitOmissions:0,firstTimestamp:null,lastTimestamp:null,projectMentions:{PairOfCleats:0,SagnacAndSons:0,NuSSR:0},shards:[]};
   let batch=[],ordinal=0;
   const flush=async()=>{if(!batch.length)return;const name='artifacts-'+String(++ordinal).padStart(4,'0')+'.json';await fs.writeFile(path.join(outputRoot,name),JSON.stringify(batch)+'\n',{flag:'wx'});summary.shards.push({name,records:batch.length});batch=[];};
-  const emit=async(text,row,kind='document',createdAt=null,dateBasis='unknown',suffix='')=>{
-    const records=projectArtifact({text,sourceSha256:row.sha256,locator:row.locator+suffix,kind,createdAt,dateBasis,audit:summary.assetOmissions});
+  const emit=async(text,row,kind='document',createdAt=null,dateBasis='unknown',suffix='',originalTextChars=text.length,sourceTransformed=false)=>{
+    const records=projectArtifact({text,sourceSha256:row.sha256,locator:row.locator+suffix,kind,createdAt,dateBasis,audit:summary.assetOmissions,originalTextChars,sourceTransformed});
     if(!classifyArchiveSource({locator:row.locator+suffix,kind,text}).proposedSemanticEligibility)summary.lexicalOnlyProposals++;
     if(!records.length&&text)summary.traceDocumentsOmitted++;
     if(summary.records+records.length>maxRecords){summary.recordLimitOmissions++;return;}
@@ -60,11 +60,12 @@ export async function prepareFileEvidenceArtifacts({catalogPaths,outputRoot,auth
           }
           text=JSON.stringify(sanitizeArtifactJson(raw,0,{audit:summary.assetOmissions}),null,2);
         }else if(item.format==='html')text=text.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/<!--[\s\S]*?-->/g,' ').replace(/<[^>]+>/g,' ');
-        await emit(text,row,['code','config'].includes(classifyArchiveSource({locator:source.name,text}).format)?'code':'document');
+        await emit(text,row,['code','config'].includes(classifyArchiveSource({locator:source.name,text}).format)?'code':'document',null,'unknown','',item.text.length,text!==item.text);
         summary.documents++;
       }
     }finally{db.close();}
   }
   await flush();await fs.writeFile(path.join(outputRoot,'preparation-manifest.json'),JSON.stringify(summary,null,2)+'\n',{flag:'wx'});return summary;
 }
+
 
