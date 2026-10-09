@@ -19,7 +19,7 @@ import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
-import { createProviderRuntime } from './pipeline/provider-runtime.js';
+import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
 import { runAnnStage } from './pipeline/ann-stage.js';
@@ -415,7 +415,6 @@ export function createSearchPipeline(context) {
     );
   };
 
-  const providerRuntime = createProviderRuntime();
   const sqliteFtsCompilation = compileFtsMatchQuery({
     queryAst,
     queryTokens,
@@ -455,6 +454,7 @@ export function createSearchPipeline(context) {
    */
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
+    const providerRuntime = getGenerationProviderRuntime(idx);
     const meta = idx.chunkMeta;
     const modeProfilePolicy = profilePolicyByMode?.[mode] && typeof profilePolicyByMode[mode] === 'object'
       ? profilePolicyByMode[mode]

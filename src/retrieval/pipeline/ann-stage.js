@@ -209,7 +209,7 @@ export const runAnnStage = async ({
     || hnswAnnState?.[mode]?.available
     || lanceAnnState?.[mode]?.available
   );
-  const vectorActive = annEnabledForMode && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
+  let vectorActive = annEnabledForMode && (typeof queryEmbedding === 'function' || isEmbeddingReady(queryEmbedding)) && hasVectorArtifacts;
   let providerAvailable = false;
 
   if (annEnabledForMode && vectorActive) {
@@ -247,7 +247,9 @@ export const runAnnStage = async ({
     const bypassToSparse = sparseRouteRequested;
     effectiveRoute = bypassToSparse ? ANN_ADAPTIVE_ROUTE.SPARSE : ANN_ADAPTIVE_ROUTE.VECTOR;
     if (!bypassToSparse) {
-      for (const backend of orderedBackends) {
+      if (typeof queryEmbedding === 'function') queryEmbedding = await queryEmbedding();
+      vectorActive = isEmbeddingReady(queryEmbedding);
+      for (const backend of vectorActive ? orderedBackends : []) {
         const provider = providers.get(backend);
         if (!provider || typeof provider.query !== 'function') continue;
         if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;

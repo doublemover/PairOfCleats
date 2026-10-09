@@ -1,0 +1,22 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { createEmbeddingResolver } from '../../../src/retrieval/cli/run-search-session/embedding-cache.js';
+import { getGenerationProviderRuntime } from '../../../src/retrieval/pipeline/provider-runtime.js';
+let calls=0;
+const impl=async ({text})=>{ calls++; return [text.length,1]; };
+const make=(text,generation,provider='onnx')=>createEmbeddingResolver({throwIfAborted(){},embeddingQueryText:text,generation,modelConfig:{dir:'project/models'},embeddingProvider:provider,embeddingOnnx:{},rootDir:'project',getQueryEmbeddingImpl:impl});
+await Promise.all([make('café','one')('model',2,true,null),make('cafe\u0301','one')('model',2,true,null)]);
+assert.equal(calls,1,'identical normalized query/model/generation requests share in-flight work');
+await make('different','one')('model',2,true,null);
+await make('café','two')('model',2,true,null);
+await make('café','two','other')('model',2,true,null);
+assert.equal(calls,4,'query, generation and provider identities isolate cache entries');
+const a={},b={};
+assert.equal(getGenerationProviderRuntime(a),getGenerationProviderRuntime(a));
+assert.notEqual(getGenerationProviderRuntime(a),getGenerationProviderRuntime(b));
+let failures=0;
+const broken=async()=>{ failures++;throw Error('unavailable'); };
+const retry=()=>createEmbeddingResolver({throwIfAborted(){},embeddingQueryText:'retry',modelConfig:{},getQueryEmbeddingImpl:broken})('model',2,true,null);
+await assert.rejects(retry());await assert.rejects(retry());
+assert.equal(failures,2,'failures do not poison process cache');
+console.log('process embedding and generation provider reuse passed');
