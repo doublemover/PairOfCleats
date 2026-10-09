@@ -283,3 +283,38 @@ Use focused behavioral checks for each slice. No hosted CI wait, historical comp
 - [x] Use independently discovered persisted semantic candidates in existing archive hybrid retrieval with pre-cap eligibility and truthful coverage.
 - [x] Complete real fp32/768 EG2 acceptance on Windows Node 26.8.1 with pinned Transformers.js 4.3.1 and SHA256-verified official model weights. Eleven preserved DAT units produced 55 finite normalized vectors; semantic/hybrid retrieval succeeded with zero lexical candidates, reopened persistence retained all units, and resume encoded zero additional spans.
 - [ ] Complete selected DAT corpus indexing (89,059 units). The 600-second resumable fp32/768 job stopped at its deadline with 340 complete units, 1,468 durable spans, and 88,719 units pending. The selected manifest, archive generation, and checked citation were preserved; full-corpus completion remains separate from the successful 11-unit acceptance. Media remains outside this text integration.
+
+## Archive EG2 acceleration audit (October 9, 2026)
+
+Source: [independent acceleration audit](https://chatgpt.com/space/page_a02fd879bed08191a5a62a64a07f2759).
+The current CPU/fp32/768d batch-4 process continues with its already-loaded code and durable checkpoints.
+Do not open its archive database with the new schema, change its identity, restart it, or trial GPU paths.
+
+- [ ] Add bounded actual-token-length scheduling over complete prefixed inputs; cap padded linear and
+  attention work, preserve Unicode offsets/output mapping, flush tails fairly, and avoid tokenizing twice.
+- [ ] Coalesce exact effective inputs and persist computation reuse while keeping every source occurrence,
+  citation and visibility rule. Collect unused derived vectors on redaction/deletion; do not drop artifacts.
+- [ ] Separate document computation, query policy and representation identities. Retain full 768d vectors
+  and derive approved lower dimensions without inference. Convert old saved schemas explicitly on a copy
+  after the active writer finishes; preserve the original database and receipts.
+- [ ] Expose allowlisted CPU session options and requested/observed telemetry, including model/session
+  lifecycle, actual token padding, preparation/inference/output/commit timings, and profiling/optimized graphs.
+- [ ] Inspect the real optimized operators and fallback logs in a separate CPU trial directory/database.
+  Missing MatMulNBits accuracy_level=0 and predicted q8 unpacked-FP32 fallback remain source inference
+  until actual dispatch is qualified. Prepare explicit W8A8/W4A8 graph derivatives with hashes and test
+  one candidate at a time against finite outputs, drift and judged retrieval quality.
+- [ ] Prepare a bounded loopback EG2 GGUF adapter and LM Studio command flow. Gate every use on exact
+  engine architecture support, local model instance/backend, GGUF/tokenizer hashes, canonical prompts,
+  learned 768d projection/pooling and query/document parity. Research/preparation only; no GPU trial.
+- [ ] Preserve single-flight admission after uncertain native/transport timeouts; timeout is not proof
+  that native work stopped. Diagnose before resubmission and keep crash-safe batch checkpoints.
+- [ ] Reduce output copies and repeated statement/status preparation where safe; measure accumulated
+  checkpoint-prefix scans before introducing a queue. Retain secure deletion and DELETE journaling.
+- [ ] Qualify scheduling parity on singleton/mixed/bucketed inputs and measure useful versus padded tokens.
+  Collect a representative token histogram/effective-input duplication inventory without corpus re-embedding.
+- [ ] Evaluate capped CPU worker/thread combinations only after scheduling/graph evidence warrants them;
+  do not multiply default pools or equate CPU busy percentage with useful throughput.
+- [ ] Plan separate full-index search scaling (typed/native vectors or ANN with exact reranking), preserving
+  hard filters and source visibility. Dimensional truncation improves storage/search, not transformer speed.
+- [ ] Keep alternative compiled PyTorch, LiteRT-LM, OpenVINO, ROCm and MLX routes as qualified fallback
+  research; no new installs, machine transfers or runtime changes are implied by this backlog.
