@@ -134,3 +134,34 @@ export function decodeObfuscatedFont(bytes, fontKey) {
   if(classified.format!=='sfnt_font'||classified.status!=='metadata_recovered')throw new Error('Decoded font structure invalid.');
   return {bytes:decoded,metadata:classified.metadata};
 }
+
+/** Preserve valid UTF-8 spans; display undecodable/control bytes as explicit escapes. */
+export function decodeUtf8Evidence(bytes) {
+  const parts=[],invalidByteOffsets=[],escapedControlOffsets=[];let start=0;
+  const escape=(i,invalid)=>{if(i>start)parts.push(bytes.subarray(start,i).toString('utf8'));parts.push('\\x'+bytes[i].toString(16).padStart(2,'0').toUpperCase());(invalid?invalidByteOffsets:escapedControlOffsets).push(i);start=i+1;};
+  for(let i=0;i<bytes.length;){
+    const b=bytes[i];if(b<128){if(b<32&&![9,10,13].includes(b))escape(i,false);i++;continue;}
+    const n=b>=0xc2&&b<=0xdf?2:b>=0xe0&&b<=0xef?3:b>=0xf0&&b<=0xf4?4:0;
+    let valid=n>0&&i+n<=bytes.length;
+    for(let j=1;valid&&j<n;j++)if((bytes[i+j]&0xc0)!==0x80)valid=false;
+    if(valid&&((b===0xe0&&bytes[i+1]<0xa0)||(b===0xed&&bytes[i+1]>=0xa0)||(b===0xf0&&bytes[i+1]<0x90)||(b===0xf4&&bytes[i+1]>=0x90)))valid=false;
+    if(!valid){escape(i,true);i++;}else i+=n;
+  }
+  if(start<bytes.length)parts.push(bytes.subarray(start).toString('utf8'));
+  return {text:parts.join(''),metadata:{encoding:'valid_utf8_spans_with_byte_escapes',originalEncoding:'not_assumed',invalidByteOffsets,escapedControlOffsets,originalBytes:bytes.length}};
+}
+export async function recoverUtf8FileEvidence({catalogPath,sourceSha256,authorizeCatalog}) {
+  catalogPath=path.resolve(catalogPath);
+  if(!/^[a-f0-9]{64}$/.test(sourceSha256??'')||typeof authorizeCatalog!=='function'||await authorizeCatalog(catalogPath)!==true||await fs.realpath(catalogPath)!==catalogPath)throw new Error('Explicit encoding recovery authorization required.');
+  const db=new Database(catalogPath,{fileMustExist:true});
+  try{
+    const source=db.prepare("SELECT 1 FROM sources WHERE sha256=? AND status='unsupported_encoding'").get(sourceSha256);
+    const bytes=db.prepare('SELECT data FROM blobs WHERE sha256=?').get(sourceSha256)?.data;
+    if(!source||!bytes||bytes.length>128*1024*1024||digest(bytes)!==sourceSha256)throw new Error('Bounded matching source required.');
+    db.exec('CREATE TABLE IF NOT EXISTS encoding_recovery(source_sha256 TEXT PRIMARY KEY,status TEXT,text TEXT,metadata_json TEXT)');
+    if(db.prepare('SELECT 1 FROM encoding_recovery WHERE source_sha256=?').get(sourceSha256))throw new Error('Prior encoding recovery preserved.');
+    const decoded=decodeUtf8Evidence(bytes);
+    db.prepare('INSERT INTO encoding_recovery VALUES (?,?,?,?)').run(sourceSha256,'utf8_segments_recovered',decoded.text,JSON.stringify(decoded.metadata));
+    return {sourceSha256,status:'utf8_segments_recovered',textChars:decoded.text.length,invalidBytes:decoded.metadata.invalidByteOffsets.length,escapedControls:decoded.metadata.escapedControlOffsets.length};
+  }finally{db.close();}
+}
