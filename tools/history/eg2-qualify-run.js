@@ -4,6 +4,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { readBounded, hashFile, withinTrialRoot, inspectOnnx } from './eg2-qualify-graph.js';
 import { qualifyRetrieval } from './eg2-qualify-quality.js';
@@ -84,7 +85,12 @@ export async function runCpuTrial({trialRoot,manifestFile,loadTransformers=()=>i
   const sessionOptions={intraOpNumThreads:2,interOpNumThreads:1,executionMode:'sequential',enableProfiling:true,
     profileFilePrefix:path.join(root,'ort-cpu-profile'),optimizedModelFilePath:optimized,logSeverityLevel:1,
     extra:{'session.intra_op.allow_spinning':'0','session.inter_op.allow_spinning':'0'}};
-  const receipt={schema:'eg2.cpu-execution-receipt.v1',startedAt:new Date().toISOString(),identity,
+  const processIdentity={pid:process.pid,parentPid:process.ppid,runId:randomUUID(),
+    nodeStartedAt:new Date(performance.timeOrigin).toISOString(),
+    startTimestampSource:'Node performance.timeOrigin; not OS creation-time verification',
+    parentOwnershipVerified:false,ownedLineage:[{pid:process.pid,parentPid:process.ppid,
+      role:'qualification-invocation',ownershipEvidence:'self-reported current process only'}]};
+  const receipt={schema:'eg2.cpu-execution-receipt.v1',startedAt:new Date().toISOString(),identity,processIdentity,
     sampleSha256:await hashFile(samplesFile),artifacts:artifactReceipts,sessionOptions,
     concurrency:1,batchSize:4,maxMillis:manifest.maxMillis,timeoutSemantics:'Cooperative batch boundaries; native inference cannot be interrupted. No automatic resubmission.',
     timingContext:'Concurrent with live CPU indexing; no uncontended speedup claim.',state:'loading'};
