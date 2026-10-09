@@ -8,7 +8,7 @@ import { historyAgentHelp, validateHistoryAgentRequest } from '../../../src/inte
 const createInferenceHistoryService=options=>createService({audit:()=>({persisted:true}),...options});
 
 // Entirely synthetic source; retained task artifacts, no personal archive reads.
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-agent-usability-'));
+const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-agent-usability-')));
 await fs.mkdir(root, { recursive: true });
 const source = path.join(root, 'synthetic.json');
 const vault = path.join(root, 'synthetic-vault');
