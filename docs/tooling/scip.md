@@ -31,8 +31,8 @@ scip print --format=json --input index.scip | node tools/ingest/scip.js --repo .
 
 ## Output
 
-- JSONL entries include: `file`, `ext`, `name`, `symbol`, `kind`, `signature`, `startLine`, `endLine`, `startChar`, `endChar`, `role`, `language`, `scope`, `scopeKind`.
-- `<output>.meta.json`: summary with `generatedAt`, `repoRoot`, `input`, `output`, and `stats` (documents, occurrences, definitions, references, errors, kinds, languages).
+- JSONL entries include: `file`, `ext`, `name`, `symbol`, `kind`, `signature`, `startLine`, `endLine`, `startChar`, `endChar`, `role`, `symbolRoles`, independent role flags, `language`, `scope`, `scopeKind`.
+- `<output>.meta.json`: summary with `generatedAt`, `repoRoot`, `input`, `output`, and `stats` (documents, occurrences, definitions, references, imports, writes, reads, generated, tests, forwardDefinitions, errors, kinds, languages).
 
 ## Notes
 
