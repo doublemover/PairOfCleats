@@ -1,7 +1,8 @@
+import { historyIndexState } from './generation.js';
 import { historyPrivacy, privacyText, privacyNode } from './privacy.js';
 import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery, matchesHistoryHardConstraints } from './query.js';
 import { hashCanonicalJson, normalizeTimestamp } from './normalize.js';
-import { privateReference, historyError, projectHistoryText, redactHistoryText } from './common.js';
+import { privateReference, digest, historyError, projectHistoryText, redactHistoryText } from './common.js';
 
 export const READ_GUARDS = Symbol('history-read-guards');
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history read request.');
@@ -147,19 +148,25 @@ const groupKey = (row, node, namespace) => node.messageId
   ? privateReference(namespace, JSON.stringify([row.evidenceKind, node.messageId, node.payloadHash, row.projectionFingerprint]))
   : privateReference(namespace, JSON.stringify([row.sourceRef]));
 
+const coverageByGeneration = new Map();
 function coverage(db) {
   if (!db) return { imports: 0, records: 0, units: 0, coverage: 'none', complete: false,
     indexedMessageBounds: { first: null, last: null, unknownDates: 0 }, exportCutoff: null, fullCorpusWindow: null };
+  const generation = historyIndexState(db).generationRef;
+  if (coverageByGeneration.has(generation)) return structuredClone(coverageByGeneration.get(generation));
   const stats = db.prepare('SELECT * FROM history_stats WHERE singleton=1').get();
   Object.assign(stats,db.prepare(`SELECT COUNT(DISTINCT records.id) AS records, COUNT(units.id) AS units, SUM(json_extract(units.metadata,'$.createdAt.utc') IS NULL) AS unknown_dates, MIN(json_extract(units.metadata,'$.createdAt.utc')) AS first_date, MAX(json_extract(units.metadata,'$.createdAt.utc')) AS last_date FROM records LEFT JOIN units ON units.record_id=records.id WHERE records.deleted=0 AND records.excluded=0`).get());
   stats.unknown_dates ??= 0;
-  return { imports: stats.imports, records: stats.records,
+  const result = { imports: stats.imports, records: stats.records,
     units: stats.units, coverage: stats.imports ? 'selected_input' : 'none',
     complete: stats.imports > 0 && stats.incomplete_imports === 0,
     indexedMessageBounds: { first: stats.first_date, last: stats.last_date, unknownDates: stats.unknown_dates },
     exportCutoff: null, fullCorpusWindow: null,
     caveats: ['Bounds describe stored unit dates, not complete archive coverage or an export cutoff.',
       'No media decoding or Pages-directory ingestion is provided. Optional semantic candidates require a separately provisioned trusted local adapter.'] };
+  coverageByGeneration.set(generation, result);
+  if (coverageByGeneration.size > 16) coverageByGeneration.delete(coverageByGeneration.keys().next().value);
+  return structuredClone(result);
 }
 const dateBound = (value, end) => {
   if (value == null) return null;
@@ -175,6 +182,13 @@ export function searchHistory(db, request) {
   if (!['strict', 'relaxed', 'auto'].includes(matchMode)) throw invalid();
   const parsed = parseHistoryQuery(request.query), { tokens } = parsed;
   if (matchMode === 'auto') {
+    if (request.continuation != null) {
+      if (typeof request.continuation !== 'string' || request.continuation.length > 2048) throw invalid();
+      let cursor;try { cursor = JSON.parse(Buffer.from(request.continuation, 'base64url')); } catch { throw invalid(); }
+      if (!['strict','relaxed'].includes(cursor.match)) throw invalid();
+      const resumed = searchHistory(db, {...request, match: cursor.match});
+      resumed.query.requestedMatch = 'auto';resumed.query.relaxed = cursor.match === 'relaxed';return resumed;
+    }
     const strict = searchHistory(db, { ...request, match: 'strict' });
     if (strict.complete === false || strict.totalMatches !== 0) {
       strict.query.requestedMatch = 'auto'; strict.query.relaxed = false; return strict;
@@ -202,24 +216,43 @@ export function searchHistory(db, request) {
   limits: { top, offset, snippetChars, candidateUnits: MAX_CANDIDATES, rawEvidenceBytes: MAX_RAW_BYTES },
   caveat: 'Empty hits mean no matching visible units under these filters and selected-input coverage; never-discussed is not established.' };
   if (!db) return { ...envelope, hits: [], totalMatches: 0, totalMatchedUnits: 0, complete: true, nextOffset: null };
-  const query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
+  let query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
+  for (const phrase of parsed.phrases) query = '(' + query + ') AND "' + phrase.join(' ') + '"';
+  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
+  const generation = historyIndexState(db).generationRef;
+  const queryKey = digest(JSON.stringify([request.query,matchMode,top,snippetChars,role,from,to,pathState,request.snapshotRef ?? null,request.includeHistory === true]));
+  const signature = start => privateReference(namespace, JSON.stringify([start,queryKey,generation,matchMode]));
+  let candidateStart = 0;
+  if (request.continuation != null) {
+    if (typeof request.continuation !== 'string' || request.continuation.length > 2048) throw invalid();
+    let cursor;try { cursor = JSON.parse(Buffer.from(request.continuation, 'base64url')); } catch { throw invalid(); }
+    if (cursor.generation !== generation) throw historyError('ERR_INFERENCE_HISTORY_STALE','Index generation changed.');
+    if (!Number.isSafeInteger(cursor.start) || cursor.start < 0 || cursor.start > 1000000000
+      || cursor.queryKey !== queryKey || cursor.signature !== signature(cursor.start)) throw invalid();
+    candidateStart = cursor.start;
+  }
+  // Synchronous selection applies exact phrases/exclusions to indexed redacted text before LIMIT.
+  db.function('history_query_matches', {deterministic:true}, text => Number(matchesHistoryQuery(text,parsed,matchMode)));
   const sql = `FROM units_fts JOIN units ON units.id=units_fts.id JOIN records ON records.id=units.record_id
     WHERE units_fts MATCH ? AND records.deleted=0 AND records.excluded=0
+    AND history_query_matches(units.text)=1
+    AND (? IS NULL OR json_extract(units.metadata,'$.role')=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')>=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')<=?)
     AND EXISTS (SELECT 1 FROM snapshot_units WHERE snapshot_units.unit_id=units.id
       AND (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot)
       AND (? IS NULL OR snapshot_units.snapshot_id=?) AND (?='all' OR snapshot_units.path_state=?))`;
   const history = request.includeHistory === true || request.snapshotRef != null;
-  const parameters = [query, from, from, to, to, history ? 1 : 0,
+  const parameters = [query, role, role, from, from, to, to, history ? 1 : 0,
     request.snapshotRef ?? null, request.snapshotRef ?? null, pathState, pathState];
-  const candidateCount = db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 ${sql} LIMIT ${MAX_CANDIDATES + 1})`).get(...parameters).n;
-  const rows = db.prepare(`WITH candidates AS MATERIALIZED (SELECT units.id AS sourceRef, units.record_id AS recordRef,
+  const candidates = db.prepare(`SELECT units.id AS sourceRef, units.record_id AS recordRef,
     units.node_id AS nodeId, units.metadata, bm25(units_fts) AS score ${sql}
-    LIMIT ?) SELECT * FROM candidates ORDER BY score, sourceRef`).all(...parameters, MAX_CANDIDATES);
+    ORDER BY score, sourceRef LIMIT ? OFFSET ?`).all(...parameters, MAX_CANDIDATES + 1, candidateStart);
+  const hasMoreCandidates = candidates.length > MAX_CANDIDATES;
+  const rows = candidates.slice(0,MAX_CANDIDATES);
+  const candidateCount = candidates.length;
   const load = cacheFor(db, request), groups = new Map(), guards = [];
   const admitLocations = boundedProvenance(), admitOccurrences = boundedProvenance();
-  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   let matchedUnits = 0;
   for (const row of rows) {
     const metadata = JSON.parse(row.metadata);
@@ -254,9 +287,13 @@ export function searchHistory(db, request) {
   const hits = all.slice(offset, offset + top).map(({ references, ...hit }) => ({ ...hit,
     provenance: { totalReferences: references.length, references: references.slice(0, 3),
       nextOffset: references.length > 3 ? 3 : null, expand: 'readReferences' } }));
-  const complete = candidateCount <= MAX_CANDIDATES;
+  const complete = !hasMoreCandidates;
+  const totalsAvailable = complete && candidateStart === 0;
+  const nextStart = candidateStart + rows.length;
+  const continuation = hasMoreCandidates ? Buffer.from(JSON.stringify({start:nextStart,queryKey,generation,match:matchMode,signature:signature(nextStart)})).toString('base64url') : null;
   return guard({ ...envelope, hits, candidateMatches: candidateCount,
-    totalMatches: complete ? all.length : null, totalMatchedUnits: complete ? matchedUnits : null,
+    totalMatches: totalsAvailable ? all.length : null, totalMatchedUnits: totalsAvailable ? matchedUnits : null,
+    totalsAvailable, candidateStart, continuation, candidateWindowComplete: complete,
     observedGroups: all.length, complete, nextOffset: offset + top < all.length ? offset + top : null }, guards);
 }
 
