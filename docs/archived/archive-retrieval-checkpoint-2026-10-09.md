@@ -162,7 +162,7 @@ preserved. Native descendants are not excluded by manifest claims.
 Remaining artifact batches cover exact-member linkage, remaining runtime state,
 reports/editor output and native/package/TUI surfaces. Preserve schemas, JSONL/array
 shapes, checksums and useful searchable reports. The [Mac checklist](../guides/mac-acceptance-2026-10-06.md)
-and [archived checkpoints](archived/ordinary-integration-roadmap-2026-10-06.md) are
+and [archived checkpoints](ordinary-integration-roadmap-2026-10-06.md) are
 historical plans/results. Final native, snapshot recovery, dependency bootstrap,
 retrieval quality, watch readiness and representative performance require current
 evidence; isolated SQLite/Node26 measurements do not authorize runtime promotion.
