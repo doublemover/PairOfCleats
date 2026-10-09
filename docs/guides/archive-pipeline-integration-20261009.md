@@ -320,3 +320,12 @@ model or repeating inference. Index-start to final native-call completion was
 and is not claimed. The unexecuted resume operator stops its heartbeat before
 disposal. No second slice or full 139-hour campaign ran. This checkpoint proves
 bounded production persistence; the ranking/citation limitation above remains.
+
+Initial slice observed 92 native calls totaling 135.871 seconds, sampled peak
+worker RSS 2,888,962,048 bytes; read-only post-verification took 15.388 seconds.
+Private `production-initial-summary.json` SHA256:
+`ddf5fbb5eec6857d75b9a011d4e058c7074c065319ecf20ba9c3393656073931`.
+Private `production-initial-post-verification.json` SHA256:
+`54a387c3b0b01f31b6b1f24e2061592e20436e4c31a5df6e13cbb48c2faa0f2a`.
+Private `final-evidence-hashes.json` SHA256:
+`78c7026a79f12a858d0121664c870e22717cb2bea85c72362bd39bd78d8b2ed2`.
