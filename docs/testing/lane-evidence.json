@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-09T05:05:32.014Z",
+  "generatedAt": "2026-10-09T06:10:03.283Z",
   "summary": {
     "lanes": 5,
-    "tests": 1085,
+    "tests": 1086,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 280,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1011
+      "missingTests": 1012
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 900,
+      "totalTests": 901,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 851
+        "missing": 852
       }
     },
     {
@@ -374,9 +374,9 @@
     },
     {
       "key": "integrations/inference-history",
-      "count": 12,
+      "count": 13,
       "knownDurationMs": 0,
-      "unknownDurationCount": 12
+      "unknownDurationCount": 13
     },
     {
       "key": "shared/subprocess",

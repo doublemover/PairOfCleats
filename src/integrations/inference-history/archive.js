@@ -1,3 +1,4 @@
+import path from 'node:path';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -91,14 +92,16 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
   let totalExpanded = 0;
   let conversations = 0;
   let tasks = 0;
+  let artifacts = 0;
   let members = 0;
   let unsupportedArchives = 0;
   const seen = new Set();
   const countRecord = async (value, locator) => {
     check();
-    if (locator.evidenceKind === 'exported_codex_task') tasks += 1;
+    if (locator.evidenceKind === 'recovered_artifact') artifacts += 1;
+    else if (locator.evidenceKind === 'exported_codex_task') tasks += 1;
     else conversations += 1;
-    if (conversations + tasks > limits.maxConversations) throw limited();
+    if (conversations + tasks + artifacts > limits.maxConversations) throw limited();
     await onRecord(value, locator);
   };
   const consumeMember = async (stream, member, entry = null) => {
@@ -114,11 +117,11 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
         yield chunk;
       }
     };
-    if (member.kind === 'conversations' || member.kind === 'codex_tasks') {
+    if (member.kind === 'conversations' || member.kind === 'codex_tasks' || member.kind === 'artifacts') {
       await parseEvidenceArray(measured(), {
         limits, check,
         onRecord: (value, locator) => countRecord(value, { ...locator, member: member.name,
-          evidenceKind: member.kind === 'codex_tasks' ? 'exported_codex_task' : 'exported_conversation' })
+          evidenceKind: member.kind === 'artifacts' ? 'recovered_artifact' : member.kind === 'codex_tasks' ? 'exported_codex_task' : 'exported_conversation' })
       });
     } else {
       const semantic = ['export_manifest', 'asset_names'].includes(member.kind);
@@ -181,10 +184,11 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
               return;
             }
             const kind = /(?:^|\/)conversations(?:[-_]\d+)?\.json$/i.test(name) ? 'conversations'
-              : /(?:^|\/)codex\.json$/i.test(name) ? 'codex_tasks'
-                : /(?:^|\/)export_manifest\.json$/i.test(name) ? 'export_manifest'
-                  : /(?:^|\/)conversation_asset_file_names\.json$/i.test(name) ? 'asset_names'
-                    : /\.(?:zip|tar|gz|7z|tgz|bz2|tbz2|xz|txz|rar|zst|lz|lzma|cab)$/i.test(name) ? 'unsupported_archive' : 'asset_or_unknown';
+              : /(?:^|\/)artifacts(?:[-_]\d+)?\.json$/i.test(name) ? 'artifacts'
+                : /(?:^|\/)codex\.json$/i.test(name) ? 'codex_tasks'
+                  : /(?:^|\/)export_manifest\.json$/i.test(name) ? 'export_manifest'
+                    : /(?:^|\/)conversation_asset_file_names\.json$/i.test(name) ? 'asset_names'
+                      : /\.(?:zip|tar|gz|7z|tgz|bz2|tbz2|xz|txz|rar|zst|lz|lzma|cab)$/i.test(name) ? 'unsupported_archive' : 'asset_or_unknown';
             if (kind === 'unsupported_archive') unsupportedArchives += 1;
             const stream = await new Promise((resolveStream, rejectStream) => zip.openReadStream(entry,
               (error, value) => error ? rejectStream(error) : resolveStream(value)));
@@ -196,14 +200,14 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
     } else {
       members = 1;
       await consumeMember(source.createReadStream({ autoClose: false, start: 0 }), {
-        name: 'conversations.json', kind: 'conversations'
+        name: path.basename(sourcePath), kind: /^artifacts(?:[-_]\d+)?\.json$/i.test(path.basename(sourcePath)) ? 'artifacts' : 'conversations'
       });
     }
     check();
     const final = await source.stat();
     if (initial.size !== final.size || initial.mtimeMs !== final.mtimeMs || initial.ctimeMs !== final.ctimeMs) throw invalid();
-    if (!conversations && !tasks) throw invalid();
-    return { archiveSha256, members, conversations, tasks, unsupportedArchives, complete: unsupportedArchives === 0 };
+    if (!conversations && !tasks && !artifacts) throw invalid();
+    return { archiveSha256, members, conversations, tasks, artifacts, unsupportedArchives, complete: unsupportedArchives === 0 };
   } catch (error) {
     if (error?.code?.startsWith('ERR_INFERENCE_HISTORY_')) throw error;
     throw invalid();

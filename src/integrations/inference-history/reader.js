@@ -29,6 +29,11 @@ const textParts = content => {
 
 /** Default derivatives admit explicit public text types and channels only. */
 export function visibleNode(raw, kind, nodeId) {
+  if(kind==='recovered_artifact'){
+    if(raw.id!==nodeId||raw.visibility!=='visible'||typeof raw.body!=='string')return null;
+    return {nodeId,messageId:null,role:'artifact',channel:null,text:raw.body,
+      createdAt:normalizeTimestamp(raw.created_at),payloadHash:hashCanonicalJson(raw),attachments:[]};
+  }
   if (kind === 'exported_conversation') {
     const node = raw.mapping?.[nodeId], message = node?.message;
     if (!visible(message) || !['text', 'multimodal_text'].includes(message.content?.content_type)) return null;
@@ -185,7 +190,7 @@ export function searchHistory(db, request) {
   if (!PATHS.includes(pathState) || (request.snapshotRef != null && !opaque(request.snapshotRef))
     || (request.includeHistory != null && typeof request.includeHistory !== 'boolean')) throw invalid();
   const role = request.role ?? null;
-  if (role !== null && !['user', 'assistant'].includes(role)) throw invalid();
+  if (role !== null && !['user', 'assistant', 'artifact'].includes(role)) throw invalid();
   const from = dateBound(request.dateFrom, false), to = dateBound(request.dateTo, true);
   if (from && to && from > to) throw invalid();
   const envelope = { query: { version: HISTORY_SEARCH_VERSION, original: request.query, tokens,
@@ -262,7 +267,7 @@ export function readVisibleContext(db, request) {
   const role = request.timeline ? request.role ?? null : null;
   const from = request.timeline ? dateBound(request.dateFrom, false) : null;
   const to = request.timeline ? dateBound(request.dateTo, true) : null;
-  if ((role !== null && !['user','assistant'].includes(role)) || (from && to && from > to)
+  if ((role !== null && !['user','assistant','artifact'].includes(role)) || (from && to && from > to)
     || (request.timeline && !['oldest','newest'].includes(request.order ?? 'oldest'))) throw invalid();
   if (request.offset != null) integer(request.offset, 0, 0, 10000);
   const anchor = db?.prepare(`SELECT units.node_id AS nodeId FROM units JOIN snapshot_units su ON su.unit_id=units.id
@@ -283,7 +288,8 @@ export function readVisibleContext(db, request) {
         seen.add(current); ids.unshift(current); current = snapshot.raw.mapping[current].parent;
       }
     }
-  } else ids = snapshot.raw.turns.map(turn => turn.id);
+  } else if (snapshot.source_kind==='recovered_artifact') ids=[snapshot.raw.id];
+  else ids = snapshot.raw.turns.map(turn => turn.id);
   let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(visibleNode(snapshot.raw, snapshot.source_kind, nodeId),snapshot.policy), ordinal }))
     .filter(({ node }) => node !== null).sort((left, right) =>
       (left.node.createdAt.utc ?? '\uffff').localeCompare(right.node.createdAt.utc ?? '\uffff') || left.ordinal - right.ordinal);
