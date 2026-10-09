@@ -4,6 +4,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { historyError } from './common.js';
+import { HISTORY_STORE_FORMAT, historyIndexState } from './generation.js';
 
 const unsafe = () => historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Inference-history storage must be a private vault outside repository trees.');
 
@@ -60,7 +61,7 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     db.pragma('temp_store = MEMORY');
     if (present?.size) {
       const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-      if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v4'
+      if (metadata.partition !== partitionKey || metadata.format !== HISTORY_STORE_FORMAT
         || !/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
     }
     if (create) {
@@ -84,8 +85,9 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
           PRIMARY KEY(import_id, kind, logical_id, path)
         );
         CREATE TABLE IF NOT EXISTS records (
-          id TEXT PRIMARY KEY, latest_snapshot TEXT, deleted INTEGER NOT NULL DEFAULT 0
+          id TEXT PRIMARY KEY, latest_snapshot TEXT, deleted INTEGER NOT NULL DEFAULT 0, excluded INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS history_privacy (record_id TEXT PRIMARY KEY REFERENCES records(id), policy TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS snapshots (
           id TEXT PRIMARY KEY, record_id TEXT NOT NULL REFERENCES records(id),
           source_kind TEXT NOT NULL, source_id TEXT NOT NULL, raw_json TEXT NOT NULL, title TEXT NOT NULL, diagnostics TEXT NOT NULL
@@ -150,20 +152,27 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
             last_date=(SELECT MAX(json_extract(metadata,'$.createdAt.utc')) FROM units);
         END;
         CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(id UNINDEXED, text, tokenize='unicode61');
-        CREATE TRIGGER IF NOT EXISTS units_insert AFTER INSERT ON units BEGIN
+        CREATE TRIGGER IF NOT EXISTS units_insert AFTER INSERT ON units WHEN (SELECT excluded FROM records WHERE id=new.record_id)=0 BEGIN
           INSERT INTO units_fts(id, text) VALUES(new.id, new.text);
+        END;
+        CREATE TRIGGER IF NOT EXISTS units_update AFTER UPDATE OF text ON units BEGIN
+          DELETE FROM units_fts WHERE id=old.id;
+          INSERT INTO units_fts(id,text) SELECT new.id,new.text WHERE (SELECT excluded FROM records WHERE id=new.record_id)=0;
         END;
         CREATE TRIGGER IF NOT EXISTS units_delete AFTER DELETE ON units BEGIN
           DELETE FROM units_fts WHERE id=old.id;
         END;
       `);
       db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
-      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', 'inference-history.v4');
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', HISTORY_STORE_FORMAT);
       db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('generation', '0');
+      db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('updated_at', new Date().toISOString());
     }
     const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
-    if (metadata.partition !== partitionKey || metadata.format !== 'inference-history.v4') throw unsafe();
+    if (metadata.partition !== partitionKey || metadata.format !== HISTORY_STORE_FORMAT) throw unsafe();
     if (!/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
+    historyIndexState(db);
     return db;
   } catch (error) { db.close(); throw error; }
 }

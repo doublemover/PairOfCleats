@@ -1,4 +1,5 @@
-import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery } from './query.js';
+import { historyPrivacy, privacyText, privacyNode } from './privacy.js';
+import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery, matchesHistoryHardConstraints } from './query.js';
 import { hashCanonicalJson, normalizeTimestamp } from './normalize.js';
 import { privateReference, historyError, projectHistoryText, redactHistoryText } from './common.js';
 
@@ -109,7 +110,8 @@ const cacheFor = (db, request) => {
     if (!row) return null;
     bytes += Buffer.byteLength(row.raw_json);
     if (bytes > MAX_RAW_BYTES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History read evidence budget exceeded.');
-    const value = { ...row, raw: JSON.parse(row.raw_json) };
+    const policy=historyPrivacy(db,row.record_id);
+    const value = { ...row, raw: JSON.parse(row.raw_json), policy, title:privacyText(row.title,policy) };
     snapshots.set(snapshotRef, value);
     return value;
   };
@@ -118,12 +120,12 @@ const locations = (db, sourceRef, { history = true, snapshot = null, pathState =
   WITH candidates AS MATERIALIZED (SELECT s.id AS snapshotRef, s.record_id AS recordRef, s.title, su.path_state AS pathState,
     (s.id=r.latest_snapshot) AS latest
   FROM snapshot_units su JOIN snapshots s ON s.id=su.snapshot_id JOIN records r ON r.id=s.record_id
-  WHERE su.unit_id=? AND r.deleted=0 AND (?=1 OR s.id=r.latest_snapshot)
+  WHERE su.unit_id=? AND r.deleted=0 AND r.excluded=0 AND (?=1 OR s.id=r.latest_snapshot)
     AND (? IS NULL OR s.id=?) AND (?='all' OR su.path_state=?)
   LIMIT 1001) SELECT snapshotRef, recordRef, title, pathState FROM candidates ORDER BY latest DESC, snapshotRef
 `).all(sourceRef, history ? 1 : 0, snapshot, snapshot, pathState, pathState);
 const occurrences = (db, snapshotRef) => db.prepare(`SELECT import_id AS importRef, member, ordinal
-  FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal LIMIT 1001`).all(snapshotRef);
+  FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal LIMIT 1001`).all(snapshotRef).map(row=>({...row,member:privacyText(row.member,historyPrivacy(db,db.prepare('SELECT record_id FROM snapshots WHERE id=?').get(snapshotRef).record_id))}));
 const boundedProvenance = () => {
   let remaining = MAX_CANDIDATES;
   return rows => {
@@ -133,7 +135,7 @@ const boundedProvenance = () => {
   };
 };
 const reference = (db, sourceRef, location, admit) => ({
-  sourceRef, ...location, occurrences: admit(occurrences(db, location.snapshotRef))
+  sourceRef, ...location, title:privacyText(location.title,historyPrivacy(db,location.recordRef)), occurrences: admit(occurrences(db, location.snapshotRef))
 });
 const guard = (result, refs) => Object.defineProperty(result, READ_GUARDS, { value: refs });
 const groupKey = (row, node, namespace) => node.messageId
@@ -144,13 +146,15 @@ function coverage(db) {
   if (!db) return { imports: 0, records: 0, units: 0, coverage: 'none', complete: false,
     indexedMessageBounds: { first: null, last: null, unknownDates: 0 }, exportCutoff: null, fullCorpusWindow: null };
   const stats = db.prepare('SELECT * FROM history_stats WHERE singleton=1').get();
+  Object.assign(stats,db.prepare(`SELECT COUNT(DISTINCT records.id) AS records, COUNT(units.id) AS units, SUM(json_extract(units.metadata,'$.createdAt.utc') IS NULL) AS unknown_dates, MIN(json_extract(units.metadata,'$.createdAt.utc')) AS first_date, MAX(json_extract(units.metadata,'$.createdAt.utc')) AS last_date FROM records LEFT JOIN units ON units.record_id=records.id WHERE records.deleted=0 AND records.excluded=0`).get());
+  stats.unknown_dates ??= 0;
   return { imports: stats.imports, records: stats.records,
     units: stats.units, coverage: stats.imports ? 'selected_input' : 'none',
     complete: stats.imports > 0 && stats.incomplete_imports === 0,
     indexedMessageBounds: { first: stats.first_date, last: stats.last_date, unknownDates: stats.unknown_dates },
     exportCutoff: null, fullCorpusWindow: null,
     caveats: ['Bounds describe stored unit dates, not complete archive coverage or an export cutoff.',
-      'No media decoding, Pages-directory ingestion, embeddings or semantic retrieval are provided.'] };
+      'No media decoding or Pages-directory ingestion is provided. Optional semantic candidates require a separately provisioned trusted local adapter.'] };
 }
 const dateBound = (value, end) => {
   if (value == null) return null;
@@ -195,7 +199,7 @@ export function searchHistory(db, request) {
   if (!db) return { ...envelope, hits: [], totalMatches: 0, totalMatchedUnits: 0, complete: true, nextOffset: null };
   const query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
   const sql = `FROM units_fts JOIN units ON units.id=units_fts.id JOIN records ON records.id=units.record_id
-    WHERE units_fts MATCH ? AND records.deleted=0
+    WHERE units_fts MATCH ? AND records.deleted=0 AND records.excluded=0
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')>=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')<=?)
     AND EXISTS (SELECT 1 FROM snapshot_units WHERE snapshot_units.unit_id=units.id
@@ -218,7 +222,7 @@ export function searchHistory(db, request) {
     if (locs.length > MAX_CANDIDATES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History provenance budget exceeded.');
     const first = locs[0];
     if (!first) continue;
-    const snapshot = load(first.snapshotRef), node = visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId);
+    const snapshot = load(first.snapshotRef), node = privacyNode(visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId),snapshot.policy);
     if (!node || (role !== null && node.role !== role)) continue;
     const projection = projectHistoryText(node.text, metadata.projection.characterBudget);
     if (!matchesHistoryQuery(projection.text, parsed, matchMode)) continue;
@@ -229,7 +233,7 @@ export function searchHistory(db, request) {
       const snippet = centeredSnippet(projection.text, tokens, snippetChars);
       const { nodeRevision: _privateRevision, ...publicMetadata } = metadata;
       group = { ...publicMetadata, sourceRef: row.sourceRef, recordRef: row.recordRef, snapshotRef: first.snapshotRef,
-        title: first.title, pathState: first.pathState, role: node.role,
+        title: snapshot.title, pathState: first.pathState, role: node.role,
         createdAt: { utc: node.createdAt.utc, state: node.createdAt.state }, text: snippet.text, snippet,
         score: row.score, groupRef: key, groupCount: 0, artifacts: artifactReferences(node),
         instructionAuthority: 'none', references: [] };
@@ -254,11 +258,16 @@ export function searchHistory(db, request) {
 export function readVisibleContext(db, request) {
   if (!opaque(request.snapshotRef) || !opaque(request.sourceRef)) throw invalid();
   const before = integer(request.before, 3, 0, 10), after = integer(request.after, 3, 0, 10);
-  const top = integer(request.top, 6, 1, 20), chars = integer(request.messageChars, 1200, 80, 4000);
+  const top = integer(request.top, request.timeline ? 10 : 6, 1, 20), chars = integer(request.messageChars, 1200, 80, 4000);
+  const role = request.timeline ? request.role ?? null : null;
+  const from = request.timeline ? dateBound(request.dateFrom, false) : null;
+  const to = request.timeline ? dateBound(request.dateTo, true) : null;
+  if ((role !== null && !['user','assistant'].includes(role)) || (from && to && from > to)
+    || (request.timeline && !['oldest','newest'].includes(request.order ?? 'oldest'))) throw invalid();
   if (request.offset != null) integer(request.offset, 0, 0, 10000);
   const anchor = db?.prepare(`SELECT units.node_id AS nodeId FROM units JOIN snapshot_units su ON su.unit_id=units.id
     JOIN snapshots s ON s.id=su.snapshot_id JOIN records r ON r.id=s.record_id
-    WHERE units.id=? AND s.id=? AND r.deleted=0`).get(request.sourceRef, request.snapshotRef);
+    WHERE units.id=? AND s.id=? AND r.deleted=0 AND r.excluded=0`).get(request.sourceRef, request.snapshotRef);
   if (!anchor) return null;
   const snapshot = cacheFor(db, request)(request.snapshotRef);
   let ids = [];
@@ -275,14 +284,23 @@ export function readVisibleContext(db, request) {
       }
     }
   } else ids = snapshot.raw.turns.map(turn => turn.id);
-  const timeline = ids.map((nodeId, ordinal) => ({ node: visibleNode(snapshot.raw, snapshot.source_kind, nodeId), ordinal }))
+  let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(visibleNode(snapshot.raw, snapshot.source_kind, nodeId),snapshot.policy), ordinal }))
     .filter(({ node }) => node !== null).sort((left, right) =>
       (left.node.createdAt.utc ?? '\uffff').localeCompare(right.node.createdAt.utc ?? '\uffff') || left.ordinal - right.ordinal);
+  if (request.timeline) {
+    timeline = timeline.filter(({node}) => (role === null || node.role === role)
+      && (!from || (node.createdAt.utc !== null && node.createdAt.utc >= from))
+      && (!to || (node.createdAt.utc !== null && node.createdAt.utc <= to)));
+    if (request.order === 'newest') timeline.sort((left,right) =>
+      (left.node.createdAt.utc === null) - (right.node.createdAt.utc === null)
+      || (right.node.createdAt.utc ?? '').localeCompare(left.node.createdAt.utc ?? '')
+      || right.ordinal - left.ordinal);
+  }
   const anchorIndex = timeline.findIndex(({ node }) => node.nodeId === anchor.nodeId);
-  if (anchorIndex < 0) return { snapshotRef: request.snapshotRef, sourceRef: request.sourceRef,
+  if (anchorIndex < 0 && !request.timeline) return { snapshotRef: request.snapshotRef, sourceRef: request.sourceRef,
     messages: [], totalVisibleMessages: timeline.length, anchorVisible: false, instructionAuthority: 'none' };
-  const start = request.offset ?? Math.max(0, anchorIndex - Math.min(before, top - 1));
-  const end = request.offset == null ? Math.min(start + top, anchorIndex + after + 1) : start + top;
+  const start = request.offset ?? (request.timeline ? 0 : Math.max(0, anchorIndex - Math.min(before, top - 1)));
+  const end = !request.timeline && request.offset == null ? Math.min(start + top, anchorIndex + after + 1) : start + top;
   const guards = [{ sourceRef: request.sourceRef, snapshotRef: request.snapshotRef }];
   const messages = timeline.slice(start, end).map(({ node }) => {
     const unit = db.prepare(`SELECT units.id AS sourceRef, units.metadata, su.path_state AS pathState
@@ -290,16 +308,20 @@ export function readVisibleContext(db, request) {
       ORDER BY units.id LIMIT 1`).get(request.snapshotRef, node.nodeId);
     if (unit) guards.push({ sourceRef: unit.sourceRef, snapshotRef: request.snapshotRef });
     const projection = projectHistoryText(node.text, chars);
-    return { sourceRef: unit?.sourceRef ?? null, messageId: node.messageId, role: node.role, channel: node.channel,
+    return { sourceRef: unit?.sourceRef ?? null, messageId: snapshot.policy.redactions.length ? null : node.messageId, role: node.role, channel: node.channel,
       createdAt: { utc: node.createdAt.utc, state: node.createdAt.state }, pathState: unit?.pathState ?? 'unknown',
       text: projection.text, projection: projection.metadata, artifacts: artifactReferences(node),
-      anchor: node.nodeId === anchor.nodeId, instructionAuthority: 'none' };
+      anchor: node.nodeId === anchor.nodeId, signals: {
+        correctionLanguage: /\b(actually|correction|instead|no longer|changed my mind|i meant)\b/i.test(node.text),
+        meaning: 'text_signal_only_acceptance_not_inferred' }, instructionAuthority: 'none' };
   });
   return guard({ snapshotRef: request.snapshotRef, sourceRef: request.sourceRef, recordRef: snapshot.record_id,
-    title: snapshot.title, evidenceKind: snapshot.source_kind, messages, anchorVisible: true,
+    title: snapshot.title, evidenceKind: snapshot.source_kind, messages, anchorVisible: anchorIndex >= 0,
     totalVisibleMessages: timeline.length, anchorIndex, offset: start, nextOffset: start + messages.length < timeline.length ? start + messages.length : null,
     previousOffset: start > 0 ? Math.max(0, start - top) : null,
-    order: 'timestamp_then_export_order_missing_dates_last', limits: { top, messageChars: chars, before, after },
+    scope: 'visible_selected_path_or_anchor_ancestry',
+    filters: request.timeline ? {role,dateFrom:from,dateTo:to} : null,
+    order: request.timeline && request.order === 'newest' ? 'newest_timestamp_then_reverse_export_order_missing_dates_last' : 'timestamp_then_export_order_missing_dates_last', limits: { top, messageChars: chars, before, after },
     provenance: { occurrences: boundedProvenance()(occurrences(db, request.snapshotRef)) }, instructionAuthority: 'none' }, guards);
 }
 
@@ -307,7 +329,7 @@ export function readHistoryReferences(db, request) {
   if (!opaque(request.sourceRef)) throw invalid();
   const top = integer(request.top, 20, 1, 50), offset = integer(request.offset, 0, 0, 100000);
   const seed = db?.prepare(`SELECT units.id AS sourceRef, units.node_id AS nodeId, units.metadata
-    FROM units JOIN records r ON r.id=units.record_id WHERE units.id=? AND r.deleted=0`).get(request.sourceRef);
+    FROM units JOIN records r ON r.id=units.record_id WHERE units.id=? AND r.deleted=0 AND r.excluded=0`).get(request.sourceRef);
   if (!seed) return null;
   const load = cacheFor(db, request), seedMeta = JSON.parse(seed.metadata);
   const seedLocations = locations(db, seed.sourceRef);
@@ -317,8 +339,8 @@ export function readHistoryReferences(db, request) {
   if (!seedNode) return null;
   const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   const key = groupKey({ ...seedMeta, ...seed }, seedNode, namespace);
-  const rows = seedNode.messageId ? db.prepare(`SELECT u.id AS sourceRef, u.node_id AS nodeId, u.metadata
-    FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND json_extract(u.metadata,'$.messageId')=?
+  const rows = seedMeta.ownerRedacted ? [seed] : seedNode.messageId ? db.prepare(`SELECT u.id AS sourceRef, u.node_id AS nodeId, u.metadata
+    FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0 AND json_extract(u.metadata,'$.messageId')=?
     ORDER BY u.id LIMIT ?`).all(seedMeta.messageId, MAX_CANDIDATES + 1) : [seed];
   const references = [], guards = [];
   const admitLocations = boundedProvenance(), admitOccurrences = boundedProvenance();
@@ -332,4 +354,48 @@ export function readHistoryReferences(db, request) {
   return guard({ sourceRef: request.sourceRef, groupRef: key, references: references.slice(offset, offset + top),
     totalReferences: rows.length <= MAX_CANDIDATES ? references.length : null, complete: rows.length <= MAX_CANDIDATES,
     offset, top, nextOffset: offset + top < references.length ? offset + top : null, instructionAuthority: 'none' }, guards);
+}
+/** Rehydrate provider references from this authorized partition, never provider text. */
+export function readHistoryCandidates(db, request, candidates) {
+  if (!db || !Array.isArray(candidates) || candidates.length>100) return guard({hits:[]},[]);
+  const parsed=parseHistoryQuery(request.query), history=request.includeHistory===true || request.snapshotRef!=null;
+  const from=dateBound(request.dateFrom,false),to=dateBound(request.dateTo,true), role=request.role ?? null;
+  const load=cacheFor(db,request), hits=[], guards=[], seen=new Set(), admit=boundedProvenance();
+  const namespace=db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
+  for (const candidate of candidates) {
+    if (!opaque(candidate?.sourceRef) || !opaque(candidate?.snapshotRef)) throw invalid();
+    const row=db.prepare('SELECT units.node_id AS nodeId,units.record_id AS recordRef,units.metadata FROM units JOIN records ON records.id=units.record_id WHERE units.id=? AND records.deleted=0 AND records.excluded=0').get(candidate.sourceRef);
+    if (!row) continue;
+    const location=locations(db,candidate.sourceRef,{history,snapshot:request.snapshotRef ?? null,pathState:request.pathState ?? 'all'})
+      .find(value=>value.snapshotRef===candidate.snapshotRef);
+    if (!location) continue;
+    const metadata=JSON.parse(row.metadata),snapshot=load(location.snapshotRef);
+    const node=privacyNode(visibleNode(snapshot.raw,metadata.evidenceKind,row.nodeId),snapshot.policy);
+    if (!node || (role!==null && node.role!==role) || (from && (node.createdAt.utc===null || node.createdAt.utc<from))
+      || (to && (node.createdAt.utc===null || node.createdAt.utc>to))) continue;
+    const projection=projectHistoryText(node.text,metadata.projection.characterBudget);
+    if (!matchesHistoryHardConstraints(projection.text,parsed)) continue;
+    const groupRef=groupKey({...metadata,...row,sourceRef:candidate.sourceRef},node,namespace);
+    if (seen.has(groupRef)) continue;
+    seen.add(groupRef);
+    let snippet=centeredSnippet(projection.text,parsed.tokens,request.snippetChars ?? 600);
+    if(candidate.span!==undefined){
+      const {start,end}=candidate.span??{};
+      if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<=start||end>projection.text.length)throw invalid();
+      let begin=start,finish=Math.min(end,start+(request.snippetChars??600));
+      if(begin>0 && /[\uDC00-\uDFFF]/.test(projection.text[begin]))begin--;
+      if(finish<projection.text.length && /[\uD800-\uDBFF]/.test(projection.text[finish-1]))finish--;
+      snippet={...snippet,text:projection.text.slice(begin,finish),start:begin,end:finish,totalChars:projection.text.length,
+        truncated:begin>0||finish<projection.text.length,semanticSpan:{start,end}};
+    }
+    const {nodeRevision:_privateRevision,...publicMetadata}=metadata;
+    const references=admit(locations(db,candidate.sourceRef)).map(value=>reference(db,candidate.sourceRef,value,admit));
+    for (const value of references) guards.push({sourceRef:value.sourceRef,snapshotRef:value.snapshotRef});
+    hits.push({...publicMetadata,sourceRef:candidate.sourceRef,recordRef:row.recordRef,snapshotRef:location.snapshotRef,
+      role:node.role,createdAt:{utc:node.createdAt.utc,state:node.createdAt.state},title:snapshot.title,
+      pathState:location.pathState,text:snippet.text,snippet,groupRef,groupCount:1,
+      artifacts:artifactReferences(node),instructionAuthority:'none',
+      provenance:{totalReferences:references.length,references:references.slice(0,3),nextOffset:references.length>3?3:null,expand:'readReferences'}});
+  }
+  return guard({hits},guards);
 }

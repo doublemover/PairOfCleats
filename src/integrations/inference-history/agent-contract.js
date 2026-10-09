@@ -7,7 +7,7 @@ export { HISTORY_AGENT_REQUESTS } from '../../contracts/schemas/inference-histor
 export function historyAgentHelp({ full = false } = {}) {
   return {
     version: HISTORY_AGENT_VERSION,
-    capabilities: { lexical: true, boundedRelaxation: true, context: true, dense: false, rerank: false },
+    capabilities: { lexical: true, boundedRelaxation: true, context: true, dense: 'trusted_host_optional', rerank: 'trusted_host_optional' },
     interface: 'Trusted host: reader.execute(command, request, options). CLI discovery: pairofcleats history help --json',
     commands: Object.keys(HISTORY_AGENT_REQUESTS),
     semantics: {
@@ -15,6 +15,7 @@ export function historyAgentHelp({ full = false } = {}) {
       filters: 'All supplied filters are ANDed. role omitted searches both roles.',
       dates: 'Inclusive UTC bounds. YYYY-MM-DD spans the whole day; unknown dates do not satisfy a date filter.',
       history: 'includeHistory=false selects the latest imported revision per record; pathState=all includes alternative branches.',
+      timeline: 'Exact conversation branch, oldest/newest visible messages, optional role and inclusive UTC bounds. Correction-language signals are not verified changes of preference; assistant advice is not user acceptance.',
       provenance: 'Occurrences are locations, not a count of independent conversations. Artifacts are references with unknown availability.',
       coverage: 'Empty results do not establish absence from full history. Coverage and candidate completeness are separate.',
       continuation: 'Execute page.next exactly; it preserves query, filters, scope and budgets, changing only offset.',
@@ -52,7 +53,7 @@ export function validateHistoryAgentRequest(command, request) {
   const schema = HISTORY_AGENT_REQUESTS[command];
   const fail = (field, hint) => { const error = new Error('Invalid archive-reader request.');
     Object.assign(error, { code: 'INVALID_REQUEST', field, hint }); throw error; };
-  if (!schema) fail('command', 'Use help to choose search, context, references, original or member.');
+  if (!schema) fail('command', 'Use help to choose search, context, timeline, references, original or member.');
   if (!request || typeof request !== 'object' || Array.isArray(request)) fail('request', 'Supply a JSON object.');
   for (const name of Object.keys(request)) if (!Object.hasOwn(schema.properties, name)) fail(name, 'Unknown field. Inspect help --all; code-search flags are not archive fields.');
   const result = { ...request };

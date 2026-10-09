@@ -44,9 +44,9 @@ head. None is a blanket release-readiness claim.
 
 ## Private-history usability follow-up
 
-Implemented with focused synthetic validation: versioned progressive help, exact continuation/citation actions, bounded auto lexical relaxation, role/time/provenance packets and honest coverage/output-budget diagnostics. Pure local fusion/diversity/rerank guards are available. See [agent tool usability](guides/agent-tool-usability.md) for contracts and research evidence.
+Implemented with synthetic checks: progressive help, generation-pinned evidence/context, lexical relaxation, optional local semantic fusion/reranking, acknowledged audit and human owner privacy controls. See [agent tool usability](guides/agent-tool-usability.md).
 
-Remaining owner-requested implementation: a trusted local semantic candidate adapter and generation manifest; correction/temporal/small-span evidence coverage; owner-only audit, protected console, exclusions/redactions/context annotations. No private archive embedding run has been performed. Model downloads, full-archive embedding computation and external providers remain separately authorized operations.
+Pending: actual semantic index and human console integration, process-level audit protection and approved archive evaluation. No private embedding run or new deployment is claimed.
 
 ## Canonical Next Queue
 

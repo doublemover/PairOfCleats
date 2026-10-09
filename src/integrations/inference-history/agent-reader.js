@@ -1,13 +1,16 @@
 import { createHash } from 'node:crypto';
 import { HISTORY_AGENT_VERSION, historyAgentHelp, validateHistoryAgentRequest } from './agent-contract.js';
 
-const METHODS = { search: 'search', context: 'readContext', references: 'readReferences',
+const METHODS = { search: 'search', context: 'readContext', timeline: 'readTimeline', references: 'readReferences',
   original: 'readOriginal', member: 'readMemberEvidence' };
 const citation = (sourceRef, snapshotRef) => 'h-' + createHash('sha256')
   .update(JSON.stringify([sourceRef, snapshotRef])).digest('hex').slice(0, 20);
 const action = (command, request) => ({ command, request });
 const pick = (row, names) => Object.fromEntries(names.filter(name => Object.hasOwn(row, name)).map(name => [name, row[name]]));
 const ERROR_HINTS = {
+  ERR_INFERENCE_HISTORY_AUDIT: 'The protected audit sink did not acknowledge persistence. Ask the host to inspect it; no evidence was released.',
+  ERR_INFERENCE_HISTORY_UNAVAILABLE: 'Choose lexical mode or ask the trusted host to provision an approved local model/index. No model download or network fallback occurs.',
+  ERR_INFERENCE_HISTORY_STALE: 'The index changed since this request. Inspect a fresh first page and its generation before intentionally continuing.',
   ERR_INFERENCE_HISTORY_DENIED: 'Ask the trusted host to authorize this action and partition. Changing query or IDs cannot grant access.',
   ERR_INFERENCE_HISTORY_INPUT: 'Inspect full help and use exact returned references.',
   ERR_INFERENCE_HISTORY_LIMIT: 'Reduce requested top/text length or ask the host about its configured limits.',
@@ -38,7 +41,7 @@ export function createHistoryAgentReader({ service, requestContext, partition })
         const evidence = rows.map(row => {
           const snapshotRef = row.snapshotRef ?? result.snapshotRef;
           const selected = pick(row, ['sourceRef', 'snapshotRef', 'messageId', 'evidenceKind', 'score', 'groupRef', 'role', 'createdAt', 'title', 'pathState',
-            'anchor', 'artifacts', 'snippet', 'projection', 'occurrences']);
+            'anchor', 'signals', 'artifacts', 'snippet', 'projection', 'occurrences']);
           if (snapshotRef) selected.snapshotRef = snapshotRef;
           if (row.text !== undefined) selected.text = row.snippet?.text ?? row.text;
           if (selected.snippet) {
@@ -50,9 +53,10 @@ export function createHistoryAgentReader({ service, requestContext, partition })
           if (row.sourceRef && snapshotRef) {
             selected.citation = citation(row.sourceRef, snapshotRef);
             selected.actions = {
-              context: action('context', { sourceRef: row.sourceRef, snapshotRef }),
-              references: action('references', { sourceRef: row.sourceRef }),
-              original: action('original', { snapshotRef })
+              context: action('context', { sourceRef: row.sourceRef, snapshotRef, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }),
+              timeline: action('timeline', { sourceRef: row.sourceRef, snapshotRef, order: 'newest', ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }),
+              references: action('references', { sourceRef: row.sourceRef, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }),
+              original: action('original', { snapshotRef, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) })
             };
           }
           return selected;
@@ -65,8 +69,8 @@ export function createHistoryAgentReader({ service, requestContext, partition })
                 : 'No matching visible evidence under these filters; full-history absence is not established.',
           evidence,
           page: {
-            next: Number.isSafeInteger(result?.nextOffset) ? action(command, { ...effective, offset: result.nextOffset }) : null,
-            previous: Number.isSafeInteger(result?.previousOffset) ? action(command, { ...effective, offset: result.previousOffset }) : null,
+            next: Number.isSafeInteger(result?.nextOffset) ? action(command, { ...effective, offset: result.nextOffset, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }) : null,
+            previous: Number.isSafeInteger(result?.previousOffset) ? action(command, { ...effective, offset: result.previousOffset, ...(result.index?.generationRef ? { expectedGeneration: result.index.generationRef } : {}) }) : null,
             complete: result?.complete ?? null,
             ...(result?.totalMatches !== undefined ? { totalMatches: result.totalMatches } : {}),
             ...(result?.totalReferences !== undefined ? { totalReferences: result.totalReferences } : {}),
@@ -74,8 +78,8 @@ export function createHistoryAgentReader({ service, requestContext, partition })
           },
           coverage: result?.coverage ?? null,
           semantics: result?.query ?? null,
-          index: { generation: null, generationState: 'not_recorded', freshness: 'not_established', schema: 'inference-history.v4',
-            projection: 'history-text.v5', search: result?.query?.version ?? null },
+          semantic: result?.semantic ?? null,
+          index: result?.index ?? null,
           diagnostics: {
             state: result === null ? 'reference_not_visible' : result?.coverage?.imports === 0 ? 'no_imported_index'
               : result?.complete === false ? 'resource_truncated'
@@ -131,7 +135,7 @@ export function renderHistoryAgentSummary(packet) {
 
 /** Resolve a citation only against the supplied returned packet; service still checks all grants. */
 export function resolveHistoryCitation(packet, label, actionName = 'context') {
-  if (packet?.version !== HISTORY_AGENT_VERSION || !['context', 'references', 'original'].includes(actionName)) {
+  if (packet?.version !== HISTORY_AGENT_VERSION || !['context', 'timeline', 'references', 'original'].includes(actionName)) {
     throw new TypeError('Use a versioned packet and supported evidence action.');
   }
   const rows = packet.evidence?.filter(row => row.citation === label) ?? [];

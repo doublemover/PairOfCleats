@@ -1,11 +1,15 @@
+import { historyAuditEvent } from './audit.js';
+import { historyPrivacy, privacyText, updateHistoryPrivacy } from './privacy.js';
 import { validateInferenceHistoryAccess } from '../../contracts/validators/inference-history.js';
 import path from 'node:path';
 import { visitChatGptExport } from './archive.js';
 import { hashCanonicalJson } from './normalize.js';
 import { normalizeHistoryRecord } from './records.js';
 import { normalizeMemberLinks } from './member-links.js';
-import { READ_GUARDS, visibleNode, searchHistory, readVisibleContext, readHistoryReferences } from './reader.js';
+import { READ_GUARDS, visibleNode, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore } from './store.js';
+import { searchHybridHistory } from './hybrid.js';
+import { historyIndexState, advanceHistoryGeneration } from './generation.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
 import { ADAPTER_VERSION, PROJECTION_VERSION, DEFAULT_LIMITS, digest, privateReference, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
 
@@ -26,8 +30,11 @@ const securityIdentity = (access) => JSON.stringify([
  * the requested action; the caller's partition selector is never an identity.
  */
 export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource = null, resolveCodeAccess = null,
-  verifyPrivateVault = null, limits: inputLimits, audit = null }) {
+  verifyPrivateVault = null, limits: inputLimits, audit = null, semantic = null, resolveOwnerAccess = null }) {
   if (typeof resolveAccess !== 'function') throw denied();
+  if(typeof audit!=='function') throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Durable audit sink required.');
+  if (semantic!==null && (semantic.kind!=='local' || !Object.isFrozen(semantic) || typeof semantic.search!=='function'
+    || !opaqueId(semantic.indexGenerationRef))) throw invalid();
   const limits = resolveLimits(inputLimits);
   const projectionFingerprint = digest(JSON.stringify([ADAPTER_VERSION, PROJECTION_VERSION, limits.maxTextChars]));
   const accessFor = async (requestContext, partition, action) => {
@@ -36,9 +43,23 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     if (!validateInferenceHistoryAccess(access).ok) throw denied();
     return Object.freeze({ ...access });
   };
+  const ownerFor=async(access,request)=>{
+    if(typeof resolveOwnerAccess!=='function') throw denied();
+    let owner;
+    try{owner=await resolveOwnerAccess({requestContext:request.requestContext,partition:request.partition,action:request.action});}catch{throw denied();}
+    if(!owner || owner.channel!=='human' || owner.allowed!==true || owner.principalId!==access.principalId
+      || owner.tenantId!==access.tenantId || owner.ownerId!==access.ownerId || owner.policyEpoch!==access.policyEpoch
+      || owner.ownerType!==access.ownerType || owner.sourceScope!==access.sourceScope
+      || (request.ownerIdentity && (request.ownerIdentity.channel!=='human' || request.ownerIdentity.principalId!==access.principalId))) throw denied();
+  };
+  const persistAudit=async(event)=>{
+    try{if((await audit(event))?.persisted!==true)throw new Error();}
+    catch{throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Audit persistence required before release.');}
+  };
   const recheck = async (access, request) => {
     const current = await accessFor(request.requestContext, request.partition, request.action);
     if (securityIdentity(access) !== securityIdentity(current)) throw denied();
+    if(request.action.startsWith('owner_')) await ownerFor(current,request);
   };
   const sourceFor = async (request) => {
     if (typeof resolveImportSource !== 'function') throw denied();
@@ -55,19 +76,23 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     let outcome = 'denied';
     try {
       access = await accessFor(request.requestContext, request.partition, request.action);
+      if(request.action.startsWith('owner_')) await ownerFor(access,request);
       const partitionKey = digest(partitionIdentity(access));
       db = await openHistoryStore(vaultRoot, partitionKey, { create, verifyPrivateVault });
+      const initialIndex = historyIndexState(db);
+      if (request.expectedGeneration !== undefined && (!opaqueId(request.expectedGeneration)
+        || request.expectedGeneration !== initialIndex.generationRef)) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Index generation changed.');
       const result = await operation(db, access, () => recheck(access, request));
-      if (typeof audit === 'function') await audit({ action: request.action, outcome: 'allowed',
-        principalId: access.principalId, partitionKey, policyEpoch: access.policyEpoch });
+      if(result && typeof result==='object') result.index=historyIndexState(db);
+      await persistAudit(historyAuditEvent(request,access,'allowed',result));
       await recheck(access, request);
       // A concurrent tombstone must also gate an in-flight response, even when
       // host policy did not need to change its epoch for this local deletion.
       if (db && ['search', 'read_original', 'read_context', 'read_references', 'correlate'].includes(request.action)) {
         const visibleUnit = db.prepare(`SELECT 1 FROM units JOIN records
-          ON records.id=units.record_id WHERE units.id=? AND records.deleted=0`);
+          ON records.id=units.record_id WHERE units.id=? AND records.deleted=0 AND records.excluded=0`);
         const visibleSnapshot = db.prepare(`SELECT 1 FROM snapshots JOIN records
-          ON records.id=snapshots.record_id WHERE snapshots.id=? AND records.deleted=0`);
+          ON records.id=snapshots.record_id WHERE snapshots.id=? AND records.deleted=0 AND records.excluded=0`);
         if (result?.[READ_GUARDS]?.some(ref => !visibleUnit.get(ref.sourceRef) || !visibleSnapshot.get(ref.snapshotRef))
           || (request.action === 'read_context' && result && !visibleSnapshot.get(request.snapshotRef))
           || result?.hits?.some((hit) => !visibleUnit.get(hit.sourceRef) || !visibleSnapshot.get(hit.snapshotRef))
@@ -75,6 +100,9 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
           || (request.target === 'member' && result && !db.prepare('SELECT 1 FROM member_evidence WHERE import_id=? AND name=?').get(request.importRef, request.member))
           || (request.action === 'correlate' && result?.sourceRef && !visibleUnit.get(result.sourceRef))) throw denied();
       }
+      const finalIndex = historyIndexState(db);
+      if (!create && initialIndex.generationRef !== finalIndex.generationRef) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Index changed during read.');
+      if (result && typeof result === 'object') result.index = finalIndex;
       outcome = 'allowed';
       return result;
     } catch (error) {
@@ -83,14 +111,9 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     } finally {
       if (db?.inTransaction) db.exec('ROLLBACK');
       db?.close();
-      // Audit is a trusted sink. Never include queries, source paths, IDs supplied
-      // by the archive, titles, bodies or raw dependency errors.
-      if (outcome !== 'allowed' && typeof audit === 'function') await audit({
-        action: request.action, outcome,
-        principalId: access?.principalId ?? null,
-        partitionKey: access ? digest(partitionIdentity(access)) : null,
-        policyEpoch: access?.policyEpoch ?? null
-      });
+      // Denied events contain bounded/redacted request data, never archive bodies.
+      if(outcome!=='allowed') await persistAudit(historyAuditEvent(request,access,'denied'));
+
     }
   };
 
@@ -159,7 +182,8 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
             const nodeRevision = node.sourceRevision;
             const sourceRef = privateReference(referenceKey, JSON.stringify([recordRef, node.nodeId, nodeRevision, projectionFingerprint]));
             const fullText = visibleNode(raw, normalized.evidenceKind, node.nodeId)?.text ?? '';
-            const projection = projectHistoryText(fullText, limits.maxTextChars);
+            const policy=historyPrivacy(db,recordRef);
+            const projection = projectHistoryText(privacyText(fullText,policy), limits.maxTextChars);
             const metadata = {
               evidenceKind: normalized.evidenceKind,
               sourceDetails: Object.fromEntries(Object.entries(node.sourceDetails || {})
@@ -169,8 +193,10 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
               createdAt: { utc: node.createdAt.utc, state: node.createdAt.state },
               // Asset payloads and arbitrary metadata require original-read authority.
               assetCount: node.assets.length, partCount: node.parts.length,
+              ownerRedacted:policy.redactions.length>0,
               nodeRevision, projectionVersion: PROJECTION_VERSION, projectionFingerprint, projection: projection.metadata
             };
+            if(policy.redactions.length){metadata.sourceDetails={};metadata.messageId=null;}
             // Redact complete extracted parts before clipping; otherwise a
             // credential cut by the projection boundary could evade detection.
             const inserted = db.prepare('INSERT OR IGNORE INTO units VALUES (?, ?, ?, ?, ?)').run(
@@ -207,24 +233,30 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         adapterVersion: ADAPTER_VERSION, projectionVersion: PROJECTION_VERSION
       };
       db.prepare('UPDATE imports SET summary=? WHERE id=?').run(JSON.stringify(result), importId);
+      advanceHistoryGeneration(db);
       db.exec('COMMIT');
       return result;
     });
 
   const search = async (request) => perform({ ...request, action: 'search' }, false,
-    async db => searchHistory(db, request));
+    async (db,_access,reauthorize) => searchHybridHistory(db,request,semantic,reauthorize));
   const readContext = async (request) => perform({ ...request, action: 'read_context' }, false,
     async db => readVisibleContext(db, request));
+  const readTimeline = async (request) => perform({ ...request, action: 'read_context' }, false,
+    async db => readVisibleContext(db, { ...request, timeline: true }));
   const readReferences = async (request) => perform({ ...request, action: 'read_references' }, false,
     async db => readHistoryReferences(db, request));
   const readOriginal = async (request) => perform({ ...request, action: 'read_original', target: 'record' }, false, async (db) => {
     if (!opaqueId(request.snapshotRef)) throw invalid();
     const row = db?.prepare(`SELECT snapshots.raw_json, snapshots.diagnostics, snapshots.source_kind FROM snapshots
       JOIN records ON records.id=snapshots.record_id
-      WHERE snapshots.id=? AND records.deleted=0`).get(request.snapshotRef);
+      WHERE snapshots.id=? AND records.deleted=0 AND records.excluded=0`).get(request.snapshotRef);
     if (!row) return null;
     const occurrences = db.prepare(`SELECT import_id AS importRef, member, ordinal, raw_sha256 AS rawSha256
       FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal`).all(request.snapshotRef);
+    const recordRef=db.prepare('SELECT record_id FROM snapshots WHERE id=?').get(request.snapshotRef).record_id;
+    const policy=historyPrivacy(db,recordRef);
+    if(policy.redactions.length || policy.excluded) throw denied();
     const raw = JSON.parse(row.raw_json);
     let assetReferences = [], assetReferencesComplete = true;
     try {
@@ -247,6 +279,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     if (!opaqueId(request.importRef) || typeof request.member !== 'string' || request.member.length > 4096) throw invalid();
     const row = db?.prepare('SELECT kind, raw_json FROM member_evidence WHERE import_id=? AND name=?').get(request.importRef, request.member);
     if (!row) return null;
+    if(db.prepare("SELECT 1 FROM occurrences JOIN snapshots ON snapshots.id=occurrences.snapshot_id JOIN history_privacy ON history_privacy.record_id=snapshots.record_id WHERE occurrences.import_id=? AND (json_extract(history_privacy.policy,'$.excluded')=1 OR json_array_length(json_extract(history_privacy.policy,'$.redactions'))>0) LIMIT 1").get(request.importRef)) throw denied();
     const links = db.prepare('SELECT kind, logical_id AS logicalId, path, declared_bytes AS declaredBytes, state FROM member_links WHERE import_id=? ORDER BY kind, logical_id, path').all(request.importRef);
     return { importRef: request.importRef, member: request.member, kind: row.kind, rawJson: row.raw_json,
       raw: JSON.parse(row.raw_json), links, instructionAuthority: 'none', filesystemAuthority: 'none' };
@@ -256,7 +289,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     if (!opaqueId(request.sourceRef) || typeof resolveCodeAccess !== 'function') throw denied();
     const row = db?.prepare(`SELECT units.text FROM units
       JOIN records ON records.id=units.record_id
-      WHERE units.id=? AND records.deleted=0`).get(request.sourceRef);
+      WHERE units.id=? AND records.deleted=0 AND records.excluded=0`).get(request.sourceRef);
     if (!row) return { relations: [], unresolvedCommitMentions: [] };
     // Code grants are independent of history grants. Only trusted host policy
     // supplies repository roots and Markdown files, never retrieved text.
@@ -268,25 +301,49 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     return { sourceRef: request.sourceRef, ...result, instructionAuthority: 'none' };
   });
 
+  const ownerInventory=async request=>perform({...request,action:'owner_inventory'},false,async(db,access)=>{
+    const top=request.top??20,offset=request.offset??0;
+    if(!Number.isSafeInteger(top)||top<1||top>100||!Number.isSafeInteger(offset)||offset<0||offset>100000)throw invalid();
+    const rows=db?.prepare('SELECT id,excluded,deleted FROM records ORDER BY id LIMIT ? OFFSET ?').all(top+1,offset)??[];
+    return {version:'history-owner.v1',records:rows.slice(0,top).map(row=>{
+      const policy=historyPrivacy(db,row.id);
+      return {recordRef:row.id,excluded:row.excluded===1,deleted:row.deleted===1,redactionCount:policy.redactions.length,
+        annotation:policy.annotation,instructionAuthority:'none'};
+    }),nextOffset:rows.length>top?offset+top:null,
+    auditScope:{tenantId:access.tenantId,ownerType:access.ownerType,ownerId:access.ownerId,sourceScope:access.sourceScope,policyEpoch:access.policyEpoch,principalId:access.principalId}};
+  });
+  const ownerSetPrivacy=async request=>perform({...request,action:'owner_privacy'},true,async(db,_access,reauthorize)=>{
+    db.exec('BEGIN IMMEDIATE');
+    const {ownerIdentity:_ignored,...input}=request;
+    const result=updateHistoryPrivacy(db,input,visibleNode);
+    await reauthorize();
+    if(result.changed)advanceHistoryGeneration(db);
+    db.exec('COMMIT');
+    return {recordRef:request.recordRef,excluded:result.policy.excluded,redactionCount:result.policy.redactions.length,
+      annotation:result.policy.annotation,changed:result.changed,originalRetained:true,externalBackupsErased:false,instructionAuthority:'none'};
+  });
   const deleteRecord = async (request) => perform({ ...request, action: 'delete' }, true,
     async (db, _access, reauthorize) => {
       if (!opaqueId(request.recordRef)) throw invalid();
       db.exec('BEGIN IMMEDIATE');
+      const wasDeleted = db.prepare('SELECT deleted FROM records WHERE id=?').get(request.recordRef)?.deleted === 1;
       db.prepare('INSERT OR IGNORE INTO records(id, deleted) VALUES (?, 1)').run(request.recordRef);
       db.prepare('UPDATE records SET deleted=1, latest_snapshot=NULL WHERE id=?').run(request.recordRef);
       db.prepare('DELETE FROM member_evidence WHERE import_id IN (SELECT import_id FROM occurrences JOIN snapshots ON snapshots.id=occurrences.snapshot_id WHERE snapshots.record_id=?)').run(request.recordRef);
       db.prepare('DELETE FROM member_links WHERE import_id IN (SELECT import_id FROM occurrences JOIN snapshots ON snapshots.id=occurrences.snapshot_id WHERE snapshots.record_id=?)').run(request.recordRef);
+      db.prepare('DELETE FROM history_privacy WHERE record_id=?').run(request.recordRef);
       db.prepare('DELETE FROM snapshots WHERE record_id=?').run(request.recordRef);
       db.prepare('DELETE FROM units WHERE record_id=?').run(request.recordRef);
       // FTS segment merges remove deleted text from live index pages. Filesystem
       // snapshots/backups and the caller-retained original archive are external.
       db.prepare("INSERT INTO units_fts(units_fts) VALUES ('optimize')").run();
       await reauthorize();
+      if (!wasDeleted) advanceHistoryGeneration(db);
       db.exec('COMMIT');
       return { recordRef: request.recordRef, tombstoned: true,
         vaultRowsRemoved: true, sharedMemberEvidencePruned: true, originalArchiveRetainedByCaller: true,
         importInventoryRetained: true, externalBackupsErased: false };
     });
 
-  return Object.freeze({ importExport, search, readContext, readReferences, readOriginal, readMemberEvidence, correlate, deleteRecord });
+  return Object.freeze({ importExport, search, readContext, readTimeline, readReferences, readOriginal, readMemberEvidence, correlate, deleteRecord, ownerInventory, ownerSetPrivacy });
 }
