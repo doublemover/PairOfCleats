@@ -119,3 +119,4 @@ storage/sqlite/ann/sqlite-extension
 tooling/sublime/package-harness
 indexing/embeddings/stub-fastpath-cache-contract-matrix
 retrieval/contracts/compact-json
+indexing/incremental/stage-checkpoint-build

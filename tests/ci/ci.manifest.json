@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 90,
+    "hero": 91,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -739,6 +739,12 @@
     {
       "id": "retrieval/contracts/compact-json",
       "order": 121,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/stage-checkpoint-build",
+      "order": 122,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
