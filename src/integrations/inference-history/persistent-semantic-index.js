@@ -9,7 +9,7 @@ import { runHistoryCallback } from './bounded-callback.js';
 import { planHistoryTokenBatches } from './token-batches.js';
 
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid archive embedding controls.');
-const visible = 'FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0';
+const visible = 'FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot)';
 
 /** Independent document generations, full-vector cache and source occurrence references. */
 export function createPersistentHistorySemanticIndex(db, runtime) {
@@ -64,7 +64,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
       indexedUnits: indexed, pendingUnits: total - indexed, indexedSpans: statements.spans.get(documentKey).n,
       uniqueInputs: statements.vectors.get(documentKey).n, complete: indexed === total,
       generationRef: historyIndexState(db).generationRef, nativeWorkPending: nativePending,
-      storage: 'archive_sqlite', scope: 'visible_redacted_projected_text', media: false };
+      storage: 'archive_sqlite', scope: 'latest_snapshot_visible_redacted_projected_text', media: false };
   };
   const commit = db.transaction((inputs, occurrences) => {
     let addedInputs = 0, addedBytes = 0;
@@ -246,7 +246,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
           'SELECT e.unit_id AS sourceRef,e.start,e.end,c.vector,u.text,',
           "(SELECT s.snapshot_id FROM snapshot_units s WHERE s.unit_id=u.id AND (?=1 OR s.snapshot_id=r.latest_snapshot) AND (? IS NULL OR s.snapshot_id=?) AND (?='all' OR s.path_state=?) ORDER BY s.snapshot_id LIMIT 1) AS snapshotRef",
           'FROM history_embedding_spans_v2 e JOIN history_embedding_units_v2 done ON done.document_key=e.document_key AND done.unit_id=e.unit_id JOIN history_embedding_inputs_v2 c ON c.document_key=e.document_key AND c.input_key=e.input_key JOIN units u ON u.id=e.unit_id JOIN records r ON r.id=u.record_id',
-          "WHERE e.document_key=? AND done.complete=1 AND r.deleted=0 AND r.excluded=0 AND (? IS NULL OR json_extract(u.metadata,'$.role')=?) AND (? IS NULL OR json_extract(u.metadata,'$.createdAt.utc')>=?) AND (? IS NULL OR json_extract(u.metadata,'$.createdAt.utc')<=?) ORDER BY e.unit_id,e.start"
+          "WHERE e.document_key=? AND done.complete=1 AND r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot) AND (? IS NULL OR json_extract(u.metadata,'$.role')=?) AND (? IS NULL OR json_extract(u.metadata,'$.createdAt.utc')>=?) AND (? IS NULL OR json_extract(u.metadata,'$.createdAt.utc')<=?) ORDER BY e.unit_id,e.start"
         ].join(' ');
         const ranked = []; let matched = 0, visited = 0, lastSource = '';
         for (const row of db.prepare(sql).iterate(history ? 1 : 0, request.snapshotRef ?? null, request.snapshotRef ?? null, path, path, documentKey, role, role, from, from, to, to)) {
@@ -271,6 +271,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
   };
   return Object.freeze({ status, refresh, adapter });
 }
+
 
 
 
