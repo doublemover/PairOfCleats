@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-08T19:03:13.628Z",
+  "generatedAt": "2026-10-09T02:22:28.608Z",
   "summary": {
     "lanes": 5,
-    "tests": 1078,
+    "tests": 1081,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 280,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1004
+      "missingTests": 1007
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 893,
+      "totalTests": 896,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 844
+        "missing": 847
       }
     },
     {
@@ -397,16 +397,22 @@
       "unknownDurationCount": 9
     },
     {
-      "key": "shared/concurrency",
+      "key": "cli/search",
       "count": 8,
       "knownDurationMs": 0,
       "unknownDurationCount": 8
     },
     {
-      "key": "cli/search",
-      "count": 7,
+      "key": "integrations/inference-history",
+      "count": 8,
       "knownDurationMs": 0,
-      "unknownDurationCount": 7
+      "unknownDurationCount": 8
+    },
+    {
+      "key": "shared/concurrency",
+      "count": 8,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 8
     },
     {
       "key": "indexing/extracted-prose",
@@ -419,12 +425,6 @@
       "count": 7,
       "knownDurationMs": 0,
       "unknownDurationCount": 7
-    },
-    {
-      "key": "integrations/inference-history",
-      "count": 6,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 6
     },
     {
       "key": "runner/harness",
@@ -1829,9 +1829,9 @@
     },
     {
       "key": "search-cli-contract",
-      "count": 7,
+      "count": 8,
       "knownDurationMs": 0,
-      "unknownDurationCount": 7,
+      "unknownDurationCount": 8,
       "note": "Search CLI help, explain, and contract surfaces share fixture/index bootstrap."
     },
     {

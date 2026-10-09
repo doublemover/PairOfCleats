@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-08T19:03:13.628Z
+Generated: 2026-10-09T02:22:28.608Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-08T19:03:13.628Z
 ## Lane Summary
 
 - `gate`: 35 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 893 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 896 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 121 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 18 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -56,7 +56,7 @@ Generated: 2026-10-08T19:03:13.628Z
   Dedicated/configured provider bootstrap and session reuse.
 - `smoke-wiring`: 9 tests, 0 ms known duration
   Smoke suites should stay thin and avoid chaining lower-level contract tests.
-- `search-cli-contract`: 7 tests, 0 ms known duration
+- `search-cli-contract`: 8 tests, 0 ms known duration
   Search CLI help, explain, and contract surfaces share fixture/index bootstrap.
 - `map-build`: 4 tests, 0 ms known duration
   Code-map suites often share the same repo build and render pipeline.

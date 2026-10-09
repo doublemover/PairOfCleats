@@ -422,3 +422,6 @@ when useful. Pagination changes the visible-message window, not a message's text
 Use `readOriginal` only under a separate explicit `read_original` grant when raw
 exported evidence is needed. Snippet/group/context output is a derivative and is not
 an artifact-existence check, implementation certification or complete archive audit.
+## Versioned agent reader
+
+The history-agent.v1 read-only presentation facade and history-search.v2 query contract are documented in [agent tool usability](../guides/agent-tool-usability.md). Strict matching retains lexical AND; explicit relaxed and facade-default auto support bounded lexical relaxation while preserving phrases, exclusions, role/time/path/snapshot filters and the existing service authority. The old survey remains pinned separately. No dense archive index or network/model fallback is introduced.

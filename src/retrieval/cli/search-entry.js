@@ -1,7 +1,7 @@
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
-import { getSearchUsage, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
+import { getSearchHelp, getSearchUsage, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
 import { formatHumanError, inferJsonOutputFromArgs } from './runner.js';
 
 const resolveHelpWidth = (stdout = process.stdout) => {
@@ -63,7 +63,7 @@ export async function runCli({
 } = {}) {
   const args = rawArgs.slice();
   if (hasHelpArg(args)) {
-    printHelp(stdout);
+    printHelp(stdout, { full: args.includes('--all'), json: args.includes('--json') });
     return 0;
   }
   if (hasVersionArg(args)) {
@@ -134,7 +134,16 @@ export function hasVersionArg(values) {
   ));
 }
 
-export function printHelp(stdout = process.stdout) {
+export function printHelp(stdout = process.stdout, { full = false, json = false } = {}) {
+  const guide = getSearchHelp({ full });
+  if (json) { stdout.write(JSON.stringify(guide) + '\n'); return; }
+  if (full) {
+    stdout.write('PairOfCleats Search: all options\n' + Object.entries(guide.options).map(([name, field]) =>
+      '--' + name + (field.type === 'boolean' ? ' / --no-' + name : ' <' + field.type + '>')
+      + (Object.hasOwn(field, 'default') ? ' (default ' + JSON.stringify(field.default) + ')' : '')
+      + (field.describe ? ' ' + field.describe : '')).join('\n') + '\n');
+    return;
+  }
   const width = resolveHelpWidth(stdout);
   const color = isColorAllowed(stdout);
   const lines = [
@@ -148,7 +157,7 @@ export function printHelp(stdout = process.stdout) {
     '',
     heading('Modes', color),
     ...formatFlagList([
-      '--mode <code|prose|records|extracted-prose|default>  Select the search surface.',
+      '--mode <code|prose|records|extracted-prose|both|all>  Select the search surface.',
       '--repo <path>  Search a specific repo root.',
       '--as-of <IndexRef> / --snapshot <snapshotId>  Query a stable index view.'
     ], width),
@@ -156,7 +165,7 @@ export function printHelp(stdout = process.stdout) {
     heading('Filters', color),
     ...formatFlagList([
       '--path <glob> / --file <path> / --ext <ext> / --lang <lang>',
-      '--author <name> / --modified-since <date> / --type <symbol-kind>',
+      '--author <name> / --modified-after <ISO-date> / --modified-since <days> / --type <symbol-kind>',
       '--calls <symbol> / --uses <symbol> / --import <path-or-symbol> / --risk <filter>'
     ], width),
     '',
@@ -165,7 +174,7 @@ export function printHelp(stdout = process.stdout) {
       '--json / --compact  Emit machine-readable payloads.',
       '--stats / --explain  Show retrieval metadata or summary ranking explanation.',
       '--why  Show full explain detail, including deeper relation and dataflow sections.',
-      '--ann / --no-ann / --backend <auto|sqlite|sqlite-fts|lmdb>'
+      '--ann / --no-ann / --backend <auto|sqlite|sqlite-fts|fts|lmdb|tantivy|memory>'
     ], width),
     '',
     heading('Starter Recipes', color),
@@ -174,6 +183,13 @@ export function printHelp(stdout = process.stdout) {
     '  pairofcleats search withLspSession --calls startProvider',
     '  pairofcleats search risk --risk severity=high --explain',
     '  pairofcleats search scoreBreakdown --path src/retrieval/output --why',
+    '',
+    heading('Query and Continuation', color),
+    ...Object.values(guide.semantics).flatMap(text => wrapParagraph(text, width, '  ')),
+    '',
+    '  Defaults: --top 5; omitted mode searches code, prose and extracted comments.',
+    '  Full option reference: pairofcleats search --help --all',
+    '  Agent schema: pairofcleats search --help --all --json',
     '',
     heading('Notes', color),
     ...wrapParagraph(
