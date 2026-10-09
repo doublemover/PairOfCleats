@@ -1,3 +1,5 @@
+import { registerArchiveAnalyzer, DEFAULT_ARCHIVE_ANALYZER } from '../../../src/integrations/inference-history/lexical-analyzer.js';
+import { archiveDocumentInput } from '../../../src/integrations/inference-history/document-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -33,10 +35,10 @@ __setArchiveWorkerFactoryForTests(options=>{
   const dimensions=options.fullProfile.dimensions;
   const vector=text=>{const value=new Float32Array(dimensions);value[/rocket|spacecraft/.test(text)?0:1]=1;return value;};
   return {
-    config:options,effectiveInput:text=>options.passagePrefix+text,
+    config:options,effectiveInput:archiveDocumentInput, measureBatch: async documents=>documents.map(document=>archiveDocumentInput(document).length),
     waitForIdle:async()=>{},dispose:async()=>{},
     cancel:async()=>({requestAccepted:true,workerStopped:true,forced:false,exitCode:0,signal:null}),
-    async prepareBatch(texts){return texts.map(text=>({text:options.passagePrefix+text,tokenLength:text.length+options.passagePrefix.length}));},
+    async prepareBatch(texts){return texts.map(document=>({text:archiveDocumentInput(document),tokenLength:archiveDocumentInput(document).length}));},
     async encodePrepared(items){calls++;const texts=items.map(item=>item.text);inputs.push(...texts);if(calls===cancelAt)cancel.abort();return texts.map(vector);},
     async encodeQuery(text){queryCalls++;const effective=options.queryPrefix+text;assert.ok(effective.startsWith(ARCHIVE_EG2_QUERY_PREFIX));return vector(effective).slice(0,options.profile.dimensions);}
   };
@@ -68,7 +70,7 @@ try{
   const oldCalls=calls;
   assert.equal((await service.indexEmbeddings()).encodedSpans,0);
   assert.equal(calls,oldCalls);
-  assert.ok(inputs.every(t=>t.startsWith('title: none | text: ')));
+  assert.ok(inputs.every(t=>/^title: .+ \| text: /.test(t)));
   const semantic=await service.search({query:'spacecraft',mode:'semantic',candidateLimit:1,top:1});
   assert.equal(semantic.hits.length,1);assert.match(semantic.hits[0].text,/rocket/);
   assert.equal(semantic.query.semanticMatching,true);
@@ -82,7 +84,7 @@ try{
   const role=await service.search({query:'spacecraft',mode:'semantic',role:'assistant',candidateLimit:1});
   assert.equal(role.hits.length,0,'eligibility applied before top-N');
   await service.dispose();
-  const db=new Database(options.indexPath);
+  const db=new Database(options.indexPath); registerArchiveAnalyzer(db, DEFAULT_ARCHIVE_ANALYZER);
   db.pragma('foreign_keys=ON');
   const unit=db.prepare('SELECT id FROM units ORDER BY id LIMIT 1').get();
   db.prepare('UPDATE units SET text=text||? WHERE id=?').run(' changed',unit.id);
@@ -97,3 +99,6 @@ try{
   await service.dispose();service=null;
   console.log('SYNTHETIC encoder: local factory wiring, prompt/default identity, persisted resume, cancellation, incremental invalidation, independent hybrid candidates and pre-cap eligibility passed');
 }finally{await service?.dispose();__setArchiveWorkerFactoryForTests(null);}
+
+
+

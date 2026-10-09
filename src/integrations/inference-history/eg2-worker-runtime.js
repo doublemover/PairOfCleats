@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { historyError } from './common.js';
 import { normalizeHistoryVector } from './semantic-values.js';
+import { archiveDocumentInput } from './document-input.js';
 
 const MAX_IPC_BYTES = 16 * 1024 * 1024;
 const unavailable = message => historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE', message);
@@ -194,12 +195,24 @@ export function createEg2WorkerRuntime(config, {
     }
     return value;
   };
-  const effectiveInput = text => config.passagePrefix + text;
+  const effectiveInput = archiveDocumentInput;
   return Object.freeze({
     config, effectiveInput,
+    async measureBatch(documents, { signal } = {}) {
+      if (!Array.isArray(documents)) throw historyError('ERR_INFERENCE_HISTORY_INPUT', 'Archive document batch required.');
+      const inputs = documents.map(effectiveInput);
+      if (!safeTexts(inputs)) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 token measurement exceeds IPC bounds.');
+      const lengths = await request('measure', inputs, signal);
+      if (!Array.isArray(lengths) || lengths.length !== documents.length || lengths.some(value => !Number.isSafeInteger(value) || value < 1 || value > 4 * 1024 * 1024)) {
+        failProtocol(); throw unavailable('EG2 child token measurements are invalid.');
+      }
+      return lengths;
+    },
     async prepareBatch(texts, { signal } = {}) {
-      if (!safeTexts(texts)) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 preparation input exceeds IPC bounds.');
-      const value = await request('prepare', texts.map(effectiveInput), signal);
+      if (!Array.isArray(texts)) throw historyError('ERR_INFERENCE_HISTORY_INPUT', 'Archive document batch required.');
+      const inputs = texts.map(effectiveInput);
+      if (!safeTexts(inputs)) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 preparation input exceeds IPC bounds.');
+      const value = await request('prepare', inputs, signal);
       if (!Array.isArray(value) || value.length !== texts.length || value.some(item =>
         !item || !Number.isSafeInteger(item.id) || item.id < 1
         || !Number.isSafeInteger(item.tokenLength) || item.tokenLength < 1 || item.tokenLength > 8192)
@@ -222,8 +235,10 @@ export function createEg2WorkerRuntime(config, {
       return validateVectors(await request('prepared', ids, signal), ids.length);
     },
     async encodeBatch(texts, { signal } = {}) {
-      if (!safeTexts(texts) || texts.length > 64) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 batch exceeds IPC bounds.');
-      return validateVectors(await request('batch', texts.map(effectiveInput), signal), texts.length);
+      if (!Array.isArray(texts)) throw historyError('ERR_INFERENCE_HISTORY_INPUT', 'Archive document batch required.');
+      const inputs = texts.map(effectiveInput);
+      if (!safeTexts(inputs) || inputs.length > 64) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 batch exceeds IPC bounds.');
+      return validateVectors(await request('batch', inputs, signal), texts.length);
     },
     async encodeQuery(query, { signal } = {}) {
       if (!safeTexts([query])) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 query exceeds IPC bounds.');
@@ -266,3 +281,6 @@ export function createEg2WorkerRuntime(config, {
     }
   });
 }
+
+
+

@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import Database from 'better-sqlite3';
+import { archiveDocumentInput } from '../../../src/integrations/inference-history/document-input.js';
+import { planArchiveUnitSpans, boundArchiveTokenSpans } from '../../../src/integrations/inference-history/archive-unit-spans.js';
+import { createPersistentHistorySemanticIndex } from '../../../src/integrations/inference-history/persistent-semantic-index.js';
+
+const whole = 'HTTPServer uses Unicode café identifiers and preserves comments with its function body.';
+const details = { sourceSha256: 'a'.repeat(64), locator: 'src/HTTPServer.js', artifactKind: 'code' };
+const row = (id, start, end) => ({ id, text: whole.slice(start, end), metadata: JSON.stringify({ sourceDetails: { ...details, sanitizedStart: start, sanitizedEnd: end } }) });
+const rows = [row('a', 0, 40), row('b', 40, whole.length)];
+const config = { chunkChars: 1000, overlapChars: 200 };
+const first = planArchiveUnitSpans(rows[0], rows, config), second = planArchiveUnitSpans(rows[1], rows, config);
+assert.equal(first.length, 1); assert.equal(second.length, 1);
+assert.equal(first[0].text, whole); assert.equal(second[0].text, whole);
+assert.deepEqual([first[0].start, first[0].end], [0, 40]);
+assert.deepEqual([second[0].start, second[0].end], [0, whole.length - 40]);
+assert.match(first[0].title, /HTTPServer/);
+assert.throws(() => planArchiveUnitSpans({ ...rows[0], metadata: JSON.stringify({ sourceDetails: details }) }, rows, config), /explicit source reimport/);
+const split = await boundArchiveTokenSpans(first, async documents => documents.map(document => document.text.length + 20), 55);
+assert.ok(split.length > 1);
+assert.ok(split.every(span => span.text.length + 20 <= 55));
+assert.equal(split.map(span => whole.slice(span.start, span.end)).join(''), whole.slice(0, 40));
+assert.equal(archiveDocumentInput({ text: 'body', title: 'HTTPServer\n| café' }), 'title: HTTPServer café | text: body');
+assert.notEqual(archiveDocumentInput({ text: 'body', title: 'One' }), archiveDocumentInput({ text: 'body', title: 'Two' }));
+
+const db = new Database(':memory:'); db.pragma('foreign_keys=ON');
+db.exec(`
+CREATE TABLE vault_meta(key TEXT PRIMARY KEY,value TEXT);
+INSERT INTO vault_meta VALUES ('partition','test'),('reference_key','${'a'.repeat(64)}'),('generation','1'),('updated_at','2026-10-09T00:00:00Z');
+CREATE TABLE records(id TEXT PRIMARY KEY,deleted INTEGER DEFAULT 0,excluded INTEGER DEFAULT 0,latest_snapshot TEXT);
+CREATE TABLE units(id TEXT PRIMARY KEY,record_id TEXT REFERENCES records(id),text TEXT,metadata TEXT);
+CREATE TABLE snapshot_units(unit_id TEXT,snapshot_id TEXT,path_state TEXT);
+`);
+for (const unit of rows) {
+  db.prepare('INSERT INTO records(id,latest_snapshot) VALUES (?,?)').run(unit.id, 'snapshot');
+  db.prepare('INSERT INTO units VALUES (?,?,?,?)').run(unit.id, unit.id, unit.text, unit.metadata);
+  db.prepare('INSERT INTO snapshot_units VALUES (?,?,?)').run(unit.id, 'snapshot', 'present');
+}
+const inputs = [];
+const runtime = {
+  config: { ...config, documentIdentityKey: 'structural', documentIdentity: {}, fullDimensions: 4, profile: { dimensions: 4, revision: 'fixture' }, batchSize: 2 },
+  effectiveInput: archiveDocumentInput,
+  measureBatch: async documents => documents.map(document => archiveDocumentInput(document).length),
+  prepareBatch: async documents => documents.map(document => ({ text: archiveDocumentInput(document), tokenLength: archiveDocumentInput(document).length })),
+  encodePrepared: async prepared => { inputs.push(...prepared.map(row => row.text)); return prepared.map(() => [1, 1, 1, 1]); }
+};
+const index = createPersistentHistorySemanticIndex(db, runtime);
+const indexed = await index.refresh({ maxUnits: 10 });
+assert.equal(indexed.indexedUnits, 2); assert.equal(indexed.uniqueInputs, 1);
+assert.equal(inputs.length, 1, 'full contextual input is encoded once and fanned out to exact fragment citations');
+assert.ok(inputs[0].endsWith(whole));
+assert.deepEqual(db.prepare('SELECT unit_id,start,end FROM history_embedding_spans_v2 ORDER BY unit_id').all(), [{ unit_id: 'a', start: 0, end: 40 }, { unit_id: 'b', start: 0, end: whole.length - 40 }]);
+db.prepare('UPDATE records SET excluded=1 WHERE id=?').run('b');
+assert.equal(index.status().indexedUnits, 0, 'hiding one fragment invalidates sibling vectors containing that fragment');
+assert.equal(index.status().uniqueInputs, 0);
+await index.refresh({ maxUnits: 10 });
+assert.equal(inputs.at(-1).endsWith(rows[0].text), true, 'hidden sibling never reaches tokenizer/model input');
+db.prepare('UPDATE units SET text=text||? WHERE id=?').run('!', 'b');
+assert.equal(index.status().indexedUnits, 0, 'sibling edits invalidate every cross-fragment vector');
+db.close();
+console.log('Contextual source reassembly, exact occurrence offsets, token fallback and duplicate cache identity passed (no model).');
+

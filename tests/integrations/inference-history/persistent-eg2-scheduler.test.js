@@ -1,3 +1,4 @@
+import { archiveDocumentInput } from '../../../src/integrations/inference-history/document-input.js';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { createPersistentHistorySemanticIndex } from '../../../src/integrations/inference-history/persistent-semantic-index.js';
@@ -28,8 +29,8 @@ let calls=0, release=null, beforeEncode=null;
 const runtime = (documentKey='doc',dimensions=4,query='query') => ({
   config:{documentIdentityKey:documentKey,documentIdentity:{documentKey},queryIdentityKey:query,representationIdentityKey:'dims'+dimensions,
     fullDimensions:4,profile:{dimensions,revision:'revision'},modelId:'synthetic',batchSize:2,chunkChars:80,overlapChars:0,queryPrefix:'query:',passagePrefix:'passage:'},
-  effectiveInput:text=>'passage:'+text,
-  async prepareBatch(texts){return texts.map(text=>({text,tokenLength:text.length}));},
+  effectiveInput:archiveDocumentInput, measureBatch: async documents=>documents.map(document=>archiveDocumentInput(document).length),
+  async prepareBatch(texts){return texts.map(document=>({text:archiveDocumentInput(document),tokenLength:archiveDocumentInput(document).length}));},
   async encodePrepared(items){calls++;await beforeEncode?.();if(release)await new Promise(resolve=>{release.resolve=resolve;});return items.map(()=>[1,1,1,1]);},
   async encodeQuery(){return Array(dimensions).fill(1);}
 });
@@ -145,3 +146,5 @@ assert.equal(index.status().indexedSpans,0);beforeEncode=null;stale.close();
 const old=fixture();old.exec('CREATE TABLE history_embedding_meta(singleton INTEGER)');
 assert.throws(()=>createPersistentHistorySemanticIndex(old,runtime()),{code:'ERR_INFERENCE_HISTORY_STORAGE'});old.close();
 console.log('SYNTHETIC archive v2: token packing, complete-input reuse/fanout, independent identities, privacy GC, native cancellation fence, stale generation and conversion gate passed');
+
+

@@ -6,6 +6,7 @@ const MAX_IPC_BYTES = 16 * 1024 * 1024;
 let nonce = null, adapter = null, active = false, cancelling = false, nextHandle = 1, lastId = 0;
 let finishing = false;
 const prepared = new Map();
+let workerConfig = null, tokenizerPromise = null;
 const bounded = message => {
   try { return Buffer.byteLength(JSON.stringify(message)) <= MAX_IPC_BYTES; }
   catch { return false; }
@@ -32,7 +33,7 @@ process.on('message', async message => {
       || config.fullProfile.dimensions !== 768 || config.fullProfile.maxLength !== 8192
       || !path.isAbsolute(config.modelsDir) || typeof config.localFilesOnly !== 'boolean'
       || typeof config.modelId !== 'string' || config.modelId.length > 200) { fatal(); return; }
-    nonce = message.nonce;
+    nonce = message.nonce; workerConfig = config;
     try {
       adapter = getEmbeddingAdapter({
         provider: 'xenova', modelId: config.modelId, modelsDir: config.modelsDir,
@@ -49,7 +50,7 @@ process.on('message', async message => {
   if (cancelling) return;
   if (message.type !== 'request' || !Number.isSafeInteger(message.id)
     || message.id <= lastId || active
-    || !['prepare', 'prepared', 'batch', 'query', 'endProfiling'].includes(message.method)) {
+    || !['measure', 'prepare', 'prepared', 'batch', 'query', 'endProfiling'].includes(message.method)) {
     fatal(); return;
   }
   lastId = message.id;
@@ -57,11 +58,19 @@ process.on('message', async message => {
   try {
     let value;
     const input = message.value;
-    if (message.method === 'prepare' || message.method === 'batch') {
-      const maxCount = message.method === 'prepare' ? 256 : 64;
+    if (message.method === 'measure' || message.method === 'prepare' || message.method === 'batch') {
+      const maxCount = message.method === 'batch' ? 64 : 256;
       if (!Array.isArray(input) || input.length > maxCount || input.some(text => typeof text !== 'string')
         || input.reduce((sum, text) => sum + Buffer.byteLength(text), 0) > 4 * 1024 * 1024) throw new Error('Input budget.');
-      if (message.method === 'prepare') {
+      if (message.method === 'measure') {
+        tokenizerPromise ??= import('@huggingface/transformers').then(async mod => {
+          if ('transformers.js@' + mod.env?.version !== workerConfig.fullProfile.runtime) throw new Error('Tokenizer runtime identity.');
+          return mod.AutoTokenizer.from_pretrained(workerConfig.modelId, { local_files_only: workerConfig.localFilesOnly, revision: workerConfig.fullProfile.revision, cache_dir: workerConfig.modelsDir });
+        });
+        const tokenizer = await tokenizerPromise;
+        const tokens = await tokenizer(input, { padding: false, truncation: false, return_tensor: false });
+        value = tokens.input_ids.map(row => row.length);
+      } else if (message.method === 'prepare') {
         prepared.clear();
         const items = await adapter.prepare(input);
         value = items.map(item => {
@@ -86,3 +95,4 @@ process.on('message', async message => {
     if (cancelling) void finish();
   }
 });
+

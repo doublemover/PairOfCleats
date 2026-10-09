@@ -29,7 +29,8 @@ class FakeChild extends EventEmitter {
     this.requests.push(message);
     if (this.stall) return;
     let value;
-    if (message.method === 'prepare') {
+    if (message.method === 'measure') value = message.value.map(text => text.length + 2);
+    else if (message.method === 'prepare') {
       value = message.value.map(text => ({ id: this.handleCounter++, tokenLength: Array.from(text).length + 2 }));
     } else if (message.method === 'prepared') value = message.value.map(id => vector(id));
     else if (message.method === 'batch') value = message.value.map((_, index) => vector(index + 1));
@@ -58,9 +59,12 @@ const runtime = createEg2WorkerRuntime(config, {
   }
 });
 assert.equal(runtime.executionInfo().childPid, null, 'telemetry must not spawn/load');
-const handles = await runtime.prepareBatch(['a', 'bbbb']);
+const handles = await runtime.prepareBatch([{ text: 'a' }, { text: 'bbbb' }]);
 assert.equal(fake.requests[0].value[0], 'title: none | text: a');
 assert.equal(handles[0].tokenLength, 'title: none | text: a'.length + 2);
+assert.deepEqual(await runtime.measureBatch([{ text: 'body', title: 'HTTPServer config' }]), ['title: HTTPServer config | text: body'.length + 2]);
+assert.equal(fake.requests.at(-1).value[0], 'title: HTTPServer config | text: body');
+await assert.rejects(() => runtime.prepareBatch(['retired string API']), /document text/);
 assert.equal((await runtime.encodePrepared([handles[1], handles[0]]))[0][0], 2);
 await assert.rejects(() => runtime.encodePrepared([{ tokenLength: 3 }]), /another worker/);
 assert.equal((await runtime.encodeQuery('find code')).length, 256);
@@ -77,16 +81,16 @@ assert.equal(stopped.signal, 'SIGKILL');
 assert.equal(fake.kills, 1);
 await runtime.cancel();
 assert.equal(fake.kills, 1, 'terminal runtime never kills again or uses stale PID');
-await assert.rejects(() => runtime.encodeBatch(['new']), /cancelled/);
+await assert.rejects(() => runtime.encodeBatch([{ text: 'new' }]), /cancelled/);
 assert.equal(spawns, 1, 'terminal runtime never restarts automatically');
 
 const stalled = new FakeChild({ stall: true });
 const isolated = createEg2WorkerRuntime(config, { spawnImpl: () => stalled, graceMs: 20, confirmationMs: 100 });
 const controller = new AbortController();
-const pending = isolated.encodeBatch(['pending'], { signal: controller.signal });
+const pending = isolated.encodeBatch([{ text: 'pending' }], { signal: controller.signal });
 const rejected = assert.rejects(pending, /owner stop/);
 await new Promise(resolve => setTimeout(resolve, 5));
-await assert.rejects(() => isolated.encodeBatch(['second']), /one request/);
+await assert.rejects(() => isolated.encodeBatch([{ text: 'second' }]), /one request/);
 const started = performance.now();
 controller.abort(new Error('owner stop'));
 assert.equal(isolated.executionInfo().draining, true);
@@ -101,21 +105,21 @@ await isolated.waitForIdle();
 const notReady = new FakeChild({ noReady: true });
 const early = createEg2WorkerRuntime(config, { spawnImpl: () => notReady, graceMs: 10, readinessMs: 1000, confirmationMs: 100 });
 const earlyController = new AbortController();
-const earlyRejected = assert.rejects(early.encodeBatch(['x'], { signal: earlyController.signal }), /early stop/);
+const earlyRejected = assert.rejects(early.encodeBatch([{ text: 'x' }], { signal: earlyController.signal }), /early stop/);
 earlyController.abort(new Error('early stop'));
 await earlyRejected;
 assert.equal((await early.cancel()).workerStopped, true, 'cancellation is observed even while waiting for readiness');
 
 const malformed = new FakeChild({ badNonce: true });
 const broken = createEg2WorkerRuntime(config, { spawnImpl: () => malformed, graceMs: 10, confirmationMs: 100 });
-await assert.rejects(() => broken.encodeBatch(['x']), /protocol validation/);
+await assert.rejects(() => broken.encodeBatch([{ text: 'x' }]), /protocol validation/);
 assert.equal((await broken.cancel()).workerStopped, true);
 
 const uncertainChild = new FakeChild({ stall: true });
 const uncertain = createEg2WorkerRuntime(config, {
   spawnImpl: () => uncertainChild, graceMs: 5, confirmationMs: 15, terminateImpl: () => false
 });
-const uncertainRejected = assert.rejects(uncertain.encodeBatch(['x']), /termination is unconfirmed/);
+const uncertainRejected = assert.rejects(uncertain.encodeBatch([{ text: 'x' }]), /termination is unconfirmed/);
 await new Promise(resolve => setTimeout(resolve, 2));
 const uncertainReceipt = await uncertain.cancel();
 assert.equal(uncertainReceipt.workerStopped, false, 'failed kill must remain explicitly unconfirmed');
@@ -129,7 +133,7 @@ const real = createEg2WorkerRuntime(config, {
   workerPath: fileURLToPath(new URL('./eg2-worker-stalled-fixture.js', import.meta.url)),
   graceMs: 30, readinessMs: 2000, confirmationMs: 2000
 });
-const realRejected = assert.rejects(real.encodeBatch(['synthetic stalled child']), /cancelled/);
+const realRejected = assert.rejects(real.encodeBatch([{ text: 'synthetic stalled child' }]), /cancelled/);
 for (let attempt = 0; attempt < 100 && !real.executionInfo().ready; attempt += 1) {
   await new Promise(resolve => setTimeout(resolve, 10));
 }
@@ -144,3 +148,5 @@ await realRejected;
 assert.equal(real.executionInfo().exited, true);
 assert.throws(() => process.kill(realPid, 0), 'owned child is absent after confirmed exit');
 console.log('Isolated EG2 IPC mapping, ownership, prompt cancellation and confirmed process exit passed (no model inference).');
+
+
