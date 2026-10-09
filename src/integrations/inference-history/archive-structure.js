@@ -4,8 +4,8 @@ import { LANGUAGE_ROUTE_DESCRIPTORS } from '../../index/language-registry/descri
 import { resolveSpecialCodeExt } from '../../index/constants.js';
 
 export const ARCHIVE_CLASSIFICATION_VERSION = 'archive-classification.v2';
-export const ARCHIVE_CHUNK_VERSION = 'archive-structure.v2';
-export const ARCHIVE_CONTEXT_VERSION = 'archive-context.v2';
+export const ARCHIVE_CHUNK_VERSION = 'archive-structure.v3';
+export const ARCHIVE_CONTEXT_VERSION = 'archive-context.v3';
 const configs = new Set(['.json', '.jsonl', '.jsonc', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.xml', '.env', '.properties']);
 const markdown = new Set(['.md', '.markdown', '.mdx']);
 
@@ -81,6 +81,18 @@ export function reassembleArchiveFragments(records) {
   return output;
 }
 
+
+/** Transport IDs remain in citation metadata; model context uses known meaningful labels. */
+export function archiveContextTitle(locator, name, classification) {
+  const normalized = String(locator).replaceAll('\\', '/');
+  const opaque = /(?:^|\/)file_[a-f0-9]{32}\.dat(?:\/activity\/\d+)?$/i.test(normalized);
+  const readable = classification.kind === 'activity' ? 'Activity'
+    : classification.kind === 'metadata' ? 'Metadata'
+      : classification.kind === 'tool_activity' ? 'Tool activity'
+        : classification.language !== 'text' ? classification.language + ' source' : 'Document';
+  return [opaque ? readable : locator, name].filter(Boolean).join(' - ').slice(0, 1024);
+}
+
 function paragraphRanges(text, start, end, title) {
   const ranges = [];
   let cursor = start;
@@ -90,6 +102,14 @@ function paragraphRanges(text, start, end, title) {
   }
   if (cursor < end) ranges.push({ start: cursor, end, name: title });
   return ranges;
+}
+
+
+function yamlEntryRanges(text, range) {
+  const starts = [...text.slice(range.start, range.end).matchAll(/^(?:[^\s#][^\n:]*:|---\s*$|\.\.\.\s*$)/gm)]
+    .map(row => range.start + row.index);
+  const boundaries = [...new Set([range.start, ...starts, range.end])].sort((a, b) => a - b);
+  return boundaries.slice(1).map((end, index) => ({ ...range, start: boundaries[index], end }));
 }
 
 /** Existing repository language/Markdown handlers, with complete coverage of omitted trivia. */
@@ -113,10 +133,10 @@ export function archiveStructuralSpans(text, options = {}) {
     for (const match of text.matchAll(/^ {0,3}(`{3,}|~{3,})([^\n]*)$/gm)) {
       if (!open) open = { start: match.index, marker: match[1][0], length: match[1].length };
       else if (match[1][0] === open.marker && match[1].length >= open.length) {
-        fences.push({ start: open.start, end: match.index + match[0].length, name: null }); open = null;
+        fences.push({ start: open.start, end: match.index + match[0].length, name: null, archiveFence: true }); open = null;
       }
     }
-    if (open) fences.push({ start: open.start, end: text.length, name: null });
+    if (open) fences.push({ start: open.start, end: text.length, name: null, archiveFence: true });
     for (let i = chunks.length - 1; i >= 0; i--) {
       if (fences.some(fence => chunks[i].start > fence.start && chunks[i].start < fence.end)) chunks.splice(i, 1);
     }
@@ -134,18 +154,59 @@ export function archiveStructuralSpans(text, options = {}) {
   for (let i = 1; i < boundaries.length; i++) {
     const start = boundaries[i - 1], end = boundaries[i];
     const owner = chunks.find(row => row.start <= start && row.end >= end);
-    if (owner || !text.slice(start, end).trim()) ranges.push({ start, end, name: owner?.name });
+    if (owner || !text.slice(start, end).trim()) ranges.push({ start, end, name: owner?.name, owner, fence: owner?.archiveFence === true });
     else ranges.push(...paragraphRanges(text, start, end, null));
   }
-  // Attach preceding comments to their definition while preserving sanitized offsets.
+  // A comment block belongs to its following definition, not an independent input.
   for (let i = ranges.length - 2; i >= 0; i--) {
-    if (mode === 'code' && !ranges[i].name && ranges[i + 1].name
+    if (mode === 'code' && classification.format !== 'config' && !ranges[i].name && ranges[i + 1].name
       && /^\s*(?:(?:\/\*[\s\S]*?\*\/|\/\/[^\n]*|#[^\n]*)\s*)*$/.test(text.slice(ranges[i].start, ranges[i].end))) {
       ranges[i + 1].start = ranges[i].start; ranges.splice(i, 1);
     }
   }
-  const output = [];
+  // Coalesce blank trivia before bounded splitting, retaining every source character.
+  for (let i = ranges.length - 1; i >= 0; i--) {
+    if (text.slice(ranges[i].start, ranges[i].end).trim()) continue;
+    if (i > 0) ranges[i - 1].end = ranges[i].end;
+    else if (ranges[i + 1]) ranges[i + 1].start = ranges[i].start;
+    else continue;
+    ranges.splice(i, 1);
+  }
+  const packed = [];
+  const rootSiblingConfig = ['.json', '.jsonc', '.yaml', '.yml'].includes(classification.ext);
+  const appendPacked = (range, key) => {
+    const previous = packed.at(-1);
+    if (key !== null && previous?.packKey === key && previous.end === range.start
+      && range.end - previous.start <= chunkChars) {
+      previous.end = range.end;
+    } else packed.push({ ...range, packKey: key });
+  };
   for (const range of ranges) {
+    if (classification.format === 'log' || classification.ext === '.jsonl') {
+      // Individual log/JSONL records stay independent. Multiline continuations retain their record.
+      const pattern = classification.format === 'log'
+        ? /^(?:\d{4}-\d{2}-\d{2}|\[?(?:INFO|WARN|ERROR|DEBUG)\]?)/gm : /^.+$/gm;
+      const starts = [...text.slice(range.start, range.end).matchAll(pattern)].map(row => range.start + row.index);
+      const boundaries = [...new Set([range.start, ...starts, range.end])].sort((a, b) => a - b);
+      for (let i = 1; i < boundaries.length; i++) appendPacked({ ...range, start: boundaries[i - 1], end: boundaries[i] }, null);
+    } else if (rootSiblingConfig) {
+      // Existing JSON/YAML handlers expose root siblings; table/section formats keep hard owners.
+      // YAML multi-document delimiters are explicit parent boundaries.
+      const pieces = classification.ext === '.yaml' || classification.ext === '.yml'
+        ? yamlEntryRanges(text, range) : [range];
+      for (const piece of pieces) {
+        const docStart = /^(?:---|\.\.\.)\s*$/m.test(text.slice(piece.start, piece.end));
+        appendPacked({ ...range, ...piece }, docStart ? null : 'config-root');
+      }
+    } else if (mode === 'prose' && !range.fence) {
+      const key = 'prose:' + (classification.format === 'markdown' ? String(range.owner?.start ?? range.start) : String(range.name || ''));
+      for (const piece of paragraphRanges(text, range.start, range.end, range.name)) {
+        appendPacked({ ...range, ...piece }, key);
+      }
+    } else appendPacked(range, null);
+  }
+  const output = [];
+  for (const range of packed) {
     if (range.end <= intersectStart || range.start >= intersectEnd) continue;
     let start = range.start;
     while (start < range.end && start < intersectEnd) {
@@ -155,14 +216,14 @@ export function archiveStructuralSpans(text, options = {}) {
         if (line > start + chunkChars / 2) end = line + 1;
         if (/[\uD800-\uDBFF]/.test(text[end - 1])) end--;
       }
-      const title = [locator, range.name].filter(Boolean).join(' — ').slice(0, 1024);
+      const title = archiveContextTitle(locator, range.name, classification);
       if (end > intersectStart) output.push({ start, end, text: text.slice(start, end), title, contextTitle: title, classification });
       if (end === range.end) break;
       start = Math.max(start + 1, end - overlapChars);
       if (/[\uDC00-\uDFFF]/.test(text[start])) start++;
     }
   }
-  // Mutating end for trivia above must also retain exact source text.
+  // Text always comes directly from preserved sanitized source offsets.
   for (const span of output) span.text = text.slice(span.start, span.end);
   return output;
 }
