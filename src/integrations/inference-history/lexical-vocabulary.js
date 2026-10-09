@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { addDictionaryWordsFromText } from '../../shared/dictionary-wordlists.js';
 import { archiveLiteralWords, createArchiveLexicalAnalyzer } from './lexical-analyzer.js';
-import { hasHiddenTraceMarker } from './artifact-projection.js';
+import { ARCHIVE_ASSET_POLICY_VERSION, sanitizeEmbeddedAssetText } from './embedded-assets.js';
+import { hasHiddenTraceMarker, sanitizeArtifactJson } from './artifact-projection.js';
 import { digest, historyError, redactHistoryText } from './common.js';
 
 /** No default/config/home discovery: every dictionary file is explicitly selected. */
@@ -42,6 +43,18 @@ export async function loadArchiveVocabulary(options = {}) {
   return { words, receipt };
 }
 
+const MAX_VOCABULARY_JSON_CHARS = 16 * 1024 * 1024;
+function assertAssetFreeVocabularyText(text) {
+  if (sanitizeEmbeddedAssetText(text) !== text) throw new TypeError('Vocabulary input must omit embedded asset payloads.');
+  if (!/^\s*[\[{]/.test(text)) return;
+  if (text.length > MAX_VOCABULARY_JSON_CHARS) throw new TypeError('Vocabulary JSON requires bounded sanitized content.');
+  let value;
+  try { value = JSON.parse(text); } catch { return; /* Code/prose is never wrapped or executed as JSON. */ }
+  if (JSON.stringify(sanitizeArtifactJson(value)) !== JSON.stringify(value)) {
+    throw new TypeError('Vocabulary JSON must satisfy archive artifact sanitization policy.');
+  }
+}
+
 /** Caller supplies sanitized recovered content, never serialized transport records. */
 export function extractArchiveVocabulary(sources, { minCount = 3 } = {}) {
   if (!Number.isSafeInteger(minCount) || minCount < 1) throw new TypeError('Positive vocabulary minimum required.');
@@ -52,6 +65,7 @@ export function extractArchiveVocabulary(sources, { minCount = 3 } = {}) {
     if (hasHiddenTraceMarker(source.sanitizedText) || redactHistoryText(source.sanitizedText) !== source.sanitizedText) {
       throw new TypeError('Vocabulary input must satisfy archive trace omission and credential redaction policy.');
     }
+    assertAssetFreeVocabularyText(source.sanitizedText);
     if (source.language) languages.add(source.language);
     content.push([source.sourceSha256 ?? null, digest(source.sanitizedText), source.language ?? null]);
     for (const raw of source.sanitizedText.match(/[\p{L}\p{M}\p{N}_]+/gu) ?? []) {
@@ -60,5 +74,5 @@ export function extractArchiveVocabulary(sources, { minCount = 3 } = {}) {
   }
   const entries = [...counts].filter(([, count]) => count >= minCount).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return { words: entries.map(([word]) => word), counts: entries, sourceCount: content.length,
-    languages: [...languages].sort(), contentSignature: digest(JSON.stringify(content)) };
+    languages: [...languages].sort(), assetPolicyVersion: ARCHIVE_ASSET_POLICY_VERSION, contentSignature: digest(JSON.stringify([ARCHIVE_ASSET_POLICY_VERSION, content])) };
 }
