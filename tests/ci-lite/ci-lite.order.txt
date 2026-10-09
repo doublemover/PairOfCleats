@@ -898,3 +898,5 @@ integrations/inference-history/ranking
 integrations/inference-history/owner-controls
 integrations/inference-history/semantic-index
 integrations/inference-history/host-adapters
+
+integrations/inference-history/file-evidence
