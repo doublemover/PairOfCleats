@@ -88,3 +88,15 @@ assert.throws(()=>decodeAsepriteEvidence(ase.subarray(0,ase.length-1)),/Aseprite
 const huge=Buffer.from(ase);huge.writeUInt16LE(65535,128+16+25+6+16);huge.writeUInt16LE(65535,128+16+25+6+18);
 assert.throws(()=>decodeAsepriteEvidence(huge),/Aseprite/);
 console.log('Aseprite structural bounds, layer names and exact compressed pixel recovery passed');
+
+const {projectFinalReport,projectHtmlFacet,projectMetadataFacet}=await import('../../../src/integrations/inference-history/artifact-facets.js');
+const message={author:{role:'assistant'},channel:'final',create_time:1000,content:{content_type:'text',parts:['compiled radiance research']}};
+const reportRecords=projectFinalReport({message,title:'Transport report',sourceSha256:hash,locator:'report/final'});
+assert.equal(reportRecords[0].artifact_kind,'document');assert.equal(reportRecords[0].created_at,'1970-01-01T00:16:40.000Z');
+assert.equal(projectFinalReport({message:{...message,channel:'analysis'},title:'hidden',sourceSha256:hash,locator:'hidden'}).length,0);
+const htmlFacet=projectHtmlFacet({text:'<title>Workbench</title><script>secretRuntimeLabel</script><img src="data:image/png;base64,'+'Z'.repeat(100000)+'"><button>Save &amp; export</button>',sourceSha256:hash,locator:'app/static'});
+assert.ok(htmlFacet[0].body.includes('Save & export'));assert.ok(!htmlFacet[0].body.includes('secretRuntimeLabel'));assert.ok(!htmlFacet[0].body.includes('ZZZZ'));
+const metadataFacet=projectMetadataFacet({metadata:{layer:'Front Wheel',opacity:255,password:'secret'},sourceSha256:hash,locator:'sprite/layers'});
+assert.ok(metadataFacet[0].body.includes('Front Wheel'));assert.ok(!metadataFacet[0].body.includes('secret'));
+for(const record of [...reportRecords,...htmlFacet,...metadataFacet])normalizeHistoryRecord(record,'recovered_artifact',DEFAULT_LIMITS);
+console.log('distinct final reports, static HTML without base64/scripts, and sanitized metadata facets passed');
