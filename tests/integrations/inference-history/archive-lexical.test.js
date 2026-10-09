@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import { makeTempDir } from '../../helpers/temp.js';
 import { digest } from '../../../src/integrations/inference-history/common.js';
 import { sanitizeEmbeddedAssetText } from '../../../src/integrations/inference-history/embedded-assets.js';
@@ -60,6 +61,8 @@ for (const sanitizedText of [sanitizedAssetText, sanitizedAssetJson]) {
   const ready = extractArchiveVocabulary([{ sanitizedText }], { minCount: 1 });
   assert.ok(ready.words.includes('diagram'));
   assert.equal(ready.assetPolicyVersion, 'archive-assets.v1');
+  assert.equal(ready.analyzerVersion, 'archive-lexical.v3');
+  assert.equal(ready.identifierVersion, 'dictionary-identifiers.v1');
   assert.ok(!ready.words.includes(assetPayload.toLowerCase()));
 }
 const legitimateCode = 'function render() { const encoded = "' + assetPayload + '"; return encoded; }';
@@ -89,6 +92,16 @@ for (let reopen = 0; reopen < 2; reopen++) {
   await service.dispose();
 }
 assert.deepEqual(await fs.readFile(source), sourceBytes);
+const fenceDb = new Database(options.indexPath);
+const currentIdentity = fenceDb.prepare("SELECT value FROM vault_meta WHERE key='lexical_identity'").get().value;
+const oldV2Identity = digest(JSON.stringify(['archive-lexical.v2', process.versions.icu, vocabulary.receipt.signature]));
+assert.notEqual(currentIdentity, oldV2Identity);
+fenceDb.prepare("UPDATE vault_meta SET value=? WHERE key='lexical_identity'").run(oldV2Identity);
+fenceDb.close();
+await assert.rejects(createLocalSourceHistoryService(options), { code: 'ERR_INFERENCE_HISTORY_UNAVAILABLE' });
+const restoredDb = new Database(options.indexPath);
+restoredDb.prepare("UPDATE vault_meta SET value=? WHERE key='lexical_identity'").run(currentIdentity);
+restoredDb.close();
 await fs.appendFile(dictionary, 'newword\n');
 await assert.rejects(createLocalSourceHistoryService(options), { code: 'ERR_INFERENCE_HISTORY_UNAVAILABLE' });
 console.log('archive analyzer identifiers, acronyms, dictionaries, Unicode, exact phrases/exclusions, discovery citations and persistent reopen passed');
