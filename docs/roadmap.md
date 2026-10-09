@@ -238,10 +238,12 @@ Final read-only v3 plan: 422,794 inputs / 135,924,462 tokens; 24 large-source ch
 
 Remaining ordered gates:
 
-1. Finish bounded source-plan reuse and no-model invalidation/call-count checks.
-2. Verify Kingfisher checkout, matching runtime, SourceKit/dictionaries and judged queries;
-   run the authorized bounded normal-repository CPU real-embedding benchmark.
-3. Explicitly reproject/reimport current-policy archive derivatives and regenerate vocabulary;
+1. Bounded source-plan reuse and seven no-model checks passed. SCIP definition/reference
+   classification is corrected with independent role flags and focused mask/count tests.
+2. Kingfisher current checkout, exact isolated runtime and eight source-backed judgments
+   are ready. Finish real dictionary wiring, then run one bounded CPU embedding benchmark.
+   Missing SourceKit is optional degraded capability, not an embedding-core failure.
+3. Current-policy derivative reprojection/reimport and vocabulary regeneration are underway;
    qualify archive relevance, citations, preparation/throughput and scheduling parity before
    the recovered-corpus sequence. Fix/report material failures first; CPU only.
 4. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
@@ -250,6 +252,7 @@ Remaining ordered gates:
 
 No GPU, arbitrary installs or unrelated measurements are implied. PR547 publication is
 approved; merge remains unapproved. Hosted results apply to exact heads.
+
 ## Viewer replacement after embedding qualification - 2026-10-09
 
 The owner requests new visuals, interactions and renderer implementation. Keep this
