@@ -123,3 +123,14 @@ export async function recoverFileEvidenceGaps({catalogPath,authorizeCatalog,maxF
     db.pragma('wal_checkpoint(TRUNCATE)');await fs.writeFile(path.join(path.dirname(catalogPath),'gap-recovery-summary.json'),JSON.stringify(summary,null,2)+'\n');return summary;
   }finally{db.close();}
 }
+
+/** Decode only a document-declared OpenXML font key; never guess keys or execute fonts. */
+export function decodeObfuscatedFont(bytes, fontKey) {
+  const hex=typeof fontKey==='string'?fontKey.replace(/[{}-]/g,''):'';
+  if(!/^[a-fA-F0-9]{32}$/.test(hex)||bytes.length<32)throw new Error('Declared font key required.');
+  const key=Buffer.from(hex,'hex').reverse(),decoded=Buffer.from(bytes);
+  for(let i=0;i<32;i++)decoded[i]^=key[i%16];
+  const classified=classifyBinaryEvidence(decoded);
+  if(classified.format!=='sfnt_font'||classified.status!=='metadata_recovered')throw new Error('Decoded font structure invalid.');
+  return {bytes:decoded,metadata:classified.metadata};
+}
