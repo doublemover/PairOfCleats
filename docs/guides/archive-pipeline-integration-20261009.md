@@ -86,21 +86,25 @@ it remains preserved while the final paired plan uses frozen generators and sour
 
 ## Ordered CPU qualification gate
 
-The verified troublesome Swift target is `onevcat/Kingfisher`. It was in the historical
-small set but is currently medium (44,207 observed code lines); historical logs show
-SourceKit timeouts/degraded coverage despite exit zero. No existing checkout was found
-inside the approved roots. The individual normal repository benchmark is distinct from
-archive indexing and must use CPU real embeddings with judged retrieval/citation checks,
-bounded owned-process supervision and explicit project-contained caches/resources.
-The language wrapper adds seven unrelated guardrail measurements, so it is not the
-scoped command unchanged. Existing normal-repository dependency/tooling/dictionary
-readiness and cached MiniLM model qualification remain prerequisites; the normal model
-is distinct from archive EG2. No historical checkout comparison is planned.
+The verified troublesome Swift target is `onevcat/Kingfisher`. One canonical current
+checkout benchmark completed with actual CPU embeddings and production dictionaries;
+[exact evidence and limits](kingfisher-cpu-verification-20261009.md) records the
+source/model identities, valid persisted vectors and declared sparse-only retrieval
+misses. Missing optional SourceKit is explicit degraded coverage. No historical
+checkout comparison or unrelated language-wrapper measurements ran.
 
-Finish the final count-only archive plan and current integration acceptance before that
-normal repository run. Material coverage, relevance, dependency or workload failures
-must be fixed/reported before a costly corpus job. The owner authorized this sequence;
-no GPU/DirectML, new arbitrary software, or unrequested extra benchmark campaign is included.
+Fresh original-catalog reprojection now contains 87,973 records across 89 shards,
+289,530,708 sanitized UTF-16 characters and 20,390 complete groups, with zero gaps
+or conflicts and 614 explicit omission receipts. Current regenerated vocabulary
+loads 1,675,434 effective words from corpus identifiers and actual pinned English.
+The earlier tiny synthetic packs are excluded. Original sources remain authoritative.
+
+Production derivative import/persistence verification and exact current EG2 token
+counts are the next gates. The frozen diagnostic overlay below differs from this
+fresh derivative and cannot establish its exact workload or ETA. Qualify actual
+current-policy archive relevance, citations, preparation/throughput and scheduling
+before the recovered-corpus sequence. Fix/report material failures first. This is
+CPU only; no GPU/DirectML, arbitrary software or extra benchmark campaign is implied.
 
 ## Exact count-only evidence
 
@@ -131,7 +135,7 @@ The eight sources exceeding the former global span cap pass 24 first/middle/fina
 unit admission checks; per-unit intersection now precedes the span budget.
 
 A separate vocabulary pass generated/loaded 1,366,675 recovered words and an effective
-union of 1,366,684 words, including common/JavaScript/Python/TypeScript packs. Eleven
+union of 1,366,684 words, including tiny synthetic common/JavaScript/Python/TypeScript fixture packs. Eleven
 observed languages/formats have no corresponding selected pack. File hashes, loaded
 counts and source signatures are recorded. This receipt used prior retained bodies;
 its wordlist is blocked from current activation until asset-aware reprojection and
