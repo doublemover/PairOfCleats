@@ -316,7 +316,7 @@ JSON per read; totals are null with `complete: false` when the candidate cap is 
 `totalMatches` counts exact displayed groups, and `totalMatchedUnits` counts their
 matching source units. `nextOffset` pages observed groups, not unseen candidates.
 
-Default derivatives require public user/assistant messages, an absent/final/commentary
+Conversation derivatives require public user/assistant messages, an absent/final/commentary
 channel, no tool recipient and no hidden flag. ChatGPT content must explicitly be
 text/multimodal_text; only string or explicitly typed text parts enter the view. Codex
 items must explicitly be messages with a single public role per turn. Reasoning, tool

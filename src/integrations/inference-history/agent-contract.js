@@ -12,7 +12,7 @@ export function historyAgentHelp({ full = false } = {}) {
     commands: Object.keys(HISTORY_AGENT_REQUESTS),
     semantics: {
       search: 'Default auto first tries literal Unicode-word AND, then one bounded OR pass only after complete strict absence. Quoted phrases and -word exclusions remain required; OR is a literal word, not an operator. Explicit strict/relaxed controls remain available.',
-      filters: 'All supplied filters are ANDed. role omitted searches both roles.',
+      filters: 'All supplied filters are ANDed. role omitted searches all admissible roles, including artifact units when present.',
       dates: 'Inclusive UTC bounds. YYYY-MM-DD spans the whole day; unknown dates do not satisfy a date filter.',
       history: 'includeHistory=false selects the latest imported revision per record; pathState=all includes alternative branches.',
       timeline: 'Exact conversation branch, oldest/newest visible messages, optional role and inclusive UTC bounds. Correction-language signals are not verified changes of preference; assistant advice is not user acceptance.',
