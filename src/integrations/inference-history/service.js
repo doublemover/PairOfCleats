@@ -1,3 +1,4 @@
+import { readDocumentContext, openArtifactCatalogs } from './artifact-collection.js';
 import { historyAuditEvent } from './audit.js';
 import { historyPrivacy, privacyText, updateHistoryPrivacy } from './privacy.js';
 import { validateInferenceHistoryAccess } from '../../contracts/validators/inference-history.js';
@@ -7,7 +8,7 @@ import { hashCanonicalJson } from './normalize.js';
 import { normalizeHistoryRecord } from './records.js';
 import { normalizeMemberLinks } from './member-links.js';
 import { READ_GUARDS, visibleNode, readVisibleContext, readHistoryReferences } from './reader.js';
-import { openHistoryStore, openMemoryHistoryStore } from './store.js';
+import { openHistoryStore, openMemoryHistoryStore, openLocalArchiveStore } from './store.js';
 import { searchHybridHistory } from './hybrid.js';
 import { historyIndexState, advanceHistoryGeneration } from './generation.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
@@ -33,8 +34,8 @@ const securityIdentity = (access) => JSON.stringify([
  * the requested action; the caller's partition selector is never an identity.
  */
 export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource = null, resolveCodeAccess = null,
-  verifyPrivateVault = null, limits: inputLimits, audit = null, semantic = null, resolveOwnerAccess = null, localSourceToken = null }) {
-  if(localSourceToken!==null&&localSourceToken!==LOCAL_SOURCE_TOKEN)throw denied();
+  verifyPrivateVault = null, limits: inputLimits, audit = null, semantic = null, resolveOwnerAccess = null, localSourceToken = null, localIndexPath = null, localEvidence = null }) {
+  if((localSourceToken!==null&&localSourceToken!==LOCAL_SOURCE_TOKEN)||((localIndexPath!==null||localEvidence!==null)&&localSourceToken!==LOCAL_SOURCE_TOKEN))throw denied();
   const memoryStores=new Map();let disposed=false;
   if (typeof resolveAccess !== 'function') throw denied();
   if(localSourceToken!==LOCAL_SOURCE_TOKEN&&typeof audit!=='function') throw historyError('ERR_INFERENCE_HISTORY_AUDIT','Durable audit sink required.');
@@ -87,7 +88,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       const partitionKey = digest(partitionIdentity(access));
       if(disposed)throw denied();
       if(localSourceToken===LOCAL_SOURCE_TOKEN){
-        if(!memoryStores.has(partitionKey)){const memory=openMemoryHistoryStore(partitionKey),close=memory.close.bind(memory);memory.close=()=>{};memoryStores.set(partitionKey,{db:memory,close});}
+        if(!memoryStores.has(partitionKey)){const memory=localIndexPath?await openLocalArchiveStore(localIndexPath,partitionKey):openMemoryHistoryStore(partitionKey),close=memory.close.bind(memory);memory.close=()=>{};memoryStores.set(partitionKey,{db:memory,close});}
         db=memoryStores.get(partitionKey).db;
       }else db = await openHistoryStore(vaultRoot, partitionKey, { create, verifyPrivateVault });
       const initialIndex = historyIndexState(db);
@@ -253,11 +254,11 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
   const search = async (request) => perform({ ...request, action: 'search' }, false,
     async (db,_access,reauthorize) => searchHybridHistory(db,request,semantic,reauthorize));
   const readContext = async (request) => perform({ ...request, action: 'read_context' }, false,
-    async db => readVisibleContext(db, request));
+    async db => {const result=readDocumentContext(db, request);if(result&&localEvidence){const raw=JSON.parse(db.prepare('SELECT raw_json FROM snapshots WHERE id=?').get(request.snapshotRef).raw_json);result.archiveRelations=localEvidence.relations(db,raw);}return result;});
   const readTimeline = async (request) => perform({ ...request, action: 'read_context' }, false,
     async db => readVisibleContext(db, { ...request, timeline: true }));
   const readReferences = async (request) => perform({ ...request, action: 'read_references' }, false,
-    async db => readHistoryReferences(db, request));
+    async db => {const result=readHistoryReferences(db, request);if(result&&localEvidence){const row=db.prepare('SELECT s.raw_json FROM units u JOIN records r ON r.id=u.record_id JOIN snapshots s ON s.id=r.latest_snapshot WHERE u.id=?').get(request.sourceRef);if(row)result.archiveRelations=localEvidence.relations(db,JSON.parse(row.raw_json));}return result;});
   const readOriginal = async (request) => perform({ ...request, action: 'read_original', target: 'record' }, false, async (db) => {
     if (!opaqueId(request.snapshotRef)) throw invalid();
     const row = db?.prepare(`SELECT snapshots.raw_json, snapshots.diagnostics, snapshots.source_kind FROM snapshots
@@ -270,6 +271,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
     const policy=historyPrivacy(db,recordRef);
     if(policy.redactions.length || policy.excluded) throw denied();
     const raw = JSON.parse(row.raw_json);
+    if(localEvidence&&row.source_kind==='recovered_artifact')return {evidenceKind:row.source_kind,preservedOriginal:await localEvidence.original(raw),archiveRelations:localEvidence.relations(db,raw),occurrences};
     let assetReferences = [], assetReferencesComplete = true;
     try {
       const normalized = normalizeHistoryRecord(raw, row.source_kind, DEFAULT_LIMITS);
@@ -370,8 +372,9 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
  */
 export async function createLocalSourceHistoryService(options) {
   if(!options||typeof options!=='object'||Array.isArray(options)
-    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits'].includes(key)))throw invalid();
-  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000}=options;
+    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs'].includes(key)))throw invalid();
+  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000,indexPath=null,catalogs=[]}=options;
+  if(indexPath!==null&&(typeof indexPath!=='string'||!path.isAbsolute(indexPath)))throw invalid();
   if(!Array.isArray(sources)||sources.length<1||sources.length>200
     ||(audit!==null&&typeof audit!=='function')
     ||!Number.isSafeInteger(maxSourceBytes)||maxSourceBytes<1||maxSourceBytes>1024*1024*1024
@@ -383,7 +386,7 @@ export async function createLocalSourceHistoryService(options) {
   if(new Set(selected.map(source=>source.path)).size!==selected.length)throw invalid();
   const scope=Object.freeze({requestContext:Symbol('local-source'),partition:'local'});
   const access=Object.freeze({principalId:'local-operator',tenantId:'local',ownerType:'individual',
-    ownerId:'local-operator',sourceScope:digest(JSON.stringify(selected)),policyEpoch:'local-selected-files',allowed:true});
+    ownerId:'local-operator',sourceScope:digest(indexPath?path.resolve(indexPath):JSON.stringify(selected)),policyEpoch:'local-selected-files',allowed:true});
   const fs=await import('node:fs/promises');let totalBytes=0;
   for(const source of selected){
     const stat=await fs.lstat(source.path);
@@ -391,19 +394,21 @@ export async function createLocalSourceHistoryService(options) {
     totalBytes+=stat.size;if(totalBytes>maxSourceBytes)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local source byte budget exceeded.');
   }
   let current=null;
-  const service=createInferenceHistoryService({resolveAccess:()=>access,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,
-    resolveImportSource:()=>({path:current.path,policyEpoch:'local-selected-files',sha256:current.sha256})});
+  const evidence=await openArtifactCatalogs(catalogs);
+  let service;
+  try{service=createInferenceHistoryService({resolveAccess:()=>access,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,localIndexPath:indexPath,localEvidence:evidence,
+    resolveImportSource:()=>({path:current.path,policyEpoch:'local-selected-files',sha256:current.sha256})});}catch(error){evidence.close();throw error;}
   try{
     for(const source of selected){current=source;const result=await service.importExport(scope);
       if(result.archiveSha256!==source.sha256)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Selected source hash changed.');
       if(service.memoryUnitCount()>maxUnits)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local source unit budget exceeded.');
     }
-  }catch(error){service.dispose();throw error;}
-  const metadata=Object.freeze({mode:'local_source_readonly',storage:'memory_only',
-    audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:false});
+  }catch(error){service.dispose();evidence.close();throw error;}
+  const metadata=Object.freeze({mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
+    audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:!!indexPath});
   let pending=Promise.resolve(),closed=false;
   const api={executionContext:'local_source_readonly',localSource:metadata,
-    async dispose(){closed=true;await pending;service.dispose();}};
+    async dispose(){closed=true;await pending;service.dispose();evidence.close();}};
   for(const method of ['search','readContext','readTimeline','readReferences','readOriginal','readMemberEvidence']){
     api[method]=request=>{
       if(closed)return Promise.reject(denied());

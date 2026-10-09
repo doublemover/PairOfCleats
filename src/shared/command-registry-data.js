@@ -156,6 +156,7 @@ export const COMMAND_REGISTRY = Object.freeze([
       ...SEARCH_DISPATCH_METADATA
     }
   }),
+  entry('history.local', ['history', 'local'], 'tools/history/local.js', 'Read a selected local collection of conversations and recovered artifacts.', { helpGroup: 'Search', capability: false, helpExamples: ['pairofcleats history local --help'] }),
   entry('history.help', ['history', 'help'], 'tools/history/help.js', 'Discover the private archive reader; reads require a trusted host.', {
     helpGroup: 'Search',
     capability: false,
