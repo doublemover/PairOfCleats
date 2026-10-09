@@ -936,3 +936,4 @@ integrations/inference-history/archive-lexical
 integrations/inference-history/hybrid-source-diversity
 integrations/inference-history/redaction-idempotence
 integrations/inference-history/eg2-structural-runtime
+integrations/inference-history/archive-assets

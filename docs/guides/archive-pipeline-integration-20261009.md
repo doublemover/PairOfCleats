@@ -6,6 +6,9 @@ The implementation stays on PR547 and preserves the original recovered corpus.
 ## Current production policy
 
 The store format is `inference-history.v7`; text projection is `history-text.v7`.
+Structural/context policies are v3 and artifact projection is v3. Explicit data URLs
+and named base64 asset fields become hashed omission facts; surrounding code syntax
+and source evidence remain preserved. Old retained bodies require explicit reprojection.
 Previous stores and changed lexical identities fail closed. Rebuilding a selected
 DERIVED collection is explicit; no startup migration or corpus write is performed.
 Current artifact projections require `sanitized_utf16` offsets and a validated
@@ -31,7 +34,7 @@ separate identities.
 The exact `title: <bounded source/function/section context> | text: <span>` input
 is the cache key and encoder input. A tokenizer-only measurement uses the fixed pinned
 EG2 tokenizer without truncation before deterministic division of oversized spans.
-The final model input must fit 8,192 tokens. A shared source span fans out to exact
+The final model input must fit 8,192 tokens. Projection v3 and asset policy v1 are explicit document-identity inputs. A shared source span fans out to exact
 unit-local citation ranges. Different contextual inputs cannot share a cached vector.
 Changes, deletion, exclusion, new fragments and latest-snapshot changes invalidate
 cross-fragment vectors; generation and every source dependency are revalidated before
@@ -64,7 +67,7 @@ unavailable rerank request fails before a semantic callback/model invocation.
 
 ## Focused acceptance
 
-Six integrated no-model checks passed on Windows Node 26.8.1 using the actual existing
+Six initial integrated no-model checks passed on Windows Node 26.8.1 using the actual existing
 better-sqlite3 13.0.3 N-API binding: archive structure, lexical analysis, hybrid source
 diversity, redaction idempotence, structural runtime and production SQLite readiness.
 Focused worker/scheduler/identity/cancellation/disconnect tests passed in their owning
@@ -98,3 +101,48 @@ Finish the final count-only archive plan and current integration acceptance befo
 normal repository run. Material coverage, relevance, dependency or workload failures
 must be fixed/reported before a costly corpus job. The owner authorized this sequence;
 no GPU/DirectML, new arbitrary software, or unrequested extra benchmark campaign is included.
+
+## Exact count-only evidence
+
+The final diagnostic used the fixed local EG2 tokenizer with no truncation or model
+session. It reconstructs 20,388 contiguous runs from 20,386 representations of 18,008
+original hashes. Five existing partial runs remain explicit gaps; none was bridged.
+Original schema, row counts, size, mtime and SQLite SHA256 remained unchanged.
+
+| Policy | Unique inputs | Actual prefixed tokens | Planned padded tokens | Planned attention proxy |
+| --- | ---: | ---: | ---: | ---: |
+| Frozen legacy 1000/200 | 345,299 | 124,674,572 | 143,321,648 | 70,460,737,336 |
+| Initial structural v2 diagnosis | 579,662 | 164,223,438 | 180,313,350 | 80,273,222,830 |
+| Final structural/context v3 diagnostic | 422,794 | 135,924,462 | 147,553,178 | 63,724,324,594 |
+
+V3 metadata packing reduces JSON spans from 136,003 to 11,309 and occurrence tokens
+from 10.25 million to 2.44 million. It retains semantic eligibility. Compared with
+legacy, useful tokens increase 9.02%, planned padded tokens 2.95% and batches 22.44%,
+while the attention proxy decreases 9.56%. Different deterministic scan orders and
+input shapes affect packing; these are counts and scheduling estimates, not actual
+throughput, new relevance results or a certified ETA. Largest final input: 1,054 tokens.
+No final input exceeds 8,192 tokens.
+
+The diagnostic asset overlay replaces five payload occurrences totaling 4,373,896
+encoded characters in two retained runs. Candidate text is 289,514,137 UTF-16 characters
+versus 293,887,026 retained legacy characters. This overlay is not original-catalog
+reprojection and its changed coordinates are not treated as original citations.
+The eight sources exceeding the former global span cap pass 24 first/middle/final
+unit admission checks; per-unit intersection now precedes the span budget.
+
+A separate vocabulary pass generated/loaded 1,366,675 recovered words and an effective
+union of 1,366,684 words, including common/JavaScript/Python/TypeScript packs. Eleven
+observed languages/formats have no corresponding selected pack. File hashes, loaded
+counts and source signatures are recorded. This receipt used prior retained bodies;
+its wordlist is blocked from current activation until asset-aware reprojection and
+regeneration. Large-dictionary relevance and throughput remain unqualified.
+
+Final count receipt SHA256:
+`ac8cc5acd8f1db32fb2aff724217cb87e06409f6e6558ca38402e49fefdc0922`.
+Original vocabulary receipt SHA256:
+`c301ce39242c70be10dbcd21e726af8ecfdd5d0efa34cfa7985e154a43bbbd42`.
+
+One further preparation concern was found without inference: per-unit rebuilding of
+an entire multi-fragment source would amplify work (11.48 million characters × 2,871
+fragments for the largest source). Bounded source-plan reuse is being implemented
+before any costly corpus run; count-only input totals do not certify preparation speed.
