@@ -1,3 +1,4 @@
+import { analyzeLiteralText } from '../../../../shared/text-analyzer.js';
 import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -1073,6 +1074,7 @@ export const processChunks = async (context) => {
       analysisPolicy,
       weightMultiplier: boilerplateWeightMultiplier
     });
+    chunkPayload.phraseTokens = analyzeLiteralText(tokenText);
     chunkPayload.skipPhrasePostings = shouldSkipPhrasePostingsForChunk(
       chunkPayload,
       typeof relKey === 'string' ? relKey.toLowerCase() : null

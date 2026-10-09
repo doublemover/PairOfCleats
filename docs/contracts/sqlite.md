@@ -22,3 +22,5 @@
 - `docs/sqlite/incremental-updates.md`
 - `docs/sqlite/ann-extension.md`
 
+
+Schema 13 retains the complete ordered phrase token stream in chunks.phrase_tokens, independently of sampled/stemmed scoring tokens. Schema 12 stores require rebuilding. Missing literal evidence cannot satisfy quoted requirements or exclusions.

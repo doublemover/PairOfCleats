@@ -201,6 +201,8 @@ export function createSqliteHelpers(options) {
       preContext: parseJson(row.preContext, []),
       postContext: parseJson(row.postContext, []),
       tokens: parseArrayField(row.tokens),
+      phraseTokens: parseArrayField(row.phrase_tokens),
+      phraseTokensComplete: row.phrase_tokens != null,
       ngrams: parseJson(row.ngrams, []),
       codeRelations: parseJson(row.codeRelations, null),
       docmeta: parseJson(row.docmeta, null),
