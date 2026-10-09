@@ -1,4 +1,5 @@
 import { historySemanticSpans } from './semantic-values.js';
+import { archiveStructuralSpans } from './archive-structure.js';
 import { historyError } from './common.js';
 
 /** Reconstruct only current-policy sanitized fragments. References stay unit-local. */
@@ -40,7 +41,7 @@ export function planArchiveUnitSpans(unit, siblings, config) {
   const base = selected[0].metadata.sourceDetails.sanitizedStart;
   const start = details.sanitizedStart - base, end = details.sanitizedEnd - base;
   const spans = [], ranges = new Set();
-  for (const span of historySemanticSpans(text, config.chunkChars, config.overlapChars, { ...metadata, ...details })) {
+  for (const span of archiveStructuralSpans(text, { ...metadata, ...details, chunkChars: config.chunkChars, overlapChars: config.overlapChars, intersectStart: start, intersectEnd: end })) {
     const localStart = Math.max(start, span.start) - start;
     const localEnd = Math.min(end, span.end) - start;
     const range = localStart + ':' + localEnd;
@@ -48,6 +49,7 @@ export function planArchiveUnitSpans(unit, siblings, config) {
     ranges.add(range);
     spans.push({ ...span, sourceStart: span.start, sourceEnd: span.end, unitStart: start, unitEnd: end, start: localStart, end: localEnd });
   }
+  if (spans.length > 5000) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'Semantic unit span budget exceeded.');
   return spans;
 }
 
@@ -88,5 +90,6 @@ export async function boundArchiveTokenSpans(spans, measure, maxTokens = 8192) {
   }
   return [...unique.values()];
 }
+
 
 
