@@ -271,7 +271,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Route before resolving lazy query embeddings; reuse bounded normalized query/model/provider/generation embedding entries across sessions and provider health/preflight state for each cached index generation.
 - [x] Use shared Unicode/ICU-versioned scoring boundaries for index and query; preserve complete Unicode identifiers and ASCII identifier splits. Canonically normalize literal phrase evidence; analyzer changes require rebuilding affected indexes.
 - [x] Select modest source-span diversity before graph ranking fixes membership; accept a bounded supplied real reranker without synthetic scores or model acquisition. Use rank contributions for cross-mode bundles and label federated RRF while retaining native scores.
-- [ ] Map fast/hybrid/investigate controls to execution; preserve identity/span/followup fields in compact output.
+- [x] Map fast/hybrid/investigate presets, all/any/auto query matching, separate candidate/final counts, cooperative deadlines and explicit JSON byte budgets to execution; retain identity/span/generation/followup fields in compact output.
 - [ ] Add archive-native title/path/facet discovery, original grouping and role-aware context presets. Scalable persistent semantics and selective media enrichment remain conditional on supplied adapters and explicit use.
 
 Use focused behavioral checks for each slice. No hosted CI wait, historical comparison campaign, model download or new local access/audit layer is required. The original conversation transfer remains a separate input blocker for real conversation/artifact examples; it does not block generic changes or DAT retrieval.

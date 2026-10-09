@@ -15,6 +15,7 @@ export async function executeSearchAndEmit(input) {
     emitOutput,
     jsonOutput,
     jsonCompact,
+    outputMaxBytes = null,
     explain,
     explainTier = 'summary',
     rootDir,
@@ -309,7 +310,7 @@ export async function executeSearchAndEmit(input) {
     verboseCache,
     elapsedMs,
     stageTracker,
-    outputBudget: userConfig?.search?.outputBudget || null,
+    outputBudget: {...(userConfig?.search?.outputBudget || {}), totalMaxBytes: outputMaxBytes ?? userConfig?.search?.outputBudget?.totalMaxBytes},
     hyperlinkMode: userConfig?.search?.hyperlinks || null,
     asOfContext,
     generationContext
