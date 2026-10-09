@@ -41,4 +41,3 @@ export function projectArtifact({ text, sourceSha256, locator, kind = 'document'
   }
   return result;
 }
-

@@ -67,5 +67,3 @@ export async function prepareFileEvidenceArtifacts({catalogPaths,outputRoot,auth
   }
   await flush();await fs.writeFile(path.join(outputRoot,'preparation-manifest.json'),JSON.stringify(summary,null,2)+'\n',{flag:'wx'});return summary;
 }
-
-
