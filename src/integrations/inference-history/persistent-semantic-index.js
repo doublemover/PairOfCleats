@@ -254,6 +254,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
     return { ...coverage, admittedUnits: processed, encodedSpans: encoded, reusedSpans: reused, batches, stopped, nativeCancellation,
       actualTokens, paddedTokens, timings, sourcePreparation, resumable: true, exhaustiveCoverage: coverage.complete };
   };
+  let searchStatement = null;
   const adapter = () => {
     const coverage = status();
     if (!coverage.indexedSpans || !coverage.indexedUnits) return null;
@@ -274,7 +275,7 @@ export function createPersistentHistorySemanticIndex(db, runtime) {
           "WHERE e.document_key=? AND done.complete=1 AND r.deleted=0 AND r.excluded=0 AND EXISTS (SELECT 1 FROM snapshot_units latest WHERE latest.unit_id=u.id AND latest.snapshot_id=r.latest_snapshot) AND (? IS NULL OR json_extract(u.metadata,'$.role')=?) AND (? IS NULL OR json_extract(u.metadata,'$.createdAt.utc')>=?) AND (? IS NULL OR json_extract(u.metadata,'$.createdAt.utc')<=?) ORDER BY e.unit_id,e.start"
         ].join(' ');
         const ranked = []; let matched = 0, visited = 0, lastSource = '';
-        for (const row of db.prepare(sql).iterate(history ? 1 : 0, request.snapshotRef ?? null, request.snapshotRef ?? null, path, path, documentKey, role, role, from, from, to, to)) {
+        for (const row of (searchStatement ??= db.prepare(sql)).iterate(history ? 1 : 0, request.snapshotRef ?? null, request.snapshotRef ?? null, path, path, documentKey, role, role, from, from, to, to)) {
           signal?.throwIfAborted(); visited++;
           if (visited % 100 === 0) await new Promise(resolve => setImmediate(resolve));
           if (!row.snapshotRef || !matchesHistoryHardConstraints(row.text, parsed)) continue;

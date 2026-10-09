@@ -243,7 +243,7 @@ export function createEg2WorkerRuntime(config, {
     async encodeQuery(query, { signal } = {}) {
       if (!safeTexts([query])) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'EG2 query exceeds IPC bounds.');
       const vectors = validateVectors(await request('query', config.queryPrefix + query, signal), 1);
-      return normalizeHistoryVector(Array.from(vectors[0]).slice(0, config.profile.dimensions), config.profile.dimensions);
+      return normalizeHistoryVector(vectors[0].subarray(0, config.profile.dimensions), config.profile.dimensions);
     },
     executionInfo() {
       return { provider: 'xenova', device: 'cpu', executionProviders: ['cpu'],
