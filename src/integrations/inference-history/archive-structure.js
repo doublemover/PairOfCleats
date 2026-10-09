@@ -99,6 +99,11 @@ export function archiveStructuralSpans(text, options = {}) {
     || !Number.isSafeInteger(overlapChars) || overlapChars < 0 || overlapChars >= chunkChars) {
     throw new Error('Invalid archive structural span controls.');
   }
+  const intersectStart = options.intersectStart ?? 0, intersectEnd = options.intersectEnd ?? text.length;
+  if (!Number.isSafeInteger(intersectStart) || !Number.isSafeInteger(intersectEnd)
+    || intersectStart < 0 || intersectEnd < intersectStart || intersectEnd > text.length) {
+    throw new Error('Invalid archive structural intersection.');
+  }
   const classification = classifyArchiveSource({ locator, kind, text });
   const mode = ['code', 'config'].includes(classification.format) ? 'code' : 'prose';
   const chunks = smartChunk({ text, ext: classification.ext, relPath: locator, mode,
@@ -141,8 +146,9 @@ export function archiveStructuralSpans(text, options = {}) {
   }
   const output = [];
   for (const range of ranges) {
+    if (range.end <= intersectStart || range.start >= intersectEnd) continue;
     let start = range.start;
-    while (start < range.end) {
+    while (start < range.end && start < intersectEnd) {
       let end = Math.min(range.end, start + chunkChars);
       if (end < range.end) {
         const line = text.lastIndexOf('\n', end);
@@ -150,7 +156,7 @@ export function archiveStructuralSpans(text, options = {}) {
         if (/[\uD800-\uDBFF]/.test(text[end - 1])) end--;
       }
       const title = [locator, range.name].filter(Boolean).join(' — ').slice(0, 1024);
-      output.push({ start, end, text: text.slice(start, end), title, contextTitle: title, classification });
+      if (end > intersectStart) output.push({ start, end, text: text.slice(start, end), title, contextTitle: title, classification });
       if (end === range.end) break;
       start = Math.max(start + 1, end - overlapChars);
       if (/[\uDC00-\uDFFF]/.test(text[start])) start++;
@@ -160,5 +166,6 @@ export function archiveStructuralSpans(text, options = {}) {
   for (const span of output) span.text = text.slice(span.start, span.end);
   return output;
 }
+
 
 

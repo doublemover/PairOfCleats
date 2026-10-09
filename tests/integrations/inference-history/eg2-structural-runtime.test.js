@@ -1,3 +1,4 @@
+import { archiveStructuralSpans } from '../../../src/integrations/inference-history/archive-structure.js';
 import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { archiveDocumentInput } from '../../../src/integrations/inference-history/document-input.js';
@@ -66,3 +67,32 @@ db.close();
 console.log('Contextual source reassembly, exact occurrence offsets, token fallback and duplicate cache identity passed (no model).');
 
 
+
+// Real inventory sources reach 11.48M UTF-16 characters across ~2,871 fragments.
+// The source budget applies to reconstruction; the 5,000-span budget applies per unit.
+const largeText = 'HTTPServer keeps exact sanitized source offsets. '.repeat(240000).slice(0, 11480000);
+assert.ok(largeText.length > 11000000);
+const largeRows = [];
+for (let start = 0; start < largeText.length; start += 4000) {
+  const end = Math.min(largeText.length, start + 4000);
+  largeRows.push({ id: String(start).padStart(12, '0'), text: largeText.slice(start, end), metadata: JSON.stringify({ sourceDetails: { ...details, locator: 'large.txt', artifactKind: 'document', sanitizedStart: start, sanitizedEnd: end } }) });
+}
+assert.ok(largeRows.length < 5000);
+for (const ordinal of [0, Math.floor(largeRows.length / 2), largeRows.length - 1]) {
+  const unit = largeRows[ordinal], unitDetails = JSON.parse(unit.metadata).sourceDetails;
+  const planned = planArchiveUnitSpans(unit, largeRows, config);
+  assert.ok(planned.length > 0 && planned.length < 12, 'output allocation is limited to this transport unit');
+  const covered = new Uint8Array(unit.text.length);
+  for (const span of planned) {
+    assert.equal(span.text, largeText.slice(span.sourceStart, span.sourceEnd));
+    assert.ok(span.start >= 0 && span.end <= unit.text.length && span.start < span.end);
+    covered.fill(1, span.start, span.end);
+    assert.equal(unit.text.slice(span.start, span.end), largeText.slice(unitDetails.sanitizedStart + span.start, unitDetails.sanitizedStart + span.end));
+  }
+  assert.ok(covered.every(value => value === 1), 'all source characters retain exact occurrence coverage');
+}
+const sample = '// HTTPServer context\nfunction server() {\n' + '  return café;\n'.repeat(30) + '}\n';
+const all = archiveStructuralSpans(sample, { locator: 'server.js', artifactKind: 'code', chunkChars: 80, overlapChars: 20 });
+assert.deepEqual(archiveStructuralSpans(sample, { locator: 'server.js', artifactKind: 'code', chunkChars: 80, overlapChars: 20, intersectStart: 121, intersectEnd: 200 }), all.filter(span => span.start < 200 && span.end > 121), 'intersection filtering preserves identical source-global fallback alignment');
+assert.throws(() => archiveStructuralSpans(sample, { intersectStart: -1 }), /intersection/);
+console.log('11.48M-character source planning admits bounded first/middle/final unit spans with complete exact offset coverage (no model).');
