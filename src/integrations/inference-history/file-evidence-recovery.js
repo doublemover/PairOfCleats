@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {inflateSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import Database from 'better-sqlite3';
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -36,8 +37,10 @@ export function classifyBinaryEvidence(bytes,extension=''){
     const at=bytes.length>=64?bytes.readUInt32LE(60):0,signature=at+4<=bytes.length?bytes.subarray(at,at+4):null;
     return {format:signature?.equals(Buffer.from('50450000','hex'))?'pe_executable':signature?.subarray(0,2).toString()==='NE'?'ne_executable':'dos_mz_executable',status:'identified_not_executed',metadata:{bytes:bytes.length}};
   }
-  if(bytes.length>=32&&bytes.readUInt32LE(0)===bytes.length&&bytes.readUInt32LE(4)===108000)return {
-    format:'length_prefixed_raster_unresolved',status:'unresolved_codec',metadata:{widthField:bytes.readUInt16LE(8),heightField:bytes.readUInt16LE(10),depthField:bytes.readUInt16LE(12),marker:108000}};
+  if(bytes.length>=128&&bytes.readUInt16LE(4)===0xa5e0){
+    try{const decoded=decodeAsepriteEvidence(bytes);return {format:'aseprite',status:'pixels_recovered',metadata:{...decoded.metadata,cels:decoded.cels.map(({pixels,...cel})=>cel)}};}
+    catch{return {format:'aseprite',status:'unresolved_schema',metadata:{}};}
+  }
   if(bytes.length>=8&&bytes.readUInt32LE(0)===0xabcdefab)return {format:'custom_mbd_unresolved',status:'unresolved_schema',
     metadata:{versionField:bytes.readUInt16LE(4),countField:bytes.readUInt16LE(6)}};
   return {format:'binary_unresolved',status:'unresolved_schema',metadata:{bytes:bytes.length}};
@@ -164,4 +167,43 @@ export async function recoverUtf8FileEvidence({catalogPath,sourceSha256,authoriz
     db.prepare('INSERT INTO encoding_recovery VALUES (?,?,?,?)').run(sourceSha256,'utf8_segments_recovered',decoded.text,JSON.stringify(decoded.metadata));
     return {sourceSha256,status:'utf8_segments_recovered',textChars:decoded.text.length,invalidBytes:decoded.metadata.invalidByteOffsets.length,escapedControls:decoded.metadata.escapedControlOffsets.length};
   }finally{db.close();}
+}
+
+/** Bounded Aseprite structural/layer/cel recovery; no rendering or external file loading. */
+export function decodeAsepriteEvidence(bytes) {
+  const fail=()=>{throw new Error('Invalid or limited Aseprite evidence.');};
+  if(bytes.length<128||bytes.length>128*1024*1024||bytes.readUInt32LE(0)!==bytes.length||bytes.readUInt16LE(4)!==0xa5e0)fail();
+  const width=bytes.readUInt16LE(8),height=bytes.readUInt16LE(10),depth=bytes.readUInt16LE(12),frames=bytes.readUInt16LE(6);
+  if(!width||!height||!frames||![8,16,32].includes(depth))fail();
+  const metadata={format:'aseprite',width,height,depth,frames,layers:[],frameDurations:[],chunkTypes:{},decodedBytes:0},cels=[];
+  let offset=128,chunks=0;
+  for(let frame=0;frame<frames;frame++){
+    if(offset+16>bytes.length)fail();
+    const size=bytes.readUInt32LE(offset),end=offset+size,count=bytes.readUInt32LE(offset+12)||bytes.readUInt16LE(offset+6);
+    if(size<16||end>bytes.length||bytes.readUInt16LE(offset+4)!==0xf1fa||chunks+count>100000)fail();
+    metadata.frameDurations.push(bytes.readUInt16LE(offset+8));let p=offset+16;
+    for(let index=0;index<count;index++){
+      if(p+6>end)fail();const length=bytes.readUInt32LE(p),type=bytes.readUInt16LE(p+4);
+      if(length<6||p+length>end)fail();
+      const data=bytes.subarray(p+6,p+length);metadata.chunkTypes[type]=(metadata.chunkTypes[type]??0)+1;chunks++;
+      if(type===0x2004){
+        if(data.length<18)fail();const n=data.readUInt16LE(16);if(18+n>data.length)fail();
+        metadata.layers.push({name:new TextDecoder('utf-8',{fatal:true}).decode(data.subarray(18,18+n)),flags:data.readUInt16LE(0),type:data.readUInt16LE(2),level:data.readUInt16LE(4),blendMode:data.readUInt16LE(10),opacity:data[12]});
+      }else if(type===0x2005){
+        if(data.length<16)fail();const cel={frame,layer:data.readUInt16LE(0),x:data.readInt16LE(2),y:data.readInt16LE(4),opacity:data[6],type:data.readUInt16LE(7)};
+        if(cel.type===0||cel.type===2){
+          if(data.length<20)fail();cel.width=data.readUInt16LE(16);cel.height=data.readUInt16LE(18);
+          const expected=cel.width*cel.height*(depth/8);if(!expected||expected>64*1024*1024||metadata.decodedBytes+expected>64*1024*1024)fail();
+          cel.pixels=cel.type===2?inflateSync(data.subarray(20),{maxOutputLength:expected}):Buffer.from(data.subarray(20));
+          if(cel.pixels.length!==expected)fail();cel.pixelSha256=digest(cel.pixels);metadata.decodedBytes+=expected;
+        }else if(cel.type===1){if(data.length<18)fail();cel.linkedFrame=data.readUInt16LE(16);if(cel.linkedFrame>=frames)fail();}
+        else cel.status='tilemap_not_decoded';
+        cels.push(cel);
+      }
+      p+=length;
+    }
+    if(p!==end)fail();offset=end;
+  }
+  if(offset!==bytes.length||cels.some(c=>c.layer>=metadata.layers.length))fail();
+  return {metadata,cels};
 }

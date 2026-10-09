@@ -73,3 +73,18 @@ for(const sequence of [[0xc0,0xaf],[0xed,0xa0,0x80],[0xf4,0x90,0x80,0x80],[0xf0,
 }
 assert.equal(decodeUtf8Evidence(Buffer.alloc(0)).text,'');
 console.log('UTF-8 evidence preserves valid spans and exact corrupt/control byte offsets');
+
+const {decodeAsepriteEvidence}=await import('../../../src/integrations/inference-history/file-evidence-recovery.js');
+const {deflateSync}=await import('node:zlib');
+const aseChunk=(type,data)=>{const h=Buffer.alloc(6);h.writeUInt32LE(6+data.length);h.writeUInt16LE(type,4);return Buffer.concat([h,data]);};
+const layer=Buffer.alloc(19);layer.writeUInt16LE(3);layer[12]=255;layer.writeUInt16LE(1,16);layer[18]=65;
+const rgba=Buffer.from([1,2,3,255]),cel=Buffer.alloc(20);cel[6]=255;cel.writeUInt16LE(2,7);cel.writeUInt16LE(1,16);cel.writeUInt16LE(1,18);
+const aseChunks=Buffer.concat([aseChunk(0x2004,layer),aseChunk(0x2005,Buffer.concat([cel,deflateSync(rgba)]))]);
+const frame=Buffer.alloc(16);frame.writeUInt32LE(16+aseChunks.length);frame.writeUInt16LE(0xf1fa,4);frame.writeUInt16LE(2,6);
+const header=Buffer.alloc(128);header.writeUInt32LE(144+aseChunks.length);header.writeUInt16LE(0xa5e0,4);header.writeUInt16LE(1,6);header.writeUInt16LE(1,8);header.writeUInt16LE(1,10);header.writeUInt16LE(32,12);
+const ase=Buffer.concat([header,frame,aseChunks]),decodedAse=decodeAsepriteEvidence(ase);
+assert.equal(decodedAse.metadata.layers[0].name,'A');assert.deepEqual(decodedAse.cels[0].pixels,rgba);
+assert.throws(()=>decodeAsepriteEvidence(ase.subarray(0,ase.length-1)),/Aseprite/);
+const huge=Buffer.from(ase);huge.writeUInt16LE(65535,128+16+25+6+16);huge.writeUInt16LE(65535,128+16+25+6+18);
+assert.throws(()=>decodeAsepriteEvidence(huge),/Aseprite/);
+console.log('Aseprite structural bounds, layer names and exact compressed pixel recovery passed');
