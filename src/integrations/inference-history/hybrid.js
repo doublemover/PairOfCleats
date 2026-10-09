@@ -16,7 +16,11 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
   const state=historyIndexState(db);
   if (semantic.indexGenerationRef!==state.generationRef) throw historyError('ERR_INFERENCE_HISTORY_STALE','Semantic index requires refresh.');
   const candidateLimit=request.candidateLimit ?? 50,top=request.top ?? 10,offset=request.offset ?? 0;
-  if (!Number.isSafeInteger(candidateLimit) || candidateLimit<1 || candidateLimit>100) throw historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid candidate limit.');
+  if (!Number.isSafeInteger(candidateLimit) || candidateLimit<1 || candidateLimit>100
+    || !Number.isSafeInteger(top) || top<1 || top>100
+    || !Number.isSafeInteger(offset) || offset<0 || offset>100000
+    || (request.rerank!==undefined && typeof request.rerank!=='boolean'))
+    throw historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid retrieval page or controls.');
   // This first pass validates all filters and query syntax even in semantic-only mode.
   const lexical=searchHistory(db,{...request,top:candidateLimit,offset:0});
   const signal=AbortSignal.any([AbortSignal.timeout(10000),...(request.signal ? [request.signal]:[])]);
@@ -43,7 +47,10 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
     semantic:{modelId:semantic.modelId,modelVersion:semantic.modelVersion,dimensions:semantic.dimensions,
       indexGenerationRef:semantic.indexGenerationRef,candidateLimit,reranked:request.rerank===true,fusion:fused.method},
     limits:{...lexical.limits,top,offset,candidateLimit},complete,totalMatches:complete?all.length:null,
-    observedGroups:all.length,nextOffset:offset+top<all.length?offset+top:null};
+    observedGroups:all.length,totalMatchedUnits:null,candidateMatches:null,
+    channels:{lexical:{candidateMatches:lexical.candidateMatches,totalMatchedUnits:lexical.totalMatchedUnits,complete:lexical.complete},
+      semantic:{suppliedCandidates:supplied.candidates.length,authorizedGroups:semanticRows.hits.length,complete:supplied.complete}},
+    nextOffset:offset+top<all.length?offset+top:null};
   Object.defineProperty(result,READ_GUARDS,{value:[...(lexical[READ_GUARDS]??[]),...(semanticRows[READ_GUARDS]??[])]});
   return result;
 }

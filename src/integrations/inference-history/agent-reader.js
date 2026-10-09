@@ -40,7 +40,7 @@ export function createHistoryAgentReader({ service, requestContext, partition })
         const rows = result?.hits ?? result?.messages ?? result?.references ?? [];
         const evidence = rows.map(row => {
           const snapshotRef = row.snapshotRef ?? result.snapshotRef;
-          const selected = pick(row, ['sourceRef', 'snapshotRef', 'messageId', 'evidenceKind', 'score', 'groupRef', 'role', 'createdAt', 'title', 'pathState',
+          const selected = pick(row, ['sourceRef', 'snapshotRef', 'messageId', 'evidenceKind', 'score', 'scoreKind', 'retrievalRanks', 'groupRef', 'role', 'createdAt', 'title', 'pathState',
             'anchor', 'signals', 'artifacts', 'snippet', 'projection', 'occurrences']);
           if (snapshotRef) selected.snapshotRef = snapshotRef;
           if (row.text !== undefined) selected.text = row.snippet?.text ?? row.text;
@@ -79,6 +79,7 @@ export function createHistoryAgentReader({ service, requestContext, partition })
           coverage: result?.coverage ?? null,
           semantics: result?.query ?? null,
           semantic: result?.semantic ?? null,
+          channels: result?.channels ?? null,
           index: result?.index ?? null,
           diagnostics: {
             state: result === null ? 'reference_not_visible' : result?.coverage?.imports === 0 ? 'no_imported_index'
