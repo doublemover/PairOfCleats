@@ -4,6 +4,37 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "dictionary": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string", "minLength": 1 },
+        "languages": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "includeSlang": { "type": "boolean" },
+        "slangDirs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "slangFiles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "enableRepoDictionary": { "type": "boolean" },
+        "segmentation": { "type": "string", "enum": ["auto", "dp", "greedy", "aho"] },
+        "dpMaxTokenLength": { "type": "number", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+        "dpMaxTokenLengthByFileCount": {
+          "type": "array", "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["maxFiles", "dpMaxTokenLength"],
+            "properties": {
+              "maxFiles": { "type": "number", "exclusiveMinimum": 0, "maximum": 9007199254740991 },
+              "dpMaxTokenLength": { "type": "number", "exclusiveMinimum": 0, "maximum": 9007199254740991 }
+            }
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "dir": { "type": "string", "minLength": 1 }
+      }
+    },
     "sqlite": {
       "type": "object", "additionalProperties": false,
       "properties": {
