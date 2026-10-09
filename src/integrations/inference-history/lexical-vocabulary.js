@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { addDictionaryWordsFromText } from '../../shared/dictionary-wordlists.js';
 import { archiveLiteralWords, createArchiveLexicalAnalyzer } from './lexical-analyzer.js';
-import { digest, historyError } from './common.js';
+import { hasHiddenTraceMarker } from './artifact-projection.js';
+import { digest, historyError, redactHistoryText } from './common.js';
 
 /** No default/config/home discovery: every dictionary file is explicitly selected. */
 export async function loadArchiveVocabulary(options = {}) {
@@ -48,6 +49,9 @@ export function extractArchiveVocabulary(sources, { minCount = 3 } = {}) {
   const analyzer = createArchiveLexicalAnalyzer();
   for (const source of sources) {
     if (typeof source?.sanitizedText !== 'string') throw new TypeError('Recovered sanitizedText required.');
+    if (hasHiddenTraceMarker(source.sanitizedText) || redactHistoryText(source.sanitizedText) !== source.sanitizedText) {
+      throw new TypeError('Vocabulary input must satisfy archive trace omission and credential redaction policy.');
+    }
     if (source.language) languages.add(source.language);
     content.push([source.sourceSha256 ?? null, digest(source.sanitizedText), source.language ?? null]);
     for (const raw of source.sanitizedText.match(/[\p{L}\p{M}\p{N}_]+/gu) ?? []) {
