@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { makeTempDir } from '../../helpers/temp.js';
 import { digest } from '../../../src/integrations/inference-history/common.js';
-import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
+import { sanitizeEmbeddedAssetText } from '../../../src/integrations/inference-history/embedded-assets.js';
+import { projectArtifact, sanitizeArtifactJson } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { createArchiveLexicalAnalyzer } from '../../../src/integrations/inference-history/lexical-analyzer.js';
 import { loadArchiveVocabulary, extractArchiveVocabulary } from '../../../src/integrations/inference-history/lexical-vocabulary.js';
@@ -46,6 +47,25 @@ for (const unsafe of [
 const safeRedacted = extractArchiveVocabulary([{ sanitizedText: 'public report [REDACTED credential] safely omitted' }], { minCount: 1 });
 assert.ok(safeRedacted.words.includes('report'));
 assert.ok(!safeRedacted.words.includes('synthetic-secret'));
+const assetPayload = 'QUJD'.repeat(64);
+for (const unsafe of [
+  'const picture = "data:image/png;base64,' + assetPayload + '";',
+  JSON.stringify({ image_base64: assetPayload, caption: 'public diagram' }),
+  JSON.stringify({ nested: { attachment_base64: assetPayload } }),
+  JSON.stringify({ attachment: 'data:application/octet-stream;base64,' + assetPayload })
+]) assert.throws(() => extractArchiveVocabulary([{ sanitizedText: unsafe }]), /asset payloads|artifact sanitization/);
+const sanitizedAssetText = sanitizeEmbeddedAssetText('public diagram data:image/png;base64,' + assetPayload);
+const sanitizedAssetJson = JSON.stringify(sanitizeArtifactJson({ image_base64: assetPayload, caption: 'public diagram' }));
+for (const sanitizedText of [sanitizedAssetText, sanitizedAssetJson]) {
+  const ready = extractArchiveVocabulary([{ sanitizedText }], { minCount: 1 });
+  assert.ok(ready.words.includes('diagram'));
+  assert.equal(ready.assetPolicyVersion, 'archive-assets.v1');
+  assert.ok(!ready.words.includes(assetPayload.toLowerCase()));
+}
+const legitimateCode = 'function render() { const encoded = "' + assetPayload + '"; return encoded; }';
+assert.ok(extractArchiveVocabulary([{ sanitizedText: legitimateCode }], { minCount: 1 }).words.includes('render'));
+assert.throws(() => extractArchiveVocabulary([{ sanitizedText: '[' + ' '.repeat(16 * 1024 * 1024) }]), /bounded sanitized content/);
+
 
 
 const source = path.join(root, 'artifacts-0001.json');
