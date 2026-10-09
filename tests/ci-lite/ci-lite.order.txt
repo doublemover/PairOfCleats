@@ -927,3 +927,6 @@ integrations/inference-history/persistent-eg2-scheduler
 integrations/inference-history/gguf-embedding-runtime
 integrations/inference-history/eg2-cpu-qualification
 integrations/inference-history/eg2-checkpoint-conversion
+integrations/inference-history/eg2-worker-runtime
+integrations/inference-history/eg2-worker-disconnect
+integrations/inference-history/eg2-service-cancellation

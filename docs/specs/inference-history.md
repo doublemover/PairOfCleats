@@ -569,8 +569,7 @@ checkpoint unchanged.
     pairofcleats history local --collection collection.json embed --max-units 100 --max-ms 30000
     pairofcleats history local --collection collection.json search --query "desired evidence" --mode hybrid
 
-embed requires persistent indexPath. Repeat to resume only after prior native work
-settles. Scheduling tokenizes a bounded lookahead once, uses actual token lengths,
+embed requires persistent indexPath. Resume only through a newly requested runtime after verified worker exit. Scheduling tokenizes a bounded lookahead once, uses actual token lengths,
 packs similar lengths with stable mapping and drains each window before admitting
 another, so long tail inputs cannot starve. Prepared subsets reuse private token
 IDs; padding is constructed for the selected batch without tokenizing twice.
@@ -608,6 +607,59 @@ submission while its preparation/inference promise remains unsettled; the runtim
 also bounds native admission. Generation changes prevent late commits. Do not
 automatically resubmit timed-out work or treat a watchdog kill as native
 cancellation. Opening a collection starts no background indexing.
+
+### Task-owned process cancellation contract
+
+The next cancellation implementation isolates CPU preparation/inference in a
+task-owned worker process, retained across durable checkpoint batches. The host
+owns admission, cancellation and exit verification; it must remain responsive
+while native ONNX execution blocks the worker event loop.
+
+Cancellation has two distinct reported outcomes:
+
+- requestAccepted means the host recorded the request, closed further admission
+  and invalidated late results. It is not proof of native termination.
+- workerStopped requires the owned child's actual exit event. Unconfirmed
+  termination returns false and leaves the runtime terminal, with no resubmission.
+
+The default allows **1000 ms of cooperative grace**, then kills only the original
+live ChildProcess native handle. Confirmation has a further **2000 ms bound**;
+failed verification reports an error rather than waiting indefinitely or claiming
+success. Receipts distinguish cooperative, parent-forced, self-watchdog and
+unconfirmed exits, including spawn/request/force/exit timestamps when observed.
+
+Ownership uses the original forked ChildProcess handle and a private nonce/PID
+handshake, never process-name killing or stale PID/ancestor discovery. The CPU
+entry creates no descendant processes: ONNX execution uses native threads within
+that child, and process exit terminates them. This mechanism does not claim
+cleanup of arbitrary subprocess trees introduced by an alternative worker.
+Qualification PID/PPID/run UUID and Node startup timestamps are diagnostics;
+they do not authorize terminating a parent or establish OS creation-time proof.
+
+If IPC is lost, the child independently drains or self-exits after 1000 ms, using
+exit code 23 to distinguish watchdog termination from cooperative disposal.
+Its watchdog requires a responsive JS event loop. A live parent can terminate a
+synchronously blocked child through its external process handle; simultaneous
+parent death and synchronous child-JS blockage remains a limitation.
+
+A completed batch transaction remains durable after cancellation or termination.
+Discard unfinished native outputs and any result with stale invocation,
+generation or content identity. Mark interrupted work explicitly; replay only
+uncommitted spans on a separately requested resume. Source occurrences,
+citations, completed span receipts and partial-unit exclusion remain unchanged.
+Never mark a unit complete from an in-flight or abandoned batch.
+
+Cancellation, deadline and process failure must not automatically restart the
+worker or indexing. After verified exit, keep the final receipt and require a new
+explicit resume request. On failed verification, leave the unsettled-work latch
+closed and report the blocker. Dispose and host IPC loss use the same bounded stop path; unrelated processes remain untouched.
+
+Acceptance gates are code/fixture checks until explicit real execution is
+requested: prompt host cancellation while a child is blocked, grace timing,
+cooperative exit, forced owned-process exit, invalid ownership/nonce rejection,
+no orphan/no automatic restart, retained committed batches and interrupted
+replay with stale-generation rejection. Existing real CPU pilot receipts remain
+historical evidence and must not be overwritten by these fixtures.
 
 ### CPU session configuration and execution information
 

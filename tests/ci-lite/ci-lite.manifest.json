@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 792,
+    "hero": 795,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5575,6 +5575,24 @@
     {
       "id": "integrations/inference-history/eg2-checkpoint-conversion",
       "order": 927,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-worker-runtime",
+      "order": 928,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-worker-disconnect",
+      "order": 929,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/eg2-service-cancellation",
+      "order": 930,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

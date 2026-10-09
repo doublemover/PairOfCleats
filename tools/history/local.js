@@ -33,6 +33,7 @@ if(values.help||!values.collection){
     'CPU session options: --session-options <JSON object, max 16384 bytes>; embedding-execution-info reports configuration without opening an index or loading a model.',
     'Graph identity: --graph-sha256 --model-file-name --tokenizer-identity --numerical-recipe. Custom graph files require verified SHA256.',
     'Batch/cache bounds: --batch-size --lookahead --max-padded-tokens --max-attention-tokens --max-batch-chars --max-cache-inputs --max-cache-bytes.',
+    'Ctrl-C stops admission, drains up to 1000ms, then terminates the owned CPU worker; stopped requires actual exit confirmation.',
     'embed checkpoints each batch. Repeat to resume after native settlement; embedding-status reports coverage. v1 requires explicit copy conversion.'
   ].join('\n'));
 }else{
@@ -81,6 +82,16 @@ if(values.help||!values.collection){
       indexPath:manifest.indexPath?resolve(manifest.indexPath):null,
       catalogs:(manifest.catalogs??[]).map(c=>({path:resolve(c.path),sourceRoot:resolve(c.sourceRoot)}))
     });
+    let cancellation=null;
+    const onStop=()=>{
+      if(cancellation)return;
+      console.error(JSON.stringify({phase:'cancellation-requested'}));
+      cancellation=service.cancelEmbeddings('cancelled').then(receipt=>{
+        console.error(JSON.stringify({phase:'cancellation-result',...receipt}));
+        if(!receipt.workerStopped)process.exitCode=1;
+      }).catch(error=>{console.error(JSON.stringify({phase:'cancellation-failed',workerStopped:false,code:error.code??'ERR_INFERENCE_HISTORY_UNAVAILABLE'}));process.exitCode=1;});
+    };
+    process.on('SIGINT',onStop);process.on('SIGTERM',onStop);
     try{
       if(command==='embedding-status')console.log(JSON.stringify({ok:true,semantic:service.embeddingStatus()}));
       else if(command==='embed'){
@@ -95,6 +106,9 @@ if(values.help||!values.collection){
         const packet=await createHistoryAgentReader({service}).execute(command,request,{detail:'full',maxOutputBytes:2097152});
         console.log(JSON.stringify(packet));if(!packet.ok)process.exitCode=1;
       }
-    }finally{await service.dispose();}
+    }finally{
+      process.off('SIGINT',onStop);process.off('SIGTERM',onStop);
+      await cancellation;await service.dispose();
+    }
   }
 }

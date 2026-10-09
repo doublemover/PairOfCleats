@@ -72,11 +72,70 @@ await new Promise(resolve=>setImmediate(resolve));controller.abort();
 const cancelled=await pending;
 assert.equal(cancelled.stopped,'cancelled');assert.equal(cancelled.indexedSpans,0);
 assert.equal(cancelled.nativeWorkPending,true,'timeout does not prove native work stopped');
+assert.deepEqual(cancelled.nativeCancellation,{supported:false,requestAccepted:false,workerStopped:false});
 await assert.rejects(index.refresh(),{code:'ERR_INFERENCE_HISTORY_LIMIT'});
 release.resolve();release=null;await new Promise(resolve=>setImmediate(resolve));
 assert.equal(index.status().indexedSpans,0,'late native completion never commits');
 assert.equal((await index.refresh({maxUnits:10})).indexedUnits,2);
 cancellation.close();
+
+
+const deferred=()=>{let resolve;const promise=new Promise(done=>{resolve=done;});return {promise,resolve};};
+const workerDb=fixture();add(workerDb,'a','first');add(workerDb,'b','second');add(workerDb,'c','third');
+const workerController=new AbortController(), workStarted=deferred(), workExit=deferred(), cancellationRequested=deferred();
+let workerCalls=0, workerCancelCalls=0;
+const workerRuntime={
+  ...runtime(),
+  async encodePrepared(items){
+    workerCalls++;
+    if(workerCalls===2){workStarted.resolve();await workExit.promise;}
+    return items.map(()=>[1,1,1,1]);
+  },
+  async cancel(reason){
+    workerCancelCalls++;assert.equal(reason,'cancelled');cancellationRequested.resolve();
+    await workExit.promise;
+    return {requestAccepted:true,workerStopped:true,exitCode:0};
+  }
+};
+index=createPersistentHistorySemanticIndex(workerDb,workerRuntime);
+let reported=false;
+const workerRefresh=index.refresh({maxUnits:10,batchSize:1,lookahead:1,signal:workerController.signal}).then(value=>{reported=true;return value;});
+await workStarted.promise;workerController.abort();await cancellationRequested.promise;
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(reported,false,'refresh never reports stop before cancellation confirms worker exit');
+assert.equal(index.status().nativeWorkPending,true);
+assert.equal(index.status().indexedUnits,1,'earlier completed batch remains durable');
+assert.equal(index.status().indexedSpans,1,'interrupted batch is not committed');
+await assert.rejects(index.refresh(),{code:'ERR_INFERENCE_HISTORY_LIMIT'});
+workExit.resolve();
+const workerStopped=await workerRefresh;
+assert.deepEqual(workerStopped.nativeCancellation,{requestAccepted:true,workerStopped:true,exitCode:0,supported:true});
+assert.equal(workerStopped.nativeWorkPending,false);
+assert.equal(workerStopped.indexedSpans,1,'late interrupted output never commits even after exit');
+assert.equal(workerCancelCalls,1);assert.equal(workerCalls,2,'no automatic resubmission');
+index=createPersistentHistorySemanticIndex(workerDb,runtime());
+const fresh=await index.refresh({maxUnits:10});
+assert.equal(fresh.indexedUnits,3);assert.equal(fresh.encodedSpans,2,'fresh runtime resumes only missing durable spans');
+workerDb.close();
+
+const unconfirmedDb=fixture();add(unconfirmedDb,'a','waiting');
+const unconfirmedWork=deferred();let requests=0;
+index=createPersistentHistorySemanticIndex(unconfirmedDb,{
+  ...runtime(),async encodePrepared(){await unconfirmedWork.promise;return [[1,1,1,1]];},
+  async cancel(reason){assert.equal(reason,'deadline');requests++;return {requestAccepted:true,workerStopped:false};}
+});
+const keepAlive=setInterval(()=>{},1000);
+let unconfirmed;
+try{unconfirmed=await index.refresh({maxUnits:10,maxMillis:100});}finally{clearInterval(keepAlive);}
+assert.equal(unconfirmed.stopped,'deadline');
+assert.equal(unconfirmed.nativeCancellation.requestAccepted,true);
+assert.equal(unconfirmed.nativeCancellation.workerStopped,false,'accepted stop request is not confirmed process exit');
+assert.equal(unconfirmed.nativeWorkPending,true);
+assert.equal(unconfirmed.indexedSpans,0);assert.equal(requests,1);
+await assert.rejects(index.refresh(),{code:'ERR_INFERENCE_HISTORY_LIMIT'});
+unconfirmedWork.resolve();await new Promise(resolve=>setImmediate(resolve));
+assert.equal(index.status().indexedSpans,0);
+unconfirmedDb.close();
 
 const stale=fixture();add(stale,'a','one');
 index=createPersistentHistorySemanticIndex(stale,runtime());

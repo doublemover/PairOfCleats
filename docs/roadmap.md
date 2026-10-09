@@ -311,6 +311,16 @@ The old archive database also contains source units; permanent derived-table cle
   learned 768d projection/pooling and query/document parity. Research/preparation only; no GPU trial.
 - [x] Preserve single-flight admission after uncertain native/transport timeouts; timeout is not proof
   that native work stopped. Diagnose before resubmission and keep crash-safe batch checkpoints.
+- [ ] Implement bounded task-owned CPU worker cancellation. Report cancellationAccepted
+  separately from nativeStopped; keep the host responsive, allow 1000 ms cooperative
+  grace, then terminate only the invocation-owned process tree and verify exit.
+  Bind PID plus original native process handle and launch/IPC invocation identity;
+  reject stale/reused PIDs and unverified descendants. No process-name/parent guesses.
+- [ ] Validate cancellation lifecycle with blocked-child fixtures: cooperative and
+  forced exits, accepted versus stopped reporting, finite exit-verification failure,
+  no orphans and no automatic restart. Preserve committed batch transactions,
+  replay only uncommitted interrupted spans on explicit resume, and reject late
+  invocation/generation/content results. Existing real CPU pilot evidence is unchanged.
 - [ ] Reduce output copies and repeated statement/status preparation where safe; measure accumulated
   checkpoint-prefix scans before introducing a queue. Retain secure deletion and DELETE journaling.
 - [ ] Qualify scheduling parity on singleton/mixed/bucketed inputs and measure useful versus padded tokens.
