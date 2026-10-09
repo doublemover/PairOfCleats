@@ -96,6 +96,7 @@ const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
   const shardCount = shardChunks.length;
   const bundles = shardChunks.map((chunks, index) => ({
     ...bundle,
+    parseCheckpoint: index === 0 ? bundle.parseCheckpoint : null,
     chunks,
     bundleShardIndex: index,
     bundleShardCount: shardCount
@@ -234,6 +235,8 @@ export async function writeIncrementalBundle({
   fileStat,
   fileHash,
   fileChunks,
+  parseCheckpoint = null,
+  dependencySignatures = null,
   fileRelations,
   vfsManifestRows,
   bundleFormat = null,
@@ -252,6 +255,8 @@ export async function writeIncrementalBundle({
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
     chunks: fileChunks,
+    parseCheckpoint,
+    dependencySignatures,
     fileRelations,
     vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows : null,
     encoding: fileEncoding,
@@ -305,6 +310,7 @@ export async function writeIncrementalBundle({
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
     return {
+      dependencySignatures,
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,
       size: fileStat.size,
@@ -553,6 +559,8 @@ export async function updateBundlesWithChunks({
         mtimeMs: entry.mtimeMs,
         size: entry.size,
         chunks: fileChunks,
+        parseCheckpoint: existingBundle?.parseCheckpoint || null,
+        dependencySignatures: entry.dependencySignatures || null,
         fileRelations: relations,
         vfsManifestRows,
         encoding: entry.encoding || null,

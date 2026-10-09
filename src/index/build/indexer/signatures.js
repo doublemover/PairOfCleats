@@ -13,7 +13,7 @@ import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-export const SIGNATURE_VERSION = 3;
+export const SIGNATURE_VERSION = 4;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -220,7 +220,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   const payload = buildIncrementalSignaturePayload(runtime, mode, tokenizationKey);
   const hash = value => sha1(stableStringifyForSignature(value));
   const parse = {
-    signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion,
+    signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,

@@ -264,7 +264,7 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Reuse checksums from committed packed artifact bytes.
 - [x] Rank/filter archive candidates before caps; add generation-bound continuation and generation-cached coverage.
 - [x] Build/maintain/route optional Porter and trigram FTS tables, retain omitted-limit defaults, push large selective allowlists into SQLite, and report executed tokenizer identity.
-- [ ] Complete stage-level reuse for lexical/enrichment/embedding changes. Separate dependency identities are implemented; batch/scheduling and blame-disabled HEAD changes retain bundles, and output-only changes rebuild artifacts without reparsing.
+- [x] Reuse bounded persisted chunk geometry for lexical/enrichment changes and body tokens when lexical identity is unchanged; refresh enrichment analysis and invalidate vectors independently. Per-file dependency tags survive interrupted refreshes and cross-file finalization. Batch/scheduling and blame-disabled HEAD changes retain bundles; output-only changes rebuild artifacts. Signature v4 cuts over older manifests once.
 - [x] Feed cross-file embedding microbatches concurrently with count/byte admission bounds; build HNSW afterward from canonical chunk-ID slots without an additional reorder buffer.
 - [x] Batch live per-file/global vector-cache I/O; budget actual encoded/shard/index bytes; compact registered shards within an I/O budget and prevent stale worker pointer resurrection.
 - [x] Discover independent sparse/vector hybrid candidates by default; apply structured, phrase, exclusion and explicit Boolean eligibility before ANN top-N. Expose explicit lexical reranking through --ann-candidates lexical-rerank.
