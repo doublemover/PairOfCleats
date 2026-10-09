@@ -178,6 +178,9 @@ const dateBound = (value, end) => {
 
 export function searchHistory(db, request) {
   if (typeof request.query !== 'string' || request.query.length > 4096) throw invalid();
+  const searchField = request.searchField || 'text';
+  const groupBy = request.groupBy || 'evidence';
+  if (!['text','title','path','facets','metadata'].includes(searchField) || !['evidence','original'].includes(groupBy)) throw invalid();
   const matchMode = request.match ?? 'strict';
   if (!['strict', 'relaxed', 'auto'].includes(matchMode)) throw invalid();
   const parsed = parseHistoryQuery(request.query), { tokens } = parsed;
@@ -210,7 +213,7 @@ export function searchHistory(db, request) {
   const envelope = { query: { version: HISTORY_SEARCH_VERSION, original: request.query, tokens,
     excluded: parsed.excluded, phrases: parsed.phrases, effectiveMatch: matchMode,
     semantics: matchMode === 'strict' ? 'literal_word_AND' : 'literal_word_OR_with_required_phrases_and_exclusions',
-    semanticMatching: false },
+    semanticMatching: false, searchField, groupBy },
   filters: { role, dateFrom: from, dateTo: to, pathState, snapshotRef: request.snapshotRef ?? null,
     includeHistory: request.includeHistory === true }, coverage: coverage(db),
   limits: { top, offset, snippetChars, candidateUnits: MAX_CANDIDATES, rawEvidenceBytes: MAX_RAW_BYTES },
@@ -220,7 +223,7 @@ export function searchHistory(db, request) {
   for (const phrase of parsed.phrases) query = '(' + query + ') AND "' + phrase.join(' ') + '"';
   const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   const generation = historyIndexState(db).generationRef;
-  const queryKey = digest(JSON.stringify([request.query,matchMode,top,snippetChars,role,from,to,pathState,request.snapshotRef ?? null,request.includeHistory === true]));
+  const queryKey = digest(JSON.stringify([request.query,matchMode,top,snippetChars,role,from,to,pathState,request.snapshotRef ?? null,request.includeHistory === true,searchField,groupBy]));
   const signature = start => privateReference(namespace, JSON.stringify([start,queryKey,generation,matchMode]));
   let candidateStart = 0;
   if (request.continuation != null) {
@@ -233,21 +236,27 @@ export function searchHistory(db, request) {
   }
   // Synchronous selection applies exact phrases/exclusions to indexed redacted text before LIMIT.
   db.function('history_query_matches', {deterministic:true}, text => Number(matchesHistoryQuery(text,parsed,matchMode)));
-  const sql = `FROM units_fts JOIN units ON units.id=units_fts.id JOIN records ON records.id=units.record_id
-    WHERE units_fts MATCH ? AND records.deleted=0 AND records.excluded=0
-    AND history_query_matches(units.text)=1
+  const metadataSearch = searchField !== 'text';
+  const table = metadataSearch ? 'units_discovery_fts' : 'units_fts';
+  const discoveryText = metadataSearch ? (searchField === 'metadata' ? "(units_discovery_fts.title || ' ' || units_discovery_fts.path || ' ' || units_discovery_fts.facets)" : table+'.'+searchField) : 'units.text';
+  if (metadataSearch && !db.prepare("SELECT 1 FROM sqlite_schema WHERE name='units_discovery_fts'").get()) throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Archive metadata discovery index requires an explicit rebuild.');
+  if (metadataSearch && db.prepare('SELECT 1 FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0 AND NOT EXISTS (SELECT 1 FROM history_discovery_units d WHERE d.id=u.id) LIMIT 1').get()) throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Archive metadata discovery index requires an explicit rebuild.');
+  const sql = `FROM ${table} JOIN units ON units.id=${table}.id JOIN records ON records.id=units.record_id
+    WHERE ${table} MATCH ? AND records.deleted=0 AND records.excluded=0
+    AND history_query_matches(${discoveryText})=1
     AND (? IS NULL OR json_extract(units.metadata,'$.role')=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')>=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')<=?)
     AND EXISTS (SELECT 1 FROM snapshot_units WHERE snapshot_units.unit_id=units.id
-      AND (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot)
+      AND (${metadataSearch ? 'snapshot_units.snapshot_id=units_discovery_fts.snapshot AND' : ''} (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot))
       AND (? IS NULL OR snapshot_units.snapshot_id=?) AND (?='all' OR snapshot_units.path_state=?))`;
   const history = request.includeHistory === true || request.snapshotRef != null;
-  const parameters = [query, role, role, from, from, to, to, history ? 1 : 0,
+  const scopedQuery = metadataSearch && searchField !== 'metadata' ? searchField+' : ('+query+')' : query;
+  const parameters = [scopedQuery, role, role, from, from, to, to, history ? 1 : 0,
     request.snapshotRef ?? null, request.snapshotRef ?? null, pathState, pathState];
   const candidates = db.prepare(`SELECT units.id AS sourceRef, units.record_id AS recordRef,
-    units.node_id AS nodeId, units.metadata, bm25(units_fts) AS score ${sql}
-    ORDER BY score, sourceRef LIMIT ? OFFSET ?`).all(...parameters, MAX_CANDIDATES + 1, candidateStart);
+    units.node_id AS nodeId, units.metadata, ${discoveryText} AS discoveryText, ${metadataSearch ? table+'.snapshot' : 'NULL'} AS discoverySnapshot, bm25(${table}) AS score ${sql}
+    ORDER BY score, sourceRef, discoverySnapshot LIMIT ? OFFSET ?`).all(...parameters, MAX_CANDIDATES + 1, candidateStart);
   const hasMoreCandidates = candidates.length > MAX_CANDIDATES;
   const rows = candidates.slice(0,MAX_CANDIDATES);
   const candidateCount = candidates.length;
@@ -258,20 +267,21 @@ export function searchHistory(db, request) {
     const metadata = JSON.parse(row.metadata);
     const locs = locations(db, row.sourceRef, { history, snapshot: request.snapshotRef ?? null, pathState });
     if (locs.length > MAX_CANDIDATES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History provenance budget exceeded.');
-    const first = locs[0];
+    const first = row.discoverySnapshot ? locs.find(location => location.snapshotRef === row.discoverySnapshot) : locs[0];
     if (!first) continue;
     const snapshot = load(first.snapshotRef), node = privacyNode(visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId),snapshot.policy);
     if (!node || (role !== null && node.role !== role)) continue;
     const projection = projectHistoryText(node.text, metadata.projection.characterBudget);
-    if (!matchesHistoryQuery(projection.text, parsed, matchMode)) continue;
+    if (!matchesHistoryQuery(metadataSearch ? row.discoveryText : projection.text, parsed, matchMode)) continue;
     matchedUnits++;
-    const key = groupKey({ ...metadata, ...row }, node, namespace);
+    const originalHash = metadata.sourceDetails?.sourceSha256;
+    const key = groupBy === 'original' && originalHash ? privateReference(namespace,JSON.stringify(['original',originalHash])) : groupKey({ ...metadata, ...row }, node, namespace);
     let group = groups.get(key);
     if (!group) {
-      const snippet = centeredSnippet(projection.text, tokens, snippetChars);
+      const snippet = centeredSnippet(metadataSearch ? row.discoveryText : projection.text, tokens, snippetChars);
       const { nodeRevision: _privateRevision, ...publicMetadata } = metadata;
       group = { ...publicMetadata, sourceRef: row.sourceRef, recordRef: row.recordRef, snapshotRef: first.snapshotRef,
-        title: snapshot.title, pathState: first.pathState, role: node.role,
+        title: snapshot.title, searchField, originalHash: originalHash || null, pathState: first.pathState, role: node.role,
         createdAt: { utc: node.createdAt.utc, state: node.createdAt.state }, text: snippet.text, snippet,
         score: row.score, groupRef: key, groupCount: 0, artifacts: artifactReferences(node),
         instructionAuthority: 'none', references: [] };
@@ -301,7 +311,9 @@ export function readVisibleContext(db, request) {
   if (!opaque(request.snapshotRef) || !opaque(request.sourceRef)) throw invalid();
   const before = integer(request.before, 3, 0, 10), after = integer(request.after, 3, 0, 10);
   const top = integer(request.top, request.timeline ? 10 : 6, 1, 20), chars = integer(request.messageChars, 1200, 80, 4000);
-  const role = request.timeline ? request.role ?? null : null;
+  const preset = request.preset || 'adjacent';
+  if (!['adjacent','user-assistant','user','assistant'].includes(preset)) throw invalid();
+  const role = request.role ?? (['user','assistant'].includes(preset) ? preset : null);
   const from = request.timeline ? dateBound(request.dateFrom, false) : null;
   const to = request.timeline ? dateBound(request.dateTo, true) : null;
   if ((role !== null && !['user','assistant','artifact'].includes(role)) || (from && to && from > to)
@@ -330,7 +342,9 @@ export function readVisibleContext(db, request) {
   let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(visibleNode(snapshot.raw, snapshot.source_kind, nodeId),snapshot.policy), ordinal }))
     .filter(({ node }) => node !== null).sort((left, right) =>
       (left.node.createdAt.utc ?? '\uffff').localeCompare(right.node.createdAt.utc ?? '\uffff') || left.ordinal - right.ordinal);
-  if (request.timeline) {
+  const originalAnchorOrdinal = timeline.find(({node})=>node.nodeId===anchor.nodeId)?.ordinal;
+  if (preset === 'user-assistant') timeline = timeline.filter(({node}) => node.role === 'user' || node.role === 'assistant');
+  if (request.timeline || role) {
     timeline = timeline.filter(({node}) => (role === null || node.role === role)
       && (!from || (node.createdAt.utc !== null && node.createdAt.utc >= from))
       && (!to || (node.createdAt.utc !== null && node.createdAt.utc <= to)));
@@ -339,7 +353,12 @@ export function readVisibleContext(db, request) {
       || (right.node.createdAt.utc ?? '').localeCompare(left.node.createdAt.utc ?? '')
       || right.ordinal - left.ordinal);
   }
-  const anchorIndex = timeline.findIndex(({ node }) => node.nodeId === anchor.nodeId);
+  let anchorIndex = timeline.findIndex(({ node }) => node.nodeId === anchor.nodeId);
+  const anchorVisible = anchorIndex >= 0;
+  if(anchorIndex < 0 && !request.timeline && originalAnchorOrdinal != null && (role || preset !== 'adjacent')) {
+    anchorIndex = timeline.findIndex(({ordinal}) => ordinal >= originalAnchorOrdinal);
+    if(anchorIndex < 0) anchorIndex = timeline.length - 1;
+  }
   if (anchorIndex < 0 && !request.timeline) return { snapshotRef: request.snapshotRef, sourceRef: request.sourceRef,
     messages: [], totalVisibleMessages: timeline.length, anchorVisible: false, instructionAuthority: 'none' };
   const start = request.offset ?? (request.timeline ? 0 : Math.max(0, anchorIndex - Math.min(before, top - 1)));
@@ -359,11 +378,11 @@ export function readVisibleContext(db, request) {
         meaning: 'text_signal_only_acceptance_not_inferred' }, instructionAuthority: 'none' };
   });
   return guard({ snapshotRef: request.snapshotRef, sourceRef: request.sourceRef, recordRef: snapshot.record_id,
-    title: snapshot.title, evidenceKind: snapshot.source_kind, messages, anchorVisible: anchorIndex >= 0,
+    title: snapshot.title, evidenceKind: snapshot.source_kind, messages, anchorVisible,
     totalVisibleMessages: timeline.length, anchorIndex, offset: start, nextOffset: start + messages.length < timeline.length ? start + messages.length : null,
     previousOffset: start > 0 ? Math.max(0, start - top) : null,
     scope: 'visible_selected_path_or_anchor_ancestry',
-    filters: request.timeline ? {role,dateFrom:from,dateTo:to} : null,
+    filters: {preset,role,dateFrom:from,dateTo:to},
     order: request.timeline && request.order === 'newest' ? 'newest_timestamp_then_reverse_export_order_missing_dates_last' : 'timestamp_then_export_order_missing_dates_last', limits: { top, messageChars: chars, before, after },
     provenance: { occurrences: boundedProvenance()(occurrences(db, request.snapshotRef)) }, instructionAuthority: 'none' }, guards);
 }

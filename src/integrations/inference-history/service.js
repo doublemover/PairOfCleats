@@ -1,3 +1,4 @@
+import { rebuildHistoryDiscoveryIndex } from './discovery-index.js';
 import { readDocumentContext, openArtifactCatalogs } from './artifact-collection.js';
 import { historyAuditEvent } from './audit.js';
 import { historyPrivacy, privacyText, updateHistoryPrivacy } from './privacy.js';
@@ -361,7 +362,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
 
   const service=Object.freeze({ importExport, search, readContext, readTimeline, readReferences, readOriginal, readMemberEvidence, correlate, deleteRecord, ownerInventory, ownerSetPrivacy,
     executionContext:localSourceToken===LOCAL_SOURCE_TOKEN?'local_source_readonly':'service',
-    ...(localSourceToken===LOCAL_SOURCE_TOKEN?{memoryUnitCount(){return [...memoryStores.values()].reduce((sum,entry)=>sum+entry.db.prepare('SELECT units FROM history_stats WHERE singleton=1').get().units,0);},dispose(){disposed=true;for(const entry of memoryStores.values())entry.close();memoryStores.clear();}}:{}) });
+    ...(localSourceToken===LOCAL_SOURCE_TOKEN?{rebuildLocalDiscovery(){return [...memoryStores.values()].map(entry=>rebuildHistoryDiscoveryIndex(entry.db));},memoryUnitCount(){return [...memoryStores.values()].reduce((sum,entry)=>sum+entry.db.prepare('SELECT units FROM history_stats WHERE singleton=1').get().units,0);},dispose(){disposed=true;for(const entry of memoryStores.values())entry.close();memoryStores.clear();}}:{}) });
   if(localSourceToken===LOCAL_SOURCE_TOKEN)localServices.add(service);
   return service;
 }
@@ -372,8 +373,9 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
  */
 export async function createLocalSourceHistoryService(options) {
   if(!options||typeof options!=='object'||Array.isArray(options)
-    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs'].includes(key)))throw invalid();
-  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000,indexPath=null,catalogs=[]}=options;
+    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs','rebuildDiscovery'].includes(key)))throw invalid();
+  const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000,indexPath=null,catalogs=[],rebuildDiscovery=false}=options;
+  if(typeof rebuildDiscovery !== 'boolean') throw invalid();
   if(indexPath!==null&&(typeof indexPath!=='string'||!path.isAbsolute(indexPath)))throw invalid();
   if(!Array.isArray(sources)||sources.length<1||sources.length>200
     ||(audit!==null&&typeof audit!=='function')
@@ -404,7 +406,8 @@ export async function createLocalSourceHistoryService(options) {
       if(service.memoryUnitCount()>maxUnits)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local source unit budget exceeded.');
     }
   }catch(error){service.dispose();evidence.close();throw error;}
-  const metadata=Object.freeze({mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
+  const discoveryRebuild = rebuildDiscovery ? service.rebuildLocalDiscovery() : null;
+  const metadata=Object.freeze({discoveryRebuild,mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
     audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:!!indexPath});
   let pending=Promise.resolve(),closed=false;
   const api={executionContext:'local_source_readonly',localSource:metadata,
