@@ -7,7 +7,9 @@ const key=row=>JSON.stringify([row.sourceRef,row.snapshotRef]);
 export async function searchHybridHistory(db,request,semantic,reauthorize) {
   const mode=request.mode ?? 'auto';
   if (!['auto','lexical','hybrid','semantic'].includes(mode)) throw historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid retrieval mode.');
-  const effectiveMode=mode==='auto'?(semantic?'hybrid':'lexical'):mode;
+  const bodySurface=(request.searchField??'text')==='text'&&(request.groupBy??'evidence')==='evidence';
+  const effectiveMode=mode==='auto'?(semantic&&bodySurface?'hybrid':'lexical'):mode;
+  if(effectiveMode!=='lexical'&&!bodySurface)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Semantic retrieval requires text evidence; select lexical mode for metadata/original grouping.');
   if (effectiveMode==='lexical') {
     const result=searchHistory(db,request);
     result.query.retrievalMode='lexical';result.query.requestedMode=mode;return result;
@@ -24,7 +26,7 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
   // This first pass validates all filters and query syntax even in semantic-only mode.
   const lexical=searchHistory(db,{...request,top:candidateLimit,offset:0});
   const signal=AbortSignal.any([AbortSignal.timeout(10000),...(request.signal ? [request.signal]:[])]);
-  const supplied=await runHistoryCallback(() => semantic.search({query:request.query,top:candidateLimit,generationRef:state.generationRef},{signal,reauthorize}), signal);
+  const supplied=await runHistoryCallback(() => semantic.search({query:request.query,top:candidateLimit,generationRef:state.generationRef,request},{signal,reauthorize}), signal);
   await reauthorize();signal.throwIfAborted();
   if (historyIndexState(db).generationRef!==state.generationRef) throw historyError('ERR_INFERENCE_HISTORY_STALE','Index changed during semantic retrieval.');
   const semanticRows=readHistoryCandidates(db,request,supplied.candidates);
@@ -45,7 +47,7 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
   const result={...lexical,hits:all.slice(offset,offset+top),
     query:{...lexical.query,retrievalMode:effectiveMode,requestedMode:mode,semanticMatching:true},
     semantic:{modelId:semantic.modelId,modelVersion:semantic.modelVersion,dimensions:semantic.dimensions,
-      indexGenerationRef:semantic.indexGenerationRef,contentManifestHash:semantic.contentManifestHash??null,candidateLimit,reranked:request.rerank===true,fusion:fused.method},
+      coverage:semantic.coverage??null,indexGenerationRef:semantic.indexGenerationRef,contentManifestHash:semantic.contentManifestHash??null,candidateLimit,reranked:request.rerank===true,fusion:fused.method},
     limits:{...lexical.limits,top,offset,candidateLimit},complete,totalMatches:complete?all.length:null,
     observedGroups:all.length,totalMatchedUnits:null,candidateMatches:null,
     channels:{lexical:{candidateMatches:lexical.candidateMatches,totalMatchedUnits:lexical.totalMatchedUnits,complete:lexical.complete},

@@ -275,3 +275,10 @@ Extend the existing retrieval and archive paths in this order. Keep completed lo
 - [x] Add native archive title/path/facet discovery, preserved-source SHA grouping and role-aware context presets, with explicit derived-index rebuilds retaining citation identities. Persistent semantics and selective media execution remain conditional on supplied adapters and explicit use; no adapter/model/media input was supplied for this pass.
 
 Use focused behavioral checks for each slice. No hosted CI wait, historical comparison campaign, model download or new local access/audit layer is required. The original conversation transfer remains a separate input blocker for real conversation/artifact examples; it does not block generic changes or DAT retrieval.
+
+## Archive EG2 completion (October 9, 2026)
+
+- [x] Wire the existing pinned real CPU EG2 encoder into the selected-source archive factory with explicit offline cache selection and archive-specific prompt/default controls.
+- [x] Persist model/runtime/dtype/dimension/prompt identity and resumable bounded embedding batches in the archive database; invalidate changed sources/model spaces and gate partial-unit publication.
+- [x] Use independently discovered persisted semantic candidates in existing archive hybrid retrieval with pre-cap eligibility and truthful coverage.
+- [ ] Complete real-model acceptance and selected DAT corpus indexing. This Windows dependency tree lacks pinned Transformers.js 4.3.1 and no approved cached EG2 weights were supplied. The real offline attempt encoded zero spans; the existing DAT collection has 89,059 units. Synthetic correctness checks do not establish real-model execution. Media remains outside this text integration.

@@ -1,3 +1,4 @@
+import { historySemanticSpans, normalizeHistoryVector } from './semantic-values.js';
 import { digest, historyError } from './common.js';
 import { runHistoryCallback } from './bounded-callback.js';
 import { createLocalHistorySemanticAdapter } from './semantic-adapter.js';
@@ -5,12 +6,6 @@ import { createLocalHistorySemanticAdapter } from './semantic-adapter.js';
 const invalid=()=>historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid bounded local semantic index.');
 const ref=value=>typeof value==='string' && /^[a-f0-9]{64}$/.test(value);
 const key=row=>JSON.stringify([row.sourceRef,row.snapshotRef,row.span.start,row.span.end]);
-const vectorFor=(value,dimensions)=>{
-  if((!Array.isArray(value)&&!ArrayBuffer.isView(value))||value.length!==dimensions||!Array.from(value).every(Number.isFinite))throw invalid();
-  const norm=Math.hypot(...value);
-  if(!Number.isFinite(norm)||norm===0)throw invalid();
-  return Array.from(value,item=>item/norm);
-};
 /** Explicitly supplied authorized projections and a host-vetted local encoder only. No reads or model loaders. */
 export function createLocalHistorySemanticIndex({modelId,modelVersion,dimensions,encodeText,chunkChars=1000,overlapChars=200}) {
   if(![modelId,modelVersion].every(value=>typeof value==='string'&&value.length>0&&value.length<=200)
@@ -36,21 +31,16 @@ export function createLocalHistorySemanticIndex({modelId,modelVersion,dimensions
           if(seen.has(identity))throw invalid();seen.add(identity);
           bytes+=Buffer.byteLength(document.text);
           if(bytes>16*1024*1024)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local index text budget exceeded.');
-          for(let start=0;start<document.text.length;){
+          for(const {start,end,text} of historySemanticSpans(document.text,chunkChars,overlapChars)){
             signal?.throwIfAborted();
-            let end=Math.min(document.text.length,start+chunkChars);
-            if(end<document.text.length && /[\uD800-\uDBFF]/.test(document.text[end-1]))end--;
-            const text=document.text.slice(start,end),row={sourceRef:document.sourceRef,snapshotRef:document.snapshotRef,
+            const row={sourceRef:document.sourceRef,snapshotRef:document.snapshotRef,
               span:{start,end},contentHash:digest(text)};
             const old=previous.get(key(row));
             if(old?.contentHash===row.contentHash){row.vector=old.vector;reused++;}
-            else{row.vector=vectorFor(await runHistoryCallback(()=>encodeText(text,{signal}),signal),dimensions);encoded++;}
+            else{row.vector=normalizeHistoryVector(await runHistoryCallback(()=>encodeText(text,{signal}),signal),dimensions);encoded++;}
             entries.push(row);
             if(entries.length>5000)throw historyError('ERR_INFERENCE_HISTORY_LIMIT','Local index span budget exceeded.');
             await reauthorize();signal?.throwIfAborted();
-            if(end===document.text.length)break;
-            start=Math.max(start+1,end-overlapChars);
-            if(start>0 && /[\uDC00-\uDFFF]/.test(document.text[start]))start++;
           }
         }
         await reauthorize();signal?.throwIfAborted();
@@ -66,9 +56,9 @@ export function createLocalHistorySemanticIndex({modelId,modelVersion,dimensions
       if(!state)throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Local index not refreshed.');
       const captured=state;
       return createLocalHistorySemanticAdapter({modelId,modelVersion,dimensions,indexGenerationRef:captured.generationRef,contentManifestHash:captured.contentManifestHash,
-        encodeQuery:async(query,options)=>vectorFor(await encodeText(query,options),dimensions),
+        encodeQuery:async(query,options)=>normalizeHistoryVector(await encodeText(query,options),dimensions),
         searchIndex:async(vector,{top,signal})=>{
-          const normalized=vectorFor(vector,dimensions);const ranked=[];
+          const normalized=normalizeHistoryVector(vector,dimensions);const ranked=[];
           for(const row of captured.entries){
             signal?.throwIfAborted();
             let score=0;for(let index=0;index<dimensions;index++)score+=normalized[index]*row.vector[index];

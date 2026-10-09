@@ -478,3 +478,82 @@ Archive selection applies role/date/path/revision constraints and exact phrase/e
 Native local discovery supports searchField=text|title|path|facets|metadata. Body text remains the default literal evidence surface; metadata snippets declare their separate discovery span surface. The native index stores titles, source locators/member names, evidence/artifact kinds and roles. Owner redactions suppress discovery metadata; excluded/deleted records remain invisible. groupBy=original groups recovered chunks by preserved source SHA256, retaining individual citation references and group counts. Context preset=adjacent|user-assistant|user|assistant filters visible messages on the same anchor branch; it does not cross into alternative branches.
 
 New imports maintain history-discovery.v1. Existing collections require explicit --rebuild-discovery on the local collection CLI or rebuildDiscovery:true in the selected-source factory before metadata search. The rebuild changes only derived tables and generation, preserving every original, sourceRef, snapshotRef and reference-key namespace. No automatic metadata backfill replaces selected source content. Example: pairofcleats history local --collection <manifest.json> --rebuild-discovery search --request '{"query":"manual","searchField":"path","groupBy":"original"}'. Existing optional semantic/media paths remain conditional on supplied adapters and explicit use; this change downloads no model and converts no media.
+
+## Local EG2 archive embeddings
+
+The selected-source factory now accepts an explicit embeddings configuration.
+This owns vectors in the selected archive SQLite database, separately from code
+indexes. Ordinary code-search defaults remain MiniLM. Enabling archive embeddings
+selects onnx-community/embeddinggemma-2-ONNX at immutable revision
+daa72c51243991dfcaf9f9137d2c573d8f7790c0, Transformers.js 4.3.1, fp32 and 768
+dimensions. q8/q4 and 128/256/512 dimensions are validated alternatives.
+
+Example collection configuration (paths are relative to the CLI manifest):
+
+    {
+      "sources": [{"path": "artifacts-0001.json", "sha256": "<verified SHA256>"}],
+      "indexPath": "archive.sqlite",
+      "embeddings": {
+        "modelsDir": "models",
+        "dtype": "fp32",
+        "dimensions": 768,
+        "task": "search",
+        "batchSize": 4,
+        "chunkChars": 1000,
+        "overlapChars": 200
+      }
+    }
+
+The existing shared adapter runs real CPU inference; no synthetic fallback is
+available in this path. The pinned dependency must already be installed through
+the project's dependency workflow. modelsDir is an explicit Transformers.js
+cache directory. Offline loading is the default. allowDownloads:true or the
+explicit CLI --allow-downloads enables model provisioning; it does not install
+runtime dependencies.
+
+Task search uses the upstream document-retrieval query prefix. code and
+question-answering select their corresponding upstream prefixes. Passages use
+title:none because the indexed surface is the redacted body projection, rather
+than unredacted source titles. Identity persists model/revision/runtime/dtype,
+dimensions, query/passage prompts, normalization and chunk geometry. Changing any
+of these invalidates the derived vector space. Batch size and cache location do
+not invalidate vectors. Prompt definitions follow the
+[upstream EG2 model card](https://huggingface.co/google/embeddinggemma-2).
+
+    pairofcleats history local --collection collection.json embedding-status
+    pairofcleats history local --collection collection.json embed --max-units 100 --max-ms 30000
+    pairofcleats history local --collection collection.json search --query "desired evidence" --mode hybrid
+
+embed requires an explicit persistent indexPath. Repeat the same command to
+resume. --batch-size (1..64) and --max-batch-chars (chunk size..256000) bound
+dispatch; --max-units (1..1000000) and --max-ms (100..600000) bound each job.
+--models-dir, --dtype, --dimensions and --task override manifest configuration.
+Each completed batch is durable, including partial units. A unit is published
+to retrieval only when every expected span is durable; interrupted jobs resume
+missing spans instead of encoding the completed ones again. Changed unit text
+or metadata and deleted units invalidate their derived vectors. Excluded units
+are never selected or released.
+
+Status reports indexed/pending units, durable spans, full selected-input
+coverage, identity and archive generation. Successful bounded work is not proof
+of whole-corpus coverage. Cancellation/deadline returns stopped and the retained
+coverage. Native inference itself is cooperative; an in-flight CPU call can
+finish after the deadline, but its late output is not committed. No background
+indexing starts when opening a collection.
+
+When completed units exist, auto selects hybrid body-evidence retrieval.
+Without completed embeddings, auto remains lexical and does not call the model.
+Explicit semantic/hybrid requires a configured nonempty index and never falls
+back to synthetic vectors. Semantic candidates are independently discovered with
+an exact bounded-memory cosine scan over persisted vectors; role/date/snapshot/
+branch/phrase/exclusion eligibility applies before top-N. Existing archive
+rehydration, provenance and rank fusion remain authoritative. Partial index or
+candidate coverage is reported as incomplete. Metadata surfaces and original
+grouping remain native lexical searches; auto preserves that choice, and explicit
+semantic mode rejects those surfaces. Media encoders/decoding are not provided by
+this text integration.
+
+Unit checks use an explicitly injected synthetic adapter and label that fact.
+Real-model acceptance requires the actual pinned runtime and cached model weights;
+the implementation and synthetic checks alone do not establish real inference,
+quality, performance or complete archive coverage.

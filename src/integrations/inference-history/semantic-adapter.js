@@ -10,14 +10,14 @@ export function createLocalHistorySemanticAdapter({
     || (contentManifestHash!==null && !/^[a-f0-9]{64}$/.test(contentManifestHash))) throw new TypeError('Versioned local model/index callbacks required.');
   return Object.freeze({
     kind:'local',modelId,modelVersion,indexGenerationRef,dimensions,rerank,contentManifestHash,
-    async search({query,top,generationRef}, {signal,reauthorize}) {
+    async search({query,top,generationRef,request}, {signal,reauthorize}) {
       if (generationRef!==indexGenerationRef) throw historyError('ERR_INFERENCE_HISTORY_STALE','Semantic index generation differs.');
       signal?.throwIfAborted();
       const vector = await encodeQuery(query,{signal});
       if ((!Array.isArray(vector) && !ArrayBuffer.isView(vector)) || vector.length!==dimensions
         || !Array.from(vector).every(Number.isFinite)) throw historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid query embedding.');
       await reauthorize(); signal?.throwIfAborted();
-      const result = await searchIndex(vector,{top,signal});
+      const result = await searchIndex(vector,{top,signal,request});
       await reauthorize(); signal?.throwIfAborted();
       if (!result || !Array.isArray(result.candidates) || result.candidates.length>top
         || typeof result.complete!=='boolean') throw historyError('ERR_INFERENCE_HISTORY_INPUT','Invalid bounded semantic result.');

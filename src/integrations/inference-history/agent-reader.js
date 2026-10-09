@@ -10,7 +10,7 @@ const action = (command, request) => ({ command, request });
 const pick = (row, names) => Object.fromEntries(names.filter(name => Object.hasOwn(row, name)).map(name => [name, row[name]]));
 const ERROR_HINTS = {
   ERR_INFERENCE_HISTORY_AUDIT: 'The protected audit sink did not acknowledge persistence. Ask the host to inspect it; no evidence was released.',
-  ERR_INFERENCE_HISTORY_UNAVAILABLE: 'Choose lexical mode or ask the trusted host to provision an approved local model/index. No model download or network fallback occurs.',
+  ERR_INFERENCE_HISTORY_UNAVAILABLE: 'Choose lexical mode or configure the pinned local runtime/model cache. Downloads require explicit local configuration.',
   ERR_INFERENCE_HISTORY_STALE: 'The index changed since this request. Inspect a fresh first page and its generation before intentionally continuing.',
   ERR_INFERENCE_HISTORY_DENIED: 'Ask the trusted host to authorize this action and partition. Changing query or IDs cannot grant access.',
   ERR_INFERENCE_HISTORY_INPUT: 'Inspect full help and use exact returned references.',
