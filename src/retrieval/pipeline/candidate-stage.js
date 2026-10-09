@@ -70,6 +70,7 @@ export const runCandidateStage = ({
   let sqliteFtsUsed = false;
   const sqliteFtsDiagnostics = [];
   let sqliteFtsOverfetch = null;
+  let sqliteFtsExecution = null;
   const sparseDeniedByProfile = vectorOnlyProfile === true;
   let sqliteFtsAllowed = null;
   const sqliteFtsRequiredTables = typeof sqliteFtsProvider.requireTables === 'function'
@@ -152,6 +153,7 @@ export const runCandidateStage = ({
         sqliteFtsOverfetch = stats;
       }
     });
+    sqliteFtsExecution = ftsResult.execution;
     bmHits = ftsResult.hits;
     sqliteFtsUsed = bmHits.length > 0;
     if (sqliteFtsUsed) {
@@ -233,8 +235,10 @@ export const runCandidateStage = ({
   };
   candidateMetrics.fts = {
     match: sqliteFtsCompilation.match,
-    variant: sqliteFtsCompilation.variant,
-    tokenizer: sqliteFtsCompilation.tokenizer,
+    requestedVariant: sqliteFtsCompilation.variant,
+    variant: sqliteFtsExecution?.variant || null,
+    tokenizer: sqliteFtsExecution?.tokenizer || null,
+    table: sqliteFtsExecution?.table || null,
     reasonPath: sqliteFtsCompilation.reasonPath,
     normalizedChanged: sqliteFtsCompilation.normalizedChanged,
     diagnostics: sqliteFtsDiagnostics,

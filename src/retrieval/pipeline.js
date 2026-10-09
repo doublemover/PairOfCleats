@@ -750,6 +750,7 @@ export function createSearchPipeline(context) {
           sqliteFtsWeights,
           sqliteFtsProfile,
           sqliteFtsCompilation,
+          sqliteFtsExecution: candidateMetrics.fts,
           sqliteFtsUnavailable,
           profileId,
           fieldWeightsEnabled,

@@ -19,13 +19,13 @@ export function createSqliteFtsProvider({
   tailLatencyTuning = false,
   overfetch = null
 }) {
-  const configuredRowCap = Number.isFinite(Number(overfetch?.rowCap))
+  const configuredRowCap = overfetch?.rowCap != null && Number.isFinite(Number(overfetch.rowCap))
     ? Math.max(1, Math.floor(Number(overfetch.rowCap)))
     : null;
-  const configuredTimeBudgetMs = Number.isFinite(Number(overfetch?.timeBudgetMs))
+  const configuredTimeBudgetMs = overfetch?.timeBudgetMs != null && Number.isFinite(Number(overfetch.timeBudgetMs))
     ? Math.max(1, Math.floor(Number(overfetch.timeBudgetMs)))
     : null;
-  const configuredChunkSize = Number.isFinite(Number(overfetch?.chunkSize))
+  const configuredChunkSize = overfetch?.chunkSize != null && Number.isFinite(Number(overfetch.chunkSize))
     ? Math.max(1, Math.floor(Number(overfetch.chunkSize)))
     : null;
   return {
@@ -40,15 +40,17 @@ export function createSqliteFtsProvider({
       const defaultChunkSize = tuningEnabled
         ? Math.max(64, Math.min(256, Math.floor((configuredRowCap || defaultRowCap || topN) / 6)))
         : null;
+      let execution = null;
       const hits = rankSqliteFts(idx, queryTokens, mode, topN, normalizeScores, allowedIds, {
         ftsMatch,
         overfetchRowCap: configuredRowCap || defaultRowCap,
         overfetchTimeBudgetMs: configuredTimeBudgetMs || defaultTimeBudgetMs,
         overfetchChunkSize: configuredChunkSize || defaultChunkSize,
+        onExecution: (metadata) => { execution = metadata; },
         onDiagnostic,
         onOverfetch
       });
-      return { hits, type: 'fts' };
+      return { hits, type: 'fts', execution };
     }
   };
 }
