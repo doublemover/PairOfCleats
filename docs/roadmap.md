@@ -326,10 +326,22 @@ The old archive database also contains source units; permanent derived-table cle
   event loop; normal live-parent cancellation uses external handle termination.
 - [ ] Reduce output copies and repeated statement/status preparation where safe; measure accumulated
   checkpoint-prefix scans before introducing a queue. Retain secure deletion and DELETE journaling.
-- [ ] Qualify scheduling parity on singleton/mixed/bucketed inputs and measure useful versus padded tokens.
-  Collect a representative token histogram/effective-input duplication inventory without corpus re-embedding.
-- [ ] Evaluate capped CPU worker/thread combinations only after scheduling/graph evidence warrants them;
-  do not multiply default pools or equate CPU busy percentage with useful throughput.
+- [x] Collect a read-only effective-input duplication census and representative token inventory:
+  377,093 spans / 345,299 unique inputs, with 31,794 encodings saved (8.43%). The bounded
+  103-input CPU trial measured useful versus padded tokens (16.25% padding at batch4;
+  29.99% at batch8). No corpus re-embedding was performed.
+- [ ] Complete independent singleton/mixed/bucketed scheduling parity qualification beyond the
+  matched-input thread comparison; do not infer full-corpus quality from the bounded sample.
+- [x] Evaluate two capped FP32 settings and one explicit W8 setting in one bounded sequential
+  campaign. FP32 / 4 intra-op / 1 inter-op / sequential / spinning off / batch8 / lookahead32
+  won at 601 useful tokens/s, 2.529 unique spans/s and sampled peak child RSS 3.073 GiB.
+  Keep one owned worker. The 2-thread/batch4 alternative reached 387 tokens/s; W8 reached
+  329 tokens/s and is not promoted. Matched FP32 output drift was below 3.51e-13.
+- [x] Verify current Windows Node 26.8.1 production SQLite readiness using the existing locked
+  better-sqlite3 13.0.3 N-API binding: synthetic import/search, durable close/reopen, idempotent
+  import, stable citations and native integrity checks passed without any model or worker load.
+  The previous ABI failure came from the trial harness's explicit stale parent 12.6.2 import,
+  not the current production resolution; no installation or rebuild was needed.
 - [ ] Plan separate full-index search scaling (typed/native vectors or ANN with exact reranking), preserving
   hard filters and source visibility. Dimensional truncation improves storage/search, not transformer speed.
 - [ ] Keep alternative compiled PyTorch, LiteRT-LM, OpenVINO, ROCm and MLX routes as qualified fallback
@@ -343,3 +355,14 @@ run contended with the old CPU index, so this establishes no uncontended speedup
 CPU profile retained MatMulNBits and ordinary MatMul; operator names do not prove integer-kernel
 execution. Zero held-out judged queries means Recall/MRR/nDCG qualification and promotion remain open.
 W4 was not tried. Full-index restart, GGUF/LM Studio execution and GPU work remain unperformed.
+
+The later representative CPU campaign used eight predeclared operator-pooled graded queries:
+all three candidates achieved Recall@10=1, MRR=1 and nDCG@10=0.96284; the actual persistent
+semantic adapter also achieved Recall/MRR=1. These are not external held-out relevance results.
+Corpus-weighted FP32 winner ETA is 57.18 hours (46.72-67.63 sampling-only interval; plan
+50-80 hours for unmeasured contention/disk effects). Active cancellation confirmed worker exit
+in 1.086 seconds and replay preserved committed vectors. The shared 89,059-unit corpus remains
+stopped with legacy derived embedding tables removed under owner authorization and no new
+embedding tables introduced. All original trial/cleanup receipts remain intact. No further
+inference, full indexing or GPU work is authorized by these tracking updates. Evidence and
+limits: [representative CPU report](guides/eg2-representative-cpu-trial-20261009.md).
