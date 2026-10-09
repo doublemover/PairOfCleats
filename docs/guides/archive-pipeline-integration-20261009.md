@@ -22,7 +22,7 @@ heuristics, with language confidence and fallback reasons. Structural segmentati
 reuses the repository language/Markdown dispatch, fills uncovered text, retains
 comments/docstrings and preserves fences/headings. Contiguous sanitized transport
 fragments are reconstructed only from current visible source units; gaps are never
-invented. Reconstruction is bounded to 5,000 fragments and 16 MiB.
+invented. Reconstruction is bounded to 5,000 fragments and 16,777,216 UTF-16 characters.
 
 Document computation identity versions classification, structural chunking, contextual
 formatting and `latest-snapshot.v1` scope. Historical snapshots and old vector generations
@@ -67,9 +67,9 @@ unavailable rerank request fails before a semantic callback/model invocation.
 
 ## Focused acceptance
 
-Six initial integrated no-model checks passed on Windows Node 26.8.1 using the actual existing
+Seven final integrated no-model checks passed on Windows Node 26.8.1 using the actual existing
 better-sqlite3 13.0.3 N-API binding: archive structure, lexical analysis, hybrid source
-diversity, redaction idempotence, structural runtime and production SQLite readiness.
+diversity, redaction idempotence, structural runtime, embedded assets and production SQLite readiness.
 Focused worker/scheduler/identity/cancellation/disconnect tests passed in their owning
 lane. Lane taxonomy and scoped ESLint passed. Broad private-vault tests were not run
 because they inspect ancestors outside the approved roots.
@@ -79,7 +79,7 @@ encoding fans out to two exact transport citations, preserves older source text 
 admitting only the current snapshot, and invalidates cached context after sibling hiding
 or editing. This does not establish new-model relevance, throughput or full-index latency.
 
-Private evidence: `archive-pipeline-audit-20261009/validation`, the count-only workload
+Private evidence: `archive-pipeline-audit-20261009/validation-final-v3` (all seven passed), preserved initial `validation`, the count-only workload
 receipts, corpus vocabulary readiness receipts and the preserved supplied source audit.
 The intermediate count receipt that imported a changing helper is not a final baseline;
 it remains preserved while the final paired plan uses frozen generators and source hashes.
@@ -142,7 +142,26 @@ Final count receipt SHA256:
 Original vocabulary receipt SHA256:
 `c301ce39242c70be10dbcd21e726af8ecfdd5d0efa34cfa7985e154a43bbbd42`.
 
-One further preparation concern was found without inference: per-unit rebuilding of
-an entire multi-fragment source would amplify work (11.48 million characters × 2,871
-fragments for the largest source). Bounded source-plan reuse is being implemented
-before any costly corpus run; count-only input totals do not certify preparation speed.
+Per-unit rebuilding of an entire multi-fragment source would amplify preparation
+(11.48 million characters x 2,871 fragments for the largest source). Admission now
+uses a deterministic indexed source-group cursor and retains only the current group's
+immutable plan. Limits are 65,536 spans and 67,108,864 contextual UTF-16 input characters,
+in addition to 5,000 fragments and 16,777,216 source characters. Pathological overlap
+fails explicitly before excessive allocation. There is no unbounded all-source cache.
+The plan is discarded on group exit and refresh completion; source/generation/config
+checks retain stale-result guards.
+
+Dependencies are hashed once per group and each distinct sibling is rechecked once
+per transaction before commit. Edited or hidden siblings reject stale outputs and
+force a fresh plan on the next refresh. No-model fixtures prove one sibling query,
+reconstruction and structural parse per group, exact first/middle/final large-source
+ranges, privacy/edit invalidation, newline-splitting equivalence and overlap limits.
+The prefix-wide newline search is now bounded to its active window. These checks
+establish correctness and bounded reuse, not measured preparation speed. Transactional
+dependency revalidation and current-policy throughput remain real-workload gates.
+
+Local closeout repaired generated search-contract drift and active-roadmap size,
+preserving completed transcripts in a linked archive. Generator side effects from the
+incomplete normal runtime were saved privately; only files proven clean beforehand
+were restored. Command-surface and generated-freshness checks passed. This does not
+certify a complete normal-repository runtime or hosted CI.

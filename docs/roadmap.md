@@ -250,4 +250,3 @@ Remaining ordered gates:
 
 No GPU, arbitrary installs or unrelated measurements are implied. PR547 publication is
 approved; merge remains unapproved. Hosted results apply to exact heads.
-
