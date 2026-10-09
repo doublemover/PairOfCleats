@@ -1,9 +1,10 @@
+import { isLocalSourceHistoryService } from './service.js';
 import { historyError } from './common.js';
 import { renderHistoryOwnerPage } from './owner-page.js';
 const denied=message=>historyError('ERR_INFERENCE_HISTORY_DENIED',message);
 /** Host-only human controller. Never register it as an agent tool. */
 export function createHistoryOwnerConsole({service,authenticateHuman,auditLedger,verifyHumanMutation=null}) {
-  if(typeof authenticateHuman!=='function'||!service||!auditLedger)throw new TypeError('Authenticated owner host required.');
+  if(isLocalSourceHistoryService(service)||typeof authenticateHuman!=='function'||!service||!auditLedger)throw new TypeError('Authenticated owner host required.');
   const authenticate=async request=>{
     let identity;try{identity=await authenticateHuman(request.requestContext);}catch{throw denied('Owner console authentication required.');}
     if(!identity||identity.channel!=='human'||typeof identity.principalId!=='string')throw denied('Owner console authentication required.');

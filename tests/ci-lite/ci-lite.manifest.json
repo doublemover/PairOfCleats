@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 766,
+    "hero": 767,
     "matrix": 108,
     "meta": 26,
     "soak": 1,
@@ -5419,6 +5419,12 @@
     {
       "id": "integrations/inference-history/recovered-artifact",
       "order": 901,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/local-source",
+      "order": 902,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

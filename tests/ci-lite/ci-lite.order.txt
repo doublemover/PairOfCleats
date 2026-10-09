@@ -901,3 +901,4 @@ integrations/inference-history/host-adapters
 
 integrations/inference-history/file-evidence
 integrations/inference-history/recovered-artifact
+integrations/inference-history/local-source
