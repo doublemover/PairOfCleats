@@ -8,7 +8,6 @@ import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../.
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
@@ -28,8 +27,7 @@ import {
   countNonEmptyVectors,
   clampQuantizedVectorsInPlace,
   isNonEmptyVector,
-  isVectorLike,
-  normalizeEmbeddingVectorInPlace
+  isVectorLike
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
@@ -96,7 +94,6 @@ import {
   validateCachedDims
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
-import { createHnswBuilder } from './hnsw.js';
 import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
@@ -198,15 +195,13 @@ const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
 /**
  * Resolve per-file embedding compute concurrency.
  *
- * HNSW writes are forced single-threaded to preserve deterministic builder
- * behavior while non-HNSW runs can fan out by config or token budget.
+ * HNSW is built after vector fill in chunk-ID order; compute uses scheduler caps.
  *
  * @param {{
  *   indexingConfig:object,
  *   computeTokensTotal:number|null,
  *   cpuConcurrency?:number|null,
  *   fdConcurrencyCap?:number|null,
- *   hnswEnabled:boolean
  * }} input
  * @returns {number}
  */
@@ -214,10 +209,8 @@ export const resolveEmbeddingsFileParallelism = ({
   indexingConfig,
   computeTokensTotal,
   cpuConcurrency = null,
-  fdConcurrencyCap = null,
-  hnswEnabled
+  fdConcurrencyCap = null
 }) => {
-  if (hnswEnabled) return 1;
   const cpuCap = coercePositiveIntMinOne(cpuConcurrency);
   const configured = coercePositiveIntMinOne(indexingConfig?.embeddings?.fileParallelism);
   const tokenDriven = coercePositiveIntMinOne(computeTokensTotal);
@@ -939,19 +932,6 @@ const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
   const seed = envSeed || configSeed || 'default';
   return { maxFiles, seed };
 };
-
-/**
- * Inline HNSW builders are fed during per-file embedding compute and therefore
- * only observe processed files. When sampling is active we must defer HNSW
- * construction until after missing vectors are filled so backend counts remain
- * aligned with chunk_meta length for validation.
- *
- * @param {{enabled:boolean,hnswIsolate:boolean,samplingActive:boolean}} input
- * @returns {boolean}
- */
-const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) => (
-  enabled === true && hnswIsolate !== true && samplingActive !== true
-);
 
 /**
  * Rewrite incremental bundle files with updated `embedding_u8` vectors produced
@@ -2149,75 +2129,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const hnswIsolate = hnswConfig.enabled
           ? (hnswIsolateOverride ?? isTestingEnv())
           : false;
-        const hnswEnabled = shouldUseInlineHnswBuilders({
-          enabled: hnswConfig.enabled,
-          hnswIsolate,
-          samplingActive
-        });
-        if (hnswConfig.enabled && !hnswIsolate && samplingActive) {
-          log(
-            `[embeddings] ${mode}: deferring HNSW build until post-fill because sampling is active ` +
-            `(${sampledChunkCount}/${totalChunks} chunks).`
-          );
-        }
-        const hnswBuilders = hnswEnabled ? {
-          merged: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          }),
-          doc: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          }),
-          code: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          })
-        } : null;
-        /**
-         * Append float vector to HNSW builder for one target collection.
-         *
-         * @param {'merged'|'doc'|'code'} target
-         * @param {number} chunkIndex
-         * @param {Float32Array|number[]} floatVec
-         * @returns {void}
-         */
-        const addHnswFloatVector = (target, chunkIndex, floatVec) => {
-          if (!hnswEnabled || !floatVec || !floatVec.length) return;
-          const builder = hnswBuilders?.[target];
-          if (!builder) return;
-          builder.addVector(chunkIndex, floatVec);
-        };
-        /**
-         * Dequantize uint8 vector then append to HNSW builder.
-         *
-         * @param {'merged'|'doc'|'code'} target
-         * @param {number} chunkIndex
-         * @param {Uint8Array|number[]} quantizedVec
-         * @returns {void}
-         */
-        const addHnswFromQuantized = (target, chunkIndex, quantizedVec) => {
-          if (!hnswEnabled || !quantizedVec || !quantizedVec.length) return;
-          const floatVec = dequantizeUint8ToFloat32(
-            quantizedVec,
-            quantization.minVal,
-            quantization.maxVal,
-            quantization.levels
-          );
-          if (floatVec && embeddingNormalize) {
-            normalizeEmbeddingVectorInPlace(floatVec);
-          }
-          if (floatVec) addHnswFloatVector(target, chunkIndex, floatVec);
-        };
         const hnswResults = { merged: null, doc: null, code: null };
 
         const modePersistentCacheEnabled = !stubFastPathEnabled;
@@ -2491,8 +2402,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           indexingConfig,
           computeTokensTotal,
           cpuConcurrency: envelopeCpuConcurrency,
-          fdConcurrencyCap,
-          hnswEnabled
+          fdConcurrencyCap
         });
         const adaptiveFileParallelismEnabled = fileParallelism > 1
           && indexingConfig?.embeddings?.adaptiveFileParallelism !== false;
@@ -3050,11 +2960,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
               codeVectors[chunkIndex] = reusedCode;
               docVectors[chunkIndex] = reusedDoc;
               mergedVectors[chunkIndex] = reusedMerged;
-              if (hnswEnabled) {
-                addHnswFromQuantized('merged', chunkIndex, reusedMerged);
-                addHnswFromQuantized('doc', chunkIndex, reusedDoc);
-                addHnswFromQuantized('code', chunkIndex, reusedCode);
-              }
               cachedCodeVectors.push(reusedCode);
               cachedDocVectors.push(reusedDoc);
               cachedMergedVectors.push(reusedMerged);
@@ -3063,15 +2968,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
             const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : zeroVec;
             const quantized = buildQuantizedVectors({
-              chunkIndex,
               codeVector: embedCode,
               docVector: embedDoc,
               zeroVector: zeroVec,
-              addHnswVectors: hnswEnabled ? {
-                merged: (id, vec) => addHnswFloatVector('merged', id, vec),
-                doc: (id, vec) => addHnswFloatVector('doc', id, vec),
-                code: (id, vec) => addHnswFloatVector('code', id, vec)
-              } : null,
               quantization,
               normalize: embeddingNormalize
             });
@@ -3395,11 +3294,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     codeVectors[chunkIndex] = codeVec;
                     docVectors[chunkIndex] = docVec;
                     mergedVectors[chunkIndex] = mergedVec;
-                    if (hnswEnabled) {
-                      addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                      addHnswFromQuantized('doc', chunkIndex, docVec);
-                      addHnswFromQuantized('code', chunkIndex, codeVec);
-                    }
                   }
                   if (hasEmptyCached) {
                     throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
@@ -3556,11 +3450,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
                       codeVectors[chunkIndex] = codeVec;
                       docVectors[chunkIndex] = docVec;
                       mergedVectors[chunkIndex] = mergedVec;
-                      if (hnswEnabled) {
-                        addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                        addHnswFromQuantized('doc', chunkIndex, docVec);
-                        addHnswFromQuantized('code', chunkIndex, codeVec);
-                      }
                     }
                     if (hasEmptyCached) {
                       throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
@@ -3900,7 +3789,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
             hnswConfig,
             hnswIsolate,
             isolateState: hnswIsolateState,
-            hnswBuilders,
             hnswPaths: stagedHnswPaths,
             vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
             vectorsPaths: {
