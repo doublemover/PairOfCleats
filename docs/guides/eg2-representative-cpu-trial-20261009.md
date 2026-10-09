@@ -110,15 +110,32 @@ W8 derivative SHA256: `903fc9c1df518dc50e0f2c12765203e31386754a3c6afd3c231c463e9
 Existing weights were hash-verified before inference; no software or artifacts were
 installed or downloaded.
 
-The shared `better-sqlite3` native binary requires Node ABI 137 while Node 26.8.1
-requires 147. That failed before model loading. The trial used Node's built-in SQLite
-with a transaction/Buffer adapter for disposable databases and an explicit qualified
-local Transformers loader for the production worker. Therefore the source scheduler,
-encoder, owned cancellation and persistence logic were measured, but the complete
-production service/native-SQLite packaging path is not certified on Node 26. Before
-any separately authorized full run, use an existing compatible runtime/dependency
-binding through the approved project workflow. A Windows trial-only `--import`
-path was also corrected to a file URL before model load; startup receipts were retained.
+The trial harness explicitly imported the stale parent-directory better-sqlite3
+12.6.2 binary (Node ABI 137), which failed under Node 26.8.1 (ABI 147) before model
+loading. Its disposable databases therefore used Node's built-in SQLite with a
+transaction/Buffer adapter and an explicit qualified local Transformers loader.
+The original failure and all measurement receipts remain preserved. A Windows
+trial-only `--import` path was also corrected to a file URL before model load.
+
+A subsequent focused no-model readiness check used the actual production service
+and its existing project-contained, lock-matching better-sqlite3 13.0.3 dependency.
+Its Windows x64 N-API prebuild loads under Node 26.8.1; the supported native SQLite
+probe also passed. No dependency install, rebuild or runtime change was necessary.
+The production service imported two synthetic artifacts, searched lexically, closed
+and reopened with stable citations, and retained exactly two units and one import.
+Native SQLite integrity and foreign-key checks passed, DELETE journaling remained
+active, and the embedding schema contained no vectors. Both runtime instances
+reported unloaded with no child PID or active native calls; the nonexistent model
+directory stayed absent and the source bytes stayed unchanged. This resolves the
+reported SQLite packaging blocker for the current production dependency path;
+it does not retroactively replace the trial's SQLite adapter or certify a full
+corpus run. The focused fixture's initial unsupported `lookaheadUnits` key was
+corrected to the production allowlisted `lookahead` key before its passing run.
+
+Binding SHA256: `e21e5efd71fba66578e95b62554d9028064a80dafd7221bf8a8ef155de8d240a`.
+Regression: `tests/integrations/inference-history/sqlite-readiness.test.js`.
+Private readiness receipt: `eg2-sqlite-readiness-20261009/production-no-model-hs8RCb/receipt.json`.
+No further inference, full indexing, GPU work or corpus changes were performed.
 
 Final process verification found no task-owned inference worker. The shared corpus
 remains at 89,059 units with no embedding tables reintroduced. Original data, logs,
