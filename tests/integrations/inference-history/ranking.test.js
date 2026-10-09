@@ -20,3 +20,8 @@ assert.equal(fuseHistoryRanks({ lexical: [a, a] }).candidateCount, 1);
 assert.equal(fuseHistoryRanks({ lexical, semantic, lexicalWeight: 0 }).candidateCount, 2);
 assert.deepEqual(lexical, [a, b, c]);
 console.log('synthetic history rank fusion, diversity and reranker boundary tests passed');
+const sharedOriginal=[{...a,originalRef:'source-sha'},{...c,originalRef:'source-sha'}, {...row(4,'conversation-c'),originalRef:'other-sha'}];
+assert.equal(fuseHistoryRanks({lexical:sharedOriginal,maxPerOriginal:1}).results.length,2);
+assert.equal(fuseHistoryRanks({lexical:sharedOriginal,maxPerOriginal:1,maxPerGroup:1}).results.length,2);
+assert.throws(()=>fuseHistoryRanks({lexical:[sharedOriginal[0]],semantic:[{...sharedOriginal[0],originalRef:'conflict'}]}),/original provenance/);
+assert.throws(()=>fuseHistoryRanks({lexical,maxPerOriginal:0}),/controls/);

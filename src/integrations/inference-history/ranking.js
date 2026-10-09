@@ -10,12 +10,13 @@ const integer = (value, min, max) => Number.isSafeInteger(value) && value >= min
 /** Rank fusion avoids comparing uncalibrated lexical and semantic raw scores. */
 export function fuseHistoryRanks({
   lexical = [], semantic = [], rankConstant = 60, lexicalWeight = 1, semanticWeight = 1,
-  top = 20, maxPerGroup = null
+  top = 20, maxPerGroup = null, maxPerOriginal = null
 } = {}) {
   if (!Array.isArray(lexical) || !Array.isArray(semantic) || lexical.length > 1000 || semantic.length > 1000
     || !integer(rankConstant, 1, 10000) || !integer(top, 1, 100)
     || ![lexicalWeight, semanticWeight].every(value => Number.isFinite(value) && value >= 0 && value <= 100)
-    || lexicalWeight + semanticWeight === 0 || (maxPerGroup !== null && !integer(maxPerGroup, 1, 100))) {
+    || lexicalWeight + semanticWeight === 0 || (maxPerGroup !== null && !integer(maxPerGroup, 1, 100))
+    || (maxPerOriginal !== null && !integer(maxPerOriginal, 1, 100))) {
     throw new TypeError('Invalid bounded fusion controls.');
   }
   const candidates = new Map();
@@ -28,27 +29,34 @@ export function fuseHistoryRanks({
       let item = candidates.get(key);
       if (!item) {
         item = { sourceRef: row.sourceRef, snapshotRef: row.snapshotRef,
-          groupRef: row.groupRef ?? null, score: 0, ranks: {} };
+          groupRef: row.groupRef ?? null, originalRef: row.originalRef ?? null, score: 0, ranks: {} };
         candidates.set(key, item);
       } else if (row.groupRef != null && item.groupRef != null && row.groupRef !== item.groupRef) {
         throw new TypeError('Conflicting provenance group for the same evidence.');
       } else if (item.groupRef === null) item.groupRef = row.groupRef ?? null;
+      if (row.originalRef != null && item.originalRef != null && row.originalRef !== item.originalRef) {
+        throw new TypeError('Conflicting original provenance for the same evidence.');
+      }
+      item.originalRef ??= row.originalRef ?? null;
       item.ranks[channel] = index + 1;
       item.score += weight / (rankConstant + index + 1);
     }
   }
   const ranked = [...candidates.values()].sort((left, right) => right.score - left.score
     || keyFor(left).localeCompare(keyFor(right)));
-  const counts = new Map(), results = [];
+  const counts = new Map(), originals = new Map(), results = [];
   for (const row of ranked) {
     const group = row.groupRef ?? keyFor(row);
     if (maxPerGroup !== null && (counts.get(group) ?? 0) >= maxPerGroup) continue;
+    const original = row.originalRef ?? keyFor(row);
+    if (maxPerOriginal !== null && (originals.get(original) ?? 0) >= maxPerOriginal) continue;
     counts.set(group, (counts.get(group) ?? 0) + 1);
+    originals.set(original, (originals.get(original) ?? 0) + 1);
     results.push(row);
     if (results.length === top) break;
   }
   return { method: 'weighted-reciprocal-rank-fusion', rankConstant,
-    weights: { lexical: lexicalWeight, semantic: semanticWeight }, maxPerGroup,
+    weights: { lexical: lexicalWeight, semantic: semanticWeight }, maxPerGroup, maxPerOriginal,
     candidateCount: candidates.size, returned: results.length, results };
 }
 

@@ -1,3 +1,4 @@
+import { archiveAnalyzerFor } from './lexical-analyzer.js';
 import { historyIndexState } from './generation.js';
 import { historyPrivacy, privacyText, privacyNode } from './privacy.js';
 import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery, matchesHistoryHardConstraints } from './query.js';
@@ -183,7 +184,7 @@ export function searchHistory(db, request) {
   if (!['text','title','path','facets','metadata'].includes(searchField) || !['evidence','original'].includes(groupBy)) throw invalid();
   const matchMode = request.match ?? 'strict';
   if (!['strict', 'relaxed', 'auto'].includes(matchMode)) throw invalid();
-  const parsed = parseHistoryQuery(request.query), { tokens } = parsed;
+  const parsed = parseHistoryQuery(request.query, archiveAnalyzerFor(db)), { tokens } = parsed;
   if (matchMode === 'auto') {
     if (request.continuation != null) {
       if (typeof request.continuation !== 'string' || request.continuation.length > 2048) throw invalid();
@@ -220,7 +221,7 @@ export function searchHistory(db, request) {
   caveat: 'Empty hits mean no matching visible units under these filters and selected-input coverage; never-discussed is not established.' };
   if (!db) return { ...envelope, hits: [], totalMatches: 0, totalMatchedUnits: 0, complete: true, nextOffset: null };
   let query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
-  for (const phrase of parsed.phrases) query = '(' + query + ') AND "' + phrase.join(' ') + '"';
+  // Exact phrases are enforced on preserved text, not alias-expanded FTS positions.
   const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   const generation = historyIndexState(db).generationRef;
   const queryKey = digest(JSON.stringify([request.query,matchMode,top,snippetChars,role,from,to,pathState,request.snapshotRef ?? null,request.includeHistory === true,searchField,groupBy]));
@@ -251,7 +252,7 @@ export function searchHistory(db, request) {
       AND (${metadataSearch ? 'snapshot_units.snapshot_id=units_discovery_fts.snapshot AND' : ''} (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot))
       AND (? IS NULL OR snapshot_units.snapshot_id=?) AND (?='all' OR snapshot_units.path_state=?))`;
   const history = request.includeHistory === true || request.snapshotRef != null;
-  const scopedQuery = metadataSearch && searchField !== 'metadata' ? searchField+' : ('+query+')' : query;
+  const scopedQuery = metadataSearch && searchField !== 'metadata' ? searchField+'_terms : ('+query+')' : query;
   const parameters = [scopedQuery, role, role, from, from, to, to, history ? 1 : 0,
     request.snapshotRef ?? null, request.snapshotRef ?? null, pathState, pathState];
   const candidates = db.prepare(`SELECT units.id AS sourceRef, units.record_id AS recordRef,
@@ -420,7 +421,7 @@ export function readHistoryReferences(db, request) {
 /** Rehydrate provider references from this authorized partition, never provider text. */
 export function readHistoryCandidates(db, request, candidates) {
   if (!db || !Array.isArray(candidates) || candidates.length>100) return guard({hits:[]},[]);
-  const parsed=parseHistoryQuery(request.query), history=request.includeHistory===true || request.snapshotRef!=null;
+  const parsed=parseHistoryQuery(request.query, archiveAnalyzerFor(db)), history=request.includeHistory===true || request.snapshotRef!=null;
   const from=dateBound(request.dateFrom,false),to=dateBound(request.dateTo,true), role=request.role ?? null;
   const load=cacheFor(db,request), hits=[], guards=[], seen=new Set(), admit=boundedProvenance();
   const namespace=db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
@@ -456,6 +457,7 @@ export function readHistoryCandidates(db, request, candidates) {
     hits.push({...publicMetadata,sourceRef:candidate.sourceRef,recordRef:row.recordRef,snapshotRef:location.snapshotRef,
       role:node.role,createdAt:{utc:node.createdAt.utc,state:node.createdAt.state},title:snapshot.title,
       pathState:location.pathState,text:snippet.text,snippet,groupRef,groupCount:1,
+      originalHash:metadata.sourceDetails?.sourceSha256 ?? null,
       artifacts:artifactReferences(node),instructionAuthority:'none',
       provenance:{totalReferences:references.length,references:references.slice(0,3),nextOffset:references.length>3?3:null,expand:'readReferences'}});
   }
