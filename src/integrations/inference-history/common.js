@@ -1,7 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
 export const ADAPTER_VERSION = 'chatgpt-export.v7';
-export const PROJECTION_VERSION = 'history-text.v6';
+export const PROJECTION_VERSION = 'history-text.v7';
 export const historyError = (code, message) => Object.assign(new Error(message), { code });
 export const digest = (value) => createHash('sha256').update(value).digest('hex');
 export const privateReference = (key, value) => createHmac('sha256', Buffer.from(key, 'hex')).update(value).digest('hex');
@@ -40,8 +40,8 @@ export function redactHistoryText(input) {
     .replace(/\b(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g,
       '[REDACTED credential]')
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/-]{12,}=*/gi, '$1[REDACTED credential]')
-    .replace(/([?&](?:access_token|api_key|token|key|password|secret)=)[^\s&#)]+/gi, '$1[REDACTED credential]')
-    .replace(/\b((?:password|api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*)["']?[^\s"',;]+["']?/gi,
+    .replace(/([?&](?:access_token|api_key|token|key|password|secret)=)(?:\[REDACTED credential\]|[^\s&#)]+)/gi, '$1[REDACTED credential]')
+    .replace(/\b((?:password|api[_-]?key|access[_-]?token|client[_-]?secret)\s*[:=]\s*)["']?(?:\[REDACTED credential\]|[^\s"',;]+)["']?/gi,
       '$1[REDACTED credential]');
 }
 
