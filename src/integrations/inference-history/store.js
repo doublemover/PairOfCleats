@@ -1,3 +1,4 @@
+import { DEFAULT_ARCHIVE_ANALYZER, registerArchiveAnalyzer } from './lexical-analyzer.js';
 import { installHistoryDiscoveryIndex } from './discovery-index.js';
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -9,7 +10,7 @@ import { HISTORY_STORE_FORMAT, historyIndexState } from './generation.js';
 
 const unsafe = () => historyError('ERR_INFERENCE_HISTORY_STORAGE', 'Inference-history storage must be a private vault outside repository trees.');
 
-export async function openHistoryStore(vaultRoot, partitionKey, { create = false, verifyPrivateVault = null } = {}) {
+export async function openHistoryStore(vaultRoot, partitionKey, { create = false, verifyPrivateVault = null, lexical = DEFAULT_ARCHIVE_ANALYZER } = {}) {
   if (typeof partitionKey !== 'string' || !/^[a-f0-9]{64}$/.test(partitionKey)) throw unsafe();
   if (typeof vaultRoot !== 'string' || !path.isAbsolute(vaultRoot)) throw unsafe();
   const root = path.resolve(vaultRoot);
@@ -53,11 +54,12 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       // Never open a raced path without reapplying all storage checks.
-      return openHistoryStore(root, partitionKey, { create, verifyPrivateVault });
+      return openHistoryStore(root, partitionKey, { create, verifyPrivateVault, lexical });
     }
   }
   const db = new Database(file, { timeout: 0, readonly: !create, fileMustExist: true });
   try {
+    registerArchiveAnalyzer(db, lexical);
     db.pragma('foreign_keys = ON');
     db.pragma('temp_store = MEMORY');
     if (present?.size) {
@@ -66,17 +68,24 @@ export async function openHistoryStore(vaultRoot, partitionKey, { create = false
         || !/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
     }
     if (create) {
-      initializeHistoryStore(db,partitionKey);
+      initializeHistoryStore(db,partitionKey,lexical);
     }
     const metadata = Object.fromEntries(db.prepare('SELECT key, value FROM vault_meta').all().map((row) => [row.key, row.value]));
     if (metadata.partition !== partitionKey || metadata.format !== HISTORY_STORE_FORMAT) throw unsafe();
     if (!/^[a-f0-9]{64}$/.test(metadata.reference_key || '')) throw unsafe();
+    if (metadata.lexical_identity !== lexical.identity) throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE', 'Archive lexical policy changed; explicitly rebuild a selected derived collection.');
     historyIndexState(db);
     return db;
   } catch (error) { db.close(); throw error; }
 }
 
-function initializeHistoryStore(db,partitionKey) {
+function initializeHistoryStore(db,partitionKey,lexical = DEFAULT_ARCHIVE_ANALYZER) {
+  registerArchiveAnalyzer(db, lexical);
+  const old = db.prepare("SELECT 1 FROM sqlite_schema WHERE name='vault_meta'").get();
+  if (old) {
+    const identity = db.prepare("SELECT value FROM vault_meta WHERE key='lexical_identity'").get()?.value;
+    if (identity !== lexical.identity) throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE', 'Archive lexical policy changed; explicitly rebuild a selected derived collection.');
+  }
   db.pragma('journal_mode = DELETE');
   db.pragma('secure_delete = ON');
   db.exec(`
@@ -166,19 +175,20 @@ function initializeHistoryStore(db,partitionKey) {
         first_date=(SELECT MIN(json_extract(metadata,'$.createdAt.utc')) FROM units),
         last_date=(SELECT MAX(json_extract(metadata,'$.createdAt.utc')) FROM units);
     END;
-    CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(id UNINDEXED, text, tokenize='unicode61');
+    CREATE VIRTUAL TABLE IF NOT EXISTS units_fts USING fts5(id UNINDEXED, text, tokenize="unicode61 remove_diacritics 0 tokenchars '_'");
     CREATE TRIGGER IF NOT EXISTS units_insert AFTER INSERT ON units WHEN (SELECT excluded FROM records WHERE id=new.record_id)=0 BEGIN
-      INSERT INTO units_fts(id, text) VALUES(new.id, new.text);
+      INSERT INTO units_fts(id, text) VALUES(new.id, history_lexical_text(new.text));
     END;
     CREATE TRIGGER IF NOT EXISTS units_update AFTER UPDATE OF text ON units BEGIN
       DELETE FROM units_fts WHERE id=old.id;
-      INSERT INTO units_fts(id,text) SELECT new.id,new.text WHERE (SELECT excluded FROM records WHERE id=new.record_id)=0;
+      INSERT INTO units_fts(id,text) SELECT new.id,history_lexical_text(new.text) WHERE (SELECT excluded FROM records WHERE id=new.record_id)=0;
     END;
     CREATE TRIGGER IF NOT EXISTS units_delete AFTER DELETE ON units BEGIN
       DELETE FROM units_fts WHERE id=old.id;
     END;
   `);
   installHistoryDiscoveryIndex(db);
+  db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('lexical_identity', lexical.identity);
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('partition', partitionKey);
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('format', HISTORY_STORE_FORMAT);
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('reference_key', randomBytes(32).toString('hex'));
@@ -186,15 +196,15 @@ function initializeHistoryStore(db,partitionKey) {
   db.prepare('INSERT OR IGNORE INTO vault_meta VALUES (?, ?)').run('updated_at', new Date().toISOString());
 }
 
-export function openMemoryHistoryStore(partitionKey) {
+export function openMemoryHistoryStore(partitionKey,{lexical = DEFAULT_ARCHIVE_ANALYZER} = {}) {
   if(typeof partitionKey!=='string'||!/^[a-f0-9]{64}$/.test(partitionKey))throw unsafe();
   const db=new Database(':memory:');
-  try{db.pragma('foreign_keys = ON');db.pragma('temp_store = MEMORY');initializeHistoryStore(db,partitionKey);historyIndexState(db);return db;}
+  try{db.pragma('foreign_keys = ON');db.pragma('temp_store = MEMORY');initializeHistoryStore(db,partitionKey,lexical);historyIndexState(db);return db;}
   catch(error){db.close();throw error;}
 }
 
 /** Explicit local collection cache; ordinary filesystem permissions, no service vault policy. */
-export async function openLocalArchiveStore(indexPath,partitionKey) {
+export async function openLocalArchiveStore(indexPath,partitionKey,{lexical = DEFAULT_ARCHIVE_ANALYZER} = {}) {
   if(typeof indexPath!=='string'||!path.isAbsolute(indexPath)||!/^[a-f0-9]{64}$/.test(partitionKey))throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');
   const file=path.resolve(indexPath),parent=path.dirname(file);
   if(await fsPromises.realpath(parent)!==parent)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');
@@ -208,6 +218,6 @@ export async function openLocalArchiveStore(indexPath,partitionKey) {
     const exists=db.prepare("SELECT 1 FROM sqlite_schema WHERE name='vault_meta'").get();
     if(exists){const meta=Object.fromEntries(db.prepare('SELECT key,value FROM vault_meta').all().map(r=>[r.key,r.value]));
       if(meta.partition!==partitionKey||meta.format!==HISTORY_STORE_FORMAT)throw historyError('ERR_INFERENCE_HISTORY_STORAGE','Canonical selected local collection required.');}
-    initializeHistoryStore(db,partitionKey);historyIndexState(db);return db;
+    initializeHistoryStore(db,partitionKey,lexical);historyIndexState(db);return db;
   }catch(error){db.close();throw error;}
 }

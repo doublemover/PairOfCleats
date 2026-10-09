@@ -1,3 +1,5 @@
+import { createArchiveLexicalAnalyzer, DEFAULT_ARCHIVE_ANALYZER } from './lexical-analyzer.js';
+import { loadArchiveVocabulary } from './lexical-vocabulary.js';
 import { createArchiveEmbeddingRuntime } from './embedding-runtime.js';
 import { createPersistentHistorySemanticIndex } from './persistent-semantic-index.js';
 import { rebuildHistoryDiscoveryIndex } from './discovery-index.js';
@@ -37,7 +39,7 @@ const securityIdentity = (access) => JSON.stringify([
  * the requested action; the caller's partition selector is never an identity.
  */
 export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolveImportSource = null, resolveCodeAccess = null,
-  verifyPrivateVault = null, limits: inputLimits, audit = null, semantic = null, resolveOwnerAccess = null, localSourceToken = null, localIndexPath = null, localEvidence = null }) {
+  verifyPrivateVault = null, limits: inputLimits, audit = null, semantic = null, resolveOwnerAccess = null, localSourceToken = null, localIndexPath = null, localEvidence = null, lexical = DEFAULT_ARCHIVE_ANALYZER }) {
   if((localSourceToken!==null&&localSourceToken!==LOCAL_SOURCE_TOKEN)||((localIndexPath!==null||localEvidence!==null)&&localSourceToken!==LOCAL_SOURCE_TOKEN))throw denied();
   const memoryStores=new Map();let disposed=false,localSemanticIndex=null;
   if (typeof resolveAccess !== 'function') throw denied();
@@ -91,9 +93,9 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
       const partitionKey = digest(partitionIdentity(access));
       if(disposed)throw denied();
       if(localSourceToken===LOCAL_SOURCE_TOKEN){
-        if(!memoryStores.has(partitionKey)){const memory=localIndexPath?await openLocalArchiveStore(localIndexPath,partitionKey):openMemoryHistoryStore(partitionKey),close=memory.close.bind(memory);memory.close=()=>{};memoryStores.set(partitionKey,{db:memory,close});}
+        if(!memoryStores.has(partitionKey)){const memory=localIndexPath?await openLocalArchiveStore(localIndexPath,partitionKey,{lexical}):openMemoryHistoryStore(partitionKey,{lexical}),close=memory.close.bind(memory);memory.close=()=>{};memoryStores.set(partitionKey,{db:memory,close});}
         db=memoryStores.get(partitionKey).db;
-      }else db = await openHistoryStore(vaultRoot, partitionKey, { create, verifyPrivateVault });
+      }else db = await openHistoryStore(vaultRoot, partitionKey, { create, verifyPrivateVault, lexical });
       const initialIndex = historyIndexState(db);
       if (request.expectedGeneration !== undefined && (!opaqueId(request.expectedGeneration)
         || request.expectedGeneration !== initialIndex.generationRef)) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Index generation changed.');
@@ -378,9 +380,10 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
  */
 export async function createLocalSourceHistoryService(options) {
   if(!options||typeof options!=='object'||Array.isArray(options)
-    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs','rebuildDiscovery','embeddings'].includes(key)))throw invalid();
+    ||Object.keys(options).some(key=>!['sources','audit','limits','maxSourceBytes','maxUnits','indexPath','catalogs','rebuildDiscovery','embeddings','lexical'].includes(key)))throw invalid();
   const {sources,audit=null,limits,maxSourceBytes=512*1024*1024,maxUnits=100000,indexPath=null,catalogs=[],rebuildDiscovery=false,embeddings=null}=options;
   if(typeof rebuildDiscovery !== 'boolean') throw invalid();
+  const lexical = createArchiveLexicalAnalyzer(await loadArchiveVocabulary(options.lexical ?? {}));
   const embeddingRuntime=embeddings===null||embeddings===false?null:createArchiveEmbeddingRuntime(embeddings);
   if(indexPath!==null&&(typeof indexPath!=='string'||!path.isAbsolute(indexPath)))throw invalid();
   if(!Array.isArray(sources)||sources.length<1||sources.length>200
@@ -404,7 +407,7 @@ export async function createLocalSourceHistoryService(options) {
   let current=null;
   const evidence=await openArtifactCatalogs(catalogs);
   let service;
-  try{service=createInferenceHistoryService({resolveAccess:()=>access,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,localIndexPath:indexPath,localEvidence:evidence,
+  try{service=createInferenceHistoryService({resolveAccess:()=>access,audit,limits,localSourceToken:LOCAL_SOURCE_TOKEN,localIndexPath:indexPath,localEvidence:evidence,lexical,
     resolveImportSource:()=>({path:current.path,policyEpoch:'local-selected-files',sha256:current.sha256})});}catch(error){evidence.close();throw error;}
   try{
     for(const source of selected){current=source;const result=await service.importExport(scope);
@@ -415,7 +418,7 @@ export async function createLocalSourceHistoryService(options) {
   const discoveryRebuild = rebuildDiscovery ? service.rebuildLocalDiscovery() : null;
   let semanticState=null;
   try{semanticState=embeddingRuntime?service.configureLocalSemantic(embeddingRuntime):null;}catch(error){service.dispose();evidence.close();throw error;}
-  const metadata=Object.freeze({semantic:semanticState,discoveryRebuild,mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
+  const metadata=Object.freeze({lexical:{identity:lexical.identity,...lexical.receipt},semantic:semanticState,discoveryRebuild,mode:'local_source_readonly',storage:indexPath?'local_collection':'memory_only',
     audit:audit?'optional_callback':'disabled',sourceCount:selected.length,sourceBytes:totalBytes,filesystemIndexWrites:!!indexPath});
   let pending=Promise.resolve(),closed=false,disposal=null;
   const indexingStop=new AbortController();
