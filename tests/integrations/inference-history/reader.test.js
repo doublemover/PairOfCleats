@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { registerArchiveAnalyzer } from '../../../src/integrations/inference-history/lexical-analyzer.js';
 import { centeredSnippet } from '../../../src/integrations/inference-history/reader.js';
 import { createInferenceHistoryService as createService } from '../../../src/integrations/inference-history/service.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
@@ -136,6 +137,7 @@ try {
   const databasePath = path.join(vaultRoot, (await fs.readdir(vaultRoot)).find(name => name.endsWith('.sqlite')));
   const db = new Database(databasePath);
   try {
+    registerArchiveAnalyzer(db);
     const plan = db.prepare("EXPLAIN QUERY PLAN SELECT id FROM units WHERE json_extract(metadata,'$.messageId')=? ORDER BY id LIMIT 1001").all('unique-message');
     assert.ok(plan.some(row => row.detail.includes('units_message')));
     const stats = db.prepare('SELECT * FROM history_stats WHERE singleton=1').get();
