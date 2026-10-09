@@ -1,20 +1,13 @@
 {
-  "generatedAt": "2026-10-09T18:01:23.035Z",
-  "ok": false,
+  "generatedAt": "2026-10-09T18:45:10.221Z",
+  "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
       "source": "src/retrieval/cli-args.js",
       "sourceCount": 101,
-      "docCount": 95,
-      "missingInDocs": [
-        "--ann-candidates",
-        "--candidates",
-        "--deadline-ms",
-        "--match",
-        "--output-bytes",
-        "--preset"
-      ],
+      "docCount": 101,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "searchContractFlags": {
