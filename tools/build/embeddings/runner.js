@@ -3149,7 +3149,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   }, shardEntry);
                   markCacheIndexDirty();
                 }
-              });
+              }, {bytes: encodedPayload.length});
             } catch {
             // Ignore cache write failures.
             }
@@ -3238,7 +3238,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                         globalChunkCachePendingWrites.delete(write.globalCacheKey);
                       }
                     }
-                  });
+                  }, {bytes: encodedWrites.reduce((sum, write) => sum + write.encodedPayload.length, 0)});
                 } catch (err) {
                   for (const write of writes) {
                     globalChunkCachePendingWrites.delete(write.globalCacheKey);
