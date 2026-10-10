@@ -1,3 +1,4 @@
+import { validateOperationSelector } from './operation-reader.js';
 import { createNeighborReader } from './neighbors.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
@@ -105,5 +106,11 @@ export const createSqliteSemanticStore = ({
     if (offset > total) throw new Error('Related semantic cursor exceeds member rows.');
     return { rows, offset: offset + rows.length, done: offset + rows.length === total };
   };
-  return { backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  const findOperations = async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
+    validateOperationSelector(selector,offset,limit); throwIfAborted(signal);
+    const fields = { astKind: '$.data.astKind', operation: '$.data.operation', invocationKind: '$.data.invocationKind' };
+    const rows = db.prepare("SELECT partition_id,local_id FROM semantic_records WHERE record_kind='expression' AND json_extract(payload,'" + fields[selector.field] + "')=? ORDER BY partition_id,local_id LIMIT ? OFFSET ?").all(selector.value,limit+1,offset);
+    return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),offset:offset+Math.min(limit,rows.length),done:rows.length<=limit };
+  };
+  return { findOperations, backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 };

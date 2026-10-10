@@ -1,8 +1,9 @@
+import { semanticByteAdmissionFor } from './planning.js';
 import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
 import { canonicalSemanticJson } from './identity.js';
 /** Shared bounded sink for derived rows; analysis never edits syntax partitions. */
 export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
-  const sink = await createSemanticPartitionSink({ ...options,
+  const sink = await createSemanticPartitionSink({ ...options, byteAdmission: semanticByteAdmissionFor(options.diskAccount, policy.storage.maxQueuedBytes),
     batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
   let batch = [], byteCount = 0, sequence = 0;
   const flush = async () => {

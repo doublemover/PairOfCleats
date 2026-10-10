@@ -1,3 +1,5 @@
+import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
+import { planSemanticSource } from './planning.js';
 import { collectCompilerStorageFlow } from './compiler-storage-flow.js';
 import { collectCompilerWorkerFlow } from './compiler-worker-flow.js';
 import { collectCompilerCrossFileFlow } from './compiler-cross-file-flow.js';
@@ -66,7 +68,9 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         declarationChunks.set(refKey(join.recordRef), join.chunkUid);
       }
     }
-    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, sourceMap });
+    const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: source.mapping ? [...state.semanticFactsByFile].find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path });
+    const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId, metrics: { nodes: descriptor.counts?.semantic_records || 0, operands: descriptor.counts?.semantic_operands || 0 } });
+    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, sourceMap, policy: sourcePolicy, plan });
     texts.set(source.path, text);
   }
   const sourceForDoc = doc => {
@@ -106,7 +110,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       }
       const context = { contextKey, sourceUnits: [...new Map([...mappedFiles.values()].map(item => [item.source.sourceUnitId,
         { sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }])).values()].sort((a, b) => order(a.sourceUnitId, b.sourceUnitId)),
-      providerId: 'typescript', providerVersion: '2.1.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
+      providerId: 'typescript', providerVersion: '2.2.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
       contexts.push(context);
       state.semanticCompilerContexts = contexts;
       return { context, mappedFiles, mappedDocuments, repoRoot: runtime.root, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
@@ -114,11 +118,22 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     async collectDocument({ ts, checker, sourceFile, nodeIndex, group }) {
       const item = group.mappedFiles.get(keyPath(sourceFile.fileName));
       if (!item) return;
+      if (state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)) return;
+      item.plan = planSemanticSource(item.policy, { sourceUnitId: item.source.sourceUnitId, sourceHash: item.source.byteHash,
+        syntaxPartitionId: item.syntax.partitionId, metrics: { nodes: item.plan?.metrics.nodes || 0,
+          operands: item.plan?.metrics.operands || 0, calls: item.plan?.metrics.calls || 0,
+          ...(item.plan?.metrics.analysisMeasured ? { analysisMs: item.plan.metrics.estimatedMs } : {}) }, reuseReady: true });
+      state.semanticPlanningBySource ||= new Map();
+      state.semanticPlanningBySource.set(item.source.sourceUnitId, item.plan);
+      const bindingAdmission = semanticPhasePolicy(item.policy, item.plan, 'bindings', runtime, item.source.sourceUnitId);
+      if (!bindingAdmission.admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return;
+      const policy = { ...item.policy, enrichment: { ...item.policy.enrichment } };
+      for (const phase of ['localFlow', 'crossFileFlow']) policy.enrichment[phase] = semanticPhasePolicy(item.policy, item.plan, phase, runtime, item.source.sourceUnitId).admitted ? 'eager' : item.policy.enrichment[phase] === 'off' ? 'off' : 'deferred';
       if (hashText(sourceFile.text) !== item.source.textHash) throw Object.assign(new Error('Compiler/source join rejected.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
       const { context } = group;
-      const partitionId = createAnalysisPartitionId({ pass: { name: 'typescript-bindings', version: '1' },
+      const partitionId = createAnalysisPartitionId({ pass: { name: 'typescript-bindings', version: '2' },
         inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context,
-        dependencySummaryHashes: group.dependencyHashes, analysisPolicy: { bindings: 'checker', version: 1 } });
+        dependencySummaryHashes: group.dependencyHashes, analysisPolicy: { bindings: 'checker', version: 2, policy: item.policy.identity.analysis } });
       const ref = localId => ({ partitionId, localId });
       const external = new Map(), observations = [], aliases = new Map(), expressions = new Map();
       const declarationRef = declaration => {
@@ -144,10 +159,13 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         if (!group.sourceHashes.has(key)) group.sourceHashes.set(key, hashText(sf.text));
         return group.sourceHashes.get(key);
       };
+      const expressionFor = node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null;
+      const selectedScopes = await collectSemanticTargetScopes({ policy, store: item.store, partitionId: item.syntax.partitionId, signal });
       const symbolTargets = symbol => (symbol?.declarations || []).map(declarationRef).filter(Boolean);
       for await (const row of item.store.iterateRows(item.syntax.partitionId, 'semantic_records', { signal })) {
         if (row.kind === 'expression' && row.span) expressions.set(spanKey(row.span), { partitionId: item.syntax.partitionId, localId: row.id });
         if (!row.span || (row.kind !== 'occurrence' && !(row.kind === 'expression' && row.data.invocationKind))) continue;
+        if (!semanticTargetMatchesRecord(policy, item.syntax.partitionId, row, selectedScopes)) continue;
         throwIfAborted(signal);
         const nodes = nodeIndex.exact(row.span[0], row.span[1]);
         const invocation = row.kind === 'expression';
@@ -246,31 +264,31 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       for (let id = 0; id < uniqueEdges.length; id += 1) rows.push({ family: 'edge', row: { id, ...uniqueEdges[id][1] } });
       for (const [value, id] of names) rows.push({ family: 'lookup', row: { kind: 'name', id, value } });
       const coverage = { scope: { sourceUnitId: item.source.sourceUnitId }, phase: 'bindings',
-        state: completedCount === observations.length ? 'complete' : 'partial',
-        reason: completedCount === observations.length ? null : 'unresolved_or_unmapped_checker_occurrence',
+        state: !policy.targetSelectionConfigured && completedCount === observations.length ? 'complete' : 'partial',
+        reason: policy.targetSelectionConfigured ? 'targeted_binding_scope_widened_or_selected_only' : completedCount === observations.length ? null : 'unresolved_or_unmapped_checker_occurrence',
         observedCount: observations.length, completedCount, frontierRef: null };
       rows.push({ family: 'coverage', row: coverage });
       const bytes = await fs.readFile(path.join(item.root, 'semantic-sources', item.source.byteHash + '.utf8'));
       const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source,
-        sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: '1', compiler: ts.version }),
-        contextHash: context.contextKey, policyHash: semanticHash('semantic.binding-policy.v1', { version: 1 }),
+        sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: '2', compiler: ts.version }),
+        contextHash: context.contextKey, policyHash: item.policy.identity.analysis,
         diskAccount: state.semanticDiskAccount, signal });
       for (const observation of observations) if (observation.invocation) {
         for (const detail of detailsByFile.get(item.source.path)?.get(spanKey(observation.span)) || []) detail.semanticFactsHash = partition.canonicalHash;
       }
       emitted.push(partition);
       const valueSlice = await collectCompilerValueSlice({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
-        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null,
+        expressionFor,
         observations, source: item.source, bytes, bindingPartition: partition, context,
         isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (valueSlice) emitted.push(valueSlice.partition);
       const storageFlow = await collectCompilerStorageFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
-        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null,
+        expressionFor,
         observations, source: item.source, bytes, bindingPartition: partition, context,
         isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (storageFlow) emitted.push(storageFlow.partition);
       const flow = await collectCompilerFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
-        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null,
+        expressionFor,
         declarationFor: declaration => {
           const node = declaration?.name || declaration;
           return node ? item.declarations.get(node.getStart(sourceFile) + ':' + node.end) || null : null;
@@ -278,16 +296,18 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (flow) {
         emitted.push(flow.partition);
-        group.flowDocuments.push({ item, bytes, partition: flow.partition,
+        group.flowDocuments.push({ item, bytes, policy, flowEdges: flow.edges, partition: flow.partition,
           summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),
-          calls: observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence,
-            targets: observation.targets.map(expand), invocationKind: observation.invocationKind })) });
+          calls: observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence, span: observation.span,
+            targets: observation.targets.map(expand), invocationKind: observation.invocationKind,
+            arguments: (observation.node?.arguments || []).map(expressionFor), result: expressionFor(observation.node),
+            hasSpread: observation.node?.arguments?.some(ts.isSpreadElement) || false })) });
       }
 
-      group.workerDocuments.push({ ts, checker, item, bytes, sourceFile, nodes: nodeIndex.nodes(), observations, bindingPartition: partition,
+      group.workerDocuments.push({ ts, checker, item, bytes, policy, sourceFile, nodes: nodeIndex.nodes(), observations, bindingPartition: partition,
         containerPath: group.mappedDocuments.get(keyPath(sourceFile.fileName))?.containerPath,
-        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null });
+        expressionFor });
       const current = state.semanticFactsByFile.get(item.file);
       state.semanticFactsByFile.set(item.file, createSemanticFactsRef({ source: item.source,
         syntaxPartitionId: current.syntaxPartitionId, storage: current.storage,

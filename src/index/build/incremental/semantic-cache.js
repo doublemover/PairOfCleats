@@ -18,7 +18,8 @@ const dependencyHash = (signatures) => {
     || !HASH.test(signatures.semantic)) {
     throw new TypeError('Semantic cache dependency signatures are required.');
   }
-  return semanticHash('pairofcleats.semantic.cache-dependencies.v1', signatures);
+  const { semanticAnalysis, semanticLayout, ...extraction } = signatures;
+  return semanticHash('pairofcleats.semantic.cache-dependencies.v1', extraction);
 };
 const cacheKeyFor = (factsRef, signatures) => semanticHash('pairofcleats.semantic.cache-entry.v1', {
   canonicalHash: factsRef.canonicalHash, dependencyHash: dependencyHash(signatures)
@@ -76,6 +77,7 @@ export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleD
       if (source.path !== expectedSourcePath) throw fail('Semantic cache source path changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
     }
   }
+  if (envelope.dependencySignatures.semanticAnalysis !== expectedDependencySignatures.semanticAnalysis && factsRef.partitions.some(partition => partition.contextHash !== null)) throw fail('Derived semantic cache analysis policy changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
   return { factsRef, store, root, dependencySignatures: envelope.dependencySignatures };
 };
 

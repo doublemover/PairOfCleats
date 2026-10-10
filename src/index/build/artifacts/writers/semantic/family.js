@@ -1,3 +1,5 @@
+import { assertSemanticOperationIndex } from '../../../../../contracts/validators/semantic-operation-index.js';
+import { operationIndexEntries, compareOperationIndexRows } from '../../../../../semantic/operation-index.js';
 import { semanticHash, canonicalSemanticJson } from '../../../../semantic/identity.js';
 import { semanticTaskInputHash } from '../../../../semantic/frontier.js';
 import { createHash } from 'node:crypto';
@@ -27,15 +29,20 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
       throw Object.assign(new Error('Semantic file descriptor generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
     }
   }
-  declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', 'semantic_query_index', ...SEMANTIC_MEMBER_NAMES, ...(frontierTargets.length ? ['semantic_frontier_targets'] : []), ...(evidenceArtifacts.length ? ['semantic_evidence'] : [])] });
+  declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', 'semantic_query_index', 'semantic_operation_index', ...SEMANTIC_MEMBER_NAMES, ...(frontierTargets.length ? ['semantic_frontier_targets'] : []), ...(evidenceArtifacts.length ? ['semantic_evidence'] : [])] });
   enqueueWrite('semantic-family', async () => {
     const semanticRoot = path.join(outDir, 'semantic');
     const store = createArtifactSemanticStore({ root: semanticRoot, repoRoot: root,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions });
     await validateSemanticPartitions({ store, partitions, signal });
+    const planning = [...(state.semanticPlanningBySource?.values() || [])].map(plan => {
+      const descriptor = descriptorsBySource.get(plan.sourceUnitId);
+      if (!descriptor || descriptor.sourceHash !== plan.sourceHash || descriptor.syntaxPartitionId !== plan.syntaxPartitionId) throw new Error('Semantic planning/source identity mismatch.');
+      return { ...plan, extractionHash: descriptor.extractionHash, canonicalHash: descriptor.canonicalHash };
+    }).sort((a, b) => a.sourceUnitId.localeCompare(b.sourceUnitId));
     const manifest = { schemaVersion: 1, semanticSchemaVersion: 1,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation,
-      status: enabled ? 'partial' : 'disabled', partitions, contexts: state.semanticCompilerContexts || [], frontierTargets, completedTasks, evidenceArtifacts,
+      status: enabled ? 'partial' : 'disabled', partitions, contexts: state.semanticCompilerContexts || [], frontierTargets, completedTasks, evidenceArtifacts, planning,
       warnings: enabled ? ['Bindings, local flow and unsupported source collectors are not yet complete.'] : [] };
     for (const artifact of evidenceArtifacts) {
       if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(artifact.path)) throw new Error('Invalid semantic evidence path.');
@@ -80,6 +87,16 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     for (const piece of queryIndex.pieces) {
       register('semantic_query_index_rows', path.join(semanticRoot, piece.path), piece.count);
       register('semantic_query_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
+    }
+    const operationIndex = await writeSemanticQueryIndex({ root: semanticRoot, generation, partitions, store,
+      diskAccount: state.semanticDiskAccount || createSemanticDiskAccount(0), signal,
+      entries: operationIndexEntries(store, partitions, signal), compareRows: compareOperationIndexRows,
+      keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-' });
+    await writeJsonObjectFile(path.join(outDir, 'semantic_operation_index.json'), { fields: operationIndex, atomic: true });
+    register('semantic_operation_index', path.join(outDir, 'semantic_operation_index.json'), operationIndex.rowCount);
+    for (const piece of operationIndex.pieces) {
+      register('semantic_operation_index_rows', path.join(semanticRoot, piece.path), piece.count);
+      register('semantic_operation_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
     }
     for (const member of SEMANTIC_MEMBER_NAMES) {
       const inventory = partitions.map((p) => ({ partitionId: p.partitionId, pieces: p.members[member] }));

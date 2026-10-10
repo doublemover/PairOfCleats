@@ -222,7 +222,7 @@ const buildTypeScriptDiagnosticCheck = ({
 
 export const createTypeScriptProvider = () => ({
   id: 'typescript',
-  version: '2.1.0',
+  version: '2.2.0',
   label: 'TypeScript',
   priority: 10,
   languages: ['typescript', 'tsx', 'javascript', 'jsx'],
@@ -249,13 +249,13 @@ export const createTypeScriptProvider = () => ({
     const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
     if (ctx?.toolingConfig?.typescript?.enabled === false) {
       log({ level: 'info', message: 'TypeScript tooling disabled.' });
-      return { provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
+      return { provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
     }
     const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
     if (!ts) {
       log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
       return {
-        provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(baseDiagnostics, [
           buildTypeScriptDiagnosticCheck({
@@ -282,7 +282,7 @@ export const createTypeScriptProvider = () => ({
     const rootDocs = documents.filter((doc) => allowedExts.has(String(doc.effectiveExt || '').toLowerCase()));
     if (!rootDocs.length) {
       return {
-        provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: baseDiagnostics
       };
@@ -473,7 +473,7 @@ export const createTypeScriptProvider = () => ({
             ...(symbolRef ? { symbolRef } : {}),
             provenance: {
               provider: 'typescript',
-              version: '2.1.0',
+              version: '2.2.0',
               collectedAt: new Date().toISOString()
             }
           };
@@ -483,7 +483,7 @@ export const createTypeScriptProvider = () => ({
     }
 
     return {
-      provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) },
       byChunkUid,
       ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),
       diagnostics: diagnostics.length ? { checks: diagnostics } : null

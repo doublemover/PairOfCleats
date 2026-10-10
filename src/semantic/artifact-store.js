@@ -1,3 +1,4 @@
+import { createArtifactOperationReader } from './operation-reader.js';
 import { createNeighborReader } from './neighbors.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import { assertQueryIndexRow, compareQueryIndexRows, queryIndexOwnerCompare } from './query-index.js';
@@ -52,7 +53,7 @@ const hashFile = async (filePath, signal) => {
  */
 export const createArtifactSemanticStore = ({
   root, repoRoot, artifactSurfaceVersion, generation, partitions,
-  queryIndex: inputQueryIndex = null, maxRecords = 128, maxRecordBytes = 1048576, validationCacheEntries = 64
+  operationIndex = null, queryIndex: inputQueryIndex = null, maxRecords = 128, maxRecordBytes = 1048576, validationCacheEntries = 64
 }) => {
   assertCurrentIndexFormat({
     operation: 'semantic_detail', component: 'semantic family', foundVersion: artifactSurfaceVersion,
@@ -350,6 +351,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, validatePiece }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };

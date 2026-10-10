@@ -1,3 +1,5 @@
+import { resolveSemanticSourcePolicy, validateSemanticSourceTargets } from './policy.js';
+import { planSemanticSource } from './planning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -72,12 +74,11 @@ const readTargetSet = async ({ root, task, generation, syntaxPartitions }) => {
 };
 
 /** One generation-pinned bind task. Existing scheduler owns execution; immutable files own recovery. */
-export const prepareSemanticBindingWork = async ({ state, runtime, signal = null }) => {
-  const policy = runtime.semanticPolicy;
+const prepareBindingGroup = async ({ state, runtime, policy, entriesOverride, signal = null }) => {
   const notRun = reason => ({ ran: false, reason });
   if (!policy?.enabled || policy.enrichment.bindings === 'off') return { task: null, status: 'disabled', run: async () => notRun('bindings_disabled') };
   throwIfAborted(signal);
-  const entries = [...(state.semanticFactsByFile || [])].sort(([, a], [, b]) => a.sourceUnitId.localeCompare(b.sourceUnitId));
+  const entries = [...(entriesOverride || state.semanticFactsByFile || [])].sort(([, a], [, b]) => a.sourceUnitId.localeCompare(b.sourceUnitId));
   if (!entries.length) return { task: null, status: 'empty', run: async () => notRun('no_source_facts') };
   const generation = entries[0][1].storage.generation;
   const root = path.join(runtime.buildRoot, entries[0][1].storage.relativePath);
@@ -103,7 +104,7 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
   const targetSetHash = semanticHash('pairofcleats.semantic.binding-targets.v1', targetSet);
   const dependencySignatures = createSemanticCacheDependencySignatures({ dependencySignatures: { tooling: getToolingConfig(runtime.root) }, policy, root: runtime.root });
   const policyHash = semanticHash('pairofcleats.semantic.binding-task-policy.v1', { version: 1, dependencySignatures,
-    bindings: policy.enrichment.bindings, localFlow: policy.enrichment.localFlow, boundaryModels: policy.enrichment.boundaryModels || null });
+    effectiveAnalysis: policy.identity?.analysis || null, enrichment: policy.enrichment });
   const inputHashes = ordered([...new Set(eligibleSyntax.map(row => row.canonicalHash))]);
   const task = assertSemanticTask({ schemaVersion: 1, taskId: createSemanticTaskId({ kind: 'bind', inputHashes, policyHash, targetSetHash }),
     kind: 'bind', baseBuildId: generation.baseBuildId, sourceUnits, inputHashes, policyHash, targetSetHash,
@@ -129,14 +130,21 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
   const durableInputHashes = new Set(syntaxPartitions.map(row => row.canonicalHash));
   let control = await openControl(runtime);
   try { if (control.available) control.enqueue({ task, durableInputHashes }); } finally { control.close?.(); }
-  let claimed = false;
-  return { task, status: 'pending', async run(fn) {
+  let claimed = false, admitted = null;
+  const admit = async () => {
+    if (admitted !== null) return admitted;
+    const drain = runtime.semanticEnrichmentDrain;
+    const granted = drain ? await drain.admitTask({ task, targetSet }) === true : false;
+    admitted = drain ? granted : policy.bindingMode !== 'deferred' || policy.execution.deferredDrain === 'after-index';
+    return admitted;
+  };
+  return { task, policy, targetSet, admit, status: 'pending', async run(fn) {
     if (claimed) return notRun('binding_task_already_admitted');
     claimed = true;
     throwIfAborted(signal);
-    if (policy.enrichment.bindings === 'deferred' && policy.execution.deferredDrain !== 'after-index') return notRun('manual_deferred_binding_task');
+    if (!await admit()) return notRun('manual_deferred_binding_task');
     if (typeof runtime.scheduler?.schedule !== 'function') return notRun('existing_relations_scheduler_unavailable');
-    const maxMs = policy.enrichment.bindings === 'deferred' ? policy.execution.afterIndexMaxMs : null;
+    const maxMs = runtime.semanticEnrichmentDrain ? runtime.semanticEnrichmentDrain.maxMs : policy.bindingMode === 'deferred' ? policy.execution.afterIndexMaxMs : policy.enrichment.bindings === 'auto' ? policy.planning.inlineBudgetMs : null;
     if (maxMs === 0) return notRun('after_index_budget_exhausted');
     control = await openControl(runtime);
     if (!control.available) return notRun('sqlite_control_store_unavailable');
@@ -204,6 +212,50 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
       if (renewal) clearInterval(renewal);
       signal?.removeEventListener('abort', onAbort); control.close();
     }
+  } };
+};
+
+/** Source policy groups stage independent immutable tasks, then share one admitted tooling pass. */
+export const prepareSemanticBindingWork = async ({ state, runtime, signal = null, reuseReady = false }) => {
+  const base = runtime.semanticPolicy;
+  if (!base?.enabled || !state.semanticFactsByFile?.size) return { task: null, tasks: [], status: 'disabled', run: async () => ({ ran: false, reason: 'bindings_disabled' }) };
+  const entries = [...state.semanticFactsByFile], groups = new Map();
+  state.semanticPlanningBySource ||= new Map();
+  for (const [file, descriptor] of entries) {
+    throwIfAborted(signal);
+    const syntax = descriptor.partitions.find(partition => partition.partitionId === descriptor.syntaxPartitionId);
+    const root = path.join(runtime.buildRoot, descriptor.storage.relativePath);
+    const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: descriptor.storage.generation, partitions: [syntax] });
+    for await (const source of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) {
+      const sourcePath = source.mapping ? entries.find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path;
+      const policy = resolveSemanticSourcePolicy(base, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
+      await validateSemanticSourceTargets(policy, { source, partitionId: syntax.partitionId, store, signal });
+      const plan = planSemanticSource(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId, reuseReady, metrics: { ...runtime.semanticAnalysisMeasurements?.get?.(source.sourceUnitId), nodes: syntax.members.semantic_records.reduce((sum, part) => sum + part.count, 0), operands: syntax.members.semantic_operands.reduce((sum, part) => sum + part.count, 0) } });
+      state.semanticPlanningBySource.set(source.sourceUnitId, plan);
+      if (plan.modes.bindings === 'off' || !policy.languages.includes(source.language) || !['javascript', 'typescript'].includes(source.language) || source.mapping && source.mapping.quality !== 'exact' || policy.targetSelectionConfigured && !policy.targets.length) continue;
+      const effective = { ...policy, bindingMode: plan.modes.bindings };
+      const key = semanticHash('semantic.binding-policy-group.v1', { analysis: policy.identity.analysis, mode: plan.modes.bindings, execution: policy.execution });
+      if (!groups.has(key)) groups.set(key, { policy: effective, entries: [] });
+      groups.get(key).entries.push([file, descriptor]);
+    }
+  }
+  const work = [];
+  for (const group of groups.values()) work.push(await prepareBindingGroup({ state, runtime, signal, policy: group.policy, entriesOverride: group.entries }));
+  return { task: work[0]?.task || null, tasks: work.map(item => item.task).filter(Boolean), status: work.length ? 'pending' : 'empty', async run(fn) {
+    const selected = [];
+    for (const item of work) if (item.task && await item.admit()) selected.push(item);
+    if (!selected.length) return { ran: false, reason: 'manual_deferred_binding_task' };
+    const previous = state.semanticAdmittedSources;
+    state.semanticAdmittedSources = new Set(selected.flatMap(item => item.task.sourceUnits));
+    let output = null;
+    const receipts = [];
+    try {
+      for (const item of selected) {
+        const result = await item.run(async options => output ||= await fn(options));
+        if (result.receipt) receipts.push(result.receipt);
+      }
+      return { ran: receipts.length === selected.length, output, receipts };
+    } finally { state.semanticAdmittedSources = previous; }
   } };
 };
 
@@ -276,51 +328,50 @@ export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConf
 
 /** Persist deeper-analysis frontiers even when the base build elects not to run them. */
 export const persistSemanticAnalysisFrontiers = async ({ state, runtime, signal = null }) => {
-  const policy = runtime.semanticPolicy;
-  if (!policy?.enabled) return [];
-  const phases = ['localFlow', 'crossFileFlow'].filter(phase => policy.enrichment[phase] === 'deferred');
-  if (!phases.length || !state.semanticFactsByFile?.size) return [];
-  const entries = [...state.semanticFactsByFile].sort(([,a],[,b]) => a.sourceUnitId.localeCompare(b.sourceUnitId));
+  const base = runtime.semanticPolicy;
+  if (!base?.enabled || !state.semanticFactsByFile?.size) return [];
+  const entries = [...state.semanticFactsByFile].sort(([, a], [, b]) => a.sourceUnitId.localeCompare(b.sourceUnitId));
   const generation = entries[0][1].storage.generation, root = path.join(runtime.buildRoot, entries[0][1].storage.relativePath);
-  const eligible = [], sources = new Map();
+  const groups = new Map();
   for (const [file, descriptor] of entries) {
     throwIfAborted(signal);
-    if (canonicalSemanticJson(descriptor.storage.generation) !== canonicalSemanticJson(generation)) throw fail('Mixed deferred analysis generations.');
+    if (canonicalSemanticJson(descriptor.storage.generation) !== canonicalSemanticJson(generation) || path.resolve(runtime.buildRoot, descriptor.storage.relativePath) !== path.resolve(root)) throw fail('Mixed deferred analysis generations or roots.');
     const syntax = descriptor.partitions.find(partition => partition.partitionId === descriptor.syntaxPartitionId);
     const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions: [syntax] });
     for await (const source of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) {
-      if (['javascript', 'typescript'].includes(source.language)) { eligible.push([file, descriptor, syntax]); sources.set(file, source); }
+      if (!['javascript', 'typescript'].includes(source.language) || source.mapping && source.mapping.quality !== 'exact') continue;
+      const sourcePath = source.mapping ? entries.find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path;
+      const policy = resolveSemanticSourcePolicy(base, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
+      const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId });
+      for (const phase of ['localFlow', 'crossFileFlow']) {
+        if (plan.modes[phase] !== 'deferred' || !policy.languages.includes(source.language)) continue;
+        const completed = descriptor.coverage.some(row => row.phase === phase && ['complete', 'partial'].includes(row.state));
+        if (completed) continue;
+        const key = semanticHash('semantic.deferred-analysis-group.v1', { phase, analysis: policy.identity.analysis });
+        if (!groups.has(key)) groups.set(key, { phase, policy, entries: [] });
+        groups.get(key).entries.push({ file, descriptor, syntax, source });
+      }
     }
   }
-  if (!eligible.length) return [];
-  const targetSet = { schemaVersion: 1, generation, sourceUnits: ordered(eligible.map(([,entry]) => entry.sourceUnitId)),
-    syntaxPartitionRefs: eligible.map(([, , partition]) => ({ partitionId: partition.partitionId, canonicalHash: partition.canonicalHash, sourceUnitId: partition.sourceUnitId })).sort((a,b) => a.partitionId.localeCompare(b.partitionId)) };
-  const targetSetHash = semanticHash('pairofcleats.semantic.binding-targets.v1', targetSet);
-  const inventory = await writeTargetSet({ root, targetSet, targetSetHash, diskAccount: state.semanticDiskAccount, signal });
-  state.semanticFrontierTargets ||= [];
-  if (!state.semanticFrontierTargets.some(value => value.path === inventory.path)) state.semanticFrontierTargets.push(inventory);
-  const inputHashes = ordered([...new Set(eligible.flatMap(([,entry]) => entry.partitions.map(partition => partition.canonicalHash)))]);
   const tasks = [];
-  for (const phase of phases) {
-    const policyHash = semanticHash('semantic.deferred-analysis-policy.v1', { phase, enrichment: policy.enrichment });
-    const task = assertSemanticTask({ schemaVersion: 1, taskId: createSemanticTaskId({ kind: phase, inputHashes, policyHash, targetSetHash }),
-      kind: phase, baseBuildId: generation.baseBuildId, sourceUnits: targetSet.sourceUnits, inputHashes, policyHash, targetSetHash,
-      targetsRef: inventory.path, dependencies: [], priority: 1, reason: 'analysis_explicitly_deferred', coverageToProduce: [phase] });
+  for (const { phase, policy, entries: eligible } of groups.values()) {
+    const targetSet = { schemaVersion: 1, generation, sourceUnits: ordered(eligible.map(entry => entry.source.sourceUnitId)), syntaxPartitionRefs: eligible.map(({ syntax }) => ({ partitionId: syntax.partitionId, canonicalHash: syntax.canonicalHash, sourceUnitId: syntax.sourceUnitId })).sort((a, b) => a.partitionId.localeCompare(b.partitionId)) };
+    const targetSetHash = semanticHash('pairofcleats.semantic.binding-targets.v1', targetSet);
+    const inventory = await writeTargetSet({ root, targetSet, targetSetHash, diskAccount: state.semanticDiskAccount, signal });
+    state.semanticFrontierTargets ||= [];
+    if (!state.semanticFrontierTargets.some(value => value.path === inventory.path)) state.semanticFrontierTargets.push(inventory);
+    const inputHashes = ordered([...new Set(eligible.flatMap(({ descriptor }) => descriptor.partitions.filter(partition => !partition.members.semantic_frontier.some(piece => piece.count > 0)).map(partition => partition.canonicalHash)))]);
+    const policyHash = semanticHash('semantic.deferred-analysis-policy.v1', { phase, analysis: policy.identity.analysis });
+    const task = assertSemanticTask({ schemaVersion: 1, taskId: createSemanticTaskId({ kind: phase, inputHashes, policyHash, targetSetHash }), kind: phase, baseBuildId: generation.baseBuildId, sourceUnits: targetSet.sourceUnits, inputHashes, policyHash, targetSetHash, targetsRef: inventory.path, dependencies: [], priority: 1, reason: 'analysis_policy_deferred', coverageToProduce: [phase] });
     for (let index = 0; index < eligible.length; index += 1) {
-      const [file] = eligible[index], source = sources.get(file), current = state.semanticFactsByFile.get(file);
-      const partitionId = createAnalysisPartitionId({ pass: { name: 'semantic-analysis-frontier', version: '1' }, inputPartitionHashes: inputHashes,
-        compilerContext: { sourceUnitId: source.sourceUnitId }, dependencySummaryHashes: [], analysisPolicy: { taskId: task.taskId } });
-      const coverage = { scope: { sourceUnitId: source.sourceUnitId }, phase, state: 'deferred', reason: 'analysis_explicitly_deferred', observedCount: null, completedCount: 0, frontierRef: task.taskId };
-      const partition = await writeSemanticAnalysis({ policy, stagingRoot: root, source,
-        sourceBytes: await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8')), partitionId,
-        producerHash: semanticHash('semantic.analysis-frontier-producer.v1', { version: 1 }), policyHash, diskAccount: state.semanticDiskAccount, signal,
-        rows: [...(index === 0 ? [{ family: 'frontier', row: task }] : []), { family: 'coverage', row: coverage }] });
-      state.semanticFactsByFile.set(file, createSemanticFactsRef({ source, syntaxPartitionId: current.syntaxPartitionId, storage: current.storage,
-        partitions: [...current.partitions.filter(value => value.partitionId !== partitionId), partition], coverage: [...current.coverage.filter(value => value.phase !== phase), coverage] }));
+      const { file, source } = eligible[index], current = state.semanticFactsByFile.get(file);
+      const partitionId = createAnalysisPartitionId({ pass: { name: 'semantic-analysis-frontier', version: '1' }, inputPartitionHashes: inputHashes, compilerContext: { sourceUnitId: source.sourceUnitId }, dependencySummaryHashes: [], analysisPolicy: { taskId: task.taskId } });
+      const coverage = { scope: { sourceUnitId: source.sourceUnitId }, phase, state: 'deferred', reason: 'analysis_policy_deferred', observedCount: null, completedCount: 0, frontierRef: task.taskId };
+      const partition = await writeSemanticAnalysis({ policy, stagingRoot: root, source, sourceBytes: await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8')), partitionId, producerHash: semanticHash('semantic.analysis-frontier-producer.v1', { version: 1 }), policyHash, diskAccount: state.semanticDiskAccount, signal, rows: [...(index === 0 ? [{ family: 'frontier', row: task }] : []), { family: 'coverage', row: coverage }] });
+      state.semanticFactsByFile.set(file, createSemanticFactsRef({ source, syntaxPartitionId: current.syntaxPartitionId, storage: current.storage, partitions: [...current.partitions.filter(value => value.partitionId !== partitionId), partition], coverage: [...current.coverage.filter(value => value.phase !== phase), coverage] }));
     }
     const control = await openControl(runtime);
-    try { if (control.available) control.enqueue({ task, durableInputHashes: new Set(inputHashes) }); }
-    finally { control.close?.(); }
+    try { if (control.available) control.enqueue({ task, durableInputHashes: new Set(inputHashes) }); } finally { control.close?.(); }
     tasks.push(task);
   }
   return tasks;

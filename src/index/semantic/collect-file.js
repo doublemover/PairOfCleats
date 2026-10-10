@@ -1,3 +1,5 @@
+import { resolveSemanticSourcePolicy } from './policy.js';
+import { semanticByteAdmissionFor } from './planning.js';
 import { createTypeScriptSemanticCollector, TYPESCRIPT_ADAPTER_VERSION } from './typescript-collector.js';
 import { getTypeScriptSyntaxIdentity } from '../../lang/typescript/syntax-context.js';
 import { createSemanticSourceSnapshot } from './source.js';
@@ -14,7 +16,8 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
     { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
   const parser = language === 'typescript' ? getTypeScriptSyntaxIdentity(ast) : getJavaScriptSyntaxIdentity(ast);
   const parserIdentity = parser || { family: 'unavailable', version: '0', options: {} };
-  const structuralPolicy = { structure: 'complete', adapterVersion: 1 };
+  policy = resolveSemanticSourcePolicy(policy, { sourceUnitId: snapshot.manifest.sourceUnitId, sourceHash: snapshot.manifest.byteHash, path: relPath, language });
+  const structuralPolicy = { structure: 'complete', adapterVersion: 2, extraction: policy.identity.extraction, languageEnabled: policy.languages.includes(language) };
   const partitionId = createSyntaxPartitionId({ sourceUnitId: snapshot.manifest.sourceUnitId,
     parser: parserIdentity, extractor: { schemaVersion: 1, version: language === 'typescript' ? TYPESCRIPT_ADAPTER_VERSION : JAVASCRIPT_ADAPTER_VERSION }, structuralPolicy });
   const unavailable = !policy.languages.includes(language) ? { state: 'disabled', reason: 'language_policy_disabled' }
@@ -26,6 +29,7 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
     producerHash: semanticHash('semantic.syntax-producer.v1', parserIdentity),
     policyHash: semanticHash('semantic.structural-policy.v1', structuralPolicy),
     structuralSlots: collector.structuralSlots, diskAccount, signal, scheduleIo,
+    byteAdmission: semanticByteAdmissionFor(diskAccount, policy.storage.maxQueuedBytes),
     batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
   const coverage = [];
   try {

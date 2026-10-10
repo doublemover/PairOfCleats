@@ -1,3 +1,4 @@
+import { semanticPolicyIdentities } from '../../semantic/policy.js';
 import { createRequire } from 'node:module';
 import { loadTypeScriptModule } from '../../../lang/typescript/parser.js';
 import { JAVASCRIPT_ADAPTER_VERSION } from '../../semantic/javascript-collector.js';
@@ -18,8 +19,8 @@ export const createSemanticCacheDependencySignatures = ({ dependencySignatures, 
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, semanticSchemaVersion: 1,
     parsers: { ...parserVersions, typescript: loadTypeScriptModule(root)?.version || null },
     extractors: { javascript: JAVASCRIPT_ADAPTER_VERSION, typescript: TYPESCRIPT_ADAPTER_VERSION },
-    structuralPolicy: { structure: 'complete', adapterVersion: 1 },
-    policy: { languages: policy.languages, baseFacts: policy.baseFacts, enrichment: policy.enrichment },
+    structuralPolicy: { structure: 'complete', adapterVersion: 2 },
+    policy: { languages: policy.languages, baseFacts: policy.baseFacts },
     parserOptions: { javascript: languageOptions.javascript || {}, typescript: languageOptions.typescript || {} }
-  }) };
+  }), semanticAnalysis: semanticPolicyIdentities(policy).analysis, semanticLayout: semanticPolicyIdentities(policy).layout };
 };

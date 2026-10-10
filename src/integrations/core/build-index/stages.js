@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { attachSemanticEnrichmentRuntime } from '../../../index/semantic/enrichment-context.js';
 import path from 'node:path';
 import { preprocessFiles, writePreprocessStats } from '../../../index/build/preprocess.js';
 import { buildIndexForMode } from '../../../index/build/indexer.js';
@@ -696,6 +697,7 @@ export const runStage = async (
       policy,
       observability: context?.observability || null
     });
+    await attachSemanticEnrichmentRuntime(runtime, options.semanticEnrichmentDrain);
     phaseStage = runtime.stage || phaseStage;
     runtime.featureMetrics = createFeatureMetrics({
       buildId: runtime.buildId,
@@ -962,6 +964,7 @@ export const runStage = async (
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
       throwIfAborted(effectiveAbortSignal);
+      await runtime.semanticEnrichmentDrain?.beforePublish();
       await promoteBuild({
         repoRoot: runtime.root,
         userConfig: runtime.userConfig,

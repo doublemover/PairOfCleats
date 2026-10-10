@@ -48,7 +48,7 @@ export const createSemanticDiskAccount = (limit) => {
 export const createSemanticPartitionSink = async ({
   stagingRoot, source, sourceBytes, partitionId, producerHash, contextHash = null, policyHash,
   structuralSlots = [], diskAccount, batchRows = 4096, batchBytes = 1048576,
-  signal = null, scheduleIo = (fn) => fn()
+  signal = null, byteAdmission = null, scheduleIo = (fn) => fn()
 }) => {
   assertSemanticEnvelope('source', source);
   if (!(sourceBytes instanceof Uint8Array)) throw new TypeError('Exact source bytes are required.');
@@ -160,7 +160,9 @@ export const createSemanticPartitionSink = async ({
     }
     for (const { family, row } of batch.rows) inspectReferences(family, row);
     busy = true;
+    let release = null;
     try {
+      release = await byteAdmission?.acquire(measured, { signal });
       for (const [member, rows] of Object.entries(groups)) await writePart(member, rows);
       edgeId = nextEdge;
       sequence += 1;
@@ -168,7 +170,7 @@ export const createSemanticPartitionSink = async ({
       busy = false;
       await abort();
       throw error;
-    } finally { busy = false; }
+    } finally { release?.(); busy = false; }
   };
   const finalizeSource = async () => {
     if (closed || busy) throw fail('Semantic sink is closed or already writing.');

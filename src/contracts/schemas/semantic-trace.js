@@ -16,7 +16,7 @@ export const SEMANTIC_TRACE_RESULT_SCHEMA = {
   properties: {
     ...SEMANTIC_DETAIL_RESULT_SCHEMA.properties,
     frontier: { type: 'array', items: object({ reason: { enum: [
-      'record_not_found', 'response_budget', 'depth_budget', 'work_budget', 'analysis_incomplete', 'slot_unavailable', 'visited_budget'
+      'call_context_budget', 'record_not_found', 'response_budget', 'depth_budget', 'work_budget', 'analysis_incomplete', 'slot_unavailable', 'visited_budget'
     ] } }, { ref: SEMANTIC_RECORD_REF_SCHEMA, remainingCount: integer }) }
   }
 };
