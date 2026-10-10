@@ -1,3 +1,4 @@
+import {resolveSemanticSourcePolicy,validateSemanticSourceTargets} from '../../../src/index/semantic/policy.js';
 import { persistSemanticCacheEntry, openSemanticCacheEntry } from '../../../src/index/build/incremental/semantic-cache.js';
 import { createSemanticCacheDependencySignatures } from '../../../src/index/build/incremental/semantic-cache-dependencies.js';
 import { collectStandaloneWasm } from '../../../src/index/semantic/wasm/standalone.js';
@@ -58,6 +59,16 @@ try {
   assert.equal(off.semanticFactsRef.counts.semantic_edges,0);
   const deferred = await collectPolicy({...policy,enrichment:{...policy.enrichment,localFlow:'deferred'}});
   assert.ok(deferred.semanticFactsRef.coverage.some(row=>row.reason==='wasm_deferred_flow_not_scheduled'&&row.state==='unsupported'));
+  const selectedPolicy={...policy,targets:[{sourceUnitId:cpu.semanticFactsRef.sourceUnitId,sourceHash:cpu.semanticFactsRef.sourceHash,ref:{partitionId:cpu.semanticFactsRef.syntaxPartitionId,localId:0}}]};
+  const targeted=await collectPolicy(selectedPolicy);
+  assert.ok(targeted.semanticFactsRef.coverage.some(row=>row.reason?.includes('wasm_module_target_widens_to_whole_module')));
+  assert.ok(targeted.semanticFactsRef.counts.semantic_edges>0);
+  const targetStore=storeFor(targeted.semanticFactsRef.partitions);
+  for await(const source of targetStore.iterateRows(targeted.semanticFactsRef.syntaxPartitionId,'semantic_sources')) {
+    const resolved=resolveSemanticSourcePolicy(selectedPolicy,{sourceUnitId:source.sourceUnitId,sourceHash:source.byteHash,path:source.path,language:'wasm'});
+    await validateSemanticSourceTargets(resolved,{source,partitionId:targeted.semanticFactsRef.syntaxPartitionId,store:targetStore});
+    await assert.rejects(validateSemanticSourceTargets({...resolved,targets:[{range:{start:0,end:1}}]},{source,partitionId:targeted.semanticFactsRef.syntaxPartitionId,store:targetStore}),/exceeds/,'text ranges cannot masquerade as binary byte selections');
+  }
   await fs.writeFile(path.join(root,'processor.wasm'),bytes);
   const processor=createFileProcessorForTest({root,overrides:{
     semantic:{policy,stagingRoot,buildRoot:root,repositoryNamespace:root,storage:{generation:{baseBuildId:'processor',semanticRevision:0},relativePath:'semantic'},diskAccount:state.semanticDiskAccount},

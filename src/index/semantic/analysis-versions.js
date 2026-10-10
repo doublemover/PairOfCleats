@@ -4,8 +4,8 @@ import { semanticHash } from './identity.js';
  * semantics change; syntax extraction and physical layout remain independent.
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
-  compilerBindings: '3', lspBindings: '2', cfgFlow: '8', callFlow: '4',
-  valueSlice: '2', storageFlow: '1', workerFlow: '3', boundaryFlow: '5', wasmFlow: '2'
+  compilerBindings: '4', lspBindings: '2', cfgFlow: '9', callFlow: '5',
+  valueSlice: '2', storageFlow: '1', workerFlow: '4', boundaryFlow: '6', wasmFlow: '3'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must
 // not reuse a partition validated by a different engine version.

@@ -31,15 +31,18 @@ export const collectStandaloneWasm = async ({ bytes, relPath, repositoryNamespac
   if (decoded.status === 'decoded') {
     const plan = planSemanticSource(effective, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId, reuseReady: true });
     const targeted = effective.targetSelectionConfigured;
-    const includeFlow = !targeted && plan.modes.localFlow === 'eager';
+    const moduleTarget = effective.targets.some(target=>target.ref?.partitionId===syntaxPartitionId&&target.ref.localId===0);
+    const supportedTarget = !targeted || moduleTarget;
+    const includeFlow = supportedTarget && plan.modes.localFlow === 'eager';
     const partitionId = createAnalysisPartitionId({ pass: 'wasm-binary', inputPartitionHashes: [syntax.canonicalHash],
       compilerContext: parser, dependencySummaryHashes: [], analysisPolicy: effective.identity.analysis });
     const ledger = { partitionId, rows: [], edges: [], reasons: new Set(), nextId: 0 };
+    if(moduleTarget)ledger.reasons.add('wasm_module_target_widens_to_whole_module');
     const projected = await projectWasmModule({ ledger, module: decoded.module, bytes, invocation, source, stagingRoot, state, includeFlow, signal });
     ledger.edges.forEach((row, id) => ledger.rows.push({ family: 'edge', row: { id, ...row } }));
     const flowCoverage = { scope: { sourceUnitId: source.sourceUnitId }, phase: 'localFlow',
       state: !projected ? 'partial' : includeFlow ? 'partial' : plan.modes.localFlow === 'off' ? 'disabled' : 'unsupported',
-      reason: !projected ? 'wasm_flow_graph_budget' : includeFlow ? [...ledger.reasons].sort().join(';') : targeted ? 'wasm_text_or_declaration_target_not_supported' : plan.modes.localFlow === 'off' ? 'wasm_local_flow_off' : 'wasm_deferred_flow_not_scheduled',
+      reason: !projected ? 'wasm_flow_graph_budget' : includeFlow ? [...ledger.reasons].sort().join(';') : !supportedTarget ? 'wasm_text_or_declaration_target_not_supported' : plan.modes.localFlow === 'off' ? 'wasm_local_flow_off' : 'wasm_deferred_flow_not_scheduled',
       observedCount: projected?.graph.nodes.length ?? null, completedCount: projected && includeFlow ? projected.graph.functions.length : 0, frontierRef: null };
     ledger.rows.push({ family: 'coverage', row: flowCoverage }); coverage.push(flowCoverage);
     partitions.push(await writeSemanticAnalysis({ ...common, rows: ledger.rows, partitionId,

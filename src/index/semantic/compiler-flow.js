@@ -1,6 +1,7 @@
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
+import { propertyPathsOverlap } from './compiler-property-paths.js';
 import { compilerInvocationInputs } from './compiler-invocation.js';
-import { createCompilerFieldPaths } from './compiler-flow-fields.js';
+import { createCompilerFieldPaths, collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 import { buildCompilerFlowGraph } from './compiler-flow-graph.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
@@ -22,7 +23,9 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
   const edge = (kind, from, to, condition = null, certainty = 'exact-static') => {
     if (from && to) edges.push({ kind, from, to, callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition, evidence, certainty });
   };
-  const owners = [sourceFile, ...[...nodes].filter(node => ts.isFunctionLike(node) && node.body)];
+  nodes = [...nodes];
+  const assignments = collectCompilerAliasAssignments(ts,checker,nodes);
+  const owners = [sourceFile, ...nodes.filter(node => ts.isFunctionLike(node) && node.body)];
   let totalBlocks = 0, solvedBlocks = 0;
   for (const owner of owners) {
     const reasons = new Set();
@@ -38,14 +41,13 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
       for (const successor of block.successors) { if (!predecessors.has(successor.to)) predecessors.set(successor.to, []); predecessors.get(successor.to).push(block); pending.push(successor.to); }
     }
     const symbols = new Map(), blockRefs = new Map(), writes = new Map(), heapWrites = new Map(), catches = new Map();
-    const fields = createCompilerFieldPaths({ ts, checker, owner, sourceFile, expressionFor, declarationFor,
+    const fields = createCompilerFieldPaths({ ts, checker, owner, sourceFile, assignments, expressionFor, declarationFor,
       depthLimit: policy.enrichment.fieldPathDepth, reasons });
-    const fieldFor = node => {
-      const location = fields.locationFor(node); if (!location) return null;
+    const fieldsFor = node => fields.locationsFor(node).map(location => {
       const token = 'field:' + location.key;
-      if (!symbols.has(token)) symbols.set(token, { key: token, site: location.site, unknown: null, location });
+      if (!symbols.has(token)) symbols.set(token, {key:token,site:location.site,unknown:null,location});
       return token;
-    };
+    });
     const symbolFor = node => {
       if (!node || !ts.isIdentifier(node)) return null;
       const symbol = ts.isShorthandPropertyAssignment(node.parent) ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
@@ -70,11 +72,12 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
         });
       }
       if (['heapRead', 'heapWrite'].includes(block.event?.kind)) {
-        const field = fieldFor(block.event.target);
-        if (field) block.field = field;
+        const candidates = fieldsFor(block.event.target);
+        block.fields = candidates;
+        const field = candidates[0];
         if (field && block.event.kind === 'heapWrite') {
           const value = add('heap-write:' + prefix + ':' + block.key, 'value', block.event.target,
-            { origin: 'heap', site: expressionFor(block.event.value) || block.site, storage: symbols.get(field).location.root });
+            { origin: 'heap', site: expressionFor(block.event.value) || block.site, storage: candidates.length===1 ? symbols.get(field).location.root : null });
           heapWrites.set(block, value);
           edge('flowsTo', expressionFor(block.event.value), value, null, 'modeled');
           edge('writes', value, expressionFor(block.event.target), null, 'modeled');
@@ -93,8 +96,19 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
     }
     for (const entry of symbols.values()) entry.unknown = add('unknown:' + prefix + ':' + entry.key, 'value', null,
       { origin: entry.location ? 'heap' : 'unknown', site: entry.site, storage: entry.location?.root || null });
-    for (const entry of symbols.values()) if (entry.location?.initializer) edge('packs', entry.location.initializer, entry.unknown, null, 'modeled');
+    for (const entry of symbols.values()) for (const initializer of entry.location?.initializers || []) edge('packs', initializer, entry.unknown, null, 'modeled');
     const initial = new Map([...symbols].map(([symbol, entry]) => [symbol, new Set([entry.unknown.local])]));
+    const overlaps = new Map(), fieldGroups = new Map(); let fieldWork = 1000000;
+    for(const [token,entry] of symbols) if(entry.location) {
+      const key=canonicalSemanticJson(entry.location.root); if(!fieldGroups.has(key))fieldGroups.set(key,[]);fieldGroups.get(key).push([token,entry]);
+    }
+    for(const group of fieldGroups.values()) for(const [token,entry] of group) {
+      const matches=[]; overlaps.set(token,matches);
+      for(const [other,value] of group) {
+        if(--fieldWork<0) {reasons.add('field_overlap_work_budget');break;}
+        if(propertyPathsOverlap(entry.location.path,value.location.path))matches.push(other);
+      }
+    }
     const incoming = new Map(), outgoing = new Map();
     const merge = block => {
       const result = new Map();
@@ -118,7 +132,9 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
       incoming.set(block, input);
       if (writes.has(block)) output.set(block.symbol, new Set([writes.get(block).local]));
       // A field path is a may-location: retain older candidates rather than claiming an alias-safe kill.
-      if (heapWrites.has(block)) output.set(block.field, new Set([...(input.get(block.field) || []), heapWrites.get(block).local]));
+      if (heapWrites.has(block)) for (const field of block.fields) {
+        for (const token of overlaps.get(field) || [field]) output.set(token,new Set([...(output.get(token)||[]),heapWrites.get(block).local]));
+      }
       if (!equal(outgoing.get(block), output)) {
         outgoing.set(block, output);
         for (const successor of block.successors) if (!queued.has(successor.to)) { queue.push(successor.to); queued.add(successor.to); }
@@ -169,27 +185,29 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
           else { exceptionRefs.push(payload); edge('throws', payload, blockRefs.get(target), null, 'modeled'); }
         }
       }
-      if (event?.kind === 'heapRead' && block.field) {
-        const entry = symbols.get(block.field), location = entry.location;
-        const values = new Set(incoming.get(block)?.get(block.field) || [entry.unknown.local]);
-        if (!complete) values.add(entry.unknown.local);
+      if (event?.kind === 'heapRead' && block.fields?.length) {
+        const location = symbols.get(block.fields[0]).location;
+        const values = new Set();
+        for (const field of block.fields) { const entry = symbols.get(field); for(const candidate of incoming.get(block)?.get(field)||[entry.unknown.local]) values.add(candidate); if(!complete) values.add(entry.unknown.local); }
         const merged = add('heap-read:' + prefix + ':' + block.key, 'value', block.node,
-          { origin: 'merge', site: block.site, storage: location.root });
+          { origin: 'merge', site: block.site, storage: block.fields.length===1 ? location.root : null });
         for (const candidate of [...values].sort()) edge('flowsTo', local(candidate), merged, null, 'modeled');
         edge('reads', merged, block.site, null, 'modeled');
-        fieldAccesses.push({ root: location.root, path: location.path, ref: block.site, span: [block.node.getStart(sourceFile), block.node.end] });
+        for(const field of block.fields) { const location=symbols.get(field).location; fieldAccesses.push({ root: location.root, path: location.path, ref: block.site, span: [block.node.getStart(sourceFile), block.node.end] }); }
       }
-      if (event?.kind === 'heapWrite' && block.field && heapWrites.has(block)) {
-        const location = symbols.get(block.field).location;
+      if (event?.kind === 'heapWrite' && heapWrites.has(block)) for(const field of block.fields) {
+        const location = symbols.get(field).location;
         if (location.parameter !== null) effects.push({ parameter: location.parameter, path: location.path, ref: heapWrites.get(block) });
       }
       if (event?.kind === 'operation' && (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node))) {
+        for(const {argument} of compilerInvocationInputs(ts,block.node).inputs) fields.rootsFor(argument);
+        const callee=block.node.expression||block.node.tag; if(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee)) fields.rootsFor(callee.expression);
         const reads = [], seen = new Set(), pending = block.successors.filter(value => value.kind !== 'exceptional').map(value => value.to);
         while (pending.length) {
           throwIfAborted(signal);
           if (--routingWork < 0) { reasons.add('exception_and_effect_route_budget'); break; }
           const current = pending.pop(); if (seen.has(current)) continue; seen.add(current);
-          if (current.event?.kind === 'heapRead' && current.field) { const location = symbols.get(current.field).location; reads.push({ root: location.root, path: location.path, ref: current.site }); }
+          if (current.event?.kind === 'heapRead') for(const field of current.fields || []) { const location = symbols.get(field).location; reads.push({ root: location.root, path: location.path, ref: current.site }); }
           for (const next of current.successors) pending.push(next.to);
         }
         const targets = [...exceptionTargets(block)];
@@ -213,10 +231,11 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
         }
         edge('reads', value, expressionFor(event.target), null, values.size > 1 || !complete || graph.reasons.size ? 'modeled' : 'exact-static');
       }
-      if (event?.kind === 'return' && event.value && canCompleteReturn(block)) {
+      if (event?.kind === 'return' && canCompleteReturn(block)) {
         const value = add('return:' + prefix + ':' + block.key, 'value', block.node,
           { origin: 'return', site: expressionFor(event.value) || block.site, storage: null });
-        edge('returns', expressionFor(event.value), value, null, graph.reasons.size ? 'modeled' : 'exact-static'); returnRefs.push(value);
+        const input = event.value ? expressionFor(event.value) : add('undefined:' + prefix + ':' + block.key, 'expression', null, {astKind:'SemanticUndefined',operation:'undefined',invocationKind:null,syntacticArgumentCount:null,flags:['derived','bare-return']});
+        edge('returns', input, value, null, graph.reasons.size ? 'modeled' : 'exact-static'); returnRefs.push(value);
       }
       if (event?.kind === 'throw' && event.value) {
         for (const successor of block.successors) edge('throws', expressionFor(event.value), blockRefs.get(successor.to), null, 'modeled');
@@ -236,7 +255,23 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
         }
       }
     }
-    summaries.push({ owner, ownerRef, span: [owner.getStart(sourceFile), owner.end], declaration: owner.parent && ts.isVariableDeclaration(owner.parent) && owner.parent.initializer === owner ? declarationFor(owner.parent) : declarationFor(owner), returns: returnRefs,
+    const completionStates = new Set(), completionQueue = [[graph.entry,false]];
+    let normalExit = false;
+    while(completionQueue.length) {
+      throwIfAborted(signal);
+      const [block,pendingReturn] = completionQueue.pop(), key = block.key + ':' + pendingReturn;
+      if(completionStates.has(key)) continue; completionStates.add(key);
+      if(block === graph.exit && !pendingReturn) normalExit = true;
+      const pending = block.event?.kind === 'return' ? true : ['throw','catch'].includes(block.event?.kind) ? false : pendingReturn;
+      for(const successor of block.successors) completionQueue.push([successor.to,successor.kind === 'exceptional' ? false : pending]);
+    }
+    if (owner !== sourceFile && normalExit) {
+      const input = add('undefined:' + prefix, 'expression', null, {astKind:'SemanticUndefined',operation:'undefined',invocationKind:null,syntacticArgumentCount:null,flags:['derived','implicit-return']});
+      const result = add('implicit-return:' + prefix, 'value', null, {origin:'return',site:ownerRef,storage:null});
+      edge('returns',input,result,null,'modeled'); returnRefs.push(result);
+    }
+    summaries.push({ owner, ownerRef, span: [owner.getStart(sourceFile), owner.end], declaration: owner.parent && ts.isVariableDeclaration(owner.parent) && owner.parent.initializer === owner ? declarationFor(owner.parent) : declarationFor(owner) || (owner !== sourceFile ? ownerRef : null), returns: returnRefs,
+      lexicalReceiver: ts.isArrowFunction(owner), restIndex: (owner.parameters || []).findIndex(parameter=>parameter.dotDotDotToken),
       parameters: (owner.parameters || []).map(parameter => declarationFor(parameter)), parameterFields, effects, exceptions: exceptionRefs, complete: complete && reasons.size === 0 });
     for (const reason of reasons) allReasons.add(reason);
   }

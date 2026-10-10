@@ -1,3 +1,4 @@
+import { collectCompilerNodeWorkerFlow } from './compiler-node-worker-flow.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import path from 'node:path';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
@@ -238,6 +239,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     }
     ledger.completed++; ledger.reasons.add('runtime_delivery_and_handler_activation_unobserved');
   }
+  await collectCompilerNodeWorkerFlow({group,documents,entries,ledgers,boundary,edge,enabledFor,signal});
   for (const doc of documents) {
     const ledger = ledgers.get(doc); if (!ledger.observed && !ledger.rows.some(row => row.row.kind === 'boundary')) continue;
     const sorted = [...new Map(ledger.edges.map(edge => [canonicalSemanticJson(edge),edge])).entries()].sort(([a],[b])=>a<b?-1:a>b?1:0); sorted.forEach(([,edge],id)=>ledger.rows.push({family:'edge',row:{id,...edge}}));
