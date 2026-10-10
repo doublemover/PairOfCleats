@@ -171,6 +171,12 @@ export const buildConfigContractDoc = (options = {}) => {
   lines.push('Notes:');
   lines.push('- Boolean flags accept `--no-<flag>` unless a command overrides negation behavior.');
   lines.push('- Search options list is derived from `src/retrieval/cli-args.js`.');
+  lines.push('');
+  lines.push('### Context-pack semantic evidence');
+  lines.push('');
+  lines.push('- `--includeSemantic` (boolean, default false): include bounded semantic evidence and pinned follow-up requests in context packs.');
+  lines.push('- CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.');
+  lines.push('- Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.');
 
   const docBody = lines.join(eol) + eol;
   return includeBom ? `\uFEFF${docBody}` : docBody;

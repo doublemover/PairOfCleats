@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-10T12:22:05.405Z",
+  "generatedAt": "2026-10-10T19:41:35.751Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
-    "cliFlags": 71
+    "cliFlags": 72
   },
   "allowlists": {
     "configKeys": [
@@ -39,6 +39,7 @@
       "includePaths",
       "includeRisk",
       "includeRiskPartialFlows",
+      "includeSemantic",
       "includeTypes",
       "includeUsages",
       "interval",
@@ -2832,7 +2833,10 @@
       "name": "PAIROFCLEATS_BUNDLE_THREADS",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/perf/baseline-artifacts.test.js",
+        "tests/run.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/bench/ab-sweep.js",
@@ -4199,6 +4203,8 @@
         "src/shared/threads.js",
         "tests/embeddings/runner/scheduler-env-config-envelope.test.js",
         "tests/helpers/search-filters-repo.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
@@ -4264,6 +4270,9 @@
       "name": "PAIROFCLEATS_TRUSTED_CONFIG",
       "files": [
         "src/shared/config-authority.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
+        "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
         "tools/config/inventory.js"
@@ -4462,6 +4471,8 @@
         "tests/helpers/search-contract-cases.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/indexer/call-sites/contract-matrix.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
@@ -4505,6 +4516,7 @@
         "tests/retrieval/cache/query-cache-contract-matrix.test.js",
         "tests/retrieval/cache/query-retrieval-knobs-invalidation.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
+        "tests/run.js",
         "tests/services/api-search-asof.test.js",
         "tests/services/snapshot-ref-contract-matrix.test.js",
         "tests/services/soak/operational-recovery.test.js",
@@ -4568,7 +4580,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 489,
+    "totalFlags": 490,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4593,6 +4605,7 @@
       "includePaths",
       "includeRisk",
       "includeRiskPartialFlows",
+      "includeSemantic",
       "includeTypes",
       "includeUsages",
       "interval",
@@ -5085,6 +5098,7 @@
       "includePaths",
       "includeRisk",
       "includeRiskPartialFlows",
+      "includeSemantic",
       "includeTypes",
       "includeUsages",
       "interval",
@@ -5162,6 +5176,7 @@
           "includePaths",
           "includeRisk",
           "includeRiskPartialFlows",
+          "includeSemantic",
           "includeTypes",
           "includeUsages",
           "interval",

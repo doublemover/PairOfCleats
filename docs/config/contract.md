@@ -172,6 +172,57 @@ indexing.scm.jj.snapshotWorkingCopy (boolean)
 indexing.scm.maxConcurrentProcesses (number)
 indexing.scm.provider (string) enum=auto|git|jj|none
 indexing.scm.timeoutMs (number)
+indexing.semantic (object)
+indexing.semantic.baseFacts (object)
+indexing.semantic.baseFacts.sourceRetention (enum) enum=content-addressed
+indexing.semantic.baseFacts.structure (enum) enum=complete
+indexing.semantic.enabled (boolean)
+indexing.semantic.enrichment (object)
+indexing.semantic.enrichment.bindings (enum) enum=off|auto|eager|deferred
+indexing.semantic.enrichment.callContextDepth (integer)
+indexing.semantic.enrichment.crossFileFlow (enum) enum=off|auto|eager|deferred
+indexing.semantic.enrichment.fieldPathDepth (integer)
+indexing.semantic.enrichment.localFlow (enum) enum=off|auto|eager|deferred
+indexing.semantic.enrichment.maxSccIterations (integer)
+indexing.semantic.enrichment.unknownEffects (enum) enum=conservative
+indexing.semantic.execution (object)
+indexing.semantic.execution.afterIndexMaxMs (integer)
+indexing.semantic.execution.compilerAdmission (object)
+indexing.semantic.execution.compilerAdmission.maxBytes (integer)
+indexing.semantic.execution.compilerAdmission.maxFiles (integer)
+indexing.semantic.execution.compilerAdmission.maxProjects (integer)
+indexing.semantic.execution.compilerAdmission.maxReceiptAgeMs (integer)
+indexing.semantic.execution.compilerAdmission.maxResidentBytes (integer)
+indexing.semantic.execution.compilerAdmission.measurementHeadroom (number)
+indexing.semantic.execution.deferredDrain (enum) enum=manual|after-index
+indexing.semantic.execution.maxAttempts (integer)
+indexing.semantic.languages (array)
+indexing.semantic.overrides (array)
+indexing.semantic.planning (object)
+indexing.semantic.planning.costModel (enum) enum=measured
+indexing.semantic.planning.inlineBudgetMs (integer)
+indexing.semantic.planning.prepass (enum) enum=reuse-existing-walk
+indexing.semantic.profile (enum) enum=balanced|rich|targeted
+indexing.semantic.publication (object)
+indexing.semantic.publication.base (enum) enum=publish-with-coverage|complete-required
+indexing.semantic.publication.semantic (enum) enum=whole-generation
+indexing.semantic.query (object)
+indexing.semantic.query.cursorTtlMs (integer)
+indexing.semantic.query.maxBytes (integer)
+indexing.semantic.query.maxContinuations (integer)
+indexing.semantic.query.maxDepth (integer)
+indexing.semantic.query.maxRecords (integer)
+indexing.semantic.query.maxRows (integer)
+indexing.semantic.query.maxWorkMs (integer)
+indexing.semantic.schemaVersion
+indexing.semantic.storage (object)
+indexing.semantic.storage.batchBytes (integer)
+indexing.semantic.storage.batchRows (integer)
+indexing.semantic.storage.decodedCacheBytes (integer)
+indexing.semantic.storage.maxDiskWorkingSetBytes (integer)
+indexing.semantic.storage.maxQueuedBytes (integer)
+indexing.semantic.storage.targetPartBytes (integer)
+indexing.semantic.targets (array)
 indexing.snapshots (object)
 indexing.snapshots.keepFrozen (number)
 indexing.snapshots.keepPointer (number)
@@ -426,3 +477,9 @@ tooling.vfs.tokenMode (string)
 Notes:
 - Boolean flags accept `--no-<flag>` unless a command overrides negation behavior.
 - Search options list is derived from `src/retrieval/cli-args.js`.
+
+### Context-pack semantic evidence
+
+- `--includeSemantic` (boolean, default false): include bounded semantic evidence and pinned follow-up requests in context packs.
+- CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.
+- Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.

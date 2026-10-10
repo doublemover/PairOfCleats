@@ -25,19 +25,29 @@ Target: align with `docs/config/contract.md` and `docs/config/env-overrides.md`.
 
 ## Public CLI flags
 
-Target: keep core command flag counts stable and documented (see the public
-flag allowlist in `docs/config/contract.md`).
+Target: keep core command flag counts intentional and documented. The executable
+allowlist and limits live in `tools/config/inventory.js`; the generated contract
+and inventory describe the supported surface.
 
-The canonical list is in `docs/config/contract.md`.
+The gate counts `cliFlags.publicDetected` from its declared public entry points,
+not every allowlisted flag found anywhere in the repository. The generated
+inventory reports both sets. This is change governance, not an access-control or
+runtime security boundary.
 
-## Current baseline (from `docs/config/inventory.md`)
+## Current reviewed limits
 
-- Config keys: 180 (leaf keys: 141)
-- Env vars: 58
-- CLI flags: 252
 - Public config keys: 2
 - Public env vars: 1
-- Public CLI flags: 8
+- Public entry-point CLI flags: 72
+
+Current total/schema/internal counts are generated in `docs/config/inventory.md`
+and `docs/config/inventory.json`; do not duplicate a stale snapshot here.
+
+The 2026-10-10 increase from 71 to 72 admits `--includeSemantic`, the explicitly
+requested context-pack evidence opt-in. It defaults off and controls bounded
+extra output/work per invocation, so AutoPolicy cannot infer the user's intent.
+The context-pack module owns it; it adds no environment variable or repository
+config key. Shared request projection/schema and evidence fixtures cover it.
 
 Update these budgets only when intentionally expanding or shrinking the
 documented surface area.
