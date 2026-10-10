@@ -50,6 +50,13 @@ still need their remaining work. This is implementation progress, not full recov
 acceptance. The refined sequence-9 priority order remains authoritative: recovery,
 JS/TS, Worker/WASM, retrieval, runtime, language adapters, estimator last.
 
+Q2 now has bounded indexed `chunkUid`, `sourcePath` and `sourceUnitId` discovery
+through the shared find contract, with primary/overlap ownership and zero-chunk
+operations retained. Artifact operation index version 2 and SQLite indexed joins
+produce the same paginated candidates in the new `storage/semantic/seed-discovery`
+fixture. Canonical fact identities are unchanged; older physical operation indexes
+require a rebuild. Ordinary context-pack assembly is the next integration step.
+
 J1 occurrence coverage now distinguishes destructuring assignment targets from
 declarations, compound reads/writes, import/export alias roles and type-only syntax.
 Babel tagged-template substitutions and both dynamic-import inputs have ordered
@@ -86,7 +93,7 @@ MessagePorts, exact module artifacts and WASM module-body analysis remain open.
 The extended bounded Worker and boundary/storage fixtures pass under Node26,
 including shadowed platform-name counterexamples. No target module was executed.
 
-The next recovery slice adds corruption-local cache repair, successful empty/disabled
+The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
 frontier store before new semantic credits; overlapping paths/hard links are counted

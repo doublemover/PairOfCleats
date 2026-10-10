@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS semantic_frontier (
 CREATE TABLE IF NOT EXISTS semantic_sources (
   source_id TEXT PRIMARY KEY, byte_hash TEXT NOT NULL, payload TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS semantic_sources_path ON semantic_sources(json_extract(payload,'$.path'),source_id);
 CREATE TABLE IF NOT EXISTS semantic_analysis (
   partition_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, canonical_hash TEXT NOT NULL,
   descriptor TEXT NOT NULL
