@@ -561,3 +561,38 @@ and the supplied truncation/aggregate/shape and geometry/fog/disposal findings.
 [Deferred viewer queue](../guides/viewer-replacement-queue-20261009.md) preserves the source
 plan and acceptance boundary. Defuddle remains optional future offline HTML cleanup;
 no dependency or network fallback is added now.
+
+## Cross-platform CI repair (2026-10-10, PR548)
+
+The exact-head `53a23b07` run failed 73 cases on Ubuntu/macOS and 72 on Windows
+(with the POSIX signal case skipped there). The cross-platform union contained
+74 tests. Repairs were grouped and implemented before rerunning those cases;
+contracts and the 30-second per-case bound were retained.
+
+- Full bundle writes and append patches now share current-format normalization
+  before checksumming. Previously, patches checksummed the caller's unversioned
+  object although the stored full bundle contained the required format identity.
+  Explicit unsupported patch inputs reject before changing sidecars.
+- Positive manifests, pointers, build/index states, incremental caches and SQLite
+  fixtures use canonical identities. SQLite code-import fixtures reuse the real
+  semantic family writer with a disabled generation, registered members and real
+  checksums. Deliberate corrupt/missing/schema-negative controls remain negative.
+- Manifest validation retains its missing-versus-invalid diagnostic after the
+  exact-format gate rejects either input; a present unversioned manifest remains
+  invalid. This fixes a production diagnostic regression rather than accepting
+  incompatible artifacts.
+- Cache authority/pruning assertions operate inside the version namespace while
+  checking unrelated root and namespace files, collision bytes and link escapes.
+  An incompatible selected candidate rejects without silently running a fallback.
+- API health startup defers request-only search/semantic modules; the signal
+  fixture asserts enrichment is not loaded and retains its existing deadlines.
+  The Sublime watchdog fixture holds its fake process until the warning is
+  observed instead of racing an 80-ms sleep against thread scheduling.
+
+On prepared cloud Node 26.11.1, the first failed-case-only run passed 71/74
+(96.7 s total, zero timeouts/skips). After repairing the three deeper failures,
+only those cases were rerun: 3/3 passed (16.1 s total; slowest 10.6 s).
+This establishes local coverage of all 74 previously failing cases, not current
+Windows/macOS acceptance. The tiny existing benchmark-contract fixtures were
+included in that fixed test inventory; no additional benchmark or index workload
+was started. Hosted CI for the published repair head remains the acceptance gate.

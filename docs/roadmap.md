@@ -47,7 +47,9 @@ silently installs. Cloud `npm run bootstrap:ci` completed under Node 26.11.1.
 Ten focused continuation checks passed (79 ms–1.07 s); no broad benchmark campaign.
 The config allowlist registers the intentional `includeSemantic` surface with a
 reviewed 72-flag cap. Semantic artifact docs/index and generated reports are aligned;
-old author-workspace receipts remain historical. Hosted CI remains exact-head evidence.
+old author-workspace receipts remain historical. The 74-case cross-platform failure
+union now passes targeted cloud checks after grouped format, checksum and lifecycle
+repairs; hosted CI remains exact-head evidence.
 
 Next, in order: full interrupted multi-worker recovery and transient accounting;
 remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
