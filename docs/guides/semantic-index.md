@@ -302,3 +302,8 @@ coverage, excerpts and follow-up requests. `semanticFederation.repositories`
 retains separate sections for each selected repository, with fanout bounded by
 `maxFederatedRepos` (maximum 16). Partial semantic evidence leaves the composite
 coverage incomplete; a small witness sample never certifies exhaustive behavior.
+
+Source selectors may include `range: {"start":10,"end":20}` for exact half-open
+UTF-16 overlap discovery. The range must be nonempty and is valid only with
+`sourcePath` or `sourceUnitId`. The indexed source bucket is filtered within the
+normal work budget; drain cursors even when an intermediate page has no matches.

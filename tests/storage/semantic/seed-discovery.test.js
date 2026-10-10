@@ -61,11 +61,14 @@ try {
     [{ field: 'chunkUid', value: 'chunk-b' }, [0]],
     [{ field: 'sourcePath', value: 'original.js' }, [0, 1, 2]],
     [{ field: 'sourceUnitId', value: fixture.source.sourceUnitId }, [0, 1, 2]],
+    [{ field: 'sourcePath', value: 'original.js', range: { start: 7, end: 8 } }, [1, 2]],
+    [{ field: 'sourcePath', value: 'original.js', range: { start: 100, end: 101 } }, []],
     [{ field: 'sourcePath', value: 'absent.js' }, []]
   ]) {
     assert.deepEqual(await discover(artifact, selector), expected);
     assert.deepEqual(await discover(sqlite, selector), expected);
   }
+  await assert.rejects(createSemanticFindService()({ store: artifact, request: { repoRoot: fixture.root, generation: fixture.generation, selector: { field: 'sourcePath', value: 'original.js', range: { start: 4, end: 4 } } } }), /nonempty/);
   const findService = createSemanticFindService(), detailService = createSemanticDetailService(), traceService = createSemanticTraceService();
   const options = { repoRoot: fixture.root, indexDir: fixture.stagingRoot, primary: { ref: { chunkUid: 'chunk-a' } },
     openStore: async () => ({ store: artifact }),

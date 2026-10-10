@@ -115,6 +115,12 @@ throw payloads now reach the catch binding value rather than disappearing at the
 handler boundary; failures inside catch route outward through finally. The focused
 control-region and compiler-flow fixtures pass, including an actual payload edge.
 
+Source-path/identity discovery also accepts a nonempty half-open UTF-16 range.
+It filters the indexed source bucket under the existing work and cursor limits,
+including overlapping enclosing operations, without an unbounded fact scan. The
+focused artifact/SQLite fixture passes boundary, absent-range and invalid-range
+cases. This is bounded interval filtering, not a new interval-tree index.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
