@@ -48,6 +48,8 @@ jobs:
         run: |
           if [ "${{ steps.node-modules-cache.outputs.cache-hit }}" != "true" ]; then
             npm run bootstrap:ci
+          else
+            node tools/setup/rebuild-native.js --verify
           fi
 
       - name: Dependency security
