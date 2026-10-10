@@ -188,7 +188,10 @@ Any new user-configurable setting must include:
 
 5. **Budget impact**
    - Updates to inventory/budget checks
-   - If over budget, an existing knob must be removed in the same change
+   - Prefer consolidation when over budget. An explicitly reviewed public feature
+     may increase the limit in the same change, with its user intent, owner,
+     default, validation and budget delta recorded in `docs/config/budgets.md`.
+     Do not remove a useful unrelated knob merely to satisfy a historical count.
 
 ---
 

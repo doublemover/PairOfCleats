@@ -45,6 +45,7 @@ const PUBLIC_CLI_FLAGS = new Set([
   'includePaths',
   'includeRisk',
   'includeRiskPartialFlows',
+  'includeSemantic',
   'includeTypes',
   'includeUsages',
   'interval',
@@ -644,7 +645,7 @@ const KNOWN_ENV_VARS = new Set([
 const BUDGETS = {
   configKeys: 2,
   envVars: 1,
-  cliFlags: 71
+  cliFlags: 72
 };
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',
