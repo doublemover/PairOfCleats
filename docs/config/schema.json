@@ -439,6 +439,42 @@
                     "after-index"
                   ]
                 },
+                "compilerAdmission": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "maxFiles": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "maxBytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "maxProjects": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "maxResidentBytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    "measurementHeadroom": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 4
+                    },
+                    "maxReceiptAgeMs": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  }
+                },
                 "afterIndexMaxMs": {
                   "type": "integer",
                   "minimum": 0,

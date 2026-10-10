@@ -35,6 +35,27 @@ shared integration with the same two approved GPT-6.1 Sol MEDIUM helpers. No new
 helpers, merges, captures, corpus restart or benchmark campaign. The current human-authorized
 publication span includes a normal push of this implementation branch; no PR retarget or merge.
 
+Compiler-readiness checkpoint (2026-10-10, following aa3cb888): shared preflight and
+Program callbacks now preserve per-occurrence import/require modes, conditional
+exports and development conditions, type-reference modes, referenced-project options
+and original-container/VFS authority. The complete context-qualified source closure,
+including configuration SourceFiles, is hash pinned and admitted before Program/checker
+construction. Unknown automatic cost defers; explicit work reserves the configured
+ceiling. Compatible completed receipts supply elapsed time and process-wide high-water
+RSS with headroom, subject to scheduler tokens and byte caps. These are conservative
+admission decisions, not hard memory or synchronous-call timeout guarantees.
+
+Finite Node26 readiness checks pass: enrolled resolution construction (333ms), admission
+construction (189ms), tiny eager build, combined NodeNext/Bundler referenced-project
+and embedded-source build, over-budget durable deferral with no completed tasks, and
+published measurement/positive-negative sealed-probe checks. Initial checks found an
+unset scheduler-cap interpretation and omitted referenced-config SourceFile; both were
+corrected before passing. A temporary budget assertion used the wrong reason spelling
+and was corrected; the production decision was already correct. No broad qualification,
+crash campaign, native-worker diagnosis or benchmark was run. The operating guide and
+generated inventories are refreshed. Further flow and production qualification remain
+parked after this bounded publication checkpoint.
+
 Implemented with focused evidence:
 
 - Source-owned JS/TS structure, exact UTF-16 coordinates, retained immutable source,

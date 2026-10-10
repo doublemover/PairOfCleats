@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module';
 import { compileSchema,createAjv } from '../../shared/validation/ajv-factory.js';
 import { semanticHash } from './identity.js';
+import { normalizeCompilerAdmissionPolicy } from './compiler-admission.js';
 const require=createRequire(import.meta.url), normalized=new WeakSet();let validate;
 const defaults=profile=>({schemaVersion:1,enabled:false,profile,languages:['javascript','typescript'],baseFacts:{structure:'complete',sourceRetention:'content-addressed'},planning:{prepass:'reuse-existing-walk',costModel:'measured',inlineBudgetMs:100},
   enrichment:{bindings:profile==='targeted'?'deferred':'auto',localFlow:profile==='targeted'?'deferred':'auto',crossFileFlow:'deferred',fieldPathDepth:profile==='rich'?4:2,callContextDepth:profile==='rich'?1:0,maxSccIterations:profile==='rich'?12:8,unknownEffects:'conservative'},
@@ -12,6 +13,7 @@ export const normalizeSemanticConfig=(value={})=>{
   if(!validate(value))throw Object.assign(new TypeError('Invalid semantic policy: '+JSON.stringify(validate.errors)),{code:'ERR_SEMANTIC_POLICY'});
   const result=defaults(value.profile||'balanced');
   for(const [key,setting]of Object.entries(value))result[key]=setting&&typeof setting==='object'&&!Array.isArray(setting)?{...result[key],...setting}:structuredClone(setting);
+  result.execution.compilerAdmission=normalizeCompilerAdmissionPolicy(value.execution?.compilerAdmission);
   for(const target of result.targets)if(target.range && target.range.end<=target.range.start)throw new TypeError("Semantic targets require a nonempty half-open UTF16 range.");
   const seen=new Set();result.overrides=(result.overrides||[]).map((rule,index)=>{const id=rule.id||'rule:'+index+':'+semanticHash('semantic.policy-rule.v1',rule);if(seen.has(id))throw new TypeError('Duplicate semantic override ID: '+id);seen.add(id);return{...rule,id};});
   if(result.enabled && (!result.storage.batchRows||!result.storage.batchBytes||!result.storage.maxQueuedBytes))throw new TypeError('Enabled semantic storage requires positive row, byte and queue bounds.');

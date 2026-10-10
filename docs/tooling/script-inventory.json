@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T10:45:57.256Z",
+  "generatedAt": "2026-10-10T12:20:19.935Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -367,6 +367,21 @@
     {
       "command": "pairofcleats semantic detail",
       "summary": "Inspect exact semantic records and related syntax in a pinned generation.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic enrichment",
+      "summary": "Plan source-pinned tasks by default; explicit enqueue/drain only; qualification pending.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic explain",
+      "summary": "Explain pinned static witnesses and explicit task suggestions; qualification pending.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic find",
+      "summary": "Discover pinned structural/target candidates; qualification pending.",
       "supportTier": "experimental"
     },
     {

@@ -90,7 +90,7 @@ return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
 Extraction, analysis and response coverage are separate. Query coverage carries
 partition provenance and retains incomplete evidence rather than claiming no path.
 
-## Deferred bindings
+## Deferred analysis and compiler admission
 
 Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`
 to retain a durable pending descriptor. `after-index` permits bounded work through
@@ -101,12 +101,55 @@ The `targeted` profile defers bindings and local flow unless explicitly overridd
 Task state and leases live in a separate semantic frontier SQLite control database.
 Missing control-store capability leaves work deferred. Completion is acknowledged
 only after normal whole-generation promotion. Changing generations produces a new
-target request; old tasks are never retargeted by filename. A general manual drain
-CLI, independent overlay publication and complete field/context-sensitive analysis
-are not yet available. Local and cross-file deferred tasks retain durable descriptors.
+target request; old tasks are never retargeted by filename. Bindings, local flow and
+cross-file flow can be selected through the experimental manual enrichment service.
+Independent overlay publication and complete field/context-sensitive analysis are
+not available. Local and cross-file deferred tasks retain durable descriptors.
 Targeted LSP locations reuse the existing session independently of signature
 completeness. Embedded JS/TS source snapshots retain exact local-to-container maps;
 coarse or synthetic mappings do not claim exact bindings.
+
+The compiler closure includes full context-qualified input bytes/files, transitive
+imports, libraries and project counts. Configure build-wide admission under
+`indexing.semantic.execution.compilerAdmission`:
+
+```json
+{"maxFiles":10000,"maxBytes":134217728,"maxProjects":32,"maxResidentBytes":536870912,"measurementHeadroom":1.25,"maxReceiptAgeMs":604800000}
+```
+
+These defaults cap the planned closure and reserve up to 512 MiB for an explicitly
+requested unmeasured batch. This reservation is not an estimate of actual heap use
+or a hard process-memory limit. A matching complete measured receipt may instead
+reserve the observed process-wide RSS high-water mark with configured headroom,
+never less than the closure input bytes. The observation includes unrelated process
+memory and is not attributed solely to one Program. It does not guarantee future
+cost. Receipt identity pins closure/compiler/runtime/phase inputs; expired or
+incompatible measurements are unknown, not a measured zero. Unknown automatic cost
+stays deferred. Explicit eager/manual work still must fit all closure, allocation,
+scheduler memory-token and queue/global byte caps before Program construction.
+Admission is rechecked inside the leased scheduler callback; scheduler oversize-idle
+behavior does not waive compiler caps. Timers remain cooperative for synchronous
+compiler work.
+
+Save an explicit generation-pinned request using a real retained task ID:
+
+```json
+{"schemaVersion":1,"repoRoot":"<repoRoot>","generation":{"baseBuildId":"<buildId>","semanticRevision":0},"action":"plan","taskIds":["st1:<hash>"]}
+```
+
+```sh
+pairofcleats semantic enrichment --request enrichment.json
+```
+
+Omitting `action` means plan only. Set `action` to `enqueue` to retain pending work in
+the dedicated control store, or explicitly to `drain` to attempt supported selected
+phases. Enqueue does not execute a compiler. Drain requires sealed compiler/config/
+module-resolution authority and exact source/dependency hashes; unavailable authority
+or over-budget admission leaves work pending. A successful drain publishes a fresh
+whole generation through the normal builder, then acknowledges receipts and retains
+old/new task lineage. The builder may rediscover/reparse source; targeted parse reuse
+is not promised. Source changes are rejected rather than completing an old task
+against new input. Experimental public surfaces remain qualification pending.
 
 ## Saved runtime evidence
 
@@ -203,17 +246,28 @@ discovery labels those same-format retained families `unavailable-reingest` whil
 still listing available families. There is no old-format lookup fallback or migration. Reingestion preserves the saved inputs
 and publishes a new immutable family when its projection changes.
 
-Implementation checkpoint (not yet a public query capability): source code now includes
-`semantic-find` and `semantic-explain` service/CLI/MCP/HTTP wrappers. They remain outside
-public catalogs until artifact/SQLite parity and surface qualification pass. Find uses
+The experimental registered `semantic-find` and `semantic-explain` operations remain
+qualification pending. Find uses
 exact AST/operator/invocation selectors or a recorded target candidate, and can compare
 bounded ordered syntax. Literal/name/type/effect gaps are explicit; a matching structural
 hash does not establish equivalent behavior. Cursors bind the exact generation, store
 inventory and request. Explain returns static evidence classes and cited producer methods.
 
-The new enrichment coordinator defaults to plan-only. Enqueue writes only the dedicated
-frontier control store. Existing source-only tasks cannot be safely drained because they
-lack a sealed complete compiler/config/module-resolution dependency inventory; the service
-reports this blocker before building. Its future verified whole-generation path preserves
-old/new task lineage and may rebuild source, so it does not promise targeted parse reuse.
-The wrappers are implemented but unqualified and unregistered.
+```sh
+pairofcleats semantic find --request find.json --all
+pairofcleats semantic explain --request explain.json --all
+```
+
+Find requests select an exact AST kind/operator/invocation kind or recorded target.
+Explain requests use the trace request shape. Find/trace/explain can explicitly choose
+`backend: "artifact"` or `"sqlite"`; SQLite opens only the requested immutable
+generation's `index-sqlite/index-code.db`, with no mutable-path fallback. Explain
+returns source-unit/hash pins and bounded exact task suggestions containing separate
+plan and enqueue requests; suggestions never execute automatically. Completed task
+receipts resolve old deferred markers only when actual same-source/phase output exists;
+actual partial coverage remains partial.
+
+MCP names are `semantic_find`, `semantic_explain`, `semantic_enrichment`; corresponding
+HTTP POST paths are `/analysis/semantic-find`, `/analysis/semantic-explain`,
+`/analysis/semantic-enrichment`. CLI/MCP/HTTP share strict request and repository scope
+checks. Structural similarity and modeled paths are not proof of equivalent behavior.

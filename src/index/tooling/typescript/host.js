@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createModeAwareTypeScriptResolver } from './resolution.js';
 
 const resolveScriptKind = (ts, fileName) => {
   const ext = path.extname(fileName).toLowerCase();
@@ -54,16 +55,12 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
   for (const [virtualPath, sourcePath] of sourcePaths) virtualBySource.set(canonicalize(sourcePath), virtualPath);
   const moduleHost = { ...baseHost, fileExists: filename => virtualBySource.has(canonicalize(filename)) || fileExists(filename),
     readFile: filename => getVfs(virtualBySource.get(canonicalize(filename)) || filename) ?? readFile(filename) };
-  const resolveModuleNames = (moduleNames, containingFile) => moduleNames.map(name => {
-    const sourceFile = moduleOrigins.get(canonicalize(containingFile)) || containingFile;
-    const resolved = ts.resolveModuleName(name, sourceFile, compilerOptions, moduleHost).resolvedModule;
-    if (!resolved) return undefined;
-    const virtualPath = virtualBySource.get(canonicalize(resolved.resolvedFileName));
-    return virtualPath ? { ...resolved, resolvedFileName: virtualPath } : resolved;
-  });
+  const resolver = createModeAwareTypeScriptResolver(ts, compilerOptions, moduleHost, { canonicalize, moduleOrigins, virtualBySource });
   return {
     ...baseHost,
-    resolveModuleNames,
+    resolveModuleNameLiterals: resolver.resolveModuleNameLiterals,
+    resolveTypeReferenceDirectiveReferences: resolver.resolveTypeReferenceDirectiveReferences,
+    semanticResolution: resolver,
     fileExists,
     readFile,
     getSourceFile,

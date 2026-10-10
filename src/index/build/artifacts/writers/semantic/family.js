@@ -42,7 +42,7 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     }).sort((a, b) => a.sourceUnitId.localeCompare(b.sourceUnitId));
     const manifest = { schemaVersion: 1, semanticSchemaVersion: 1,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation,
-      status: enabled ? 'partial' : 'disabled', partitions, contexts: state.semanticCompilerContexts || [], frontierTargets, completedTasks, evidenceArtifacts, planning,
+      status: enabled ? 'partial' : 'disabled', partitions, contexts: state.semanticCompilerContexts || [], frontierTargets, completedTasks, evidenceArtifacts, planning, compilerAdmissions: state.semanticCompilerAdmissions || [],
       warnings: enabled ? ['Bindings, local flow and unsupported source collectors are not yet complete.'] : [] };
     for (const artifact of evidenceArtifacts) {
       if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(artifact.path)) throw new Error('Invalid semantic evidence path.');
@@ -67,6 +67,11 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
         throw new Error('Semantic frontier target/generation mismatch.');
       }
       tasks.set(task.taskId, task);
+    }
+    const evidencePaths = new Set(evidenceArtifacts.map(item => item.path));
+    for (const admission of manifest.compilerAdmissions) {
+      if (!evidencePaths.has(admission.decisionRef) || (admission.receiptRef && !evidencePaths.has(admission.receiptRef))
+        || admission.taskIds.some(id => !tasks.has(id))) throw new Error('Semantic compiler admission evidence mismatch.');
     }
     for (const receipt of completedTasks) {
       const task = tasks.get(receipt.taskId);

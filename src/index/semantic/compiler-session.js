@@ -123,6 +123,26 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       activeCompilerSystem = createCompilerDependencySystem({ ts, inventory: { observations }, signal }).system;
       return activeCompilerSystem;
     },
+    authorizeCompilerProgram({ configPath, options, rootNames }) {
+      const authorities = state.semanticCompilerDependencyInventories || [], grant = state.semanticCompilerAdmissionGrant;
+      const refuse = message => { throw Object.assign(new Error(message), { code: 'ERR_SEMANTIC_COMPILER_ADMISSION' }); };
+      if (!grant?.decision.admitted || authorities.length !== 1 || grant.authorityHash !== compilerInventoryHash(authorities[0])) refuse('Program has no admitted complete compiler closure.');
+      const normalizeRoots = values => [...new Set(values.map(keyPath))].sort();
+      const group = authorities[0].groups.find(row => (row.configPath ? keyPath(row.configPath) : null) === (configPath ? keyPath(configPath) : null)
+        && canonicalSemanticJson(normalizeRoots(row.rootNames)) === canonicalSemanticJson(normalizeRoots(rootNames))
+        && canonicalSemanticJson(row.options) === canonicalSemanticJson(JSON.parse(JSON.stringify(options))));
+      if (!group) refuse('Program configuration/roots differ from the admitted closure.');
+      const sources = new Map();
+      for (const file of authorities[0].closure.files) {
+        const key = keyPath(file.path), hashes = sources.get(key) || new Set(); hashes.add(file.hash); sources.set(key, hashes);
+      }
+      return sourceFile => {
+        if (sourceFile && !sources.get(keyPath(sourceFile.fileName))?.has(hashText(sourceFile.text))) {
+          throw Object.assign(new Error('Program source was not in its admitted closure: ' + sourceFile.fileName), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
+        }
+        return sourceFile;
+      };
+    },
     prepareDocuments(documents) {
       const result = documents.map(doc => { const item = sourceForDoc(doc); return item ? { ...doc, semanticSourceUnitId: item.source.sourceUnitId } : doc; });
       const present = new Set(result.filter(doc => !doc.segmentUid).map(doc => keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath))));
@@ -152,7 +172,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       }
       const context = { contextKey, sourceUnits: [...new Map([...mappedFiles.values()].map(item => [item.source.sourceUnitId,
         { sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }])).values()].sort((a, b) => order(a.sourceUnitId, b.sourceUnitId)),
-      providerId: 'typescript', providerVersion: '2.4.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
+      providerId: 'typescript', providerVersion: '2.5.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
       contexts.push(context);
       state.semanticCompilerContexts = contexts;
       return { context, mappedFiles, mappedDocuments, compilerReadFile: activeCompilerSystem?.readFile, repoRoot: runtime.root, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };

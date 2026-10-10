@@ -1,3 +1,4 @@
+import { preflightTypeScriptSource } from '../tooling/typescript/resolution.js';
 import { createVirtualCompilerHost } from '../tooling/typescript/host.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -22,7 +23,7 @@ export const compilerInventoryHash = inventory => semanticHash(COMPILER_DEPENDEN
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 export const assertCompilerDependencyInventory = inventory => {
-  if (!exactKeys(inventory, ['schemaVersion', 'compilerVersion', 'compilerFile', 'compilerReceipt', 'repoRoot', 'sourceInputs', 'virtualInputs', 'toolingHash', 'files', 'groups', 'observations'])
+  if (!exactKeys(inventory, ['schemaVersion', 'compilerVersion', 'compilerFile', 'compilerReceipt', 'repoRoot', 'sourceInputs', 'virtualInputs', 'toolingHash', 'files', 'groups', 'closure', 'observations'])
     || inventory.schemaVersion !== 1 || !exactKeys(inventory.compilerReceipt, ['filename', 'hash'])
     || ![inventory.compilerVersion, inventory.compilerFile, inventory.repoRoot, inventory.compilerReceipt.filename].every(value => typeof value === 'string' && value.length)
     || ![inventory.toolingHash, inventory.compilerReceipt.hash].every(value => /^[a-f0-9]{64}$/.test(value))
@@ -39,6 +40,14 @@ export const assertCompilerDependencyInventory = inventory => {
       && (row.configPath === null || typeof row.configPath === 'string') && row.options && typeof row.options === 'object' && !Array.isArray(row.options)
       && Array.isArray(row.rootNames) && row.rootNames.every(value => typeof value === 'string'))
     || !Array.isArray(inventory.observations) || inventory.observations.length > 100000) throw fail('Malformed compiler dependency inventory.');
+  const closure = inventory.closure;
+  if (!exactKeys(closure, ['schemaVersion', 'complete', 'files', 'totalFiles', 'totalBytes', 'maxFileBytes', 'projectCount'])
+    || closure.schemaVersion !== 1 || closure.complete !== true || !Array.isArray(closure.files)
+    || ![closure.totalFiles, closure.totalBytes, closure.maxFileBytes, closure.projectCount].every(value => Number.isSafeInteger(value) && value >= 0)
+    || closure.files.some(row => !exactKeys(row, ['path', 'hash', 'bytes', 'contextKey']) || typeof row.path !== 'string'
+      || ![row.hash, row.contextKey].every(value => /^[a-f0-9]{64}$/.test(value)) || !Number.isSafeInteger(row.bytes) || row.bytes < 0)
+    || closure.totalFiles !== closure.files.length || closure.totalBytes !== closure.files.reduce((sum,row) => sum + row.bytes, 0)
+    || closure.maxFileBytes !== closure.files.reduce((max,row) => Math.max(max,row.bytes), 0)) throw fail('Malformed compiler closure inventory.');
   for (const row of inventory.observations) {
     if (!exactKeys(row, ['method', 'args', 'result']) || !methods.includes(row.method) || !Array.isArray(row.args)
       || !row.args.length || typeof row.args[0] !== 'string' || row.args.length > 5) throw fail('Malformed compiler dependency probe.');
@@ -97,11 +106,21 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
   if (!compilerReceipt) throw fail('Compiler load receipt is unavailable.');
   const compilerFile = compilerReceipt.filename;
   if (system.readFile(compilerFile) === undefined) throw fail('Compiler implementation identity is unavailable.');
-  const groups = [];
+  const groups = [], closureFiles = new Map(), projectContexts = new Set();
+  const parsedProjects = new Map();
+  const readProject = filename => {
+    if (!parsedProjects.has(filename)) {
+      system.fileExists(filename);
+      const parsed = parseTsConfig(ts, filename, log, system);
+      if (!parsed) throw fail('Referenced compiler configuration is unavailable: ' + filename);
+      parsedProjects.set(filename, parsed);
+    }
+    return parsedProjects.get(filename);
+  };
   for (const [configPath, docs] of configs) {
-    const parsed = parseTsConfig(ts, configPath, log, system), defaults = createDefaultCompilerOptions(ts, config);
+    const parsed = configPath ? readProject(configPath) : null, defaults = createDefaultCompilerOptions(ts, config);
     const options = { ...defaults, ...parsed?.options, allowJs: defaults.allowJs, checkJs: defaults.checkJs };
-    const roots = docs.map(doc => path.resolve(repoRoot,doc.virtualPath));
+    const roots = docs.map(doc => path.resolve(repoRoot, doc.virtualPath));
     const rootNames = [...new Set([...(parsed?.fileNames || []), ...roots])].sort();
     const key = file => ts.sys.useCaseSensitiveFileNames ? path.resolve(file) : path.resolve(file).toLowerCase();
     const vfs = new Map(), sourcePaths = new Map(), origins = new Map();
@@ -110,60 +129,78 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
       const container = path.resolve(repoRoot,doc.containerPath || doc.virtualPath); origins.set(virtual,container);
       if (!doc.segmentUid) sourcePaths.set(virtual,container);
     }
-    const host = createVirtualCompilerHost(ts, options, vfs, sourcePaths, origins, system);
-    const queue = [...rootNames], seen = new Set();
-    const references = [...(parsed?.projectReferences || [])], seenConfigs = new Set();
-    for (let index = 0; index < references.length; index++) {
-      const reference = references[index];
-      const filename = ts.resolveProjectReferencePath(reference);
-      if (seenConfigs.has(filename)) continue;
-      seenConfigs.add(filename); if (seenConfigs.size > 4096) throw fail('Project reference inventory exceeds its allowance.');
-      system.fileExists(filename);
-      const project = parseTsConfig(ts,filename,log,system);
-      if (project) { queue.push(...project.fileNames); references.push(...(project.projectReferences || [])); }
+    // Each referenced project's own options control its dependency closure. Parent
+    // NodeNext/Bundler conditions must not leak into a referenced compiler project.
+    const contexts = [{ configPath, options, rootNames, references: parsed?.projectReferences || [] }];
+    const seenConfigs = new Set(configPath ? [key(configPath)] : []);
+    for (let index = 0; index < contexts.length; index++) {
+      for (const reference of contexts[index].references) {
+        const filename = ts.resolveProjectReferencePath(reference);
+        if (seenConfigs.has(key(filename))) continue;
+        seenConfigs.add(key(filename)); if (seenConfigs.size > 4096) throw fail('Project reference inventory exceeds its allowance.');
+        const project = readProject(filename);
+        contexts.push({ configPath: filename, options: project.options, rootNames: project.fileNames, references: project.projectReferences || [] });
+      }
     }
-    const libDirectory = path.dirname(ts.getDefaultLibFilePath(options));
-    const addLib = lib => {
-      if (!ts.resolveLibrary || !ts.getLibraryNameFromLibFileName || !ts.getInferredLibraryNameResolveFrom) throw fail('Compiler library preflight API unavailable.');
-      const resolved = ts.resolveLibrary(ts.getLibraryNameFromLibFileName(lib), ts.getInferredLibraryNameResolveFrom(options, process.cwd(), lib), options, host).resolvedModule;
-      queue.push(resolved?.resolvedFileName || path.join(libDirectory, lib));
-    };
-    if (!options.noLib) for (const lib of options.lib || [path.basename(ts.getDefaultLibFilePath(options))]) addLib(lib);
-    const addType = (name, containing) => {
-      const resolved = ts.resolveTypeReferenceDirective(name, containing, options, host).resolvedTypeReferenceDirective;
-      if (resolved) queue.push(resolved.resolvedFileName);
-    };
-    for (const name of ts.getAutomaticTypeDirectiveNames(options, host)) addType(name, path.join(options.configFilePath ? path.dirname(options.configFilePath) : process.cwd(), '__inferred type names__.ts'));
-    for (let position = 0; position < queue.length; position++) {
-      throwIfAborted(signal);
-      const file = path.resolve(queue[position]);
-      if (seen.has(file)) continue;
-      seen.add(file);
-      if (seen.size > 50000) throw fail('Compiler source closure exceeds its preflight allowance.');
-      for (let directory = path.dirname(file);;) {
-        system.directoryExists(directory);
-        const packageFile = path.join(directory, 'package.json');
-        if (system.fileExists(packageFile)) system.readFile(packageFile);
-        const parent = path.dirname(directory); if (parent === directory) break; directory = parent;
+    for (const context of contexts) {
+      const effectiveOptions = context.options;
+      const contextKey = semanticHash('semantic.compiler-closure-context.v1', { configPath: context.configPath,
+        options: JSON.parse(JSON.stringify(effectiveOptions)) });
+      projectContexts.add(contextKey);
+      // TypeScript loads referenced configuration JSON through getSourceFile too.
+      // Include that source allocation in the same admitted, hash-pinned closure.
+      if (context.configPath) {
+        const configText = system.readFile(context.configPath);
+        if (typeof configText !== 'string') throw fail('Compiler configuration source unavailable.');
+        closureFiles.set(contextKey + ':' + key(context.configPath), { path: path.resolve(context.configPath),
+          hash: digest(configText), bytes: Buffer.byteLength(configText), contextKey });
       }
-      host.fileExists(file);
-      if (system.realpath && !vfs.has(key(file)) && system.fileExists(file)) system.realpath(file);
-      const text = host.readFile(file);
-      if (text === undefined) continue;
-      const info = ts.preProcessFile(text, true, true);
-      for (const item of info.importedFiles) {
-        const resolved = host.resolveModuleNames([item.fileName], file)[0];
-        if (resolved) queue.push(resolved.resolvedFileName);
+      const host = createVirtualCompilerHost(ts, effectiveOptions, vfs, sourcePaths, origins, system);
+      const queue = [...context.rootNames], seen = new Set();
+      const libDirectory = path.dirname(ts.getDefaultLibFilePath(effectiveOptions));
+      const addLib = lib => {
+        if (!ts.resolveLibrary || !ts.getLibraryNameFromLibFileName || !ts.getInferredLibraryNameResolveFrom) throw fail('Compiler library preflight API unavailable.');
+        const resolved = ts.resolveLibrary(ts.getLibraryNameFromLibFileName(lib), ts.getInferredLibraryNameResolveFrom(effectiveOptions, process.cwd(), lib), effectiveOptions, host).resolvedModule;
+        queue.push(resolved?.resolvedFileName || path.join(libDirectory, lib));
+      };
+      if (!effectiveOptions.noLib) for (const lib of effectiveOptions.lib || [path.basename(ts.getDefaultLibFilePath(effectiveOptions))]) addLib(lib);
+      const automaticTypes = ts.getAutomaticTypeDirectiveNames(effectiveOptions, host);
+      const inferredFile = path.join(effectiveOptions.configFilePath ? path.dirname(effectiveOptions.configFilePath) : process.cwd(), '__inferred type names__.ts');
+      for (const result of host.resolveTypeReferenceDirectiveReferences(automaticTypes, inferredFile, undefined, effectiveOptions, undefined)) {
+        if (result.resolvedTypeReferenceDirective) queue.push(result.resolvedTypeReferenceDirective.resolvedFileName);
       }
-      for (const item of info.referencedFiles) queue.push(path.resolve(path.dirname(file), item.fileName));
-      for (const item of info.typeReferenceDirectives) addType(item.fileName, file);
-      for (const item of info.libReferenceDirectives) addLib('lib.' + item.fileName.toLowerCase() + '.d.ts');
+      for (let position = 0; position < queue.length; position++) {
+        throwIfAborted(signal);
+        const file = path.resolve(queue[position]);
+        if (seen.has(key(file))) continue;
+        seen.add(key(file));
+        if (closureFiles.size >= 50000) throw fail('Compiler source closure exceeds its preflight allowance.');
+        for (let directory = path.dirname(file);;) {
+          system.directoryExists(directory);
+          const packageFile = path.join(directory, 'package.json');
+          if (system.fileExists(packageFile)) system.readFile(packageFile);
+          const parent = path.dirname(directory); if (parent === directory) break; directory = parent;
+        }
+        host.fileExists(file);
+        if (system.realpath && !vfs.has(key(file)) && system.fileExists(file)) system.realpath(file);
+        const scan = preflightTypeScriptSource(ts, host, file, effectiveOptions);
+        if (!scan.sourceFile) continue;
+        const text = scan.sourceFile.text;
+        closureFiles.set(contextKey + ':' + key(file), { path: file, hash: digest(text), bytes: Buffer.byteLength(text), contextKey });
+        for (const item of scan.modules) if (item.resolution.resolvedModule) queue.push(item.resolution.resolvedModule.resolvedFileName);
+        for (const item of scan.types) if (item.resolution.resolvedTypeReferenceDirective) queue.push(item.resolution.resolvedTypeReferenceDirective.resolvedFileName);
+        for (const item of scan.referencedFiles) queue.push(path.resolve(path.dirname(origins.get(key(file)) || file), item.fileName));
+        for (const item of scan.libReferenceDirectives) addLib('lib.' + item.fileName.toLowerCase() + '.d.ts');
+      }
     }
     groups.push({ configPath, options: JSON.parse(JSON.stringify(options)), rootNames, projectReferences: parsed?.projectReferences ? JSON.parse(JSON.stringify(parsed.projectReferences)) : null });
   }
+  const closureRows = [...closureFiles.values()].sort((a,b) => (a.contextKey + a.path).localeCompare(b.contextKey + b.path));
+  const closure = { schemaVersion: 1, complete: true, files: closureRows, totalFiles: closureRows.length,
+    totalBytes: closureRows.reduce((sum,row) => sum + row.bytes, 0), maxFileBytes: closureRows.reduce((max,row) => Math.max(max,row.bytes), 0), projectCount: projectContexts.size };
   const inventory = { schemaVersion: 1, compilerVersion: ts.version, compilerFile, compilerReceipt, repoRoot: path.resolve(repoRoot),
     virtualInputs: rootDocs.map(doc => doc.authority).sort((a,b) => a.virtualPath < b.virtualPath ? -1 : a.virtualPath > b.virtualPath ? 1 : 0),
-    sourceInputs: [...sourceInputs].sort((a,b) => a.path.localeCompare(b.path)), toolingHash: semanticHash('semantic.compiler.tooling.v1', toolingConfig), files: [...new Set(files)].sort(), groups,
+    sourceInputs: [...sourceInputs].sort((a,b) => a.path.localeCompare(b.path)), toolingHash: semanticHash('semantic.compiler.tooling.v1', toolingConfig), files: [...new Set(files)].sort(), groups, closure,
     observations: [...observations.values()].sort((a, b) => argsKey(a.method, a.args).localeCompare(argsKey(b.method, b.args))) };
   if (Buffer.byteLength(canonicalSemanticJson(inventory)) > 24 * 1024 * 1024) throw fail('Compiler dependency descriptor exceeds its allowance.');
   return assertCompilerDependencyInventory(inventory);
