@@ -112,7 +112,11 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
       }
     }
   } catch (err) {
-    const issue = err?.code === 'ERR_MANIFEST_MISSING'
+    // The exact-format gate also rejects absent manifests. Preserve the
+    // actionable missing-vs-invalid diagnostic without admitting either.
+    const missing = err?.code === 'ERR_MANIFEST_MISSING'
+      || (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED' && !existsOrBak(path.join(dir, 'pieces', 'manifest.json')));
+    const issue = missing
       ? 'pieces/manifest.json missing'
       : 'pieces/manifest.json invalid';
     if (strict) {
