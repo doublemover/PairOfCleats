@@ -14,6 +14,8 @@ assert.deepEqual([...result.functions.get(canonicalSemanticJson(ref(3))).depende
 const spread=buildCallDependencySummaries([{...documents[0],calls:[{...call,hasSpread:true}]}]);
 assert.equal(spread.functions.get(canonicalSemanticJson(ref(3))).dependencies.size,0,'spread arity cannot fabricate positional input flow');
 assert.equal(buildCallDependencySummaries(documents,{maxIterations:0}).converged,false);
+const incomplete=buildCallDependencySummaries([{...documents[0],calls:[{...call,incompleteTargets:true}]}]);
+assert.equal(incomplete.functions.get(canonicalSemanticJson(ref(3))).dependencies.size,0,'unmapped callable alternatives cannot reuse a falsely unique callee summary');
 // Call-owned field and exception summaries propagate through recursive contexts without new trace stack channels.
 const effectDeclarations=[
   {declaration:ref(20),parameters:[ref(21),ref(22)],returns:[],effects:[{parameter:0,path:['value'],ref:ref(23)}],exceptions:[ref(24)],span:[40,50],complete:false},

@@ -128,6 +128,15 @@ integrity failures propagate. SQLite public queries use retained excerpts only a
 matching their partition inventory to the artifact generation. The tiny literal
 fingerprint fixture passes; binding/type/effect constraints remain separate.
 
+Compiler binding producer 3 retains callable-union signature alternatives instead
+of collapsing them to one checker-selected signature. Unmapped alternatives remain
+partial and cannot authorize unique parameter mapping or callee-summary reuse.
+Tagged-template substitutions preserve source operand ordinals separately from
+runtime parameter offsets; the implicit template object remains an explicit unknown.
+CFG producer 7 retains tag exceptions and call-effect routes, and call-flow producer
+4 preserves the unmodeled cooked/raw template channel. The focused compiler-invocation
+fixture passes; full production compiler and cross-file qualification is deferred.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

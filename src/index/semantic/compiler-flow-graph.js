@@ -92,10 +92,10 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) {
       return expression(node.operand, eventBlock(node, { kind: 'operation', mayThrow: true }, write(node.operand, node, next, context), context), context);
     }
-    const mayThrow = ts.isCallExpression(node) || ts.isNewExpression(node) || ts.isPropertyAccessExpression(node)
+    const mayThrow = ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node) || ts.isNewExpression(node) || ts.isPropertyAccessExpression(node)
       || ts.isElementAccessExpression(node) || ts.isAwaitExpression(node) || ts.isBinaryExpression(node)
       || ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node);
-    if (ts.isCallExpression(node)) reasons.add('call_heap_and_captured_effects_unresolved');
+    if (ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node)) reasons.add('call_heap_and_captured_effects_unresolved');
     if (ts.isAwaitExpression(node) || ts.isYieldExpression(node)) reasons.add('suspension_shared_effects_unresolved');
     if (node.questionDotToken) reasons.add('optional_guard_effects_conservative');
     let head = eventBlock(node, { kind: ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) ? 'heapRead' : 'operation', target: node, mayThrow }, next, context);
