@@ -333,3 +333,16 @@ node tests/run.js perf/bench/run -- --limit 10
 2. **Define lanes:** start with a small explicit map for `smoke`, `services`, `storage`, `perf`; default everything else to `integration`.
 3. **Split monolith tests (see companion document):** convert the biggest multi-domain suites into multiple smaller tests.
 4. **Optional:** move to a manifest-based system to stabilize ids and lane membership.
+
+### Durable failure receipts
+
+Failed child attempts write a parent-owned `.failure.json` beside the attempt log.
+The receipt records executable/runtime, credential-redacted arguments, working
+directory, timestamps, parent/child PIDs, raw decimal/hex exit status, signal and
+spawn error separately, output counts/paths and propagation source. The last
+observed phase marker is evidence of progress, not attribution of the crash phase.
+Logs and receipts are flushed before reporting failure. No dump collection, system
+configuration changes or child-side exception handling are required.
+
+Native redo exits are configured separately from `--retries`; a passing redo does
+not resolve a preceding native failure. Preserve every attempt receipt.

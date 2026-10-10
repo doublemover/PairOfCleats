@@ -32,6 +32,7 @@ export const normalizeResult = (input = {}) => {
     stderr,
     skipReason: input.skipReason || '',
     termination: input.termination || null,
+    execution: input.execution || null,
     attempts: Number.isFinite(input.attempts) ? input.attempts : 1,
     logs: Array.isArray(input.logs) ? input.logs : []
   };
