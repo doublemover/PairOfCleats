@@ -25,10 +25,17 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     const seenCoverage=new Set();
     while(result.records.length<limits.records && (!progressed||performance.now()<deadline)){
       const targetPage=request.selector.target?await store.getNeighbors(request.selector.target,'upstream',['callTarget','constructTarget'],{offset,limit:1,signal}):null;
-      const page=targetPage?{...targetPage,refs:targetPage.edges.map(edge=>edge.from)}:await store.findOperations(request.selector,{offset,limit:1,signal});
+      const page=targetPage?{...targetPage,refs:targetPage.edges.map(edge=>edge.from)}:await store.findOperations({field:request.selector.field,value:request.selector.value},{offset,limit:1,signal});
       if(!page.refs.length){offset=page.offset;done=page.done;progressed=true;if(done)break;continue;}
       const ref=page.refs[0],[record]=await store.getRecords([ref],['span','scope','data'],{signal});
       if(!record)throw fail('ERR_SEMANTIC_INTEGRITY','Operation index refers to an absent node.');
+      // The source bucket is indexed; interval filtering is incremental under
+      // the same work/cursor budget, never an unbounded whole-index scan.
+      const range=request.selector.range;
+      if(range&&(!record.span||record.span[0]>=range.end||record.span[1]<=range.start)){
+        offset=page.offset;done=page.done;progressed=true;if(done)break;continue;
+      }
+
       const category=request.selector.target?'target-candidate':request.selector.field==='chunkUid'?'ownership-candidate':['sourcePath','sourceUnitId'].includes(request.selector.field)?'source-candidate':'structural-candidate';
       const match={ref,category,scoreMeaning:category==='target-candidate'?'Recorded compiler target candidate; inspect binding ambiguity and context.':category==='ownership-candidate'?'Recorded primary or overlapping chunk ownership; no runtime or equivalence claim.':category==='source-candidate'?'Exact retained source identity/path match; no runtime or equivalence claim.':'Exact syntax selector match; no similarity probability.',differences:[]};
       if(seed){match.fingerprint=await fingerprintSemanticOperation({store,ref,signal,deadline});match.differences.push(!seed.hash||!match.fingerprint.hash?'comparison_unavailable':seed.hash===match.fingerprint.hash?'ordered_structure_hash_matches':'ordered_structure_hash_differs');if(!seed.complete||!match.fingerprint.complete)match.differences.push('comparison_incomplete');}
