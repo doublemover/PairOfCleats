@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { prepareSemanticBindingWork } from '../../../src/index/semantic/build-frontier.js';
+import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../src/index/semantic/build-frontier.js';
 import { semanticTaskInputHash } from '../../../src/index/semantic/frontier.js';
 import { createSemanticTaskId } from '../../../src/index/semantic/identity.js';
 import { createArtifactSemanticStore } from '../../../src/semantic/artifact-store.js';
@@ -42,6 +42,15 @@ try {
   for (const partition of primary.partitions) for await (const row of store.iterateRows(partition.partitionId, 'semantic_frontier')) taskRows.push(row);
   assert.deepEqual(taskRows, [work.task], 'durable immutable descriptor exists before control-store execution');
 
+  fixture.runtime.semanticPolicy.enrichment.localFlow = 'deferred';
+  const analysisTasks = await persistSemanticAnalysisFrontiers({ state: fixture.state, runtime: fixture.runtime });
+  assert.deepEqual(analysisTasks.map(task => task.kind), ['localFlow', 'crossFileFlow']);
+  const reopened = fixture.openControl();
+  try { for (const task of analysisTasks) assert.equal(reopened.getTask(task.taskId).state, 'pending'); }
+  finally { reopened.close(); }
+  for (const descriptor of fixture.state.semanticFactsByFile.values()) {
+    for (const phase of ['localFlow', 'crossFileFlow']) assert.ok(descriptor.coverage.some(row => row.phase === phase && row.state === 'deferred' && analysisTasks.some(task => task.taskId === row.frontierRef)));
+  }
   const unavailable = await createBindingWorkFixture({ bindings: 'eager' });
   try {
     unavailable.runtime.semanticFrontierDatabase = null;

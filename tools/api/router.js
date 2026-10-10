@@ -1,4 +1,5 @@
 import { handleSemanticTraceRoute } from './router/semantic-trace.js';
+import { handleRuntimeEvidenceRoute } from './router/runtime-evidence.js';
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { handleSemanticDetailRoute } from './router/semantic.js';
 import path from 'node:path';
@@ -350,6 +351,12 @@ export const createApiRouter = ({
             error: err?.message || String(err)
           }, corsHeaders || {});
         }
+        return;
+      }
+
+      if (['/analysis/runtime-evidence', '/analysis/runtime-families'].includes(requestUrl.pathname) && req.method === 'POST') {
+        await handleRuntimeEvidenceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo,
+          operation: requestUrl.pathname.endsWith('runtime-families') ? 'families' : 'lookup' });
         return;
       }
 

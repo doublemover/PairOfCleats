@@ -146,7 +146,7 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
     semanticTokens: selectedDocs,
     signatureHelp: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
     inlayHints: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
-    definition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.5),
+    definition: Math.max(toNonNegativeInt(selection?.semanticDefinitionTargets), Math.ceil(selectedDocs * hoverMaxPerFile * 0.5)),
     typeDefinition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.35),
     references: Math.ceil(selectedDocs * hoverMaxPerFile * 0.25)
   };

@@ -334,6 +334,14 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Graph', supportTier: 'experimental',
     helpExamples: ['pairofcleats semantic trace --request request.json --all']
   }),
+  entry('runtime.lookup', ['runtime', 'lookup'], 'tools/analysis/runtime-evidence.js', 'Query explicitly pinned immutable saved runtime evidence without execution.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats runtime lookup --request runtime-query.json --all']
+  }),
+  entry('runtime.families', ['runtime', 'families'], 'tools/analysis/runtime-evidence.js', 'Discover retained saved runtime capture families within the authorized repository.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats runtime families --request runtime-families.json --all']
+  }),
   entry('semantic.detail', ['semantic', 'detail'], 'tools/analysis/semantic-detail.js', 'Inspect exact semantic records and related syntax in a pinned generation.', {
     helpGroup: 'Graph', supportTier: 'experimental',
     helpExamples: ['pairofcleats semantic detail --request request.json --all']

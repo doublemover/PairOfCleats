@@ -1,3 +1,4 @@
+import { relocateEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -177,7 +178,10 @@ export async function readCachedBundle({
       manifest.semanticEnabled = true;
       manifest.semanticGeneration = semanticFactsRef.storage.generation;
       manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
-      return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef };
+      const embedded = await relocateEmbeddedSemanticCacheEntries({ entries: cachedEntry.semanticSegmentCaches || [], parentFacts: semanticFactsRef, parentBytes: currentBytes,
+        repoRoot: semanticContext.repoRoot || repoRoot, bundleDir, dependencySignatures: semanticContext.dependencySignatures, targetBuildRoot: semanticContext.buildRoot,
+        storage: semanticContext.storage, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal });
+      return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, ...embedded };
     } catch (error) {
       if (error.code !== 'ERR_SEMANTIC_CACHE_MISMATCH') throw error;
       return { cachedBundle: null, fileHash, buffer: currentBytes };

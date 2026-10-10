@@ -20,13 +20,14 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
   const partitions = descriptors.flatMap((entry) => assertSemanticEnvelope('fileFactsRef', entry).partitions).sort((a, b) => a.partitionId.localeCompare(b.partitionId));
   const frontierTargets = state.semanticFrontierTargets || [];
   const completedTasks = state.semanticCompletedTasks || [];
+  const evidenceArtifacts = [...new Map((state.semanticEvidenceArtifacts || []).map(row => [row.path, row])).values()];
   const generation = { baseBuildId: indexState.buildId, semanticRevision: 0 };
   for (const descriptor of descriptors) {
     if (descriptor.storage.generation.baseBuildId !== generation.baseBuildId) {
       throw Object.assign(new Error('Semantic file descriptor generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
     }
   }
-  declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', 'semantic_query_index', ...SEMANTIC_MEMBER_NAMES, ...(frontierTargets.length ? ['semantic_frontier_targets'] : [])] });
+  declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', 'semantic_query_index', ...SEMANTIC_MEMBER_NAMES, ...(frontierTargets.length ? ['semantic_frontier_targets'] : []), ...(evidenceArtifacts.length ? ['semantic_evidence'] : [])] });
   enqueueWrite('semantic-family', async () => {
     const semanticRoot = path.join(outDir, 'semantic');
     const store = createArtifactSemanticStore({ root: semanticRoot, repoRoot: root,
@@ -34,8 +35,13 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     await validateSemanticPartitions({ store, partitions, signal });
     const manifest = { schemaVersion: 1, semanticSchemaVersion: 1,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation,
-      status: enabled ? 'partial' : 'disabled', partitions, contexts: state.semanticCompilerContexts || [], frontierTargets, completedTasks,
+      status: enabled ? 'partial' : 'disabled', partitions, contexts: state.semanticCompilerContexts || [], frontierTargets, completedTasks, evidenceArtifacts,
       warnings: enabled ? ['Bindings, local flow and unsupported source collectors are not yet complete.'] : [] };
+    for (const artifact of evidenceArtifacts) {
+      if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(artifact.path)) throw new Error('Invalid semantic evidence path.');
+      const bytes = await fs.readFile(path.join(semanticRoot, artifact.path));
+      if (bytes.length !== artifact.bytes || createHash('sha256').update(bytes).digest('hex') !== artifact.hash) throw new Error('Semantic evidence hash mismatch.');
+    }
     const targetPaths = new Map();
     for (const target of frontierTargets) {
       if (!/^semantic-frontier-targets\/[a-f0-9]{64}\.json$/.test(target.path)) throw new Error('Invalid semantic frontier target path.');
@@ -64,6 +70,7 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     await writeJsonObjectFile(path.join(outDir, 'semantic_manifest.json'), { fields: manifest, atomic: true });
     const register = (name, filePath, count = 0) => addPieceFile({ type: 'semantic', name,
       format: filePath.endsWith('.jsonl') ? 'jsonl' : filePath.endsWith('.json') ? 'json' : 'binary', count }, filePath);
+    for (const artifact of evidenceArtifacts) register('semantic_evidence', path.join(semanticRoot, artifact.path));
     for (const target of frontierTargets) register('semantic_frontier_targets', path.join(semanticRoot, target.path));
     register('semantic_manifest', path.join(outDir, 'semantic_manifest.json'), partitions.length);
     const queryIndex = await writeSemanticQueryIndex({ root: semanticRoot, repoRoot: root, generation, partitions, store,

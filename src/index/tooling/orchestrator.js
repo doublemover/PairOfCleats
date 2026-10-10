@@ -992,6 +992,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     providerIds,
     kinds: inputs?.kinds || null
   });
+  if (ctx.semanticSession && ctx.semanticLspSession) providerPlans.sort((a, b) => Number(b.provider?.id === 'typescript') - Number(a.provider?.id === 'typescript'));
   const merged = new Map();
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
@@ -1067,7 +1068,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
 
   try {
     let cacheDir = null;
-    if (!ctx.semanticSession && ctx?.cache?.enabled && ctx.cache.dir) {
+    if (!ctx.semanticSession && !ctx.semanticLspSession && ctx?.cache?.enabled && ctx.cache.dir) {
       try {
         cacheDir = ensureToolingCacheDir(path.join(ctx.cache.dir, 'format-' + ARTIFACT_SURFACE_VERSION));
       } catch (error) {

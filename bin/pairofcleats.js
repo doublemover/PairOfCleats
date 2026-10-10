@@ -737,6 +737,12 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/analysis/suggest-tests.js', extraArgs: [], args: rest };
   }
+  if (primary === 'runtime') {
+    const sub = rest.shift();
+    if (!['lookup', 'families'].includes(sub)) failCli('Use pairofcleats runtime lookup|families --request request.json [--all].');
+    validateArgs(rest, ['request', 'all'], ['request']);
+    return { script: 'tools/analysis/runtime-evidence.js', extraArgs: ['--operation', sub], args: rest };
+  }
   if (primary === 'semantic') {
     const sub = rest.shift();
     if (!['detail', 'trace'].includes(sub)) failCli('Use pairofcleats semantic detail|trace --request request.json [--all].');

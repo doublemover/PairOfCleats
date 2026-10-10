@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
+import { validateEmbeddedCacheSource } from '../../../index/semantic/embedded-cache.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
 import { openSemanticCacheEntry } from '../../../index/build/incremental/semantic-cache.js';
@@ -33,13 +36,23 @@ export const prepareCachedSemanticPlan = async ({ incrementalData, repoRoot = pr
       if (sources.length !== 1 || sources[0].path !== file.split('\\').join('/')) {
         throw fail('Semantic cache source path differs from manifest entry: ' + file);
       }
-      entries.push({ file, ...opened });
-      for (const partition of opened.factsRef.partitions) {
-        if (stores.has(partition.partitionId)) throw fail('Duplicate semantic cache partition identity.');
-        stores.set(partition.partitionId, opened.store);
-        partitions.push(partition);
+      const sourceEntries = [{ file, ...opened }];
+      const parentBytes = await fs.readFile(await resolveSemanticPartPath(opened.root, 'semantic-sources/' + sources[0].byteHash + '.utf8'));
+      if (!Array.isArray(entry.semanticSegmentCaches || [])) throw fail('Invalid semantic segment cache inventory.');
+      for (const segment of entry.semanticSegmentCaches || []) {
+        const child = await openSemanticCacheEntry({ repoRoot, bundleDir: incrementalData.bundleDir, locator: segment.locator, expectedDependencySignatures: manifest.semanticDependencySignatures, signal });
+        await validateEmbeddedCacheSource({ opened: child, parentFacts: opened.factsRef, parentBytes, segmentUid: segment.segmentUid, signal });
+        sourceEntries.push({ file: file + '#semantic-segment:' + child.factsRef.sourceUnitId, ...child });
       }
-      sourceStores.set(opened.factsRef.sourceUnitId, opened.store);
+      for (const openedSource of sourceEntries) {
+        entries.push(openedSource);
+        for (const partition of openedSource.factsRef.partitions) {
+          if (stores.has(partition.partitionId)) throw fail('Duplicate semantic cache partition identity.');
+          stores.set(partition.partitionId, openedSource.store);
+          partitions.push(partition);
+        }
+        sourceStores.set(openedSource.factsRef.sourceUnitId, openedSource.store);
+      }
     }
   }
   const store = {

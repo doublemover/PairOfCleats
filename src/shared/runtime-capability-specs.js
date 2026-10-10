@@ -58,6 +58,8 @@ export const API_WORKFLOW_CAPABILITIES = Object.freeze({
   'index-health': true,
   'context-pack': true,
   'semantic-detail': true,
+  'runtime-evidence': true,
+  'runtime-families': true,
   'risk-delta': true,
   'risk-explain': true,
   'search-workspace': true
@@ -73,6 +75,8 @@ export const API_ROUTE_SPECS = freezeArray([
   { id: 'search.stream', method: 'POST', path: '/search/stream', workflow: 'search' },
   { id: 'search.workspace', method: 'POST', path: '/search/federated', workflow: 'search-workspace' },
   { id: 'analysis.semantic-detail', method: 'POST', path: '/analysis/semantic-detail', workflow: 'semantic-detail' },
+  { id: 'analysis.runtime-evidence', method: 'POST', path: '/analysis/runtime-evidence', workflow: 'runtime-evidence' },
+  { id: 'analysis.runtime-families', method: 'POST', path: '/analysis/runtime-families', workflow: 'runtime-families' },
   { id: 'analysis.context-pack', method: 'POST', path: '/analysis/context-pack', workflow: 'context-pack' },
   { id: 'analysis.risk-delta', method: 'POST', path: '/analysis/risk-delta', workflow: 'risk-delta' },
   { id: 'analysis.risk-explain', method: 'POST', path: '/analysis/risk-explain', workflow: 'risk-explain' },

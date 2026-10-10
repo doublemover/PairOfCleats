@@ -1,4 +1,6 @@
-import { prepareSemanticBindingWork } from '../../../../semantic/build-frontier.js';
+import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
+import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
+import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
 import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
 import { runToolingPass } from '../../../../type-inference-crossfile/tooling.js';
 import { getToolingConfig } from '../../../../../shared/dict-utils.js';
@@ -93,16 +95,23 @@ export const runCrossFileInference = async ({
     const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal });
     await work.run(async ({ signal }) => {
       const semanticSession = await createSemanticCompilerSession({ state, runtime, signal });
-      if (semanticSession.enabled) {
+      const semanticLspSession = await createSemanticLspSession({ state, runtime, signal });
+      if (semanticSession.enabled || semanticLspSession.enabled) {
         await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
           chunks: state.chunks, entryByUid: new Map(), log,
           toolingConfig: getToolingConfig(runtime.root), fileTextByFile: semanticSession.fileTextByFile,
-          abortSignal: signal, semanticSession, applyTypes: useTooling });
+          abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
         useTooling = false;
       }
-      return semanticSession.output();
+      const lspOutput = semanticLspSession.output();
+      await mergeSemanticProviderOutput({ output: lspOutput, state, runtime, signal });
+      const compilerOutput = semanticSession.output();
+      return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
+        partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
     });
   }
+
+  if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });
 
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');

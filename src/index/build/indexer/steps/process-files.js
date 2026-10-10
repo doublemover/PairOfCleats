@@ -1,3 +1,4 @@
+import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
 import { createSemanticDiskAccount } from '../../artifacts/writers/semantic/partition.js';
 import { getRepoId } from '../../../../shared/repo-paths.js';
@@ -963,6 +964,12 @@ export const processFiles = async ({
       if (result.semanticFactsRef) {
         if (!stateRef.semanticFactsByFile) stateRef.semanticFactsByFile = new Map();
         stateRef.semanticFactsByFile.set(result.relKey, result.semanticFactsRef);
+        for (const entry of result.semanticSegmentFactsRefs || []) {
+          assertSemanticEnvelope('fileFactsRef', entry.factsRef);
+          stateRef.semanticFactsByFile.set(result.relKey + '#semantic-segment:' + entry.factsRef.sourceUnitId, entry.factsRef);
+        }
+        stateRef.semanticEvidenceArtifacts ||= [];
+        for (const artifact of result.semanticEvidenceArtifacts || []) if (!stateRef.semanticEvidenceArtifacts.some(entry => entry.path === artifact.path)) stateRef.semanticEvidenceArtifacts.push(artifact);
       }
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);

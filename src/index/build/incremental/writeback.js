@@ -1,3 +1,4 @@
+import { persistEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -238,6 +239,8 @@ export async function writeIncrementalBundle({
   fileHash,
   fileChunks,
   semanticFactsRef = null,
+  semanticSegmentFactsRefs = [],
+  semanticEvidenceArtifacts = [],
   semanticContext = null,
   parseCheckpoint = null,
   dependencySignatures = null,
@@ -269,6 +272,7 @@ export async function writeIncrementalBundle({
   } else if (semanticContext) {
     throw new Error('Semantic-enabled file cannot persist a bundle without complete source facts.');
   }
+  const semanticSegmentCaches = semanticFactsRef ? await persistEmbeddedSemanticCacheEntries({ entries: semanticSegmentFactsRefs, repoRoot: semanticContext.repoRoot || process.cwd(), bundleDir, buildRoot: semanticContext.buildRoot, dependencySignatures: semanticContext.dependencySignatures, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal }) : [];
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat);
   const bundle = {
     file: relKey,
@@ -331,7 +335,7 @@ export async function writeIncrementalBundle({
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
     return {
-      ...(semanticCache ? { semanticCache } : {}),
+      ...(semanticCache ? { semanticCache, semanticSegmentCaches, semanticEvidenceArtifacts } : {}),
       dependencySignatures,
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,

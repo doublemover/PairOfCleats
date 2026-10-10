@@ -269,9 +269,10 @@ export const runToolingPass = async ({
   fileTextByFile,
   abortSignal = null,
   semanticSession = null,
+  semanticLspSession = null,
   applyTypes = true
 }) => {
-  if ((!Array.isArray(chunks) || !chunks.length) && !semanticSession) return { ...EMPTY_TOOLING_PASS_STATS };
+  if ((!Array.isArray(chunks) || !chunks.length) && !semanticSession && !semanticLspSession) return { ...EMPTY_TOOLING_PASS_STATS };
   registerDefaultToolingProviders();
   const strict = toolingConfig?.strict !== false;
   const vfsConfig = toolingConfig?.vfs && typeof toolingConfig.vfs === 'object'
@@ -302,7 +303,8 @@ export const runToolingPass = async ({
     log
   });
   if (semanticSession) documents = semanticSession.prepareDocuments(documents);
-  if (!documents.length || (!targets.length && !semanticSession)) return { ...EMPTY_TOOLING_PASS_STATS };
+  if (semanticLspSession) documents = semanticLspSession.prepareDocuments(documents);
+  if (!documents.length || (!targets.length && !semanticSession && !semanticLspSession)) return { ...EMPTY_TOOLING_PASS_STATS };
 
   const chunkByUid = new Map();
   for (const chunk of chunks) {
@@ -335,14 +337,14 @@ export const runToolingPass = async ({
       maxEntries: Number.isFinite(cacheConfig.maxEntries) ? cacheConfig.maxEntries : null
     },
     abortSignal,
-    semanticSession
+    semanticSession, semanticLspSession
   };
   const providerPlans = selectToolingProviders({
     toolingConfig: ctx.toolingConfig,
     documents,
     targets,
     kinds: ['types'],
-    ...(!applyTypes ? { providerIds: ['typescript'] } : {})
+    ...(!applyTypes && !semanticLspSession?.hasTargetedWork ? { providerIds: ['typescript'] } : {})
   });
   const providerIds = Array.from(new Set(
     providerPlans

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T09:53:43.864Z",
+  "generatedAt": "2026-10-10T10:33:02.755Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -338,6 +338,16 @@
       "command": "pairofcleats risk explain",
       "summary": "Explain interprocedural risk flows.",
       "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats runtime families",
+      "summary": "Discover retained saved runtime capture families within the authorized repository.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats runtime lookup",
+      "summary": "Query explicitly pinned immutable saved runtime evidence without execution.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats search",

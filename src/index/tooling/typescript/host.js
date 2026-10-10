@@ -13,7 +13,7 @@ const resolveScriptKind = (ts, fileName) => {
   return ts.ScriptKind.Unknown;
 };
 
-export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
+export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths) => {
   const baseHost = ts.createCompilerHost(compilerOptions, true);
   const useCaseSensitive = ts.sys.useCaseSensitiveFileNames;
   const canonicalize = (fileName) => {
@@ -47,8 +47,20 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
     return baseHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
   };
 
+  const virtualBySource = new Map();
+  for (const [virtualPath, sourcePath] of sourcePaths) virtualBySource.set(canonicalize(sourcePath), virtualPath);
+  const moduleHost = { ...baseHost, fileExists: filename => virtualBySource.has(canonicalize(filename)) || fileExists(filename),
+    readFile: filename => getVfs(virtualBySource.get(canonicalize(filename)) || filename) ?? readFile(filename) };
+  const resolveModuleNames = (moduleNames, containingFile) => moduleNames.map(name => {
+    const sourceFile = moduleOrigins.get(canonicalize(containingFile)) || containingFile;
+    const resolved = ts.resolveModuleName(name, sourceFile, compilerOptions, moduleHost).resolvedModule;
+    if (!resolved) return undefined;
+    const virtualPath = virtualBySource.get(canonicalize(resolved.resolvedFileName));
+    return virtualPath ? { ...resolved, resolvedFileName: virtualPath } : resolved;
+  });
   return {
     ...baseHost,
+    resolveModuleNames,
     fileExists,
     readFile,
     getSourceFile,

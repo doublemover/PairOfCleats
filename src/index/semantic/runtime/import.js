@@ -13,6 +13,7 @@ import { retainRuntimeRaw, hashRuntimeFile, runtimeByteHash, runtimeImportError,
 import { OFFLINE_RUNTIME_PARSER, createAdapterCoverage, markRuntimeCoverage, runtimeEventLimit } from './adapters/shared.js';
 import { adaptCpuProfile } from './adapters/cpu-profile.js';
 import { adaptCodeLog } from './adapters/code-log.js';
+import { writeRuntimeQueryIndex, openRuntimeQueryIndex, assertRuntimeIndexedRow } from './query-index.js';
 
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
 const pointerCharges = new WeakMap();
@@ -59,6 +60,10 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
       expectedBytes: raw.byteLength, maxBytes: capture.limits.maxBytes, signal });
   }
   if (capture.rawArtifacts.length !== manifest.raw.length) throw runtimeImportError('Missing retained raw artifact.');
+  if (manifest.queryIndex.path !== 'query.sqlite') throw runtimeImportError('Runtime lookup index path mismatch.');
+  const queryIndexPath = await resolveSemanticPartPath(root, manifest.queryIndex.path);
+  await hashRuntimeFile({ filename: queryIndexPath, expectedHash: manifest.queryIndex.hash,
+    expectedBytes: manifest.queryIndex.byteLength, maxBytes, signal });
   const evidencePath = await resolveSemanticPartPath(root, manifest.evidence.path);
   await hashRuntimeFile({ filename: evidencePath, expectedHash: manifest.evidence.hash,
     expectedBytes: manifest.evidence.byteLength, maxBytes, signal });
@@ -66,20 +71,32 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
   await hashRuntimeFile({ filename: offsetsPath, expectedHash: manifest.evidence.offsetsHash,
     expectedBytes: manifest.evidence.count * 8, maxBytes, signal });
   const offsets = await fs.open(offsetsPath, 'r');
+  let queryIndex = null;
   const ids = new Set(), offsetBuffer = Buffer.alloc(8);
   let count = 0;
   try {
+    queryIndex = openRuntimeQueryIndex({ filename: queryIndexPath, manifest, capture });
+    if (queryIndex.prepare('SELECT count(*) AS count FROM evidence').get().count !== manifest.evidence.count
+      || queryIndex.prepare('SELECT 1 FROM source_refs r LEFT JOIN evidence e ON e.ordinal=r.ordinal WHERE e.ordinal IS NULL LIMIT 1').get()) throw runtimeImportError('Runtime lookup row/reference inventory mismatch.');
+    const indexRow = queryIndex.prepare('SELECT * FROM evidence WHERE ordinal=?');
+    const indexRefs = queryIndex.prepare('SELECT partition_id,local_id FROM source_refs WHERE ordinal=? ORDER BY partition_id,local_id');
     for await (const line of readRuntimeLines({ filename: evidencePath, maxLineBytes: MAX_MANIFEST_BYTES, signal })) {
       if (!line.terminated || line.oversized) throw runtimeImportError('Malformed published runtime row.');
       const row = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(line.bytes));
       assertRuntimeProjection({ capture, evidence: [row] });
       if (ids.has(row.evidenceId) || count >= runtimeEventLimit(capture)) throw runtimeImportError('Duplicate or excess runtime observation.');
       ids.add(row.evidenceId);
+      const indexed = indexRow.get(count);
+      assertRuntimeIndexedRow(row, indexed);
+      if (indexed.byte_length !== line.bytes.length + 1 || indexed.row_hash !== runtimeByteHash(Buffer.concat([line.bytes, Buffer.from('\n')]))) throw runtimeImportError('Runtime lookup row hash/range mismatch.');
+      const expectedRefs = [...new Set(row.join.targets.map(ref => JSON.stringify([ref.partitionId, ref.localId])))].sort();
+      const actualRefs = indexRefs.all(count).map(ref => JSON.stringify([ref.partition_id, ref.local_id])).sort();
+      if (JSON.stringify(expectedRefs) !== JSON.stringify(actualRefs)) throw runtimeImportError('Runtime lookup source references mismatch.');
       if ((await offsets.read(offsetBuffer, 0, 8, count * 8)).bytesRead !== 8
         || offsetBuffer.readBigUInt64LE() !== BigInt(line.start)) throw runtimeImportError('Runtime offset table mismatch.');
       count += 1;
     }
-  } finally { await offsets.close(); }
+  } finally { queryIndex?.close(); await offsets.close(); }
   if (count !== manifest.evidence.count) throw runtimeImportError('Runtime evidence inventory count mismatch.');
   const expected = semanticHash('pairofcleats.runtime.family.v1', { ...manifest, generationId: null });
   if (expected !== manifest.generationId) throw runtimeImportError('Runtime family canonical identity mismatch.');
@@ -189,11 +206,14 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
     }
     capture.coverage = [...new Set([...capture.coverage, ...coverage.map(row => row.artifactId + ':' + row.status)])];
     const captureMember = await writeMember('capture.json', jsonBytes(assertRuntimeEvidence('capture', capture)));
+    const evidenceMember = { path: 'evidence.jsonl', hash: evidenceHash.digest('hex'), byteLength,
+      count, offsetsPath: 'evidence.offsets', offsetsHash: offsetsHash.digest('hex') };
+    const queryIndex = await writeRuntimeQueryIndex({ root: pending, evidence: evidenceMember, capture, reserve,
+      release: bytes => { account.release(bytes); reserved -= bytes; }, signal });
     const family = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generationId: null,
-      capture: captureMember, evidence: { path: 'evidence.jsonl', hash: evidenceHash.digest('hex'), byteLength,
-        count, offsetsPath: 'evidence.offsets', offsetsHash: offsetsHash.digest('hex') },
+      capture: captureMember, evidence: evidenceMember,
       raw: capture.rawArtifacts.map(row => ({ artifactId: row.artifactId, captureId: row.captureId,
-        path: row.storageRef, hash: row.hash, byteLength: row.byteLength, format: row.format, formatVersion: row.formatVersion, pinned: row.pinned })), coverage };
+        path: row.storageRef, hash: row.hash, byteLength: row.byteLength, format: row.format, formatVersion: row.formatVersion, pinned: row.pinned })), coverage, queryIndex };
     family.generationId = semanticHash('pairofcleats.runtime.family.v1', family);
     assertRuntimeFamily('manifest', family);
     const manifest = await writeMember('manifest.json', jsonBytes(family));

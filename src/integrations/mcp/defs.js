@@ -1,8 +1,9 @@
 import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-trace.js';
+import { RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_SERVICE_REQUEST_SCHEMA } from '../../contracts/schemas/runtime-query.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.4.3';
+export const MCP_SCHEMA_VERSION = '1.4.4';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -56,6 +57,8 @@ const buildWorkspaceToolProperties = ({
  */
 export function getToolDefs(defaultModelId) {
   return [
+    { name: 'runtime_evidence', description: 'Query explicitly pinned saved runtime families with exact capture/source/workload/code-lifetime selectors. Never executes, probes or attaches.', inputSchema: RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA },
+    { name: 'runtime_families', description: 'Discover retained immutable saved runtime families within an authorized repository destination. Bounded paging; never captures or executes.', inputSchema: RUNTIME_DISCOVERY_SERVICE_REQUEST_SCHEMA },
     { name: 'semantic_trace', description: 'Trace source-pinned value relationships with evidence, boundary requests and explicit incomplete frontiers. Does not execute runtime capture.', inputSchema: SEMANTIC_TRACE_REQUEST_SCHEMA },
     {
       name: 'semantic_detail',
