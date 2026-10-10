@@ -1,12 +1,10 @@
 import { createTypeScriptNodeIndex } from './typescript/node-index.js';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { loadTypeScript } from './typescript/load.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
-import { isAbsolutePathNative } from '../../shared/file-paths.js';
-import { findUpwards } from '../../shared/fs/find-upwards.js';
+import { createDefaultCompilerOptions, resolveTsconfigOverride, findNearestConfig, parseTsConfig } from './typescript/config.js';
 
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
@@ -16,81 +14,6 @@ const normalizePathKey = (value, useCaseSensitive) => {
 const normalizeTypeText = (value) => {
   if (!value) return null;
   return String(value).replace(/\s+/g, ' ').trim() || null;
-};
-
-const createDefaultCompilerOptions = (ts, config) => ({
-  allowJs: config?.allowJs !== false,
-  checkJs: config?.checkJs !== false,
-  jsx: ts.JsxEmit.Preserve,
-  target: ts.ScriptTarget.ES2020,
-  module: ts.ModuleKind.ESNext,
-  moduleResolution: ts.ModuleResolutionKind.Node10,
-  skipLibCheck: true,
-  noEmit: true,
-  strict: false
-});
-
-const formatDiagnostic = (ts, diagnostic) => {
-  const message = ts.flattenDiagnosticMessageText(diagnostic?.messageText || '', '\n');
-  if (diagnostic?.file?.fileName) return `${diagnostic.file.fileName}: ${message}`;
-  return message;
-};
-
-const resolveTsconfigOverride = (rootDir, toolingConfig, log) => {
-  const override = toolingConfig?.typescript?.tsconfigPath;
-  if (!override) return null;
-  const resolved = isAbsolutePathNative(override) ? override : path.join(rootDir, override);
-  if (fsSync.existsSync(resolved)) return resolved;
-  log(`[index] TypeScript tsconfig not found at ${resolved}; falling back.`);
-  return null;
-};
-
-const CONFIG_FILENAMES = ['tsconfig.json', 'jsconfig.json'];
-
-const findNearestConfig = (startDir, repoRoot, cache, useCaseSensitive) => {
-  if (!startDir) return null;
-  const visited = [];
-  let resolved = null;
-  findUpwards(
-    startDir,
-    (candidateDir) => {
-      const currentKey = normalizePathKey(candidateDir, useCaseSensitive);
-      if (cache.has(currentKey)) {
-        resolved = cache.get(currentKey) || null;
-        return true;
-      }
-      visited.push(currentKey);
-      for (const filename of CONFIG_FILENAMES) {
-        const candidate = path.join(candidateDir, filename);
-        if (fsSync.existsSync(candidate)) {
-          resolved = candidate;
-          return true;
-        }
-      }
-      return false;
-    },
-    repoRoot || startDir
-  );
-  for (const key of visited) cache.set(key, resolved);
-  return resolved;
-};
-
-const parseTsConfig = (ts, configPath, log) => {
-  if (!configPath) return null;
-  const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
-  if (configFile?.error) {
-    log(`[index] TypeScript tsconfig error: ${formatDiagnostic(ts, configFile.error)}`);
-    return null;
-  }
-  const parsed = ts.parseJsonConfigFileContent(
-    configFile.config,
-    ts.sys,
-    path.dirname(configPath)
-  );
-  if (parsed?.errors?.length) {
-    log(`[index] TypeScript tsconfig warnings: ${formatDiagnostic(ts, parsed.errors[0])}`);
-  }
-  return parsed;
 };
 
 const getIdentifierName = (ts, node) => {
@@ -222,7 +145,7 @@ const buildTypeScriptDiagnosticCheck = ({
 
 export const createTypeScriptProvider = () => ({
   id: 'typescript',
-  version: '2.2.0',
+  version: '2.3.0',
   label: 'TypeScript',
   priority: 10,
   languages: ['typescript', 'tsx', 'javascript', 'jsx'],
@@ -249,13 +172,13 @@ export const createTypeScriptProvider = () => ({
     const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
     if (ctx?.toolingConfig?.typescript?.enabled === false) {
       log({ level: 'info', message: 'TypeScript tooling disabled.' });
-      return { provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
+      return { provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
     }
     const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
     if (!ts) {
       log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
       return {
-        provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(baseDiagnostics, [
           buildTypeScriptDiagnosticCheck({
@@ -282,7 +205,7 @@ export const createTypeScriptProvider = () => ({
     const rootDocs = documents.filter((doc) => allowedExts.has(String(doc.effectiveExt || '').toLowerCase()));
     if (!rootDocs.length) {
       return {
-        provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: baseDiagnostics
       };
@@ -292,7 +215,8 @@ export const createTypeScriptProvider = () => ({
     const maxProgramFiles = Number.isFinite(config.maxProgramFiles) ? Math.max(1, config.maxProgramFiles) : null;
     const maxFileBytes = Number.isFinite(config.maxFileBytes) ? Math.max(1, config.maxFileBytes) : null;
 
-    const configOverride = resolveTsconfigOverride(ctx.repoRoot, ctx.toolingConfig, (message) => log({ level: 'warn', message }));
+    const compilerSystem = ctx.semanticSession?.compilerSystem(ts, rootDocs) || ts.sys;
+    const configOverride = resolveTsconfigOverride(ctx.repoRoot, ctx.toolingConfig, (message) => log({ level: 'warn', message }), compilerSystem);
     const useTsconfig = config.useTsconfig !== false;
     const configCache = new Map();
     const configGroups = new Map();
@@ -302,7 +226,7 @@ export const createTypeScriptProvider = () => ({
       const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
       const configPath = configOverride
         ? configOverride
-        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache, useCaseSensitive) : null);
+        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache, useCaseSensitive, compilerSystem) : null);
       const key = configPath || '__default__';
       const group = configGroups.get(key) || { configPath, documents: [] };
       group.documents.push(doc);
@@ -364,7 +288,7 @@ export const createTypeScriptProvider = () => ({
         if (parsedConfigCache.has(group.configPath)) {
           parsedConfig = parsedConfigCache.get(group.configPath);
         } else {
-          parsedConfig = parseTsConfig(ts, group.configPath, (message) => log({ level: 'warn', message }));
+          parsedConfig = parseTsConfig(ts, group.configPath, (message) => log({ level: 'warn', message }), compilerSystem);
           parsedConfigCache.set(group.configPath, parsedConfig);
         }
       }
@@ -405,7 +329,7 @@ export const createTypeScriptProvider = () => ({
         continue;
       }
 
-      const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins);
+      const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins, compilerSystem);
       const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, host });
       const checker = program.getTypeChecker();
       const semanticGroup = ctx.semanticSession?.beginGroup({ ts, program, options: mergedOptions, documents: groupDocs, configPath: group.configPath });
@@ -473,7 +397,7 @@ export const createTypeScriptProvider = () => ({
             ...(symbolRef ? { symbolRef } : {}),
             provenance: {
               provider: 'typescript',
-              version: '2.2.0',
+              version: '2.3.0',
               collectedAt: new Date().toISOString()
             }
           };
@@ -483,7 +407,7 @@ export const createTypeScriptProvider = () => ({
     }
 
     return {
-      provider: { id: 'typescript', version: '2.2.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) },
       byChunkUid,
       ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),
       diagnostics: diagnostics.length ? { checks: diagnostics } : null

@@ -1215,6 +1215,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
               }
             }
           } catch (err) {
+            if (err?.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw err;
             providerOutcome = 'error';
             const errorMessage = String(err?.message || err || 'unknown provider failure');
             providerDiagnostics[providerId] = {

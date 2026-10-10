@@ -32,7 +32,8 @@ Status: **in progress; compiler/value evidence, offline runtime import and durab
 binding lifecycle integration** on `codex/semantic-indexing-20261010`, descended
 from PR547 head `5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. Astra MEDIUM leads
 shared integration with the same two approved GPT-6.1 Sol MEDIUM helpers. No new
-helpers, pushes, merges, captures, corpus restart or benchmark campaign.
+helpers, merges, captures, corpus restart or benchmark campaign. The current human-authorized
+publication span includes a normal push of this implementation branch; no PR retarget or merge.
 
 Implemented with focused evidence:
 
@@ -167,15 +168,47 @@ No production rebuild, native-crash investigation, broad fixture campaign, bench
 MCP/API qualification or full frozen-spec acceptance is claimed. Prior crash receipts
 above remain unresolved. Qualification must precede advertising the new operations.
 
-Remaining: complete field/context-sensitive CFG/SSA and SCC cross-file summaries,
-broader Worker/process/async boundary and LSP/provider coverage; syntax/relation
-walk fusion and pre-production resident admission; qualification of config overrides and targeted
-policies; sealed compiler-dependency inventories and executable deferred analysis drains;
-public discovery/explanation qualification, richer operation constraints/projections;
-additional runtime inference/native log adapters and cross-generation runtime joins. Huge-file intra-file
-partitioning/fairness is a later improvement, not a new gate. Independent overlays
-remain outside v1. No claim of full frozen-spec completion; the temporary package
-tracker records exact ownership, dependencies and focused receipts.
+Continuation after `731249ad` (2026-10-10, **implemented; qualification deferred**):
+
+| Area | Current code | Unverified or missing |
+| --- | --- | --- |
+| Deferred compiler authority | Immutable task target sets now include a bounded resolver/config/library/package probe inventory, all ordinary source-root hashes, negative lookups and loaded compiler-module receipt. The dependency hash participates in task/policy identities, lease readiness, plan/enqueue/drain admission, prepublication and recovery checks. The existing Program uses a closed host; unrecorded or changed probes and VFS roots reject rather than yield completion. | Only a small compiler construction sanity ran. End-to-end drain, restart, stale dependency, grouped project and race qualification remains. Embedded/VFS preflight is deliberately unavailable and leaves a deferred task. Unhandled resolver probes stop execution; no claim of general resolver coverage. |
+| Compiler reuse | Configuration helpers are shared with the existing provider. Preflight uses TypeScript preprocessing/resolver APIs, never a second Program. One recorded inventory is shared across policy groups; conflicting observations reject. Package models use sealed reads. | Preflight currently loads the compiler and walks dependency text even for deferred bindings. Avoiding that startup through valid cached authority, cooperative admission/cost calibration, broader virtual-source support and resource integration remain. |
+| Execution boundaries | Checker/library/package-qualified callback and Promise continuation, child-process/IPC, and WASM/native-entry models supplement the existing Worker/storage path. Source-backed model evidence retains dynamic entry, activation, scheduling, delivery and memory uncertainty. | New boundary fixture is written but unrun. No observed process execution, delivery, callback activation or WASM/native implementation claim. General interprocedural heap/effect/exception/context summaries and target-dependent paths remain incomplete. |
+| Agent follow-up loop | Explain projects bounded exact source pins and immutable task suggestions with strict plan/enqueue requests; suggestions never invoke execution. The explicit enrichment service revalidates authority. | SQLite explain lacks the portable source/frontier iterator and reports unavailable. Find/explain/enrichment wrappers remain unadvertised until artifact/SQLite and public-surface parity passes. Trace-to-explain remains an explicit client follow-up. |
+| Runtime evidence | Exact adapter inventory distinguishes saved Inspector CPU profiles from the versioned saved code-log interchange. Parser projection version 2 adds feedback/IC/map/type, inline-frame and deopt facets with capture-scoped code/map lifetime checks and explicit incomplete joins. | No arbitrary native V8 text parser, automatic capture/attachment, cross-artifact lifetime resolver, secondary inline/map lookup, complete source-map/inlining joins or independent runtime overlay. Fixture qualification is deferred. |
+| Operation discovery | Indexed syntax/target candidates, ordered fingerprints and SCC return-dependency summaries from the prior span remain implemented. Analysis policies and input hashes invalidate derived partitions. | Rich effect/type/shape constraints, complete field/context sensitivity, operation-summary/vector projections and their independent model/projection cache qualification remain. Similarity is never behavioral proof. |
+
+Validation for this publication span is limited to syntax/schema/import/lint and one small
+compiler-construction sanity. Initial sanity failures exposed undefined TypeScript option
+serialization and missing library-package probes; both were corrected before the final
+sanity pass (52 compiler source files / 358 sealed probes). Repository formatting,
+23 Node26 syntax checks, strict schema/integration imports, scoped lint and whitespace
+checks passed; all four unrelated workflow hashes remained unchanged. The new boundary
+fixture is enrolled in the integration lane (list-only; the initial unit/default preview
+selected none). TypeScript provider cache version is 2.3.0. Correctness fixtures,
+public parity, deferred drain/crash qualification, broad tests and benchmarks remain
+**unrun**. Earlier passing receipts above belong to their stated revisions and do not
+qualify the changed compiler host. The default-worker native access violation remains
+unresolved and was not investigated or retried here.
+
+Next ownership and acceptance:
+
+- **Astra integration:** complete virtual/project resolver authority and durable phase
+  executors beyond bind; review publication/recovery races, field/effect/exception/recursive
+  summary semantics and conservative boundary joins. Preserve the strict rejection path.
+- **Cheaper focused qualification:** enroll/run existing new call-summary, boundary,
+  policy, storage and generation fixtures; add sealed dependency mutation/negative-probe,
+  compiler-reload, grouped-global, lease/recovery and saved-runtime lifetime assertions.
+  Test exact artifact/SQLite projections before registering find/explain/enrichment.
+- **Later implementation:** fuse syntax/relation walks; integrate pre-production resident
+  admission and measured planning; complete operation projections, LSP/provider coverage
+  and runtime source/code joins. Huge-file partitioning/fairness and independent overlays
+  are later work, not v1 publication claims.
+
+The full frozen specification is **not complete**. This branch is reviewable implementation
+work with explicit remaining frontiers, not release readiness. The ignored temporary task
+tracker retains coherent package ownership, dependencies and acceptance instructions.
 
 ## Current Initiatives
 

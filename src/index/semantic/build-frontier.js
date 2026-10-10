@@ -1,3 +1,4 @@
+import { assertCompilerTaskAuthority, collectCompilerDependencyInventory, compilerInventoryHash, COMPILER_DEPENDENCY_KEY, verifyCompilerDependencyInventory } from './compiler-dependencies.js';
 import { resolveSemanticSourcePolicy, validateSemanticSourceTargets } from './policy.js';
 import { planSemanticSource } from './planning.js';
 import fs from 'node:fs/promises';
@@ -37,6 +38,7 @@ const openControl = async runtime => {
 };
 const writeTargetSet = async ({ root, targetSet, targetSetHash, diskAccount, signal }) => {
   const bytes = Buffer.from(canonicalSemanticJson(targetSet) + '\n');
+  if (bytes.length > 32 * 1024 * 1024) throw fail('Task target descriptor exceeds its allowance.');
   const relative = 'semantic-frontier-targets/' + targetSetHash + '.json';
   const directory = path.join(root, 'semantic-frontier-targets');
   await fs.mkdir(directory, { recursive: true });
@@ -61,7 +63,7 @@ const readTargetSet = async ({ root, task, generation, syntaxPartitions }) => {
   const filename = await resolveSemanticPartPath(root, task.targetsRef);
   if ((await fs.stat(filename)).size > 32 * 1024 * 1024) throw fail('Task target set exceeds descriptor allowance.');
   const target = JSON.parse(await fs.readFile(filename, 'utf8'));
-  if (Object.keys(target).some(key => !['schemaVersion', 'generation', 'sourceUnits', 'syntaxPartitionRefs'].includes(key))
+  if (Object.keys(target).some(key => !['schemaVersion', 'generation', 'sourceUnits', 'syntaxPartitionRefs', 'compilerInventory'].includes(key))
     || target.schemaVersion !== 1 || canonicalSemanticJson(target.generation) !== canonicalSemanticJson(generation)
     || semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash
     || canonicalSemanticJson(target.sourceUnits) !== canonicalSemanticJson(ordered(task.sourceUnits))
@@ -70,6 +72,7 @@ const readTargetSet = async ({ root, task, generation, syntaxPartitions }) => {
       partition.partitionId === ref.partitionId && partition.canonicalHash === ref.canonicalHash && partition.sourceUnitId === ref.sourceUnitId))) {
     throw fail('Task targets differ from the exact durable generation/source inventory.');
   }
+  assertCompilerTaskAuthority(task, target);
   return target;
 };
 
@@ -98,18 +101,31 @@ const prepareBindingGroup = async ({ state, runtime, policy, entriesOverride, si
   if (!eligible.length) return { task: null, status: 'unsupported', run: async () => notRun('no_supported_binding_sources') };
   const eligibleSyntax = eligible.map(([, entry]) => syntaxPartitions.find(row => row.partitionId === entry.syntaxPartitionId));
   const sourceUnits = ordered(eligible.map(([, entry]) => entry.sourceUnitId));
-  const targetSet = { schemaVersion: 1, generation, sourceUnits,
+  let compilerInventory = null, dependencyFailure = null;
+  try {
+    if (eligible.some(([file]) => sources.get(file).mapping)) throw fail('Embedded compiler authority requires a virtual-source preflight.', 'ERR_SEMANTIC_DEPENDENCY_UNSEALED');
+    if (state.semanticCompilerHasEmbeddedSources) throw fail('Embedded compiler authority requires a virtual-source preflight.', 'ERR_SEMANTIC_DEPENDENCY_UNSEALED');
+    state.semanticCompilerPreflight ||= collectCompilerDependencyInventory({ repoRoot: runtime.root, toolingConfig: getToolingConfig(runtime.root),
+      files: state.semanticCompilerSourceInputs.map(source => source.path), sourceInputs: state.semanticCompilerSourceInputs, signal });
+    compilerInventory = await state.semanticCompilerPreflight;
+  } catch (error) {
+    throwIfAborted(signal);
+    if (error.code !== 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error;
+    dependencyFailure = error.message;
+  }
+  const authorityHash = compilerInventory ? compilerInventoryHash(compilerInventory) : null;
+  const targetSet = { schemaVersion: 1, generation, sourceUnits, compilerInventory,
     syntaxPartitionRefs: eligibleSyntax.map(({ partitionId, canonicalHash, sourceUnitId }) => ({ partitionId, canonicalHash, sourceUnitId }))
       .sort((a, b) => a.partitionId.localeCompare(b.partitionId)) };
   const targetSetHash = semanticHash('pairofcleats.semantic.binding-targets.v1', targetSet);
   const dependencySignatures = createSemanticCacheDependencySignatures({ dependencySignatures: { tooling: getToolingConfig(runtime.root) }, policy, root: runtime.root });
   const policyHash = semanticHash('pairofcleats.semantic.binding-task-policy.v1', { version: 1, dependencySignatures,
-    effectiveAnalysis: policy.identity?.analysis || null, enrichment: policy.enrichment });
+    authorityHash, effectiveAnalysis: policy.identity?.analysis || null, enrichment: policy.enrichment });
   const inputHashes = ordered([...new Set(eligibleSyntax.map(row => row.canonicalHash))]);
   const task = assertSemanticTask({ schemaVersion: 1, taskId: createSemanticTaskId({ kind: 'bind', inputHashes, policyHash, targetSetHash }),
     kind: 'bind', baseBuildId: generation.baseBuildId, sourceUnits, inputHashes, policyHash, targetSetHash,
-    targetsRef: 'semantic-frontier-targets/' + targetSetHash + '.json', dependencies: [], priority: 1,
-    reason: 'generation_pinned_binding_pass', coverageToProduce: ['bindings'] });
+    targetsRef: 'semantic-frontier-targets/' + targetSetHash + '.json', dependencies: authorityHash ? [{ dependencyKey: COMPILER_DEPENDENCY_KEY, expectedHash: authorityHash }] : [], priority: 1,
+    reason: compilerInventory ? 'generation_pinned_binding_pass' : 'compiler_dependency_unavailable', coverageToProduce: ['bindings'] });
   const targetInventory = await writeTargetSet({ root, targetSet, targetSetHash, diskAccount: state.semanticDiskAccount, signal });
   state.semanticFrontierTargets ||= [];
   if (!state.semanticFrontierTargets.some(row => row.path === targetInventory.path)) state.semanticFrontierTargets.push(targetInventory);
@@ -118,7 +134,7 @@ const prepareBindingGroup = async ({ state, runtime, policy, entriesOverride, si
     inputPartitionHashes: inputHashes, compilerContext: null, dependencySummaryHashes: [], analysisPolicy: { targetSetHash, policyHash } });
   if (!original.partitions.some(row => row.partitionId === taskPartitionId)) {
     const coverage = { scope: { sourceUnitId: source.sourceUnitId }, phase: 'bindings', state: 'deferred',
-      reason: 'generation_pinned_binding_task', observedCount: null, completedCount: 0, frontierRef: task.taskId };
+      reason: compilerInventory ? 'generation_pinned_binding_task' : 'compiler_dependency_unavailable:' + dependencyFailure, observedCount: null, completedCount: 0, frontierRef: task.taskId };
     const partition = await writeSemanticAnalysis({ policy, stagingRoot: root, source,
       sourceBytes: await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8')),
       partitionId: taskPartitionId, producerHash: semanticHash('pairofcleats.semantic.binding-frontier-producer.v1', { version: 1 }),
@@ -138,11 +154,15 @@ const prepareBindingGroup = async ({ state, runtime, policy, entriesOverride, si
     admitted = drain ? granted : policy.bindingMode !== 'deferred' || policy.execution.deferredDrain === 'after-index';
     return admitted;
   };
-  return { task, policy, targetSet, admit, status: 'pending', async run(fn) {
+  return { task, policy, targetSet, compilerInventory, admit, status: 'pending', async run(fn) {
     if (claimed) return notRun('binding_task_already_admitted');
     claimed = true;
     throwIfAborted(signal);
     if (!await admit()) return notRun('manual_deferred_binding_task');
+    if (!compilerInventory) return notRun('compiler_dependency_unavailable:' + dependencyFailure);
+    await verifyCompilerDependencyInventory({ inventory: compilerInventory, repoRoot: runtime.root, toolingConfig: getToolingConfig(runtime.root), signal });
+    state.semanticCompilerDependencyInventories ||= [];
+    if (!state.semanticCompilerDependencyInventories.some(item => compilerInventoryHash(item) === authorityHash)) state.semanticCompilerDependencyInventories.push(compilerInventory);
     if (typeof runtime.scheduler?.schedule !== 'function') return notRun('existing_relations_scheduler_unavailable');
     const maxMs = runtime.semanticEnrichmentDrain ? runtime.semanticEnrichmentDrain.maxMs : policy.bindingMode === 'deferred' ? policy.execution.afterIndexMaxMs : policy.enrichment.bindings === 'auto' ? policy.planning.inlineBudgetMs : null;
     if (maxMs === 0) return notRun('after_index_budget_exhausted');
@@ -163,7 +183,7 @@ const prepareBindingGroup = async ({ state, runtime, policy, entriesOverride, si
     timer?.unref?.();
     try {
       [lease] = control.leaseReady({ baseBuildId: task.baseBuildId, taskId: task.taskId, owner,
-        limit: 1, leaseMs });
+        limit: 1, leaseMs, dependencyHashes: new Map(task.dependencies.map(row => [row.dependencyKey, row.expectedHash])) });
       if (!lease) return notRun('binding_task_not_ready');
       renewal = setInterval(() => {
         try { control.renew({ taskId: task.taskId, owner, leaseMs }); }
@@ -221,12 +241,19 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
   if (!base?.enabled || !state.semanticFactsByFile?.size) return { task: null, tasks: [], status: 'disabled', run: async () => ({ ran: false, reason: 'bindings_disabled' }) };
   const entries = [...state.semanticFactsByFile], groups = new Map();
   state.semanticPlanningBySource ||= new Map();
+  state.semanticCompilerSourceInputs = [];
+  state.semanticCompilerPreflight = null;
+  state.semanticCompilerHasEmbeddedSources = false;
   for (const [file, descriptor] of entries) {
     throwIfAborted(signal);
     const syntax = descriptor.partitions.find(partition => partition.partitionId === descriptor.syntaxPartitionId);
     const root = path.join(runtime.buildRoot, descriptor.storage.relativePath);
     const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: descriptor.storage.generation, partitions: [syntax] });
     for await (const source of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) {
+      if (['javascript', 'typescript'].includes(source.language)) {
+        if (source.mapping) state.semanticCompilerHasEmbeddedSources = true;
+        else state.semanticCompilerSourceInputs.push({ path: source.path, sourceUnitId: source.sourceUnitId, byteHash: source.byteHash, textHash: source.textHash });
+      }
       const sourcePath = source.mapping ? entries.find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path;
       const policy = resolveSemanticSourcePolicy(base, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
       await validateSemanticSourceTargets(policy, { source, partitionId: syntax.partitionId, store, signal });
@@ -246,6 +273,7 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
     for (const item of work) if (item.task && await item.admit()) selected.push(item);
     if (!selected.length) return { ran: false, reason: 'manual_deferred_binding_task' };
     const previous = state.semanticAdmittedSources;
+    state.semanticCompilerDependencyInventories = selected.map(item => item.compilerInventory).filter(Boolean);
     state.semanticAdmittedSources = new Set(selected.flatMap(item => item.task.sourceUnits));
     let output = null;
     const receipts = [];

@@ -1,3 +1,6 @@
+import { verifyCompilerDependencyInventory, COMPILER_DEPENDENCY_KEY } from '../index/semantic/compiler-dependencies.js';
+import { resolveSemanticPartPath } from './artifact-store.js';
+import { getToolingConfig } from '../shared/dict-utils.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -71,7 +74,16 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     publishedGeneration: null, lineage: [], supportedExecutors: ['bind'], diagnostics: ['whole_generation_publication_only',
       'full_source_rebuild_no_targeted_parse_reuse'], validation: 'implementation-unverified' };
   if (!request.taskIds.length && inventory.tasks.size > limits.maxTasks) result.diagnostics.push('plan_window_truncated_select_exact_task_ids');
-  if (action === 'plan') return boundedResult(result, limits);
+  dependencyAuthority ||= { async verify({ repoRoot, inventory, task, signal }) {
+    const filename = await resolveSemanticPartPath(path.join(inventory.indexDir, 'semantic'), task.targetsRef);
+    if ((await fs.stat(filename)).size > 32 * 1024 * 1024) throw enrichmentError('Compiler target inventory exceeds its allowance.');
+    const target = JSON.parse(await fs.readFile(filename, 'utf8'));
+    if (semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash || !target.compilerInventory) return null;
+    const authority = await verifyCompilerDependencyInventory({ inventory: target.compilerInventory, repoRoot,
+      toolingConfig: getToolingConfig(repoRoot), signal });
+    return { verified: true, complete: true, authorityHash: authority.authorityHash,
+      dependencyHashes: new Map([[COMPILER_DEPENDENCY_KEY, authority.authorityHash]]) };
+  } };
   const authorities = new Map();
   const verifyAuthority = async (task, phase, signal) => {
     // A producer must freeze the complete compiler/config/module-resolution inventory.
@@ -84,18 +96,19 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
       || task.dependencies.some(row => authority.dependencyHashes.get(row.dependencyKey) !== row.expectedHash)) return null;
     return authority;
   };
-  if (action === 'drain') for (const task of tasks) {
+  for (const task of tasks) {
     const authority = await budget.run(() => verifyAuthority(task, 'before-work', budget.signal));
     if (authority && task.kind === 'bind') {
       authorities.set(task.taskId, authority);
       Object.assign(result.tasks.find(row => row.taskId === task.taskId), { executable: true, reason: null });
     }
   }
+  if (action === 'plan') return boundedResult(result, limits);
   if (action === 'drain' && (!tasks.length || result.tasks.some(row => !row.executable || row.state === 'completed'))) {
     result.status = 'blocked'; result.diagnostics.push('dependency_authority_unavailable_or_executor_not_available');
     return boundedResult(result, limits);
   }
-  if (action === 'enqueue') result.diagnostics.push('dependency_authority_unavailable_pending_descriptor_only');
+  if (action === 'enqueue' && result.tasks.some(row => !row.executable)) result.diagnostics.push('dependency_authority_unavailable_pending_descriptor_only');
   const directory = path.join(getRepoCacheRoot(repoRoot, userConfig), 'semantic-frontier', 'drains');
   await fs.mkdir(directory, { recursive: true });
   const cacheRoot = toRealPathSync(getRepoCacheRoot(repoRoot, userConfig));

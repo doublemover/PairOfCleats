@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -8,6 +10,25 @@ export const DEFAULT_TYPESCRIPT_RESOLVE_ORDER = Object.freeze(['repo', 'cache', 
 
 const globalRequire = createRequire(import.meta.url);
 const syncTypeScriptCache = new Map();
+const compilerLoadReceipts = new WeakMap();
+const moduleHash = filename => createHash('sha256').update(fsSync.readFileSync(filename)).digest('hex');
+const loadCompilerWithReceipt = async url => {
+  const filename = fsSync.realpathSync(fileURLToPath(url)), before = moduleHash(filename);
+  const mod = await import(url), compiler = mod?.default || mod;
+  const after = moduleHash(filename), previous = compilerLoadReceipts.get(compiler);
+  if (before !== after || previous && (previous.filename !== filename || previous.hash !== after)) {
+    throw Object.assign(new Error('Loaded TypeScript module identity changed; restart the indexing process.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
+  }
+  compilerLoadReceipts.set(compiler, { filename, hash: after });
+  return compiler;
+};
+const recordSyncReceipt = (compiler, filename, before) => {
+  const hash = moduleHash(filename), previous = compilerLoadReceipts.get(compiler);
+  if (before !== hash || previous && (previous.filename !== filename || previous.hash !== hash)) throw Object.assign(new Error('Loaded TypeScript changed; restart indexing.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
+  compilerLoadReceipts.set(compiler, { filename, hash });
+};
+export const getTypeScriptLoadReceipt = compiler => compilerLoadReceipts.get(compiler) || null;
+
 
 const resolveTypeScriptLookup = (repoRoot, toolingRoot) => ({
   repo: repoRoot ? path.join(repoRoot, 'node_modules', 'typescript', 'lib', 'typescript.js') : null,
@@ -34,18 +55,17 @@ export async function loadTypeScript(toolingConfig, repoRoot) {
     if (key === 'repo' && !isRepoTrusted(repoRoot)) continue;
     if (key === 'global') {
       try {
-        const mod = await import('typescript');
-        return mod?.default || mod;
-      } catch {
+        return await loadCompilerWithReceipt(import.meta.resolve('typescript'));
+      } catch (error) {
+        if (error.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error;
         continue;
       }
     }
     const candidate = lookup[key];
     if (!candidate || !fsSync.existsSync(candidate)) continue;
     try {
-      const mod = await import(pathToFileURL(candidate).href);
-      return mod?.default || mod;
-    } catch {}
+      return await loadCompilerWithReceipt(pathToFileURL(candidate).href);
+    } catch (error) { if (error.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error; }
   }
   return null;
 }
@@ -58,15 +78,22 @@ export function loadTypeScriptModule(rootDir) {
   if (trusted) {
     try {
       const requireFromRoot = createRequire(path.join(rootDir, 'package.json'));
+      const filename = fsSync.realpathSync(requireFromRoot.resolve('typescript'));
+      const before = moduleHash(filename);
       const mod = requireFromRoot('typescript');
+      recordSyncReceipt(mod?.default || mod, filename, before);
       resolved = mod?.default || mod;
-    } catch {
+    } catch (error) {
+      if (error.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error;
       resolved = null;
     }
   }
   if (!resolved) {
     try {
+      const filename = fsSync.realpathSync(globalRequire.resolve('typescript'));
+      const before = moduleHash(filename);
       const mod = globalRequire('typescript');
+      recordSyncReceipt(mod?.default || mod, filename, before);
       resolved = mod?.default || mod;
     } catch {
       resolved = null;
