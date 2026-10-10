@@ -36,9 +36,9 @@ preserve earlier checkpoints; [semantic guide](guides/semantic-index.md) describ
 Implemented slices: durable per-file Stage1 replay before parser admission; cache
 identity/corruption checks and lease fencing; compact sparse sequence ownership;
 JS/TS occurrence roles, optional/default/catch/finally/class-static CFG; callable
-alternatives; Worker/MessageChannel and WASM host-boundary links; bounded core WASM
-binary decoding, stack/local/control-flow merges and exact literal-byte instance
-import/export joins; indexed discovery, source-range/literal fingerprints and semantic context packs; shared producer-version
+alternatives; Worker/MessageChannel and WASM host-boundary links; standalone WASM
+binary sources, proposal decoding, stack/control/exception flow, indirect targets,
+storage effects and retained-byte host joins; indexed discovery, source-range/literal fingerprints and semantic context packs; shared producer-version
 invalidation; bounded disk reservation cleanup. These are partial coverage, not
 completion of the refined semantic specification.
 
@@ -52,13 +52,13 @@ old author-workspace receipts remain historical. The 74-case cross-platform fail
 union now passes targeted cloud checks after grouped format, checksum and lifecycle
 repairs; hosted CI remains exact-head evidence.
 
-WASM follow-on: Node26.8.1 bootstrap/readiness, three focused fixtures and the
-39-test local gate pass; standalone binary admission and advanced proposals remain open.
+WASM [receipt](archived/wasm-semantic-checkpoint-2026-10-10.md): six WASM checks
+and the 39-test gate pass; one inherited cache-reader assertion conflicts with the
+syntax/analysis policy split. Binary deferred/targeted flow remains unsupported.
 
 Next, in order: full interrupted multi-worker recovery and transient accounting;
 remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
-integration; standalone WASM source/streaming-byte admission, richer host completions,
-indirect targets and proposal instructions; Python/C/Swift/Rust adapters. The
+integration; binary deferred/targeted enrichment; Python/C/Swift/Rust adapters. The
 calibrated estimator remains last priority. Retained-cache cleanup,
 control-store reconstruction and full public-surface qualification remain open.
 
