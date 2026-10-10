@@ -65,6 +65,15 @@ so validated completed files do not get reparsed there before ordinary cache rep
 The pass keeps compact locators only, validates sources/parts one file at a time,
 and leaves missing/corrupt/changed files on the existing scheduler.
 
+J5 CFG producer 5 preserves contiguous optional-chain guard regions, including
+computed keys and argument side effects, while parentheses terminate the region.
+Labeled break/continue now traverse enclosing finally blocks, and for-of/for-in
+evaluate their source expression once rather than on every backedge. Iteration
+values retain an explicit unknown origin instead of equating them with the whole
+iterable. The bounded `lang/semantic/control-regions` fixture passes. Destructuring,
+iterator protocol/cleanup, per-iteration capture and broader completion semantics
+retain their stated frontiers.
+
 The next recovery slice adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
