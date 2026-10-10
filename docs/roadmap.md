@@ -159,6 +159,18 @@ The bounded repair updates that major-version assertion without changing the exa
 patch pin or weakening workflow/cache-key consistency checks. Full CI remains a
 separate gate; this repair is qualified by the focused workflow contract only.
 
+### Sparse resumed sequence ownership (2026-10-10)
+
+The next R4 recovery slice compacts the existing sequence ledger by actual expected
+IDs, preserving the dense hot path while removing numeric-span allocation and gap
+scans. Journal replay, batch draining, cancellation and lease reclamation use the
+same sparse identity set; backpressure windows count admitted ordinals rather than
+the size of numeric holes. Lease-attempt exhaustion fails before an old identity
+can wrap and become current again. The new sparse-resume fixture uses three IDs
+spanning 2^48 without allocating or iterating through that range. Six focused
+Stage1 ledger/replay/backpressure/duplicate/retry fixtures pass through the normal
+test runner after a complete verified cloud bootstrap under Node 26.11.1.
+
 ### Required bootstrap readiness (2026-10-10)
 
 Normal CLI/TUI, legacy build/search, API/MCP/indexer entry points, the test/CI

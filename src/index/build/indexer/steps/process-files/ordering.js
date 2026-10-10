@@ -314,12 +314,16 @@ export const resolveActiveSeqWindows = (
 
 /**
  * Build fixed-size typed-array seq ledger for Stage1 runtime hot path.
+ * Slots are compact ordinals, never the numeric span of a resumed subset.
  *
  * @param {{
  *   expectedSeqs?:number[],
  *   leaseTimeoutMs?:number
  * }} [input]
  * @returns {{
+ *   sequenceIds:ReadonlyArray<number>,
+ *   slotAtOrAfter:(seq:number)=>number,
+ *   nextExpectedSeq:(seq:number)=>number|null,
  *   states:Uint8Array,
  *   attempts:Uint16Array,
  *   leaseOwner:Int32Array,
@@ -356,21 +360,27 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
 
   const startSeq = orderedSeqs.length ? orderedSeqs[0] : 0;
   const endSeq = orderedSeqs.length ? orderedSeqs[orderedSeqs.length - 1] : -1;
-  const span = orderedSeqs.length ? (endSeq - startSeq + 1) : 0;
-  const states = new Uint8Array(Math.max(0, span));
-  states.fill(STAGE1_SEQ_STATE.UNUSED);
-  const attempts = new Uint16Array(Math.max(0, span));
-  const leaseOwner = new Int32Array(Math.max(0, span));
-  const leaseHeartbeat = new Float64Array(Math.max(0, span));
-  const terminalReason = new Int16Array(Math.max(0, span));
-
-  for (const seq of orderedSeqs) {
-    const slot = seq - startSeq;
-    if (slot >= 0 && slot < states.length) {
-      states[slot] = STAGE1_SEQ_STATE.UNSEEN;
-      terminalReason[slot] = 0;
-    }
+  if (orderedSeqs.some(seq => !Number.isSafeInteger(seq) || seq < 0 || seq >= Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('Stage1 sequence IDs must be nonnegative safe integers with a representable successor.');
   }
+  const contiguous = endSeq - startSeq + 1 === orderedSeqs.length;
+  const states = new Uint8Array(orderedSeqs.length);
+  states.fill(STAGE1_SEQ_STATE.UNSEEN);
+  const attempts = new Uint16Array(orderedSeqs.length);
+  const leaseOwner = new Int32Array(orderedSeqs.length);
+  const leaseHeartbeat = new Float64Array(orderedSeqs.length);
+  const terminalReason = new Int16Array(orderedSeqs.length);
+
+  const slotAtOrAfter = seq => {
+    if (contiguous) return Math.max(0, Math.min(orderedSeqs.length, Math.ceil(seq - startSeq)));
+    let low = 0, high = orderedSeqs.length;
+    while (low < high) {
+      const middle = low + Math.floor((high - low) / 2);
+      if (orderedSeqs[middle] < seq) low = middle + 1;
+      else high = middle;
+    }
+    return low;
+  };
 
   const counters = {
     totalSeqCount: orderedSeqs.length,
@@ -387,9 +397,9 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     const normalizedSeq = Number(seq);
     if (!Number.isFinite(normalizedSeq)) return -1;
     if (!orderedSeqs.length) return -1;
-    const slot = Math.floor(normalizedSeq) - startSeq;
+    const slot = slotAtOrAfter(Math.floor(normalizedSeq));
     if (slot < 0 || slot >= states.length) return -1;
-    if (states[slot] === STAGE1_SEQ_STATE.UNUSED) return -1;
+    if (orderedSeqs[slot] !== Math.floor(normalizedSeq)) return -1;
     return slot;
   };
 
@@ -405,12 +415,11 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     if (!Number.isFinite(normalizedCursor)) normalizedCursor = orderedSeqs[0];
     normalizedCursor = Math.floor(normalizedCursor);
     if (normalizedCursor < startSeq) normalizedCursor = startSeq;
-    let slot = normalizedCursor - startSeq;
-    if (slot < 0) slot = 0;
+    let slot = slotAtOrAfter(normalizedCursor);
     while (slot < states.length) {
       const stateCode = states[slot];
       if (stateCode !== STAGE1_SEQ_STATE.UNUSED && stateCode !== STAGE1_SEQ_STATE.COMMITTED) {
-        return startSeq + slot;
+        return orderedSeqs[slot];
       }
       slot += 1;
     }
@@ -448,6 +457,9 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
       throw error;
     }
     assertLegalTransition(seq, nextState);
+    if (nextState === STAGE1_SEQ_STATE.DISPATCHED && attempts[slot] === 65535) {
+      throw Object.assign(new Error(`Stage1 lease attempt counter exhausted for seq=${seq}.`), { code: 'STAGE1_SEQ_ATTEMPT_LIMIT' });
+    }
     const prior = states[slot];
 
     if (prior === STAGE1_SEQ_STATE.DISPATCHED) {
@@ -507,7 +519,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     leaseOwner[slot] = 0;
     leaseHeartbeat[slot] = 0;
     terminalReason[slot] = 0;
-    counters.nextCommitSeq = Math.min(counters.nextCommitSeq, startSeq + slot);
+    counters.nextCommitSeq = Math.min(counters.nextCommitSeq, orderedSeqs[slot]);
     return prior;
   };
 
@@ -541,7 +553,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
         : leaseExpiryMs;
       if (stateCode === STAGE1_SEQ_STATE.DISPATCHED && includeDispatched !== true) continue;
       if ((now - lastBeat) < graceMs) continue;
-      const seq = startSeq + slot;
+      const seq = orderedSeqs[slot];
       transition(seq, STAGE1_SEQ_STATE.TERMINAL_FAIL, {
         reasonCode: stateCode === STAGE1_SEQ_STATE.DISPATCHED ? 911 : 910,
         nowMs: now
@@ -588,6 +600,12 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
   };
 
   return {
+    sequenceIds: Object.freeze(orderedSeqs),
+    slotAtOrAfter,
+    nextExpectedSeq: seq => {
+      const slot = toSlot(seq);
+      return slot < 0 ? null : orderedSeqs[slot + 1] ?? null;
+    },
     states,
     attempts,
     leaseOwner,
