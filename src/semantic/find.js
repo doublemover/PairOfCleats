@@ -29,7 +29,8 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
       if(!page.refs.length){offset=page.offset;done=page.done;progressed=true;if(done)break;continue;}
       const ref=page.refs[0],[record]=await store.getRecords([ref],['span','scope','data'],{signal});
       if(!record)throw fail('ERR_SEMANTIC_INTEGRITY','Operation index refers to an absent node.');
-      const match={ref,category:request.selector.target?'target-candidate':'structural-candidate',scoreMeaning:request.selector.target?'Recorded compiler target candidate; inspect binding ambiguity and context.':'Exact syntax selector match; no similarity probability.',differences:[]};
+      const category=request.selector.target?'target-candidate':request.selector.field==='chunkUid'?'ownership-candidate':['sourcePath','sourceUnitId'].includes(request.selector.field)?'source-candidate':'structural-candidate';
+      const match={ref,category,scoreMeaning:category==='target-candidate'?'Recorded compiler target candidate; inspect binding ambiguity and context.':category==='ownership-candidate'?'Recorded primary or overlapping chunk ownership; no runtime or equivalence claim.':category==='source-candidate'?'Exact retained source identity/path match; no runtime or equivalence claim.':'Exact syntax selector match; no similarity probability.',differences:[]};
       if(seed){match.fingerprint=await fingerprintSemanticOperation({store,ref,signal,deadline});match.differences.push(!seed.hash||!match.fingerprint.hash?'comparison_unavailable':seed.hash===match.fingerprint.hash?'ordered_structure_hash_matches':'ordered_structure_hash_differs');if(!seed.complete||!match.fingerprint.complete)match.differences.push('comparison_incomplete');}
       const coverage=seenCoverage.has(ref.partitionId)?[]:await store.getCoverage([ref.partitionId],{signal});
       const previousExtraction=result.coverage.extraction.length,previousAnalysis=result.coverage.analysis.length;

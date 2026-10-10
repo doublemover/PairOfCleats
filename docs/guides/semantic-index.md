@@ -248,7 +248,8 @@ and publishes a new immutable family when its projection changes.
 
 The experimental registered `semantic-find` and `semantic-explain` operations remain
 qualification pending. Find uses
-exact AST/operator/invocation selectors or a recorded target candidate, and can compare
+exact AST/operator/invocation selectors, sourcePath/sourceUnitId selectors, chunkUid
+ownership selectors or a recorded target candidate, and can compare
 bounded ordered syntax. Literal/name/type/effect gaps are explicit; a matching structural
 hash does not establish equivalent behavior. Cursors bind the exact generation, store
 inventory and request. Explain returns static evidence classes and cited producer methods.
@@ -258,7 +259,14 @@ pairofcleats semantic find --request find.json --all
 pairofcleats semantic explain --request explain.json --all
 ```
 
-Find requests select an exact AST kind/operator/invocation kind or recorded target.
+Find requests select an exact AST kind/operator/invocation kind, recorded target,
+retained source path/identity or chunk UID. Source selection includes operations with
+no chunk owner; chunk selection includes both primary and overlapping ownership.
+For example, `selector: {"field":"chunkUid","value":"<search-hit chunkUid>"}`
+resolves exact operation references without clients scanning the fact index.
+The derived operation index is now version 2 and requires rebuilding older indexes;
+canonical source/fact identities do not change. Source and ownership candidates
+are distinguished from structural/target candidates and imply no equivalence.
 Explain requests use the trace request shape. Find/trace/explain can explicitly choose
 `backend: "artifact"` or `"sqlite"`; SQLite opens only the requested immutable
 generation's `index-sqlite/index-code.db`, with no mutable-path fallback. Explain

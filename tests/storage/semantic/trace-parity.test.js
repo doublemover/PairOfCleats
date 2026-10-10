@@ -48,7 +48,7 @@ try {
   ]));
   const analysis = await edgeSink.finalizeSource(), partitions = [syntax, analysis], base = fixture.store(partitions);
   const index = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
-  const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
+  const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, operationIndex, queryIndex: index });
   db = new Database(':memory:'); db.pragma('user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
   db.exec('BEGIN'); for (const descriptor of partitions) await ingestSemanticPartition({ db, store: base, descriptor }); db.exec('COMMIT');
