@@ -188,6 +188,16 @@ export const renderCompositeContextPack = (payload) => {
   if (payload?.risk) {
     sections.push(renderRiskSection(payload));
   }
+  if (payload?.semantic) {
+    const section = payload.semantic;
+    sections.push(['Semantic evidence (' + section.status + ')',
+      'Repository: ' + section.repoRoot,
+      'Generation: ' + (section.generation?.baseBuildId || 'unavailable'),
+      'Operations: ' + (section.discovery?.records.length || 0) + '; ordered operands: ' + (section.detail?.operands.length || 0) + '; witness edges: ' + (section.trace?.edges.length || 0),
+      ...section.warnings.map(warning => '- ' + warning),
+      'Exact records, retained excerpts and generation-pinned follow-up requests are included in JSON.'
+    ].join('\n'));
+  }
   sections.push(renderEvidence(payload));
   sections.push(renderTruncation(payload));
   sections.push(renderWarnings(payload));

@@ -1,3 +1,10 @@
+import { buildSemanticContextSection } from '../../../src/context-pack/semantic.js';
+import { createSemanticDetailService } from '../../../src/semantic/detail.js';
+import { createSemanticTraceService } from '../../../src/semantic/trace.js';
+import { SEMANTIC_CONTEXT_SCHEMA } from '../../../src/contracts/schemas/semantic-context.js';
+import { compileSchema, createAjv } from '../../../src/shared/validation/ajv-factory.js';
+import { attachSemanticContextSection } from '../../../src/context-pack/assemble/finalize.js';
+import { buildContextPackRequestInput, buildCliContextPackRequestInput } from '../../../src/shared/context-pack-request.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
@@ -31,7 +38,8 @@ try {
     entries: operationIndexEntries(base, [partition]), compareRows: compareOperationIndexRows,
     keyForRow: row => row, validateIndex: assertSemanticOperationIndex,
     schemaVersion: 2, directoryPrefix: 'semantic-operation-index-', batchRows: 3, batchBytes: 4096 });
-  const artifact = fixture.store([partition], { operationIndex: index });
+  const queryIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions: [partition], store: base, diskAccount: fixture.account });
+  const artifact = fixture.store([partition], { operationIndex: index, queryIndex });
   db.exec('PRAGMA user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
   db.exec('BEGIN'); await ingestSemanticPartition({ db, store: base, descriptor: partition }); db.exec('COMMIT');
   db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(fixture.generation));
@@ -58,6 +66,25 @@ try {
     assert.deepEqual(await discover(artifact, selector), expected);
     assert.deepEqual(await discover(sqlite, selector), expected);
   }
+  const findService = createSemanticFindService(), detailService = createSemanticDetailService(), traceService = createSemanticTraceService();
+  const options = { repoRoot: fixture.root, indexDir: fixture.stagingRoot, primary: { ref: { chunkUid: 'chunk-a' } },
+    openStore: async () => ({ store: artifact }),
+    find: request => findService({ store: artifact, request }),
+    detail: request => detailService({ store: artifact, request }),
+    trace: request => traceService({ store: artifact, request }) };
+  const section = await buildSemanticContextSection(options);
+  const ajv = createAjv({ allErrors: true, strict: true }), validate = compileSchema(ajv, SEMANTIC_CONTEXT_SCHEMA);
+  assert.ok(validate(section), ajv.errorsText(validate.errors));
+  assert.equal(section.status, 'partial'); assert.deepEqual(section.discovery.records.map(row => row.id), [0, 1]);
+  assert.equal(section.excerpts[0].text, 'first()');
+  assert.ok(section.followUps.every(row => row.request.repoRoot === fixture.root && row.request.generation.baseBuildId === fixture.generation.baseBuildId));
+  assert.ok(Buffer.byteLength(JSON.stringify(section)) <= 65536);
+  assert.equal(attachSemanticContextSection({ evidence: { complete: true } }, section).evidence.complete, false);
+  assert.equal(buildContextPackRequestInput({ includeSemantic: true }).includeSemantic, true);
+  assert.equal(buildCliContextPackRequestInput({ includeSemantic: true }).includeSemantic, true);
+  const missing = await buildSemanticContextSection({ ...options, openStore: async () => { throw Object.assign(new Error('missing'), { code: 'ERR_SEMANTIC_UNAVAILABLE' }); } });
+  assert.equal(missing.status, 'unavailable'); assert.ok(validate(missing));
+  await assert.rejects(buildSemanticContextSection({ ...options, openStore: async () => { throw Object.assign(new Error('corrupt'), { code: 'ERR_SEMANTIC_INTEGRITY' }); } }), { code: 'ERR_SEMANTIC_INTEGRITY' });
   assert.throws(() => assertSemanticOperationIndex({ ...index, schemaVersion: 1 }), /Invalid semantic operation index/);
   console.log('Indexed chunk overlap and zero-chunk source discovery parity passed');
 } finally { native.close(); await fixture.cleanup(); }
