@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { prepareTestCacheDir } from './test-cache.js';
 
 const toManifestPath = (value) => String(value || '').replace(/\\/g, '/');
@@ -24,6 +25,7 @@ export const writePiecesManifest = async (
     }))
     : [];
   const manifest = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey,
     pieces: normalizedPieces
   };

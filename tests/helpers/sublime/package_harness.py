@@ -365,6 +365,9 @@ class PackageHarnessTests(unittest.TestCase):
         opened = self.window.opened_files[-1]['path']
         self.assertIn('src/index.js', opened.replace('\\', '/'))
 
+    def test_package_harness_analysis_workflows(self):
+        self.index.PairOfCleatsIndexBuildCodeCommand(self.window).run(stage='stage1')
+
         _trace('step architecture-check start')
         self.analysis.PairOfCleatsArchitectureCheckCommand(self.window).run(rules_path=self.rules_path)
         _trace('step architecture-check done')
@@ -395,6 +398,9 @@ class PackageHarnessTests(unittest.TestCase):
         self.assertIn('PairOfCleats suggest tests', analysis_panel.appended)
         suggest_session = self.results_state.get_last_analysis(self.window, 'suggest-tests')
         self.assertEqual(suggest_session['analysisKind'], 'suggest-tests')
+
+    def test_package_harness_workspace_workflows(self):
+        self.index.PairOfCleatsIndexBuildCodeCommand(self.window).run(stage='stage1')
 
         _trace('step workspace-manifest start')
         self.analysis.PairOfCleatsWorkspaceManifestCommand(self.window).run(workspace_path=self.workspace_path)

@@ -120,7 +120,12 @@ export const applyTestEnv = ({
     'PAIROFCLEATS_TEST_ALLOW_MISSING_COMPAT_KEY',
     'PAIROFCLEATS_TEST_LANE',
     'PAIROFCLEATS_TEST_ID',
-    'PAIROFCLEATS_TESTING'
+    'PAIROFCLEATS_TESTING',
+    // Retain launch-selected authority and resource limits in fixture subprocesses.
+    'PAIROFCLEATS_TRUSTED_CONFIG',
+    'PAIROFCLEATS_WORKER_POOL',
+    'PAIROFCLEATS_THREADS',
+    'PAIROFCLEATS_BUNDLE_THREADS'
   ]);
   for (const key of Object.keys(env)) {
     if (!key.startsWith('PAIROFCLEATS_')) continue;
