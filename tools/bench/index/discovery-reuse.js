@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import { buildFileMeta } from '../../../src/index/build/artifacts/file-meta.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { buildFileMeta } = await import('../../../src/index/build/artifacts/file-meta.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const fileCount = Number(args.files) || 10000;

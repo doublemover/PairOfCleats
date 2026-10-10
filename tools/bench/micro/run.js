@@ -1,10 +1,12 @@
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
-import { parseCommaList } from '../../../src/shared/comma-list.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
-import { getIndexDir, resolveRepoRoot, resolveToolRoot } from '../../shared/dict-utils.js';
-import { formatMs, formatStats, writeJsonWithDir } from './utils.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { createSqliteDbCache } = await import('../../../src/retrieval/sqlite-cache.js');
+const { parseCommaList } = await import('../../../src/shared/comma-list.js');
+const { hasChunkMetaArtifactsSync } = await import('../../../src/shared/artifact-io/chunk-meta-presence.js');
+const { getIndexDir, resolveRepoRoot, resolveToolRoot } = await import('../../shared/dict-utils.js');
+const { formatMs, formatStats, writeJsonWithDir } = await import('./utils.js');
 
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');

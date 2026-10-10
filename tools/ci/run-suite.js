@@ -1,15 +1,17 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCli } from '../../src/shared/cli.js';
-import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { getEnvConfig } from '../../src/shared/env/runtime.js';
-import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
-import { resolveLocalToolingBinDirs } from '../../src/shared/tooling-bin-dirs.js';
-import { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
-import { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } from '../tooling/utils.js';
-import { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } from './usr/guardrails.js';
+const { createCli } = await import('../../src/shared/cli.js');
+const { isDirectExecution } = await import('../../src/shared/direct-execution.js');
+const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
+const { spawnSubprocess } = await import('../../src/shared/subprocess/runner.js');
+const { resolveLocalToolingBinDirs } = await import('../../src/shared/tooling-bin-dirs.js');
+const { getRuntimeConfig, getToolingDir, loadUserConfig, resolveRuntimeEnv } = await import('../shared/dict-utils.js');
+const { buildTestRuntimeEnv, normalizeEnvPathKeys, prependPathEntries } = await import('../tooling/utils.js');
+const { USR_GUARDRAIL_GATES, validateUsrGuardrailGates } = await import('./usr/guardrails.js');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');

@@ -1,20 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile, writeJsonLinesFileAsync } from '../../../src/shared/json-stream/jsonl-write.js';
-import { sha1File } from '../../../src/shared/hash.js';
-import {
-  createSeededRng,
-  parseSimpleBenchArgs,
-  pickRandom,
-  resolveCompareMode
-} from '../shared.js';
-import {
-  createPeakTracker,
-  formatBenchResult,
-  runCompareBench
-} from './streaming-bench-reporting.js';
+const { writeJsonLinesFile, writeJsonLinesFileAsync } = await import('../../../src/shared/json-stream/jsonl-write.js');
+const { sha1File } = await import('../../../src/shared/hash.js');
+const { createSeededRng, parseSimpleBenchArgs, pickRandom, resolveCompareMode } = await import('../shared.js');
+const { createPeakTracker, formatBenchResult, runCompareBench } = await import('./streaming-bench-reporting.js');
 
 const args = parseSimpleBenchArgs();
 const rowCount = Number(args.rows) || 50000;

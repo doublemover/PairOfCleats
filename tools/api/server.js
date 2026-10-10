@@ -1,19 +1,21 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import http from 'node:http';
 import path from 'node:path';
-import { createCli } from '../../src/shared/cli.js';
-import { SERVICE_API_OPTIONS } from '../../src/shared/cli-options.js';
-import { parseCommaList } from '../../src/shared/comma-list.js';
-import { resolveRepoRootArg } from '../shared/dict-utils.js';
-import { getMetricsRegistry } from '../../src/shared/metrics/core.js';
-import { createApiRouter } from './router.js';
-import { configureServiceLogger } from '../service/logger.js';
-import { getEnvSecrets } from '../../src/shared/env/runtime.js';
-import {
+const { createCli } = await import('../../src/shared/cli.js');
+const { SERVICE_API_OPTIONS } = await import('../../src/shared/cli-options.js');
+const { parseCommaList } = await import('../../src/shared/comma-list.js');
+const { resolveRepoRootArg } = await import('../shared/dict-utils.js');
+const { getMetricsRegistry } = await import('../../src/shared/metrics/core.js');
+const { createApiRouter } = await import('./router.js');
+const { configureServiceLogger } = await import('../service/logger.js');
+const { getEnvSecrets } = await import('../../src/shared/env/runtime.js');
+const {
   evaluateApiTrustBoundary,
   formatApiTrustBoundarySummary,
   validateApiTrustBoundary
-} from './trust-boundary.js';
+} = await import('./trust-boundary.js');
 
 const argv = createCli({
   scriptName: 'api-server',

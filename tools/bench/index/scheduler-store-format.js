@@ -1,15 +1,17 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
-import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
-import { loadChunkMeta } from '../../../src/shared/artifact-io/loaders.js';
-import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-import { mergeConfig } from '../../../src/shared/config.js';
-import { getRepoId } from '../../shared/dict-utils.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
-import { parseSimpleBenchArgs, percentile } from '../shared.js';
+const { MAX_JSON_BYTES } = await import('../../../src/shared/artifact-io/constants.js');
+const { readJsonFile } = await import('../../../src/shared/artifact-io/json.js');
+const { loadChunkMeta } = await import('../../../src/shared/artifact-io/loaders.js');
+const { resolveVersionedCacheRoot } = await import('../../../src/shared/cache-roots.js');
+const { mergeConfig } = await import('../../../src/shared/config.js');
+const { getRepoId } = await import('../../shared/dict-utils.js');
+const { spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
+const { parseSimpleBenchArgs, percentile } = await import('../shared.js');
 
 const average = (values) => (
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0
