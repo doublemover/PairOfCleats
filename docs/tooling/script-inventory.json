@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T08:56:18.652Z",
+  "generatedAt": "2026-10-10T09:11:51.006Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -338,6 +338,11 @@
       "command": "pairofcleats search",
       "summary": "Query indexed data.",
       "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats semantic detail",
+      "summary": "Inspect exact semantic records and related syntax in a pinned generation.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats service api",

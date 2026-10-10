@@ -40,6 +40,10 @@ export const loadIncrementalPlan = async ({
   });
   if (incrementalState?.manifest) {
     normalizeIncrementalEmbeddingCoverageManifest(incrementalState.manifest);
+    const semanticEnabled = mode === 'code' && runtime.semanticPolicy?.enabled === true;
+    if (Boolean(incrementalState.manifest.semanticEnabled) !== semanticEnabled) incrementalState.artifactNeedsRebuild = true;
+    incrementalState.manifest.semanticEnabled = semanticEnabled;
+    incrementalState.manifest.semanticGeneration = { baseBuildId: runtime.buildId, semanticRevision: 0 };
     if (mode === 'records') {
       setRecordsIncrementalCapability(incrementalState.manifest, true);
     }
@@ -50,7 +54,7 @@ export const loadIncrementalPlan = async ({
     reporter: cacheReporter
   });
   let reused = false;
-  if (incrementalState?.enabled && !incrementalState.artifactNeedsRebuild) {
+  if (incrementalState?.enabled && !incrementalState.artifactNeedsRebuild && !runtime.semanticPolicy?.enabled) {
     const reuse = await shouldReuseIncrementalIndex({
       outDir,
       entries,

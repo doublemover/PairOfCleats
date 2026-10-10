@@ -3,9 +3,10 @@ import { SEMANTIC_MEMBER_NAMES } from '../../../contracts/schemas/semantic-envel
 import { canonicalSemanticJson, semanticHash } from '../../../index/semantic/identity.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
+import { assertSemanticTask } from '../../../contracts/validators/semantic-task.js';
 
 const TABLES = ['semantic_records', 'semantic_operands', 'semantic_edges',
-  'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_analysis'];
+  'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_frontier', 'semantic_analysis'];
 let savepointSequence = 0;
 
 /**
@@ -17,11 +18,6 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
   if (!db.inTransaction) throw new Error('Semantic ingestion requires a caller-owned transaction.');
   assertSemanticEnvelope('partition', descriptor);
   const partitionId = descriptor.partitionId;
-  for (const member of ['semantic_frontier']) {
-    if (descriptor.members[member].some((piece) => piece.count !== 0)) {
-      throw new Error('Semantic SQLite ingestion does not yet support nonempty ' + member + '.');
-    }
-  }
   const memberHashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, createHash('sha256')]));
   const readRows = async function* (member) {
     let count = 0;
@@ -81,6 +77,12 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
     const insertLookup = db.prepare('INSERT INTO semantic_lookup VALUES (?, ?, ?, ?)');
     for await (const row of readRows('semantic_lookup')) {
       insertLookup.run(partitionId, row.id, row.kind, canonicalSemanticJson(row));
+    }
+    const insertTask = db.prepare('INSERT INTO semantic_frontier VALUES (?, ?, ?)');
+    for await (const row of readRows('semantic_frontier')) {
+      assertSemanticTask(row);
+      if (!row.sourceUnits.includes(descriptor.sourceUnitId)) throw new Error('Semantic task source/partition mismatch.');
+      insertTask.run(partitionId, row.taskId, canonicalSemanticJson(row));
     }
     const hashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, memberHashes[name].digest('hex')]));
     const canonicalHash = semanticHash('pairofcleats.semantic.partition-content.v1', {

@@ -1,6 +1,7 @@
+import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.4.1';
+export const MCP_SCHEMA_VERSION = '1.4.2';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -54,6 +55,11 @@ const buildWorkspaceToolProperties = ({
  */
 export function getToolDefs(defaultModelId) {
   return [
+    {
+      name: 'semantic_detail',
+      description: 'Inspect exact semantic records, ordered operands, interned names and chunk ownership in an explicit immutable generation. Supports bounded paging; analysis coverage may remain unsupported.',
+      inputSchema: SEMANTIC_DETAIL_REQUEST_SCHEMA
+    },
     {
       name: 'index_status',
       description: 'Return cache and index status for a repo path.',

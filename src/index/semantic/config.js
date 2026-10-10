@@ -10,5 +10,6 @@ export const normalizeSemanticConfig = (value = {}) => ({
   execution: { deferredDrain: 'manual', afterIndexMaxMs: 30000, maxAttempts: 3, ...value.execution },
   storage: { batchRows: 4096, batchBytes: 1048576, maxQueuedBytes: 33554432,
     decodedCacheBytes: 67108864, targetPartBytes: 16777216, maxDiskWorkingSetBytes: 8589934592, ...value.storage },
+  query: { maxRecords: 128, maxRows: 512, maxBytes: 65536, maxWorkMs: 250, maxContinuations: 64, cursorTtlMs: 300000, ...value.query },
   publication: { base: 'publish-with-coverage', semantic: 'whole-generation', ...value.publication }
 });

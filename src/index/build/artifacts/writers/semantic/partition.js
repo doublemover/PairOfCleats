@@ -12,7 +12,7 @@ import { SEMANTIC_MEMBER_NAMES } from '../../../../../contracts/schemas/semantic
 
 const MEMBERS = Object.freeze({
   lookup: 'semantic_lookup', node: 'semantic_records', operand: 'semantic_operands', edge: 'semantic_edges',
-  coverage: 'semantic_coverage', ownership: 'semantic_ownership'
+  coverage: 'semantic_coverage', ownership: 'semantic_ownership', frontier: 'semantic_frontier'
 });
 const fail = (message, code = 'ERR_SEMANTIC_CONTRACT') => Object.assign(new Error(message), { code });
 const checkedBytes = (value) => {

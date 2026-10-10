@@ -12,6 +12,8 @@ import {
 } from '../../vector.js';
 import { deleteDocIds, updateTokenStats } from '../delete.js';
 import { validateSqliteDatabase } from '../validate.js';
+import { applyCachedSemanticPlan } from '../../semantic/from-cache.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 
 /**
  * Sentinel error used to convert transactional guard failures into
@@ -83,7 +85,7 @@ const allocateIncrementalDocId = ({
  * @param {object} input
  * @returns {{ok:true,insertedChunks:number,applyDurationMs:number,validationMs:number,transactionPhases:{deletes:boolean,inserts:boolean},tableRows:Record<string,number>}|{ok:false,skipReason:string,mutated:false}}
  */
-export const runIncrementalUpdatePhase = ({
+export const runIncrementalUpdatePhase = async ({
   db,
   outPath,
   mode,
@@ -107,7 +109,9 @@ export const runIncrementalUpdatePhase = ({
   orderedChanged,
   startDocId,
   recordDenseClamp,
-  vocabGrowthLimits
+  vocabGrowthLimits,
+  semanticPlan = null,
+  signal = null
 }) => {
   const {
     insertChunk,
@@ -144,6 +148,7 @@ export const runIncrementalUpdatePhase = ({
   };
   let validationMs = 0;
   let transactionApplied = false;
+  let ownsTransaction = false;
   let insertedChunks = 0;
   let nextDocId = Number.isFinite(startDocId) ? startDocId : 0;
   // Prefer ids freed by explicit file deletes before overflow ids from changed
@@ -430,14 +435,18 @@ export const runIncrementalUpdatePhase = ({
    * This intentionally wraps both phases in one transaction so any skip/error
    * rolls back *all* sqlite mutations, preserving the pre-incremental DB.
    */
-  const applyAtomicUpdate = db.transaction(() => {
-    applyDeletes();
-    applyInserts();
-  });
-
   try {
     const applyStart = performance.now();
-    applyAtomicUpdate();
+    if (db.inTransaction) throw new Error('Incremental update requires ownership of its outer transaction.');
+    db.exec('BEGIN IMMEDIATE');
+    ownsTransaction = true;
+    throwIfAborted(signal);
+    applyDeletes();
+    applyInserts();
+    await applyCachedSemanticPlan({ db, plan: semanticPlan, signal });
+    throwIfAborted(signal);
+    db.exec('COMMIT');
+    ownsTransaction = false;
     transactionApplied = true;
     const applyDurationMs = performance.now() - applyStart;
     return {
@@ -452,6 +461,7 @@ export const runIncrementalUpdatePhase = ({
       tableRows
     };
   } catch (err) {
+    if (ownsTransaction && db.inTransaction) db.exec('ROLLBACK');
     if (err instanceof IncrementalSkipError) {
       return { ok: false, skipReason: err.reason, mutated: false };
     }

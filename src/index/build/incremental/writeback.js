@@ -18,6 +18,7 @@ import {
 } from './autotune.js';
 import { shouldReuseExistingBundle } from './bundle-compare.js';
 import { normalizeIncrementalRelPath, resolvePrefetchedVfsRows } from './paths.js';
+import { persistSemanticCacheEntry } from './semantic-cache.js';
 import {
   pathExists,
   readBundleOrNull,
@@ -235,6 +236,8 @@ export async function writeIncrementalBundle({
   fileStat,
   fileHash,
   fileChunks,
+  semanticFactsRef = null,
+  semanticContext = null,
   parseCheckpoint = null,
   dependencySignatures = null,
   fileRelations,
@@ -248,6 +251,22 @@ export async function writeIncrementalBundle({
   fileEncodingConfidence = null
 }) {
   if (!enabled) return null;
+  let semanticCache = null;
+  if (semanticFactsRef) {
+    if (!semanticContext) throw new TypeError('Semantic bundle persistence requires its owning build context.');
+    semanticCache = await persistSemanticCacheEntry({
+      bundleDir, factsRef: semanticFactsRef, buildRoot: semanticContext.buildRoot,
+      dependencySignatures: semanticContext.dependencySignatures, diskAccount: semanticContext.diskAccount,
+      signal: semanticContext.signal
+    });
+    if (manifest) {
+      manifest.semanticEnabled = true;
+      manifest.semanticGeneration = semanticFactsRef.storage.generation;
+      manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
+    }
+  } else if (semanticContext) {
+    throw new Error('Semantic-enabled file cannot persist a bundle without complete source facts.');
+  }
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat);
   const bundle = {
     file: relKey,
@@ -310,6 +329,7 @@ export async function writeIncrementalBundle({
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
     return {
+      ...(semanticCache ? { semanticCache } : {}),
       dependencySignatures,
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,

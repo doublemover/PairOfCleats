@@ -26,6 +26,9 @@ export const validateSemanticPartitions = async ({ store, partitions, signal = n
           if (source || row.sourceUnitId !== partition.sourceUnitId) throw new Error('Invalid semantic source ownership.');
           source = row;
         }
+        if (member === 'semantic_frontier' && !row.sourceUnits.includes(partition.sourceUnitId)) {
+          throw new Error('Semantic frontier/source ownership mismatch.');
+        }
         if (member === 'semantic_records') {
           if (row.id !== nodeId++) throw new Error('Noncontiguous semantic node identity.');
           if (row.span && (!source || row.span[1] > source.textLength)) throw new Error('Semantic source range mismatch.');

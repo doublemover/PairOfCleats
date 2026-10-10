@@ -3,6 +3,10 @@ CREATE TABLE IF NOT EXISTS semantic_lookup (
   partition_id TEXT NOT NULL, local_id INTEGER NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL,
   PRIMARY KEY(partition_id, local_id)
 );
+CREATE TABLE IF NOT EXISTS semantic_frontier (
+  partition_id TEXT NOT NULL, task_id TEXT NOT NULL, payload TEXT NOT NULL,
+  PRIMARY KEY(partition_id, task_id)
+);
 
 CREATE TABLE IF NOT EXISTS semantic_sources (
   source_id TEXT PRIMARY KEY, byte_hash TEXT NOT NULL, payload TEXT NOT NULL
@@ -17,6 +21,10 @@ CREATE TABLE IF NOT EXISTS semantic_records (
   payload TEXT NOT NULL, PRIMARY KEY(partition_id, local_id)
 );
 CREATE INDEX IF NOT EXISTS semantic_records_kind ON semantic_records(record_kind, partition_id, local_id);
+CREATE INDEX IF NOT EXISTS semantic_occurrence_expression ON semantic_records(
+  partition_id, json_extract(payload,'$.data.expression.partitionId'),
+  json_extract(payload,'$.data.expression.localId')
+) WHERE record_kind='occurrence';
 CREATE TABLE IF NOT EXISTS semantic_operands (
   partition_id TEXT NOT NULL, parent_partition TEXT NOT NULL, parent_id INTEGER NOT NULL,
   slot TEXT NOT NULL, ordinal INTEGER NOT NULL, payload TEXT NOT NULL,

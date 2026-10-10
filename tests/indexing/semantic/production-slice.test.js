@@ -24,10 +24,18 @@ applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConf
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 try {
-  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none' });
+  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: true, 'stub-embeddings': true, 'scm-provider': 'none' });
+  const coldDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
+  const coldManifest = JSON.parse(await fs.readFile(path.join(coldDir, 'semantic_manifest.json'), 'utf8'));
+  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: true, 'stub-embeddings': true, 'scm-provider': 'none' });
   const outDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'semantic_manifest.json'), 'utf8'));
   assert.equal(manifest.partitions.length, 4);
+  assert.ok(manifest.partitions.every(partition => Object.values(partition.members).flat()
+    .every(piece => piece.path.startsWith('semantic-cache-'))), 'warm build must relocate durable cache parts rather than recollect syntax');
+  assert.notEqual(manifest.generation.baseBuildId, coldManifest.generation.baseBuildId);
+  assert.deepEqual(manifest.partitions.map(row => row.canonicalHash).sort(), coldManifest.partitions.map(row => row.canonicalHash).sort(),
+    'warm cache relocation preserves canonical facts');
   const store = createArtifactSemanticStore({ root: path.join(outDir, 'semantic'), repoRoot,
     artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions });
   let partition, tsPartition;
