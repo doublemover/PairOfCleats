@@ -1,3 +1,7 @@
+import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
+import path from 'node:path';
+import { createSemanticDiskAccount } from '../../artifacts/writers/semantic/partition.js';
+import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
 import {
@@ -956,6 +960,16 @@ export const processFiles = async ({
           if (!chunkUid || stateRef.chunkUidToFile.has(chunkUid)) continue;
           stateRef.chunkUidToFile.set(chunkUid, result.relKey);
         }
+      }
+      if (result.semanticFactsRef) {
+        if (!stateRef.semanticFactsByFile) stateRef.semanticFactsByFile = new Map();
+        stateRef.semanticFactsByFile.set(result.relKey, result.semanticFactsRef);
+        for (const entry of result.semanticSegmentFactsRefs || []) {
+          assertSemanticEnvelope('fileFactsRef', entry.factsRef);
+          stateRef.semanticFactsByFile.set(result.relKey + '#semantic-segment:' + entry.factsRef.sourceUnitId, entry.factsRef);
+        }
+        stateRef.semanticEvidenceArtifacts ||= [];
+        for (const artifact of result.semanticEvidenceArtifacts || []) if (!stateRef.semanticEvidenceArtifacts.some(entry => entry.path === artifact.path)) stateRef.semanticEvidenceArtifacts.push(artifact);
       }
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
@@ -2017,6 +2031,13 @@ export const processFiles = async ({
         : null;
       const { processFile } = createFileProcessor({
         root: runtimeRef.root,
+        semantic: runtimeRef.semanticPolicy?.enabled && mode === 'code' ? {
+          buildRoot: runtimeRef.buildRoot, policy: runtimeRef.semanticPolicy, stagingRoot: path.join(outDir, 'semantic'),
+          storage: { generation: { baseBuildId: runtimeRef.buildId, semanticRevision: 0 },
+            relativePath: path.relative(runtimeRef.buildRoot, path.join(outDir, 'semantic')).split(path.sep).join('/') },
+          repositoryNamespace: runtimeRef.repoId || getRepoId(runtimeRef.root),
+          diskAccount: state.semanticDiskAccount ||= createSemanticDiskAccount(runtimeRef.semanticPolicy.storage.maxDiskWorkingSetBytes)
+        } : null,
         mode,
         fileTextCache,
         treeSitterScheduler,

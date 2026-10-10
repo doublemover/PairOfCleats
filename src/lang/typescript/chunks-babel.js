@@ -1,4 +1,4 @@
-import { parseBabelAst } from '../babel-parser.js';
+import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
 import {
   extractTypeScriptInheritance,
   extractTypeScriptParamTypes,
@@ -25,7 +25,7 @@ function getBabelName(node) {
 }
 
 export function buildTypeScriptChunksFromBabel(text, options = {}) {
-  const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
+  const ast = prepareTypeScriptBabelSyntax(text, options);
   if (!ast || !Array.isArray(ast.body)) return null;
   const { buildSignature, buildMetaBase, addDeclaration, finish } = createTypeScriptChunkDeclarationSink(text);
   const buildFunctionMeta = (start, end, signature) => ({

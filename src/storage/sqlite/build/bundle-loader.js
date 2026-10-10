@@ -1,3 +1,4 @@
+import { restoreIndexFormatError } from '../../../shared/index-format-error.js';
 import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,7 +24,7 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
   return { maxOldGenerationSizeMb: oldGenMb };
 };
 
-export const createBundleLoader = ({ bundleThreads, workerPath }) => {
+export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = process.cwd() }) => {
   const bundleTaskTimeoutMs = 30_000;
   const useWorkers = Number.isFinite(bundleThreads) && bundleThreads > 1 && Boolean(workerPath);
   const pool = useWorkers && workerPath
@@ -60,7 +61,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
   };
 
   const loadBundleDirect = async (bundlePath, file) => {
-    const result = await readBundleFile(bundlePath);
+    const result = await readBundleFile(bundlePath, { repoRoot });
     if (!result.ok) {
       return {
         file,
@@ -91,7 +92,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
         if (pool && workerAvailable) {
           try {
             const result = await runWithTimeout(
-              () => pool.run({ bundlePath }),
+              () => pool.run({ bundlePath, repoRoot }),
               {
                 timeoutMs: bundleTaskTimeoutMs,
                 errorFactory: () => createTimeoutError({
@@ -101,13 +102,15 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
                 })
               }
             );
+            if (result?.formatError) throw restoreIndexFormatError(result.formatError);
             if (!result?.ok) {
               const reason = result?.reason || 'invalid bundle';
               return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${reason}` };
             }
             loadedShards.push(result.bundle);
             continue;
-          } catch {
+          } catch (error) {
+            if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
             await disableWorkerPool();
           }
         }
@@ -115,6 +118,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
         if (!loaded.ok) return loaded;
         loadedShards.push(...loaded.bundleShards);
       } catch (err) {
+        if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
         return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
       }
     }

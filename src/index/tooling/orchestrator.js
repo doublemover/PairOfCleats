@@ -1,3 +1,6 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
+import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
@@ -135,6 +138,7 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
     namespace: 'tooling-provider',
     version: TOOLING_PROVIDER_CACHE_KEY_VERSION,
     payload: {
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       schemaVersion: TOOLING_PROVIDER_CACHE_SCHEMA_VERSION,
       providerId,
       providerVersion,
@@ -212,6 +216,8 @@ const resolveProviderCachedExecution = async ({
         cachePath = null;
       } else {
         const { payload: cached } = readToolingCacheEntry(cachePath, TOOLING_PROVIDER_CACHE_READ_MAX_BYTES);
+        assertCurrentIndexFormat({ operation: 'resume', component: 'tooling provider cache',
+          foundVersion: cached?.cache?.artifactSurfaceVersion, repoRoot: ctx.repoRoot || process.cwd(), indexPath: cachePath });
         if (!isOwnedProviderCache(cached, path.basename(cachePath))) {
           cachePath = null;
         } else if (cached?.provider?.id === providerId
@@ -223,6 +229,7 @@ const resolveProviderCachedExecution = async ({
         }
       }
     } catch (error) {
+      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
       if (error?.code !== 'ENOENT') {
         observations.push({
           level: 'warn',
@@ -395,6 +402,7 @@ const buildDeterministicCachePayload = ({
   return {
     cache: {
       owner: 'pairofcleats',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       schemaVersion: TOOLING_PROVIDER_CACHE_SCHEMA_VERSION,
       key: cacheKey
     },
@@ -409,6 +417,7 @@ const buildDeterministicCachePayload = ({
       buildRoot: normalizeIdentityString(generation?.buildRoot),
       buildId: normalizeIdentityString(generation?.buildId)
     },
+    semanticFacts: output.semanticFacts == null ? null : assertSemanticEnvelope('provider', output.semanticFacts),
     byChunkUid: output.byChunkUid || {},
     byChunkId: output.byChunkId || {},
     diagnostics: buildCachedDiagnosticsEnvelope(output.diagnostics || null)
@@ -417,6 +426,7 @@ const buildDeterministicCachePayload = ({
 
 const normalizeCachedProviderOutput = (cached) => {
   if (!cached || typeof cached !== 'object') return null;
+  if (cached.semanticFacts != null) assertSemanticEnvelope('provider', cached.semanticFacts);
   return {
     ...cached,
     diagnostics: withDiagnosticsSource(
@@ -982,9 +992,11 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     providerIds,
     kinds: inputs?.kinds || null
   });
+  if (ctx.semanticSession && ctx.semanticLspSession) providerPlans.sort((a, b) => Number(b.provider?.id === 'typescript') - Number(a.provider?.id === 'typescript'));
   const merged = new Map();
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
+  const semanticFacts = [];
   const observations = [];
   const reuseObservations = [];
   const generation = resolveGenerationIdentity(ctx);
@@ -1056,9 +1068,9 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
 
   try {
     let cacheDir = null;
-    if (ctx?.cache?.enabled && ctx.cache.dir) {
+    if (!ctx.semanticSession && !ctx.semanticLspSession && ctx?.cache?.enabled && ctx.cache.dir) {
       try {
-        cacheDir = ensureToolingCacheDir(ctx.cache.dir);
+        cacheDir = ensureToolingCacheDir(path.join(ctx.cache.dir, 'format-' + ARTIFACT_SURFACE_VERSION));
       } catch (error) {
         observations.push({
           level: 'warn',
@@ -1203,6 +1215,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
               }
             }
           } catch (err) {
+            if (err?.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw err;
             providerOutcome = 'error';
             const errorMessage = String(err?.message || err || 'unknown provider failure');
             providerDiagnostics[providerId] = {
@@ -1228,6 +1241,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           providerOutcome = 'empty';
         } else {
           providerProgressPhase = 'merge';
+          if (output.semanticFacts != null) semanticFacts.push(assertSemanticEnvelope('provider', output.semanticFacts));
           providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
             source: outputFromCache ? 'cache-suppressed' : 'live',
             stripRuntime: outputFromCache
@@ -1408,6 +1422,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
 
     return {
       byChunkUid: merged,
+      semanticFacts,
       sourcesByChunkUid,
       diagnostics: providerDiagnostics,
       observations,

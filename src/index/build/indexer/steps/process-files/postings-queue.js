@@ -49,6 +49,9 @@ const resolvePayloadBytes = (result) => {
   const chunks = Array.isArray(result.chunks) ? result.chunks : null;
   let total = chunks ? measureJsonValueBytes(chunks) : 0;
   if (result.fileRelations) total += measureJsonValueBytes(result.fileRelations);
+  if (result.semanticFactsRef) total += measureJsonValueBytes(result.semanticFactsRef);
+  if (result.semanticSegmentFactsRefs) total += measureJsonValueBytes(result.semanticSegmentFactsRefs);
+  if (result.semanticEvidenceArtifacts) total += measureJsonValueBytes(result.semanticEvidenceArtifacts);
   if (result.vfsManifestRows) total += measureJsonValueBytes(result.vfsManifestRows);
   return Math.max(0, Math.floor(total));
 };

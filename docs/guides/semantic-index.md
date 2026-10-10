@@ -1,0 +1,273 @@
+# Semantic evidence indexing
+
+Semantic indexing is opt-in and uses artifact surface `0.1.0`, SQLite schema `15`
+and semantic schemas `1`. Older, newer, missing or mixed format markers are rejected
+with `ERR_INDEX_FORMAT_UNSUPPORTED`. Rebuild from source with:
+
+```sh
+pairofcleats index build --repo "<repoRoot>" --mode all
+```
+
+This writes a new generation; it does not migrate reduced older records or delete
+source files. Semantic indexing being disabled does not bypass the format gate.
+
+Enable the rich profile in the existing repository configuration:
+
+```json
+{"indexing":{"semantic":{"enabled":true,"profile":"rich"}}}
+```
+
+Source-owned JavaScript/TypeScript structure retains ordered arguments, constructors,
+object/array structure and UTF-16 source spans. The grouped TypeScript compiler
+supplies separately scoped binding evidence without requiring legacy type inference
+to be enabled. Aliases, repeated call occurrences and external declarations remain
+separate records. Local control flow retains mutable reaching definitions, merge
+values, branches, loops and exceptional routes. Resolved calls retain distinct
+return channels; context-insensitive channels and unsupported effects report partial
+coverage. Selected checker-matched typed-array and message-dispatch models remain
+conservative. A dispatch request is not
+proof of delivery, detachment, execution thread or actual runtime values.
+
+Allocation/field candidates retain const receiver alias identity and explicit writes.
+They are modeled dependencies, with unknown alias escape, getter, dynamic-key and
+write-order effects in coverage. Local return summaries respect explicit finally
+return/throw overrides; more complex completion alternatives remain conservative.
+
+With `enrichment.crossFileFlow: "eager"`, the existing compiler group can link a
+checker-authorized `new Worker(new URL("./worker.ts", import.meta.url))` to an exact
+retained entry source and modeled message consumers. Dynamic entry URLs remain
+unresolved. Generic serialization is a packing request; transfer and shared-storage
+requests remain separate, and none asserts delivery, detachment or a copied backing
+buffer. User-defined APIs with matching names do not receive platform models.
+
+## Detail and traces
+
+Requests must name the exact repository and generation, plus a semantic RecordRef.
+The generation and partition inventories are in `semantic_manifest.json` under the
+published mode index. Whole-generation publication uses `semanticRevision: 0`.
+Record references are `{ "partitionId": "sy1:<hash>", "localId": 0 }`; use a real
+published reference rather than the illustrative placeholder below.
+
+Save a detail request as JSON:
+
+```json
+{
+  "repoRoot": "<repoRoot>",
+  "generation": {"baseBuildId":"<buildId>","semanticRevision":0},
+  "refs": [{"partitionId":"sy1:<hash>","localId":0}],
+  "include": ["operands","names","ownership"]
+}
+```
+
+```sh
+pairofcleats semantic detail --request detail.json --all
+```
+
+Trace requests replace `refs` with `seed` and add `direction` (`upstream` or
+`downstream`). Optional `slot` selects an input argument or other named operand;
+optional `kinds` restricts semantic edges. Default value traversal does not treat a
+call dependency as value flow.
+
+```json
+{
+  "repoRoot":"<repoRoot>",
+  "generation":{"baseBuildId":"<buildId>","semanticRevision":0},
+  "seed":{"partitionId":"sy1:<hash>","localId":0},
+  "direction":"downstream",
+  "limits":{"records":128,"edges":512,"depth":4,"bytes":65536,"workMs":250}
+}
+```
+
+```sh
+pairofcleats semantic trace --request trace.json --all
+```
+
+The equivalent MCP operations are `semantic_detail` and `semantic_trace`; HTTP POST
+routes are `/analysis/semantic-detail` and `/analysis/semantic-trace`. CLI `--all`
+streams bounded JSONL pages in one process. Cursors are opaque, request- and
+generation-bound, and expire with their bounded service cache. Expired cursors
+return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
+Extraction, analysis and response coverage are separate. Query coverage carries
+partition provenance and retains incomplete evidence rather than claiming no path.
+
+## Deferred analysis and compiler admission
+
+Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`
+to retain a durable pending descriptor. `after-index` permits bounded work through
+the existing relations scheduler, with `execution.afterIndexMaxMs` as a cooperative
+allowance. Synchronous compiler calls cannot be forcibly interrupted by this timer.
+The `targeted` profile defers bindings and local flow unless explicitly overridden.
+
+Task state and leases live in a separate semantic frontier SQLite control database.
+Missing control-store capability leaves work deferred. Completion is acknowledged
+only after normal whole-generation promotion. Changing generations produces a new
+target request; old tasks are never retargeted by filename. Bindings, local flow and
+cross-file flow can be selected through the experimental manual enrichment service.
+Independent overlay publication and complete field/context-sensitive analysis are
+not available. Local and cross-file deferred tasks retain durable descriptors.
+Targeted LSP locations reuse the existing session independently of signature
+completeness. Embedded JS/TS source snapshots retain exact local-to-container maps;
+coarse or synthetic mappings do not claim exact bindings.
+
+The compiler closure includes full context-qualified input bytes/files, transitive
+imports, libraries and project counts. Configure build-wide admission under
+`indexing.semantic.execution.compilerAdmission`:
+
+```json
+{"maxFiles":10000,"maxBytes":134217728,"maxProjects":32,"maxResidentBytes":536870912,"measurementHeadroom":1.25,"maxReceiptAgeMs":604800000}
+```
+
+These defaults cap the planned closure and reserve up to 512 MiB for an explicitly
+requested unmeasured batch. This reservation is not an estimate of actual heap use
+or a hard process-memory limit. A matching complete measured receipt may instead
+reserve the observed process-wide RSS high-water mark with configured headroom,
+never less than the closure input bytes. The observation includes unrelated process
+memory and is not attributed solely to one Program. It does not guarantee future
+cost. Receipt identity pins closure/compiler/runtime/phase inputs; expired or
+incompatible measurements are unknown, not a measured zero. Unknown automatic cost
+stays deferred. Explicit eager/manual work still must fit all closure, allocation,
+scheduler memory-token and queue/global byte caps before Program construction.
+Admission is rechecked inside the leased scheduler callback; scheduler oversize-idle
+behavior does not waive compiler caps. Timers remain cooperative for synchronous
+compiler work.
+
+Save an explicit generation-pinned request using a real retained task ID:
+
+```json
+{"schemaVersion":1,"repoRoot":"<repoRoot>","generation":{"baseBuildId":"<buildId>","semanticRevision":0},"action":"plan","taskIds":["st1:<hash>"]}
+```
+
+```sh
+pairofcleats semantic enrichment --request enrichment.json
+```
+
+Omitting `action` means plan only. Set `action` to `enqueue` to retain pending work in
+the dedicated control store, or explicitly to `drain` to attempt supported selected
+phases. Enqueue does not execute a compiler. Drain requires sealed compiler/config/
+module-resolution authority and exact source/dependency hashes; unavailable authority
+or over-budget admission leaves work pending. A successful drain publishes a fresh
+whole generation through the normal builder, then acknowledges receipts and retains
+old/new task lineage. The builder may rediscover/reparse source; targeted parse reuse
+is not promised. Source changes are rejected rather than completing an old task
+against new input. Experimental public surfaces remain qualification pending.
+
+## Saved runtime evidence
+
+Import existing evidence explicitly; importing never runs a workload or attaches a
+collector:
+
+```sh
+pairofcleats ingest runtime-evidence --specification import.json --out evidence-dir
+```
+
+The specification contains strict `capture`, `authority`, `inputs`, `sourceCandidates`
+and `importOptions` contracts. See the authoritative runtime-evidence schemas and
+`tests/helpers/runtime-import-fixture.js` for a complete saved-fixture example.
+Inputs resolve relative to the specification file. `importOptions.maxDiskWorkingSetBytes`
+bounds storage; the capture's `diskReserveBytes` separately preserves free disk.
+
+Supported adapters are saved Inspector CPU profiles and versioned
+`pairofcleats-code-log` interchange records. The latter is not a general parser for
+arbitrary V8 diagnostic text. Missing source hashes, unsupported fields and ambiguous
+joins stay explicit. Raw artifacts are content-addressed and normalized projections
+publish as a standalone immutable family. These are not source-index overlays, and
+runtime lookup is separate from semantic trace.
+
+Discover retained families, then query explicit immutable generation IDs:
+
+```sh
+pairofcleats runtime families --request runtime-families.json --all
+pairofcleats runtime lookup --request runtime-query.json --all
+```
+
+Discovery requests contain `schemaVersion: 1`, `repoRoot`, `destination`,
+`limits: {maxFamilies, maxScan, maxBytes, maxMs}` and `cursor: null`. A lookup request
+contains `schemaVersion: 1`, `repoRoot`, `destination` and `request`, the strict runtime
+query contract in `src/contracts/schemas/runtime-query.js`. Destinations resolve
+relative to the repository and must remain within it or its configured repository
+cache after resolving symlinks and junctions.
+
+The nested query pins `repositoryNamespace`, the source `generation` and
+`familyGenerations`. Selectors match capture IDs, executable/version/platform,
+workload fingerprint and phase, session/process/isolate/worker, exact source hashes,
+source record references and exact code lifetimes. Empty selector lists impose no
+filter; nullable selectors use `null`. The library exports
+`defaultRuntimeQuerySelectors()` and `DEFAULT_RUNTIME_QUERY_LIMITS`; the latter uses
+32 records, 64 KiB and 250 ms. Every request supplies limits and `cursor: null` for
+the first page. Opaque continuation cursors bind those exact selectors, limits and
+family generations. `--all` streams bounded pages without launching a capture.
+
+MCP exposes `runtime_families` and `runtime_evidence`; HTTP POST routes are
+`/analysis/runtime-families` and `/analysis/runtime-evidence`. All surfaces share the
+same destination boundary and saved-family service. Results separate observations
+from derived claims and provide explanations and plan-only next-observation
+proposals. Capture coverage and source-join counts remain explicit: a complete CPU
+profile does not establish an exact source mapping. Current saved adapters project
+direct observations; general causal derived-claim projection is explicitly unsupported.
+Sampling does not prove all
+executions or call counts. Native listing hashes from the custom interchange retain
+their exact code lifetimes; lookup does not claim arbitrary V8 native-log support.
+
+Saved capture comparisons and derived claims use separate strict schema1 requests
+in `src/contracts/schemas/runtime-claims.js`:
+
+```sh
+pairofcleats runtime compare --request runtime-compare.json
+pairofcleats runtime claims --request runtime-claims.json --all
+```
+
+The comparison service wrapper contains `schemaVersion: 1`, `repoRoot`, `destination`
+and `request`. Its request pins `repositoryNamespace`, source `generation`,
+`leftFamily`, `rightFamily`, exact `sources`, bounded `limits` and explicit `persist`.
+Compatibility requires the same source inventory, build, runtime, workload fingerprint,
+input shape, phase, instrumentation, scope and clock. Differences produce explicit
+incompatibility reasons. Supported comparisons describe exact-source CPU sample
+counts; they do not infer rates, call counts, equal code versions, timing alignment,
+performance improvements or causality. Next-observation proposals require separate
+authorization before any new collection or execution.
+
+With `persist: true`, complete derived claim records and their supporting/contradicting
+observation citations are saved as an immutable family under `claims/<claimGeneration>`.
+The separate `claims/current.json` convenience pointer never changes the imported
+observation pointer or source index. Lookup pins `claimGeneration`, source generation,
+namespace, limits and cursor. It verifies cited observations and retained raw hashes
+on every request; missing or tampered support is an error. Prior claim families remain
+available. MCP tools are `runtime_compare` and `runtime_claims`; HTTP POST routes are
+`/analysis/runtime-compare` and `/analysis/runtime-claims`. All surfaces use the same
+repository destination authority and bounded service. General causal inference remains
+unsupported.
+
+Queries verify the manifest, registered lookup index, offset table and hydrated row
+hashes. They do not read every raw artifact on each request; that distinction is
+reported in the result's integrity fields. All imported generation directories are
+retained, so lookup is not restricted to the latest convenience pointer. Families
+without the versioned lookup index return an explicit unavailable/reingest error;
+discovery labels those same-format retained families `unavailable-reingest` while
+still listing available families. There is no old-format lookup fallback or migration. Reingestion preserves the saved inputs
+and publishes a new immutable family when its projection changes.
+
+The experimental registered `semantic-find` and `semantic-explain` operations remain
+qualification pending. Find uses
+exact AST/operator/invocation selectors or a recorded target candidate, and can compare
+bounded ordered syntax. Literal/name/type/effect gaps are explicit; a matching structural
+hash does not establish equivalent behavior. Cursors bind the exact generation, store
+inventory and request. Explain returns static evidence classes and cited producer methods.
+
+```sh
+pairofcleats semantic find --request find.json --all
+pairofcleats semantic explain --request explain.json --all
+```
+
+Find requests select an exact AST kind/operator/invocation kind or recorded target.
+Explain requests use the trace request shape. Find/trace/explain can explicitly choose
+`backend: "artifact"` or `"sqlite"`; SQLite opens only the requested immutable
+generation's `index-sqlite/index-code.db`, with no mutable-path fallback. Explain
+returns source-unit/hash pins and bounded exact task suggestions containing separate
+plan and enqueue requests; suggestions never execute automatically. Completed task
+receipts resolve old deferred markers only when actual same-source/phase output exists;
+actual partial coverage remains partial.
+
+MCP names are `semantic_find`, `semantic_explain`, `semantic_enrichment`; corresponding
+HTTP POST paths are `/analysis/semantic-find`, `/analysis/semantic-explain`,
+`/analysis/semantic-enrichment`. CLI/MCP/HTTP share strict request and repository scope
+checks. Structural similarity and modeled paths are not proof of equivalent behavior.

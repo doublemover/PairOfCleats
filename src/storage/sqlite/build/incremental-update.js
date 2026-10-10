@@ -1,6 +1,7 @@
+import { assertSqliteIndexFormat } from '../index-format.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
-import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
+import { REQUIRED_TABLES } from '../schema.js';
 import {
   checkpointSqliteWithTelemetry,
   createSqliteTableStatRecorder,
@@ -16,10 +17,10 @@ import { createUint8ClampStats } from '../vector.js';
 import { resolveQuantizationParams } from '../quantization.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { createInsertStatements } from './statements.js';
-import { getSchemaVersion } from './validate.js';
 import { resolveIncrementalChangePlan, loadBundlesAndCollectState } from './incremental-update/planner.js';
 import { createIncrementalDocIdResolver } from './incremental-update/doc-id-resolver.js';
 import { runIncrementalUpdatePhase } from './incremental-update/update-phase.js';
+import { prepareCachedSemanticPlan } from '../semantic/from-cache.js';
 
 const MAX_INCREMENTAL_CHANGE_RATIO = 0.35;
 const MAX_INCREMENTAL_CHANGE_RATIO_BY_MODE = {
@@ -115,7 +116,9 @@ export async function incrementalUpdateDatabase({
   batchSize,
   buildPragmas,
   stats,
-  ftsVariants = []
+  ftsVariants = [],
+  signal = null,
+  repoRoot = process.cwd()
 }) {
   const warn = (message) => {
     if (!emitOutput || !message) return;
@@ -151,6 +154,7 @@ export async function incrementalUpdateDatabase({
   if (!incrementalData?.manifest) {
     return { used: false, reason: 'missing incremental manifest' };
   }
+  const semanticPlan = await prepareCachedSemanticPlan({ incrementalData, repoRoot, signal });
   if (!fsSync.existsSync(outPath)) {
     return { used: false, reason: 'sqlite db missing' };
   }
@@ -162,6 +166,12 @@ export async function incrementalUpdateDatabase({
 
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
+  try {
+    assertSqliteIndexFormat({ db, operation: 'incremental-update', repoRoot, indexPath: outPath });
+  } catch (error) {
+    db.close();
+    throw error;
+  }
   // Establish cleanup ownership before any fallible initialization runs.
   let pragmaState = null;
   let pageSize = ingestPlan.pageSize;
@@ -221,13 +231,6 @@ export async function incrementalUpdateDatabase({
       walPressure: ingestPlan.walPressure,
       source: 'incremental'
     });
-    const schemaVersion = getSchemaVersion(db);
-    if (schemaVersion !== SCHEMA_VERSION) {
-      return {
-        used: false,
-        reason: `schema mismatch (db=${schemaVersion ?? 'unknown'}, expected=${SCHEMA_VERSION})`
-      };
-    }
 
     if (!hasRequiredTables(db, REQUIRED_TABLES)) {
       return { used: false, reason: 'schema missing' };
@@ -256,7 +259,7 @@ export async function incrementalUpdateDatabase({
       manifestUpdates,
       changeSummary
     } = changePlan;
-    if (!changed.length && !deleted.length && !manifestUpdates.length) {
+    if (!changed.length && !deleted.length && !manifestUpdates.length && !semanticPlan) {
       return { used: true, insertedChunks: 0, ...changeSummary };
     }
 
@@ -307,7 +310,7 @@ export async function incrementalUpdateDatabase({
     const updateFileManifest = db.prepare(
       'UPDATE file_manifest SET hash = ?, mtimeMs = ?, size = ? WHERE mode = ? AND file = ?'
     );
-    if (!changed.length && !deleted.length) {
+    if (!changed.length && !deleted.length && !semanticPlan) {
       const updateTx = db.transaction(() => {
         for (const record of manifestUpdates) {
           const normalizedFile = record.normalized;
@@ -390,7 +393,7 @@ export async function incrementalUpdateDatabase({
     const startDocId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId + 1 : 0;
 
     let insertedChunks = 0;
-    const updateResult = runIncrementalUpdatePhase({
+    const updateResult = await runIncrementalUpdatePhase({
       db,
       outPath,
       mode,
@@ -414,7 +417,9 @@ export async function incrementalUpdateDatabase({
       orderedChanged,
       startDocId,
       recordDenseClamp,
-      vocabGrowthLimits: VOCAB_GROWTH_LIMITS
+      vocabGrowthLimits: VOCAB_GROWTH_LIMITS,
+      semanticPlan,
+      signal
     });
     if (!updateResult.ok) {
       /**

@@ -96,7 +96,7 @@ or build requirements. The interfaces and references are linked below.
 
 ## Quickstart
 
-The current install path is a source checkout with **Node.js 24.15.0 or newer**
+The current install path is a source checkout with **Node.js 26.x**
 and npm. Native dependencies may require a C/C++ toolchain and Python 3 when
 compatible prebuilt binaries are unavailable.
 

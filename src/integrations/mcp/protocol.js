@@ -1,3 +1,4 @@
+import { projectIndexFormatError } from '../../shared/index-format-error.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode, resolveErrorHint } from '../../shared/error-codes.js';
 import { closeJsonRpcWriter, writeFramedJsonRpc } from '../../shared/jsonrpc.js';
 
@@ -79,6 +80,12 @@ export function formatToolError(error) {
       payload.nativeCode = String(error.code);
     }
   }
+  const format = projectIndexFormatError(error);
+  if (format) {
+    Object.assign(payload, format);
+    payload.details = { ...format };
+    payload.hint = format.rebuildCommand;
+  }
   if (error?.stderr) payload.stderr = String(error.stderr).trim();
   if (error?.stdout) payload.stdout = String(error.stdout).trim();
   if (error?.timeoutMs) payload.timeoutMs = error.timeoutMs;
@@ -87,7 +94,7 @@ export function formatToolError(error) {
     message: payload.message,
     stderr: payload.stderr,
     stdout: payload.stdout,
-    hint: error?.hint
+    hint: payload.hint || error?.hint
   });
   return payload;
 }

@@ -88,6 +88,7 @@ export const buildEmbeddingsKey = (runtime) => {
 export const buildCompatibilityKey = ({ runtime, modes, tokenizationKeys }) => {
   const parsed = parseSemver(ARTIFACT_SURFACE_VERSION);
   const payload = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     artifactSurfaceMajor: parsed?.major ?? null,
     schemaHash: ARTIFACT_SCHEMA_HASH,
     tokenizationKeys: tokenizationKeys || {},
@@ -105,6 +106,7 @@ export const buildCohortKey = ({ runtime, mode, tokenizationKeys }) => {
   const parsed = parseSemver(ARTIFACT_SURFACE_VERSION);
   const normalizedMode = typeof mode === 'string' ? mode.trim() : '';
   const payload = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     artifactSurfaceMajor: parsed?.major ?? null,
     schemaHash: ARTIFACT_SCHEMA_HASH,
     tokenizationKey: normalizedMode

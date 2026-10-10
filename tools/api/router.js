@@ -1,3 +1,10 @@
+import { handleSemanticTraceRoute } from './router/semantic-trace.js';
+import { handleSemanticFindRoute } from './router/semantic-find.js';
+import { handleSemanticExplainRoute } from './router/semantic-explain.js';
+import { handleSemanticEnrichmentRoute } from './router/semantic-enrichment.js';
+import { handleRuntimeEvidenceRoute } from './router/runtime-evidence.js';
+import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
+import { handleSemanticDetailRoute } from './router/semantic.js';
 import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
 import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
@@ -265,6 +272,11 @@ export const createApiRouter = ({
       sendJson(res, 200, attachObservability({ ok: true, result: publicBody }, requestObservability), responseHeaders);
     } catch (err) {
       if (req.aborted || res.writableEnded || (!ignoreControllerAbort && controller.signal.aborted)) return;
+      const format = projectIndexFormatError(err);
+      if (format) {
+        sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, responseHeaders);
+        return;
+      }
       if (isNoIndexError(err)) {
         sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
           error: err?.message || String(err)
@@ -342,6 +354,29 @@ export const createApiRouter = ({
             error: err?.message || String(err)
           }, corsHeaders || {});
         }
+        return;
+      }
+
+      if (['/analysis/runtime-evidence', '/analysis/runtime-families', '/analysis/runtime-compare', '/analysis/runtime-claims'].includes(requestUrl.pathname) && req.method === 'POST') {
+        await handleRuntimeEvidenceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo,
+          operation: requestUrl.pathname.endsWith('runtime-compare') ? 'compare' : requestUrl.pathname.endsWith('runtime-claims') ? 'claims'
+            : requestUrl.pathname.endsWith('runtime-families') ? 'families' : 'lookup' });
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/semantic-trace' && req.method === 'POST') {
+        await handleSemanticTraceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
+        return;
+      }
+      if (req.method === 'POST' && ['/analysis/semantic-find','/analysis/semantic-explain','/analysis/semantic-enrichment'].includes(requestUrl.pathname)) {
+        const handler = requestUrl.pathname.endsWith('semantic-find') ? handleSemanticFindRoute
+          : requestUrl.pathname.endsWith('semantic-explain') ? handleSemanticExplainRoute : handleSemanticEnrichmentRoute;
+        await handler({req,res,corsHeaders,parseJsonBody,resolveRepo});
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/semantic-detail' && req.method === 'POST') {
+        await handleSemanticDetailRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 
@@ -522,6 +557,7 @@ export const createApiRouter = ({
           sendJson(res, 200, result, corsHeaders || {});
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
+          const format = projectIndexFormatError(err);
           const isNoIndex = isNoIndexError(err);
           const isClientError = isFederatedClientError(err);
           sendError(
@@ -608,7 +644,8 @@ export const createApiRouter = ({
           await sse.sendEvent('error', attachObservability({
             ok: false,
             code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
-            message: err?.message || 'Search failed.'
+            message: err?.message || 'Search failed.',
+            ...(format ? { ...format, details: format } : {})
           }, requestObservability));
           await sse.sendEvent('done', attachObservability({ ok: false }, requestObservability));
         }
@@ -635,6 +672,11 @@ export const createApiRouter = ({
       sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
     } catch (err) {
       if (res.writableEnded) return;
+      const format = projectIndexFormatError(err);
+      if (format) {
+        sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, corsHeaders || {});
+        return;
+      }
       sendError(
         res,
         500,

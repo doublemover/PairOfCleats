@@ -58,7 +58,8 @@ const addLink = (list, link) => {
   const status = ref?.status || '';
   const name = ref?.targetName || link?.name || '';
   const kind = link?.edgeKind || link?.role || '';
-  const key = `${kind}:${name}:${resolved}:${status}`;
+  const occurrence = link.callSiteRef ? JSON.stringify(link.callSiteRef) : Number.isSafeInteger(link.start) ? `${link.start}:${link.end}` : '';
+  const key = `${kind}:${name}:${resolved}:${status}:${occurrence}`;
   const keys = getLinkKeys(list);
   if (!keys || keys.has(key)) return;
   keys.add(key);
@@ -611,7 +612,7 @@ export async function runCrossFilePropagation({
           const detail = relations.callDetails[detailIndex];
           const callee = detail?.callee;
           if (!callee) continue;
-          const symbolRef = resolveSymbolRefCached({
+          const symbolRef = detail.compilerBinding?.symbolRef || resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file
@@ -624,6 +625,7 @@ export async function runCrossFilePropagation({
           const summary = {
             v: 1,
             name: callee,
+            start: detail.start ?? null, end: detail.end ?? null, callSiteRef: detail.semanticRecordRef || null,
             args,
             calleeRef: symbolRef || null,
             resolvedCalleeChunkUid: symbolRef?.resolved?.chunkUid || null

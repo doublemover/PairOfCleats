@@ -5,53 +5,77 @@ sqlite-vec) to execute ANN queries inside SQLite. This is optional and falls
 back to the JS ANN path when the extension or vector table is unavailable.
 
 ## Setup
-- Default provider: sqlite-vec (`vec0` module), but any compatible SQLite vector
-  extension can be configured.
-- Download a loadable extension binary for your platform.
-- Place it under the extensions cache (default `<cache>/extensions`), or point
-  `sqlite.vectorExtension.path` at the file.
-- Rebuild the SQLite indexes so the `dense_vectors_ann` table is created.
-`assets extensions` can read `sqlite.vectorExtension.downloads` keyed by
-`<platform>-<arch>` (for example, `win32-x64`).
-The download helper supports `.zip`, `.tar`, `.tar.gz`, and `.tgz` archives by
-extracting the extension binary (matching the configured filename or platform
-suffix).
-If `vectorExtension.path` is set, it overrides the `dir` + `filename` layout.
 
-Use the helper:
-```
-pairofcleats assets extensions --url vec0.dll=https://example.com/vec0.dll
-```
+Native loading requires a user-approved source URL and SHA256 digest in a
+user-owned configuration file outside every repository being indexed. An
+untrusted repository's `.pairofcleats.json` cannot grant native-loading authority.
+See [execution authority](../guides/execution-authority.md#configuration-sources).
+Keep this configuration in permanent user storage, rather than a temporary test
+file; select it through `PAIROFCLEATS_TRUSTED_CONFIG`.
 
-Verify the extension install (presence-only):
-```
-pairofcleats assets extensions-verify --no-load
-```
+For a new Windows x64 setup, the following PowerShell commands pin sqlite-vec
+v0.1.9's official loadable archive. If you already have trusted configuration or
+redirect origins, merge these entries into those settings instead of replacing
+them. Do not put the trusted file under a repository or commit the local binary.
 
-## Configuration
-```
-{
-  "sqlite": {
-    "vectorExtension": {
-      "annMode": "extension",
-      "provider": "sqlite-vec",
-      "dir": "C:/cache/pairofcleats/extensions",
-      "path": "",
-      "downloads": {
-        "win32-x64": { "url": "https://example.com/vec0.dll", "file": "vec0.dll" },
-        "darwin-arm64": { "url": "https://example.com/vec0.dylib", "file": "vec0.dylib" },
-        "linux-x64": { "url": "https://example.com/vec0.so", "file": "vec0.so" }
-      },
-      "table": "dense_vectors_ann",
-      "column": "embedding",
-      "encoding": "float32",
-      "options": ""
+```powershell
+$trustedConfig = Join-Path $env:LOCALAPPDATA 'PairOfCleats/config/trusted.json'
+if (Test-Path -LiteralPath $trustedConfig) {
+  throw 'Merge the sqlite.vectorExtension.downloads entry into the existing trusted config.'
+}
+New-Item -ItemType Directory -Path (Split-Path $trustedConfig) -Force | Out-Null
+$config = @{
+  sqlite = @{
+    vectorExtension = @{
+      downloads = @{
+        'win32-x64' = @{
+          url = 'https://github.com/asg017/sqlite-vec/releases/download/v0.1.9/sqlite-vec-0.1.9-loadable-windows-x86_64.tar.gz'
+          sha256 = '51581189d52066b4dfc6631f6d7a3eab7dedc2260656ab09ca97ab3fb8165983'
+        }
+      }
     }
   }
 }
+$config | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $trustedConfig
+$env:PAIROFCLEATS_TRUSTED_CONFIG = $trustedConfig
+$env:PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS = '["https://release-assets.githubusercontent.com"]'
+[Environment]::SetEnvironmentVariable('PAIROFCLEATS_TRUSTED_CONFIG', $trustedConfig, 'User')
+[Environment]::SetEnvironmentVariable('PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS', $env:PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS, 'User')
+node tools/config/validate.js --config $trustedConfig --json
+node tools/download/extensions.js --repo .
+node tools/sqlite/verify-extensions.js --repo . --load --json
 ```
-Use `vectorExtension.options` for extension-specific flags (for example, distance
-metric settings).
+
+User-level environment settings apply to newly launched terminals and apps. The
+`$env:` assignments also configure the current shell. The GitHub release-assets
+origin is an explicit redirect allowance; the archive's pinned SHA256 remains
+mandatory. The download helper verifies and registers the archive and extracted
+binary. Repeated installs reuse the registered binary only while its provenance
+and current hash match. The runtime rechecks integrity before native loading.
+
+`pairofcleats assets extensions` and `pairofcleats assets extensions-verify --load`
+are the installed CLI equivalents. `extensions-verify --no-load` checks artifact
+integrity without executing native code. The setup command also checks extension
+readiness using this same trusted configuration and registration.
+
+## Configuration
+
+- Default provider: sqlite-vec (`vec0` module).
+- `sqlite.vectorExtension.downloads` is keyed by `<platform>-<arch>`, such as
+  `win32-x64`. Each entry must name an immutable URL and approved SHA256 digest.
+- Other platforms require their own official archive and digest; the Windows
+  archive above cannot be used on macOS or Linux.
+- The helper supports `.zip`, `.tar`, `.tar.gz` and `.tgz` archives. It extracts
+  the configured filename or platform binary suffix into the extensions cache.
+- `sqlite.vectorExtension.path` overrides the `dir` + `filename` layout. Custom
+  paths and sources belong in the user-owned trusted file.
+- `annMode` defaults to `auto`; set it to `extension` to request the extension,
+  or `js` to select the JS path.
+- `table`, `column` and `encoding` default to `dense_vectors_ann`, `embedding`
+  and `float32`. Use `options` for supported extension-specific settings.
+
+Rebuild the SQLite indexes after installing the extension so the ANN table is
+created. Installation does not rebuild existing indexes.
 
 ## Build
 ```

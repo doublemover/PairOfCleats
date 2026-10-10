@@ -93,3 +93,5 @@ for (const testCase of cases) {
 }
 
 console.log('TypeScript contract matrix test passed');
+
+await import('./semantic-syntax.fixture.js');

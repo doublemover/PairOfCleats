@@ -149,6 +149,7 @@ export const createRepoCacheManager = ({
     const repoCacheRoot = getRepoCacheRoot(repoPath, userConfig);
     const buildsRoot = path.join(repoCacheRoot, 'builds');
     return {
+      repoRoot: repoPath,
       indexCache: createIndexCache({
         maxEntries: indexCacheConfig.maxEntries,
         ttlMs: indexCacheConfig.ttlMs
@@ -172,6 +173,7 @@ export const createRepoCacheManager = ({
   const refreshBuildPointer = async (entry) => {
     if (!entry?.buildPointerPath) return;
     const nextPointerState = readCurrentBuildGeneration({
+      repoRoot: entry.repoRoot,
       currentJsonPath: entry.buildPointerPath,
       repoCacheRoot: entry.repoCacheRoot,
       buildsRoot: entry.buildsRoot

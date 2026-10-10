@@ -1,4 +1,8 @@
+import { relocateEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
+import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { relocateSemanticCacheEntry } from './semantic-cache.js';
 import { sha1 } from '../../../shared/hash.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import {
@@ -133,6 +137,7 @@ const readFileBufferAndHash = async ({
  * @returns {Promise<{cachedBundle:object|null,fileHash:string|null,buffer:Buffer|null}>}
  */
 export async function readCachedBundle({
+  repoRoot = process.cwd(),
   enabled,
   absPath,
   relKey,
@@ -140,16 +145,48 @@ export async function readCachedBundle({
   manifest,
   bundleDir,
   bundleFormat = null,
-  sharedReadState = null
+  sharedReadState = null,
+  semanticContext = null
 }) {
   let cachedBundle = null;
   let fileHash = null;
   let buffer = null;
   if (!enabled) return { cachedBundle, fileHash, buffer };
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
 
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   const cachedEntry = manifest?.files?.[relKey];
   if (!cachedEntry) return { cachedBundle, fileHash, buffer };
+  const finish = async () => {
+    if (!cachedBundle) return { cachedBundle, fileHash, buffer };
+    if (cachedEntry.semanticCache) cachedBundle.semanticCache = cachedEntry.semanticCache;
+    if (!semanticContext) return { cachedBundle, fileHash, buffer };
+    if (!cachedEntry.semanticCache) return { cachedBundle: null, fileHash, buffer };
+    // Exact source hash is mandatory even when a fine-grained stat timestamp matches.
+    const currentBytes = await fs.readFile(absPath);
+    const sourceHash = createHash('sha256').update(currentBytes).digest('hex');
+    try {
+      const semanticFactsRef = await relocateSemanticCacheEntry({
+        repoRoot: semanticContext.repoRoot || repoRoot,
+        bundleDir, locator: cachedEntry.semanticCache,
+        dependencySignatures: semanticContext.dependencySignatures,
+        sourceHash, sourcePath: relKey.split('\\').join('/'), repositoryNamespace: semanticContext.repositoryNamespace,
+        targetBuildRoot: semanticContext.buildRoot, storage: semanticContext.storage,
+        diskAccount: semanticContext.diskAccount, signal: semanticContext.signal
+      });
+      manifest.semanticEnabled = true;
+      manifest.semanticGeneration = semanticFactsRef.storage.generation;
+      manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
+      const embedded = await relocateEmbeddedSemanticCacheEntries({ entries: cachedEntry.semanticSegmentCaches || [], parentFacts: semanticFactsRef, parentBytes: currentBytes,
+        repoRoot: semanticContext.repoRoot || repoRoot, bundleDir, dependencySignatures: semanticContext.dependencySignatures, targetBuildRoot: semanticContext.buildRoot,
+        storage: semanticContext.storage, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal });
+      return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, ...embedded };
+    } catch (error) {
+      if (error.code !== 'ERR_SEMANTIC_CACHE_MISMATCH') throw error;
+      return { cachedBundle: null, fileHash, buffer: currentBytes };
+    }
+  };
 
   const matchesStat = entryStatsMatch(cachedEntry, fileStat);
   if (!matchesStat && !cachedEntry.hash) return { cachedBundle, fileHash, buffer };
@@ -185,11 +222,12 @@ export async function readCachedBundle({
           return { cachedBundle, fileHash, buffer };
         }
       }
-      cachedBundle = await readBundleOrNull({ bundleRecords });
-    } catch {
+      cachedBundle = await readBundleOrNull({ bundleRecords, repoRoot });
+    } catch (error) {
+      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
       cachedBundle = null;
     }
-    return { cachedBundle, fileHash, buffer };
+    return finish();
   }
 
   try {
@@ -203,12 +241,13 @@ export async function readCachedBundle({
     buffer = sharedRead.buffer;
     fileHash = sharedRead.hash;
     if (fileHash === cachedEntry.hash) {
-      cachedBundle = await readBundleOrNull({ bundleRecords });
+      cachedBundle = await readBundleOrNull({ bundleRecords, repoRoot });
     }
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     cachedBundle = null;
   }
-  return { cachedBundle, fileHash, buffer };
+  return finish();
 }
 
 /**
@@ -218,6 +257,7 @@ export async function readCachedBundle({
  * @returns {Promise<Array<string|{specifier:string,collectorHint?:object}>|null>}
  */
 export async function readCachedImports({
+  repoRoot = process.cwd(),
   enabled,
   absPath,
   relKey,
@@ -229,6 +269,8 @@ export async function readCachedImports({
   expectedImportScanFingerprint = null
 }) {
   if (!enabled) return null;
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   const cachedEntry = manifest.files?.[relKey];
   if (!cachedEntry) return null;
@@ -257,7 +299,7 @@ export async function readCachedImports({
       const fileHash = sharedRead.hash;
       if (fileHash !== cachedEntry.hash) return null;
       return resolveBundleImports(
-        await readBundleOrNull({ bundleRecords }),
+        await readBundleOrNull({ bundleRecords, repoRoot }),
         { expectedImportScanFingerprint }
       );
     } catch {
@@ -283,7 +325,7 @@ export async function readCachedImports({
     if (!(await pathExists(record.bundlePath))) return null;
   }
   return resolveBundleImports(
-    await readBundleOrNull({ bundleRecords }),
+    await readBundleOrNull({ bundleRecords, repoRoot }),
     { expectedImportScanFingerprint }
   );
 }

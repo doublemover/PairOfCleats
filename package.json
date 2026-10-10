@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24.15.0"
+    "node": ">=26.0.0 <27"
   },
   "bin": {
     "pairofcleats": "bin/pairofcleats.js",
@@ -38,6 +38,7 @@
     "@ast-grep/napi": "^0.40.4",
     "@astrojs/compiler": "^2.13.0",
     "@babel/parser": "^7.27.1",
+    "@babel/types": "^7.28.5",
     "@babel/traverse": "^7.28.5",
     "@derekstride/tree-sitter-sql": "0.3.11",
     "@eagleoutice/tree-sitter-r": "1.1.2",
@@ -166,5 +167,54 @@
     "mammoth": {
       "argparse": "2.0.1"
     }
+  },
+  "allowScripts": {
+    "@derekstride/tree-sitter-sql@0.3.11": true,
+    "@eagleoutice/tree-sitter-r@1.1.2": true,
+    "@ganezdragon/tree-sitter-perl@1.1.1": true,
+    "@mongodb-js/zstd@7.0.0": true,
+    "@parcel/watcher@2.5.6": true,
+    "@sengac/tree-sitter-dart@1.1.6": true,
+    "@swc/core@1.16.13": true,
+    "@tree-sitter-grammars/tree-sitter-lua@0.4.1": true,
+    "@tree-sitter-grammars/tree-sitter-markdown@0.3.2": true,
+    "@tree-sitter-grammars/tree-sitter-toml@0.7.0": true,
+    "@tree-sitter-grammars/tree-sitter-xml@0.7.0": true,
+    "@tree-sitter-grammars/tree-sitter-yaml@0.7.1": true,
+    "@vscode/ripgrep@1.17.0": true,
+    "hnswlib-node@3.0.0": true,
+    "lmdb@3.5.1": true,
+    "msgpackr-extract@3.0.3": true,
+    "node-pty@1.1.0": true,
+    "onnxruntime-node@1.30.0": true,
+    "protobufjs@7.6.6": true,
+    "re2@1.27.0": true,
+    "tree-sitter-bash@0.25.1": true,
+    "tree-sitter-c-sharp@0.23.5": true,
+    "tree-sitter-c@0.23.6": true,
+    "tree-sitter-c@0.24.1": true,
+    "tree-sitter-cli@0.23.2": true,
+    "tree-sitter-cpp@0.23.4": true,
+    "tree-sitter-css@0.25.0": true,
+    "tree-sitter-go@0.25.0": true,
+    "tree-sitter-groovy@0.1.2": true,
+    "tree-sitter-html@0.23.2": true,
+    "tree-sitter-java@0.23.4": true,
+    "tree-sitter-java@0.23.5": true,
+    "tree-sitter-javascript@0.23.1": true,
+    "tree-sitter-javascript@0.25.0": true,
+    "tree-sitter-json@0.24.8": true,
+    "tree-sitter-julia@0.23.1": true,
+    "tree-sitter-kotlin@0.3.8": true,
+    "tree-sitter-lua@2.1.3": true,
+    "tree-sitter-objc@3.0.2": true,
+    "tree-sitter-php@0.24.2": true,
+    "tree-sitter-python@0.25.0": true,
+    "tree-sitter-ruby@0.23.1": true,
+    "tree-sitter-rust@0.24.0": true,
+    "tree-sitter-scala@0.24.0": true,
+    "tree-sitter-swift@0.7.1": true,
+    "tree-sitter-typescript@0.23.2": true,
+    "tree-sitter@0.25.0": true
   }
 }

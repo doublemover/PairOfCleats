@@ -1,3 +1,10 @@
+import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
+import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
+import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
+import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
+import { runToolingPass, prepareToolingPassDocuments } from '../../../../type-inference-crossfile/tooling.js';
+import { getToolingConfig } from '../../../../../shared/dict-utils.js';
+import { mergeCrossFileInferenceView } from './cross-file-view.js';
 import { log } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
@@ -58,7 +65,7 @@ export const runCrossFileInference = async ({
     riskInterproceduralEmitArtifacts
   });
   const allowCrossFileInference = crossFileInferenceEnabled !== false;
-  const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
+  let useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
   const hugeRepoInferenceLiteConfig = runtime.indexingConfig?.hugeRepoInferenceLite
@@ -82,6 +89,35 @@ export const runCrossFileInference = async ({
     || riskInterproceduralEnabled
   );
 
+  // Bind immutable source occurrences before the legacy resolver builds target indexes.
+  // Reuse this tooling pass for legacy types instead of constructing a second Program.
+  if (mode === 'code' && runtime.semanticPolicy?.enabled) {
+    const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
+    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal });
+    const toolingConfig = getToolingConfig(runtime.root);
+    const toolingDocuments = await prepareToolingPassDocuments({ chunks: state.chunks.filter(chunk => semanticSession.fileTextByFile.has(chunk.file?.replace(/\\/g, '/'))), fileTextByFile: semanticSession.fileTextByFile,
+      toolingConfig, semanticSession, semanticLspSession, log });
+    const compilerDocuments = semanticSession.describeCompilerDocuments(toolingDocuments.documents);
+    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling, compilerDocuments });
+    await work.run(async ({ signal }) => {
+      semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
+      if (semanticSession.enabled || semanticLspSession.enabled) {
+        await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
+          chunks: state.chunks, entryByUid: new Map(), log,
+          toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
+          abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
+        useTooling = false;
+      }
+      const lspOutput = semanticLspSession.output();
+      await mergeSemanticProviderOutput({ output: lspOutput, state, runtime, signal });
+      const compilerOutput = semanticSession.output();
+      return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
+        partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
+    });
+  }
+
+  if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });
+
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');
     const budgetPlan = buildCrossFileInferenceBudgetPlan({
@@ -90,6 +126,7 @@ export const runCrossFileInference = async ({
       inferenceLiteEnabled
     });
     const {
+      chunks: inferenceChunks,
       fileRelations: inferenceFileRelations,
       budgetStats
     } = applyCrossFileInferenceBudgetPlan({
@@ -97,7 +134,6 @@ export const runCrossFileInference = async ({
       fileRelations: state.fileRelations,
       plan: budgetPlan
     });
-    state.fileRelations = inferenceFileRelations;
     state.crossFileInferenceBudgetStats = budgetStats;
 
     if (budgetStats) {
@@ -127,7 +163,7 @@ export const runCrossFileInference = async ({
       rootDir: runtime.root,
       buildRoot: runtime.buildRoot,
       cacheRoot: runtime.repoCacheRoot,
-      chunks: state.chunks,
+      chunks: inferenceChunks,
       enabled: true,
       log,
       useTooling,
@@ -138,6 +174,7 @@ export const runCrossFileInference = async ({
       inferenceLiteHighSignalOnly,
       abortSignal
     });
+    mergeCrossFileInferenceView(state.chunks, inferenceChunks);
     const crossFileDurationMs = Date.now() - crossFileStart;
     log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
     if (crossFileStats?.toolingReuse) {

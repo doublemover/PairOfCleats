@@ -28,6 +28,7 @@ export const loadIncrementalPlan = async ({
   cacheReporter
 }) => {
   const incrementalState = await loadIncrementalState({
+    repoRoot: runtime.root,
     repoCacheRoot: runtime.repoCacheRoot,
     mode,
     enabled: runtime.incrementalEnabled,
@@ -40,6 +41,10 @@ export const loadIncrementalPlan = async ({
   });
   if (incrementalState?.manifest) {
     normalizeIncrementalEmbeddingCoverageManifest(incrementalState.manifest);
+    const semanticEnabled = mode === 'code' && runtime.semanticPolicy?.enabled === true;
+    if (Boolean(incrementalState.manifest.semanticEnabled) !== semanticEnabled) incrementalState.artifactNeedsRebuild = true;
+    incrementalState.manifest.semanticEnabled = semanticEnabled;
+    incrementalState.manifest.semanticGeneration = { baseBuildId: runtime.buildId, semanticRevision: 0 };
     if (mode === 'records') {
       setRecordsIncrementalCapability(incrementalState.manifest, true);
     }
@@ -50,8 +55,9 @@ export const loadIncrementalPlan = async ({
     reporter: cacheReporter
   });
   let reused = false;
-  if (incrementalState?.enabled && !incrementalState.artifactNeedsRebuild) {
+  if (incrementalState?.enabled && !incrementalState.artifactNeedsRebuild && !runtime.semanticPolicy?.enabled) {
     const reuse = await shouldReuseIncrementalIndex({
+      repoRoot: runtime.root,
       outDir,
       entries,
       manifest: incrementalState.manifest,
@@ -96,12 +102,14 @@ export const prepareIncrementalBundleVfsRows = ({
 }) => {
   if (enabled !== true) return null;
   return preloadIncrementalBundleVfsRows({
+    repoRoot: runtime.root,
     enabled: runtime.incrementalEnabled,
     manifest: incrementalState.manifest,
     bundleDir: incrementalState.bundleDir,
     bundleFormat: incrementalState.bundleFormat,
     concurrency: runtime.ioConcurrency
   }).catch((err) => {
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     log(`[incremental] bundle VFS prefetch skipped: ${err?.message || err}`);
     return null;
   });
@@ -121,6 +129,7 @@ export const updateIncrementalBundles = async ({
   log: logFn
 }) => {
   await updateBundlesWithChunks({
+    repoRoot: runtime.root,
     enabled: runtime.incrementalEnabled,
     manifest: incrementalState.manifest,
     manifestPath: incrementalState.manifestPath,

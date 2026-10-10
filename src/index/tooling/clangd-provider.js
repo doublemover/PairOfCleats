@@ -618,6 +618,7 @@ export const createClangdProvider = () => ({
     }
     if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
       return {
+        ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, [...duplicateChecks, ...preflightChecks])
@@ -771,6 +772,7 @@ export const createClangdProvider = () => ({
     let result;
     try {
       result = await collectLspTypes({
+        semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: selectedDocs,

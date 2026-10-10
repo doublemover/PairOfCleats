@@ -1,3 +1,5 @@
+import { persistEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
+import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
@@ -18,6 +20,7 @@ import {
 } from './autotune.js';
 import { shouldReuseExistingBundle } from './bundle-compare.js';
 import { normalizeIncrementalRelPath, resolvePrefetchedVfsRows } from './paths.js';
+import { persistSemanticCacheEntry } from './semantic-cache.js';
 import {
   pathExists,
   readBundleOrNull,
@@ -235,6 +238,10 @@ export async function writeIncrementalBundle({
   fileStat,
   fileHash,
   fileChunks,
+  semanticFactsRef = null,
+  semanticSegmentFactsRefs = [],
+  semanticEvidenceArtifacts = [],
+  semanticContext = null,
   parseCheckpoint = null,
   dependencySignatures = null,
   fileRelations,
@@ -248,6 +255,24 @@ export async function writeIncrementalBundle({
   fileEncodingConfidence = null
 }) {
   if (!enabled) return null;
+  let semanticCache = null;
+  if (semanticFactsRef) {
+    if (!semanticContext) throw new TypeError('Semantic bundle persistence requires its owning build context.');
+    semanticCache = await persistSemanticCacheEntry({
+      repoRoot: semanticContext.repoRoot || process.cwd(),
+      bundleDir, factsRef: semanticFactsRef, buildRoot: semanticContext.buildRoot,
+      dependencySignatures: semanticContext.dependencySignatures, diskAccount: semanticContext.diskAccount,
+      signal: semanticContext.signal
+    });
+    if (manifest) {
+      manifest.semanticEnabled = true;
+      manifest.semanticGeneration = semanticFactsRef.storage.generation;
+      manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
+    }
+  } else if (semanticContext) {
+    throw new Error('Semantic-enabled file cannot persist a bundle without complete source facts.');
+  }
+  const semanticSegmentCaches = semanticFactsRef ? await persistEmbeddedSemanticCacheEntries({ entries: semanticSegmentFactsRefs, repoRoot: semanticContext.repoRoot || process.cwd(), bundleDir, buildRoot: semanticContext.buildRoot, dependencySignatures: semanticContext.dependencySignatures, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal }) : [];
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat);
   const bundle = {
     file: relKey,
@@ -310,6 +335,7 @@ export async function writeIncrementalBundle({
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
     return {
+      ...(semanticCache ? { semanticCache, semanticSegmentCaches, semanticEvidenceArtifacts } : {}),
       dependencySignatures,
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,
@@ -368,6 +394,7 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
  * @returns {Promise<Map<string,Array<object>|null>|null>}
  */
 export async function preloadIncrementalBundleVfsRows({
+  repoRoot = process.cwd(),
   enabled,
   manifest,
   bundleDir,
@@ -375,6 +402,8 @@ export async function preloadIncrementalBundleVfsRows({
   concurrency = 8
 }) {
   if (!enabled) return null;
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
   const entries = Object.entries(manifest?.files || {});
   if (!entries.length) return new Map();
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
@@ -412,7 +441,7 @@ export async function preloadIncrementalBundleVfsRows({
         rowsByFile.set(normalizedFile, null);
         continue;
       }
-      const existingBundle = await readBundleOrNull({ bundleRecords });
+      const existingBundle = await readBundleOrNull({ bundleRecords, repoRoot });
       rowsByFile.set(normalizedFile, resolveBundleVfsManifestRows(existingBundle));
     }
   });
@@ -436,6 +465,7 @@ export async function preloadIncrementalBundleVfsRows({
  * }} input
  */
 export async function updateBundlesWithChunks({
+  repoRoot = process.cwd(),
   enabled,
   manifest,
   manifestPath = null,
@@ -447,6 +477,8 @@ export async function updateBundlesWithChunks({
   log
 }) {
   if (!enabled) return;
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: manifestPath || bundleDir });
   const startedAt = Date.now();
   const chunkMap = new Map();
   for (const chunk of chunks) {
@@ -546,7 +578,7 @@ export async function updateBundlesWithChunks({
       let writtenBundleNames = [];
       const relations = resolveFileRelations(normalizedFile, file);
       let vfsManifestRows = null;
-      let existingBundle = await readBundleOrNull({ bundleRecords });
+      let existingBundle = await readBundleOrNull({ bundleRecords, repoRoot });
       if (prefetchedHit) {
         vfsManifestRows = prefetchedRows;
       }

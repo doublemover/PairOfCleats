@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { getRepoCacheRoot } from '../../tools/shared/dict-utils.js';
 import { toRealPathSync } from '../../src/workspace/identity.js';
 
@@ -42,6 +43,7 @@ export const writeIndexArtifacts = async ({
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
   await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
   await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey
   }), 'utf8');
   return { indexDir };

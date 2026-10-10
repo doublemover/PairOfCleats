@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T08:56:18.652Z",
+  "generatedAt": "2026-10-10T12:20:19.935Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -280,6 +280,11 @@
       "supportTier": "operator"
     },
     {
+      "command": "pairofcleats ingest runtime-evidence",
+      "summary": "Import explicitly authorized saved runtime evidence without executing a workload.",
+      "supportTier": "experimental"
+    },
+    {
       "command": "pairofcleats ingest scip",
       "summary": "Ingest SCIP index.",
       "supportTier": "operator"
@@ -335,9 +340,54 @@
       "supportTier": "stable"
     },
     {
+      "command": "pairofcleats runtime claims",
+      "summary": "Retrieve pinned immutable derived claims and verify retained observation citations.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats runtime compare",
+      "summary": "Compare compatible saved captures and optionally retain descriptive derived claims.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats runtime families",
+      "summary": "Discover retained saved runtime capture families within the authorized repository.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats runtime lookup",
+      "summary": "Query explicitly pinned immutable saved runtime evidence without execution.",
+      "supportTier": "experimental"
+    },
+    {
       "command": "pairofcleats search",
       "summary": "Query indexed data.",
       "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats semantic detail",
+      "summary": "Inspect exact semantic records and related syntax in a pinned generation.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic enrichment",
+      "summary": "Plan source-pinned tasks by default; explicit enqueue/drain only; qualification pending.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic explain",
+      "summary": "Explain pinned static witnesses and explicit task suggestions; qualification pending.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic find",
+      "summary": "Discover pinned structural/target candidates; qualification pending.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats semantic trace",
+      "summary": "Trace source-pinned value relationships and explicit evidence frontiers.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats service api",

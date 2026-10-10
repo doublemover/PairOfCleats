@@ -1,3 +1,4 @@
+import { assertSqliteIndexFormat } from '../storage/sqlite/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import {
@@ -7,7 +8,6 @@ import {
   resolveVectorExtensionPath
 } from '../../tools/sqlite/vector-extension.js';
 
-import { SCHEMA_VERSION } from '../storage/sqlite/schema.js';
 import { applyReadPragmas } from '../storage/sqlite/build/pragmas.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
@@ -250,6 +250,9 @@ export async function createSqliteBackend(options) {
     const lease = usesCacheLeases ? dbCache.acquire(dbPath, { generationTag }) : null;
     const cached = usesCacheLeases ? lease?.db : dbCache?.get?.(dbPath, { generationTag });
     if (cached) {
+      try { assertSqliteIndexFormat({ db: cached, operation: 'search',
+        repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
+      } catch (error) { lease?.release(); throw error; }
       openedByPath.set(dbPath, {
         db: cached,
         generationTag,
@@ -281,6 +284,8 @@ export async function createSqliteBackend(options) {
       console.warn(message);
       return null;
     }
+    assertSqliteIndexFormat({ db, operation: 'search',
+      repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
     const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
     const tableNames = new Set(tableRows.map((row) => row.name));
     const missing = requiredTables.filter((name) => !tableNames.has(name));
@@ -305,15 +310,6 @@ export async function createSqliteBackend(options) {
     }
     if (columnIssues.length) {
       const message = `SQLite index ${label} is missing required columns (${columnIssues.join('; ')}). Rebuild with "pairofcleats index build --stage 4" (or "node build_index.js --stage 4").`;
-      if (backendForcedSqlite) {
-        throw new Error(message);
-      }
-      console.warn(`${message} Falling back to file-backed indexes.`);
-      return null;
-    }
-    const schemaVersion = db.pragma('user_version', { simple: true });
-    if (schemaVersion !== SCHEMA_VERSION) {
-      const message = `SQLite schema mismatch for ${label} (expected ${SCHEMA_VERSION}, found ${schemaVersion ?? 'unknown'}).`;
       if (backendForcedSqlite) {
         throw new Error(message);
       }
@@ -445,9 +441,11 @@ export async function getSqliteChunkCount(dbPath, mode) {
       }
     }).key;
     const cached = sqliteChunkCountCache.get(cacheKey);
-    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
+
 
     db = new Database(dbPath, { readonly: true });
+    assertSqliteIndexFormat({ db, operation: 'probe', repoRoot: process.cwd(), indexPath: dbPath });
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
     const manifestRow = db.prepare('SELECT SUM(chunk_count) as count FROM file_manifest WHERE mode = ?')
       .get(mode);
     if (Number.isFinite(manifestRow?.count)) {
@@ -458,7 +456,8 @@ export async function getSqliteChunkCount(dbPath, mode) {
     const count = typeof row?.count === 'number' ? row.count : null;
     sqliteChunkCountCache.set(cacheKey, { mtimeMs: stat.mtimeMs, count });
     return count;
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   } finally {
     if (db) {

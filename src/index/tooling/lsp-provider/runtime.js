@@ -461,6 +461,7 @@ export const collectConfiguredOutput = async ({
     let partitionResult;
     try {
       partitionResult = await collectLspTypes({
+        semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         toolingRoot: ctx?.toolingConfig?.dir || null,
@@ -591,6 +592,7 @@ export const collectConfiguredOutput = async ({
     [...preChecks, ...resultChecks]
   );
   return {
+    ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
     provider: { id: providerId, version: provider.version, configHash: provider.getConfigHash(ctx) },
     byChunkUid: result.byChunkUid,
     diagnostics: result.runtime

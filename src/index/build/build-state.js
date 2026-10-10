@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -101,9 +102,11 @@ export async function initBuildState({
   profile = null
 }) {
   if (!buildRoot) return null;
+  await loadBuildState(buildRoot, { repoRoot });
   const statePath = resolveStatePath(buildRoot);
   const now = new Date().toISOString();
   const payload = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     schemaVersion: 1,
     buildId,
     buildRoot: path.resolve(buildRoot),

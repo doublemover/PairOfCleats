@@ -90,6 +90,11 @@ const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET',
   'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET',
   'PAIROFCLEATS_TEST_PID_FILE',
+  // Propagate launch-selected authority and CI resource limits to each test.
+  'PAIROFCLEATS_TRUSTED_CONFIG',
+  'PAIROFCLEATS_WORKER_POOL',
+  'PAIROFCLEATS_THREADS',
+  'PAIROFCLEATS_BUNDLE_THREADS',
   'NODE_V8_COVERAGE'
 ]);
 
@@ -661,7 +666,7 @@ const main = async () => {
     failFast: argv['fail-fast'],
     timeoutGraceMs: DEFAULT_TIMEOUT_GRACE_MS,
     skipExitCode: SKIP_EXIT_CODE,
-    redoExitCodes: REDO_EXIT_CODES,
+    redoExitCodes: argv['native-status-redo'] ? REDO_EXIT_CODES : [],
     maxOutputBytes: MAX_OUTPUT_BYTES,
     borderPattern: BORDER_PATTERN,
     laneLabel,

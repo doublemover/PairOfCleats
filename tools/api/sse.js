@@ -1,3 +1,4 @@
+import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { redactAbsolutePaths } from './redact.js';
 
 /**
@@ -56,7 +57,10 @@ export const createSseResponder = (req, res, options = {}) => {
       if (closed || res.writableEnded || res.destroyed) return false;
       const ok = await writeChunk(`event: ${event}\n`);
       if (!ok) return false;
-      return writeChunk(`data: ${JSON.stringify(redactAbsolutePaths(payload))}\n\n`);
+      const format = projectIndexFormatError({ code: payload?.nativeCode, details: payload });
+      const publicPayload = redactAbsolutePaths(payload);
+      if (format) Object.assign(publicPayload, format, { message: payload.message, details: format, hint: format.rebuildCommand });
+      return writeChunk(`data: ${JSON.stringify(publicPayload)}\n\n`);
     },
     end() {
       if (closed || res.writableEnded || res.destroyed) return;

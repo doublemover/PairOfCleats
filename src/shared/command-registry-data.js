@@ -221,6 +221,9 @@ export const COMMAND_REGISTRY = Object.freeze([
     expectedArtifacts: ['ingest:lsif'],
     supportTier: 'operator'
   }),
+  entry('ingest.runtime-evidence', ['ingest', 'runtime-evidence'], 'tools/ingest/runtime-evidence.js', 'Import explicitly authorized saved runtime evidence without executing a workload.', {
+    helpGroup: 'Ingest', supportTier: 'experimental'
+  }),
   entry('ingest.scip', ['ingest', 'scip'], 'tools/ingest/scip.js', 'Ingest SCIP index.', {
     helpGroup: 'Ingest',
     expectedArtifacts: ['ingest:scip'],
@@ -326,6 +329,31 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('graph-context', ['graph-context'], 'tools/analysis/graph-context.js', 'Build a graph context pack for a seed.', {
     helpGroup: 'Graph',
     supportTier: 'operator'
+  }),
+  entry('semantic.find',['semantic','find'],'tools/analysis/semantic-find.js','Discover pinned structural/target candidates; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic find --request request.json --all']}),
+  entry('semantic.explain',['semantic','explain'],'tools/analysis/semantic-explain.js','Explain pinned static witnesses and explicit task suggestions; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic explain --request request.json --all']}),
+  entry('semantic.enrichment',['semantic','enrichment'],'tools/analysis/semantic-enrichment.js','Plan source-pinned tasks by default; explicit enqueue/drain only; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic enrichment --request request.json']}),
+  entry('semantic.trace', ['semantic', 'trace'], 'tools/analysis/semantic-trace.js', 'Trace source-pinned value relationships and explicit evidence frontiers.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats semantic trace --request request.json --all']
+  }),
+  entry('runtime.lookup', ['runtime', 'lookup'], 'tools/analysis/runtime-evidence.js', 'Query explicitly pinned immutable saved runtime evidence without execution.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats runtime lookup --request runtime-query.json --all']
+  }),
+  entry('runtime.families', ['runtime', 'families'], 'tools/analysis/runtime-evidence.js', 'Discover retained saved runtime capture families within the authorized repository.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats runtime families --request runtime-families.json --all']
+  }),
+  entry('runtime.compare', ['runtime', 'compare'], 'tools/analysis/runtime-evidence.js', 'Compare compatible saved captures and optionally retain descriptive derived claims.', {
+    helpGroup: 'Graph', supportTier: 'experimental', helpExamples: ['pairofcleats runtime compare --request runtime-compare.json']
+  }),
+  entry('runtime.claims', ['runtime', 'claims'], 'tools/analysis/runtime-evidence.js', 'Retrieve pinned immutable derived claims and verify retained observation citations.', {
+    helpGroup: 'Graph', supportTier: 'experimental', helpExamples: ['pairofcleats runtime claims --request runtime-claims.json --all']
+  }),
+  entry('semantic.detail', ['semantic', 'detail'], 'tools/analysis/semantic-detail.js', 'Inspect exact semantic records and related syntax in a pinned generation.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats semantic detail --request request.json --all']
   }),
   entry('context-pack', ['context-pack'], 'tools/analysis/context-pack.js', 'Build a composite context pack for a seed.', {
     helpGroup: 'Graph',

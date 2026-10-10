@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 
 import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import {
@@ -137,7 +138,7 @@ export const runManifestNormalizationScenario = async () => {
   await scenario.runBuildSqlite();
 
   const repoCacheRoot = getRepoCacheRoot(scenario.repoRoot, scenario.userConfig);
-  const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
+  const manifestPath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'manifest.json');
   const manifest = JSON.parse(await fsPromises.readFile(manifestPath, 'utf8'));
   assert.ok(manifest?.files?.['src/index.js'], 'expected manifest entry for src/index.js');
 

@@ -26,12 +26,14 @@ export const normalizePostingsPayloadMetadata = (payload) => {
 export const buildPostingsPayloadMetadata = ({
   chunks,
   fileRelations,
-  vfsManifestRows
+  vfsManifestRows,
+  semanticFactsRef = null,
+  semanticSegmentFactsRefs = [], semanticEvidenceArtifacts = []
 }) => {
   const rows = Array.isArray(chunks) ? Math.max(1, chunks.length) : 1;
   const chunkBytes = Array.isArray(chunks) ? estimateJsonBytes(chunks) : 0;
   const relationBytes = fileRelations ? estimateJsonBytes(fileRelations) : 0;
   const vfsBytes = Array.isArray(vfsManifestRows) ? estimateJsonBytes(vfsManifestRows) : 0;
-  const bytes = Math.max(0, Math.floor(chunkBytes + relationBytes + vfsBytes));
+  const bytes = Math.max(0, Math.floor(chunkBytes + relationBytes + vfsBytes + (semanticFactsRef ? estimateJsonBytes(semanticFactsRef) : 0) + estimateJsonBytes(semanticSegmentFactsRefs) + estimateJsonBytes(semanticEvidenceArtifacts)));
   return { rows, bytes };
 };

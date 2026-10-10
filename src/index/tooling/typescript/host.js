@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createModeAwareTypeScriptResolver } from './resolution.js';
 
 const resolveScriptKind = (ts, fileName) => {
   const ext = path.extname(fileName).toLowerCase();
@@ -13,8 +14,11 @@ const resolveScriptKind = (ts, fileName) => {
   return ts.ScriptKind.Unknown;
 };
 
-export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
+export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths, system = ts.sys) => {
   const baseHost = ts.createCompilerHost(compilerOptions, true);
+  for (const method of ['fileExists', 'readFile', 'directoryExists', 'getDirectories', 'readDirectory', 'realpath']) {
+    if (typeof system[method] === 'function') baseHost[method] = system[method];
+  }
   const useCaseSensitive = ts.sys.useCaseSensitiveFileNames;
   const canonicalize = (fileName) => {
     const resolved = path.resolve(fileName);
@@ -34,7 +38,7 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
   };
 
   const getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
-    const hit = getVfs(fileName);
+    const hit = readFile(fileName);
     if (typeof hit === 'string') {
       return ts.createSourceFile(
         fileName,
@@ -44,11 +48,19 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
         resolveScriptKind(ts, fileName)
       );
     }
-    return baseHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+    return undefined;
   };
 
+  const virtualBySource = new Map();
+  for (const [virtualPath, sourcePath] of sourcePaths) virtualBySource.set(canonicalize(sourcePath), virtualPath);
+  const moduleHost = { ...baseHost, fileExists: filename => virtualBySource.has(canonicalize(filename)) || fileExists(filename),
+    readFile: filename => getVfs(virtualBySource.get(canonicalize(filename)) || filename) ?? readFile(filename) };
+  const resolver = createModeAwareTypeScriptResolver(ts, compilerOptions, moduleHost, { canonicalize, moduleOrigins, virtualBySource });
   return {
     ...baseHost,
+    resolveModuleNameLiterals: resolver.resolveModuleNameLiterals,
+    resolveTypeReferenceDirectiveReferences: resolver.resolveTypeReferenceDirectiveReferences,
+    semanticResolution: resolver,
     fileExists,
     readFile,
     getSourceFile,

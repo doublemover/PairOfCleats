@@ -106,6 +106,6 @@ const missingIndex = runNode(
   { stdio: 'pipe', allowFailure: true }
 );
 assert.notEqual(missingIndex.status, 0);
-assert.match(stripAnsi(`${missingIndex.stdout || ''}\n${missingIndex.stderr || ''}`), /build-index/i);
+assert.match(stripAnsi(`${missingIndex.stdout || ''}\n${missingIndex.stderr || ''}`), /pairofcleats index build/i);
 
 console.log('non-result search surfaces test passed');

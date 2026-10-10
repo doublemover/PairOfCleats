@@ -83,6 +83,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   const state = createIndexState({ postingsConfig });
   const resolvedRepoCacheRoot = runtime.repoCacheRoot || getRepoCacheRoot(runtime.root, runtime.userConfig);
   const incrementalState = await loadIncrementalState({
+    repoRoot: runtime.root,
     repoCacheRoot: resolvedRepoCacheRoot,
     mode: 'records',
     enabled: runtime.incrementalEnabled === true,

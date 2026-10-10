@@ -136,12 +136,13 @@ export const readBundleOrNull = async (input) => {
   const loadedShards = [];
   try {
     for (const record of records) {
-      const result = await readBundleFile(record.bundlePath, { format: record.bundleFormat });
+      const result = await readBundleFile(record.bundlePath, { format: record.bundleFormat, repoRoot: input?.repoRoot || process.cwd() });
       if (!result.ok) return null;
       loadedShards.push(result.bundle);
     }
     return mergeBundleShards(loadedShards);
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   }
 };

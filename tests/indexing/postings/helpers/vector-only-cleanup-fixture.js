@@ -115,6 +115,7 @@ export const createVectorOnlyCleanupWriteContext = async (name) => {
       fileCounts: { candidates: 0 },
       perfProfile: null,
       indexState: {
+        buildId: 'vector-only-fixture-build',
         generatedAt: new Date().toISOString(),
         mode: 'code',
         profile: { id: profileId, schemaVersion: 1 }
