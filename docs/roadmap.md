@@ -60,6 +60,11 @@ bumped rather than reusing incompatible cached IDs. The new enrolled JS/TS
 `lang/semantic/occurrence-roles` fixture passes under Node26 with two batch layouts.
 This does not certify complete flow semantics for every newly preserved syntax form.
 
+Resume inventory is also restored before the existing global tree-sitter planner,
+so validated completed files do not get reparsed there before ordinary cache replay.
+The pass keeps compact locators only, validates sources/parts one file at a time,
+and leaves missing/corrupt/changed files on the existing scheduler.
+
 The next recovery slice adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

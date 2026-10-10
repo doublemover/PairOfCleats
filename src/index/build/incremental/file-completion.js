@@ -142,3 +142,32 @@ export const readFileCompletion = async ({ bundleDir, relKey, sourceBytes, seman
     return null;
   }
 };
+
+/** Restore the durable locator inventory before global parser scheduling. Only
+ * compact manifest entries survive the streaming pass; source bytes and semantic
+ * rows are validated per file, not retained for the entire repository.
+ */
+export const preloadFileCompletions = async ({ entries, incrementalState, semanticContext, log = null }) => {
+  const completed = new Set();
+  if (!incrementalState?.enabled) return completed;
+  try { await fs.access(path.join(incrementalState.bundleDir, 'completions')); }
+  catch (error) { if (error.code === 'ENOENT') return completed; throw error; }
+  for (const entry of entries) {
+    throwIfAborted(semanticContext.signal);
+    let sourceBytes;
+    try { sourceBytes = await fs.readFile(entry.abs); }
+    catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    const receipt = await readFileCompletion({ bundleDir: incrementalState.bundleDir,
+      relKey: entry.rel, sourceBytes, semanticContext });
+    if (!receipt) continue;
+    // Prefer an already saved same-source Stage2 entry; the descriptor remains
+    // the independent fallback if that richer ordinary bundle is unusable.
+    const prior = incrementalState.manifest.files[entry.rel];
+    if (!prior || prior.semanticCache?.sourceUnitId !== receipt.manifestEntry.semanticCache.sourceUnitId) {
+      incrementalState.manifest.files[entry.rel] = receipt.manifestEntry;
+    }
+    completed.add(entry.abs);
+  }
+  if (completed.size && typeof log === 'function') log(`[incremental] restored ${completed.size} durable Stage1 completions before parser scheduling.`);
+  return completed;
+};

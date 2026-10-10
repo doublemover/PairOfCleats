@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createSemanticCacheFixture } from '../../helpers/semantic-cache-fixture.js';
-import { readFileCompletion, fileCompletionIdentity } from '../../../src/index/build/incremental/file-completion.js';
+import { readFileCompletion, fileCompletionIdentity, preloadFileCompletions } from '../../../src/index/build/incremental/file-completion.js';
 import { loadCachedBundleForFile } from '../../../src/index/build/file-processor/incremental.js';
 import { updateBundlesWithChunks } from '../../../src/index/build/incremental/writeback.js';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
@@ -39,6 +39,12 @@ try {
   // the normal cached read, which still rehashes exact semantic source bytes.
   await fs.utimes(sourcePath, new Date(), new Date(completed.entry.mtimeMs));
   const fileStat = { ...(await fs.stat(sourcePath)), mtimeMs: completed.entry.mtimeMs };
+  const pendingPath = path.join(fixture.repoRoot, 'pending.js');
+  await fs.writeFile(pendingPath, 'unfinished();');
+  const admitted = await preloadFileCompletions({
+    entries: [{ rel: 'pending.js', abs: pendingPath }, { rel: completed.file, abs: sourcePath }],
+    incrementalState: state, semanticContext: context });
+  assert.deepEqual([...admitted], [sourcePath], 'only validated completions bypass global parser scheduling');
   const restored = await loadCachedBundleForFile({ repoRoot: fixture.repoRoot, runIo: fn => fn(),
     incrementalState: state, absPath: sourcePath, relKey: completed.file, fileStat, semanticContext: context });
   assert.ok(restored.semanticFactsRef);
