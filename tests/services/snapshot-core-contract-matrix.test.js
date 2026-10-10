@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -132,7 +133,7 @@ const writePiecesManifest = async (indexDir, files) => {
   }
   await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
-    artifactSurfaceVersion: '0.2.0',
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces: entries
   });
 };
@@ -188,7 +189,7 @@ const seedDiffBuild = async ({
   await writeJson(path.join(indexDir, 'index_state.json'), {
     generatedAt: new Date().toISOString(),
     mode: 'code',
-    artifactSurfaceVersion: '0.2.0',
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     configHash,
     tool: { version: toolVersion }
@@ -212,7 +213,7 @@ const seedDiffBuild = async ({
 
 const writeCurrentBuildPointer = (repoCacheRoot, buildId) => writeJson(
   path.join(repoCacheRoot, 'builds', 'current.json'),
-  {
+  { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     buildRoot: `builds/${buildId}`,
     buildRoots: { code: `builds/${buildId}` }
@@ -273,7 +274,7 @@ const runSnapshotCreateCase = async () => {
     buildId: 'build-prose',
     validationOk: true
   });
-  await writeJson(path.join(buildsRoot, 'current.json'), {
+  await writeJson(path.join(buildsRoot, 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-code',
     buildRoot: 'builds/build-code',
     buildRoots: {
@@ -337,7 +338,7 @@ const runSnapshotCreateCase = async () => {
     escapeLinkCreated = true;
   } catch {}
   if (escapeLinkCreated) {
-    await writeJson(path.join(buildsRoot, 'current.json'), {
+    await writeJson(path.join(buildsRoot, 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId: 'escape-build',
       buildRoot: 'builds/build-escape-link',
       buildRoots: { code: 'builds/build-escape-link' }
@@ -358,7 +359,7 @@ const runSnapshotCreateCase = async () => {
     buildId: 'build-invalid',
     validationOk: false
   });
-  await writeJson(path.join(buildsRoot, 'current.json'), {
+  await writeJson(path.join(buildsRoot, 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-invalid',
     buildRoot: 'builds/build-invalid',
     buildRoots: { code: 'builds/build-invalid' }
@@ -378,7 +379,7 @@ const runSnapshotCreateCase = async () => {
     buildId: 'build-missing-validation',
     includeValidation: false
   });
-  await writeJson(path.join(buildsRoot, 'current.json'), {
+  await writeJson(path.join(buildsRoot, 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-missing-validation',
     buildRoot: 'builds/build-missing-validation',
     buildRoots: { code: 'builds/build-missing-validation' }
@@ -393,7 +394,7 @@ const runSnapshotCreateCase = async () => {
     /validation\.ok === true/
   );
 
-  await writeJson(path.join(buildsRoot, 'current.json'), {
+  await writeJson(path.join(buildsRoot, 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-code',
     buildRoot: 'builds/build-code',
     buildRoots: { code: 'builds/build-code' }
@@ -463,7 +464,7 @@ const runSnapshotFreezeCase = async () => {
     buildId: 'build-freeze-good',
     corruptManifest: false
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-freeze-good',
     buildRoot: 'builds/build-freeze-good',
     buildRoots: { code: 'builds/build-freeze-good' }
@@ -548,7 +549,7 @@ const runSnapshotFreezeCase = async () => {
     buildId: 'build-freeze-bad',
     corruptManifest: true
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-freeze-bad',
     buildRoot: 'builds/build-freeze-bad',
     buildRoots: { code: 'builds/build-freeze-bad' }
@@ -729,7 +730,7 @@ const runIndexDiffCase = async () => {
     configHash: 'cfg-different',
     toolVersion: '1.0.0'
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-c',
     buildRoot: 'builds/build-c',
     buildRoots: { code: 'builds/build-c' }
@@ -774,7 +775,7 @@ const runIndexDiffCase = async () => {
     configHash: 'cfg-shared',
     toolVersion: '9.9.9'
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-d',
     buildRoot: 'builds/build-d',
     buildRoots: { code: 'builds/build-d' }
@@ -878,7 +879,7 @@ const runIndexDiffCase = async () => {
       }
     ]
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-e',
     buildRoot: 'builds/build-e',
     buildRoots: { code: 'builds/build-e' }
@@ -947,7 +948,7 @@ const runIndexDiffCase = async () => {
       }
     ]
   });
-  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  await writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'build-f',
     buildRoot: 'builds/build-f',
     buildRoots: { code: 'builds/build-f' }

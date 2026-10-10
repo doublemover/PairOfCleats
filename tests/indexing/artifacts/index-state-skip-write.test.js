@@ -64,6 +64,7 @@ const userConfig = {
 };
 
 const indexState = {
+  buildId: 'artifact-publication-fixture',
   generatedAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   counts: { files: 0, chunks: 0 },

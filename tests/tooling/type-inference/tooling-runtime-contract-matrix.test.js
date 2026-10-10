@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -74,6 +75,7 @@ const runCacheNormalizationCases = async () => {
   const writePayload = async (stats) => {
     await fs.writeFile(cachePath, JSON.stringify({
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       fingerprint: 'degraded-fingerprint',
       stats,
       rows: [{

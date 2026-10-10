@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import fsPromises from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -34,6 +35,7 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
 for (const filePath of [dbPath, goodPath, otherGoodPath, missingTablesPath, missingColumnsPath]) {
   const writer = new Database(filePath);
   try {
+    writeSqliteIndexFormat(writer);
     if (filePath !== missingTablesPath) writer.exec(CREATE_TABLES_BASE_SQL);
     writer.pragma(`user_version = ${filePath === dbPath ? Math.max(0, SCHEMA_VERSION - 1) : SCHEMA_VERSION}`);
     if (filePath === missingColumnsPath) {
@@ -101,7 +103,7 @@ const assertClosedSince = (before, count) => {
 
 try {
   for (const [sqliteCodePath, pattern] of [
-    [dbPath, /schema mismatch/],
+    [dbPath, { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' }],
     [missingTablesPath, /missing required tables/],
     [missingColumnsPath, /missing required columns/]
   ]) {
@@ -109,6 +111,11 @@ try {
     await assert.rejects(openBackend({ sqliteCodePath }), pattern);
     assertClosedSince(before, 1);
     before = new Set(handles);
+    if (sqliteCodePath === dbPath) {
+      await assert.rejects(openBackend({ sqliteCodePath, backendForcedSqlite: false }), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
+      assertClosedSince(before, 1);
+      continue;
+    }
     const fallback = await openBackend({ sqliteCodePath, backendForcedSqlite: false });
     assert.equal(fallback.useSqlite, false);
     assert.equal(fallback.dbCode, null);
@@ -177,19 +184,19 @@ try {
     sqliteProsePath: dbPath,
     needsProse: true,
     dbCache: cache
-  }), /schema mismatch/);
+  }), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
   cache.closeAll();
   assert.equal(warm.dbCode.open, true, 'a forced failure must not close another live request');
   await warm.dispose();
   assert.equal(warm.dbCode.open, false, 'forced initialization failure must release its earlier cached lease');
 
-  const old = await openBackend({ sqliteCodePath: goodPath, sqliteProsePath: dbPath, dbCache: cache });
+  const old = await openBackend({ sqliteCodePath: goodPath, sqliteProsePath: missingColumnsPath, dbCache: cache });
   const replacementDb = new Database(goodPath, { readonly: true });
   observe(replacementDb);
   let replacementLease = null;
   const replacingCache = {
     acquire(filePath, options) {
-      if (filePath === dbPath && !replacementLease) {
+      if (filePath === missingColumnsPath && !replacementLease) {
         replacementLease = cache.setAndAcquire(goodPath, replacementDb);
       }
       return cache.acquire(filePath, options);
@@ -199,7 +206,7 @@ try {
   };
   const staleFallback = await openBackend({
     sqliteCodePath: goodPath,
-    sqliteProsePath: dbPath,
+    sqliteProsePath: missingColumnsPath,
     needsProse: true,
     backendForcedSqlite: false,
     dbCache: replacingCache
@@ -217,7 +224,7 @@ try {
     const legacyCache = new Map();
     const legacyWarm = await openBackend({
       sqliteCodePath: goodPath,
-      sqliteProsePath: dbPath,
+      sqliteProsePath: missingColumnsPath,
       dbCache: legacyCache
     });
     await legacyWarm.dispose();
@@ -225,7 +232,7 @@ try {
     if (replaceDuringFallback) {
       const originalGet = legacyCache.get.bind(legacyCache);
       legacyCache.get = (filePath) => {
-        if (filePath === dbPath && !newer) {
+        if (filePath === missingColumnsPath && !newer) {
           newer = new Database(goodPath, { readonly: true });
           observe(newer);
           legacyCache.set(goodPath, newer);
@@ -235,7 +242,7 @@ try {
     }
     const legacyFallback = await openBackend({
       sqliteCodePath: goodPath,
-      sqliteProsePath: dbPath,
+      sqliteProsePath: missingColumnsPath,
       needsProse: true,
       backendForcedSqlite: false,
       dbCache: legacyCache

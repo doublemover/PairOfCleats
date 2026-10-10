@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -28,7 +29,7 @@ const withWorkspace = async ({ modes, compatibilityKey = 'compat-test' }, run) =
     }
     await fs.writeFile(
       path.join(fixture.repoCacheRoot, 'builds', 'current.json'),
-      JSON.stringify({
+      JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         buildId: 'test-build',
         buildRoot,
         modes

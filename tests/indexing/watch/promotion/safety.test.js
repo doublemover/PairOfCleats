@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -58,7 +59,7 @@ if (symlinkCreated) {
     /escapes repo cache root/
   );
 
-  await fs.writeFile(currentPath, JSON.stringify({
+  await fs.writeFile(currentPath, JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'unsafe-link',
     buildRoot: 'builds/escape-link'
   }, null, 2));
@@ -90,7 +91,7 @@ if (process.platform === 'win32') {
   );
 }
 const unsafeRoot = path.join(repoCacheRoot, '..', '..', 'outside');
-await fs.writeFile(currentPath, JSON.stringify({
+await fs.writeFile(currentPath, JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId: 'unsafe-build',
   buildRoot: unsafeRoot
 }, null, 2));

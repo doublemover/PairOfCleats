@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -60,7 +61,7 @@ const cases = [
           path.join(manifestDir, 'custom', 'chunk_meta.jsonl'),
           '{"id":1,"file":"src/a.js","start":0,"end":1}\n'
         );
-        await fs.writeFile(path.join(manifestDir, 'pieces', 'manifest.json'), JSON.stringify({
+        await fs.writeFile(path.join(manifestDir, 'pieces', 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
           version: 2,
           pieces: [
             { name: 'chunk_meta', path: 'custom/chunk_meta.jsonl', format: 'jsonl' }
@@ -95,7 +96,7 @@ const cases = [
         await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify([
           { id: 0, file: 'src/a.js', start: 0, end: 1 }
         ], null, 2));
-        await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({
+        await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
           version: 2,
           pieces: [{ name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }]
         }, null, 2));
@@ -296,7 +297,7 @@ const cases = [
           dims: 2,
           count: 2
         }, null, 2));
-        await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({
+        await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
           version: 2,
           pieces: [
             { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },

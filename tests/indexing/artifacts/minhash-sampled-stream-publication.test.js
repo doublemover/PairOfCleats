@@ -92,7 +92,7 @@ try {
     modelId: 'stub', useStubEmbeddings: true, dictSummary: null, timing: { start: Date.now() }, root,
     userConfig: { indexing: { scm: { provider: 'none' }, artifacts: { minhashJsonLargeThreshold: 1000 } } },
     incrementalEnabled: false, fileCounts: { candidates: 0 },
-    indexState: { generatedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), counts: { files: 0, chunks: chunks.length }, mode: 'code' },
+    indexState: { buildId: 'artifact-publication-fixture', generatedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), counts: { files: 0, chunks: chunks.length }, mode: 'code' },
     graphRelations: null, stageCheckpoints: null
   });
   assert.deepEqual(await fs.readFile(packedPath), packedLegacy.buffer);

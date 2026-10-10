@@ -6,7 +6,7 @@ import { tryRequire } from '../../../../src/shared/optional-deps.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
 import { skip } from '../../../helpers/skip.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
-import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 import {
@@ -56,7 +56,7 @@ export const runSqliteJsonlStreamingCompressionCase = async ({
     compression,
     tokenVocab: ['alpha']
   });
-  await writePiecesManifest(indexDir, pieceEntries);
+  await writeSqliteArtifactManifest(indexDir, pieceEntries);
 
   const indexPieces = await loadIndexPieces(indexDir, null);
   const count = await buildDatabaseFromArtifacts({

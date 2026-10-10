@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -36,7 +37,7 @@ await fs.writeFile(path.join(validRoot, 'index-code', 'chunk_meta.jsonl.gz'), ''
 await fs.mkdir(path.join(missingRoot, 'index-code'), { recursive: true });
 await fs.writeFile(
   path.join(buildsRoot, 'current.json'),
-  JSON.stringify({
+  JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: missingBuildId,
     buildRoot: missingRoot
   }, null, 2),
@@ -61,7 +62,7 @@ assert.equal(
 if (process.platform === 'win32') {
   await fs.writeFile(
     path.join(buildsRoot, 'current.json'),
-    JSON.stringify({
+    JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId: validBuildId,
       buildRoot: swapCase(validRoot)
     }, null, 2),

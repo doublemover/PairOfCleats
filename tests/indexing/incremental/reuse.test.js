@@ -29,7 +29,7 @@ const entries = [
   { rel: 'src/b.js', stat: { size: 20, mtimeMs: 456 } }
 ];
 
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   signatureVersion: SIGNATURE_VERSION,
   files: {
     'src/a.js': { size: 10, mtimeMs: 123 },
@@ -49,7 +49,7 @@ if (!reuse) {
   process.exit(1);
 }
 
-const extraManifest = {
+const extraManifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: {
     ...manifest.files,
     'src/c.js': { size: 30, mtimeMs: 789 }

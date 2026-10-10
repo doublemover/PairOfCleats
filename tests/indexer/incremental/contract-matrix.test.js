@@ -50,7 +50,7 @@ const setup = async ({ source = 'export const a = 1;\n' } = {}) => {
 await setup();
 const stat = await fs.stat(fixtureFile);
 const entries = [{ rel: 'src/a.js', stat }];
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   signatureVersion: SIGNATURE_VERSION,
   files: { 'src/a.js': { size: stat.size, mtimeMs: stat.mtimeMs } }
 };
@@ -61,7 +61,7 @@ assert.equal(
   await shouldReuseIncrementalIndex({
     outDir,
     entries,
-    manifest: {
+    manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       signatureVersion: SIGNATURE_VERSION,
       files: { 'src/a.js': { size: stat.size + 1, mtimeMs: stat.mtimeMs } }
     },

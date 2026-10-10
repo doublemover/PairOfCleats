@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { writeSqliteIndexFormat } from '../../../../src/storage/sqlite/index-format.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +30,7 @@ const db = new Database(dbPath);
 db.exec(CREATE_TABLES_BASE_SQL);
 db.exec('CREATE TABLE dense_vectors_ann (rowid INTEGER PRIMARY KEY, embedding BLOB)');
 db.pragma(`user_version = ${SCHEMA_VERSION}`);
+writeSqliteIndexFormat(db);
 const insertManifest = db.prepare(
   'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
 );
@@ -55,7 +58,7 @@ await writeBundleFile({
   }
 });
 
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: {
     'sample.txt': {
       bundles: [bundleName],

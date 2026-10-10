@@ -21,13 +21,13 @@ await fs.writeFile(path.join(noManifestDir, 'sample.json'), JSON.stringify([{ id
 
 await assert.rejects(
   () => loadJsonArrayArtifact(noManifestDir, 'sample', { strict: true }),
-  /Missing pieces manifest|ERR_MANIFEST_MISSING/,
+  { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' },
   'strict mode must be manifest-first'
 );
 
 await assert.rejects(
   () => loadJsonArrayArtifact(noManifestDir, 'sample', { strict: false }),
-  /Missing pieces manifest|ERR_MANIFEST_MISSING/,
+  { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' },
   'non-strict mode should still require manifest-declared artifacts after cutover'
 );
 

@@ -52,7 +52,7 @@ const createIndexStatsRepoFixture = async (prefix, {
   };
   const writeCurrentBuild = (buildId, buildRoot) => writeJson(
     path.join(repoCacheRoot, 'builds', 'current.json'),
-    {
+    { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId,
       buildRoot
     }
@@ -83,7 +83,7 @@ const createIndexStatsRepoFixture = async (prefix, {
       version: 2,
       buildId: 'build-aggregate',
       compatibilityKey: `compat-${mode}`,
-      artifactSurfaceVersion: 'surf-1',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       pieces: [
         { name: 'chunk_meta', path: 'chunk_meta.json', bytes: values.chunkMeta, count: values.chunkRows },
         { name: 'token_postings', path: 'token_postings.json', bytes: values.tokenPostings, count: values.tokenRows },
@@ -235,7 +235,7 @@ const createIndexStatsRepoFixture = async (prefix, {
   const { buildRoot, indexDir } = await createBuildIndexDir('build-verify');
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[{"id":1}]', 'utf8');
   await writeJson(path.join(indexDir, 'index_state.json'), { compatibilityKey: 'compat-verify' });
-  await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
+  await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     version: 2,
     buildId: 'build-verify',
     compatibilityKey: 'compat-verify',

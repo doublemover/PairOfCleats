@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,7 +57,7 @@ await writeBundleFile({
   }
 });
 
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: {
     'a.js': { bundles: [bundleA], mtimeMs: 1, size: 1, hash: 'a' },
     'b.js': { bundles: [bundleB], mtimeMs: 2, size: 1, hash: 'b' }

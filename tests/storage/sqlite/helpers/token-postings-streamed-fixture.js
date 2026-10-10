@@ -4,7 +4,7 @@ import path from 'node:path';
 import { writeJsonLinesFile } from '../../../../src/shared/json-stream/jsonl-write.js';
 import { writeJsonObjectFile } from '../../../../src/shared/json-stream/json-writers.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
 export const TOKEN_POSTINGS_STREAMED_CHUNKS = Object.freeze([
@@ -90,7 +90,7 @@ export const setupTokenPostingsArtifactFixture = async ({
     });
   }
 
-  await writePiecesManifest(indexDir, pieceEntries || [
+  await writeSqliteArtifactManifest(indexDir, pieceEntries || [
     { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
     { name: 'token_postings', path: 'token_postings.json', format: 'json' }
   ]);

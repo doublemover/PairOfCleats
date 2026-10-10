@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { requireOrSkip } from '../../helpers/require-or-skip.js';
@@ -20,6 +22,8 @@ await fsPromises.mkdir(tempRoot, { recursive: true });
 const db = new Database(dbPath);
 db.exec('CREATE TABLE dense_vectors (mode TEXT, doc_id INTEGER, vector BLOB)');
 db.exec('CREATE TABLE dense_meta (mode TEXT, dims INTEGER, scale REAL, model TEXT, min_val REAL, max_val REAL, levels INTEGER)');
+db.pragma(`user_version = ${SCHEMA_VERSION}`);
+writeSqliteIndexFormat(db);
 db.close();
 
 const userConfig = {
