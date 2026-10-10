@@ -50,6 +50,16 @@ still need their remaining work. This is implementation progress, not full recov
 acceptance. The refined sequence-9 priority order remains authoritative: recovery,
 JS/TS, Worker/WASM, retrieval, runtime, language adapters, estimator last.
 
+J1 occurrence coverage now distinguishes destructuring assignment targets from
+declarations, compound reads/writes, import/export alias roles and type-only syntax.
+Babel tagged-template substitutions and both dynamic-import inputs have ordered
+argument rows; optional operands retain their flag, private names have one occurrence
+per use, JSX names are indexed and static blocks own scopes. Both adapters identify
+unsupported kinds and recovered parser codes in coverage. Adapter identities are
+bumped rather than reusing incompatible cached IDs. The new enrolled JS/TS
+`lang/semantic/occurrence-roles` fixture passes under Node26 with two batch layouts.
+This does not certify complete flow semantics for every newly preserved syntax form.
+
 The next recovery slice adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

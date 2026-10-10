@@ -3,30 +3,36 @@ import { VISITOR_KEYS } from '@babel/types';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
-export const JAVASCRIPT_ADAPTER_VERSION = '1:' + createRequire(import.meta.url)('@babel/types/package.json').version;
+export const JAVASCRIPT_ADAPTER_VERSION = '2:' + createRequire(import.meta.url)('@babel/types/package.json').version;
 const KEYS = Object.freeze({ ...VISITOR_KEYS,
   Literal: [], Property: ['key', 'value'], ChainExpression: ['expression'],
-  ImportExpression: ['source', 'options'], MethodDefinition: ['key', 'value']
+  ImportExpression: ['source', 'options'], MethodDefinition: ['key', 'value'], PrivateName: []
 });
 const SCOPES = new Set(['Program', 'BlockStatement', 'CatchClause', 'ClassDeclaration', 'ClassExpression',
-  'FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression', 'ObjectMethod', 'ClassMethod', 'ClassPrivateMethod']);
+  'FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression', 'ObjectMethod', 'ClassMethod', 'ClassPrivateMethod', 'StaticBlock']);
 const invocation = (type) => ({ CallExpression: 'call', OptionalCallExpression: 'optionalCall',
   NewExpression: 'construct', TaggedTemplateExpression: 'tag', ImportExpression: 'import' })[type] || null;
 const isLiteral = (type) => /Literal$/.test(type) || type === 'TemplateElement';
 const isStatement = (type) => /Statement$/.test(type) || /Declaration$/.test(type) || type === 'Program';
 const flagList = (node) => ['async', 'generator', 'optional', 'computed', 'static', 'shorthand', 'prefix']
   .filter((key) => node[key] === true);
-const roles = (node, parent, field, binding) => {
-  if (binding) return ['definition'];
+const roles = (node, parent, field, binding, targetRoles = null) => {
+  if (binding) return parent?.type?.startsWith('Import') ? ['import', 'definition'] : ['definition'];
+  if (targetRoles) return targetRoles;
   if (field === 'id' || field === 'params' || (parent?.type === 'CatchClause' && field === 'param')) return ['definition'];
-  if (parent?.type?.startsWith('Import')) return ['import', 'definition'];
+  if (parent?.type?.startsWith('Import')) return field === 'local' ? ['import', 'definition'] : ['import', 'reference'];
+  if (parent?.type === 'ExportSpecifier') return field === 'local' ? ['export', 'reference'] : ['export', 'property'];
+  if (node.type === 'JSXIdentifier' && (parent?.type === 'JSXAttribute'
+    || field === 'property' || /^[a-z]/.test(node.name))) return ['property'];
+  if (field === 'key' && /Method|Class.*Property|MethodDefinition/.test(parent?.type || '') && !parent.computed) return ['definition', 'property'];
   if ((field === 'property' || field === 'key') && !parent?.computed) return ['property'];
-  if (field === 'callee') return [parent?.type === 'NewExpression' ? 'construct' : 'call', 'reference'];
-  if (field === 'left' && parent?.type === 'AssignmentExpression') return ['write', 'reference'];
+  if (field === 'callee' || field === 'tag') return [parent?.type === 'NewExpression' ? 'construct' : 'call', 'reference'];
+  if (field === 'left' && parent?.type === 'AssignmentExpression') return parent.operator === '=' ? ['write', 'reference'] : ['read', 'write', 'reference'];
   if (parent?.type === 'UpdateExpression') return ['read', 'write', 'reference'];
   return ['read', 'reference'];
 };
 const childSlot = (node, field) => {
+  if (node.type === 'ImportExpression' && ['source', 'options'].includes(field)) return 'argument';
   const common = { tag: 'callee', callee: 'callee', arguments: 'argument', params: 'parameter', left: 'left', right: 'right',
     object: 'object', test: 'condition', init: 'initializer', elements: 'element' };
   if (common[field]) return common[field];
@@ -51,6 +57,7 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
     throw new TypeError('Positive semantic batch limits required.');
   }
   const summary = { nodes: 0, operands: 0, calls: 0, unsupported: 0, state: 'partial' };
+  const unsupportedKinds = new Set();
   const ref = (localId) => ({ partitionId, localId });
   const names = new Map();
   let nextId = 0;
@@ -70,13 +77,13 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
         frame.keys = KEYS[node.type] || [];
         frame.keyIndex = 0;
         frame.childIndex = 0;
-        if (!Object.hasOwn(KEYS, node.type)) summary.unsupported += 1;
+        if (!Object.hasOwn(KEYS, node.type)) { summary.unsupported += 1; unsupportedKinds.add(node.type); }
         const span = Number.isSafeInteger(node.start) && Number.isSafeInteger(node.end)
           ? [node.start, node.end] : Array.isArray(node.range) ? [...node.range] : null;
         const kinds = [];
-        const identifier = node.type === 'Identifier' || node.type === 'PrivateName';
+        const identifier = ['Identifier', 'PrivateName', 'JSXIdentifier'].includes(node.type);
         if (SCOPES.has(node.type)) kinds.push('scope');
-        const occurrenceRoles = identifier ? roles(node, frame.parent?.node, frame.field, frame.binding) : null;
+        const occurrenceRoles = identifier ? roles(node, frame.parent?.node, frame.field, frame.binding, frame.targetRoles) : null;
         if (occurrenceRoles?.includes('definition')) kinds.push('declaration');
         if (identifier) kinds.push('occurrence');
         if (isStatement(node.type)) kinds.push('statement');
@@ -95,18 +102,21 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
             yield { family: 'lookup', row: { kind: 'name', id: nameId, value: name } };
           } else nameId = names.get(name);
         }
-        const kind = invocation(node.type);
+        const kind = node.type === 'CallExpression' && node.callee?.type === 'Import' ? 'import' : invocation(node.type);
+        const flags = flagList(node);
+        if (frame.typeOnly || node.importKind === 'type' || node.exportKind === 'type') flags.push('typeOnly');
+        if (!Object.hasOwn(KEYS, node.type)) flags.push('unsupportedSyntax');
         if (kind) summary.calls += 1;
         for (const recordKind of kinds) {
           const payload = {
             scope: () => ({ scopeKind: node.type, parent: parentScope, owner: frame.record }),
             declaration: () => ({ nameId, declarationKind: frame.parent?.node.type || node.type,
-              flags: [], initializer: null, typeSyntax: null }),
-            occurrence: () => ({ nameId, roles: occurrenceRoles, expression: frame.record, flags: [] }),
-            statement: () => ({ astKind: node.type, statementKind: node.type, flags: flagList(node) }),
+              flags, initializer: null, typeSyntax: null }),
+            occurrence: () => ({ nameId, roles: occurrenceRoles, expression: frame.record, flags }),
+            statement: () => ({ astKind: node.type, statementKind: node.type, flags }),
             expression: () => ({ astKind: node.type, operation: node.operator || null,
               invocationKind: kind, syntacticArgumentCount: kind ? (node.arguments?.length
-                ?? node.quasi?.expressions?.length ?? (kind === 'import' ? 1 : 0)) : null, flags: flagList(node) }),
+                ?? node.quasi?.expressions?.length ?? (kind === 'import' ? 1 + Number(Boolean(node.options)) : 0)) : null, flags }),
             literal: () => ({ literalKind: node.type, textRef: { span }, scalar: null })
           }[recordKind]();
           summary.nodes += 1;
@@ -120,12 +130,20 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
             child: frame.record, flags: [] } };
         }
         if (frame.parent) {
+          if (frame.field === 'expressions' && frame.parent.node.type === 'TemplateLiteral'
+            && frame.parent.parent?.node.type === 'TaggedTemplateExpression') {
+            summary.operands += 1;
+            yield { family: 'operand', row: { parent: frame.parent.parent.record, slot: 'argument',
+              ordinal: frame.ordinal, child: frame.record, flags: [] } };
+          }
           summary.operands += 1;
           yield { family: 'operand', row: { parent: frame.parent.record,
-            slot: childSlot(frame.parent.node, frame.field), ordinal: frame.ordinal,
+            slot: childSlot(frame.parent.node, frame.field),
+            ordinal: frame.parent.node.type === 'ImportExpression' && frame.field === 'options' ? 1 : frame.ordinal,
             child: frame.record, flags: [
               ...(/Spread/.test(node.type) ? ['spread'] : []),
               ...(node.type === 'RestElement' ? ['rest'] : []),
+              ...(frame.parent.node.optional ? ['optional'] : []),
               ...(frame.parent.node.computed ? ['computed'] : []),
               ...(frame.parent.node.shorthand ? ['shorthand'] : [])
             ] } };
@@ -150,15 +168,29 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
       if (typeof child.type !== 'string') continue;
       const binding = (field === 'id' || field === 'params' || (node.type === 'CatchClause' && field === 'param'))
         || (node.type.startsWith('Import') && field === 'local')
-        || (node.type === 'ObjectPattern' && field === 'properties')
-        || (node.type === 'ArrayPattern' && field === 'elements')
+        || (frame.binding && node.type === 'ObjectPattern' && field === 'properties')
+        || (frame.binding && node.type === 'ArrayPattern' && field === 'elements')
         || (frame.binding && ((node.type === 'ObjectProperty' && field === 'value')
           || (node.type === 'AssignmentPattern' && field === 'left') || (node.type === 'RestElement' && field === 'argument')));
-      stack.push({ node: child, scope: frame.scope, parent: frame, field, ordinal, binding, entered: false });
+      const patternTarget = node.type === 'AssignmentExpression' && field === 'left'
+        ? (node.operator === '=' ? ['write', 'reference'] : ['read', 'write', 'reference'])
+        : frame.targetRoles && ((node.type === 'ObjectPattern' && field === 'properties')
+          || (node.type === 'ArrayPattern' && field === 'elements')
+          || (/Property/.test(node.type) && field === 'value')
+          || (node.type === 'AssignmentPattern' && field === 'left')
+          || (node.type === 'RestElement' && field === 'argument')) ? frame.targetRoles : null;
+      const typeOnly = frame.typeOnly || node.importKind === 'type' || node.exportKind === 'type'
+        || ['typeAnnotation', 'returnType', 'typeParameters', 'typeArguments', 'superTypeParameters', 'implements'].includes(field)
+        || /^(TSInterface|TSTypeAlias|TypeAlias|InterfaceDeclaration)/.test(node.type);
+      stack.push({ node: child, scope: frame.scope, parent: frame, field, ordinal, binding,
+        targetRoles: patternTarget, typeOnly, entered: false });
     }
     summary.state = summary.unsupported || ast.errors?.length ? 'partial' : 'complete';
     yield { family: 'coverage', row: { scope: { sourceUnitId: source.sourceUnitId }, phase: 'syntax',
-      state: summary.state, reason: summary.state === 'complete' ? null : 'unsupported_or_recovered_syntax',
+      state: summary.state, reason: summary.state === 'complete' ? null : [
+        ...(unsupportedKinds.size ? ['unsupported_syntax:' + [...unsupportedKinds].sort().join(',')] : []),
+        ...(ast.errors?.length ? ['recovered_syntax:' + [...new Set(ast.errors.map(error => error.reasonCode || error.code || 'parse_error'))].sort().join(',')] : [])
+      ].join(';'),
       observedCount: summary.nodes, completedCount: summary.nodes, frontierRef: null } };
     for (const phase of ['bindings', 'localFlow', 'crossFileFlow', 'boundaryModels']) {
       yield { family: 'coverage', row: { scope: { sourceUnitId: source.sourceUnitId }, phase,
