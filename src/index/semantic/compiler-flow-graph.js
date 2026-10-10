@@ -31,11 +31,30 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     reasons.add('destructuring_write_requires_pattern_analysis');
     return expression(target, eventBlock(target, { kind: 'unknownWrite', target, value }, next, context), context);
   };
+  const isChain = node => node && (ts.isCallChain(node) || ts.isPropertyAccessChain(node) || ts.isElementAccessChain(node));
+  // A nullish hop skips the entire contiguous optional-chain region, including
+  // later computed keys and call arguments. Parentheses end that region.
+  const optionalChain = (node, next, context, shortCircuit) => {
+    throwIfAborted(signal);
+    const call = ts.isCallExpression(node);
+    let active = eventBlock(node, { kind: call ? 'operation' : 'heapRead', target: node, mayThrow: true }, next, context);
+    const evaluated = call ? [...node.arguments] : ts.isElementAccessExpression(node) ? [node.argumentExpression] : [];
+    for (let i = evaluated.length - 1; i >= 0; i -= 1) active = expression(evaluated[i], active, context);
+    if (call) reasons.add('call_heap_and_captured_effects_unresolved');
+    if (node.questionDotToken) {
+      const branch = add(node.expression, { kind: 'condition', predicate: { operation: 'isNullish', inputs: [node.expression] } });
+      link(branch, shortCircuit, 'controlTrue'); link(branch, active, 'controlFalse');
+      active = branch;
+    }
+    return isChain(node.expression) ? optionalChain(node.expression, active, context, shortCircuit)
+      : expression(node.expression, active, context);
+  };
   const expression = (node, next, context) => {
     if (!node) return next;
     throwIfAborted(signal);
     if (ts.isFunctionLike(node) || ts.isClassExpression(node)) return eventBlock(node, { kind: 'creation' }, next, context);
     if (ts.isIdentifier(node)) return lexicalRead(node) ? eventBlock(node, { kind: 'read', target: node }, next, context) : next;
+    if (isChain(node)) return optionalChain(node, next, context, next);
     if (ts.isBinaryExpression(node)) {
       const operator = node.operatorToken.kind;
       const assignment = operator >= ts.SyntaxKind.FirstAssignment && operator <= ts.SyntaxKind.LastAssignment;
@@ -72,16 +91,6 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node))
       && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) {
       return expression(node.operand, eventBlock(node, { kind: 'operation', mayThrow: true }, write(node.operand, node, next, context), context), context);
-    }
-    if (node.questionDotToken && (ts.isCallExpression(node) || ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))) {
-      const branch = add(node.expression, { kind: 'condition', predicate: { operation: 'isNullish', inputs: [node.expression] } });
-      let active = eventBlock(node, { kind: ts.isCallExpression(node) ? 'operation' : 'heapRead', target: node, mayThrow: true }, next, context);
-      const evaluated = ts.isCallExpression(node) ? [...node.arguments] : ts.isElementAccessExpression(node) ? [node.argumentExpression] : [];
-      for (let i = evaluated.length - 1; i >= 0; i -= 1) active = expression(evaluated[i], active, context);
-      link(branch, next, 'controlTrue'); link(branch, active, 'controlFalse');
-      if (ts.isCallExpression(node)) reasons.add('call_heap_and_captured_effects_unresolved');
-      if (node.parent && (ts.isCallExpression(node.parent) || ts.isPropertyAccessExpression(node.parent) || ts.isElementAccessExpression(node.parent))) reasons.add('optional_chain_continuation_requires_guard_region');
-      return expression(node.expression, branch, context);
     }
     const mayThrow = ts.isCallExpression(node) || ts.isNewExpression(node) || ts.isPropertyAccessExpression(node)
       || ts.isElementAccessExpression(node) || ts.isAwaitExpression(node) || ts.isBinaryExpression(node)
@@ -138,8 +147,11 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     }
     if (ts.isWhileStatement(node) || ts.isDoStatement(node) || ts.isForStatement(node)
       || ts.isForOfStatement(node) || ts.isForInStatement(node)) {
-      const condition = node.condition || node.expression, branch = add(condition || node, { kind: 'condition' });
-      let test = expression(condition, branch, context);
+      const iteration = ts.isForOfStatement(node) || ts.isForInStatement(node);
+      const condition = node.condition || node.expression, branch = add(condition || node, { kind: 'condition',
+        ...(iteration ? { mayThrow: true, predicate: { operation: ts.isForOfStatement(node) ? 'iteratorHasNext' : 'enumeratorHasNext', inputs: [node.expression] } } : {}) });
+      if (iteration) link(branch, context.exception, 'exceptional');
+      let test = iteration ? branch : expression(condition, branch, context);
       let step = ts.isForStatement(node) ? expression(node.incrementor, test, context) : test;
       const labels = new Map(context.labels);
       if (context.label) labels.set(context.label, { break: next, continue: step });
@@ -148,11 +160,14 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       if (ts.isForOfStatement(node) || ts.isForInStatement(node)) {
         reasons.add('iterator_protocol_and_per_iteration_binding_conservative');
         const binding = ts.isVariableDeclarationList(node.initializer) ? node.initializer.declarations[0]?.name : node.initializer;
-        if (binding) body = write(binding, node.expression, body, bodyContext);
+        // The iterable is not the yielded element/key. Keep that value unknown
+        // until an iterator model supplies a source-qualified producer.
+        if (binding) body = write(binding, node, body, bodyContext, 'unknown');
       }
       link(branch, body, 'controlTrue', anchor(condition));
       if (condition || !ts.isForStatement(node)) link(branch, next, 'controlFalse', anchor(condition));
       if (ts.isDoStatement(node)) return body;
+      if (iteration) return expression(node.expression, test, context);
       if (ts.isForStatement(node) && node.initializer) test = ts.isVariableDeclarationList(node.initializer)
         ? declarations(node.initializer, test, context) : expression(node.initializer, test, context);
       return test;
@@ -177,9 +192,12 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       // Separate finally routes retain abrupt destinations without merging them into normal flow.
       const wrap = target => node.finallyBlock ? statement(node.finallyBlock, target, context) : target;
       const normal = wrap(next), returned = wrap(context.return), thrown = wrap(context.exception);
-      const inner = { ...context, return: returned, exception: thrown,
+      const labels = new Map([...context.labels].map(([name, targets]) => [name, {
+        break: targets.break ? wrap(targets.break) : null,
+        continue: targets.continue ? wrap(targets.continue) : null
+      }]));
+      const inner = { ...context, return: returned, exception: thrown, labels,
         break: context.break ? wrap(context.break) : null, continue: context.continue ? wrap(context.continue) : null };
-      if (node.finallyBlock && context.labels.size) reasons.add('labeled_finally_routing_conservative');
       if (node.catchClause) {
         inner.exception = statement(node.catchClause.block, normal, inner);
         if (node.catchClause.variableDeclaration) inner.exception = write(node.catchClause.variableDeclaration.name,
