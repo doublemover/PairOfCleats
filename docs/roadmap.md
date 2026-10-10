@@ -137,6 +137,14 @@ CFG producer 7 retains tag exceptions and call-effect routes, and call-flow prod
 4 preserves the unmodeled cooked/raw template channel. The focused compiler-invocation
 fixture passes; full production compiler and cross-file qualification is deferred.
 
+Recovery copy reservations now remain charged until owned staging cleanup finishes,
+and a cache object promoted before a directory-sync failure keeps its byte charge.
+Completion replacement reserves the full coexisting temporary descriptor, while an
+identical descriptor is reused without new credit. Replacement/failure reservations
+are deliberately conservative until reopen reconciles actual bytes, avoiding double
+credits from duplicate writers. The focused recovery fixture covers rejection before
+replacement and cleanup after partial cache copy.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

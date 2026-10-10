@@ -80,15 +80,17 @@ export const commitFileCompletion = async ({ bundleDir, relKey, manifestEntry, s
   const bytes = Buffer.from(canonicalSemanticJson({ schemaVersion: 1, hash: hashBytes(Buffer.from(payload)), descriptor }) + '\n');
   if (bytes.length > MAX_DESCRIPTOR_BYTES) throw fail('Completion descriptor exceeds allowance.');
   const filename = path.join(bundleDir, 'completions', keyFor(identity) + '.json');
-  let priorBytes = 0;
-  try { priorBytes = (await fs.stat(filename)).size; } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const reserved = Math.max(0, bytes.length - priorBytes);
-  diskAccount.reserve(reserved);
   try {
-    throwIfAborted(signal);
-    await atomicWriteText(filename, bytes, { newline: false });
-    await syncParentDirectory(path.dirname(filename));
-  } catch (error) { diskAccount.release(reserved); throw error; }
+    const stat = await fs.stat(filename);
+    if (stat.size === bytes.length && (await fs.readFile(filename)).equals(bytes)) return keyFor(identity);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  // The complete temporary replacement coexists with the old descriptor. Keep
+  // its conservative reservation through uncertain failures/concurrent writers;
+  // the next reopen reconciles actual bytes without unsafe duplicate credits.
+  diskAccount.reserve(bytes.length);
+  throwIfAborted(signal);
+  await atomicWriteText(filename, bytes, { newline: false });
+  await syncParentDirectory(path.dirname(filename));
   return keyFor(identity);
 };
 
