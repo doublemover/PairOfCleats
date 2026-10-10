@@ -79,13 +79,14 @@ export const loadIncrementalPlan = async ({
  * @param {{runtime:object,incrementalState:object,seenFiles:Set<string>|string[]}} input
  * @returns {Promise<void>}
  */
-export const pruneIncrementalState = async ({ runtime, incrementalState, seenFiles }) => {
+export const pruneIncrementalState = async ({ runtime, incrementalState, seenFiles, state }) => {
   await pruneIncrementalManifest({
     enabled: runtime.incrementalEnabled,
     manifest: incrementalState.manifest,
     manifestPath: incrementalState.manifestPath,
     bundleDir: incrementalState.bundleDir,
-    seenFiles
+    seenFiles,
+    diskAccount: state?.semanticDiskAccount
   });
 };
 
@@ -138,6 +139,7 @@ export const updateIncrementalBundles = async ({
     chunks: state.chunks,
     fileRelations: state.fileRelations,
     existingVfsManifestRowsByFile,
+    diskAccount: state.semanticDiskAccount,
     log: logFn
   });
 };

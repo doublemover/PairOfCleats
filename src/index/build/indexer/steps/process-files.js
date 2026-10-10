@@ -2,6 +2,7 @@ import { assertSemanticEnvelope } from '../../../../contracts/validators/semanti
 import path from 'node:path';
 import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
 import { preloadFileCompletions } from '../../incremental/file-completion.js';
+import { pruneIncrementalManifest } from '../../incremental/writeback.js';
 import { createSemanticCacheDependencySignatures } from '../../incremental/semantic-cache-dependencies.js';
 import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
@@ -636,7 +637,20 @@ export const processFiles = async ({
 
   let treeSitterScheduler = null;
   let completedSemanticFiles = new Set();
+  if (runtime.semanticPolicy?.enabled && mode === 'code') {
+    completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
+      semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
+        signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
+          dependencySignatures: incrementalState.manifest.dependencySignatures,
+          policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
+  }
   if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
+    // Recover crash-completed files before sweeping, while no workers are
+    // running. Commit their pins first; reclaim obsolete retained objects before
+    // opening the disk account so garbage cannot prevent admission forever.
+    await pruneIncrementalManifest({ enabled: incrementalState?.enabled,
+      manifest: incrementalState?.manifest, manifestPath: incrementalState?.manifestPath,
+      bundleDir: incrementalState?.bundleDir, seenFiles: new Set(entries.map(entry => entry.rel)), signal: effectiveAbortSignal });
     const reopened = await reopenSemanticDiskAccount({
       limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
       roots: [incrementalState?.incrementalDir, runtime.buildRoot,
@@ -646,13 +660,6 @@ export const processFiles = async ({
     });
     state.semanticDiskAccount = reopened.account;
     state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
-  }
-  if (runtime.semanticPolicy?.enabled && mode === 'code') {
-    completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
-      semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
-        signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
-          dependencySignatures: incrementalState.manifest.dependencySignatures,
-          policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
   }
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {

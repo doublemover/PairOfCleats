@@ -154,8 +154,7 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
   const locator = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, cacheKey,
     descriptorHash: hashBytes(bytes), canonicalHash: factsRef.canonicalHash,
     extractionHash: factsRef.extractionHash, sourceUnitId: factsRef.sourceUnitId };
-  try {
-    await fs.access(finalRoot);
+  const readExisting = async () => {
     // Physical part paths may differ after an equivalent recollection. Reuse the
     // first validated layout for this canonical identity rather than replacing it.
     const existingDescriptor = await resolveSemanticPartPath(bundleDir, 'semantic/' + cacheKey + '/descriptor.json');
@@ -164,6 +163,10 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     const existing = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: existingLocator, expectedDependencySignatures: dependencySignatures, signal });
     await validateSemanticPartitions({ store: existing.store, partitions: existing.factsRef.partitions, signal });
     return existingLocator;
+  };
+  try {
+    await fs.access(finalRoot);
+    return await readExisting();
   } catch (error) {
     throwIfAborted(signal);
     if (error.code !== 'ENOENT') {
@@ -198,7 +201,17 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
     await syncParentDirectory(path.join(temporary, 'descriptor.json'));
     throwIfAborted(signal);
-    await fs.rename(temporary, finalRoot);
+    try { await fs.rename(temporary, finalRoot); }
+    catch (error) {
+      if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+      // Equivalent workers can finish the same immutable identity together.
+      // Validate the winning layout before dropping only this writer's copy.
+      const existing = await readExisting();
+      await fs.rm(temporary, { recursive: true, force: true });
+      diskAccount.release(reserved); reserved = 0;
+      await syncParentDirectory(finalRoot);
+      return existing;
+    }
     promoted = true;
     await syncParentDirectory(finalRoot);
     await syncParentDirectory(cacheRoot);
@@ -258,6 +271,7 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
         artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: storage.generation, partitions });
       const sources = opened.store.iterateRows(opened.factsRef.syntaxPartitionId, 'semantic_sources', { signal });
       for await (const source of sources) await check.verifySource(source, { signal });
+      await fs.unlink(copiedSource);
       diskAccount.release(sourceBytes); reserved -= sourceBytes;
     }
     await fs.rm(path.join(temporary, 'semantic-sources'), { recursive: true, force: true });
@@ -265,7 +279,12 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
       const relative = source.mapping.mapRef, from = await resolveSemanticPartPath(temporary, relative), bytes = await fs.readFile(from), target = path.join(parent, relative);
       await fs.mkdir(path.dirname(target), { recursive: true });
       try { await fs.link(from, target); retainedEvidenceBytes += bytes.length; }
-      catch (error) { if (error.code !== 'EEXIST') throw error; if (!(await fs.readFile(target)).equals(bytes)) throw fail('Retained source mapping collision.'); diskAccount.release(bytes.length); reserved -= bytes.length; }
+      catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        if (!(await fs.readFile(target)).equals(bytes)) throw fail('Retained source mapping collision.');
+        await fs.unlink(from);
+        diskAccount.release(bytes.length); reserved -= bytes.length;
+      }
       const record = { path: relative, hash: hashBytes(bytes), bytes: bytes.length };
       if (!evidenceArtifacts.some(entry => entry.path === relative)) evidenceArtifacts.push(record);
     }

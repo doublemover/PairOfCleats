@@ -41,21 +41,22 @@ source-range/literal fingerprints and semantic context packs; shared producer-ve
 invalidation; bounded disk reservation cleanup. These are partial coverage, not
 completion of the refined semantic specification.
 
-Required bootstrap now fails early with actionable commands across normal, test
-and benchmark entry paths, checks actual readiness/native behavior, and never
-silently installs. Cloud `npm run bootstrap:ci` completed under Node 26.11.1.
-Ten focused continuation checks passed (79 ms–1.07 s); no broad benchmark campaign.
-The config allowlist registers the intentional `includeSemantic` surface with a
-reviewed 72-flag cap. Semantic artifact docs/index and generated reports are aligned;
-old author-workspace receipts remain historical. The 74-case cross-platform failure
-union now passes targeted cloud checks after grouped format, checksum and lifecycle
-repairs; hosted CI remains exact-head evidence.
+Required bootstrap checks readiness/native behavior across normal, test and
+benchmark entry paths and never silently installs. The intentional `includeSemantic`
+surface has a reviewed 72-flag cap. Earlier cloud bootstrap, continuation and
+74-case repair receipts remain in the checkpoint archive; hosted CI is exact-head evidence.
 
-Next, in order: full interrupted multi-worker recovery and transient accounting;
-remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
+Recovery continuation adds interrupted-worker replay, concurrent control/cache
+publication, temporary bundle accounting and retained-cache cleanup at worker
+barriers. Enqueue/drain reconstruct current published task state before leasing.
+The [recovery checkpoint](archived/semantic-recovery-checkpoint-2026-10-10.md)
+records nine focused passes, the 39-test local gate and remaining validation boundaries.
+
+Next, in order: remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
 integration; WASM module decoding and exact host/module joins; Python/C/Swift/Rust
-adapters. The calibrated estimator remains last priority. Retained-cache cleanup,
-control-store reconstruction and full public-surface qualification remain open.
+adapters. The calibrated estimator remains last priority. Process-wide crash/power-loss
+qualification, accounting for remaining build/control-store transient writers,
+corrupt control-store repair and full public-surface qualification remain open.
 
 ## Current Initiatives
 

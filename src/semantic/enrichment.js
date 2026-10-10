@@ -169,6 +169,9 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     if (action === 'drain' && await recover(previous)) return boundedResult(result, limits);
     current = await budget.run(() => readEnrichmentCurrent({ repoRoot, userConfig }));
     if (current.buildRoot !== toRealPathSync(path.dirname(inventory.indexDir))) throw enrichmentError('Only the exact current source generation may be enqueued or drained.');
+    await budget.run(() => reconcilePublishedSemanticBindingWork({ repoRoot, userConfig,
+      buildId: generation.baseBuildId, buildRoot: current.buildRoot, modes: ['code'], signal: budget.signal,
+      ...(Database !== undefined ? { Database } : {}) }));
     await budget.run(() => verifyEnrichmentLiveSources({ repoRoot, inventory, budget }));
     for (const task of tasks) {
       await budget.run(() => verifyEnrichmentTask({ inventory, task, budget, deep: true }));

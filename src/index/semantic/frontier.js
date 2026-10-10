@@ -29,13 +29,17 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
   integer(maxAttempts, 'max attempts'); integer(retryDelayMs, 'retry delay');
   const db = new Database(filename);
   try {
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name);
-    if (tables.length && (tables.length !== 6 || !tables.includes('frontier_meta') || tables.some(name => !['frontier_meta', 'tasks', 'dependencies', 'outputs', 'task_descriptors', 'dependency_inventory'].includes(name)))) {
-      throw fail('Semantic frontier requires its own control database.', 'ERR_SEMANTIC_CONTROL_STORE_SCOPE');
-    }
     db.pragma('synchronous = FULL');
     db.pragma('busy_timeout = 5000');
-    if (!tables.length) db.transaction(() => db.exec(SCHEMA)).immediate();
+    // Serialize discovery with creation: two recovering workers may both open a
+    // missing store, but only the holder of the write lock may decide it is empty.
+    db.transaction(() => {
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name);
+      if (tables.length && (tables.length !== 6 || !tables.includes('frontier_meta') || tables.some(name => !['frontier_meta', 'tasks', 'dependencies', 'outputs', 'task_descriptors', 'dependency_inventory'].includes(name)))) {
+        throw fail('Semantic frontier requires its own control database.', 'ERR_SEMANTIC_CONTROL_STORE_SCOPE');
+      }
+      if (!tables.length) db.exec(SCHEMA);
+    }).immediate();
     const version = db.prepare('SELECT schemaVersion FROM frontier_meta').all();
     if (version.length !== 1 || version[0].schemaVersion !== 1) throw fail('Unsupported semantic control-store schema.');
     db.pragma('foreign_keys = ON');

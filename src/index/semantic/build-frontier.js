@@ -200,7 +200,8 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
 };
 
 /** Recovery only after the normal pointer commit. Pending source-only generations remain pending. */
-export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConfig = {}, buildId, buildRoot, modes = ['code'], Database }) => {
+export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConfig = {}, buildId, buildRoot, modes = ['code'], Database, signal = null }) => {
+  throwIfAborted(signal);
   const existingModes = [];
   for (const mode of modes) {
     try { await fs.access(path.join(buildRoot, 'index-' + mode, 'semantic_manifest.json')); existingModes.push(mode); }
@@ -214,21 +215,22 @@ export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConf
   let recovered = 0, pending = 0;
   try {
     for (const mode of existingModes) {
+      throwIfAborted(signal);
       const indexDir = path.join(buildRoot, 'index-' + mode), manifestPath = path.join(indexDir, 'semantic_manifest.json');
       try { await fs.access(manifestPath); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
       const generation = { baseBuildId: buildId, semanticRevision: 0 };
       const { store, manifest } = await openPublishedSemanticStore({ indexDir, repoRoot, generation });
-      await validateSemanticPartitions({ store, partitions: manifest.partitions });
+      await validateSemanticPartitions({ store, partitions: manifest.partitions, signal });
       const pieces = loadPiecesManifest(indexDir, { repoRoot });
       const manifestBytes = await fs.readFile(manifestPath), manifestHash = hashBytes(manifestBytes);
       const registeredManifestHash = await checksumFile(manifestPath);
       if (!pieces.pieces.some(piece => piece.name === 'semantic_manifest'
         && piece.checksum === registeredManifestHash.algo + ':' + registeredManifestHash.value)) throw fail('Published semantic manifest checksum is not registered.');
       const tasks = new Map(), producedScopes = new Set();
-      for (const partition of manifest.partitions) for await (const coverage of store.iterateRows(partition.partitionId, 'semantic_coverage')) {
+      for (const partition of manifest.partitions) for await (const coverage of store.iterateRows(partition.partitionId, 'semantic_coverage', { signal })) {
         if (['complete', 'partial'].includes(coverage.state)) producedScopes.add(partition.sourceUnitId + ':' + coverage.phase);
       }
-      for (const partition of manifest.partitions) for await (const task of store.iterateRows(partition.partitionId, 'semantic_frontier')) {
+      for (const partition of manifest.partitions) for await (const task of store.iterateRows(partition.partitionId, 'semantic_frontier', { signal })) {
         assertSemanticTask(task);
         if (task.baseBuildId !== buildId) continue;
         await readTargetSet({ root: path.join(indexDir, 'semantic'), task, generation,
@@ -243,25 +245,33 @@ export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConf
         tasks.set(task.taskId, task);
       }
       if (!tasks.size && !(manifest.completedTasks || []).length) continue;
+      const verifyCurrentPublication = async () => {
+        throwIfAborted(signal);
+        const current = JSON.parse(await fs.readFile(path.join(getBuildsRoot(repoRoot, userConfig), 'current.json'), 'utf8'));
+        const relative = current.buildRootsByMode?.[mode] || (current.buildId === buildId ? current.buildRoot : null);
+        if (current.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION || !relative) return false;
+        const cacheRoot = toRealPathSync(runtime.repoCacheRoot);
+        const publishedRoot = toRealPathSync(path.resolve(runtime.repoCacheRoot, relative));
+        if (!isWithinRoot(publishedRoot, cacheRoot) || publishedRoot !== toRealPathSync(buildRoot)) return false;
+        return hashBytes(await fs.readFile(manifestPath)) === manifestHash;
+      };
+      // Pending descriptors need the same publication authority as completed
+      // receipts. An unpublished staging family must not reconstruct live work.
+      if (!await verifyCurrentPublication()) throw fail('Control reconstruction requires the exact current publication.', 'ERR_SEMANTIC_PUBLICATION_REQUIRED');
       control ||= await openControl(runtime);
       if (!control.available) return { status: 'unavailable', recovered, pending: tasks.size };
       const durableInputHashes = new Set(manifest.partitions.map(row => row.canonicalHash));
-      for (const task of tasks.values()) control.enqueue({ task, durableInputHashes });
+      for (const task of tasks.values()) {
+        throwIfAborted(signal);
+        control.enqueue({ task, durableInputHashes });
+      }
       for (const receipt of manifest.completedTasks || []) {
         const task = tasks.get(receipt.taskId);
         if (!task || receipt.baseBuildId !== buildId || receipt.policyHash !== task.policyHash
           || receipt.inputHash !== semanticTaskInputHash(task)) throw fail('Completed compiler receipt differs from the durable task.');
         if (task.sourceUnits.some(source => task.coverageToProduce.some(phase => !producedScopes.has(source + ':' + phase)))) throw fail('Published compiler receipt has no actual phase output for every source.');
         const publication = { ...receipt, manifestHash, publishedBuildId: buildId };
-        await control.reconcilePublished({ taskId: task.taskId, publication, verifyPublication: async () => {
-          const current = JSON.parse(await fs.readFile(path.join(getBuildsRoot(repoRoot, userConfig), 'current.json'), 'utf8'));
-          const relative = current.buildRootsByMode?.[mode] || (current.buildId === buildId ? current.buildRoot : null);
-          if (current.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION || !relative) return false;
-          const cacheRoot = toRealPathSync(runtime.repoCacheRoot);
-          const publishedRoot = toRealPathSync(path.resolve(runtime.repoCacheRoot, relative));
-          if (!isWithinRoot(publishedRoot, cacheRoot) || publishedRoot !== toRealPathSync(buildRoot)) return false;
-          return hashBytes(await fs.readFile(manifestPath)) === manifestHash;
-        } });
+        await control.reconcilePublished({ taskId: task.taskId, publication, verifyPublication: verifyCurrentPublication });
         recovered += 1;
       }
       pending += [...tasks.keys()].filter(id => control.getTask(id)?.state !== 'completed').length;

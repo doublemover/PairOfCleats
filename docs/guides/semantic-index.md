@@ -92,6 +92,38 @@ partition provenance and retains incomplete evidence rather than claiming no pat
 
 ## Deferred analysis and compiler admission
 
+### Interrupted builds and retained storage
+
+Durable per-file Stage1 completions are validated before parser scheduling and
+replayed through the existing ordered result path. Worker IDs, shard layout and
+sequence numbers are not cache identities. Files without a verified completion
+are processed normally; a file completion alone never acknowledges deferred
+analysis or generation publication. Expired frontier leases are reclaimed by the
+existing attempt policy. Concurrent control-store creation is serialized, and
+equivalent immutable cache writers validate and reuse the winning layout.
+
+Under the existing build ownership, cleanup runs before worker admission (after
+restoring completion pins) and after workers drain. It first commits the current
+incremental manifest, then keeps the union of its Stage2 references and its pinned
+Stage1 descriptors, including embedded-source objects. Unreferenced completion
+snapshots, cache objects and interrupted cache-copy directories can be removed.
+Missing or malformed pinned descriptors defer cleanup rather than guess what is
+safe to remove. Source files and published generations are outside this sweep.
+
+The shared disk account includes retained files on reopen and temporary bundle
+encodings during Stage1 and Stage2 writes. Replacements keep the old bytes charged
+until the write succeeds; duplicate relocation copies return credits only after
+physical removal. Failed writes retain conservative reservations until reopen.
+This is byte admission for these owned writes, not an operating-system disk quota
+or a bound on unrelated processes, SQLite journal growth or all build artifacts.
+
+Verified current published manifests can reconstruct pending descriptors and
+completed receipts after the control database is lost. Enqueue/drain reconcile
+that inventory before leasing work. Unpublished or superseded generation roots
+cannot reconstruct current work. A corrupt database is reported; it is not
+silently replaced, and a reconstructed store cannot recover cancellation/retry
+history that existed only in the lost database.
+
 Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`
 to retain a durable pending descriptor. `after-index` permits bounded work through
 the existing relations scheduler, with `execution.afterIndexMaxMs` as a cooperative
