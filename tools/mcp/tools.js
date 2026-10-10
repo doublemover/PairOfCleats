@@ -1,4 +1,7 @@
 import { runSemanticTraceTool } from './tools/handlers/semantic-trace.js';
+import { runSemanticFindTool } from './tools/handlers/semantic-find.js';
+import { runSemanticExplainTool } from './tools/handlers/semantic-explain.js';
+import { runSemanticEnrichmentTool } from './tools/handlers/semantic-enrichment.js';
 import { runRuntimeEvidenceTool, runRuntimeFamiliesTool, runRuntimeCompareTool, runRuntimeClaimsTool } from './tools/handlers/runtime-evidence.js';
 import { runSemanticDetailTool } from './tools/handlers/semantic.js';
 import { configStatus, indexStatus } from './repo.js';
@@ -80,6 +83,9 @@ export const TOOL_HANDLERS = new Map([
   ['context_pack', runContextPack],
   ['semantic_detail', runSemanticDetailTool],
   ['semantic_trace', runSemanticTraceTool],
+  ['semantic_find', runSemanticFindTool],
+  ['semantic_explain', runSemanticExplainTool],
+  ['semantic_enrichment', runSemanticEnrichmentTool],
   ['runtime_evidence', runRuntimeEvidenceTool],
   ['runtime_families', runRuntimeFamiliesTool],
   ['runtime_compare', runRuntimeCompareTool],

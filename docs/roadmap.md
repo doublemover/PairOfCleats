@@ -192,19 +192,65 @@ public parity, deferred drain/crash qualification, broad tests and benchmarks re
 qualify the changed compiler host. The default-worker native access violation remains
 unresolved and was not investigated or retried here.
 
-Next ownership and acceptance:
+Core integration after f7775576 (2026-10-10, **implemented; qualification pending**):
 
-- **Astra integration:** complete virtual/project resolver authority and durable phase
-  executors beyond bind; review publication/recovery races, field/effect/exception/recursive
-  summary semantics and conservative boundary joins. Preserve the strict rejection path.
-- **Cheaper focused qualification:** enroll/run existing new call-summary, boundary,
-  policy, storage and generation fixtures; add sealed dependency mutation/negative-probe,
-  compiler-reload, grouped-global, lease/recovery and saved-runtime lifetime assertions.
-  Test exact artifact/SQLite projections before registering find/explain/enrichment.
-- **Later implementation:** fuse syntax/relation walks; integrate pre-production resident
-  admission and measured planning; complete operation projections, LSP/provider coverage
-  and runtime source/code joins. Huge-file partitioning/fairness and independent overlays
-  are later work, not v1 publication claims.
+- Compiler preflight and execution now share exact VFS document selection, container-relative
+  module resolution, retained embedded source/container hashes and project-reference inputs.
+  The existing grouped Program receives project references. Source context and compiler
+  provider version **2.4.0** invalidate prior provider output; unsealed probes still reject.
+  Older task authority descriptors without the new VFS inventory cannot drain; rebuild
+  from source to create current descriptors. No task conversion or relaxed authority fallback.
+- Binding, local-flow and cross-file tasks are frozen before execution. One scheduler-admitted
+  compiler pass leases every selected phase, verifies actual per-source output before receipts,
+  and rolls back unpublished descriptor selection on cancellation/incomplete output. Manual
+  drain supports exact selected localFlow/crossFileFlow tasks through normal fresh-generation
+  promotion, with source/input/policy lineage. Recovery additionally requires actual phase
+  coverage for every acknowledged source. Targeted parse reuse remains unimplemented.
+- Flow now includes checker-owned field paths, weak field versions, explicit throw-to-catch
+  payload routes and bounded recursive effect/exception summaries. Caller-owned modeled
+  effects retain source evidence. Aliases/accessors, implicit exceptions, constant effects,
+  parameter-field widening and async/constructor/spread contracts remain explicit partial
+  frontiers; these are may-dependencies, not unique runtime producers or proven delivery.
+- Artifact and pinned read-only SQLite find/trace/explain share source/frontier hydration
+  and receipt-aware coverage. Completed work suppresses only matching deferred markers;
+  real partial analysis remains partial. CLI/MCP/HTTP find/explain/enrichment registrations
+  are now wired and explicitly experimental/pending qualification (MCP **1.4.6**).
+  SQLite selection currently requires generation/index-sqlite/index-code.db; custom/shared
+  mutable database layouts are unavailable. Enrichment defaults to plan; explicit task IDs
+  are required for enqueue/drain. No runtime capture is launched.
+
+Sanity evidence: Node26 small eager builds published phase receipts for an ordinary source,
+retained Vue script and referenced TypeScript project. An explicit manual drain of selected
+local/cross-file phases published a distinct generation with both lineage receipts. These
+are construction/build sanity checks, not the acceptance fixture campaign. Initial sanity
+failures found unsupported config chunks without retained VFS text, a missing explicit
+manual task selector and Windows repository-path casing; these were corrected. The first
+HTML probe did not establish embedded extraction, so a Vue script was used for that check.
+The final field/exception construction first exposed an undefined per-owner coverage
+set; after correction it published all three phase receipts. Repository format, Node26
+syntax checks and scoped lint for 39 JavaScript files, shared imports and all four
+unrelated workflow hash checks passed.
+The new phase-drain production fixture is enrolled in integration (list-only); new/expanded
+flow, coverage and parity fixtures remain **unrun**. No benchmark, native-worker rerun,
+full correctness campaign or race/crash qualification occurred.
+
+Remaining core work and acceptance:
+
+- **Astra core owner:** refine complete project/resolver authority for additional TS resolution
+  modes and enforce measured pre-production resource admission without weakening closed-host
+  rejection. Preserve exact virtual mappings and independent phase coverage. Remaining flow
+  work includes robust heap/accessor/unknown effects, implicit exception/finally behavior and
+  richer recursive context contracts. Do not label current may summaries complete SSA.
+- **Qualification owner, staffing still requires approval:** run enrolled phase-drain,
+  call-summary, compiler-flow, boundary and artifact/SQLite query fixtures with repository
+  previews and the 30-second per-test rule. Add dependency mutation/negative probe,
+  stale completion, lease loss, publisher race, restart and failure-injection receipts.
+  Establish real CLI/MCP/HTTP and SQLite parity before removing experimental labels.
+  The earlier native access violation remains unresolved and is not part of this pass.
+- **Deferred extensions:** runtime native/source-map/inlining joins, richer operation/vector
+  projections, giant-file partitioning and independent overlays. Syntax-walk fusion,
+  cached preflight startup avoidance and broader LSP/provider coverage remain separate
+  implementation work. None is disguised as a verification-only item.
 
 The full frozen specification is **not complete**. This branch is reviewable implementation
 work with explicit remaining frontiers, not release readiness. The ignored temporary task

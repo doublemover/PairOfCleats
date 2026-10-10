@@ -62,6 +62,6 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
     for (const piece of operationIndex.pieces) if (!registered.has('semantic/' + piece.path) || !registered.has('semantic/' + piece.offsetsPath)) throw new Error('Unregistered operation index part.');
   }
   const store = createArtifactSemanticStore({ root: path.join(indexDir, 'semantic'), repoRoot,
-    artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions, operationIndex, queryIndex });
+    artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions, completedTasks: manifest.completedTasks, operationIndex, queryIndex });
   return { store, manifest };
 };

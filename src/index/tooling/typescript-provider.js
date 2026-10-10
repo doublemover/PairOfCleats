@@ -4,7 +4,7 @@ import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfi
 import { loadTypeScript } from './typescript/load.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
-import { createDefaultCompilerOptions, resolveTsconfigOverride, findNearestConfig, parseTsConfig } from './typescript/config.js';
+import { selectTypeScriptDocuments, createDefaultCompilerOptions, resolveTsconfigOverride, findNearestConfig, parseTsConfig } from './typescript/config.js';
 
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
@@ -145,7 +145,7 @@ const buildTypeScriptDiagnosticCheck = ({
 
 export const createTypeScriptProvider = () => ({
   id: 'typescript',
-  version: '2.3.0',
+  version: '2.4.0',
   label: 'TypeScript',
   priority: 10,
   languages: ['typescript', 'tsx', 'javascript', 'jsx'],
@@ -172,13 +172,13 @@ export const createTypeScriptProvider = () => ({
     const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
     if (ctx?.toolingConfig?.typescript?.enabled === false) {
       log({ level: 'info', message: 'TypeScript tooling disabled.' });
-      return { provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
+      return { provider: { id: 'typescript', version: '2.4.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
     }
     const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
     if (!ts) {
       log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
       return {
-        provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.4.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(baseDiagnostics, [
           buildTypeScriptDiagnosticCheck({
@@ -195,17 +195,10 @@ export const createTypeScriptProvider = () => ({
     const useCaseSensitive = typeof ts?.sys?.useCaseSensitiveFileNames === 'boolean'
       ? ts.sys.useCaseSensitiveFileNames
       : process.platform !== 'win32';
-    const allowJs = config.allowJs !== false;
-    const includeJsx = config.includeJsx !== false;
-    const allowedExts = new Set([
-      '.ts', '.tsx', '.mts', '.cts',
-      ...(allowJs ? ['.js', '.mjs', '.cjs'] : []),
-      ...(allowJs && includeJsx ? ['.jsx'] : [])
-    ]);
-    const rootDocs = documents.filter((doc) => allowedExts.has(String(doc.effectiveExt || '').toLowerCase()));
+    const rootDocs = selectTypeScriptDocuments(documents, config);
     if (!rootDocs.length) {
       return {
-        provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.4.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: baseDiagnostics
       };
@@ -330,7 +323,7 @@ export const createTypeScriptProvider = () => ({
       }
 
       const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins, compilerSystem);
-      const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, host });
+      const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, projectReferences: parsedConfig?.projectReferences, host });
       const checker = program.getTypeChecker();
       const semanticGroup = ctx.semanticSession?.beginGroup({ ts, program, options: mergedOptions, documents: groupDocs, configPath: group.configPath });
 
@@ -397,7 +390,7 @@ export const createTypeScriptProvider = () => ({
             ...(symbolRef ? { symbolRef } : {}),
             provenance: {
               provider: 'typescript',
-              version: '2.3.0',
+              version: '2.4.0',
               collectedAt: new Date().toISOString()
             }
           };
@@ -407,7 +400,7 @@ export const createTypeScriptProvider = () => ({
     }
 
     return {
-      provider: { id: 'typescript', version: '2.3.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'typescript', version: '2.4.0', configHash: this.getConfigHash(ctx) },
       byChunkUid,
       ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),
       diagnostics: diagnostics.length ? { checks: diagnostics } : null

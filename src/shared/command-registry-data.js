@@ -330,6 +330,9 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Graph',
     supportTier: 'operator'
   }),
+  entry('semantic.find',['semantic','find'],'tools/analysis/semantic-find.js','Discover pinned structural/target candidates; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic find --request request.json --all']}),
+  entry('semantic.explain',['semantic','explain'],'tools/analysis/semantic-explain.js','Explain pinned static witnesses and explicit task suggestions; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic explain --request request.json --all']}),
+  entry('semantic.enrichment',['semantic','enrichment'],'tools/analysis/semantic-enrichment.js','Plan source-pinned tasks by default; explicit enqueue/drain only; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic enrichment --request request.json']}),
   entry('semantic.trace', ['semantic', 'trace'], 'tools/analysis/semantic-trace.js', 'Trace source-pinned value relationships and explicit evidence frontiers.', {
     helpGroup: 'Graph', supportTier: 'experimental',
     helpExamples: ['pairofcleats semantic trace --request request.json --all']

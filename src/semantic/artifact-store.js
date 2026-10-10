@@ -1,5 +1,6 @@
 import { createArtifactOperationReader } from './operation-reader.js';
 import { createNeighborReader } from './neighbors.js';
+import { resolvePublishedSemanticCoverage } from './coverage-resolution.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import { assertQueryIndexRow, compareQueryIndexRows, queryIndexOwnerCompare } from './query-index.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
@@ -52,7 +53,7 @@ const hashFile = async (filePath, signal) => {
  * validate all parts first. Cache only bounded validation metadata, never nodes.
  */
 export const createArtifactSemanticStore = ({
-  root, repoRoot, artifactSurfaceVersion, generation, partitions,
+  root, repoRoot, artifactSurfaceVersion, generation, partitions, completedTasks = [],
   operationIndex = null, queryIndex: inputQueryIndex = null, maxRecords = 128, maxRecordBytes = 1048576, validationCacheEntries = 64
 }) => {
   assertCurrentIndexFormat({
@@ -214,7 +215,7 @@ export const createArtifactSemanticStore = ({
         rows.push({ ...row, partitionId });
       }
     }
-    return rows;
+    return resolvePublishedSemanticCoverage(rows,{generation,completedTasks,sourceForPartition:id=>inventory.get(id)?.sourceUnitId});
   };
   const readMemberRows = async (partitionId, member, ordinals, { signal = null, metrics = null } = {}) => {
     const partition = inventory.get(partitionId);

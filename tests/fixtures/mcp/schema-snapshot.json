@@ -305,6 +305,59 @@
   },
   "tools": [
     {
+      "name": "semantic_find",
+      "required": [
+        "generation",
+        "repoRoot",
+        "selector"
+      ],
+      "properties": [
+        "backend",
+        "compareTo",
+        "cursor",
+        "generation",
+        "limits",
+        "repoRoot",
+        "selector"
+      ]
+    },
+    {
+      "name": "semantic_explain",
+      "required": [
+        "direction",
+        "generation",
+        "repoRoot",
+        "seed"
+      ],
+      "properties": [
+        "backend",
+        "cursor",
+        "direction",
+        "generation",
+        "kinds",
+        "limits",
+        "repoRoot",
+        "seed",
+        "slot"
+      ]
+    },
+    {
+      "name": "semantic_enrichment",
+      "required": [
+        "generation",
+        "repoRoot",
+        "schemaVersion"
+      ],
+      "properties": [
+        "action",
+        "generation",
+        "limits",
+        "repoRoot",
+        "schemaVersion",
+        "taskIds"
+      ]
+    },
+    {
       "name": "runtime_evidence",
       "required": [
         "destination",
@@ -375,6 +428,7 @@
         "seed"
       ],
       "properties": [
+        "backend",
         "cursor",
         "direction",
         "generation",

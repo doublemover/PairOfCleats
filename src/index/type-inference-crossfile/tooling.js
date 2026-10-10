@@ -255,6 +255,32 @@ const summarizeToolingRuntimeCounts = (metrics) => ({
   toolingReuse: metrics?.reuse || null
 });
 
+export const prepareToolingPassDocuments = async ({ chunks, fileTextByFile, toolingConfig, semanticSession = null, semanticLspSession = null, log }) => {
+  const strict = toolingConfig?.strict !== false;
+  const vfsConfig = toolingConfig?.vfs && typeof toolingConfig.vfs === 'object'
+    ? toolingConfig.vfs
+    : {};
+  const vfsStrict = typeof vfsConfig.strict === 'boolean' ? vfsConfig.strict : strict;
+  const maxVirtualFileBytesRaw = Number(vfsConfig.maxVirtualFileBytes);
+  const maxVirtualFileBytes = Number.isFinite(maxVirtualFileBytesRaw)
+    ? Math.max(0, Math.floor(maxVirtualFileBytesRaw))
+    : null;
+  const hashRouting = vfsConfig.hashRouting === true;
+  const coalesceSegments = vfsConfig.coalesceSegments === true;
+  let { documents, targets } = await buildToolingVirtualDocuments({
+    chunks,
+    fileTextByPath: fileTextByFile,
+    strict: vfsStrict,
+    maxVirtualFileBytes,
+    hashRouting,
+    coalesceSegments,
+    log
+  });
+  if (semanticSession) documents = semanticSession.prepareDocuments(documents);
+  if (semanticLspSession) documents = semanticLspSession.prepareDocuments(documents);
+  return { documents, targets };
+};
+
 export const runToolingPass = async ({
   rootDir,
   buildRoot,
@@ -270,21 +296,12 @@ export const runToolingPass = async ({
   abortSignal = null,
   semanticSession = null,
   semanticLspSession = null,
+  toolingDocuments = null,
   applyTypes = true
 }) => {
   if ((!Array.isArray(chunks) || !chunks.length) && !semanticSession && !semanticLspSession) return { ...EMPTY_TOOLING_PASS_STATS };
   registerDefaultToolingProviders();
   const strict = toolingConfig?.strict !== false;
-  const vfsConfig = toolingConfig?.vfs && typeof toolingConfig.vfs === 'object'
-    ? toolingConfig.vfs
-    : {};
-  const vfsStrict = typeof vfsConfig.strict === 'boolean' ? vfsConfig.strict : strict;
-  const maxVirtualFileBytesRaw = Number(vfsConfig.maxVirtualFileBytes);
-  const maxVirtualFileBytes = Number.isFinite(maxVirtualFileBytesRaw)
-    ? Math.max(0, Math.floor(maxVirtualFileBytesRaw))
-    : null;
-  const hashRouting = vfsConfig.hashRouting === true;
-  const coalesceSegments = vfsConfig.coalesceSegments === true;
   const logger = (evt) => {
     if (!evt) return;
     if (typeof evt === 'string') {
@@ -293,17 +310,7 @@ export const runToolingPass = async ({
     }
     if (evt?.message) log(evt.message);
   };
-  let { documents, targets } = await buildToolingVirtualDocuments({
-    chunks,
-    fileTextByPath: fileTextByFile,
-    strict: vfsStrict,
-    maxVirtualFileBytes,
-    hashRouting,
-    coalesceSegments,
-    log
-  });
-  if (semanticSession) documents = semanticSession.prepareDocuments(documents);
-  if (semanticLspSession) documents = semanticLspSession.prepareDocuments(documents);
+  const { documents, targets } = toolingDocuments || await prepareToolingPassDocuments({ chunks, fileTextByFile, toolingConfig, semanticSession, semanticLspSession, log });
   if (!documents.length || (!targets.length && !semanticSession && !semanticLspSession)) return { ...EMPTY_TOOLING_PASS_STATS };
 
   const chunkByUid = new Map();

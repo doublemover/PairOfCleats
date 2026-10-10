@@ -6,8 +6,10 @@ export const createSemanticExplainService = options => {
   const trace=createSemanticTraceService(options);
   return async input => {
     assertSemanticExplain('request',input.request);
+    const began=performance.now();
     const result=await trace(input);
-    Object.assign(result,await projectExplainEnrichment({...input,result}));
+    const remainingMs=Math.max(0,(input.request.limits?.workMs||options?.maxWorkMs||250)-(performance.now()-began));
+    Object.assign(result,await projectExplainEnrichment({...input,result,maxMs:remainingMs}));
     const records=new Map(result.records.map(row=>[JSON.stringify(row.ref),row]));
     result.explanations=result.edges.map(edge=>{
       const evidence=edge.evidence?records.get(JSON.stringify(edge.evidence)):null;
