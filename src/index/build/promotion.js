@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -30,6 +31,8 @@ export async function promoteBuild({
   compatibilityKey = null
 }) {
   if (!repoRoot || !buildId || !buildRoot) return null;
+  assertCurrentIndexFormat({ operation: 'publish', component: 'build pointer',
+    foundVersion: artifactSurfaceVersion, repoRoot, indexPath: buildRoot });
   const buildsRoot = getBuildsRoot(repoRoot, userConfig);
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
   const resolvedCacheRoot = toRealPathSync(repoCacheRoot);
@@ -68,7 +71,7 @@ export async function promoteBuild({
         )
       });
     }
-    if (current && typeof current === 'object') {
+    if (current && typeof current === 'object' && current.artifactSurfaceVersion === ARTIFACT_SURFACE_VERSION) {
       if (current.extensions && typeof current.extensions === 'object' && !Array.isArray(current.extensions)) {
         priorExtensions = current.extensions;
       }

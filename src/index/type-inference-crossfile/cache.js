@@ -1,3 +1,5 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
@@ -8,7 +10,7 @@ import { writeJsonValue } from '../../shared/json-stream/encode.js';
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
-export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
+export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
 const CROSS_FILE_CACHE_ROW_VALUE_PRIORITY = Object.freeze({
@@ -289,6 +291,7 @@ export const buildCrossFileFingerprint = ({
     });
   }
   return sha1(stableStringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
@@ -329,8 +332,11 @@ export const readCrossFileInferenceCache = async ({
     const admission = cached?.admission && typeof cached.admission === 'object'
       ? cached.admission
       : null;
+    assertCurrentIndexFormat({ operation: 'resume', component: 'cross-file cache',
+      foundVersion: cached?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: cachePath });
     if (
-      Number(cached?.schemaVersion) === CROSS_FILE_CACHE_SCHEMA_VERSION
+      cached?.artifactSurfaceVersion === ARTIFACT_SURFACE_VERSION
+      && Number(cached?.schemaVersion) === CROSS_FILE_CACHE_SCHEMA_VERSION
       && typeof cached?.fingerprint === 'string'
       && cached.fingerprint === crossFileFingerprint
       && Array.isArray(cached?.rows)
@@ -358,6 +364,7 @@ export const readCrossFileInferenceCache = async ({
       }
     }
   } catch (err) {
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (err?.code === 'ENOENT') {
       return null;
     }
@@ -399,6 +406,7 @@ export const writeCrossFileInferenceCache = async ({
     const normalizedStats = normalizeCacheStats(stats);
     const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
     const baseBytes = await measureCrossFileCachePayloadBytes(withGeneratedCacheMetadata({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
@@ -458,6 +466,7 @@ export const writeCrossFileInferenceCache = async ({
       );
     }
     const fields = withGeneratedCacheMetadata({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
@@ -481,6 +490,7 @@ export const writeCrossFileInferenceCache = async ({
       atomic: true
     });
   } catch (err) {
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (typeof log === 'function') {
       log(`[perf] cross-file cache write failed: ${err?.message || err}`);
     }

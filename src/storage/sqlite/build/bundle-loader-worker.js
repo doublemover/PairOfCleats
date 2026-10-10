@@ -14,6 +14,7 @@ export default async function loadBundleWorker(task) {
     }
     return { ok: true, bundle: result.bundle };
   } catch (err) {
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     return { ok: false, reason: err?.message || String(err) };
   }
 }

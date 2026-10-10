@@ -1,6 +1,7 @@
+import { assertSqliteIndexFormat } from '../index-format.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
-import { REQUIRED_TABLES, SCHEMA_VERSION } from '../schema.js';
+import { REQUIRED_TABLES } from '../schema.js';
 import {
   checkpointSqliteWithTelemetry,
   createSqliteTableStatRecorder,
@@ -16,7 +17,6 @@ import { createUint8ClampStats } from '../vector.js';
 import { resolveQuantizationParams } from '../quantization.js';
 import { applyBuildPragmas, restoreBuildPragmas } from './pragmas.js';
 import { createInsertStatements } from './statements.js';
-import { getSchemaVersion } from './validate.js';
 import { resolveIncrementalChangePlan, loadBundlesAndCollectState } from './incremental-update/planner.js';
 import { createIncrementalDocIdResolver } from './incremental-update/doc-id-resolver.js';
 import { runIncrementalUpdatePhase } from './incremental-update/update-phase.js';
@@ -162,6 +162,12 @@ export async function incrementalUpdateDatabase({
 
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
+  try {
+    assertSqliteIndexFormat({ db, operation: 'incremental-update', repoRoot: process.cwd(), indexPath: outPath });
+  } catch (error) {
+    db.close();
+    throw error;
+  }
   // Establish cleanup ownership before any fallible initialization runs.
   let pragmaState = null;
   let pageSize = ingestPlan.pageSize;
@@ -221,13 +227,6 @@ export async function incrementalUpdateDatabase({
       walPressure: ingestPlan.walPressure,
       source: 'incremental'
     });
-    const schemaVersion = getSchemaVersion(db);
-    if (schemaVersion !== SCHEMA_VERSION) {
-      return {
-        used: false,
-        reason: `schema mismatch (db=${schemaVersion ?? 'unknown'}, expected=${SCHEMA_VERSION})`
-      };
-    }
 
     if (!hasRequiredTables(db, REQUIRED_TABLES)) {
       return { used: false, reason: 'schema missing' };

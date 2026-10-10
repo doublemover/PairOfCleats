@@ -1,3 +1,5 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
+import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { BUNDLE_CHECKSUM_SCHEMA_VERSION } from '../../../shared/bundle-io-constants.js';
@@ -80,7 +82,7 @@ export async function loadIncrementalState({
   bundleFormat = null,
   log = null
 }) {
-  const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
+  const incrementalDir = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, mode);
   const bundleDir = path.join(incrementalDir, 'files');
   const manifestPath = path.join(incrementalDir, 'manifest.json');
   const requestedBundleFormat = typeof bundleFormat === 'string'
@@ -89,6 +91,7 @@ export async function loadIncrementalState({
   const defaultBundleFormat = requestedBundleFormat || 'json';
   let artifactNeedsRebuild = false;
   let manifest = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     version: 5,
     signatureVersion: SIGNATURE_VERSION,
     mode,
@@ -107,6 +110,8 @@ export async function loadIncrementalState({
         maxBytes: INCREMENTAL_MANIFEST_JSON_MAX_BYTES,
         label: `${mode} incremental manifest`
       });
+      assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+        foundVersion: loaded?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: manifestPath });
       if (loaded && typeof loaded === 'object') {
         const loadedKey = typeof loaded.tokenizationKey === 'string'
           ? loaded.tokenizationKey
@@ -156,6 +161,7 @@ export async function loadIncrementalState({
         } else {
           artifactNeedsRebuild = signatureMismatch || (!!dependencySignatures && dependencySignatures.artifacts !== loaded.dependencySignatures?.artifacts);
           manifest = {
+            artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
             version: loaded.version || 1,
             signatureVersion: loadedSignatureVersion ?? SIGNATURE_VERSION,
             mode,
@@ -174,6 +180,7 @@ export async function loadIncrementalState({
         }
       }
     } catch (error) {
+      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
       if (typeof log === 'function') {
         log(
           `[incremental] ${mode} cache manifest read failed ` +
@@ -343,6 +350,10 @@ export async function shouldReuseIncrementalIndex({
   } catch (error) {
     return fail(`failed to read index state/manifest (${error?.code || 'ERR_JSON_READ'})`);
   }
+  for (const [component, data, indexPath] of [
+    ['index state', indexState, indexStatePath], ['pieces manifest', pieceManifest, piecesPath]
+  ]) assertCurrentIndexFormat({ operation: 'resume', component,
+    foundVersion: data?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath });
   if (!stageSatisfied(stage, indexState?.stage || null)) {
     return fail('index stage mismatch');
   }

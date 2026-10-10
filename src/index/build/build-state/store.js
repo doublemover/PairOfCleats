@@ -1,3 +1,5 @@
+import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -813,6 +815,8 @@ export const loadBuildState = async (buildRoot) => {
   const statePath = resolveStatePath(buildRoot);
   const fingerprint = await readFingerprint(statePath);
   if (fingerprintsMatch(fingerprint, cache.fingerprint) && cache.state) {
+    assertCurrentIndexFormat({ operation: 'resume', component: 'build state',
+      foundVersion: cache.state.artifactSurfaceVersion, repoRoot: cache.state.repoRoot || process.cwd(), indexPath: statePath });
     return { state: cache.state, loaded: true, cache };
   }
   const parsed = fingerprint
@@ -824,6 +828,8 @@ export const loadBuildState = async (buildRoot) => {
       target: 'state'
     })
     : null;
+  if (parsed) assertCurrentIndexFormat({ operation: 'resume', component: 'build state',
+    foundVersion: parsed.artifactSurfaceVersion, repoRoot: parsed.repoRoot || process.cwd(), indexPath: statePath });
   cache.state = parsed;
   cache.fingerprint = fingerprint;
   cache.lastHash = parsed ? hashJson(parsed) : null;
@@ -887,6 +893,8 @@ const loadSidecar = async (buildRoot, type) => {
 };
 
 export const ensureStateVersions = (state, buildRoot, loaded) => {
+  if (loaded) assertCurrentIndexFormat({ operation: 'resume', component: 'build state',
+    foundVersion: state?.artifactSurfaceVersion, repoRoot: state?.repoRoot || process.cwd(), indexPath: resolveStatePath(buildRoot) });
   const schemaVersion = Number.isFinite(Number(state?.schemaVersion))
     ? Number(state.schemaVersion)
     : null;
@@ -899,6 +907,7 @@ export const ensureStateVersions = (state, buildRoot, loaded) => {
   const orderingLedger = normalizeOrderingLedger(state?.orderingLedger);
   return {
     ...state,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     schemaVersion: schemaVersion ?? STATE_SCHEMA_VERSION,
     signatureVersion,
     ...(orderingLedger ? { orderingLedger } : {})

@@ -107,7 +107,8 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
             }
             loadedShards.push(result.bundle);
             continue;
-          } catch {
+          } catch (error) {
+            if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
             await disableWorkerPool();
           }
         }
@@ -115,6 +116,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath }) => {
         if (!loaded.ok) return loaded;
         loadedShards.push(...loaded.bundleShards);
       } catch (err) {
+        if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
         return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
       }
     }

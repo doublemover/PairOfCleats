@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs';
 import { resolveCurrentBuildRoots } from './build-pointer-roots.js';
 
@@ -57,6 +58,8 @@ export const readCurrentBuildGeneration = ({
   try {
     const raw = fs.readFileSync(currentJsonPath, 'utf8');
     const data = JSON.parse(raw) || {};
+    assertCurrentIndexFormat({ operation: 'read', component: 'build pointer',
+      foundVersion: data.artifactSurfaceVersion, repoRoot: data.repoRoot || process.cwd(), indexPath: currentJsonPath });
     const generation = resolveCurrentBuildGeneration(data, {
       repoCacheRoot,
       buildsRoot,
@@ -73,7 +76,8 @@ export const readCurrentBuildGeneration = ({
       buildRoots: generation.buildRoots || {},
       generationKey: generation.generationKey || null
     };
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return {
       ...empty,
       currentJsonExists: true,

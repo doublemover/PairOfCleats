@@ -1,3 +1,5 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { Packr } from 'msgpackr';
 import { writeJsonObjectFile } from '../json-stream/json-writers.js';
 import { atomicWriteText } from '../io/atomic-write.js';
@@ -33,6 +35,11 @@ export async function removeBundleWriteArtifacts(bundlePath) {
 }
 
 export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
+  if (Object.hasOwn(bundle, 'artifactSurfaceVersion')) assertCurrentIndexFormat({
+    operation: 'write', component: 'bundle payload', foundVersion: bundle.artifactSurfaceVersion,
+    repoRoot: process.cwd(), indexPath: bundlePath
+  });
+  bundle = { ...bundle, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION };
   const resolvedFormat = normalizeBundleFormat(format);
   if (resolvedFormat === 'msgpack') {
     const bundleEstimate = estimatePayloadBytes(bundle);
@@ -53,6 +60,7 @@ export async function writeBundleFile({ bundlePath, bundle, format = 'json' }) {
       checksum = await checksumBundlePayload(normalized);
     }
     const envelope = {
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       format: BUNDLE_FORMAT_TAG,
       version: BUNDLE_VERSION,
       checksum: checksum

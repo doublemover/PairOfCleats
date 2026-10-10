@@ -91,7 +91,7 @@ export const SEMANTIC_EDGE_SCHEMA = object({
   condition: optionalRef, evidence: optionalRef, certainty: enumeration('exact-static modeled heuristic')
 });
 export const SEMANTIC_COVERAGE_SCHEMA = object({
-  scope: ref,
+  scope: { anyOf: [ref, object({ sourceUnitId: { type: 'string', pattern: '^su1:[a-f0-9]{64}$' } })] },
   phase: enumeration('syntax bindings localFlow crossFileFlow boundaryModels runtimeJoin'),
   state: enumeration('complete partial deferred disabled unsupported failed stale'),
   reason: nullable(text), observedCount: nullable(integer), completedCount: nullable(integer),
