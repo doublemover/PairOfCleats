@@ -21,3 +21,7 @@ for (const [base, type] of [[0x8b, 'f32'], [0x99, 'f64']]) {
   'add sub mul div min max copysign'.split(' ').forEach((name, i) => add(base + 7 + i, type + '.' + name, 2, 1));
 }
 'i32.wrap_i64 i32.trunc_f32_s i32.trunc_f32_u i32.trunc_f64_s i32.trunc_f64_u i64.extend_i32_s i64.extend_i32_u i64.trunc_f32_s i64.trunc_f32_u i64.trunc_f64_s i64.trunc_f64_u f32.convert_i32_s f32.convert_i32_u f32.convert_i64_s f32.convert_i64_u f32.demote_f64 f64.convert_i32_s f64.convert_i32_u f64.convert_i64_s f64.convert_i64_u f64.promote_f32 i32.reinterpret_f32 i64.reinterpret_f64 f32.reinterpret_i32 f64.reinterpret_i64 i32.extend8_s i32.extend16_s i64.extend8_s i64.extend16_s i64.extend32_s'.split(' ').forEach((name, i) => add(0xa7 + i, name, 1, 1, name.includes('.trunc_')));
+
+for (const [code,name,inputs,outputs] of [[0x12,'return_call',0,0],[0x13,'return_call_indirect',0,0],[0x14,'call_ref',0,0],[0x15,'return_call_ref',0,0],
+  [0x25,'table.get',1,1],[0x26,'table.set',2,0],[0x1c,'select',3,1],[0xd0,'ref.null',0,1],[0xd1,'ref.is_null',1,1],[0xd2,'ref.func',0,1],[0xd3,'ref.eq',2,1],[0xd4,'ref.as_non_null',1,1],[0xd5,'br_on_null',1,1],[0xd6,'br_on_non_null',1,0],
+  [6,'try',0,0],[7,'catch',0,0],[8,'throw',0,0],[9,'rethrow',0,0],[10,'throw_ref',1,0],[0x18,'delegate',0,0],[0x19,'catch_all',0,0],[0x1f,'try_table',0,0]]) add(code,name,inputs,outputs,code===0xd4);

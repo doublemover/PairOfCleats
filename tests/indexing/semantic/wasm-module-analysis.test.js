@@ -29,7 +29,7 @@ assert.deepEqual(analyzeWasmModule(decoded(binary)), graph);
 for (let end = 0; end < binary.length; end++) if (!WebAssembly.validate(binary.subarray(0, end))) assert.notEqual(decodeWasmModule(binary.subarray(0, end)).status, 'decoded', 'truncated byte ' + end);
 assert.equal(decodeWasmModule(Buffer.from([0,97,115,109,1,0,0,0,1,128,128,128,128,16])).reason, 'wasm_leb_overflow');
 assert.equal(decodeWasmModule(Buffer.concat([binary, Buffer.from(wasmSection(1, [0]))])).reason, 'wasm_section_order_or_duplicate');
-assert.equal(decodeWasmModule(wasmModule({ functions: [{ code: [0xfc, 0] }] })).status, 'unsupported');
+assert.equal(decodeWasmModule(wasmModule({ functions: [{ code: [0xff] }] })).status, 'unsupported');
 assert.equal(decodeWasmModule(wasmModule({ functions: [{ code: [0x6a] }] })).reason, 'wasm_validation_failed');
 assert.equal(decodeWasmModule(wasmModule({ functions: [{ code: [0x20, 3] }] })).reason, 'wasm_validation_failed');
 assert.equal(decodeWasmModule(new Uint8Array(WASM_LIMITS.bytes + 1)).reason, 'wasm_byte_budget');
@@ -68,8 +68,8 @@ const indirect = analyzeWasmModule(decoded(wasmModule({
   functions: [{ code: [0x20,0, 0x41,0, 0x11,0,0] }],
   sections: [wasmSection(4, [1,0x70,0,1]), wasmSection(9, [1,0,0x41,0,11,1,0])]
 })));
-assert.ok(indirect.reasons.includes('wasm_indirect_call_table_target_unresolved'));
-assert.ok(!indirect.edges.some(edge => edge.kind === 'callTarget'));
+assert.ok(!indirect.reasons.includes('wasm_indirect_call_table_target_unresolved'));
+assert.ok(indirect.edges.some(edge => edge.kind === 'callTarget' && edge.certainty === 'exact-static'));
 assert.ok(indirect.edges.some(edge => edge.kind === 'consumes' && edge.slot === 'callee'));
 const memoryModule = decoded(wasmModule({ functions: [{ code: [0x20,0, 0x28,2,0] }],
   sections: [wasmSection(5, [1,0,1]), wasmSection(6, [1,0x7f,0,0x41,0,11]), wasmSection(11, [1,0,0x41,0,11,2,1,2])]
@@ -78,7 +78,7 @@ assert.equal(memoryModule.memories[0].min, 1);
 assert.equal(memoryModule.globals[0].initializer[0].value, 0);
 assert.equal(memoryModule.data[0].bytes, '0102');
 const memory = analyzeWasmModule(memoryModule);
-assert.ok(memory.reasons.includes('wasm_memory_contents_alias_growth_and_trap_outcomes_unresolved'));
+assert.ok(memory.reasons.includes('wasm_storage_order_alias_and_runtime_contents_conservative'));
 assert.ok(memory.edges.some(edge => edge.kind === 'exceptional'));
 const largeGraph = decoded(wasmModule({ functions: [{ locals: Array(255).fill(0x7f), code: [...Array.from({length:140}, () => [2,0x40,11]).flat(), 0x20,0] }] }));
 assert.throws(() => analyzeWasmModule(largeGraph), error => error.code === 'ERR_WASM_FLOW_BUDGET');

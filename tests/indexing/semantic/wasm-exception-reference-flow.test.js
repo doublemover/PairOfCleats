@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import { wasmModule, wasmSection } from '../../helpers/wasm-fixture.js';
+import { decodeWasmModule } from '../../../src/index/semantic/wasm/decode.js';
+import { analyzeWasmModule } from '../../../src/index/semantic/wasm/flow.js';
+const analyze = options => {
+  const result = decodeWasmModule(wasmModule(options));
+  assert.equal(result.status, 'decoded', JSON.stringify(result));
+  return analyzeWasmModule(result.module);
+};
+const options = { types: [{params:[],results:[0x7f]}, {params:[0x7f],results:[]}], sections:[wasmSection(13,[1,0,1])] };
+const payload = analyze({...options, functions:[{code:[2,0x7f,0x1f,0x40,1,0,0,0,0x41,7,8,0,11,0,11]}]});
+const instruction = (graph, name) => graph.nodes.find(node => node.name === name);
+const outgoing = (graph, node) => graph.edges.filter(edge => edge.from === node.id);
+const reachable = (graph, from, to) => {
+  const visited = new Set([from]);
+  for (const id of visited) for (const edge of graph.edges) if (edge.from === id && ['defines','flowsTo'].includes(edge.kind)) visited.add(edge.to);
+  return visited.has(to);
+};
+assert.ok(reachable(payload, instruction(payload, 'i32.const').id, payload.functions[0].results[0]), 'tag payload reaches enclosing block result');
+assert.ok(outgoing(payload, instruction(payload,'throw')).some(edge=>edge.kind==='exceptional'));
+const legacy = analyze({...options, functions:[{code:[6,0x7f,0x41,7,8,0,7,0,11]}]});
+assert.ok(reachable(legacy, instruction(legacy,'i32.const').id, legacy.functions[0].results[0]));
+const trapped = analyze({...options, functions:[{code:[6,0x7f,0,0x19,0x41,9,11]}]});
+assert.ok(outgoing(trapped, instruction(trapped,'unreachable')).some(edge=>edge.to===trapped.functions[0].trap));
+assert.equal(outgoing(trapped, instruction(trapped,'i32.const')).length,0,'catch_all must not catch a trap');
+const rethrown = analyze({...options, functions:[{code:[6,0x7f,6,0x7f,0x41,7,8,0,7,0,9,0,11,7,0,11]}]});
+assert.ok(outgoing(rethrown,instruction(rethrown,'rethrow')).some(edge=>edge.kind==='exceptional'));
+const delegated = analyze({...options, functions:[{code:[6,0x7f,6,0x7f,0x41,7,8,0,24,0,7,0,11]}]});
+assert.ok(reachable(delegated,instruction(delegated,'i32.const').id,delegated.functions[0].results[0]));
+const nullable = analyze({types:[{params:[0x6f],results:[0x7f]}],functions:[{code:[2,0x40,0x20,0,0xd5,0,0x1a,11,0x41,1]}]});
+assert.ok(outgoing(nullable,instruction(nullable,'br_on_null')).some(edge=>edge.kind==='controlTrue'));
+const nonNull = analyze({types:[{params:[0x6f],results:[0x6f]}],functions:[{code:[2,0x6f,0x20,0,0xd6,0,0xd0,0x6f,11]}]});
+assert.ok(outgoing(nonNull,instruction(nonNull,'br_on_non_null')).some(edge=>edge.kind==='controlFalse'));
+const cast = analyze({types:[{params:[0x6e],results:[0x7f]}],functions:[{code:[2,0x6e,0x20,0,0xfb,24,3,0,0x6e,0x6b,11,0x1a,0x41,1]}]});
+assert.ok(outgoing(cast,instruction(cast,'br_on_cast')).some(edge=>edge.kind==='controlTrue'));
+console.log('WASM exception payloads, legacy catch/delegate/rethrow, trap isolation and reference branches passed');

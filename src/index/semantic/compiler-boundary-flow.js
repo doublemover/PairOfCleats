@@ -22,7 +22,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
   const sourceHashes = new WeakMap();
   const sourceHash = source => { if (!sourceHashes.has(source)) sourceHashes.set(source, digest(source.text)); return sourceHashes.get(source); };
   const authority = createCompilerBoundaryAuthority(group), byFile = new Map(), entries = new Map(), ledgers = new Map();
-  const inputHashes = documents.map(doc => doc.bindingPartition.canonicalHash).sort(order);
+  const inputHashes = [...documents.map(doc => doc.bindingPartition.canonicalHash), ...[...(group.wasmModules?.values() || [])].map(item => item.source.byteHash)].sort(order);
   state.semanticEvidenceArtifacts ||= [];
   for (const doc of documents) {
     byFile.set(keyPath(doc.sourceFile.fileName), doc);
@@ -296,6 +296,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     }
     for (const node of doc.nodes) {
       throwIfAborted(signal);
+      await wasmFlow.collectMember(doc,node);
       if (!ts.isPropertyAccessExpression(node)) continue;
       const verified = await authority.declaration(doc.checker.getSymbolAtLocation(node.name)?.declarations?.[0]);
       if (!defaultLibrary(verified) || !has(verified, 'WebAssembly')) continue;

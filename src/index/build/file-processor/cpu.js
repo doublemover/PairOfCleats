@@ -1,3 +1,4 @@
+import { collectStandaloneWasm } from '../../semantic/wasm/standalone.js';
 import { collectEmbeddedSemanticSources, collectEmbeddedSemanticOwnership } from '../../semantic/embedded-source.js';
 import { collectSemanticOwnership } from '../../semantic/ownership.js';
 import { collectFileSemanticFacts } from '../../semantic/collect-file.js';
@@ -218,6 +219,10 @@ export const processFileCpu = async (context) => {
       message: formatError(err),
       ...extra
     }
+  });
+
+  if (context.semantic && mode === 'code' && ext === '.wasm') return collectStandaloneWasm({
+    ...context.semantic, bytes: context.sourceBytes, relPath: relKey, signal
   });
 
   let fileLanguageId = languageHint?.id || null;

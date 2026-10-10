@@ -3,7 +3,8 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { throwIfAborted } from '../../shared/abort.js';
 
-/** Persist exact original UTF-8 bytes once, without replacing an existing blob. */
+/** Persist exact original bytes once, without replacing an existing blob.
+ * The legacy .utf8 suffix is a storage key; the source manifest owns encoding. */
 export const retainSemanticSource = async ({ root, source, bytes, diskAccount, signal = null }) => {
   if (!(bytes instanceof Uint8Array) || bytes.byteLength !== source.byteLength
     || createHash('sha256').update(bytes).digest('hex') !== source.byteHash) {

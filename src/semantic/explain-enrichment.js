@@ -38,7 +38,7 @@ const project = async ({ store, manifest, request, result, signal, maxMs }) => {
       sources.set(source.sourceUnitId, source);
     }
     sourceRefs.push({ ref: row.ref, sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash,
-      path: source.path, coordinateUnit: 'utf16' });
+      path: source.path, coordinateUnit: source.coordinateUnit });
   }
   if (!result.frontier.some(row => row.reason === 'analysis_incomplete')) {
     enrichment.status = truncated ? 'partial' : 'not-needed';
