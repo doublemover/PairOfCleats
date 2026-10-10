@@ -7,9 +7,9 @@ import { throwIfAborted } from '../../shared/abort.js';
 export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes, expressionFor,
   observations, source, bytes, bindingPartition, context, isDefaultLibrary, root, policy, diskAccount, signal }) => {
   if (policy.enrichment.localFlow === 'off' || policy.enrichment.localFlow === 'deferred') return null;
-  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-value-slice', version: '1' },
+  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-value-slice', version: '2' },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context,
-    dependencySummaryHashes: [], analysisPolicy: { version: 1, fieldPathDepth: policy.enrichment.fieldPathDepth } });
+    dependencySummaryHashes: [], analysisPolicy: { version: 2, fieldPathDepth: policy.enrichment.fieldPathDepth } });
   const ref = localId => ({ partitionId, localId }), rows = [], edges = [], constants = new Map();
   let id = 0, modeled = 0, unresolved = 0;
   const functionOwners = new WeakMap(), declarationOwners = new Map();
@@ -23,7 +23,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   };
   const evidence = ref(id++);
   rows.push({ family: 'node', row: { id: evidence.localId, kind: 'evidence', span: null, scope: null,
-    data: { method: 'syntax-and-checker-model', producerId: 'semantic-value-slice', producerVersion: '1',
+    data: { method: 'syntax-and-checker-model', producerId: 'semantic-value-slice', producerVersion: '2',
       evidenceKind: 'modeled', sourceRef: source.sourceUnitId, artifactRef: null } } });
   const edge = (kind, from, to, certainty = 'exact-static', callSite = null, operandOrdinal = null) => {
     if (from && to) edges.push({ kind, from, to, callSite, operandOrdinal, contextKey: context.contextKey,
@@ -87,6 +87,8 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
     const method = signature.name?.text || '';
     const library = signature.getSourceFile().fileName.replaceAll('\\', '/').split('/').pop();
     const typedArray = /^(?:Int|Uint|Uint8Clamped|Float|BigInt|BigUint)/.test(ownerName) && /ArrayConstructor$/.test(ownerName);
+    const typedArrayInstance = /^(?:Int|Uint|Float|BigInt|BigUint).*Array$/.test(ownerName);
+    const receiver = expressionFor(node.expression?.expression);
     let kind = null;
     if (typedArray && args.length) {
       const inputType = checker.getTypeAtLocation(args[0]);
@@ -106,6 +108,23 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
     } else if (/^(?:Int|Uint|Float|BigInt|BigUint).*Array$/.test(ownerName) && method === 'slice') {
       kind = 'typed-array-slice';
       edge('copies', expressionFor(node.expression?.expression), target, 'modeled', target);
+    } else if (typedArrayInstance && method === 'set') {
+      kind = 'typed-array-set';
+      edge('copies', expressionFor(args[0]), receiver, 'modeled', target, 0);
+      edge('mutates', target, receiver, 'modeled', target);
+      unresolved += 1; // Offsets, conversion, overlap and bounds remain inputs/preconditions.
+    } else if (ownerName === 'DataViewConstructor' && ts.isNewExpression(node)) {
+      kind = 'data-view-construction';
+      edge('sharesStorage', expressionFor(args[0]), target, 'modeled', target, 0);
+      unresolved += 1;
+    } else if (ownerName === 'DataView' && /^(get|set)(?:Int|Uint|Float|BigInt|BigUint)\d+$/.test(method)) {
+      kind = method.startsWith('get') ? 'data-view-read' : 'data-view-write';
+      if (kind === 'data-view-read') edge('reads', receiver, target, 'modeled', target);
+      else {
+        edge('writes', expressionFor(args[1]), receiver, 'modeled', target, 1);
+        edge('mutates', target, receiver, 'modeled', target);
+      }
+      unresolved += 1; // Byte offset, endianness, conversion and possible RangeError are not erased.
     } else if (['Worker', 'MessagePort', 'DedicatedWorkerGlobalScope'].includes(ownerName) && method === 'postMessage' && library === 'lib.dom.d.ts') {
       kind = 'message-dispatch-request';
     } else if (ownerName === 'Worker' && ts.isNewExpression(node) && library === 'lib.dom.d.ts') kind = 'worker-construction';
@@ -115,6 +134,14 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
     rows.push({ family: 'node', row: { id: boundary.localId, kind: 'boundary', span: [node.getStart(sourceFile), node.end], scope: null,
       data: { modelId: 'typescript-default-library/' + library + '/' + ownerName + '/' + (method || 'construct'),
         modelVersion: '1', invocation: target, boundaryKind: kind, fromContext: 'source:' + source.sourceUnitId, toContext: null } } });
+    if (kind.startsWith('typed-array-') || kind.startsWith('data-view-')) {
+      // Preserve all ordered layout/conversion inputs, including dynamic offset,
+      // length and littleEndian expressions. The exact API is in modelId.
+      for (let ordinal = 0; ordinal < args.length; ordinal++) {
+        edge('consumes', expressionFor(args[ordinal]), boundary, 'modeled', target, ordinal);
+      }
+      if (receiver) edge('consumes', receiver, boundary, 'modeled', target);
+    }
     if (kind === 'message-dispatch-request') {
       edge('dispatches', target, boundary, 'modeled', target);
       edge('consumes', expressionFor(args[0]), boundary, 'modeled', target, 0);
@@ -142,7 +169,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   ];
   for (const row of coverage) rows.push({ family: 'coverage', row });
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
-    producerHash: semanticHash('semantic.value-model-producer.v1', { version: 1 }),
+    producerHash: semanticHash('semantic.value-model-producer.v1', { version: 2 }),
     policyHash: semanticHash('semantic.value-model-policy.v1', { fieldPathDepth: policy.enrichment.fieldPathDepth }),
     contextHash: context.contextKey, diskAccount, signal });
   return { partition, coverage };

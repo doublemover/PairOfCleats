@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { collectFileSemanticFacts } from '../../../src/index/semantic/collect-file.js';
+import { collectCompilerValueSlice } from '../../../src/index/semantic/compiler-value-slice.js';
 import { collectCompilerBoundaryFlow } from '../../../src/index/semantic/compiler-boundary-flow.js';
 import { createSemanticFactsRef } from '../../../src/index/semantic/file-ref.js';
 import { normalizeSemanticConfig } from '../../../src/index/semantic/config.js';
@@ -14,7 +15,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 // Code-first acceptance fixture: added but intentionally not executed in this span.
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-boundaries-'));
 const texts = {
-  'input.ts': 'import { fork, spawn } from "node:child_process"; const payload = 42; Promise.resolve(payload).then(value => console.log(value)); queueMicrotask(() => console.log(payload)); setTimeout(value => console.log(value), 10, payload); const child = fork(new URL("./child.ts", import.meta.url)); child.send(payload); spawn("unknown-command", ["--x"]); process.dlopen({exports:{}} as any, "./addon.node"); const memory = new WebAssembly.Memory({initial:1,shared:true,maximum:2}); const view = memory.buffer; declare const bytes: Uint8Array; WebAssembly.instantiate(bytes, {env:{host:(x:number)=>x+1}}); declare const instance: WebAssembly.Instance; instance.exports["entry"](payload);',
+  'input.ts': 'import { fork, spawn } from "node:child_process"; const payload = 42; Promise.resolve(payload).then(value => console.log(value)); queueMicrotask(() => console.log(payload)); setTimeout(value => console.log(value), 10, payload); const child = fork(new URL("./child.ts", import.meta.url)); child.send(payload); spawn("unknown-command", ["--x"]); process.dlopen({exports:{}} as any, "./addon.node"); const memory = new WebAssembly.Memory({initial:1,shared:true,maximum:2}); const view = memory.buffer; const pages = memory.grow(1); const packed = new Uint8Array(view); packed.set([1,2], 2); const data = new DataView(view, 0, 8); data.setFloat32(0, 42, true); const unpacked = data.getFloat32(0, true); declare const bytes: Uint8Array; WebAssembly.instantiate(bytes, {env:{host:(x:number)=>x+1}}); declare const instance: WebAssembly.Instance; instance.exports["entry"](payload);',
   'child.ts': 'export {}; process.on("message", value => { console.log(value); });',
   'dynamic.ts': 'import {fork} from "node:child_process"; declare const entry: string; const child = fork(entry); child.send(1); declare const handler: () => void; queueMicrotask(handler);',
   'fake.ts': 'export {}; class Promise { static resolve(x:any){return new Promise()} then(callback:any){} } function queueMicrotask(callback:any){} function setTimeout(callback:any, ...args:any[]){} const child={send(x:any){}}; const WebAssembly={instantiate(x:any,y:any){}, Memory:class{buffer:any}}; Promise.resolve(1).then((x:any)=>x); queueMicrotask(()=>1); setTimeout(()=>1,1); child.send(1); WebAssembly.instantiate(1,{}); new WebAssembly.Memory();'
@@ -45,21 +46,31 @@ try {
     documents.push({ ts, checker, sourceFile, nodes, expressionFor, observations, bytes, bindingPartition: facts.partition, policy, item: { file, source: facts.source, root: stagingRoot, declarations }, containerPath: file });
   }
   const group = { workerDocuments: documents, repoRoot: root, context: { contextKey: 'a'.repeat(64), compilerVersion: ts.version }, dependencyHashes: [], isDefaultLibrary: file => program.isSourceFileDefaultLibrary(file) };
+  const valuePartitions = [];
+  for (const doc of documents) {
+    const result = await collectCompilerValueSlice({ ...doc, source: doc.item.source, root: stagingRoot, context: group.context, isDefaultLibrary: group.isDefaultLibrary, diskAccount: account });
+    if (result) valuePartitions.push(result.partition);
+  }
   const partitions = await collectCompilerBoundaryFlow({ group, state, policy });
-  const store = createArtifactSemanticStore({ root: stagingRoot, repoRoot: root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions: [...syntaxPartitions, ...partitions] });
+  const store = createArtifactSemanticStore({ root: stagingRoot, repoRoot: root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions: [...syntaxPartitions, ...valuePartitions, ...partitions] });
   const records = new Map(), edges = [], coverage = [];
-  for (const partition of [...syntaxPartitions, ...partitions]) {
+  for (const partition of [...syntaxPartitions, ...valuePartitions, ...partitions]) {
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.set(partition.partitionId + ':' + row.id, { row, partition });
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(row);
     if (partitions.includes(partition)) for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push(row);
   }
   const kinds = [...records.values()].filter(value => value.row.kind === 'boundary').map(value => value.row.data.boundaryKind);
   for (const kind of ['promise-then-continuation-request', 'promise-then-source-callback-candidate', 'queueMicrotask-callback-request', 'child-process-fork-launch-request', 'process-ipc-dispatch-request', 'process-ipc-consumer-source-callback-candidate', 'native-addon-entry-request', 'wasm-entry-request', 'wasm-host-import-source-callback-candidate', 'wasm-export-entry-request', 'wasm-memory-buffer-storage-candidate']) assert.ok(kinds.includes(kind), kind);
+  for (const expected of ['typed-array-set', 'data-view-construction', 'data-view-read', 'data-view-write', 'wasm-memory-growth-request']) assert.ok(kinds.includes(expected), expected);
+  const boundaryKind = ref => records.get(ref.partitionId + ':' + ref.localId)?.row.data.boundaryKind;
+  assert.ok(edges.some(edge => edge.kind === 'returnToResult' && records.get(edge.from.partitionId + ':' + edge.from.localId)?.row.data.origin === 'unknown'));
+  assert.ok(edges.some(edge => edge.kind === 'mutates' && boundaryKind(edge.from) === 'wasm-memory-growth-request'));
+  assert.ok(edges.some(edge => edge.kind === 'consumes' && edge.operandOrdinal === 2 && boundaryKind(edge.to) === 'data-view-write'), 'endianness remains an ordered source input');
   const fake = documents.find(doc => doc.item.file === 'fake.ts').item.source.sourceUnitId;
   assert.ok(partitions.every(partition => partition.sourceUnitId !== fake), 'same-spelling user APIs never acquire platform authority');
   const child = documents.find(doc => doc.item.file === 'child.ts').item.source.sourceUnitId;
   assert.ok(edges.some(edge => edge.kind === 'consumes' && records.get(edge.to.partitionId + ':' + edge.to.localId)?.partition.sourceUnitId === child), 'IPC payload consumption preserves exact child source ref');
-  assert.ok(edges.every(edge => edge.certainty === 'modeled' && !['copies', 'transfers'].includes(edge.kind)), 'no IPC copy/transfer or runtime execution proof');
+  assert.ok(edges.filter(edge => partitions.some(partition => partition.partitionId === edge.evidence.partitionId)).every(edge => edge.certainty === 'modeled' && !['copies', 'transfers'].includes(edge.kind)), 'no IPC copy/transfer or runtime execution proof');
   assert.ok(coverage.every(row => row.state === 'partial'));
   assert.ok(coverage.some(row => row.reason.includes('process_executable_cwd_environment_or_entry_dynamic')));
   const hashes = partitions.map(partition => partition.canonicalHash).sort();

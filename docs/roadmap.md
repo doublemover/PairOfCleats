@@ -74,6 +74,18 @@ iterable. The bounded `lang/semantic/control-regions` fixture passes. Destructur
 iterator protocol/cleanup, per-iteration capture and broader completion semantics
 retain their stated frontiers.
 
+B1/B2 now retain checker-authorized DataView construction/read/write and typed-array
+set inputs, including offset, length and endianness expressions, plus modeled
+read/write/copy/mutation relationships. WASM export and memory-growth requests have
+explicit unknown result values linked to source consumers; growth is a may-mutation
+with unresolved old-view epochs. Browser Worker response sends link to every
+source-qualified main-side registration for the corresponding literal entry.
+The model preserves uncertainty about instance identity, correlation, registration
+order, actual delivery, conversion/traps and response transfer effects. Node workers,
+MessagePorts, exact module artifacts and WASM module-body analysis remain open.
+The extended bounded Worker and boundary/storage fixtures pass under Node26,
+including shadowed platform-name counterexamples. No target module was executed.
+
 The next recovery slice adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
