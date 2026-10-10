@@ -50,6 +50,7 @@ let warnedNoWorkerPool = false;
 export function createFileProcessor(options) {
   const {
     root,
+    semantic = null,
     mode,
     fileTextCache,
     treeSitterScheduler = null,
@@ -553,7 +554,7 @@ export function createFileProcessor(options) {
       ext,
       fileCaps,
       maxFileBytes,
-      cachedBundle: artifacts.cachedBundle,
+      cachedBundle: semantic ? null : artifacts.cachedBundle,
       incrementalState,
       fileStructural,
       toolInfo,
@@ -717,7 +718,10 @@ export function createFileProcessor(options) {
     let languageSetKey = null;
 
     updateCrashStage('pre-cpu:handoff-to-cpu:start');
+    if (semantic && !artifacts.fileBuffer) artifacts.fileBuffer = await runIo(() => readContainedFile(root, abs, { expectedStat: fileStat }));
     const cpuResult = await runCpu(() => processFileCpu({
+      semantic,
+      sourceBytes: artifacts.fileBuffer,
       abs,
       root,
       mode,
@@ -727,7 +731,7 @@ export function createFileProcessor(options) {
       rel,
       relKey,
       text: artifacts.text,
-      cachedStageBundle: artifacts.cachedBundle,
+      cachedStageBundle: semantic ? null : artifacts.cachedBundle,
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,
@@ -871,7 +875,8 @@ export function createFileProcessor(options) {
     const postingsPayload = buildPostingsPayloadMetadata({
       chunks: fileChunks,
       fileRelations,
-      vfsManifestRows
+      vfsManifestRows,
+      semanticFactsRef: cpuResult?.semanticFactsRef || null
     });
     recordFileMetrics({
       fileLineCount,
@@ -886,6 +891,7 @@ export function createFileProcessor(options) {
       relKey,
       fileIndex,
       cached: false,
+      semanticFactsRef: cpuResult?.semanticFactsRef || null,
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,

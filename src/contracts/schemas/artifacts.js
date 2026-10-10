@@ -1,3 +1,5 @@
+import { SEMANTIC_ARTIFACT_SCHEMA_DEFS } from './artifacts/semantic.js';
+import { SEMANTIC_MEMBER_NAMES } from './semantic-envelopes.js';
 import {
   CORE_POST_DENSE_VECTOR_ARTIFACT_SCHEMA_DEFS,
   CORE_POST_RISK_ARTIFACT_SCHEMA_DEFS,
@@ -16,6 +18,7 @@ import { SYMBOL_CALL_SITE_ARTIFACT_SCHEMA_DEFS } from './artifacts/symbols-call-
 import { VFS_ARTIFACT_SCHEMA_DEFS } from './artifacts/vfs.js';
 
 export const MANIFEST_ONLY_ARTIFACT_NAMES = [
+  'semantic_source_text', ...SEMANTIC_MEMBER_NAMES.map((name) => name + '_offsets'),
   'dense_vectors_hnsw',
   'dense_vectors_doc_hnsw',
   'dense_vectors_code_hnsw',
@@ -52,6 +55,7 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {
+  ...SEMANTIC_ARTIFACT_SCHEMA_DEFS,
   ...CORE_PRE_VFS_ARTIFACT_SCHEMA_DEFS,
   ...VFS_ARTIFACT_SCHEMA_DEFS,
   ...CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS,

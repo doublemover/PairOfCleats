@@ -100,8 +100,11 @@ export const SEMANTIC_COVERAGE_SCHEMA = object({
 export const SEMANTIC_OWNERSHIP_SCHEMA = object({
   recordRef: ref, chunkUid: text, role: enumeration('primary overlap')
 });
+export const SEMANTIC_LOOKUP_SCHEMA = object({
+  kind: { const: 'name' }, id: integer, value: { type: 'string' }
+});
 export const SEMANTIC_SCHEMA_DEFS = Object.freeze({
-  node: SEMANTIC_NODE_SCHEMA, operand: SEMANTIC_OPERAND_SCHEMA,
+  lookup: SEMANTIC_LOOKUP_SCHEMA, node: SEMANTIC_NODE_SCHEMA, operand: SEMANTIC_OPERAND_SCHEMA,
   edge: SEMANTIC_EDGE_SCHEMA, coverage: SEMANTIC_COVERAGE_SCHEMA,
   ownership: SEMANTIC_OWNERSHIP_SCHEMA, recordRef: SEMANTIC_RECORD_REF_SCHEMA
 });

@@ -50,23 +50,42 @@ metadata before applying write pragmas. **The exhaustive reader/error-propagatio
 and full-rebuild audit remains open:** these focused checks do not establish the
 complete hard-cutover acceptance matrix.
 
-Next: complete config/query/runtime contracts and semantic provider merge order;
-wire syntax collectors, file-result descriptors, semantic family reconciliation
-and publication, and all three SQLite build routes. Internal storage primitives
-are exercised with golden rows, not yet production-collected facts. Complete
-foreign-reference reconciliation and lookup/frontier ingestion before publishing
-those families. Then implement bindings, producer/consumer traces, durable deferred
-completion and offline runtime adapters. No semantic query tool is advertised yet.
+Production slice added: opt-in semantic configuration now drives the existing
+JavaScript parser context and file CPU stage. A resumable explicit-stack collector
+emits scopes, declarations, occurrences, expressions, literal references, interned
+names and ordered operands. Post-UID interval lookup emits separate ownership
+partitions. Ordered file commits carry descriptors into the existing artifact
+queue; normal publication and post-cleanup reconciliation validate the family.
+Artifact-driven SQLite builds ingest the same family inside their transaction.
+The shared detail service pins repository/generation, returns coverage, bounds
+records/bytes/work, and uses request-bound opaque continuations. CLI/MCP/HTTP tools
+are not advertised yet; the tested surface is the shared production library.
 
-Verification uses Node **26.8.1** only (V8 14.6.202.34-node.28); active package and CI
-runtime policy now requires Node 26. The installed stale native SQLite dependency
-was preserved and replaced locally with the declared better-sqlite3 13.0.3 build.
-Five enrolled format/foundation gate tests passed, as did the semantic storage
-fixture covering batching identity, sixth arguments, exact hydration, source spans,
-SQLite parity, idempotence, tampered-hash rollback and cancellation. Initial empty
-selections and a repaired schema syntax failure are not counted as passes. Earlier
-Node 24 receipts are superseded. Repository format passed; broad verify, full
-storage/MCP/API suites and production semantic end-to-end acceptance remain unrun.
+Remaining: TypeScript/embedded adapters and compiler bindings; fusion of the
+legacy relation-summary walk with structural collection (both currently reuse
+the same parsed AST); complete config
+overrides/targeted policy; complete def-use/control/boundary semantics; shared
+resident admission with sparse indexing disabled; bundle/incremental SQLite route
+integration; durable frontier tasks; runtime evidence schemas/adapters; public
+query schemas and surface wiring. Semantic-enabled file processing currently
+refreshes syntax instead of reusing chunk-only cached bundles, preventing absent
+facts from being treated as a semantic cache hit. Durable semantic cache reuse is
+still required. Unsupported analysis phases are explicitly unsupported, not
+pretend deferred jobs. Source decoding other than the exact UTF-8 contract remains
+unimplemented. No full semantic-index completion claim.
+
+Focused Node 26.8.1 evidence for this slice: existing
+`lang/contracts/javascript-relations-contract` passed with 300 arguments,
+destructuring, holes, explicit receivers, Unicode ranges and batching invariance
+(receipt `.testLogs/run-1791621081505-7ykyin`). Enrolled
+`indexing/semantic/production-slice` passed a real build through normal publication,
+ownership joins, exact source recovery after edits, lossless detail pagination,
+cursor mismatch rejection, and production artifact-to-SQLite detail parity
+(receipt `.testLogs/run-1791621282496-ytggqc`, 6.36 seconds). Earlier integration
+failures exposed and fixed fresh build-state stamping and piece registration.
+One earlier attempt exited with native access-violation status 3221225477 before
+the runner retried; later runs passed, but the native fault was not diagnosed.
+No cross-runtime campaign, broad benchmark, full suite, or runtime capture ran.
 
 ## Current Initiatives
 

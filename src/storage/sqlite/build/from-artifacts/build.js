@@ -1,3 +1,4 @@
+import { ingestPublishedSemanticFamily } from '../../semantic/published.js';
 import { prepareVectorAnnTable } from '../../build-helpers.js';
 import { CREATE_INDEXES_SQL } from '../../schema.js';
 import { createUint8ClampStats } from '../../vector.js';
@@ -502,6 +503,7 @@ export async function buildDatabaseFromArtifacts({
     beginSqliteBuildTransaction(db, batchStats);
     try {
       count = await ingestIndex(index, mode, indexDir);
+      if (mode === 'code') await ingestPublishedSemanticFamily({ db, indexDir, repoRoot: process.cwd() });
       validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
       commitSqliteBuildTransaction(db, batchStats, {

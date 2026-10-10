@@ -1,4 +1,9 @@
 export const CREATE_SEMANTIC_TABLES_SQL = `
+CREATE TABLE IF NOT EXISTS semantic_lookup (
+  partition_id TEXT NOT NULL, local_id INTEGER NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL,
+  PRIMARY KEY(partition_id, local_id)
+);
+
 CREATE TABLE IF NOT EXISTS semantic_sources (
   source_id TEXT PRIMARY KEY, byte_hash TEXT NOT NULL, payload TEXT NOT NULL
 );

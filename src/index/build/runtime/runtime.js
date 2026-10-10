@@ -1,3 +1,4 @@
+import { normalizeSemanticConfig } from '../../semantic/config.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -1117,6 +1118,7 @@ export async function createBuildRuntime({
       },
     buildId,
     buildRoot,
+    semanticPolicy: normalizeSemanticConfig(indexingConfig.semantic),
     observability,
     profile,
     indexOptimizationProfile,

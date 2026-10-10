@@ -315,6 +315,197 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "semantic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schemaVersion": {
+              "const": 1
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "profile": {
+              "enum": [
+                "balanced",
+                "rich",
+                "targeted"
+              ]
+            },
+            "languages": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "javascript",
+                  "typescript"
+                ]
+              }
+            },
+            "baseFacts": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "structure": {
+                  "enum": [
+                    "complete"
+                  ]
+                },
+                "sourceRetention": {
+                  "enum": [
+                    "content-addressed"
+                  ]
+                }
+              }
+            },
+            "planning": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "prepass": {
+                  "enum": [
+                    "reuse-existing-walk"
+                  ]
+                },
+                "costModel": {
+                  "enum": [
+                    "measured"
+                  ]
+                },
+                "inlineBudgetMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            },
+            "enrichment": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "bindings": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "eager",
+                    "deferred"
+                  ]
+                },
+                "localFlow": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "eager",
+                    "deferred"
+                  ]
+                },
+                "crossFileFlow": {
+                  "enum": [
+                    "off",
+                    "auto",
+                    "eager",
+                    "deferred"
+                  ]
+                },
+                "fieldPathDepth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "callContextDepth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "maxSccIterations": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "unknownEffects": {
+                  "enum": [
+                    "conservative"
+                  ]
+                }
+              }
+            },
+            "execution": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "deferredDrain": {
+                  "enum": [
+                    "manual",
+                    "after-index"
+                  ]
+                },
+                "afterIndexMaxMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "maxAttempts": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            },
+            "storage": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "batchRows": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "batchBytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "maxQueuedBytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "decodedCacheBytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "targetPartBytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "maxDiskWorkingSetBytes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            },
+            "publication": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "base": {
+                  "enum": [
+                    "publish-with-coverage",
+                    "complete-required"
+                  ]
+                },
+                "semantic": {
+                  "enum": [
+                    "whole-generation"
+                  ]
+                }
+              }
+            }
+          }
+        },
         "profile": {
           "type": "string",
           "enum": ["default", "vector_only"],

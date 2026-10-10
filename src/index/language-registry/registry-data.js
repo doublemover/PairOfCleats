@@ -382,7 +382,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
         options
       });
       if (treeChunks && treeChunks.length) context.jsChunks = treeChunks;
-      if (options?.relationsEnabled !== false) {
+      if (options?.relationsEnabled !== false || options?.semanticEnabled === true) {
         context.jsAst = parseJavaScriptAst(text, { ...options, ext });
       }
       return context;
