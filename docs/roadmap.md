@@ -102,6 +102,13 @@ MessagePorts, exact module artifacts and WASM module-body analysis remain open.
 The extended bounded Worker and boundary/storage fixtures pass under Node26,
 including shadowed platform-name counterexamples. No target module was executed.
 
+The second implementation round adds checker-authorized browser MessageChannel
+endpoint pairing through const aliases. Opposite-port sends retain one-to-many
+message consumers and response candidates; unrelated constructors never pair.
+All payload/options inputs and clone requests are preserved, with start/close,
+transfer, runtime instance and delivery uncertainty explicit. The bounded Worker
+fixture passes with forward/reverse and separate-channel counterexamples.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
