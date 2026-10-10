@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/coalesce-docs.js --files 200 --segments 50 --merge-prob 0.6 --json
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
-import { clampInt, createRng } from './shared.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
+const { clampInt, createRng } = await import('./shared.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

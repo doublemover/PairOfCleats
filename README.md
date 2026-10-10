@@ -103,11 +103,20 @@ compatible prebuilt binaries are unavailable.
 ```sh
 git clone https://github.com/doublemover/PairOfCleats.git
 cd PairOfCleats
-npm ci --include=dev
+npm run bootstrap:ci
 ```
 
 Development dependencies are needed to apply the checkout's required patches.
 The examples run the CLI directly, so you do not need a global command install.
+
+Normal CLI commands, test runs and benchmark entry points refuse to start when
+bootstrap is missing, incomplete or stale. Run `npm run bootstrap` from this
+checkout to install dependencies, apply required patches and rebuild/verify native
+modules; `npm run bootstrap:ci` performs the same steps with the pinned lockfile.
+No command silently installs dependencies or substitutes a fallback for this gate.
+The saved verification evidence is checked against current setup inputs, runtime
+and dependency artifacts, followed by small SQLite-query and parser-activation
+probes. It is not merely an “installed” marker and does not rerun setup on launch.
 
 For a first sparse-search build, merge this into the target project's
 `.pairofcleats.json`; embedding models and automatic tool installation stay optional:

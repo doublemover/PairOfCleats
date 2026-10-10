@@ -1,16 +1,15 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import {
-  buildFilterIndex,
-  releaseFilterIndexMemory
-} from '../../../src/retrieval/filter-index.js';
-import {
+const { buildFilterIndex, releaseFilterIndexMemory } = await import('../../../src/retrieval/filter-index.js');
+const {
   buildBitmapIndex,
   createBitmapFromIds,
   isRoaringAvailable,
   shouldUseBitmap
-} from '../../../src/retrieval/bitmap.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+} = await import('../../../src/retrieval/bitmap.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 if (!isRoaringAvailable()) {
   console.log('[bench] roaring-wasm not available; skipping filter-index build bitmap bench');

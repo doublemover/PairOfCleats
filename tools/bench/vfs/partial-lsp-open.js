@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/partial-lsp-open.js --docs 200 --targets 20 --samples 3 --json
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { collectLspTypes } from '../../../src/integrations/tooling/providers/lsp.js';
-import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { collectLspTypes } = await import('../../../src/integrations/tooling/providers/lsp.js');
+const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
 
 async function main() {
   const rawArgs = process.argv.slice(2);

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/io-batching.js --files 1000 --size 256 --batch 50 --json
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

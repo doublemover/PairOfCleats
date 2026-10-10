@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import { parseTrailingJson } from './output.js';
+const { exitLikeCommandResult } = await import('../shared/cli-utils.js');
+const { spawnSubprocessSync } = await import('../../src/shared/subprocess/runner.js');
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { parseTrailingJson } = await import('./output.js');
 
 const ROOT = process.cwd();
 const BENCH_RUNNER = path.join(ROOT, 'tools', 'bench', 'bench-runner.js');

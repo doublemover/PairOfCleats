@@ -1,16 +1,14 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import {
+const {
   packTfPostings,
   unpackTfPostings,
   encodePackedOffsets,
   decodePackedOffsets
-} from '../../../src/shared/packed-postings.js';
-import {
-  createSeededRng,
-  parseSimpleBenchArgs,
-  resolveCompareMode
-} from '../shared.js';
+} = await import('../../../src/shared/packed-postings.js');
+const { createSeededRng, parseSimpleBenchArgs, resolveCompareMode } = await import('../shared.js');
 
 const encodeVarint = (value, out) => {
   let v = value >>> 0;

@@ -1,16 +1,18 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
-import { Bench } from 'tinybench';
-import { build as buildHistogram } from 'hdr-histogram-js';
-import { buildIndex, search } from '../../../src/integrations/core/index.js';
-import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
-import { getIndexDir, resolveRepoRootArg, resolveToolRoot } from '../../shared/dict-utils.js';
-import { formatMs, writeJsonWithDir } from './utils.js';
+const { default: yargs } = await import('yargs/yargs');
+const { hideBin } = await import('yargs/helpers');
+const { Bench } = await import('tinybench');
+const { build: buildHistogram } = await import('hdr-histogram-js');
+const { buildIndex, search } = await import('../../../src/integrations/core/index.js');
+const { createSqliteDbCache } = await import('../../../src/retrieval/sqlite-cache.js');
+const { hasChunkMetaArtifactsSync } = await import('../../../src/shared/artifact-io/chunk-meta-presence.js');
+const { getIndexDir, resolveRepoRootArg, resolveToolRoot } = await import('../../shared/dict-utils.js');
+const { formatMs, writeJsonWithDir } = await import('./utils.js');
 
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');

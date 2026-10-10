@@ -159,6 +159,26 @@ The bounded repair updates that major-version assertion without changing the exa
 patch pin or weakening workflow/cache-key consistency checks. Full CI remains a
 separate gate; this repair is qualified by the focused workflow contract only.
 
+### Required bootstrap readiness (2026-10-10)
+
+Normal CLI/TUI, legacy build/search, API/MCP/indexer entry points, the test/CI
+runners and direct benchmark executables now gate dependency-heavy imports on
+verified bootstrap readiness. An absent/incomplete/stale setup prints a prominent
+`BOOTSTRAP REQUIRED` diagnostic with `npm run bootstrap` and the lockfile-pinned
+`npm run bootstrap:ci` alternative, then exits before workload admission. This
+includes linked CLI entry points and does not install anything automatically.
+
+The existing patch and required-native verification paths produce an atomic
+receipt only after successful verification. Current setup/lock/patch hashes,
+Node/ABI/platform identity and bounded dependency artifact metadata are checked
+on launch, followed by the existing real SQLite query and tree-sitter activation
+probes. A marker alone is insufficient; no full setup or native rebuild runs on
+ordinary invocation. CI cache restoration explicitly re-verifies readiness.
+The dependency-free readiness fixture exercises missing, incomplete, changed,
+unusable and prepared states plus normal/test/bench entry admission, without
+starting an index or benchmark. Existing patch/native and workflow contracts
+remain focused checks; broader runtime/platform qualification is deferred.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

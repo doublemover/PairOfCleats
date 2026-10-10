@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 

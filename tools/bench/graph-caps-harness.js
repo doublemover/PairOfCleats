@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import path from 'node:path';
-import { createCli } from '../../src/shared/cli.js';
-import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { buildGraphNeighborhood } from '../../src/graph/neighborhood.js';
-import { loadGraphRelations } from '../../src/shared/artifact-io/loaders.js';
+const { createCli } = await import('../../src/shared/cli.js');
+const { isDirectExecution } = await import('../../src/shared/direct-execution.js');
+const { buildGraphNeighborhood } = await import('../../src/graph/neighborhood.js');
+const { loadGraphRelations } = await import('../../src/shared/artifact-io/loaders.js');
 
 const resolveGraphStats = (graphRelations) => {
   const stats = {};

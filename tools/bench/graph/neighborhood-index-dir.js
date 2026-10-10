@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-import { isDirectExecution } from '../../../src/shared/direct-execution.js';
-import { buildGraphIndexCacheKey } from '../../../src/graph/store.js';
-import { buildGraphNeighborhood } from '../../../src/graph/neighborhood.js';
-import { buildImpactAnalysis } from '../../../src/graph/impact.js';
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { isDirectExecution } = await import('../../../src/shared/direct-execution.js');
+const { buildGraphIndexCacheKey } = await import('../../../src/graph/store.js');
+const { buildGraphNeighborhood } = await import('../../../src/graph/neighborhood.js');
+const { buildImpactAnalysis } = await import('../../../src/graph/impact.js');
+const {
   clearGraphTraversalCaches,
   durationMs,
   GRAPH_BENCH_GRAPHS,
@@ -13,7 +15,7 @@ import {
   printNestedBenchSummaries,
   runPayloadIterations,
   runWarmPayloadIterations
-} from './shared.js';
+} = await import('./shared.js');
 
 export async function runNeighborhoodIndexDirBench({
   indexDir,

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/merge-runs-heap.js --runs 10,50,200 --run-size 2000 --json
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
 
 function clampInt(value, min, fallback) {
   const parsed = Number(value);

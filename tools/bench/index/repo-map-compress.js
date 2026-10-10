@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import { stableOrder } from '../../../src/shared/order.js';
-import { orderRepoMapEntries } from '../../../src/shared/order.js';
-import { createRepoMapIterator } from '../../../src/index/build/artifacts/writers/repo-map.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { stableOrder } = await import('../../../src/shared/order.js');
+const { orderRepoMapEntries } = await import('../../../src/shared/order.js');
+const { createRepoMapIterator } = await import('../../../src/index/build/artifacts/writers/repo-map.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const fileCount = Math.max(1, Number(args.files) || 1500);

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const {
   ensureArray,
   hashInputs,
   parseBenchArgs,
@@ -7,7 +9,7 @@ import {
   readJsonFromRoot,
   repoPath,
   writeBenchJson
-} from './shared.js';
+} = await import('./shared.js');
 
 const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-36-backcompat-matrix.json');
 

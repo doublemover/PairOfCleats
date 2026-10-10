@@ -1,20 +1,22 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/index/tree-sitter-load.js --languages javascript,go,rust --files-per-language 50 --repeats 1 --json
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 
-import { createCli } from '../../../src/shared/cli.js';
-import { writeJsonWithDir } from '../micro/utils.js';
-import {
+const { createCli } = await import('../../../src/shared/cli.js');
+const { writeJsonWithDir } = await import('../micro/utils.js');
+const {
   buildTreeSitterChunks,
   getTreeSitterStats,
   initTreeSitterRuntime,
   preloadTreeSitterLanguages,
   resetTreeSitterParser,
   resetTreeSitterStats
-} from '../../../src/lang/tree-sitter.js';
-import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
+} = await import('../../../src/lang/tree-sitter.js');
+const { treeSitterState } = await import('../../../src/lang/tree-sitter/state.js');
 
 const FIXTURE_BY_LANGUAGE = {
   javascript: { relPath: path.join('tests', 'fixtures', 'tree-sitter', 'javascript.js'), ext: '.js' },

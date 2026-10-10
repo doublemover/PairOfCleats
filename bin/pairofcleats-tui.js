@@ -1,14 +1,16 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { getTuiEnvConfig } from '../src/shared/env/tui.js';
-import { exitLikeChild } from '../src/tui/wrapper-exit.js';
-import { resolveTuiWrapperEnv } from './tui-wrapper-env.js';
-import { resolveTuiSupervisorPath } from './tui-supervisor-path.js';
-import {
+const { getTuiEnvConfig } = await import('../src/shared/env/tui.js');
+const { exitLikeChild } = await import('../src/tui/wrapper-exit.js');
+const { resolveTuiWrapperEnv } = await import('./tui-wrapper-env.js');
+const { resolveTuiSupervisorPath } = await import('./tui-supervisor-path.js');
+const {
   isExecutableForPlatform,
   readBuildManifestSync,
   readTargetsManifestSync,
@@ -17,7 +19,7 @@ import {
   resolveTuiInstallLayout,
   sha256FileSync,
   toPosixRelative
-} from '../tools/tui/targets.js';
+} = await import('../tools/tui/targets.js');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tuiEnvConfig = getTuiEnvConfig(process.env);

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/bloom-negative-lookup.js --keys 50000 --lookups 100000 --json
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { BloomFilter } from '../../../src/shared/bloom.js';
-import { writeJsonWithDir } from '../micro/utils.js';
-import { clampInt, createRng, printBench, runSampled } from './shared.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { BloomFilter } = await import('../../../src/shared/bloom.js');
+const { writeJsonWithDir } = await import('../micro/utils.js');
+const { clampInt, createRng, printBench, runSampled } = await import('./shared.js');
 
 function main() {
   const rawArgs = process.argv.slice(2);

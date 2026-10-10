@@ -1,15 +1,12 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { sha1 } from '../../../src/shared/hash.js';
-import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
-import {
-  createSeededRng,
-  parseSimpleBenchArgs,
-  pickRandom,
-  resolveCompareMode
-} from '../shared.js';
+const { sha1 } = await import('../../../src/shared/hash.js');
+const { resolveImportLinks } = await import('../../../src/index/build/import-resolution.js');
+const { createSeededRng, parseSimpleBenchArgs, pickRandom, resolveCompareMode } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const fileCount = Number(args.files) || 2000;

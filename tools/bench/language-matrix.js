@@ -1,15 +1,14 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
-import { createCli } from '../../src/shared/cli.js';
-import { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } from '../../src/shared/cli-options.js';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import {
-  bootstrapRuntime,
-  resolveToolRoot
-} from '../shared/dict-utils.js';
-import { parseCommaList } from '../../src/shared/comma-list.js';
+const { spawnSubprocess } = await import('../../src/shared/subprocess/runner.js');
+const { createCli } = await import('../../src/shared/cli.js');
+const { BENCH_OPTIONS, mergeCliOptions, validateBenchArgs } = await import('../../src/shared/cli-options.js');
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { bootstrapRuntime, resolveToolRoot } = await import('../shared/dict-utils.js');
+const { parseCommaList } = await import('../../src/shared/comma-list.js');
 
 const benchOptions = mergeCliOptions(
   BENCH_OPTIONS,

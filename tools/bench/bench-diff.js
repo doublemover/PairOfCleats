@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { buildBenchRunDiff } from './language/diff.js';
+const { buildBenchRunDiff } = await import('./language/diff.js');
 
 const parseArgs = () => {
   const out = { before: null, after: null, json: false };

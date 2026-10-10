@@ -1,14 +1,16 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
-import { readJsonlRowAt } from '../../../src/shared/artifact-io/offsets.js';
-import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
-import { readShardFiles } from '../../../src/shared/artifact-io/fs.js';
-import { toPosix } from '../../../src/shared/file-paths.js';
-import { parseSimpleBenchArgs, percentile } from '../shared.js';
+const { writeJsonLinesFile } = await import('../../../src/shared/json-stream/jsonl-write.js');
+const { readJsonlRowAt } = await import('../../../src/shared/artifact-io/offsets.js');
+const { readJsonFile, readJsonLinesArray } = await import('../../../src/shared/artifact-io/json.js');
+const { readShardFiles } = await import('../../../src/shared/artifact-io/fs.js');
+const { toPosix } = await import('../../../src/shared/file-paths.js');
+const { parseSimpleBenchArgs, percentile } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const rows = Number(args.rows) || 100000;

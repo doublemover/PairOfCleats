@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import { buildLocalCacheKey, createLocalCacheKeyBuilder } from '../../src/shared/cache-key.js';
-import { createBoundedWriterQueue } from '../build/embeddings/writer-queue.js';
-import { parseSimpleBenchArgs } from './shared.js';
+const { buildLocalCacheKey, createLocalCacheKeyBuilder } = await import('../../src/shared/cache-key.js');
+const { createBoundedWriterQueue } = await import('../build/embeddings/writer-queue.js');
+const { parseSimpleBenchArgs } = await import('./shared.js');
 
 const args = parseSimpleBenchArgs();
 const parseNumberOption = (value, fallback) => {

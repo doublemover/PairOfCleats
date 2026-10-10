@@ -1,11 +1,16 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { createGraphRelationsIterator, measureGraphRelations } from '../../../src/index/build/artifacts/helpers.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { writeJsonLinesSharded } = await import('../../../src/shared/json-stream/jsonl-sharded.js');
+const { writeJsonObjectFile } = await import('../../../src/shared/json-stream/json-writers.js');
+const {
+  createGraphRelationsIterator,
+  measureGraphRelations
+} = await import('../../../src/index/build/artifacts/helpers.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const nodesPerGraph = Number(args.nodes) || 20000;

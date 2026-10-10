@@ -1,12 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import {
-  coerceClampedFraction,
-  coerceNonNegativeInt
-} from '../../../src/shared/number-coerce.js';
-import { readJsonFileResolved } from '../../../src/shared/json-file.js';
-import { emitGateResult } from '../../shared/tooling-gate-utils.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { coerceClampedFraction, coerceNonNegativeInt } = await import('../../../src/shared/number-coerce.js');
+const { readJsonFileResolved } = await import('../../../src/shared/json-file.js');
+const { emitGateResult } = await import('../../shared/tooling-gate-utils.js');
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats bench-language-tooling-lsp-guardrail',

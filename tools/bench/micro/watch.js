@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
-import { createDebouncedScheduler } from '../../../src/index/build/watch.js';
-import { formatStats, hrtimeMs, summarizeDurations } from './utils.js';
+const { default: yargs } = await import('yargs/yargs');
+const { hideBin } = await import('yargs/helpers');
+const { createDebouncedScheduler } = await import('../../../src/index/build/watch.js');
+const { formatStats, hrtimeMs, summarizeDurations } = await import('./utils.js');
 
 const argv = yargs(hideBin(process.argv))
   .option('bursts', {
