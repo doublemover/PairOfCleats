@@ -55,7 +55,16 @@ through the shared find contract, with primary/overlap ownership and zero-chunk
 operations retained. Artifact operation index version 2 and SQLite indexed joins
 produce the same paginated candidates in the new `storage/semantic/seed-discovery`
 fixture. Canonical fact identities are unchanged; older physical operation indexes
-require a rebuild. Ordinary context-pack assembly is the next integration step.
+require a rebuild. The shared CLI/MCP/HTTP context-pack builder now accepts `includeSemantic`. It
+returns a separate hard-bounded 64 KiB semantic section with up to eight discovered
+operations, ordered arguments/names/ownership, one bounded downstream witness,
+retained-source excerpt and exact generation-pinned follow-up requests. Partial
+semantic analysis cannot promote composite evidence to complete. Federated JSON
+retains each repository/generation independently, bounded by the existing repo cap.
+The focused seed-discovery fixture covers schema validation, the shared request
+projection, missing-family behavior and corruption fail-closed behavior. Full public
+surface integration, source-position interval lookup and richer seed prioritization
+remain unqualified.
 
 J1 occurrence coverage now distinguishes destructuring assignment targets from
 declarations, compound reads/writes, import/export alias roles and type-only syntax.

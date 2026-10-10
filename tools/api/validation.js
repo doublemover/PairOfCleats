@@ -227,6 +227,7 @@ const contextPackSchema = {
     seed: { type: 'string', minLength: 1 },
     hops: { type: 'integer', minimum: 0 },
     includeGraph: { type: 'boolean' },
+    includeSemantic: { type: 'boolean' },
     includeTypes: { type: 'boolean' },
     includeRisk: { type: 'boolean' },
     includeRiskPartialFlows: { type: 'boolean' },

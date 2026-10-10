@@ -279,3 +279,26 @@ MCP names are `semantic_find`, `semantic_explain`, `semantic_enrichment`; corres
 HTTP POST paths are `/analysis/semantic-find`, `/analysis/semantic-explain`,
 `/analysis/semantic-enrichment`. CLI/MCP/HTTP share strict request and repository scope
 checks. Structural similarity and modeled paths are not proof of equivalent behavior.
+
+
+### Semantic evidence in ordinary context packs
+
+Set `includeSemantic: true` in the shared context-pack request, or pass
+`--includeSemantic` to the context-pack CLI. The resolved search-hit chunk UID
+selects exact operations via ownership, including overlaps. If only a retained
+source path is resolved, source discovery also includes operations without chunks.
+The optional semantic section is independently capped at 64 KiB, in addition to
+the primary excerpt budget: up to eight discovered operations, bounded ordered
+arguments/names/ownership, one downstream witness sample and a retained-source
+excerpt. It does not parse source, schedule enrichment, execute code or capture
+runtime data. Unavailable families are explicit; corruption is an error.
+
+`semantic.followUps` contains validated semantic_find/detail/trace requests with
+repository and generation pins. When a page has a cursor, the follow-up resumes
+that page in the same running service; normal cursor expiry/restart rules apply.
+Otherwise it repeats the bounded query and can be used as a scoped starting point.
+The textual renderer summarizes evidence counts; JSON includes exact records,
+coverage, excerpts and follow-up requests. `semanticFederation.repositories`
+retains separate sections for each selected repository, with fanout bounded by
+`maxFederatedRepos` (maximum 16). Partial semantic evidence leaves the composite
+coverage incomplete; a small witness sample never certifies exhaustive behavior.
