@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { constants as fsConstants } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
@@ -158,7 +158,22 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     const existing = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: existingLocator, expectedDependencySignatures: dependencySignatures, signal });
     await validateSemanticPartitions({ store: existing.store, partitions: existing.factsRef.partitions, signal });
     return existingLocator;
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  } catch (error) {
+    throwIfAborted(signal);
+    if (error.code !== 'ENOENT') {
+      if (!['ERR_SEMANTIC_CACHE_INTEGRITY', 'ERR_SEMANTIC_INTEGRITY'].includes(error.code)
+        && !(error instanceof SyntaxError)) throw error;
+      // Preserve damaged evidence for inspection and let only this source
+      // recompute. Unrelated immutable objects and descriptors stay valid.
+      await fs.rename(finalRoot, path.join(cacheRoot, '.corrupt-' + cacheKey + '-' + randomUUID()));
+      await syncParentDirectory(finalRoot);
+    } else {
+      // An object directory can survive an interruption without its descriptor.
+      try {
+        await fs.rename(finalRoot, path.join(cacheRoot, '.incomplete-' + cacheKey + '-' + randomUUID()));
+      } catch (missing) { if (missing.code !== 'ENOENT') throw missing; }
+    }
+  }
   const sourceRoot = await resolveSemanticPartPath(buildRoot, factsRef.storage.relativePath);
   const store = createArtifactSemanticStore({ root: sourceRoot, repoRoot,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: factsRef.storage.generation, partitions: factsRef.partitions });

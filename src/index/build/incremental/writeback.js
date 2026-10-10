@@ -291,7 +291,8 @@ export async function writeIncrementalBundle({
     dependencySignatures,
     fileRelations,
     lexiconFilterStats,
-    vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows : null,
+    vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows
+      : (semanticFactsRef && fileChunks.length === 0 ? [] : null),
     encoding: fileEncoding,
     encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
     encodingFallbackClass: typeof fileEncodingFallbackClass === 'string' ? fileEncodingFallbackClass : null,
@@ -315,11 +316,23 @@ export async function writeIncrementalBundle({
     for (let i = 0; i < bundleNames.length; i += 1) {
       const bundleName = bundleNames[i];
       const bundlePath = path.join(bundleDir, bundleName);
+      // Reserve a conservative encoding allowance before ordinary snapshots
+      // enter the same working set as semantic parts. Keep the reservation on
+      // failed writes; incomplete bytes still occupy disk until owned cleanup.
+      const snapshotReservation = semanticFactsRef
+        ? Buffer.byteLength(JSON.stringify(bundles[i])) * 2 + 65536 : 0;
+      if (snapshotReservation) semanticContext.diskAccount.reserve(snapshotReservation);
       const writeResult = await writeBundleFile({
         bundlePath,
         bundle: bundles[i],
         format: resolvedBundleFormat
       });
+      if (snapshotReservation) {
+        const actualBytes = (await fs.stat(bundlePath)).size
+          + (resolvedBundleFormat === 'json' ? (await fs.stat(bundlePath + '.checksum.json')).size : 0);
+        if (actualBytes > snapshotReservation) semanticContext.diskAccount.reserve(actualBytes - snapshotReservation);
+        else semanticContext.diskAccount.release(snapshotReservation - actualBytes);
+      }
       writtenBundleNames.push(bundleName);
       if (i === 0) {
         checksum = writeResult?.checksum || null;

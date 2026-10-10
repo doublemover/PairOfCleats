@@ -6,6 +6,8 @@ import { createSemanticCacheFixture } from '../../helpers/semantic-cache-fixture
 import { readFileCompletion, fileCompletionIdentity } from '../../../src/index/build/incremental/file-completion.js';
 import { loadCachedBundleForFile } from '../../../src/index/build/file-processor/incremental.js';
 import { updateBundlesWithChunks } from '../../../src/index/build/incremental/writeback.js';
+import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
+import { reopenSemanticDiskAccount } from '../../../src/index/build/incremental/working-set.js';
 
 const fixture = await createSemanticCacheFixture();
 try {
@@ -43,6 +45,10 @@ try {
   assert.deepEqual(restored.cachedBundle.chunks, []);
   assert.equal(restored.semanticFactsRef.storage.generation.baseBuildId, 'resumed');
   assert.equal(restored.semanticFactsRef.canonicalHash, completed.factsRef.canonicalHash);
+  const applied = reuseCachedBundle({ abs: sourcePath, relKey: completed.file, fileIndex: 2,
+    fileStat, cachedBundle: restored.cachedBundle, incrementalState: state, fileStart: Date.now(), mode: 'code' });
+  assert.deepEqual(applied.result.chunks, [], 'normal result application accepts completed empty/disabled sibling lanes');
+  assert.ok(applied.result.manifestEntry.completionKey);
 
   const withChunks = await fixture.createFile({ file: 'other.js' });
   const immutablePath = path.join(fixture.bundleDir, withChunks.entry.bundles[0]);
@@ -60,5 +66,16 @@ try {
   assert.equal(await read(), null, 'a corrupt part makes only its own completion ineligible');
   assert.ok(await readFileCompletion({ bundleDir: fixture.bundleDir, relKey: withChunks.file,
     sourceBytes: withChunks.bytes, semanticContext: context }), 'unrelated valid completions survive');
+  await fixture.createFile({ zeroChunks: true });
+  assert.ok(await read(), 'recomputation repairs a corrupt cache identity without discarding siblings');
+  const reopened = await reopenSemanticDiskAccount({ limit: 32 * 1024 * 1024,
+    roots: [fixture.bundleDir, fixture.bundleDir, path.join(fixture.bundleDir, 'semantic')] });
+  assert.ok(reopened.retainedBytes > 0);
+  assert.ok(reopened.retainedFiles > 0);
+  await assert.rejects(reopenSemanticDiskAccount({ limit: reopened.retainedBytes - 1,
+    roots: [fixture.bundleDir] }), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
+  const higherCap = await reopenSemanticDiskAccount({ limit: reopened.retainedBytes + 1,
+    roots: [fixture.bundleDir] });
+  assert.equal(higherCap.account.used, reopened.retainedBytes, 'overlapping roots are charged once; a higher cap resumes');
   console.log('Stage1 durable completion, zero-chunk replay, isolation and immutable writeback passed');
 } finally { await fixture.cleanup(); }

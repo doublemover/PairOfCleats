@@ -134,7 +134,8 @@ export const readFileCompletion = async ({ bundleDir, relKey, sourceBytes, seman
         parentBytes: sourceBytes, segmentUid: segment.segmentUid, signal });
       await validateSemanticPartitions({ store: embedded.store, partitions: embedded.factsRef.partitions, signal });
     }
-    return { manifestEntry: entry, chunkCount: descriptor.chunkCount, lexiconFilterStats: descriptor.lexiconFilterStats };
+    return { manifestEntry: { ...entry, completionKey: keyFor(identity) },
+      chunkCount: descriptor.chunkCount, lexiconFilterStats: descriptor.lexiconFilterStats };
   } catch (error) {
     throwIfAborted(signal);
     if (error.code === 'ERR_SEMANTIC_DISK_LIMIT' || error.code === 'EACCES' || error.code === 'EPERM') throw error;

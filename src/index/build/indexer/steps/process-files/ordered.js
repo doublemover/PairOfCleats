@@ -694,6 +694,9 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (normalizedSeq > maxSeenSeq) maxSeenSeq = normalizedSeq;
 
     const envelope = ensureEnvelope(normalizedSeq);
+    // First admitted terminal result owns the sequence, including while apply
+    // is awaiting I/O. A late duplicate must never replace that envelope.
+    if (envelope.terminalState === terminalState) return envelope.done;
     if (envelope.terminalState != null && envelope.terminalState !== terminalState) {
       return Promise.reject(
         createStage1IllegalTransitionError({

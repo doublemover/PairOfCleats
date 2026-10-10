@@ -50,6 +50,16 @@ still need their remaining work. This is implementation progress, not full recov
 acceptance. The refined sequence-9 priority order remains authoritative: recovery,
 JS/TS, Worker/WASM, retrieval, runtime, language adapters, estimator last.
 
+The next recovery slice adds corruption-local cache repair, successful empty/disabled
+lane replay, and first-admitted duplicate-result ownership during awaited application.
+Reopening charges retained builds, incremental caches, pending/corrupt parts and the
+frontier store before new semantic credits; overlapping paths/hard links are counted
+once. New immutable ordinary snapshots reserve encoding space before writing.
+The cap is deliberately conservative, including retained ordinary build artifacts;
+there is no implicit cache deletion to satisfy it. Full concurrent transient-byte
+accounting and stale lease-owner integration remain open. The lightweight fixtures
+also exercise a higher-cap retry and sparse, out-of-order duplicate application.
+
 Status: **in progress; compiler/value evidence, offline runtime import and durable
 binding lifecycle integration** on `codex/semantic-indexing-20261010`, descended
 from PR547 head `5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. Astra MEDIUM leads

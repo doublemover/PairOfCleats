@@ -138,7 +138,7 @@ export function reuseCachedBundle({
     encodingConfidence: resolvedEncodingConfidence
   } : null;
   const fileRelations = cachedBundle.fileRelations || null;
-  if (!fileRelations) return { result: null, skip: null };
+  if (!fileRelations && !cachedEntry?.completionKey) return { result: null, skip: null };
   const vfsManifestRows = Array.isArray(cachedBundle.vfsManifestRows)
     ? cachedBundle.vfsManifestRows
     : null;
