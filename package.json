@@ -12,8 +12,8 @@
   },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
-    "bootstrap": "npm install --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
-    "bootstrap:ci": "npm ci --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
+    "bootstrap": "npm install --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
+    "bootstrap:ci": "npm ci --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
     "test": "node tests/run.js --lane ci-lite",
     "test:ci-lite": "node tests/run.js --lane ci-lite",
     "test:ci": "node tests/run.js --lane ci",
