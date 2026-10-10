@@ -28,6 +28,28 @@ head. None is a blanket release-readiness claim.
 
 ## Semantic indexing implementation (2026-10-10)
 
+### Cloud continuation: durable first-stage replay
+
+The isolated `codex/semantic-resume-campaign-20261010` continuation starts at
+`7cbf516f`. R1 now has awaited, versioned per-file completion descriptors linking
+immutable ordinary bundles and validated semantic cache objects. Source bytes,
+repository namespace, parser/extractor and result-lane identities select replay;
+worker counts, shards and output layout do not. Zero-chunk completions carry an
+explicit count. The normal cache reader and ordered result application restore
+the result; Stage2 never mutates or collects pinned first-stage bundle snapshots.
+Compiler policy and physical layout are separated from semantic syntax cache
+identity. Source/cache publication now syncs directory entries as well as data.
+
+The new enrolled `storage/semantic/first-stage-completion` fixture covers unsaved
+manifest recovery, generation relocation, zero chunks, changed source/extractor,
+layout changes, corrupt-part isolation and Stage2 copy-on-write. Its bounded
+Node26 run passed; broad qualification is deliberately deferred. R2/R3/R4 remain
+partial: recovery accounting, stale/duplicate owners, incomplete/corrupt cache
+repair, full interrupted multi-worker integration and control-store reconstruction
+still need their remaining work. This is implementation progress, not full recovery
+acceptance. The refined sequence-9 priority order remains authoritative: recovery,
+JS/TS, Worker/WASM, retrieval, runtime, language adapters, estimator last.
+
 Status: **in progress; compiler/value evidence, offline runtime import and durable
 binding lifecycle integration** on `codex/semantic-indexing-20261010`, descended
 from PR547 head `5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. Astra MEDIUM leads

@@ -21,6 +21,7 @@ import {
 import { shouldReuseExistingBundle } from './bundle-compare.js';
 import { normalizeIncrementalRelPath, resolvePrefetchedVfsRows } from './paths.js';
 import { persistSemanticCacheEntry } from './semantic-cache.js';
+import { commitFileCompletion, completionBundleName, isCompletionBundle } from './file-completion.js';
 import {
   pathExists,
   readBundleOrNull,
@@ -94,7 +95,7 @@ const splitBundleChunksBySize = (bundle) => {
   return shardChunks.length ? shardChunks : [[]];
 };
 
-const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
+const buildBundleShards = ({ relKey, bundleFormat, bundle, immutable = false }) => {
   const shardChunks = splitBundleChunksBySize(bundle);
   const shardCount = shardChunks.length;
   const bundles = shardChunks.map((chunks, index) => ({
@@ -104,7 +105,9 @@ const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
     bundleShardIndex: index,
     bundleShardCount: shardCount
   }));
-  const names = bundles.map((_, index) => resolveBundleShardFilename(relKey, bundleFormat, index));
+  const names = bundles.map((part, index) => immutable
+    ? completionBundleName(part, bundleFormat)
+    : resolveBundleShardFilename(relKey, bundleFormat, index));
   return { names, bundles };
 };
 
@@ -124,6 +127,8 @@ const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
   if (!names.length) return;
   const keepSet = keep instanceof Set ? keep : null;
   for (const name of names) {
+    // Durable Stage1 descriptors pin their snapshots independently of Stage2.
+    if (isCompletionBundle(name)) continue;
     if (keepSet && keepSet.has(name)) continue;
     try {
       await removeBundleWriteArtifacts(path.join(bundleDir, name));
@@ -152,6 +157,7 @@ const queueManifestBundleGc = ({ manifest, entry, keep = null }) => {
   const keepSet = keep instanceof Set ? keep : null;
   const names = resolveManifestBundleNames(entry);
   for (const name of names) {
+    if (isCompletionBundle(name)) continue;
     if (keepSet && keepSet.has(name)) continue;
     pending.add(name);
   }
@@ -245,6 +251,7 @@ export async function writeIncrementalBundle({
   parseCheckpoint = null,
   dependencySignatures = null,
   fileRelations,
+  lexiconFilterStats = null,
   vfsManifestRows,
   bundleFormat = null,
   previousManifestEntry = null,
@@ -283,6 +290,7 @@ export async function writeIncrementalBundle({
     parseCheckpoint,
     dependencySignatures,
     fileRelations,
+    lexiconFilterStats,
     vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows : null,
     encoding: fileEncoding,
     encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
@@ -295,7 +303,8 @@ export async function writeIncrementalBundle({
     const { names: bundleNames, bundles } = buildBundleShards({
       relKey,
       bundleFormat: resolvedBundleFormat,
-      bundle
+      bundle,
+      immutable: Boolean(semanticFactsRef)
     });
     if (!bundleNames.length || !bundles.length || bundleNames.length !== bundles.length) {
       return null;
@@ -334,7 +343,7 @@ export async function writeIncrementalBundle({
     const bundleChecksum = checksum && checksumAlgo
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
-    return {
+    const entry = {
       ...(semanticCache ? { semanticCache, semanticSegmentCaches, semanticEvidenceArtifacts } : {}),
       dependencySignatures,
       hash: fileHash,
@@ -349,11 +358,19 @@ export async function writeIncrementalBundle({
       encodingFallbackRisk: typeof fileEncodingFallbackRisk === 'string' ? fileEncodingFallbackRisk : null,
       encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     };
-  } catch {
+    if (semanticFactsRef) {
+      entry.completionKey = await commitFileCompletion({ bundleDir, relKey, manifestEntry: entry,
+        semanticFactsRef, semanticContext, chunkCount: fileChunks.length, lexiconFilterStats });
+    }
+    return entry;
+  } catch (error) {
+    // A failed completion must never delete immutable bytes referenced by an
+    // earlier successful attempt (including a concurrent equivalent worker).
     await cleanupWrittenBundleArtifacts({
       bundleDir,
-      bundleNames: typeof writtenBundleNames !== 'undefined' ? writtenBundleNames : []
+      bundleNames: writtenBundleNames.filter(name => !isCompletionBundle(name))
     });
+    if (semanticFactsRef) throw error;
     return null;
   }
 }

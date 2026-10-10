@@ -123,6 +123,7 @@ export function reuseCachedBundle({
   const manifestBundleNames = resolveManifestBundleNames(cachedEntry);
   const manifestBundleFormat = normalizeBundleFormat(cachedEntry?.bundleFormat);
   const manifestEntry = cachedEntry ? {
+    ...cachedEntry,
     dependencySignatures: incrementalState.manifest.dependencySignatures,
     hash: resolvedHash,
     mtimeMs: fileStat.mtimeMs,
@@ -188,6 +189,7 @@ export function reuseCachedBundle({
       manifestEntry,
       fileInfo,
       fileRelations,
+      lexiconFilterStats: cachedBundle.lexiconFilterStats || null,
       postingsPayload: buildPostingsPayloadMetadata({
         chunks: updatedChunks,
         fileRelations,
