@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
 import { existsOrBak } from './fs.js';
@@ -8,7 +9,6 @@ import { logLine } from '../progress-runtime.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
 const warnedMissingCompat = new Set();
-const warnedMissingManifest = new Set();
 const DEFAULT_STRICT_MANIFEST_RETRY_DELAYS_MS = Object.freeze([25, 50]);
 
 const normalizeManifest = (raw) => {
@@ -46,29 +46,26 @@ export const resolveManifestMaxBytes = (maxBytes, { strict = true } = {}) => {
   return Math.max(Math.floor(parsed), MIN_MANIFEST_BYTES);
 };
 
-export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
+
+export const assertPiecesManifestFormat = (dir, manifest, repoRoot = process.cwd()) => {
+  assertCurrentIndexFormat({
+    operation: 'read', component: 'pieces manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot,
+    indexPath: path.join(dir, 'pieces', 'manifest.json')
+  });
+  return manifest;
+};
+
+export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}) => {
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
-  if (!existsOrBak(manifestPath)) {
-    if (strict) {
-      const err = new Error(`Missing pieces manifest: ${manifestPath}`);
-      err.code = 'ERR_MANIFEST_MISSING';
-      throw err;
-    }
-    if (!warnedMissingManifest.has(manifestPath)) {
-      warnedMissingManifest.add(manifestPath);
-      logLine(
-        `[manifest] Non-strict mode: missing pieces manifest; falling back to legacy paths (${manifestPath}).`,
-        { kind: 'warning' }
-      );
-    }
-    return null;
-  }
+  if (!existsOrBak(manifestPath)) return assertPiecesManifestFormat(dir, null, repoRoot);
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
   const cachePolicy = { maxBytes: resolvedMaxBytes, view: 'manifest', strict: Boolean(strict) };
   const cached = readCache(manifestPath, cachePolicy);
-  if (cached) return cached;
+  if (cached) return assertPiecesManifestFormat(dir, cached, repoRoot);
   const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes });
   const manifest = normalizeManifest(raw);
+  assertPiecesManifestFormat(dir, manifest, repoRoot);
   if (!manifest && strict) {
     const err = new Error(`Invalid pieces manifest: ${manifestPath}`);
     err.code = 'ERR_MANIFEST_INVALID';
@@ -118,7 +115,7 @@ export const loadPiecesManifestWithReadPlan = async (
   options = {}
 ) => {
   const plan = resolvePiecesManifestReadPlan(options);
-  if (plan.manifest) return plan.manifest;
+  if (plan.manifest) return assertPiecesManifestFormat(dir, plan.manifest, options.repoRoot);
   const readManifest = typeof options.readManifest === 'function'
     ? options.readManifest
     : loadPiecesManifest;
@@ -131,7 +128,7 @@ export const loadPiecesManifestWithReadPlan = async (
       await sleepImpl(plan.attempts[attemptIndex]);
     }
     try {
-      return readManifest(dir, { maxBytes: plan.maxBytes, strict: plan.strict });
+      return readManifest(dir, { maxBytes: plan.maxBytes, strict: plan.strict, repoRoot: options.repoRoot });
     } catch (error) {
       lastError = error;
       if (!plan.retryableCodes.includes(error?.code) || attemptIndex >= plan.attempts.length - 1) {
@@ -152,7 +149,9 @@ export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = 
   } else {
     try {
       manifest = loadPiecesManifest(dir, { maxBytes, strict: false });
-    } catch {}
+    } catch (error) {
+      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
+    }
   }
   const manifestKey = normalizeCompatibilityKey(manifest?.compatibilityKey);
   if (manifestKey) {

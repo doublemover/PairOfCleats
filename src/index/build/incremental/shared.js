@@ -141,7 +141,8 @@ export const readBundleOrNull = async (input) => {
       loadedShards.push(result.bundle);
     }
     return mergeBundleShards(loadedShards);
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   }
 };

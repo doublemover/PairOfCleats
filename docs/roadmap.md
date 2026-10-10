@@ -28,36 +28,45 @@ head. None is a blanket release-readiness claim.
 
 ## Semantic indexing implementation (2026-10-10)
 
-Status: **in progress; shared foundations only**, on
+Status: **in progress; foundation and storage checkpoint**, on
 `codex/semantic-indexing-20261010` from PR547 head
 `5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. One solo lead owns all edits;
 additional staffing remains unapproved. The frozen owner specification governs
-identity, UTF-16 source coordinates, immutable facts, whole-generation publication,
-and offline runtime ingestion. No inference-corpus restart or benchmark campaign.
+identity, UTF-16 coordinates, immutable facts, whole-generation publication and
+offline runtime ingestion. No full-corpus inference restart or benchmark campaign.
 
-Implemented foundations: domain-separated SHA-256 identities with strict canonical
-JSON; exact UTF-8 snapshot hashes/line maps; strict semantic node/operand/edge/
-coverage/ownership schemas and validators; shared exact-equality format-error helper.
-The enrolled `indexing/contracts/semantic-foundations` gate fixture checks these
-contracts. Stage2 now budgets a separate inference view and retains complete
-canonical calls/details/usages and file relations when merging enrichment. This
-does **not** yet collect, persist, or expose the new semantic record family.
+Implemented: deterministic semantic identities, exact source snapshots, strict
+node/operand/edge/coverage/source/partition/provider envelope schemas, and separate
+inference views that preserve canonical calls/details/usages. Internal staging
+writers now retain content-addressed source bytes and bounded uncompressed JSONL
+parts with verified offsets. Artifact detail hydration and a transactional SQLite
+projection share canonical records; ingestion verifies canonical hashes and rolls
+back failed replacements. Source excerpts use retained exact source bytes.
 
-Next gate: finish source/partition/provider/config/query/runtime schemas and golden
-fixtures, wire every reader/import/cache boundary to the exact format gate, and
-atomically activate artifact 0.1.0 / SQLite 15 with fresh cache namespaces. Existing
-format constants are intentionally unchanged until that integration is complete;
-the new helper alone is not a hard cutover. Then implement source-complete syntax
-collection and durable JSONL/SQLite detail parity, followed by bindings, local/value
-traces, durable deferred completion, and offline evidence adapters. Do not advertise
-query tools before both backends and handlers pass their acceptance assertions.
+Artifact surface 0.1.0 and SQLite schema 15 are allocated. Exact format guards cover
+manifest, state/pointer, bundle/cache and principal SQLite boundaries; new cache
+namespaces isolate full-source rebuilds. Incremental SQLite rejects incompatible
+metadata before applying write pragmas. **The exhaustive reader/error-propagation
+and full-rebuild audit remains open:** these focused checks do not establish the
+complete hard-cutover acceptance matrix.
 
-Focused evidence and limitations: direct foundation assertions passed; the first
-unit/default-lane previews selected zero tests and were not counted as acceptance.
-After explicit gate enrollment, the runner selected one and passed it (0 failures,
-0 timeouts, 0 skips). Expanded source-coordinate and inference-view assertions
-also passed. The existing integration inference-budget regression passed. Focused
-ESLint passed; full format/lint/verify and broad suites have not been run.
+Next: complete config/query/runtime contracts and semantic provider merge order;
+wire syntax collectors, file-result descriptors, semantic family reconciliation
+and publication, and all three SQLite build routes. Internal storage primitives
+are exercised with golden rows, not yet production-collected facts. Complete
+foreign-reference reconciliation and lookup/frontier ingestion before publishing
+those families. Then implement bindings, producer/consumer traces, durable deferred
+completion and offline runtime adapters. No semantic query tool is advertised yet.
+
+Verification uses Node **26.8.1** only (V8 14.6.202.34-node.28); active package and CI
+runtime policy now requires Node 26. The installed stale native SQLite dependency
+was preserved and replaced locally with the declared better-sqlite3 13.0.3 build.
+Five enrolled format/foundation gate tests passed, as did the semantic storage
+fixture covering batching identity, sixth arguments, exact hydration, source spans,
+SQLite parity, idempotence, tampered-hash rollback and cancellation. Initial empty
+selections and a repaired schema syntax failure are not counted as passes. Earlier
+Node 24 receipts are superseded. Repository format passed; broad verify, full
+storage/MCP/API suites and production semantic end-to-end acceptance remain unrun.
 
 ## Current Initiatives
 

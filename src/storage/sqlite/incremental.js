@@ -1,3 +1,5 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -12,7 +14,7 @@ const INCREMENTAL_MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
  * @returns {{incrementalDir:string,bundleDir:string,manifestPath:string}}
  */
 export function getIncrementalPaths(repoCacheRoot, mode) {
-  const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
+  const incrementalDir = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, mode);
   return {
     incrementalDir,
     bundleDir: path.join(incrementalDir, 'files'),
@@ -39,9 +41,12 @@ export function loadIncrementalManifest(repoCacheRoot, mode) {
       return null;
     }
     const manifest = JSON.parse(fs.readFileSync(paths.manifestPath, 'utf8'));
+    assertCurrentIndexFormat({ operation: 'import', component: 'incremental manifest',
+      foundVersion: manifest?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: paths.manifestPath });
     if (!manifest || typeof manifest !== 'object') return null;
     return { manifest, ...paths };
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   }
 }

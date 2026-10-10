@@ -24,9 +24,9 @@ const createIndexMetaCache = (indexMetaByMode = null) => {
   };
 };
 
-const ensureStrictManifest = (dir) => {
+const ensureStrictManifest = (dir, repoRoot) => {
   if (!dir) return;
-  loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true });
+  loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict: true, repoRoot });
 };
 
 const hasMixedCompatibilityKeys = (entries) => (new Set(entries.values())).size > 1;
@@ -109,11 +109,11 @@ export async function resolveSearchIndexMetadata({
     }
   }
 
-  if (strict) {
-    if (runCode) ensureStrictManifest(codeDir);
-    if (runProse) ensureStrictManifest(proseDir);
-    if (runRecords) ensureStrictManifest(recordsDir);
-    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) ensureStrictManifest(extractedProseDir);
+  {
+    if (runCode) ensureStrictManifest(codeDir, rootDir);
+    if (runProse) ensureStrictManifest(proseDir, rootDir);
+    if (runRecords) ensureStrictManifest(recordsDir, rootDir);
+    if (resolvedRunExtractedProse && resolvedLoadExtractedProse) ensureStrictManifest(extractedProseDir, rootDir);
   }
 
   const compatibilityTargetCandidates = [

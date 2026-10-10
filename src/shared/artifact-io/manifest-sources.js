@@ -15,7 +15,7 @@ import {
   normalizeMetaParts,
   resolveManifestPath
 } from './manifest-paths.js';
-import { loadPiecesManifest } from './manifest-read.js';
+import { loadPiecesManifest, assertPiecesManifestFormat } from './manifest-read.js';
 import {
   canResolveSingleVariantEntry,
   inferEntryFormat,
@@ -65,7 +65,7 @@ export const resolveMetaFormat = (meta, fallback) => {
 };
 
 export const resolveManifestArtifactSources = ({ dir, manifest, name, strict, maxBytes = MAX_JSON_BYTES }) => {
-  if (!manifest) return null;
+  assertPiecesManifestFormat(dir, manifest);
   const entries = resolveManifestEntries(manifest, name);
   const metaEntry = resolveNamedManifestEntry({
     manifest,
@@ -189,7 +189,7 @@ const resolveSingleArtifactPath = ({
   fallbackPath,
   fallbackDirEntry = false
 }) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolvedManifest = assertPiecesManifestFormat(dir, manifest || loadPiecesManifest(dir, { maxBytes, strict }));
   const sources = resolveManifestArtifactSources({
     dir,
     manifest: resolvedManifest,
@@ -226,7 +226,7 @@ export const resolveArtifactPresence = (
     fallbackDirEntry = false
   } = {}
 ) => {
-  const resolvedManifest = manifest || loadPiecesManifest(dir, { maxBytes, strict });
+  const resolvedManifest = assertPiecesManifestFormat(dir, manifest || loadPiecesManifest(dir, { maxBytes, strict }));
   let sources = null;
   let error = null;
   try {

@@ -40,3 +40,5 @@ export const getInferenceHistorySchema = (name) => INFERENCE_HISTORY_SCHEMA_DEFS
 
 // Source-owned semantic contracts are independent of legacy chunk projections.
 export { SEMANTIC_SCHEMA_DEFS as SEMANTIC_SCHEMA_REGISTRY } from './schemas/semantic.js';
+
+export { SEMANTIC_ENVELOPE_SCHEMAS } from './schemas/semantic-envelopes.js';

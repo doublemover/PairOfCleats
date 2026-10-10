@@ -62,6 +62,7 @@ const hasManifestChunkMetaArtifacts = (dir) => {
     if (Array.isArray(presence.missingPaths) && presence.missingPaths.length) return false;
     return Array.isArray(presence.paths) && presence.paths.length > 0;
   } catch (err) {
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (err?.code === 'ERR_JSON_TOO_LARGE') return true;
     return false;
   }

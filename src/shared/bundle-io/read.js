@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import { Unpackr } from 'msgpackr';
 import {
@@ -23,7 +24,10 @@ import { applyBundlePatch, readBundlePatches } from './patch.js';
 
 const unpackr = new Unpackr({ useRecords: false });
 
-export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES } = {}) {
+export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES, repoRoot = process.cwd() } = {}) {
+  const gate = (value, component) => assertCurrentIndexFormat({
+    operation: 'import', component, foundVersion: value?.artifactSurfaceVersion, repoRoot, indexPath: bundlePath
+  });
   const stat = await fs.stat(bundlePath);
   if (Number.isFinite(maxBytes) && maxBytes > 0 && stat.size > maxBytes) {
     return { ok: false, reason: 'bundle too large' };
@@ -35,10 +39,15 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     if (!envelope || typeof envelope !== 'object') {
       return { ok: false, reason: 'invalid bundle envelope' };
     }
-    if (envelope.format !== BUNDLE_FORMAT_TAG || envelope.version !== BUNDLE_VERSION) {
+    gate(envelope, 'bundle envelope');
+    assertCurrentIndexFormat({ operation: 'import', component: 'bundle envelope schema',
+      foundVersion: envelope.version, expectedVersion: BUNDLE_VERSION, repoRoot, indexPath: bundlePath });
+    if (envelope.format !== BUNDLE_FORMAT_TAG) {
       return { ok: false, reason: 'unsupported bundle envelope' };
     }
+    gate(envelope, 'bundle envelope');
     const payload = envelope.payload;
+    gate(payload, 'bundle payload');
     if (!payload || !Array.isArray(payload.chunks)) {
       return { ok: false, reason: 'invalid bundle payload' };
     }
@@ -68,6 +77,7 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
   } catch {
     return { ok: false, reason: 'invalid bundle' };
   }
+  gate(bundle, 'bundle payload');
   if (!bundle || !Array.isArray(bundle.chunks)) {
     return { ok: false, reason: 'invalid bundle' };
   }
@@ -87,6 +97,7 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
     if (!patchedBundle || !Array.isArray(patchedBundle.chunks)) {
       return { ok: false, reason: 'invalid bundle patch' };
     }
+    gate(patchedBundle, 'patched bundle payload');
     bundle = patchedBundle;
   }
   try {
