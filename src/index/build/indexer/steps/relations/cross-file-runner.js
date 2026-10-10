@@ -1,3 +1,4 @@
+import { mergeCrossFileInferenceView } from './cross-file-view.js';
 import { log } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
@@ -90,6 +91,7 @@ export const runCrossFileInference = async ({
       inferenceLiteEnabled
     });
     const {
+      chunks: inferenceChunks,
       fileRelations: inferenceFileRelations,
       budgetStats
     } = applyCrossFileInferenceBudgetPlan({
@@ -97,7 +99,6 @@ export const runCrossFileInference = async ({
       fileRelations: state.fileRelations,
       plan: budgetPlan
     });
-    state.fileRelations = inferenceFileRelations;
     state.crossFileInferenceBudgetStats = budgetStats;
 
     if (budgetStats) {
@@ -127,7 +128,7 @@ export const runCrossFileInference = async ({
       rootDir: runtime.root,
       buildRoot: runtime.buildRoot,
       cacheRoot: runtime.repoCacheRoot,
-      chunks: state.chunks,
+      chunks: inferenceChunks,
       enabled: true,
       log,
       useTooling,
@@ -138,6 +139,7 @@ export const runCrossFileInference = async ({
       inferenceLiteHighSignalOnly,
       abortSignal
     });
+    mergeCrossFileInferenceView(state.chunks, inferenceChunks);
     const crossFileDurationMs = Date.now() - crossFileStart;
     log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
     if (crossFileStats?.toolingReuse) {

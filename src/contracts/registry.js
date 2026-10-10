@@ -37,3 +37,6 @@ export const getUsrMatrixSchema = (name) => USR_MATRIX_SCHEMA_DEFS[name] || null
 export const getWorkspaceSchema = (name) => WORKSPACE_SCHEMA_DEFS[name] || null;
 export const getTestArtifactSchema = (name) => TEST_ARTIFACT_SCHEMA_DEFS[name] || null;
 export const getInferenceHistorySchema = (name) => INFERENCE_HISTORY_SCHEMA_DEFS[name] || null;
+
+// Source-owned semantic contracts are independent of legacy chunk projections.
+export { SEMANTIC_SCHEMA_DEFS as SEMANTIC_SCHEMA_REGISTRY } from './schemas/semantic.js';

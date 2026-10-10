@@ -267,6 +267,9 @@ export const buildCrossFileFingerprint = ({
       callDetails: Array.isArray(relations.callDetails)
         ? relations.callDetails.map((entry) => ({
           callee: entry?.callee || null,
+          start: Number.isSafeInteger(entry?.start) ? entry.start : null,
+          end: Number.isSafeInteger(entry?.end) ? entry.end : null,
+          semanticFactsHash: entry?.semanticFactsHash || null,
           args: Array.isArray(entry?.args) ? entry.args : [],
           targetChunkUid: entry?.targetChunkUid || null,
           targetCandidates: Array.isArray(entry?.targetCandidates) ? entry.targetCandidates : []

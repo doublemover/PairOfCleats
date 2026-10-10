@@ -33,3 +33,4 @@ indexing/policy/analysis-gating
 ci/tooling-doctor-gate.smoke
 tooling/api-contracts/basic
 contracts/module-export-surface-compat
+indexing/contracts/semantic-foundations

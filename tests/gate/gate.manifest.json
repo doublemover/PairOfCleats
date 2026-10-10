@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 31,
+    "hero": 32,
     "matrix": 2,
     "meta": 2,
     "soak": 0,
@@ -223,6 +223,12 @@
     {
       "id": "contracts/module-export-surface-compat",
       "order": 35,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/contracts/semantic-foundations",
+      "order": 36,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
