@@ -88,6 +88,25 @@ Machine-readable index:
 - `graph_relations` (object): requires `version`, `generatedAt`, `callGraph`, `usageGraph`, `importGraph`. Each graph requires `nodeCount`, `edgeCount`, `nodes[]` (node requires `id`, `out`, `in`; optional `file`, `name`, `kind`, `chunkId`).
 - `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `resolvedType`. Optional edge fields include `kind`, `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`. Optional top-level `warnings[]`.
 
+Semantic family members support either an array of canonical rows or a generation
+index object requiring `schemaVersion`, `generation`, and `partitions` (each with
+`partitionId` and content-addressed `pieces`). Exact schemas are in
+`src/contracts/schemas/artifacts/semantic.js`, `src/contracts/schemas/semantic.js`
+and `src/contracts/schemas/semantic-envelopes.js`; references use partition/local
+IDs, source coordinates use UTF-16, and row payloads reject unknown fields.
+
+- `semantic_manifest` (object): requires `schemaVersion`, `semanticSchemaVersion`, `artifactSurfaceVersion`, `generation`, `status`, `partitions`, `warnings`. Optional provider contexts, planning, admission/evidence references, frontier targets and completed-task identities do not imply complete coverage.
+- `semantic_sources` (array/index): immutable source rows require `schemaVersion`, `sourceUnitId`, `repositoryNamespace`, `path`, `byteHash`, `textHash`, `encoding`, `decoding`, `language`, `dialect`, `mapping`, `coordinateUnit`, `textLength`, `byteLength`, `lineStarts`.
+- `semantic_records` (array/index): typed rows require `id`, `kind`, `span`, `scope`, `data`; each kind has its own validated payload.
+- `semantic_operands` (array/index): ordered operand rows require `parent`, `slot`, `ordinal`, `child`, `flags`.
+- `semantic_ownership` (array/index): chunk projections require `recordRef`, `chunkUid`, `role`; ownership never replaces canonical records.
+- `semantic_edges` (array/index): relation rows require `id`, `kind`, `from`, `to`, `callSite`, `operandOrdinal`, `contextKey`, `condition`, `evidence`, `certainty`.
+- `semantic_coverage` (array/index): phase status requires `scope`, `phase`, `state`, `reason`, `observedCount`, `completedCount`, `frontierRef`.
+- `semantic_lookup` (array/index): interned name rows require `kind`, `id`, `value`.
+- `semantic_frontier` (array/index): resumable task descriptors require `schemaVersion`, `taskId`, `kind`, `baseBuildId`, `sourceUnits`, `inputHashes`, `policyHash`, `targetSetHash`, `targetsRef`, `dependencies`, `priority`, `reason`, `coverageToProduce`.
+- `semantic_query_index` (object): schema version 1 requires `schemaVersion`, `generation`, `partitionHashes`, `pieces`, `rowCount`; indexed rows locate owner/member/partition/row ordinals.
+- `semantic_operation_index` (object): schema version 2 uses the same required envelope fields; indexed rows map selector `field` and `value` to a record `ref`. This derived physical index can be rebuilt without changing canonical fact identities.
+
 ### Phase 11 optional: `api_contracts` (JSONL)
 If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MAY be produced.
 

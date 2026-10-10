@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-09T18:45:10.221Z",
+  "generatedAt": "2026-10-10T19:55:29.081Z",
   "ok": true,
   "checks": {
     "searchCliFlags": {
@@ -100,8 +100,8 @@
     "artifactSchemas": {
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
-      "sourceCount": 75,
-      "docCount": 75,
+      "sourceCount": 86,
+      "docCount": 86,
       "missingInDocs": [],
       "extraInDocs": []
     },
