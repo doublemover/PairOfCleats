@@ -75,6 +75,13 @@ try {
   assert.equal(suppressed.returns.length, 0, 'finally throw suppresses the pending return');
   const payload = flow.summaries.find(summary => summary.owner.name?.text === 'payload');
   assert.equal(payload.exceptions.length, 0, 'explicit caught payload does not become an escaping exception');
+  const payloadOwner = sourceFile.statements.find(node => node.name?.text === 'payload');
+  const catchName = payloadOwner.body.statements[0].catchClause.variableDeclaration.name;
+  const catchRef = expressionFor(catchName);
+  const catchWrite = edges.find(edge => edge.kind === 'writes' && edge.to.partitionId === catchRef.partitionId && edge.to.localId === catchRef.localId);
+  assert.ok(catchWrite);
+  assert.ok(edges.some(edge => edge.kind === 'flowsTo' && edge.to.partitionId === catchWrite.from.partitionId && edge.to.localId === catchWrite.from.localId), 'thrown payload reaches the catch binding value');
+
   const mutate = flow.summaries.find(summary => summary.owner.name?.text === 'mutate');
   assert.deepEqual(mutate.effects.map(effect => ({parameter: effect.parameter, path: effect.path})), [{parameter: 0, path: ['value']}]);
   assert.ok(mutate.parameterFields.some(field => field.parameter === 0 && field.path.join('.') === 'value'));
