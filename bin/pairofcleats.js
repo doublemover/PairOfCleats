@@ -733,6 +733,12 @@ function resolveCommand(primary, rest) {
     );
     return { script: 'tools/analysis/suggest-tests.js', extraArgs: [], args: rest };
   }
+  if (primary === 'semantic') {
+    const sub = rest.shift();
+    if (sub !== 'detail') failCli('Use pairofcleats semantic detail --request request.json [--all].');
+    validateArgs(rest, ['request', 'all'], ['request']);
+    return { script: 'tools/analysis/semantic-detail.js', extraArgs: [], args: rest };
+  }
   if (primary === 'context-pack') {
     const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
     validateArgs(rest, optionNames, valueOptionNames);

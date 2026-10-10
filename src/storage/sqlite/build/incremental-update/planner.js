@@ -70,7 +70,10 @@ export const resolveIncrementalChangePlan = ({
   evaluateChangeGuard
 }) => {
   const manifestValidation = validateIncrementalManifest(manifest);
-  if (!manifestValidation.ok) {
+  const emptySemanticManifest = Object.hasOwn(manifest || {}, 'semanticEnabled')
+    && manifest?.files && typeof manifest.files === 'object' && !Object.keys(manifest.files).length;
+  if (!manifestValidation.ok && !(emptySemanticManifest
+    && manifestValidation.errors.every(error => error === 'manifest.files empty'))) {
     return {
       ok: false,
       reason: `invalid manifest (${manifestValidation.errors.join('; ')})`
@@ -79,7 +82,7 @@ export const resolveIncrementalChangePlan = ({
 
   const manifestFiles = manifest.files || {};
   const manifestLookup = normalizeManifestFiles(manifestFiles);
-  if (!manifestLookup.entries.length) {
+  if (!manifestLookup.entries.length && !emptySemanticManifest) {
     return { ok: false, reason: 'incremental manifest empty' };
   }
   if (manifestLookup.conflicts.length) {

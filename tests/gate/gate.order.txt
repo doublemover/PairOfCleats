@@ -35,4 +35,5 @@ tooling/api-contracts/basic
 contracts/module-export-surface-compat
 indexing/contracts/semantic-foundations
 indexing/contracts/semantic-handoff-contracts
+indexing/contracts/runtime-evidence
 indexing/contracts/index-format-cutover

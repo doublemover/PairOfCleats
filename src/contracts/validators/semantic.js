@@ -1,9 +1,11 @@
+import { SEMANTIC_TASK_SCHEMA } from '../schemas/semantic-task.js';
+import { assertSemanticTask } from './semantic-task.js';
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import { SEMANTIC_SCHEMA_DEFS } from '../schemas/semantic.js';
 import { toValidationResult } from './result.js';
 
 const ajv = createAjv({ allErrors: true, strict: true });
-const validators = new Map(Object.entries(SEMANTIC_SCHEMA_DEFS)
+const validators = new Map(Object.entries({ ...SEMANTIC_SCHEMA_DEFS, frontier: SEMANTIC_TASK_SCHEMA })
   .map(([kind, schema]) => [kind, compileSchema(ajv, schema)]));
 
 /** Validate wire shape plus local invariants; partition reconciliation checks FKs. */
@@ -13,6 +15,9 @@ export const validateSemanticRecord = (family, row, { sourceLength, structuralSl
   const result = toValidationResult(validator, row);
   if (!result.ok) return result;
   const errors = [];
+  if (family === 'frontier') {
+    try { assertSemanticTask(row); } catch (error) { errors.push(error.message); }
+  }
   if (family === 'node' && row.span !== null) {
     if (row.span[1] < row.span[0]) errors.push('span must be half-open and ordered');
     if (sourceLength != null && row.span[1] > sourceLength) errors.push('span exceeds decoded source');

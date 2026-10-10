@@ -1,4 +1,6 @@
 import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { relocateSemanticCacheEntry } from './semantic-cache.js';
 import { sha1 } from '../../../shared/hash.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import {
@@ -140,7 +142,8 @@ export async function readCachedBundle({
   manifest,
   bundleDir,
   bundleFormat = null,
-  sharedReadState = null
+  sharedReadState = null,
+  semanticContext = null
 }) {
   let cachedBundle = null;
   let fileHash = null;
@@ -150,6 +153,31 @@ export async function readCachedBundle({
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
   const cachedEntry = manifest?.files?.[relKey];
   if (!cachedEntry) return { cachedBundle, fileHash, buffer };
+  const finish = async () => {
+    if (!cachedBundle) return { cachedBundle, fileHash, buffer };
+    if (cachedEntry.semanticCache) cachedBundle.semanticCache = cachedEntry.semanticCache;
+    if (!semanticContext) return { cachedBundle, fileHash, buffer };
+    if (!cachedEntry.semanticCache) return { cachedBundle: null, fileHash, buffer };
+    // Exact source hash is mandatory even when a fine-grained stat timestamp matches.
+    const currentBytes = await fs.readFile(absPath);
+    const sourceHash = createHash('sha256').update(currentBytes).digest('hex');
+    try {
+      const semanticFactsRef = await relocateSemanticCacheEntry({
+        bundleDir, locator: cachedEntry.semanticCache,
+        dependencySignatures: semanticContext.dependencySignatures,
+        sourceHash, sourcePath: relKey.split('\\').join('/'), repositoryNamespace: semanticContext.repositoryNamespace,
+        targetBuildRoot: semanticContext.buildRoot, storage: semanticContext.storage,
+        diskAccount: semanticContext.diskAccount, signal: semanticContext.signal
+      });
+      manifest.semanticEnabled = true;
+      manifest.semanticGeneration = semanticFactsRef.storage.generation;
+      manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
+      return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef };
+    } catch (error) {
+      if (error.code !== 'ERR_SEMANTIC_CACHE_MISMATCH') throw error;
+      return { cachedBundle: null, fileHash, buffer: currentBytes };
+    }
+  };
 
   const matchesStat = entryStatsMatch(cachedEntry, fileStat);
   if (!matchesStat && !cachedEntry.hash) return { cachedBundle, fileHash, buffer };
@@ -186,10 +214,11 @@ export async function readCachedBundle({
         }
       }
       cachedBundle = await readBundleOrNull({ bundleRecords });
-    } catch {
+    } catch (error) {
+      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
       cachedBundle = null;
     }
-    return { cachedBundle, fileHash, buffer };
+    return finish();
   }
 
   try {
@@ -205,10 +234,11 @@ export async function readCachedBundle({
     if (fileHash === cachedEntry.hash) {
       cachedBundle = await readBundleOrNull({ bundleRecords });
     }
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     cachedBundle = null;
   }
-  return { cachedBundle, fileHash, buffer };
+  return finish();
 }
 
 /**

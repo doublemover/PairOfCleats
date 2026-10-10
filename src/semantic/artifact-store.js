@@ -1,3 +1,6 @@
+import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
+import { assertQueryIndexRow, compareQueryIndexRows, queryIndexOwnerCompare } from './query-index.js';
+import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -10,7 +13,7 @@ import { validateSemanticRecord } from '../contracts/validators/semantic.js';
 
 const FAMILY = {
   semantic_lookup: 'lookup', semantic_records: 'node', semantic_operands: 'operand', semantic_edges: 'edge',
-  semantic_ownership: 'ownership', semantic_coverage: 'coverage'
+  semantic_ownership: 'ownership', semantic_coverage: 'coverage', semantic_frontier: 'frontier'
 };
 const error = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
 
@@ -48,13 +51,14 @@ const hashFile = async (filePath, signal) => {
  */
 export const createArtifactSemanticStore = ({
   root, repoRoot, artifactSurfaceVersion, generation, partitions,
-  maxRecords = 128, maxRecordBytes = 1048576, validationCacheEntries = 64
+  queryIndex: inputQueryIndex = null, maxRecords = 128, maxRecordBytes = 1048576, validationCacheEntries = 64
 }) => {
   assertCurrentIndexFormat({
     operation: 'semantic_detail', component: 'semantic family', foundVersion: artifactSurfaceVersion,
     repoRoot, indexPath: root
   });
   assertSemanticEnvelope('generation', generation);
+  const queryIndex = inputQueryIndex ? structuredClone(inputQueryIndex) : null;
   const inventory = new Map();
   for (const partition of structuredClone(partitions)) {
     assertSemanticEnvelope('partition', partition);
@@ -208,6 +212,119 @@ export const createArtifactSemanticStore = ({
     }
     return rows;
   };
+  const readMemberRows = async (partitionId, member, ordinals, { signal = null, metrics = null } = {}) => {
+    const partition = inventory.get(partitionId);
+    if (!partition || !FAMILY[member] || !Array.isArray(ordinals) || ordinals.length > 512) throw error('Invalid semantic member hydration.');
+    const work = new Map(), results = new Array(ordinals.length);
+    for (let index = 0; index < ordinals.length; index += 1) {
+      const ordinal = ordinals[index];
+      if (!Number.isSafeInteger(ordinal) || ordinal < 0) throw error('Invalid member ordinal.');
+      const pieces = partition.members[member];
+      let low = 0, high = pieces.length - 1, piece = null;
+      while (low <= high) {
+        const middle = (low + high) >>> 1, candidate = pieces[middle];
+        if (ordinal < candidate.firstRow) high = middle - 1;
+        else if (ordinal >= candidate.firstRow + candidate.count) low = middle + 1;
+        else { piece = candidate; break; }
+      }
+      if (!piece) throw error('Query index points outside its semantic member.');
+      if (!work.has(piece)) work.set(piece, []);
+      work.get(piece).push({ ordinal, index });
+    }
+    for (const [piece, selected] of work) {
+      throwIfAborted(signal);
+      const { dataPath, offsetsPath } = await validatePiece(piece, signal);
+      const rows = await readJsonlRowsAt(dataPath, offsetsPath, selected.map(({ ordinal }) => ordinal - piece.firstRow), { maxBytes: maxRecordBytes, metrics });
+      for (let i = 0; i < rows.length; i += 1) {
+        if (!validateSemanticRecord(FAMILY[member], rows[i], { structuralSlots: partition.structuralSlots }).ok) throw error('Invalid hydrated semantic member.');
+        results[selected[i].index] = rows[i];
+      }
+    }
+    return results;
+  };
+  let checkedQueryIndex = false;
+  const checkQueryIndex = () => {
+    if (!queryIndex) throw Object.assign(new Error('This generation has no semantic query lookup index.'), { code: 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE' });
+    if (checkedQueryIndex) return;
+    assertSemanticQueryIndex(queryIndex);
+    if (queryIndex.schemaVersion !== 1 || canonicalSemanticJson(queryIndex.generation) !== canonicalSemanticJson(generation)
+      || !Array.isArray(queryIndex.partitionHashes) || !Array.isArray(queryIndex.pieces)) throw error('Invalid query index generation.');
+    const expected = [...inventory.values()].sort((a, b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)
+      .map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash }));
+    if (canonicalSemanticJson(expected) !== canonicalSemanticJson(queryIndex.partitionHashes)) throw error('Query index partition inventory mismatch.');
+    let next = 0, previous = null;
+    for (const piece of queryIndex.pieces) {
+      assertQueryIndexRow(piece.firstKey); assertQueryIndexRow(piece.lastKey);
+      if (piece.firstRow !== next || piece.count < 1 || compareQueryIndexRows(piece.firstKey, piece.lastKey) > 0
+        || (previous && compareQueryIndexRows(previous, piece.firstKey) >= 0)) throw error('Invalid query index ranges.');
+      next += piece.count; previous = piece.lastKey;
+    }
+    if (next !== queryIndex.rowCount) throw error('Query index count mismatch.');
+    checkedQueryIndex = true;
+  };
+  const readQueryIndexRow = async (ordinal, signal, metrics) => {
+    const pieces = queryIndex.pieces;
+    let low = 0, high = pieces.length - 1, piece = null;
+    while (low <= high) {
+      const middle = (low + high) >>> 1, candidate = pieces[middle];
+      if (ordinal < candidate.firstRow) high = middle - 1;
+      else if (ordinal >= candidate.firstRow + candidate.count) low = middle + 1;
+      else { piece = candidate; break; }
+    }
+    if (!piece) throw error('Query index row out of range.');
+    const { dataPath, offsetsPath } = await validatePiece(piece, signal);
+    const [row] = await readJsonlRowsAt(dataPath, offsetsPath, [ordinal - piece.firstRow], { maxBytes: maxRecordBytes, metrics });
+    assertQueryIndexRow(row);
+    if (compareQueryIndexRows(row, piece.firstKey) < 0 || compareQueryIndexRows(row, piece.lastKey) > 0) throw error('Query index key range mismatch.');
+    return row;
+  };
+  const getRelatedPage = async (ref, member, { offset = 0, limit = 128, signal = null, metrics = null } = {}) => {
+    throwIfAborted(signal);
+    checkQueryIndex();
+    if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
+      || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records'].includes(member)
+      || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
+    const bound = async (upper) => {
+      let low = 0, high = queryIndex.rowCount;
+      while (low < high) {
+        throwIfAborted(signal);
+        const middle = Math.floor((low + high) / 2);
+        const row = await readQueryIndexRow(middle, signal, metrics);
+        const compare = queryIndexOwnerCompare(row, ref, member);
+        if (compare < 0 || (upper && compare === 0)) low = middle + 1;
+        else high = middle;
+      }
+      return low;
+    };
+    const start = await bound(false), end = await bound(true);
+    if (offset > end - start) throw error('Related semantic cursor exceeds member rows.');
+    const selected = [];
+    for (let ordinal = start + offset; ordinal < Math.min(end, start + offset + limit); ordinal += 1) {
+      const row = await readQueryIndexRow(ordinal, signal, metrics);
+      if (queryIndexOwnerCompare(row, ref, member) !== 0) throw error('Query index owner mismatch.');
+      selected.push(row);
+    }
+    const rows = [];
+    const work = new Map();
+    for (let i = 0; i < selected.length; i += 1) {
+      const entry = selected[i];
+      if (!work.has(entry.partitionId)) work.set(entry.partitionId, []);
+      work.get(entry.partitionId).push({ entry, index: i });
+    }
+    for (const [partitionId, entries] of work) {
+      const hydrated = await readMemberRows(partitionId, member, entries.map(({ entry }) => entry.rowOrdinal), { signal, metrics });
+      for (let i = 0; i < entries.length; i += 1) {
+        const row = hydrated[i];
+        const owner = member === 'semantic_records' ? row.data.expression : member === 'semantic_operands' ? row.parent : member === 'semantic_ownership' ? row.recordRef
+          : { partitionId, localId: row.id };
+        if (canonicalSemanticJson(owner) !== canonicalSemanticJson(ref)) throw error('Query index points to a different owner.');
+        rows[entries[i].index] = member === 'semantic_lookup' ? { partitionId, id: row.id, value: row.value }
+          : member === 'semantic_records' ? { ...row, ref: { partitionId, localId: row.id },
+            availableFieldGroups: ['span', 'scope', 'data'], omittedFieldGroups: [] } : row;
+      }
+    }
+    return { rows, offset: offset + rows.length, done: start + offset + rows.length === end };
+  };
   const verifySource = async (source, { signal = null } = {}) => {
     const file = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
     const byteHash = createHash('sha256'), textHash = createHash('sha256');
@@ -227,6 +344,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows };
+  return { backend: 'artifact', storeId: root, verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage };
 
 };

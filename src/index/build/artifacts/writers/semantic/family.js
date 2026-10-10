@@ -1,3 +1,5 @@
+import { writeSemanticQueryIndex } from './query-index.js';
+import { createSemanticDiskAccount } from './partition.js';
 import { assertSemanticEnvelope } from '../../../../../contracts/validators/semantic-envelopes.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -19,7 +21,7 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
       throw Object.assign(new Error('Semantic file descriptor generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
     }
   }
-  declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', ...SEMANTIC_MEMBER_NAMES] });
+  declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', 'semantic_query_index', ...SEMANTIC_MEMBER_NAMES] });
   enqueueWrite('semantic-family', async () => {
     const semanticRoot = path.join(outDir, 'semantic');
     const store = createArtifactSemanticStore({ root: semanticRoot, repoRoot: root,
@@ -33,6 +35,14 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     const register = (name, filePath, count = 0) => addPieceFile({ type: 'semantic', name,
       format: filePath.endsWith('.jsonl') ? 'jsonl' : filePath.endsWith('.json') ? 'json' : 'binary', count }, filePath);
     register('semantic_manifest', path.join(outDir, 'semantic_manifest.json'), partitions.length);
+    const queryIndex = await writeSemanticQueryIndex({ root: semanticRoot, repoRoot: root, generation, partitions, store,
+      diskAccount: state.semanticDiskAccount || createSemanticDiskAccount(0), signal });
+    await writeJsonObjectFile(path.join(outDir, 'semantic_query_index.json'), { fields: queryIndex, atomic: true });
+    register('semantic_query_index', path.join(outDir, 'semantic_query_index.json'), queryIndex.rowCount);
+    for (const piece of queryIndex.pieces) {
+      register('semantic_query_index_rows', path.join(semanticRoot, piece.path), piece.count);
+      register('semantic_query_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
+    }
     for (const member of SEMANTIC_MEMBER_NAMES) {
       const inventory = partitions.map((p) => ({ partitionId: p.partitionId, pieces: p.members[member] }));
       const filePath = path.join(outDir, member + '.json');

@@ -6,7 +6,8 @@ export async function loadCachedBundleForFile({
   incrementalState,
   absPath,
   relKey,
-  fileStat
+  fileStat,
+  semanticContext = null
 }) {
   const result = await runIo(() => readCachedBundle({
     enabled: incrementalState.enabled,
@@ -16,6 +17,7 @@ export async function loadCachedBundleForFile({
     manifest: incrementalState.manifest,
     bundleDir: incrementalState.bundleDir,
     bundleFormat: incrementalState.bundleFormat,
+    semanticContext,
     sharedReadState: incrementalState.readHashCache || null
   }));
   if (result.cachedBundle) result.cachedBundle.stageRefresh = resolveStageRefresh(incrementalState.manifest.dependencySignatures, incrementalState.manifest.files?.[relKey]?.dependencySignatures);
@@ -30,6 +32,8 @@ export async function writeBundleForFile({
   fileHash,
   fileChunks,
   parseCheckpoint = null,
+  semanticFactsRef = null,
+  semanticContext = null,
   fileRelations,
   vfsManifestRows,
   fileEncoding = null,
@@ -47,6 +51,8 @@ export async function writeBundleForFile({
     fileHash,
     fileChunks,
     parseCheckpoint,
+    semanticFactsRef,
+    semanticContext,
     dependencySignatures: incrementalState.manifest.dependencySignatures,
     fileRelations,
     vfsManifestRows,

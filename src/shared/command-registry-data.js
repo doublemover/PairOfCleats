@@ -327,6 +327,10 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Graph',
     supportTier: 'operator'
   }),
+  entry('semantic.detail', ['semantic', 'detail'], 'tools/analysis/semantic-detail.js', 'Inspect exact semantic records and related syntax in a pinned generation.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats semantic detail --request request.json --all']
+  }),
   entry('context-pack', ['context-pack'], 'tools/analysis/context-pack.js', 'Build a composite context pack for a seed.', {
     helpGroup: 'Graph',
     helpExamples: ['pairofcleats context-pack --repo . --seed file:src/index.js --hops 1']

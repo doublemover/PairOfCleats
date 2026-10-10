@@ -1,3 +1,4 @@
+import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { validateSemanticRecord } from '../contracts/validators/semantic.js';
@@ -15,11 +16,11 @@ export const createSqliteSemanticStore = ({
   });
   assertSemanticEnvelope('generation', generation);
   const storedGeneration = db.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
-  if (!storedGeneration || JSON.stringify(JSON.parse(storedGeneration.value)) !== JSON.stringify(generation)) {
+  if (!storedGeneration || canonicalSemanticJson(JSON.parse(storedGeneration.value)) !== canonicalSemanticJson(generation)) {
     throw Object.assign(new Error('SQLite semantic generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
   }
   const statement = db.prepare('SELECT payload FROM semantic_records WHERE partition_id = ? AND local_id = ?');
-  const partition = db.prepare('SELECT partition_id FROM semantic_analysis WHERE partition_id = ?');
+  const partition = db.prepare('SELECT descriptor FROM semantic_analysis WHERE partition_id = ?');
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null } = {}) => {
     if (!Array.isArray(refs) || refs.length > maxRecords) throw new Error('Semantic record request exceeds its limit.');
     if (!Array.isArray(fields) || fields.some((field) => !['span', 'scope', 'data'].includes(field))) {
@@ -54,5 +55,47 @@ export const createSqliteSemanticStore = ({
     }
     return result;
   };
-  return { repoRoot, generation: { ...generation }, getRecords, getCoverage };
+  const physicalPartitions = db.prepare('SELECT partition_id, descriptor FROM semantic_analysis ORDER BY partition_id').all();
+  for (const entry of physicalPartitions) assertSemanticEnvelope('partition', JSON.parse(entry.descriptor));
+  const relatedQueries = {
+    semantic_records: db.prepare("SELECT payload FROM semantic_records WHERE partition_id = ? AND record_kind = 'occurrence' AND json_extract(payload, '$.data.expression.partitionId') = ? AND json_extract(payload, '$.data.expression.localId') = ? ORDER BY rowid LIMIT ? OFFSET ?"),
+    semantic_operands: db.prepare('SELECT payload FROM semantic_operands WHERE partition_id = ? AND parent_partition = ? AND parent_id = ? ORDER BY rowid LIMIT ? OFFSET ?'),
+    semantic_ownership: db.prepare('SELECT payload FROM semantic_ownership WHERE partition_id = ? AND record_partition = ? AND local_id = ? ORDER BY rowid LIMIT ? OFFSET ?'),
+    semantic_lookup: db.prepare('SELECT payload FROM semantic_lookup WHERE partition_id = ? AND partition_id = ? AND local_id = ? ORDER BY rowid LIMIT ? OFFSET ?')
+  };
+  const relatedCounts = {
+    semantic_records: db.prepare("SELECT COUNT(*) AS n FROM semantic_records WHERE partition_id = ? AND record_kind = 'occurrence' AND json_extract(payload, '$.data.expression.partitionId') = ? AND json_extract(payload, '$.data.expression.localId') = ?"),
+    semantic_operands: db.prepare('SELECT COUNT(*) AS n FROM semantic_operands WHERE partition_id = ? AND parent_partition = ? AND parent_id = ?'),
+    semantic_ownership: db.prepare('SELECT COUNT(*) AS n FROM semantic_ownership WHERE partition_id = ? AND record_partition = ? AND local_id = ?'),
+    semantic_lookup: db.prepare('SELECT COUNT(*) AS n FROM semantic_lookup WHERE partition_id = ? AND partition_id = ? AND local_id = ?')
+  };
+  const getRelatedPage = async (ref, member, { offset = 0, limit = 128, signal = null } = {}) => {
+    if (!validateSemanticRecord('recordRef', ref).ok || !partition.get(ref.partitionId)
+      || !Object.hasOwn(relatedQueries, member) || !Number.isSafeInteger(offset) || offset < 0
+      || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw new Error('Invalid related semantic request.');
+    const rows = [];
+    let remainingOffset = offset, total = 0;
+    for (const entry of physicalPartitions) {
+      throwIfAborted(signal);
+      const count = relatedCounts[member].get(entry.partition_id, ref.partitionId, ref.localId).n;
+      total += count;
+      if (remainingOffset >= count) { remainingOffset -= count; continue; }
+      if (rows.length >= limit) continue;
+      const values = relatedQueries[member].all(entry.partition_id, ref.partitionId, ref.localId, limit - rows.length, remainingOffset);
+      remainingOffset = 0;
+      const descriptor = JSON.parse(entry.descriptor);
+      for (const stored of values) {
+        throwIfAborted(signal);
+        const row = JSON.parse(stored.payload);
+        const family = { semantic_records: 'node', semantic_operands: 'operand', semantic_ownership: 'ownership', semantic_lookup: 'lookup' }[member];
+        if (!validateSemanticRecord(family, row, { structuralSlots: descriptor.structuralSlots }).ok) throw new Error('Invalid hydrated semantic member.');
+        rows.push(member === 'semantic_lookup' ? { partitionId: entry.partition_id, id: row.id, value: row.value }
+          : member === 'semantic_records' ? { ...row, ref: { partitionId: entry.partition_id, localId: row.id },
+            availableFieldGroups: ['span', 'scope', 'data'], omittedFieldGroups: [] } : row);
+      }
+    }
+    if (offset > total) throw new Error('Related semantic cursor exceeds member rows.');
+    return { rows, offset: offset + rows.length, done: offset + rows.length === total };
+  };
+  return { backend: 'sqlite', storeId: indexPath, repoRoot, generation: { ...generation }, getRecords, getCoverage, getRelatedPage };
 };

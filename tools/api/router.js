@@ -1,3 +1,4 @@
+import { handleSemanticDetailRoute } from './router/semantic.js';
 import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
 import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
@@ -342,6 +343,11 @@ export const createApiRouter = ({
             error: err?.message || String(err)
           }, corsHeaders || {});
         }
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/semantic-detail' && req.method === 'POST') {
+        await handleSemanticDetailRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 

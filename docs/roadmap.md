@@ -28,75 +28,62 @@ head. None is a blanket release-readiness claim.
 
 ## Semantic indexing implementation (2026-10-10)
 
-Latest checkpoint: TypeScript SourceFile/context reuse and bounded semantic
-collection are wired through the production registry; no new Program is created.
-The real fixture now builds both JS and TS and checks constructor operands through
-publication and SQLite (8.72s, `.testLogs/run-1791621998512-3zjxgf`). Strict portable
-file descriptors and detail request/result schemas are implemented. Descriptor
-hashes exclude physical relocation; generation, counts and source joins are checked.
-Golden rejection fixtures pass and are enrolled in the ordered gate lane.
-Recovery testing exposed missing retained-source verification before publication;
-bounded byte/text hash verification now runs before publication and after cleanup.
-Storage/cache and query packages are dependency-ready; staffing expansion remains
-unapproved. Recovery fixtures passed 9/9 (integration receipt `.testLogs/run-1791622065668-lbs9n4`, storage `.testLogs/run-1791622065495-9e7rqt`); TypeScript language checks passed 2/2 (`.testLogs/run-1791621847040-j2q4x1`). Offline runtime evidence schemas remain pending. No runtime capture.
+Status: **in progress; source, cache, query and deferred-work foundations** on
+`codex/semantic-indexing-20261010`, descended from PR547 head
+`5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. Astra MEDIUM leads shared integration;
+the same two approved GPT-6.1 Sol MEDIUM helpers own storage/cache and query work.
+No additional helpers, pushes, merges, captures, corpus restart or benchmark campaign.
 
-Status: **in progress; foundation and storage checkpoint**, on
-`codex/semantic-indexing-20261010` from PR547 head
-`5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. The Astra MEDIUM lead owns shared integration; two explicitly approved GPT-6.1 Sol MEDIUM helpers completed TypeScript syntax and recovery fixtures. The frozen owner specification governs
-identity, UTF-16 coordinates, immutable facts, whole-generation publication and
-offline runtime ingestion. No full-corpus inference restart or benchmark campaign.
+Implemented:
 
-Implemented: deterministic semantic identities, exact source snapshots, strict
-node/operand/edge/coverage/source/partition/provider envelope schemas, and separate
-inference views that preserve canonical calls/details/usages. Internal staging
-writers now retain content-addressed source bytes and bounded uncompressed JSONL
-parts with verified offsets. Artifact detail hydration and a transactional SQLite
-projection share canonical records; ingestion verifies canonical hashes and rolls
-back failed replacements. Source excerpts use retained exact source bytes.
+- Source-owned JS/TS structure, exact UTF-16 coordinates, immutable source retention,
+  ordered operands and separate chunk ownership. Canonical facts survive inference
+  budgets; unsupported binding/flow phases remain explicitly unsupported.
+- Portable per-file descriptors, verified cache sidecars stored once per file,
+  source/dependency checks and relocation into a fresh whole-build generation.
+  Artifact, bundle and incremental SQLite routes share canonical ingestion.
+- Physical sorted JSONL/offset lookup indexes support bounded argument, name and
+  ownership hydration. Shared detail pins generation and request-bound cursors;
+  artifact/SQLite parity covers 300 arguments and nested fields. Query policy is
+  validated through the existing configuration loader. CLI, MCP and HTTP detail
+  handlers pass retained-generation/cursor checks; CLI --all drains pages as JSONL.
+- Strict runtime request/capability/capture/raw/evidence schemas, pure plan-only
+  capability reporting, explicit offline-import authority and source/evidence
+  joins. Observations, inferred claims, missing dimensions and code lifetimes stay
+  distinct. These foundations do not yet parse or publish runtime captures.
+- Dedicated SQLite task control store with exact task/input/policy identities,
+  dependency admission, leases, retries, supersession and verified publication
+  acknowledgment. Explicit bounded drain uses the existing scheduler and can
+  recover committed outputs. Immutable frontier descriptors have artifact/SQLite
+  representation; production planning/automatic after-index wiring is still open.
+- The existing grouped TypeScript provider now indexes a document once for target
+  range/name lookup, replacing repeated whole-document walks. It creates no extra
+  Program and does not yet publish checker-resolved occurrence bindings.
 
-Artifact surface 0.1.0 and SQLite schema 15 are allocated. Exact format guards cover
-manifest, state/pointer, bundle/cache and principal SQLite boundaries; new cache
-namespaces isolate full-source rebuilds. Incremental SQLite rejects incompatible
-metadata before applying write pragmas. **The exhaustive reader/error-propagation
-and full-rebuild audit remains open:** these focused checks do not establish the
-complete hard-cutover acceptance matrix.
+Artifact surface 0.1.0, SQLite 15 and semantic schemas 1 remain the frozen cutover.
+Exact guards cover principal artifact/state/pointer/cache/bundle/SQLite boundaries;
+the exhaustive reader/error-propagation audit remains open. Full rebuilds use the
+new cache namespace, without migration or deletion of originals.
 
-Production slice added: opt-in semantic configuration now drives the existing
-JavaScript parser context and file CPU stage. A resumable explicit-stack collector
-emits scopes, declarations, occurrences, expressions, literal references, interned
-names and ordered operands. Post-UID interval lookup emits separate ownership
-partitions. Ordered file commits carry descriptors into the existing artifact
-queue; normal publication and post-cleanup reconciliation validate the family.
-Artifact-driven SQLite builds ingest the same family inside their transaction.
-The shared detail service pins repository/generation, returns coverage, bounds
-records/bytes/work, and uses request-bound opaque continuations. CLI/MCP/HTTP tools
-are not advertised yet; the tested surface is the shared production library.
+Focused Node 26 evidence: fresh/warm real JS+TS build and artifact-to-SQLite detail
+pass (`.testLogs/run-1791623563309-79vemg`, 9.28s); 300-argument hydration parity
+passes (`.testLogs/run-1791623688836-myg2m5`); compiler lookup/reuse checks pass 2/2
+(`.testLogs/run-1791623046916-69rtaz`); runtime contracts and source joins pass
+(`.testLogs/run-1791623417206-bdo3sr`); task lease/drain checks pass
+(`.testLogs/run-1791623436774-6vxhuc`). Earlier source-publication and physical-piece
+registration failures were fixed. Cache rollback/cancellation passes
+(`.testLogs/run-1791623570997-fsk90z`), publication recovery passes
+(`.testLogs/run-1791623703172-85sr83`), and public API/CLI/MCP detail passes
+(`.testLogs/run-1791623538107-5h4g4x`). Repository formatting passed. A historical native access violation remains
+undiagnosed; it has not recurred in these checks. Broad suites remain unrun.
 
-Remaining: embedded adapters and compiler bindings; fusion of the
-legacy relation-summary walk with structural collection (both currently reuse
-the same parsed AST); complete config
-overrides/targeted policy; complete def-use/control/boundary semantics; shared
-resident admission with sparse indexing disabled; bundle/incremental SQLite route
-integration; durable frontier tasks; runtime evidence schemas/adapters; public
-query surface wiring and expanded indexed hydration. Semantic-enabled file processing currently
-refreshes syntax instead of reusing chunk-only cached bundles, preventing absent
-facts from being treated as a semantic cache hit. Durable semantic cache reuse is
-still required. Unsupported analysis phases are explicitly unsupported, not
-pretend deferred jobs. Source decoding other than the exact UTF-8 contract remains
-unimplemented. No full semantic-index completion claim.
-
-Focused Node 26.8.1 evidence for this slice: existing
-`lang/contracts/javascript-relations-contract` passed with 300 arguments,
-destructuring, holes, explicit receivers, Unicode ranges and batching invariance
-(receipt `.testLogs/run-1791621081505-7ykyin`). Enrolled
-`indexing/semantic/production-slice` passed a real build through normal publication,
-ownership joins, exact source recovery after edits, lossless detail pagination,
-cursor mismatch rejection, and production artifact-to-SQLite detail parity
-(receipt `.testLogs/run-1791621282496-ytggqc`, 6.36 seconds). Earlier integration
-failures exposed and fixed fresh build-state stamping and piece registration.
-One earlier attempt exited with native access-violation status 3221225477 before
-the runner retried; later runs passed, but the native fault was not diagnosed.
-No cross-runtime campaign, broad benchmark, full suite, or runtime capture ran.
+Remaining: compiler/LSP binding joins before resolution; CFG/def-use/value/storage
+and modeled boundary paths; embedded adapters; relation/structural walk fusion;
+shared resident admission with sparse indexing disabled; complete config overrides
+and targeted policies; production frontier planning/publication lifecycle; offline
+runtime adapters and family publication; operation/trace/equivalence queries and
+complete hard-cutover audit. No claim of full frozen-spec completion. The temporary
+package tracker records exact ownership, dependencies, acceptance and receipts.
 
 ## Current Initiatives
 

@@ -1,3 +1,4 @@
+import { createTypeScriptNodeIndex } from './typescript/node-index.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
@@ -133,46 +134,16 @@ const kindMatches = (ts, node, hint) => {
   return false;
 };
 
-const collectCandidates = (ts, sourceFile, range, hint) => {
-  const candidates = [];
-  const visit = (node) => {
-    const start = node.getStart(sourceFile);
-    const end = node.getEnd();
-    if (range && end > range.start && start < range.end) {
-      const overlap = Math.min(end, range.end) - Math.max(start, range.start);
-      if (overlap > 0) {
-        const span = end - start;
-        const overlapRatio = overlap / Math.max(1, range.end - range.start);
-        const name = getNodeName(ts, node, sourceFile);
-        const score = (overlapRatio * 10)
-          + (kindMatches(ts, node, hint?.kind) ? 2 : 0)
-          + (hint?.name && name && name === hint.name ? 2 : 0)
-          - (span / 1000000);
-        candidates.push({ node, score, span, name });
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-  return candidates;
-};
-
-const collectNamedCandidates = (ts, sourceFile, name, hint) => {
-  if (!name) return [];
-  const candidates = [];
-  const visit = (node) => {
-    const nodeName = getNodeName(ts, node, sourceFile);
-    if (nodeName && nodeName === name) {
-      if (!hint?.kind || kindMatches(ts, node, hint.kind)) {
-        candidates.push(node);
-      }
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-  return candidates;
-};
-
+const collectCandidates = (ts, index, range, hint) => index.overlapping(range).map(({ node, start, end, name }) => {
+  const overlap = Math.min(end, range.end) - Math.max(start, range.start);
+  const span = end - start;
+  const score = (overlap / Math.max(1, range.end - range.start) * 10)
+    + (kindMatches(ts, node, hint?.kind) ? 2 : 0)
+    + (hint?.name && name && name === hint.name ? 2 : 0) - (span / 1000000);
+  return { node, score, span, name };
+});
+const collectNamedCandidates = (ts, index, name, hint) => index.named(name)
+  .filter(({ node }) => !hint?.kind || kindMatches(ts, node, hint.kind)).map(({ node }) => node);
 const selectBestCandidate = (candidates) => {
   if (!candidates.length) return { node: null, status: 'missing' };
   candidates.sort((a, b) => {
@@ -186,15 +157,15 @@ const selectBestCandidate = (candidates) => {
   return { node: candidates[0].node, status: 'ok' };
 };
 
-const findNodeForTarget = (ts, sourceFile, target, strict) => {
-  const candidates = collectCandidates(ts, sourceFile, target.virtualRange, target.symbolHint || null);
+const findNodeForTarget = (ts, target, strict, nodeIndex) => {
+  const candidates = collectCandidates(ts, nodeIndex, target.virtualRange, target.symbolHint || null);
   const best = selectBestCandidate(candidates);
   if (best.node) return best;
   if (strict) return best;
   if (target?.symbolHint?.name) {
     const nameMatches = collectNamedCandidates(
       ts,
-      sourceFile,
+      nodeIndex,
       target.symbolHint.name,
       target.symbolHint
     );
@@ -440,9 +411,10 @@ export const createTypeScriptProvider = () => ({
         const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
         const sourceFile = program.getSourceFile(absPath);
         if (!sourceFile) continue;
+        const nodeIndex = createTypeScriptNodeIndex(ts, sourceFile, getNodeName);
         const docTargets = targetsByDoc.get(doc.virtualPath) || [];
         for (const target of docTargets) {
-          const result = findNodeForTarget(ts, sourceFile, target, ctx?.strict !== false);
+          const result = findNodeForTarget(ts, target, ctx?.strict !== false, nodeIndex);
           if (!result.node) {
             diagnostics.push({
               ...buildTypeScriptDiagnosticCheck({

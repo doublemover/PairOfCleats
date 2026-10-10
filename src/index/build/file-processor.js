@@ -1,3 +1,4 @@
+import { createSemanticCacheDependencySignatures } from './incremental/semantic-cache-dependencies.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readContainedFile } from '../../shared/contained-file.js';
@@ -529,7 +530,15 @@ export function createFileProcessor(options) {
       fileStat
     });
     updateCrashStage('pre-cpu:load-cached-bundle:start');
+    const semanticContext = semantic ? {
+      buildRoot: semantic.buildRoot, storage: semantic.storage, repositoryNamespace: semantic.repositoryNamespace,
+      diskAccount: semantic.diskAccount, signal,
+      dependencySignatures: createSemanticCacheDependencySignatures({
+        dependencySignatures: incrementalState.manifest.dependencySignatures, policy: semantic.policy, root, languageOptions
+      })
+    } : null;
     const cachedResult = await loadCachedBundleForFile({
+      semanticContext,
       runIo,
       incrementalState,
       absPath: abs,
@@ -554,7 +563,7 @@ export function createFileProcessor(options) {
       ext,
       fileCaps,
       maxFileBytes,
-      cachedBundle: semantic ? null : artifacts.cachedBundle,
+      cachedBundle: semantic && !cachedResult.semanticFactsRef ? null : artifacts.cachedBundle,
       incrementalState,
       fileStructural,
       toolInfo,
@@ -572,6 +581,14 @@ export function createFileProcessor(options) {
     }
     if (cachedOutcome?.result) {
       updateCrashStage('pre-cpu:cache-reuse:hit');
+      if (semantic) {
+        cachedOutcome.result.semanticFactsRef = cachedResult.semanticFactsRef;
+        cachedOutcome.result.manifestEntry.semanticCache = incrementalState.manifest.files[relKey].semanticCache;
+        cachedOutcome.result.postingsPayload = buildPostingsPayloadMetadata({
+          chunks: cachedOutcome.result.chunks, fileRelations: cachedOutcome.result.fileRelations,
+          vfsManifestRows: cachedOutcome.result.vfsManifestRows, semanticFactsRef: cachedResult.semanticFactsRef
+        });
+      }
       if (!cachedOutcome.result.postingsPayload) {
         cachedOutcome.result.postingsPayload = buildPostingsPayloadMetadata({
           chunks: cachedOutcome.result.chunks,
@@ -580,7 +597,7 @@ export function createFileProcessor(options) {
         });
       }
       if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
@@ -836,6 +853,7 @@ export function createFileProcessor(options) {
     throwIfAborted();
     updateCrashStage('post-cpu:write-bundle:start');
     const manifestEntry = await writeBundleForFile({
+      semanticContext, semanticFactsRef: cpuResult?.semanticFactsRef || null,
       runIo,
       incrementalState,
       relKey,
