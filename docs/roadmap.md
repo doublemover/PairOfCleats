@@ -153,6 +153,12 @@ coverage no longer bypasses analysis invalidation merely because it lacks a comp
 context. Syntax and known structural ownership remain independently reusable.
 The focused analysis-version identity fixture covers these invalidation boundaries.
 
+The first hosted run of this continuation stopped at a stale workflow contract
+requiring Node 24 despite `.nvmrc`, package engines and CI already selecting Node 26.
+The bounded repair updates that major-version assertion without changing the exact
+patch pin or weakening workflow/cache-key consistency checks. Full CI remains a
+separate gate; this repair is qualified by the focused workflow contract only.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
