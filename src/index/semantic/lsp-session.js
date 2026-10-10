@@ -30,6 +30,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
     if (!source) continue;
     await store.verifySource(source, { signal });
+    if (source.encoding === 'binary') continue;
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
     const occurrenceIds = new Set();
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), declarations = [];

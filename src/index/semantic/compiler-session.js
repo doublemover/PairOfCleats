@@ -1,3 +1,4 @@
+import { retainedWasmSource } from './wasm/retained-source.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { compilerInvocationInputs, compilerInvocationTargets } from './compiler-invocation.js';
 import { collectCompilerBoundaryFlow } from './compiler-boundary-flow.js';
@@ -28,7 +29,7 @@ const refKey = ref => ref.partitionId + ':' + ref.localId;
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 /** One build-owned session. Inventories hold declarations; full rows live only for the active document. */
 export const createSemanticCompilerSession = async ({ state, runtime, signal = null }) => {
-  const policy = runtime.semanticPolicy, inventory = new Map(), texts = new Map();
+  const policy = runtime.semanticPolicy, inventory = new Map(), texts = new Map(), wasmModules = new Map();
   const emitted = [], contexts = [], declarationChunks = new Map();
   let activeCompilerSystem = null;
   const chunksByUid = new Map((state.chunks || []).map(chunk => [chunk.chunkUid || chunk.metaV2?.chunkUid, chunk]));
@@ -49,6 +50,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     const syntax = descriptor.partitions.find(p => p.partitionId === descriptor.syntaxPartitionId);
     let source;
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
+    if (source?.language === 'wasm') wasmModules.set(keyPath(path.join(runtime.root, source.path)), retainedWasmSource({ source, root, store, syntaxPartitionId: syntax.partitionId }));
     if (!source || !['javascript', 'typescript'].includes(source.language)) continue;
     let sourceMap = null;
     if (source.mapping) {
@@ -177,7 +179,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       providerId: 'typescript', providerVersion: '2.5.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
       contexts.push(context);
       state.semanticCompilerContexts = contexts;
-      return { context, mappedFiles, mappedDocuments, compilerReadFile: activeCompilerSystem?.readFile, repoRoot: runtime.root, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
+      return { context, mappedFiles, mappedDocuments, compilerReadFile: activeCompilerSystem?.readFile, repoRoot: runtime.root, wasmModules, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
     },
     async collectDocument({ ts, checker, sourceFile, nodeIndex, group }) {
       const item = group.mappedFiles.get(keyPath(sourceFile.fileName));

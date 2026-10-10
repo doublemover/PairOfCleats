@@ -338,7 +338,8 @@
               "items": {
                 "enum": [
                   "javascript",
-                  "typescript"
+                  "typescript",
+                  "wasm"
                 ]
               }
             },

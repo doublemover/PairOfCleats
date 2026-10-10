@@ -1,3 +1,6 @@
+import { collectCompilerFlow } from '../../src/index/semantic/compiler-flow.js';
+import { collectStandaloneWasm } from '../../src/index/semantic/wasm/standalone.js';
+import { retainedWasmSource } from '../../src/index/semantic/wasm/retained-source.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { collectFileSemanticFacts } from '../../src/index/semantic/collect-file.js';
@@ -8,11 +11,11 @@ import { createTypeScriptNodeIndex } from '../../src/index/tooling/typescript/no
 import { createSemanticDiskAccount } from '../../src/index/build/artifacts/writers/semantic/partition.js';
 import { createArtifactSemanticStore } from '../../src/semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
-export const createCompilerBoundaryFixture = async (root, texts) => {
+export const createCompilerBoundaryFixture = async (root, texts, binaries = {}, { withFlow = false } = {}) => {
   for (const [file, text] of Object.entries(texts)) await fs.writeFile(path.join(root, file), text);
   const { ts } = prepareTypeScriptSyntax('', { ext: '.ts' });
   const program = ts.createProgram(Object.keys(texts).map(file => path.join(root, file)), {
-      module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'], types: [], skipLibCheck: true
+      module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'], types: ['node'], typeRoots: [path.resolve('node_modules/@types')], skipLibCheck: true
     }), checker = program.getTypeChecker();
   const policy = normalizeSemanticConfig({ enabled: true, enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } });
   const account = createSemanticDiskAccount(64 * 1024 * 1024), generation = { baseBuildId: 'wasm-fixture', semanticRevision: 0 }, stagingRoot = path.join(root, 'semantic');
@@ -35,6 +38,24 @@ export const createCompilerBoundaryFixture = async (root, texts) => {
     syntaxPartitions.push(facts.partition);
     documents.push({ ts, checker, sourceFile, nodes, expressionFor, observations, bytes, bindingPartition: facts.partition, policy, item: { file, source: facts.source, root: stagingRoot, declarations }, containerPath: file });
   }
+  const wasmModules = new Map();
+  for (const [file, bytes] of Object.entries(binaries)) {
+    const result = await collectStandaloneWasm({ bytes, relPath: file, repositoryNamespace: root, stagingRoot, storage: { generation, relativePath: 'semantic' }, diskAccount: account, policy });
+    const facts = result.semanticFactsRef, store = storeFor(facts.partitions);
+    state.semanticFactsByFile.set(file, facts); syntaxPartitions.push(...facts.partitions);
+    state.semanticEvidenceArtifacts ||= []; state.semanticEvidenceArtifacts.push(...result.semanticEvidenceArtifacts);
+    for await (const source of store.iterateRows(facts.syntaxPartitionId, 'semantic_sources')) {
+      const key = path.resolve(root, file); wasmModules.set(process.platform === 'win32' ? key.toLowerCase() : key, retainedWasmSource({ source, root: stagingRoot, store, syntaxPartitionId: facts.syntaxPartitionId }));
+    }
+  }
+  const flowDocuments = [];
+  if (withFlow) for(const doc of documents) {
+    const flow=await collectCompilerFlow({...doc, source:doc.item.source, root:stagingRoot, diskAccount:account, context:{contextKey:'a'.repeat(64)},
+      declarationFor:node=> {const anchor=node?.name||node;return anchor?doc.item.declarations.get(anchor.getStart(doc.sourceFile)+':'+anchor.end):null;} });
+    flowDocuments.push({summaries:flow.summaries,flowEdges:flow.edges});syntaxPartitions.push(flow.partition);
+    const current=state.semanticFactsByFile.get(doc.item.file);
+    state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,syntaxPartitionId:current.syntaxPartitionId,storage:current.storage,partitions:[...current.partitions,flow.partition],coverage:[...current.coverage,...flow.coverage]}));
+  }
   return { state, policy, documents, syntaxPartitions, stagingRoot, storeFor,
-    group: { workerDocuments: documents, repoRoot: root, context: { contextKey: 'a'.repeat(64), compilerVersion: ts.version }, dependencyHashes: [], isDefaultLibrary: file => program.isSourceFileDefaultLibrary(file) } };
+    group: { flowDocuments, wasmModules, workerDocuments: documents, repoRoot: root, context: { contextKey: 'a'.repeat(64), compilerVersion: ts.version }, dependencyHashes: [], isDefaultLibrary: file => program.isSourceFileDefaultLibrary(file) } };
 };
