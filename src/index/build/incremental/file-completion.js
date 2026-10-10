@@ -11,6 +11,7 @@ import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { openSemanticCacheEntry } from './semantic-cache.js';
 import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import { validateEmbeddedCacheSource } from '../../semantic/embedded-cache.js';
+import { withSemanticDiskWriter } from './accounted-bundle.js';
 
 const MAX_DESCRIPTOR_BYTES = 16 * 1024 * 1024;
 const HASH = /^[a-f0-9]{64}$/;
@@ -80,18 +81,22 @@ export const commitFileCompletion = async ({ bundleDir, relKey, manifestEntry, s
   const bytes = Buffer.from(canonicalSemanticJson({ schemaVersion: 1, hash: hashBytes(Buffer.from(payload)), descriptor }) + '\n');
   if (bytes.length > MAX_DESCRIPTOR_BYTES) throw fail('Completion descriptor exceeds allowance.');
   const filename = path.join(bundleDir, 'completions', keyFor(identity) + '.json');
-  try {
-    const stat = await fs.stat(filename);
-    if (stat.size === bytes.length && (await fs.readFile(filename)).equals(bytes)) return keyFor(identity);
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  // The complete temporary replacement coexists with the old descriptor. Keep
-  // its conservative reservation through uncertain failures/concurrent writers;
-  // the next reopen reconciles actual bytes without unsafe duplicate credits.
-  diskAccount.reserve(bytes.length);
-  throwIfAborted(signal);
-  await atomicWriteText(filename, bytes, { newline: false });
-  await syncParentDirectory(path.dirname(filename));
-  return keyFor(identity);
+  return withSemanticDiskWriter(diskAccount, filename, async () => {
+    let previousBytes = 0;
+    try {
+      const stat = await fs.stat(filename);
+      if (stat.size === bytes.length && (await fs.readFile(filename)).equals(bytes)) return keyFor(identity);
+      previousBytes = stat.nlink > 1 ? 0 : stat.size;
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    // The complete temporary replacement coexists with the old descriptor.
+    // Uncertain failures keep credits until a physical inventory reconciliation.
+    throwIfAborted(signal);
+    diskAccount.reserve(bytes.length);
+    await atomicWriteText(filename, bytes, { newline: false });
+    await syncParentDirectory(path.dirname(filename));
+    diskAccount.release(previousBytes);
+    return keyFor(identity);
+  });
 };
 
 /** Validate all bytes before admitting replay through normal file-result processing.
@@ -167,6 +172,11 @@ export const preloadFileCompletions = async ({ entries, incrementalState, semant
     const prior = incrementalState.manifest.files[entry.rel];
     if (!prior || prior.semanticCache?.sourceUnitId !== receipt.manifestEntry.semanticCache.sourceUnitId) {
       incrementalState.manifest.files[entry.rel] = receipt.manifestEntry;
+    } else {
+      // Keep the richer Stage2 locator, but pin the currently verified Stage1
+      // identity too. Policy changes can leave a same-source older completion
+      // key in the saved manifest; cleanup must not sweep the new fallback.
+      prior.completionKey = receipt.manifestEntry.completionKey;
     }
     completed.add(entry.abs);
   }
