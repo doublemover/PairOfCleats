@@ -20,13 +20,13 @@ const relativePath = {
 };
 export const SEMANTIC_SOURCE_SCHEMA = object({
   schemaVersion: { const: 1 }, sourceUnitId: sourceId, repositoryNamespace: text,
-  path: relativePath, byteHash: hash, textHash: hash, encoding: { const: 'utf8' },
-  decoding: { const: 'utf8-fatal-preserve-bom-v1' }, language: text, dialect: nullable(text),
+  path: relativePath, byteHash: hash, textHash: hash, encoding: { enum: ['utf8', 'binary'] },
+  decoding: { enum: ['utf8-fatal-preserve-bom-v1', 'wasm-binary-v1'] }, language: text, dialect: nullable(text),
   mapping: nullable(object({
     identity: hash, parentSourceUnitId: sourceId, mapRef: text,
     quality: { enum: ['exact', 'coarse', 'synthetic'] }
   })),
-  coordinateUnit: { const: 'utf16' }, textLength: integer, byteLength: integer,
+  coordinateUnit: { enum: ['utf16', 'byte'] }, textLength: integer, byteLength: integer,
   lineStarts: { type: 'array', minItems: 1, items: integer }
 });
 export const SEMANTIC_PIECE_SCHEMA = object({

@@ -8,7 +8,7 @@ const enrichmentRequest = action => ({ ...SEMANTIC_ENRICHMENT_REQUEST_SCHEMA,
     taskIds: { ...SEMANTIC_ENRICHMENT_REQUEST_SCHEMA.properties.taskIds, minItems: 1, maxItems: 1 } } });
 export const SEMANTIC_EXPLAIN_REQUEST_SCHEMA = {...SEMANTIC_TRACE_REQUEST_SCHEMA,properties:{...SEMANTIC_TRACE_REQUEST_SCHEMA.properties}};
 export const SEMANTIC_EXPLAIN_RESULT_SCHEMA = {...SEMANTIC_TRACE_RESULT_SCHEMA,properties:{...SEMANTIC_TRACE_RESULT_SCHEMA.properties,
-  sourceRefs:{type:'array',maxItems:32,items:object({ref,sourceUnitId:{type:'string',pattern:'^su1:[a-f0-9]{64}$'},sourceHash:hash,path:text,coordinateUnit:{const:'utf16'}})},
+  sourceRefs:{type:'array',maxItems:32,items:object({ref,sourceUnitId:{type:'string',pattern:'^su1:[a-f0-9]{64}$'},sourceHash:hash,path:text,coordinateUnit:{enum:['utf16','byte']}})},
   enrichment:object({status:{enum:['available','partial','unavailable','not-needed']},reasons:{type:'array',items:text},
     suggestions:{type:'array',maxItems:8,items:object({taskId:{type:'string',pattern:'^st1:[a-f0-9]{64}$'},generation:SEMANTIC_GENERATION_SCHEMA,
       inputHash:hash,policyHash:hash,kind:text,reason:text,sourceRefs:{type:'array',maxItems:32,items:object({sourceUnitId:{type:'string',pattern:'^su1:[a-f0-9]{64}$'},sourceHash:hash})},

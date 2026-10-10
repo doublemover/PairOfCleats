@@ -93,7 +93,10 @@ index object requiring `schemaVersion`, `generation`, and `partitions` (each wit
 `partitionId` and content-addressed `pieces`). Exact schemas are in
 `src/contracts/schemas/artifacts/semantic.js`, `src/contracts/schemas/semantic.js`
 and `src/contracts/schemas/semantic-envelopes.js`; references use partition/local
-IDs, source coordinates use UTF-16, and row payloads reject unknown fields.
+IDs, text source coordinates use UTF-16, and row payloads reject unknown fields.
+Standalone WASM source manifests use binary/byte coordinates, empty text metadata
+and null record spans; byte ranges are carried by immutable binary evidence.
+The legacy `.utf8` source-blob suffix does not override manifest encoding.
 
 - `semantic_manifest` (object): requires `schemaVersion`, `semanticSchemaVersion`, `artifactSurfaceVersion`, `generation`, `status`, `partitions`, `warnings`. Optional provider contexts, planning, admission/evidence references, frontier targets and completed-task identities do not imply complete coverage.
 - `semantic_sources` (array/index): immutable source rows require `schemaVersion`, `sourceUnitId`, `repositoryNamespace`, `path`, `byteHash`, `textHash`, `encoding`, `decoding`, `language`, `dialect`, `mapping`, `coordinateUnit`, `textLength`, `byteLength`, `lineStarts`.

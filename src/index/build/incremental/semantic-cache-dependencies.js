@@ -6,6 +6,8 @@ import { TYPESCRIPT_ADAPTER_VERSION } from '../../semantic/typescript-collector.
 import { semanticHash } from '../../semantic/identity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 
+import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME } from '../../semantic/analysis-versions.js';
+
 const require = createRequire(import.meta.url);
 const parserVersions = Object.fromEntries(['@babel/parser', 'acorn', 'esprima'].map(name => [
   name, require(name + '/package.json').version
@@ -18,7 +20,7 @@ export const createSemanticCacheDependencySignatures = ({ dependencySignatures, 
   return { ...dependencySignatures, semantic: semanticHash('pairofcleats.semantic.cache-runtime.v1', {
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, semanticSchemaVersion: 1,
     parsers: { ...parserVersions, typescript: loadTypeScriptModule(root)?.version || null },
-    extractors: { javascript: JAVASCRIPT_ADAPTER_VERSION, typescript: TYPESCRIPT_ADAPTER_VERSION },
+    extractors: { javascript: JAVASCRIPT_ADAPTER_VERSION, typescript: TYPESCRIPT_ADAPTER_VERSION, wasm: SEMANTIC_ANALYSIS_VERSIONS.wasmFlow, wasmRuntime: WASM_VALIDATOR_RUNTIME },
     structuralPolicy: { structure: 'complete', adapterVersion: 2 },
     policy: { languages: policy.languages, baseFacts: policy.baseFacts },
     parserOptions: { javascript: languageOptions.javascript || {}, typescript: languageOptions.typescript || {} }

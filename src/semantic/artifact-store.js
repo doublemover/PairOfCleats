@@ -178,6 +178,7 @@ export const createArtifactSemanticStore = ({
         if (!source) throw error('Missing semantic source manifest.');
         sourceByPartition.set(partitionId, source);
       }
+      if (source.encoding === 'binary') { result.push(null); continue; }
       // Bound source decoding separately from response bytes. Large snapshots
       // require a future indexed decoder; never substitute working-tree text.
       if (source.byteLength > maxRecordBytes) throw Object.assign(new Error('Source hydration exceeds decoded-source allowance.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
@@ -343,10 +344,10 @@ export const createArtifactSemanticStore = ({
       byteLength += bytes.length;
       if (byteLength > source.byteLength) throw error('Retained semantic source size mismatch.');
       byteHash.update(bytes);
-      const text = decoder.decode(bytes, { stream: true });
+      const text = source.encoding === 'binary' ? '' : decoder.decode(bytes, { stream: true });
       textLength += text.length; textHash.update(text, 'utf8');
     }
-    const tail = decoder.decode(); textLength += tail.length; textHash.update(tail, 'utf8');
+    const tail = source.encoding === 'binary' ? '' : decoder.decode(); textLength += tail.length; textHash.update(tail, 'utf8');
     if (byteLength !== source.byteLength || textLength !== source.textLength
       || byteHash.digest('hex') !== source.byteHash || textHash.digest('hex') !== source.textHash) {
       throw error('Retained semantic source hash or length mismatch.');

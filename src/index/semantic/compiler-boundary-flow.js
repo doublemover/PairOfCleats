@@ -1,4 +1,5 @@
-import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
+import { createCompilerWasmFlow } from './compiler-wasm-flow.js';
+import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME } from './analysis-versions.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
@@ -21,7 +22,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
   const sourceHashes = new WeakMap();
   const sourceHash = source => { if (!sourceHashes.has(source)) sourceHashes.set(source, digest(source.text)); return sourceHashes.get(source); };
   const authority = createCompilerBoundaryAuthority(group), byFile = new Map(), entries = new Map(), ledgers = new Map();
-  const inputHashes = documents.map(doc => doc.bindingPartition.canonicalHash).sort(order);
+  const inputHashes = [...documents.map(doc => doc.bindingPartition.canonicalHash), ...[...(group.wasmModules?.values() || [])].map(item => item.source.byteHash)].sort(order);
   state.semanticEvidenceArtifacts ||= [];
   for (const doc of documents) {
     byFile.set(keyPath(doc.sourceFile.fileName), doc);
@@ -34,7 +35,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     const effective = doc.policy || policy;
     const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-execution-boundaries', version: SEMANTIC_ANALYSIS_VERSIONS.boundaryFlow }, inputPartitionHashes: inputHashes,
       compilerContext: { contextKey: group.context.contextKey, sourceUnitId: doc.item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
-      analysisPolicy: { enrichment: effective.enrichment, authorityVersion: 1 } });
+      analysisPolicy: { enrichment: effective.enrichment, authorityVersion: 1, wasmVersion: SEMANTIC_ANALYSIS_VERSIONS.wasmFlow, wasmValidatorRuntime: WASM_VALIDATOR_RUNTIME } });
     ledgers.set(doc, { partitionId, rows: [], edges: [], reasons: new Set(), nextId: 0, observed: 0, completedSites: new Set(), policy: effective, uses: new Map(), returns: new Map() });
   }
   const enabled = doc => !['off', 'deferred'].includes(ledgers.get(doc).policy.enrichment.localFlow);
@@ -77,7 +78,9 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     if (ts.isParenthesizedExpression(input) || ts.isAsExpression(input) || ts.isNonNullExpression(input)) return handlerFor(doc, input.expression, seen);
     if (ts.isArrowFunction(input) || ts.isFunctionExpression(input) || ts.isFunctionDeclaration(input)) return functionRef(doc, input) ? { doc, node: input, ref: functionRef(doc, input) } : null;
     if (!ts.isIdentifier(input) && !ts.isPropertyAccessExpression(input)) return null;
-    let symbol = doc.checker.getSymbolAtLocation(ts.isPropertyAccessExpression(input) ? input.name : input);
+    let symbol = ts.isIdentifier(input) && ts.isShorthandPropertyAssignment(input.parent)
+      ? doc.checker.getShorthandAssignmentValueSymbol(input.parent)
+      : doc.checker.getSymbolAtLocation(ts.isPropertyAccessExpression(input) ? input.name : input);
     if (!symbol || seen.has(symbol) || seen.size >= 32) { ledgers.get(doc).reasons.add('callback_alias_budget_or_cycle'); return null; }
     seen.add(symbol);
     if (symbol.flags & ts.SymbolFlags.Alias) symbol = doc.checker.getAliasedSymbol(symbol);
@@ -127,6 +130,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     ledger.completedSites.add(node); ledger.reasons.add('callback_activation_order_multiplicity_and_effects_unobserved');
     return handler;
   };
+  const wasmFlow = createCompilerWasmFlow({ group, state, authority, ledgers, handlerFor, crossEnabled, signal });
   const anchoredEntry = async (doc, argument) => {
     if (!argument || !doc.ts.isNewExpression(argument)) return null;
     const verified = await invocationAuthority(doc, argument);
@@ -277,8 +281,9 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       } else if (native) ledger.reasons.add('native_module_body_abi_initialization_and_storage_effects_unavailable');
       else {
         if (names.includes('Memory') || names.includes('MemoryConstructor')) ledger.reasons.add('wasm_memory_shared_descriptor_growth_and_alias_effects_unresolved');
+        const exactModule = await wasmFlow.collect({ doc, node, request, wasmExport });
         const imports = names.includes('instantiate') || names.includes('instantiateStreaming') ? args[1] : names.includes('Instance') || names.includes('InstanceConstructor') ? args[1] : null;
-        if (imports && ts.isObjectLiteralExpression(imports)) for (const namespace of imports.properties) {
+        if (!exactModule && imports && ts.isObjectLiteralExpression(imports)) for (const namespace of imports.properties) {
           if (!ts.isPropertyAssignment(namespace) || !ts.isObjectLiteralExpression(namespace.initializer)) { ledger.reasons.add('wasm_import_namespace_dynamic'); continue; }
           for (const property of namespace.initializer.properties) {
             const value = ts.isPropertyAssignment(property) ? property.initializer : ts.isShorthandPropertyAssignment(property) ? property.name : null;
@@ -286,11 +291,12 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
             else ledger.reasons.add('wasm_import_accessor_or_spread_unresolved');
           }
         }
-        ledger.reasons.add('wasm_binary_exports_import_activation_native_realm_and_memory_effects_unavailable');
+        if (!exactModule) ledger.reasons.add('wasm_binary_exports_import_activation_native_realm_and_memory_effects_unavailable');
       }
     }
     for (const node of doc.nodes) {
       throwIfAborted(signal);
+      await wasmFlow.collectMember(doc,node);
       if (!ts.isPropertyAccessExpression(node)) continue;
       const verified = await authority.declaration(doc.checker.getSymbolAtLocation(node.name)?.declarations?.[0]);
       if (!defaultLibrary(verified) || !has(verified, 'WebAssembly')) continue;

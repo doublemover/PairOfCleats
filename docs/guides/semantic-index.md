@@ -40,6 +40,73 @@ unresolved. Generic serialization is a packing request; transfer and shared-stor
 requests remain separate, and none asserts delivery, detachment or a copied backing
 buffer. User-defined APIs with matching names do not receive platform models.
 
+## WASM module evidence
+
+Semantic code discovery admits standalone `.wasm` files alongside JavaScript and
+TypeScript. Binary source manifests retain the original SHA-256 bytes with
+`encoding: "binary"`, `decoding: "wasm-binary-v1"`, `coordinateUnit: "byte"`, an empty
+text hash, `textLength: 0`, and `lineStarts: [0]`. The existing content-addressed
+source store keeps its legacy `.utf8` blob suffix; the manifest, not the suffix,
+determines encoding. Binary records have null text spans. Instruction byte ranges
+and original bytes live in registered evidence; text/LSP consumers skip binaries.
+The normal per-file completion and publication owners retain these module-only
+files without manufacturing searchable text chunks or a second recovery store.
+
+The checker-authorized host pass accepts bounded literal arrays, checked immutable
+const aliases, spreads, `Uint8Array.of`, copying constructors, slice/subarray views,
+and analyzable Response/arrayBuffer chains. Module/Instance constructors, awaited
+compile/instantiate overloads, and compileStreaming/instantiateStreaming preserve
+module provenance. An anchored `new URL("./module.wasm", import.meta.url)` passed to
+verified fetch or Node fs reads can join an admitted binary source from the same
+retained generation. These are modeled candidates: response MIME, delivery and
+runtime filesystem bytes are unobserved. No network request, working-tree module
+read, compilation, instantiation or execution occurs during analysis. Mutable or
+escaped byte buffers and instantiation-result wrappers do not authorize exact joins.
+
+The bounded decoder retains recursive/function/struct/array types, imports/exports,
+functions, tables, memories, globals, tags, start entries, active/passive/declarative
+segments, custom-section locations and instruction immediates. It supports numeric
+core, multi-value, reference/GC, tail-call, bulk-memory, SIMD/relaxed-SIMD, atomic,
+shared-memory, memory64/multi-memory, and current/legacy exception instructions.
+The runtime's static `WebAssembly.validate` remains the typing/format authority;
+validator rejection is reported explicitly, including proposals unavailable in that
+runtime. V8 and shared producer versions participate in replay identities.
+Opcode metadata carries the pinned WABT provenance and Apache license in
+`src/index/semantic/wasm/`.
+
+Structured stack/local merge values retain branches, loops and direct/reference
+calls. Immutable internal table slots can establish exact indirect targets;
+exported, imported, mutated or dynamically initialized tables produce bounded
+may-target sets with an unresolved remainder. Exception payloads and handler branches
+remain separate from uncatchable traps; tail calls discard the caller's handlers.
+Unreachable instructions retain syntax without fabricated value flow. Memory/table/
+global/data/element records retain conservative reads, writes, copies, initialization
+and mutation dependencies. GC field aliases, shared writes, atomics ordering/wakeups,
+relaxed SIMD choices, memory growth/view epochs and storage order remain unknown.
+
+Host exports join decoded names/function indices per resolved instance. Static own
+import properties join module/name pairs to resolved callbacks. Shared compiler CFG
+summaries supply return and exceptional completions, including finally overrides;
+rest/default parameters and literal multi-value arrays preserve positional channels
+where analyzable. Host Memory/Table/Global candidates share module storage, while
+Tag identity uses aliases when declaration authority is available. Async/generator
+callbacks are not implicitly awaited. Numeric conversions, arbitrary iterables,
+call-context effects, imported tag aliases and actual activation remain partial.
+
+Limits per module are 64 KiB, 4096 vector entries/instructions, 256 locals including
+parameters, 128 control frames, 32768 graph nodes and 131072 edges. Unknown opcodes,
+component/experimental formats, unavailable bytes, cross-source instance aliases,
+unsupported syntax, validation failures and budgets retain explicit coverage reasons.
+Standalone eager/eligible-auto flow is available; deferred task execution and
+text/declaration-target selection for binary flow are explicitly unsupported. Rebuild
+with eager local flow to produce that evidence. Binary module anchors and derived analysis use the existing syntax/analysis
+partition split, so the shared replay fence invalidates changed analysis policy. Existing
+host-boundary candidates remain available when module provenance is unresolved.
+
+Format references: [core instructions](https://webassembly.github.io/spec/core/binary/instructions.html),
+[core modules](https://webassembly.github.io/spec/core/binary/modules.html), and
+[execution semantics](https://webassembly.github.io/spec/core/exec/instructions.html).
+
 ## Detail and traces
 
 Requests must name the exact repository and generation, plus a semantic RecordRef.
