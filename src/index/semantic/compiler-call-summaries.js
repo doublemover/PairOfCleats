@@ -43,7 +43,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
       const entry={...call,ownerId,effectRoutes};calls.push(entry);if(ownerId)functions.get(ownerId).calls.push(entry);
     }
   }
-  for(const call of calls)if(call.ownerId&&call.targets.length===1&&functions.has(key(call.targets[0])))graph.get(call.ownerId).add(key(call.targets[0]));
+  for(const call of calls)if(call.ownerId&&!call.incompleteTargets&&call.targets.length===1&&functions.has(key(call.targets[0])))graph.get(call.ownerId).add(key(call.targets[0]));
   const inputs = (summary, refs) => {
     const ordinals=new Map();summary.parameters.forEach((ref,ordinal)=>{if(ref)ordinals.set(key(ref),ordinal);});
     for(const field of summary.parameterFields||[])ordinals.set(key(field.ref),field.parameter);
@@ -70,7 +70,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   };
   const instantiate=call=>{
     if(remainingWork--<=0){exhausted=true;return false;}
-    if(call.targets.length!==1||call.invocationKind==='construct'||call.hasSpread)return false;
+    if(call.incompleteTargets||call.targets.length!==1||call.invocationKind==='construct'||call.hasSpread)return false;
     const target=functions.get(key(call.targets[0]));if(!target||target.async||target.generator)return false;
     let changed=false;for(const ordinal of target.dependencies)changed=add(call.arguments?.[ordinal],call.result)||changed;
     const owner=functions.get(call.ownerId);if(!owner)return changed;
