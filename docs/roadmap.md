@@ -26,6 +26,39 @@ not release-wide readiness.
 review, and `deferred validation` means acceptance has not been established for the current
 head. None is a blanket release-readiness claim.
 
+## Semantic indexing implementation (2026-10-10)
+
+Status: **in progress; shared foundations only**, on
+`codex/semantic-indexing-20261010` from PR547 head
+`5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. One solo lead owns all edits;
+additional staffing remains unapproved. The frozen owner specification governs
+identity, UTF-16 source coordinates, immutable facts, whole-generation publication,
+and offline runtime ingestion. No inference-corpus restart or benchmark campaign.
+
+Implemented foundations: domain-separated SHA-256 identities with strict canonical
+JSON; exact UTF-8 snapshot hashes/line maps; strict semantic node/operand/edge/
+coverage/ownership schemas and validators; shared exact-equality format-error helper.
+The enrolled `indexing/contracts/semantic-foundations` gate fixture checks these
+contracts. Stage2 now budgets a separate inference view and retains complete
+canonical calls/details/usages and file relations when merging enrichment. This
+does **not** yet collect, persist, or expose the new semantic record family.
+
+Next gate: finish source/partition/provider/config/query/runtime schemas and golden
+fixtures, wire every reader/import/cache boundary to the exact format gate, and
+atomically activate artifact 0.1.0 / SQLite 15 with fresh cache namespaces. Existing
+format constants are intentionally unchanged until that integration is complete;
+the new helper alone is not a hard cutover. Then implement source-complete syntax
+collection and durable JSONL/SQLite detail parity, followed by bindings, local/value
+traces, durable deferred completion, and offline evidence adapters. Do not advertise
+query tools before both backends and handlers pass their acceptance assertions.
+
+Focused evidence and limitations: direct foundation assertions passed; the first
+unit/default-lane previews selected zero tests and were not counted as acceptance.
+After explicit gate enrollment, the runner selected one and passed it (0 failures,
+0 timeouts, 0 skips). Expanded source-coordinate and inference-view assertions
+also passed. The existing integration inference-budget regression passed. Focused
+ESLint passed; full format/lint/verify and broad suites have not been run.
+
 ## Current Initiatives
 
 | Initiative | Status | Done now | Remaining / next |
