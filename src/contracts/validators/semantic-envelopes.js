@@ -1,5 +1,6 @@
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import { SEMANTIC_ENVELOPE_SCHEMAS } from '../schemas/semantic-envelopes.js';
+import { semanticHash } from '../../index/semantic/identity.js';
 import { toValidationResult } from './result.js';
 const ajv = createAjv({ allErrors: true, strict: true });
 const validators = new Map(Object.entries(SEMANTIC_ENVELOPE_SCHEMAS)
@@ -26,6 +27,32 @@ export const validateSemanticEnvelope = (family, value) => {
         if (!Number.isSafeInteger(next)) errors.push('unsafe partition row count');
       }
     }
+  }
+  if (family === 'fileFactsRef') {
+    const ids = new Set();
+    for (const partition of value.partitions) {
+      const checked = validateSemanticEnvelope('partition', partition);
+      errors.push(...checked.errors);
+      if (ids.has(partition.partitionId)) errors.push('duplicate file partition');
+      ids.add(partition.partitionId);
+      if (partition.sourceUnitId !== value.sourceUnitId) errors.push('file partition source mismatch');
+    }
+    const syntax = value.partitions.find((partition) => partition.partitionId === value.syntaxPartitionId);
+    if (!syntax || syntax.canonicalHash !== value.extractionHash) errors.push('file extraction identity mismatch');
+    for (const [member, count] of Object.entries(value.counts)) {
+      const expected = value.partitions.reduce((sum, partition) => sum + partition.members[member].reduce((n, piece) => n + piece.count, 0), 0);
+      if (count !== expected) errors.push('file member count mismatch: ' + member);
+    }
+    for (const row of value.coverage) {
+      if (row.scope.sourceUnitId && row.scope.sourceUnitId !== value.sourceUnitId) errors.push('coverage source mismatch');
+      if (row.scope.partitionId && !ids.has(row.scope.partitionId)) errors.push('coverage partition mismatch');
+    }
+    const actual = semanticHash('pairofcleats.semantic.file-content.v1', {
+      sourceUnitId: value.sourceUnitId,
+      partitions: value.partitions.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash }))
+        .sort((a, b) => a.partitionId.localeCompare(b.partitionId))
+    });
+    if (value.canonicalHash !== actual) errors.push('file canonical hash mismatch');
   }
   return { ok: errors.length === 0, errors };
 };

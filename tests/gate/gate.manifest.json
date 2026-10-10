@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 33,
+    "hero": 34,
     "matrix": 2,
     "meta": 2,
     "soak": 0,
@@ -233,8 +233,14 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/contracts/index-format-cutover",
+      "id": "indexing/contracts/semantic-handoff-contracts",
       "order": 37,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/contracts/index-format-cutover",
+      "order": 38,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

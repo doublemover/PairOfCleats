@@ -1,3 +1,4 @@
+import { SEMANTIC_COVERAGE_SCHEMA } from './semantic.js';
 export const semanticObject = (properties, optional = {}) => ({
   type: 'object', additionalProperties: false,
   properties: { ...properties, ...optional }, required: Object.keys(properties)
@@ -58,7 +59,15 @@ export const SEMANTIC_PROVIDER_SCHEMA = object({
   partitions: { type: 'array', items: SEMANTIC_PARTITION_SCHEMA },
   coverageRef: nullable(text), diagnosticsRef: nullable(text)
 });
+export const SEMANTIC_FILE_FACTS_REF_SCHEMA = object({
+  schemaVersion: { const: 1 }, repositoryNamespace: text, sourceUnitId: sourceId, sourceHash: hash,
+  syntaxPartitionId: { type: 'string', pattern: '^sy1:[a-f0-9]{64}$' }, extractionHash: hash, canonicalHash: hash,
+  storage: object({ generation: SEMANTIC_GENERATION_SCHEMA, relativePath }),
+  partitions: { type: 'array', minItems: 1, items: SEMANTIC_PARTITION_SCHEMA },
+  counts: object(Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, integer]))),
+  coverage: { type: 'array', maxItems: 512, items: SEMANTIC_COVERAGE_SCHEMA }
+});
 export const SEMANTIC_ENVELOPE_SCHEMAS = Object.freeze({
-  source: SEMANTIC_SOURCE_SCHEMA, partition: SEMANTIC_PARTITION_SCHEMA,
+  fileFactsRef: SEMANTIC_FILE_FACTS_REF_SCHEMA, source: SEMANTIC_SOURCE_SCHEMA, partition: SEMANTIC_PARTITION_SCHEMA,
   generation: SEMANTIC_GENERATION_SCHEMA, provider: SEMANTIC_PROVIDER_SCHEMA
 });

@@ -2026,6 +2026,8 @@ export const processFiles = async ({
         root: runtimeRef.root,
         semantic: runtimeRef.semanticPolicy?.enabled && mode === 'code' ? {
           policy: runtimeRef.semanticPolicy, stagingRoot: path.join(outDir, 'semantic'),
+          storage: { generation: { baseBuildId: runtimeRef.buildId, semanticRevision: 0 },
+            relativePath: path.relative(runtimeRef.buildRoot, path.join(outDir, 'semantic')).split(path.sep).join('/') },
           repositoryNamespace: runtimeRef.repoId || getRepoId(runtimeRef.root),
           diskAccount: state.semanticDiskAccount ||= createSemanticDiskAccount(runtimeRef.semanticPolicy.storage.maxDiskWorkingSetBytes)
         } : null,

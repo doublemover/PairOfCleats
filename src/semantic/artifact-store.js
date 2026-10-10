@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -207,6 +208,25 @@ export const createArtifactSemanticStore = ({
     }
     return rows;
   };
-  return { repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows };
+  const verifySource = async (source, { signal = null } = {}) => {
+    const file = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
+    const byteHash = createHash('sha256'), textHash = createHash('sha256');
+    const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+    let byteLength = 0, textLength = 0;
+    for await (const bytes of createReadStream(file, { highWaterMark: 65536, signal: signal || undefined })) {
+      throwIfAborted(signal);
+      byteLength += bytes.length;
+      if (byteLength > source.byteLength) throw error('Retained semantic source size mismatch.');
+      byteHash.update(bytes);
+      const text = decoder.decode(bytes, { stream: true });
+      textLength += text.length; textHash.update(text, 'utf8');
+    }
+    const tail = decoder.decode(); textLength += tail.length; textHash.update(tail, 'utf8');
+    if (byteLength !== source.byteLength || textLength !== source.textLength
+      || byteHash.digest('hex') !== source.byteHash || textHash.digest('hex') !== source.textHash) {
+      throw error('Retained semantic source hash or length mismatch.');
+    }
+  };
+  return { verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows };
 
 };

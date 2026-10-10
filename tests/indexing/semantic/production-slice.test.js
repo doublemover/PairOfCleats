@@ -18,6 +18,7 @@ const repoRoot = path.join(temp, 'repo');
 await fs.mkdir(repoRoot);
 const text = 'export function run(buffer) { const view = new Float32Array(buffer, 0, 6); f(1,2,3,4,5,{values:view, items:[1,,3]}); f(7); return view; }';
 await fs.writeFile(path.join(repoRoot, 'input.js'), text);
+await fs.writeFile(path.join(repoRoot, 'input.ts'), 'export function typed(buffer: ArrayBuffer) { return new Float32Array(buffer, 0, 6); }');
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
   indexing: { semantic: { enabled: true, profile: 'rich' }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
@@ -26,10 +27,21 @@ try {
   await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none' });
   const outDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'semantic_manifest.json'), 'utf8'));
-  assert.equal(manifest.partitions.length, 2);
+  assert.equal(manifest.partitions.length, 4);
   const store = createArtifactSemanticStore({ root: path.join(outDir, 'semantic'), repoRoot,
     artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions });
-  const partition = manifest.partitions.find((entry) => entry.partitionId.startsWith('sy1:'));
+  let partition, tsPartition;
+  for (const candidate of manifest.partitions.filter((entry) => entry.partitionId.startsWith('sy1:'))) {
+    for await (const source of store.iterateRows(candidate.partitionId, 'semantic_sources')) {
+      if (source.path === 'input.js') partition = candidate;
+      if (source.path === 'input.ts') tsPartition = candidate;
+    }
+  }
+  assert.ok(tsPartition);
+  const tsRows = [];
+  for await (const row of store.iterateRows(tsPartition.partitionId, 'semantic_records')) tsRows.push(row);
+  assert.equal(tsRows.filter(row => row.data.invocationKind === 'construct').length, 1);
+  assert.ok(tsRows.some(row => row.data.syntacticArgumentCount === 3));
   const nodes = [];
   for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) nodes.push(row);
   const calls = nodes.filter(row => row.kind === 'expression' && row.data.invocationKind);
@@ -47,7 +59,7 @@ try {
   const pieces = JSON.parse(await fs.readFile(path.join(outDir, 'pieces', 'manifest.json'), 'utf8'));
   assert.ok(pieces.pieces.some(piece => piece.name === 'semantic_manifest'));
   const opened = await openPublishedSemanticStore({ indexDir: outDir, repoRoot, generation: manifest.generation });
-  const ownership = manifest.partitions.find((entry) => entry.partitionId.startsWith('sa1:'));
+  const ownership = manifest.partitions.find((entry) => entry.partitionId.startsWith('sa1:') && entry.sourceUnitId === partition.sourceUnitId);
   const joins = [];
   for await (const row of store.iterateRows(ownership.partitionId, 'semantic_ownership')) joins.push(row);
   assert.ok(joins.some((row) => row.recordRef.localId === call.id && row.role === 'primary'));
