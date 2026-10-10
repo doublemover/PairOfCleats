@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T10:33:02.755Z",
+  "generatedAt": "2026-10-10T10:45:57.256Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -338,6 +338,16 @@
       "command": "pairofcleats risk explain",
       "summary": "Explain interprocedural risk flows.",
       "supportTier": "stable"
+    },
+    {
+      "command": "pairofcleats runtime claims",
+      "summary": "Retrieve pinned immutable derived claims and verify retained observation citations.",
+      "supportTier": "experimental"
+    },
+    {
+      "command": "pairofcleats runtime compare",
+      "summary": "Compare compatible saved captures and optionally retain descriptive derived claims.",
+      "supportTier": "experimental"
     },
     {
       "command": "pairofcleats runtime families",

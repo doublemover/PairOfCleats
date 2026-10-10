@@ -26,7 +26,7 @@ CREATE TABLE task_descriptors(taskId TEXT PRIMARY KEY,payload TEXT NOT NULL,
 /** Dedicated transactional control database; never accepts the live retrieval database. */
 export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retryDelayMs = 1000 }) => {
   if (typeof Database !== 'function') return { available: false, reason: 'sqlite_control_store_unavailable' };
-  integer(maxAttempts, 'max attempts', 1); integer(retryDelayMs, 'retry delay');
+  integer(maxAttempts, 'max attempts'); integer(retryDelayMs, 'retry delay');
   const db = new Database(filename);
   try {
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name);

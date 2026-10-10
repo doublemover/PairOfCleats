@@ -6,16 +6,16 @@ import { throwIfAborted } from '../../shared/abort.js';
 export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expressionFor, declarationFor,
   source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
   if (['off', 'deferred'].includes(policy.enrichment.localFlow)) return null;
-  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-cfg-flow', version: '1' },
+  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-cfg-flow', version: '2' },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context, dependencySummaryHashes: [],
-    analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: 1 } });
+    analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: 2 } });
   const local = key => ({ local: key }), ledger = new Map(), edges = [], operands = [], reasons = new Set(), summaries = [];
   const add = (key, kind, node, data) => {
     if (!ledger.has(key)) ledger.set(key, { kind, span: node ? [node.getStart(sourceFile), node.end] : null, scope: null, data });
     return local(key);
   };
   const evidence = add('evidence', 'evidence', null, { method: 'structured-cfg-reaching-definitions', producerId: 'semantic-flow',
-    producerVersion: '1', evidenceKind: 'static-analysis', sourceRef: source.sourceUnitId, artifactRef: null });
+    producerVersion: '2', evidenceKind: 'static-analysis', sourceRef: source.sourceUnitId, artifactRef: null });
   const edge = (kind, from, to, condition = null, certainty = 'exact-static') => {
     if (from && to) edges.push({ kind, from, to, callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition, evidence, certainty });
   };
@@ -98,6 +98,16 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
       }
     }
     const complete = index === queue.length;
+    // One reverse reachability pass for all pending returns, not one graph scan per return.
+    const completionReachable = new Set([graph.exit]), completionPending = [graph.exit];
+    while (completionPending.length) {
+      throwIfAborted(signal);
+      for (const parent of predecessors.get(completionPending.pop()) || []) {
+        if (completionReachable.has(parent) || ['return', 'throw'].includes(parent.event?.kind)) continue;
+        completionReachable.add(parent); completionPending.push(parent);
+      }
+    }
+    const canCompleteReturn = block => block.successors.some(edge => completionReachable.has(edge.to));
     if (!complete) reasons.add('reaching_definition_iteration_budget');
     totalBlocks += reachable.size; solvedBlocks += complete ? reachable.size : outgoing.size;
     const returnRefs = [];
@@ -114,14 +124,16 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
             { origin: 'merge', site: block.site, storage: null });
           for (const candidate of [...values].sort()) edge('flowsTo', local(candidate), value, null, 'modeled');
         }
-        edge('reads', value, expressionFor(event.target), null, values.size > 1 || !complete ? 'modeled' : 'exact-static');
+        edge('reads', value, expressionFor(event.target), null, values.size > 1 || !complete || graph.reasons.size ? 'modeled' : 'exact-static');
       }
-      if (event?.kind === 'return' && event.value) {
+      if (event?.kind === 'return' && event.value && canCompleteReturn(block)) {
         const value = add('return:' + prefix + ':' + block.key, 'value', block.node,
           { origin: 'return', site: expressionFor(event.value) || block.site, storage: null });
-        edge('returns', expressionFor(event.value), value); returnRefs.push(value);
+        edge('returns', expressionFor(event.value), value, null, graph.reasons.size ? 'modeled' : 'exact-static'); returnRefs.push(value);
       }
-      if (event?.kind === 'throw' && event.value) edge('throws', expressionFor(event.value), blockRefs.get(graph.exception));
+      if (event?.kind === 'throw' && event.value) {
+        for (const successor of block.successors) edge('throws', expressionFor(event.value), blockRefs.get(successor.to), null, 'modeled');
+      }
       if (event?.kind === 'operation') {
         const node = block.node;
         if (ts.isBinaryExpression(node)) {
@@ -156,7 +168,7 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
     reason: reasons.size ? [...reasons].sort().join(';') : null, observedCount: totalBlocks, completedCount: solvedBlocks, frontierRef: null };
   rows.push({ family: 'coverage', row: coverage });
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
-    producerHash: semanticHash('semantic.cfg-producer.v1', { version: 1 }), contextHash: context.contextKey,
+    producerHash: semanticHash('semantic.cfg-producer.v1', { version: 2 }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations }), diskAccount, signal });
   return { partition, coverage: [coverage], summaries: summaries.map(summary => ({ ...summary, returns: summary.returns.map(expand) })) };
 };

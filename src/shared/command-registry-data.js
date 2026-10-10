@@ -342,6 +342,12 @@ export const COMMAND_REGISTRY = Object.freeze([
     helpGroup: 'Graph', supportTier: 'experimental',
     helpExamples: ['pairofcleats runtime families --request runtime-families.json --all']
   }),
+  entry('runtime.compare', ['runtime', 'compare'], 'tools/analysis/runtime-evidence.js', 'Compare compatible saved captures and optionally retain descriptive derived claims.', {
+    helpGroup: 'Graph', supportTier: 'experimental', helpExamples: ['pairofcleats runtime compare --request runtime-compare.json']
+  }),
+  entry('runtime.claims', ['runtime', 'claims'], 'tools/analysis/runtime-evidence.js', 'Retrieve pinned immutable derived claims and verify retained observation citations.', {
+    helpGroup: 'Graph', supportTier: 'experimental', helpExamples: ['pairofcleats runtime claims --request runtime-claims.json --all']
+  }),
   entry('semantic.detail', ['semantic', 'detail'], 'tools/analysis/semantic-detail.js', 'Inspect exact semantic records and related syntax in a pinned generation.', {
     helpGroup: 'Graph', supportTier: 'experimental',
     helpExamples: ['pairofcleats semantic detail --request request.json --all']

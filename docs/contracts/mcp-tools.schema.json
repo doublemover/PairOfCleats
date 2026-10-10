@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4.4",
+  "schemaVersion": "1.4.5",
   "tools": [
     {
       "name": "bootstrap",
@@ -1108,6 +1108,246 @@
         },
         "required": [
           "chunk"
+        ]
+      }
+    },
+    {
+      "name": "runtime_claims",
+      "description": "Retrieve a pinned immutable derived claim family and verify its retained direct observations and raw support.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repositoryNamespace": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "claimGeneration": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxRecords": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "minimum": 4096,
+                    "maximum": 1048576
+                  },
+                  "maxMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "maxRecords",
+                  "maxBytes",
+                  "maxMs"
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repositoryNamespace",
+              "generation",
+              "claimGeneration",
+              "limits",
+              "cursor"
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "repoRoot",
+          "destination",
+          "request"
+        ]
+      }
+    },
+    {
+      "name": "runtime_compare",
+      "description": "Compare two compatible saved captures descriptively, optionally retaining immutable derived claims and observation citations. Never collects or executes.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repositoryNamespace": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "leftFamily": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "rightFamily": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "sourceUnitId": {
+                      "type": "string",
+                      "pattern": "^su1:[a-f0-9]{64}$"
+                    },
+                    "byteHash": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "sourceUnitId",
+                    "byteHash"
+                  ]
+                },
+                "maxItems": 32,
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxRecords": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "minimum": 4096,
+                    "maximum": 1048576
+                  },
+                  "maxMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "maxRecords",
+                  "maxBytes",
+                  "maxMs"
+                ]
+              },
+              "persist": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repositoryNamespace",
+              "generation",
+              "leftFamily",
+              "rightFamily",
+              "sources",
+              "limits",
+              "persist"
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "repoRoot",
+          "destination",
+          "request"
         ]
       }
     },

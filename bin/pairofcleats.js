@@ -739,7 +739,7 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'runtime') {
     const sub = rest.shift();
-    if (!['lookup', 'families'].includes(sub)) failCli('Use pairofcleats runtime lookup|families --request request.json [--all].');
+    if (!['lookup', 'families', 'compare', 'claims'].includes(sub)) failCli('Use pairofcleats runtime lookup|families|compare|claims --request request.json [--all].');
     validateArgs(rest, ['request', 'all'], ['request']);
     return { script: 'tools/analysis/runtime-evidence.js', extraArgs: ['--operation', sub], args: rest };
   }

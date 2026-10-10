@@ -1,5 +1,5 @@
 import { runSemanticTraceTool } from './tools/handlers/semantic-trace.js';
-import { runRuntimeEvidenceTool, runRuntimeFamiliesTool } from './tools/handlers/runtime-evidence.js';
+import { runRuntimeEvidenceTool, runRuntimeFamiliesTool, runRuntimeCompareTool, runRuntimeClaimsTool } from './tools/handlers/runtime-evidence.js';
 import { runSemanticDetailTool } from './tools/handlers/semantic.js';
 import { configStatus, indexStatus } from './repo.js';
 import { cacheGc, cleanArtifacts, reportArtifacts } from './tools/handlers/artifacts.js';
@@ -82,6 +82,8 @@ export const TOOL_HANDLERS = new Map([
   ['semantic_trace', runSemanticTraceTool],
   ['runtime_evidence', runRuntimeEvidenceTool],
   ['runtime_families', runRuntimeFamiliesTool],
+  ['runtime_compare', runRuntimeCompareTool],
+  ['runtime_claims', runRuntimeClaimsTool],
   ['risk_delta', runRiskDelta],
   ['risk_explain', runRiskExplain],
   ['search_workspace', runWorkspaceSearch],

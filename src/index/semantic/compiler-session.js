@@ -1,3 +1,5 @@
+import { collectCompilerStorageFlow } from './compiler-storage-flow.js';
+import { collectCompilerWorkerFlow } from './compiler-worker-flow.js';
 import { collectCompilerCrossFileFlow } from './compiler-cross-file-flow.js';
 import { collectCompilerFlow } from './compiler-flow.js';
 import { collectCompilerValueSlice } from './compiler-value-slice.js';
@@ -97,17 +99,17 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         virtualPath: doc.virtualPath, sourceUnitId: sourceForDoc(doc)?.source.sourceUnitId || null
       })).sort((a, b) => order(a.virtualPath, b.virtualPath)));
       const contextKey = semanticHash('semantic.compiler-context.v1', { configHash, moduleResolutionHash, vfsMappingHash, compilerVersion: ts.version });
-      const mappedFiles = new Map();
+      const mappedFiles = new Map(), mappedDocuments = new Map();
       for (const doc of documents) {
         const item = sourceForDoc(doc);
-        if (item && doc.text === texts.get(item.source.path)) mappedFiles.set(keyPath(path.resolve(runtime.root, doc.virtualPath)), item);
+        if (item && doc.text === texts.get(item.source.path)) { const key = keyPath(path.resolve(runtime.root, doc.virtualPath)); mappedFiles.set(key, item); mappedDocuments.set(key, doc); }
       }
       const context = { contextKey, sourceUnits: [...new Map([...mappedFiles.values()].map(item => [item.source.sourceUnitId,
         { sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }])).values()].sort((a, b) => order(a.sourceUnitId, b.sourceUnitId)),
       providerId: 'typescript', providerVersion: '2.1.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
       contexts.push(context);
       state.semanticCompilerContexts = contexts;
-      return { context, mappedFiles, flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
+      return { context, mappedFiles, mappedDocuments, repoRoot: runtime.root, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
     },
     async collectDocument({ ts, checker, sourceFile, nodeIndex, group }) {
       const item = group.mappedFiles.get(keyPath(sourceFile.fileName));
@@ -262,6 +264,11 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         observations, source: item.source, bytes, bindingPartition: partition, context,
         isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (valueSlice) emitted.push(valueSlice.partition);
+      const storageFlow = await collectCompilerStorageFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
+        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null,
+        observations, source: item.source, bytes, bindingPartition: partition, context,
+        isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
+      if (storageFlow) emitted.push(storageFlow.partition);
       const flow = await collectCompilerFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
         expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null,
         declarationFor: declaration => {
@@ -278,13 +285,16 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
             targets: observation.targets.map(expand), invocationKind: observation.invocationKind })) });
       }
 
+      group.workerDocuments.push({ ts, checker, item, bytes, sourceFile, nodes: nodeIndex.nodes(), observations, bindingPartition: partition,
+        containerPath: group.mappedDocuments.get(keyPath(sourceFile.fileName))?.containerPath,
+        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null });
       const current = state.semanticFactsByFile.get(item.file);
       state.semanticFactsByFile.set(item.file, createSemanticFactsRef({ source: item.source,
         syntaxPartitionId: current.syntaxPartitionId, storage: current.storage,
-        partitions: [...current.partitions.filter(p => p.partitionId !== partition.partitionId && p.partitionId !== valueSlice?.partition.partitionId && p.partitionId !== flow?.partition.partitionId), partition, ...(valueSlice ? [valueSlice.partition] : []), ...(flow ? [flow.partition] : [])],
-        coverage: [...current.coverage.filter(c => c.phase !== 'bindings' && (!valueSlice || !['localFlow', 'boundaryModels'].includes(c.phase))), coverage, ...(valueSlice?.coverage || []), ...(flow?.coverage || [])] }));
+        partitions: [...current.partitions.filter(p => p.partitionId !== partition.partitionId && p.partitionId !== valueSlice?.partition.partitionId && p.partitionId !== flow?.partition.partitionId && p.partitionId !== storageFlow?.partition.partitionId), partition, ...(valueSlice ? [valueSlice.partition] : []), ...(flow ? [flow.partition] : []), ...(storageFlow ? [storageFlow.partition] : [])],
+        coverage: [...current.coverage.filter(c => c.phase !== 'bindings' && (!valueSlice || !['localFlow', 'boundaryModels'].includes(c.phase))), coverage, ...(valueSlice?.coverage || []), ...(flow?.coverage || []), ...(storageFlow?.coverage || [])] }));
     },
-    async finishGroup(group) { emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); },
+    async finishGroup(group) { emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerWorkerFlow({ group, state, policy, signal })); group.workerDocuments = []; },
     output() { return { schemaVersion: 1, contexts, partitions: emitted, coverageRef: null, diagnosticsRef: null }; }
   };
 };

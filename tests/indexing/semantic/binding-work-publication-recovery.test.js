@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { prepareSemanticBindingWork, reconcilePublishedSemanticBindingWork } from '../../../src/index/semantic/build-frontier.js';
+import { prepareSemanticBindingWork, reconcilePublishedSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../src/index/semantic/build-frontier.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { getRepoCacheRoot, getBuildsRoot } from '../../../src/shared/dict-utils.js';
 import { createBindingWorkFixture, writeBindingFixtureFamily } from '../../helpers/semantic-binding-work.js';
@@ -30,6 +30,9 @@ try {
   await assert.rejects(fs.access(path.join(repoCacheRoot, 'semantic-frontier', 'control.sqlite')), { code: 'ENOENT' });
   fixture.runtime.buildRoot = originalBuildRoot;
   const manual = await prepareSemanticBindingWork({ state: fixture.state, runtime: fixture.runtime });
+  fixture.runtime.semanticPolicy.enrichment.localFlow = 'deferred';
+  const analysisTasks = await persistSemanticAnalysisFrontiers({ state: fixture.state, runtime: fixture.runtime });
+  fixture.runtime.semanticPolicy.enrichment.localFlow = 'auto';
   const sourceOnlyRoot = path.join(buildsRoot, fixture.generation.baseBuildId);
   await fs.cp(fixture.buildRoot, sourceOnlyRoot, { recursive: true });
   fixture.runtime.buildRoot = sourceOnlyRoot;
@@ -45,9 +48,12 @@ try {
   await fs.rm(controlPath);
   const recoveredPending = await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
     buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database });
-  assert.equal(recoveredPending.pending, 1, 'source-only published inventory rebuilds durable pending control state');
+  assert.equal(recoveredPending.pending, 1 + analysisTasks.length, 'source-only published inventory rebuilds durable pending control state');
   control = fixture.openControl();
-  try { assert.deepEqual(control.getDescriptor(manual.task.taskId), manual.task); } finally { control.close(); }
+  try {
+    assert.deepEqual(control.getDescriptor(manual.task.taskId), manual.task);
+    for (const task of analysisTasks) assert.deepEqual(control.getDescriptor(task.taskId), task, 'published analysis descriptors rebuild after control-store loss');
+  } finally { control.close(); }
   const sourcePointer = await fs.readFile(path.join(buildsRoot, 'current.json'));
   const originalSource = await fs.readFile(path.join(fixture.repoRoot, fixture.files[0].file));
 

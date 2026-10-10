@@ -1,3 +1,4 @@
+import { collectCompilerStorageFlow } from '../../../src/index/semantic/compiler-storage-flow.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -17,6 +18,9 @@ const text = [
   'function loop(n: number) { let x = 0; while (x < n) { x += 1; } return x; }',
   'function finish() { let x = 0; try { x = 1; return x; } finally { x = 2; } }',
   'function caught() { let x = 0; try { throw 1; } catch (e) { x = 2; } return x; }',
+  'function fields(key: string) { const obj = {meta: {scale: 2}, get effect() { return 9; }}; const alias = obj; alias.meta.scale = 3; const value = obj.meta.scale; return [value, obj[key], obj.effect]; }',
+  'function replaced() { try { return 1; } finally { return 2; } }',
+  'function suppressed() { try { return 1; } finally { throw 2; } }',
   'function guarded(fn: any, value: any) { let x = 0; fn?.(x = 1); const y = value ?? x; switch(y) { case 0: x = 2; } return x; }'
 ].join('\r\n');
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-cfg-'));
@@ -63,6 +67,32 @@ try {
   assert.ok(flow.summaries.some(summary => summary.owner.name?.text === 'finish' && summary.returns.length === 1));
   assert.ok([...values.values()].some(row => row.kind === 'expression' && row.data.operation === 'isNullish'));
   assert.ok([...values.values()].some(row => row.kind === 'expression' && row.data.operation === 'strictEqual'));
+  const replaced = flow.summaries.find(summary => summary.owner.name?.text === 'replaced');
+  assert.equal(replaced.returns.length, 1, 'finally return overrides the pending try return');
+  const suppressed = flow.summaries.find(summary => summary.owner.name?.text === 'suppressed');
+  assert.equal(suppressed.returns.length, 0, 'finally throw suppresses the pending return');
+  const storage = await collectCompilerStorageFlow(argumentsFor);
+  const storageStore = createArtifactSemanticStore({ root, repoRoot: 'cfg-fixture', artifactSurfaceVersion: '0.1.0',
+    generation: { baseBuildId: 'fixture', semanticRevision: 0 }, partitions: [partition, storage.partition] });
+  const storageRows = [], storageEdges = [];
+  for await (const row of storageStore.iterateRows(storage.partition.partitionId, 'semantic_records')) storageRows.push(row);
+  for await (const row of storageStore.iterateRows(storage.partition.partitionId, 'semantic_edges')) storageEdges.push(row);
+  assert.ok(storageRows.some(row => row.kind === 'value' && row.data.storage));
+  const fieldWrite = [...nodeIndex.nodes()].find(node => ts.isBinaryExpression(node) && node.left.getText(sourceFile) === 'alias.meta.scale');
+  const writeValue = expressionFor(fieldWrite.right);
+  const written = storageEdges.find(edge => edge.kind === 'writes' && edge.from.partitionId === writeValue.partitionId && edge.from.localId === writeValue.localId);
+  assert.ok(written);
+  const fieldRead = [...nodeIndex.nodes()].find(node => ts.isPropertyAccessExpression(node) && node.getText(sourceFile) === 'obj.meta.scale');
+  const readTarget = expressionFor(fieldRead);
+  assert.ok(storageEdges.some(edge => edge.kind === 'reads' && edge.from.localId === written.to.localId
+    && edge.to.partitionId === readTarget.partitionId && edge.to.localId === readTarget.localId), 'const receiver aliases share the same allocation field candidate');
+  assert.ok(storageEdges.some(edge => edge.kind === 'packs'));
+  assert.ok(storageEdges.every(edge => edge.certainty === 'modeled'), 'field candidates are not a unique runtime producer proof');
+  assert.match(storage.coverage[0].reason, /dynamic_property_key/);
+  assert.match(storage.coverage[0].reason, /getter_setter_or_method_effect_unknown/);
+  assert.match(storage.coverage[0].reason, /field_alias_escape/);
+  const shallowStorage = await collectCompilerStorageFlow({ ...argumentsFor, policy: normalizeSemanticConfig({ enabled: true, enrichment: { fieldPathDepth: 0 } }) });
+  assert.match(shallowStorage.coverage[0].reason, /field_path_depth_widened/);
   const limited = await collectCompilerFlow({ ...argumentsFor, policy: normalizeSemanticConfig({ enabled: true, enrichment: { maxSccIterations: 0 } }) });
   assert.equal(limited.coverage[0].state, 'partial');
   assert.match(limited.coverage[0].reason, /iteration_budget/);

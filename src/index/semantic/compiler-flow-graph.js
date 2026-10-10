@@ -167,6 +167,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       return expression(node.expression, test, context);
     }
     if (ts.isTryStatement(node)) {
+      if (node.finallyBlock) reasons.add('finally_completion_alternatives_conservative');
       // Separate finally routes retain abrupt destinations without merging them into normal flow.
       const wrap = target => node.finallyBlock ? statement(node.finallyBlock, target, context) : target;
       const normal = wrap(next), returned = wrap(context.return), thrown = wrap(context.exception);
@@ -180,7 +181,8 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       }
       return statement(node.tryBlock, normal, inner);
     }
-    if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isEmptyStatement(node)
+    if (ts.isClassDeclaration(node)) { reasons.add('class_initialization_effects_unresolved'); return next; }
+    if (ts.isFunctionDeclaration(node) || ts.isEmptyStatement(node)
       || ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) return next;
     reasons.add('unsupported_statement:' + ts.SyntaxKind[node.kind]);
     return expression(node, next, context);
