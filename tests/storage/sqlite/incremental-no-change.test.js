@@ -3,6 +3,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { runNode } from '../../helpers/run-node.js';
 import {
@@ -186,7 +187,7 @@ run([
 ], 'build records index');
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-const recordsManifestPath = path.join(repoCacheRoot, 'incremental', 'records', 'manifest.json');
+const recordsManifestPath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'records', 'manifest.json');
 const recordsManifest = JSON.parse(await fsPromises.readFile(recordsManifestPath, 'utf8'));
 assert.equal(
   recordsManifest.bundleRecordsIncremental,

@@ -58,7 +58,7 @@ export const createSemanticPartitionSink = async ({
     if (!Number.isSafeInteger(value) || value <= 0) throw new TypeError('Batch limits must be positive safe integers.');
   }
   await fs.mkdir(stagingRoot, { recursive: true });
-  const directory = await fs.mkdtemp(path.join(stagingRoot, 'semantic-part-'));
+  const directory = await fs.mkdtemp(path.toNamespacedPath(path.join(stagingRoot, 'semantic-part-')));
   const prefix = path.basename(directory);
   const members = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, []]));
   const counts = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, 0]));

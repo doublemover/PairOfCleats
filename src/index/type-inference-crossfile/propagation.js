@@ -568,7 +568,7 @@ export async function runCrossFilePropagation({
           const callEntry = relations.calls[callIndex];
           if (!Array.isArray(callEntry) || callEntry.length < 2) continue;
           const callee = callEntry[1];
-          const symbolRef = detail.compilerBinding?.symbolRef || resolveSymbolRefCached({
+          const symbolRef = resolveSymbolRefCached({
             targetName: callee,
             kindHint: null,
             fromFile: chunk.file

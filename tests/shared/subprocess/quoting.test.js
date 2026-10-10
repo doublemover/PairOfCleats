@@ -24,6 +24,10 @@ const env = {
   ...applyTestEnv({
     cacheRoot,
     embeddings: 'stub',
+    testConfig: {
+      indexing: { typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
+      tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
+    },
     syncProcess: false
   }),
   PAIROFCLEATS_CACHE_ROOT: cacheRoot

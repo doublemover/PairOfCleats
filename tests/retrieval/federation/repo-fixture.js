@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
@@ -23,6 +24,7 @@ export const createFederationIndexDescriptor = ({
     buildId,
     buildRoot,
     buildPointer: {
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId,
       buildRoot,
       modes
@@ -55,6 +57,7 @@ export const writeFederationRepoFixture = async ({
     await fs.writeFile(path.join(index.indexDir, 'chunk_meta.json'), '[]', 'utf8');
     await fs.writeFile(path.join(index.indexDir, 'token_postings.json'), '{}', 'utf8');
     await fs.writeFile(path.join(index.indexDir, 'index_state.json'), JSON.stringify({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: index.compatibilityKey
     }, null, 2), 'utf8');
   }

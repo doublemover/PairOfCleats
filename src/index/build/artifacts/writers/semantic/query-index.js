@@ -18,7 +18,7 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
   for (const limit of [batchRows, batchBytes, maxOpenRuns]) if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Positive query index bounds required.');
   if (maxOpenRuns < 2) throw new TypeError('Query index merge fan-in must be at least two.');
   await fs.mkdir(root, { recursive: true });
-  const directory = await fs.mkdtemp(path.join(root, directoryPrefix));
+  const directory = await fs.mkdtemp(path.toNamespacedPath(path.join(root, directoryPrefix)));
   const prefix = path.basename(directory);
   let workingReserved = 0, finalReserved = 0;
   const reserveWork = (bytes) => { diskAccount.reserve(bytes); workingReserved += bytes; };
