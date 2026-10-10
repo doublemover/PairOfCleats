@@ -28,7 +28,7 @@ export function getIncrementalPaths(repoCacheRoot, mode) {
  * @param {'code'|'prose'} mode
  * @returns {{manifest:object,incrementalDir:string,bundleDir:string,manifestPath:string}|null}
  */
-export function loadIncrementalManifest(repoCacheRoot, mode) {
+export function loadIncrementalManifest(repoCacheRoot, mode, { repoRoot = process.cwd() } = {}) {
   const paths = getIncrementalPaths(repoCacheRoot, mode);
   if (!fs.existsSync(paths.manifestPath)) return null;
   try {
@@ -42,7 +42,7 @@ export function loadIncrementalManifest(repoCacheRoot, mode) {
     }
     const manifest = JSON.parse(fs.readFileSync(paths.manifestPath, 'utf8'));
     assertCurrentIndexFormat({ operation: 'import', component: 'incremental manifest',
-      foundVersion: manifest?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: paths.manifestPath });
+      foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: paths.manifestPath });
     if (!manifest || typeof manifest !== 'object') return null;
     return { manifest, ...paths };
   } catch (error) {

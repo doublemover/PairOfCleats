@@ -28,62 +28,76 @@ head. None is a blanket release-readiness claim.
 
 ## Semantic indexing implementation (2026-10-10)
 
-Status: **in progress; source, cache, query and deferred-work foundations** on
-`codex/semantic-indexing-20261010`, descended from PR547 head
-`5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. Astra MEDIUM leads shared integration;
-the same two approved GPT-6.1 Sol MEDIUM helpers own storage/cache and query work.
-No additional helpers, pushes, merges, captures, corpus restart or benchmark campaign.
+Status: **in progress; compiler/value evidence, offline runtime import and durable
+binding lifecycle integration** on `codex/semantic-indexing-20261010`, descended
+from PR547 head `5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. Astra MEDIUM leads
+shared integration with the same two approved GPT-6.1 Sol MEDIUM helpers. No new
+helpers, pushes, merges, captures, corpus restart or benchmark campaign.
 
-Implemented:
+Implemented with focused evidence:
 
-- Source-owned JS/TS structure, exact UTF-16 coordinates, immutable source retention,
-  ordered operands and separate chunk ownership. Canonical facts survive inference
-  budgets; unsupported binding/flow phases remain explicitly unsupported.
-- Portable per-file descriptors, verified cache sidecars stored once per file,
-  source/dependency checks and relocation into a fresh whole-build generation.
-  Artifact, bundle and incremental SQLite routes share canonical ingestion.
-- Physical sorted JSONL/offset lookup indexes support bounded argument, name and
-  ownership hydration. Shared detail pins generation and request-bound cursors;
-  artifact/SQLite parity covers 300 arguments and nested fields. Query policy is
-  validated through the existing configuration loader. CLI, MCP and HTTP detail
-  handlers pass retained-generation/cursor checks; CLI --all drains pages as JSONL.
-- Strict runtime request/capability/capture/raw/evidence schemas, pure plan-only
-  capability reporting, explicit offline-import authority and source/evidence
-  joins. Observations, inferred claims, missing dimensions and code lifetimes stay
-  distinct. These foundations do not yet parse or publish runtime captures.
-- Dedicated SQLite task control store with exact task/input/policy identities,
-  dependency admission, leases, retries, supersession and verified publication
-  acknowledgment. Explicit bounded drain uses the existing scheduler and can
-  recover committed outputs. Immutable frontier descriptors have artifact/SQLite
-  representation; production planning/automatic after-index wiring is still open.
-- The existing grouped TypeScript provider now indexes a document once for target
-  range/name lookup, replacing repeated whole-document walks. It creates no extra
-  Program and does not yet publish checker-resolved occurrence bindings.
+- Source-owned JS/TS structure, exact UTF-16 coordinates, retained immutable source,
+  ordered operands and separate chunk ownership. Inference views do not delete
+  canonical facts. Portable per-file syntax cache sidecars and all three SQLite
+  ingestion routes preserve canonical records.
+- The existing grouped TypeScript Program/checker now emits immutable context-bound
+  bindings, alias chains, external declarations, constructors and per-occurrence
+  argument-to-parameter edges before heuristic resolution. Source hashes must match;
+  one document node index replaces repeated target scans. Legacy type inference
+  can remain disabled. Unresolved compiler bindings are not upgraded by name matching.
+- A conservative value slice records immutable definitions, reads, lexical captures
+  and structured packing. Checker-matched default-library models distinguish
+  typed-array view/copy relationships and message dispatch/transfer requests.
+  CFG, mutable reaching definitions, dynamic realms and observed delivery remain
+  explicitly incomplete; the slice is not full SSA or runtime proof.
+- Sorted JSONL/offset query indexes and generation-pinned detail provide bounded
+  record, argument, name and ownership hydration with artifact/SQLite parity.
+  Artifact/SQLite trace parity and public CLI/MCP/HTTP integration pass focused checks.
+  Query coverage retains partition provenance and separates extraction, analysis
+  and response limits. See the [operating guide](guides/semantic-index.md).
+- Explicit saved Inspector CPU-profile and versioned code-log interchange adapters
+  publish immutable standalone runtime families with content-addressed raw inputs.
+  Capture/runtime/build/workload identities, missing mappings and code lifetimes
+  stay separate. Import never executes or attaches; arbitrary V8 text logs and
+  runtime-to-source-query overlays are not yet supported.
+- Source-pinned binding task descriptors use a dedicated transactional control DB,
+  exact task leases and the existing relations scheduler. Manual/absent-control
+  paths stay deferred; completion receipts are acknowledged after whole-generation
+  promotion. Production fresh/warm builds and crash-recovery integration pass focused checks.
+  Cached old-generation task descriptors cannot be silently relocated.
 
-Artifact surface 0.1.0, SQLite 15 and semantic schemas 1 remain the frozen cutover.
-Exact guards cover principal artifact/state/pointer/cache/bundle/SQLite boundaries;
-the exhaustive reader/error-propagation audit remains open. Full rebuilds use the
-new cache namespace, without migration or deletion of originals.
+Artifact surface **0.1.0**, SQLite **15**, semantic schemas **1** remain the exact
+cutover. The reader audit covers artifact/state/pointer/cache/bundle/SQLite paths,
+metadata-only probes, worker propagation and public format diagnostics. SQLite
+compaction preserves semantic tables in bounded batches; shared semantic-mode
+compaction rejects explicitly pending safe multi-mode remapping. Full rebuilds use
+a fresh current-format namespace without migration or deleting originals.
 
-Focused Node 26 evidence: fresh/warm real JS+TS build and artifact-to-SQLite detail
-pass (`.testLogs/run-1791623563309-79vemg`, 9.28s); 300-argument hydration parity
-passes (`.testLogs/run-1791623688836-myg2m5`); compiler lookup/reuse checks pass 2/2
-(`.testLogs/run-1791623046916-69rtaz`); runtime contracts and source joins pass
-(`.testLogs/run-1791623417206-bdo3sr`); task lease/drain checks pass
-(`.testLogs/run-1791623436774-6vxhuc`). Earlier source-publication and physical-piece
-registration failures were fixed. Cache rollback/cancellation passes
-(`.testLogs/run-1791623570997-fsk90z`), publication recovery passes
-(`.testLogs/run-1791623703172-85sr83`), and public API/CLI/MCP detail passes
-(`.testLogs/run-1791623538107-5h4g4x`). Repository formatting passed. A historical native access violation remains
-undiagnosed; it has not recurred in these checks. Broad suites remain unrun.
+Node 26 focused receipts this span: compiler/alias/shadowing/parameter/capture/value
+witness passes 8.29s (`.testLogs/run-1791625377755-qpzgph`); stale frontier cache
+rejection passes 1.11s (`.testLogs/run-1791625486576-jaeghz`); cutover gate passes
+1.55s (`.testLogs/run-1791625373735-wpze63`); semantic compaction parity passes
+2.05s (`.testLogs/run-1791625477486-0dwxnt`); public format/detail errors pass 23.9s
+(`.testLogs/run-1791624572615-fzhb4w`). The stricter production completion assertion
+caught Windows path-case acknowledgment failure (`run-1791625737698-qt3i26`);
+the corrected fresh/warm fixture passes 13.0s (`run-1791625932165-z9oiju`). A native access
+violation (3221225477) recurred once in `run-1791624392362-it00uc`, then the runner
+retry passed; the native fault remains undiagnosed. Final trace public surfaces pass 12.0s (`run-1791626223683-8ojsre`), and
+indexed artifact/SQLite trace parity passes 5.48s (`run-1791626204277-az8do3`); runtime import
+passes 4/4 (`run-1791624970201-cy7yks`), canonical import CLI passes
+(`run-1791625972821-or578j`), and binding lifecycle/recovery passes 3/3
+(`run-1791625965364-lckhod`). MCP snapshots were intentionally updated to schema
+1.4.3; both checks pass (`run-1791626136790-3xvdov`). Repository formatting and the
+command surface audit pass. Broad suites remain unrun.
 
-Remaining: compiler/LSP binding joins before resolution; CFG/def-use/value/storage
-and modeled boundary paths; embedded adapters; relation/structural walk fusion;
-shared resident admission with sparse indexing disabled; complete config overrides
-and targeted policies; production frontier planning/publication lifecycle; offline
-runtime adapters and family publication; operation/trace/equivalence queries and
-complete hard-cutover audit. No claim of full frozen-spec completion. The temporary
-package tracker records exact ownership, dependencies, acceptance and receipts.
+Remaining: full CFG/SSA, mutable/field-sensitive and cross-file summaries, resolved
+Worker entry/consumer paths, LSP locations and embedded adapters; syntax/relation
+walk fusion and shared resident admission; complete config overrides and targeted
+policies; general manual deferred-drain interface; operation discovery/equivalence;
+runtime lookup joins and additional native log adapters. Huge-file intra-file
+partitioning/fairness is a later improvement, not a new gate. Independent overlays
+remain outside v1. No claim of full frozen-spec completion; the temporary package
+tracker records exact ownership, dependencies and focused receipts.
 
 ## Current Initiatives
 

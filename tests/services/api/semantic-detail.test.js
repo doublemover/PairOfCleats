@@ -1,3 +1,4 @@
+import { formatToolError } from '../../../src/integrations/mcp/protocol.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -77,6 +78,38 @@ try {
   const continuation = await post({ ...request, cursor: response.body.result.cursor });
   assert.equal(continuation.status, 200);
   assert.deepEqual(continuation.body.result.generation, request.generation);
+  // The outer current manifest gates even when semantic facts are disabled/unavailable.
+  const piecePath = path.join(indexDir, 'pieces', 'manifest.json');
+  const originalPieces = await fs.readFile(piecePath, 'utf8');
+  const pieceManifest = JSON.parse(originalPieces);
+  for (const version of [undefined, '0.0.2', '0.1.1']) {
+    await fs.writeFile(piecePath, JSON.stringify({ ...pieceManifest, artifactSurfaceVersion: version }));
+    const rejected = await post(request);
+    assert.equal(rejected.status, 409);
+    assert.equal(rejected.body.nativeCode, 'ERR_INDEX_FORMAT_UNSUPPORTED');
+    assert.equal(path.resolve(rejected.body.repoRoot).toLowerCase(), path.resolve(repoRoot).toLowerCase());
+    assert.equal(path.resolve(rejected.body.indexPath).toLowerCase(), path.resolve(piecePath).toLowerCase());
+    assert.equal(rejected.body.rebuildCommand, 'pairofcleats index build --repo "' + rejected.body.repoRoot + '" --mode all');
+    const error = await handleToolCall('semantic_detail', request).then(() => assert.fail('MCP must reject'), error => error);
+    const projected = formatToolError(error);
+    assert.equal(projected.nativeCode, rejected.body.nativeCode);
+    assert.equal(projected.rebuildCommand, rejected.body.rebuildCommand);
+    const cli = await promisify(execFile)(process.execPath, ['bin/pairofcleats.js', 'semantic', 'detail', '--request', file], { cwd: process.cwd(), timeout: 10000 }).then(() => assert.fail('CLI must reject'), error => error);
+    const diagnostic = JSON.parse(cli.stderr.trim());
+    assert.equal(diagnostic.code, rejected.body.nativeCode);
+    for (const key of ['operation', 'component', 'expectedVersion', 'foundVersion', 'repoRoot', 'indexPath', 'rebuildCommand']) assert.deepEqual(diagnostic[key], rejected.body[key]);
+  }
+  await fs.writeFile(piecePath, originalPieces);
+  const semanticPath = path.join(indexDir, 'semantic_manifest.json');
+  const originalSemantic = await fs.readFile(semanticPath, 'utf8');
+  for (const version of [undefined, '0.0.2', '0.1.1']) {
+    await fs.writeFile(semanticPath, JSON.stringify({ ...JSON.parse(originalSemantic), artifactSurfaceVersion: version }));
+    const rejected = await post(request);
+    assert.equal(rejected.status, 409);
+    assert.equal(rejected.body.component, 'semantic manifest');
+    assert.equal(path.resolve(rejected.body.indexPath).toLowerCase(), path.resolve(semanticPath).toLowerCase());
+  }
+  await fs.writeFile(semanticPath, originalSemantic);
   console.log('Semantic detail CLI/MCP/HTTP and retained generation surfaces passed');
 } finally {
   if (server) await new Promise((resolve) => server.close(resolve));

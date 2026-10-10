@@ -1922,7 +1922,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let bundleTask = null;
       let backendTask = null;
       try {
-        const incremental = loadIncrementalManifest(repoCacheRoot, mode);
+        const incremental = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
         const manifestFiles = incremental?.manifest?.files || {};
 
         let chunksByFile = new Map();

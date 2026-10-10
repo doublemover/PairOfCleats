@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { once } from 'node:events';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
@@ -23,6 +24,7 @@ export const runSemanticDetailCli = async (argv = process.argv, { output = proce
   } while (cursor);
 };
 if (isDirectExecution(import.meta.url)) runSemanticDetailCli().catch((error) => {
-  console.error(JSON.stringify({ ok: false, ...classifySemanticDetailError(error) }));
+  const format = projectIndexFormatError(error);
+  console.error(JSON.stringify({ ok: false, ...classifySemanticDetailError(error), ...(format ? { code: format.nativeCode, ...format, details: format } : {}) }));
   process.exitCode = 1;
 });

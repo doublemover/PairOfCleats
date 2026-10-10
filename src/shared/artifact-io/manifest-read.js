@@ -128,7 +128,7 @@ export const loadPiecesManifestWithReadPlan = async (
       await sleepImpl(plan.attempts[attemptIndex]);
     }
     try {
-      return readManifest(dir, { maxBytes: plan.maxBytes, strict: plan.strict, repoRoot: options.repoRoot });
+      return assertPiecesManifestFormat(dir, await readManifest(dir, { maxBytes: plan.maxBytes, strict: plan.strict, repoRoot: options.repoRoot }), options.repoRoot);
     } catch (error) {
       lastError = error;
       if (!plan.retryableCodes.includes(error?.code) || attemptIndex >= plan.attempts.length - 1) {
@@ -140,15 +140,15 @@ export const loadPiecesManifestWithReadPlan = async (
   return null;
 };
 
-export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = true } = {}) => {
+export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}) => {
   const testEnv = getTestEnvConfig();
   const allowMissingInTests = testEnv.testing && testEnv.allowMissingCompatKey !== false;
   let manifest = null;
   if (strict) {
-    manifest = loadPiecesManifest(dir, { maxBytes, strict: true });
+    manifest = loadPiecesManifest(dir, { maxBytes, strict: true, repoRoot });
   } else {
     try {
-      manifest = loadPiecesManifest(dir, { maxBytes, strict: false });
+      manifest = loadPiecesManifest(dir, { maxBytes, strict: false, repoRoot });
     } catch (error) {
       if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     }
@@ -176,6 +176,8 @@ export const readCompatibilityKey = (dir, { maxBytes = MAX_JSON_BYTES, strict = 
     }
     return { key: null, source: null };
   }
+  assertCurrentIndexFormat({ operation: 'read', component: 'index state',
+    foundVersion: state?.artifactSurfaceVersion, repoRoot, indexPath: statePath });
   const stateKey = normalizeCompatibilityKey(state?.compatibilityKey);
   if (stateKey) {
     if (manifest && strict) {

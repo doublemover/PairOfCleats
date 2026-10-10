@@ -222,7 +222,7 @@ const buildTypeScriptDiagnosticCheck = ({
 
 export const createTypeScriptProvider = () => ({
   id: 'typescript',
-  version: '2.0.0',
+  version: '2.1.0',
   label: 'TypeScript',
   priority: 10,
   languages: ['typescript', 'tsx', 'javascript', 'jsx'],
@@ -249,13 +249,13 @@ export const createTypeScriptProvider = () => ({
     const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
     if (ctx?.toolingConfig?.typescript?.enabled === false) {
       log({ level: 'info', message: 'TypeScript tooling disabled.' });
-      return { provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
+      return { provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
     }
     const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
     if (!ts) {
       log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
       return {
-        provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(baseDiagnostics, [
           buildTypeScriptDiagnosticCheck({
@@ -282,7 +282,7 @@ export const createTypeScriptProvider = () => ({
     const rootDocs = documents.filter((doc) => allowedExts.has(String(doc.effectiveExt || '').toLowerCase()));
     if (!rootDocs.length) {
       return {
-        provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: baseDiagnostics
       };
@@ -406,12 +406,14 @@ export const createTypeScriptProvider = () => ({
       const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap);
       const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, host });
       const checker = program.getTypeChecker();
+      const semanticGroup = ctx.semanticSession?.beginGroup({ ts, program, options: mergedOptions, documents: groupDocs, configPath: group.configPath });
 
       for (const doc of groupDocs) {
         const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
         const sourceFile = program.getSourceFile(absPath);
         if (!sourceFile) continue;
         const nodeIndex = createTypeScriptNodeIndex(ts, sourceFile, getNodeName);
+        if (semanticGroup) await ctx.semanticSession.collectDocument({ ts, checker, sourceFile, nodeIndex, group: semanticGroup });
         const docTargets = targetsByDoc.get(doc.virtualPath) || [];
         for (const target of docTargets) {
           const result = findNodeForTarget(ts, target, ctx?.strict !== false, nodeIndex);
@@ -469,7 +471,7 @@ export const createTypeScriptProvider = () => ({
             ...(symbolRef ? { symbolRef } : {}),
             provenance: {
               provider: 'typescript',
-              version: '2.0.0',
+              version: '2.1.0',
               collectedAt: new Date().toISOString()
             }
           };
@@ -478,8 +480,9 @@ export const createTypeScriptProvider = () => ({
     }
 
     return {
-      provider: { id: 'typescript', version: '2.0.0', configHash: this.getConfigHash(ctx) },
+      provider: { id: 'typescript', version: '2.1.0', configHash: this.getConfigHash(ctx) },
       byChunkUid,
+      ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),
       diagnostics: diagnostics.length ? { checks: diagnostics } : null
     };
   }

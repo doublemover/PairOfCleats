@@ -136,6 +136,7 @@ export async function resolveSearchIndexMetadata({
       compatibilityTargets.map(async (entry) => {
         const strictCompatibilityKey = strict && (entry.mode !== 'extracted-prose' || resolvedRunExtractedProse);
         const { key } = readCompatibilityKey(entry.dir, {
+          repoRoot: rootDir,
           maxBytes: MAX_JSON_BYTES,
           strict: strictCompatibilityKey
         });

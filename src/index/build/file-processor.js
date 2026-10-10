@@ -531,6 +531,7 @@ export function createFileProcessor(options) {
     });
     updateCrashStage('pre-cpu:load-cached-bundle:start');
     const semanticContext = semantic ? {
+      repoRoot: root,
       buildRoot: semantic.buildRoot, storage: semantic.storage, repositoryNamespace: semantic.repositoryNamespace,
       diskAccount: semantic.diskAccount, signal,
       dependencySignatures: createSemanticCacheDependencySignatures({
@@ -538,6 +539,7 @@ export function createFileProcessor(options) {
       })
     } : null;
     const cachedResult = await loadCachedBundleForFile({
+      repoRoot: root,
       semanticContext,
       runIo,
       incrementalState,

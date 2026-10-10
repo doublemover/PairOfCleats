@@ -72,6 +72,7 @@ const mapWithConcurrency = async (items, concurrency, worker) => {
  * @returns {Promise<{enabled:boolean,incrementalDir:string,bundleDir:string,manifestPath:string,manifest:object}>}
  */
 export async function loadIncrementalState({
+  repoRoot = process.cwd(),
   repoCacheRoot,
   mode,
   enabled,
@@ -111,7 +112,7 @@ export async function loadIncrementalState({
         label: `${mode} incremental manifest`
       });
       assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
-        foundVersion: loaded?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: manifestPath });
+        foundVersion: loaded?.artifactSurfaceVersion, repoRoot, indexPath: manifestPath });
       if (loaded && typeof loaded === 'object') {
         const loadedKey = typeof loaded.tokenizationKey === 'string'
           ? loaded.tokenizationKey
@@ -296,6 +297,7 @@ const readJsonFile = async (filePath, { maxBytes = 0, label = 'json' } = {}) => 
  * @returns {Promise<boolean>}
  */
 export async function shouldReuseIncrementalIndex({
+  repoRoot = process.cwd(),
   outDir,
   entries,
   manifest,
@@ -317,6 +319,8 @@ export async function shouldReuseIncrementalIndex({
   if (!outDir || !manifest || !Array.isArray(entries) || entries.length === 0) {
     return fail('missing build outputs or entries');
   }
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest.artifactSurfaceVersion, repoRoot, indexPath: outDir });
   if (manifest.signatureVersion !== SIGNATURE_VERSION) {
     return fail('signatureVersion mismatch');
   }
@@ -356,7 +360,7 @@ export async function shouldReuseIncrementalIndex({
   for (const [component, data, indexPath] of [
     ['index state', indexState, indexStatePath], ['pieces manifest', pieceManifest, piecesPath]
   ]) assertCurrentIndexFormat({ operation: 'resume', component,
-    foundVersion: data?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath });
+    foundVersion: data?.artifactSurfaceVersion, repoRoot, indexPath });
   if (!stageSatisfied(stage, indexState?.stage || null)) {
     return fail('index stage mismatch');
   }

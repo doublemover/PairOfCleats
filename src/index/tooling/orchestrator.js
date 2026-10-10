@@ -995,6 +995,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const merged = new Map();
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
+  const semanticFacts = [];
   const observations = [];
   const reuseObservations = [];
   const generation = resolveGenerationIdentity(ctx);
@@ -1066,7 +1067,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
 
   try {
     let cacheDir = null;
-    if (ctx?.cache?.enabled && ctx.cache.dir) {
+    if (!ctx.semanticSession && ctx?.cache?.enabled && ctx.cache.dir) {
       try {
         cacheDir = ensureToolingCacheDir(path.join(ctx.cache.dir, 'format-' + ARTIFACT_SURFACE_VERSION));
       } catch (error) {
@@ -1238,6 +1239,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           providerOutcome = 'empty';
         } else {
           providerProgressPhase = 'merge';
+          if (output.semanticFacts != null) semanticFacts.push(assertSemanticEnvelope('provider', output.semanticFacts));
           providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
             source: outputFromCache ? 'cache-suppressed' : 'live',
             stripRuntime: outputFromCache
@@ -1418,6 +1420,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
 
     return {
       byChunkUid: merged,
+      semanticFacts,
       sourcesByChunkUid,
       diagnostics: providerDiagnostics,
       observations,

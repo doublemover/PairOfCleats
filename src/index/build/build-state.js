@@ -102,6 +102,7 @@ export async function initBuildState({
   profile = null
 }) {
   if (!buildRoot) return null;
+  await loadBuildState(buildRoot, { repoRoot });
   const statePath = resolveStatePath(buildRoot);
   const now = new Date().toISOString();
   const payload = {

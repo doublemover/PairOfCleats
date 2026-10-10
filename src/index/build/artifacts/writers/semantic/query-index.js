@@ -9,7 +9,7 @@ import { canonicalSemanticJson } from '../../../../semantic/identity.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { compareQueryIndexRows, queryIndexKey } from '../../../../../semantic/query-index.js';
 
-const members = ['semantic_operands', 'semantic_lookup', 'semantic_ownership', 'semantic_records'];
+const members = ['semantic_operands', 'semantic_lookup', 'semantic_ownership', 'semantic_records', 'semantic_edges'];
 /** Publication-time physical index; canonical partition identities exclude this layout. */
 export const writeSemanticQueryIndex = async ({ root, generation, partitions, store,
   diskAccount, signal = null, scheduleIo = (fn) => fn(), batchRows = 1024, batchBytes = 1048576,
@@ -37,10 +37,14 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
         if (member === 'semantic_records' && (row.kind !== 'occurrence' || !row.data.expression)) { rowOrdinal += 1; continue; }
         const owner = member === 'semantic_records' ? row.data.expression : member === 'semantic_operands' ? row.parent : member === 'semantic_ownership' ? row.recordRef
           : { partitionId: partition.partitionId, localId: row.id };
-        const entry = { owner, member, partitionId: partition.partitionId, rowOrdinal: rowOrdinal++ };
-        const line = canonicalSemanticJson(entry);
-        reserveWork(Buffer.byteLength(line) + 1);
-        await collector.append(entry, { line });
+        const owners = member === 'semantic_edges' ? [row.from, ...(canonicalSemanticJson(row.from) === canonicalSemanticJson(row.to) ? [] : [row.to])] : [owner];
+        for (const endpoint of owners) {
+          const entry = { owner: endpoint, member, partitionId: partition.partitionId, rowOrdinal };
+          const line = canonicalSemanticJson(entry);
+          reserveWork(Buffer.byteLength(line) + 1);
+          await collector.append(entry, { line });
+        }
+        rowOrdinal += 1;
       }
     }
     const collected = await collector.finalize();

@@ -1,3 +1,5 @@
+import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest-read.js';
+import { openPublishedSemanticStore } from '../../../../semantic/published-store.js';
 import { ingestPublishedSemanticFamily } from '../../semantic/published.js';
 import { prepareVectorAnnTable } from '../../build-helpers.js';
 import { CREATE_INDEXES_SQL } from '../../schema.js';
@@ -46,6 +48,7 @@ const ARTIFACT_BUILD_PRAGMA_MIN_BYTES = 128 * 1024 * 1024;
  * @returns {Promise<number>}
  */
 export async function buildDatabaseFromArtifacts({
+  repoRoot = process.cwd(),
   Database,
   outPath,
   outputPath,
@@ -82,6 +85,8 @@ export async function buildDatabaseFromArtifacts({
     throw new Error('[sqlite] buildDatabaseFromArtifacts: indexDir must be a string.');
   }
   indexDir = resolvedIndexDir;
+  loadPiecesManifest(indexDir, { repoRoot });
+  if (mode === 'code') await openPublishedSemanticStore({ indexDir, repoRoot });
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -503,7 +508,7 @@ export async function buildDatabaseFromArtifacts({
     beginSqliteBuildTransaction(db, batchStats);
     try {
       count = await ingestIndex(index, mode, indexDir);
-      if (mode === 'code') await ingestPublishedSemanticFamily({ db, indexDir, repoRoot: process.cwd() });
+      if (mode === 'code') await ingestPublishedSemanticFamily({ db, indexDir, repoRoot });
       validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
       commitSqliteBuildTransaction(db, batchStats, {

@@ -167,7 +167,7 @@ export async function incrementalUpdateDatabase({
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
   try {
-    assertSqliteIndexFormat({ db, operation: 'incremental-update', repoRoot: process.cwd(), indexPath: outPath });
+    assertSqliteIndexFormat({ db, operation: 'incremental-update', repoRoot, indexPath: outPath });
   } catch (error) {
     db.close();
     throw error;

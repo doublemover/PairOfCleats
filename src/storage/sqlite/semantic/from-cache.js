@@ -12,7 +12,7 @@ const fail = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTI
 export const prepareCachedSemanticPlan = async ({ incrementalData, repoRoot = process.cwd(), signal = null }) => {
   const manifest = incrementalData?.manifest;
   assertCurrentIndexFormat({ operation: 'import', component: 'incremental manifest',
-    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: incrementalData?.bundleDir });
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: incrementalData?.manifestPath || incrementalData?.bundleDir || repoRoot });
   const files = Object.entries(manifest.files || {});
   const hasFacts = files.some(([, entry]) => entry?.semanticCache);
   if (!hasFacts && !Object.hasOwn(manifest, 'semanticEnabled')) return null;
@@ -25,7 +25,7 @@ export const prepareCachedSemanticPlan = async ({ incrementalData, repoRoot = pr
     for (const [file, entry] of files) {
       throwIfAborted(signal);
       if (!entry?.semanticCache) throw fail('Semantic-enabled manifest is missing source facts for ' + file);
-      const opened = await openSemanticCacheEntry({ bundleDir: incrementalData.bundleDir, locator: entry.semanticCache,
+      const opened = await openSemanticCacheEntry({ repoRoot, bundleDir: incrementalData.bundleDir, locator: entry.semanticCache,
         expectedDependencySignatures: manifest.semanticDependencySignatures, signal });
       // Binding the path prevents a manifest entry from borrowing another file's valid facts.
       const sources = [];

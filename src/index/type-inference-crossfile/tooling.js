@@ -267,9 +267,11 @@ export const runToolingPass = async ({
   toolingBreaker,
   toolingLogDir,
   fileTextByFile,
-  abortSignal = null
+  abortSignal = null,
+  semanticSession = null,
+  applyTypes = true
 }) => {
-  if (!Array.isArray(chunks) || !chunks.length) return { ...EMPTY_TOOLING_PASS_STATS };
+  if ((!Array.isArray(chunks) || !chunks.length) && !semanticSession) return { ...EMPTY_TOOLING_PASS_STATS };
   registerDefaultToolingProviders();
   const strict = toolingConfig?.strict !== false;
   const vfsConfig = toolingConfig?.vfs && typeof toolingConfig.vfs === 'object'
@@ -290,7 +292,7 @@ export const runToolingPass = async ({
     }
     if (evt?.message) log(evt.message);
   };
-  const { documents, targets } = await buildToolingVirtualDocuments({
+  let { documents, targets } = await buildToolingVirtualDocuments({
     chunks,
     fileTextByPath: fileTextByFile,
     strict: vfsStrict,
@@ -299,7 +301,8 @@ export const runToolingPass = async ({
     coalesceSegments,
     log
   });
-  if (!documents.length || !targets.length) return { ...EMPTY_TOOLING_PASS_STATS };
+  if (semanticSession) documents = semanticSession.prepareDocuments(documents);
+  if (!documents.length || (!targets.length && !semanticSession)) return { ...EMPTY_TOOLING_PASS_STATS };
 
   const chunkByUid = new Map();
   for (const chunk of chunks) {
@@ -331,13 +334,15 @@ export const runToolingPass = async ({
       maxBytes: Number.isFinite(cacheConfig.maxBytes) ? cacheConfig.maxBytes : null,
       maxEntries: Number.isFinite(cacheConfig.maxEntries) ? cacheConfig.maxEntries : null
     },
-    abortSignal
+    abortSignal,
+    semanticSession
   };
   const providerPlans = selectToolingProviders({
     toolingConfig: ctx.toolingConfig,
     documents,
     targets,
-    kinds: ['types']
+    kinds: ['types'],
+    ...(!applyTypes ? { providerIds: ['typescript'] } : {})
   });
   const providerIds = Array.from(new Set(
     providerPlans
@@ -384,7 +389,7 @@ export const runToolingPass = async ({
   const degradedStats = summarizeDegradedProviderCounts(result?.degradedProviders);
   const runtimeStats = summarizeToolingRuntimeCounts(result?.metrics);
 
-  const applyResult = applyToolingTypes({
+  const applyResult = !applyTypes ? {} : applyToolingTypes({
     byChunkUid: result.byChunkUid,
     chunkByUid,
     entryByUid

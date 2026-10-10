@@ -81,7 +81,7 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
   if (!bundle || !Array.isArray(bundle.chunks)) {
     return { ok: false, reason: 'invalid bundle' };
   }
-  const patches = await readBundlePatches(bundlePath);
+  const patches = await readBundlePatches(bundlePath, { repoRoot });
   if (!patches.ok) {
     return { ok: false, reason: 'invalid bundle patch' };
   }

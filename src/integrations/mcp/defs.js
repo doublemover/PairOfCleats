@@ -1,7 +1,8 @@
+import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-trace.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.4.2';
+export const MCP_SCHEMA_VERSION = '1.4.3';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -55,6 +56,7 @@ const buildWorkspaceToolProperties = ({
  */
 export function getToolDefs(defaultModelId) {
   return [
+    { name: 'semantic_trace', description: 'Trace source-pinned value relationships with evidence, boundary requests and explicit incomplete frontiers. Does not execute runtime capture.', inputSchema: SEMANTIC_TRACE_REQUEST_SCHEMA },
     {
       name: 'semantic_detail',
       description: 'Inspect exact semantic records, ordered operands, interned names and chunk ownership in an explicit immutable generation. Supports bounded paging; analysis coverage may remain unsupported.',

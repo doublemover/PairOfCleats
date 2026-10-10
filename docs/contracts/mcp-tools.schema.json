@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4.2",
+  "schemaVersion": "1.4.3",
   "tools": [
     {
       "name": "bootstrap",
@@ -1632,6 +1632,173 @@
           "repoRoot",
           "generation",
           "refs"
+        ]
+      }
+    },
+    {
+      "name": "semantic_trace",
+      "description": "Trace source-pinned value relationships with evidence, boundary requests and explicit incomplete frontiers. Does not execute runtime capture.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseBuildId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "semanticRevision": {
+                "const": 0
+              }
+            },
+            "required": [
+              "baseBuildId",
+              "semanticRevision"
+            ]
+          },
+          "seed": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "partitionId": {
+                "type": "string",
+                "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+              },
+              "localId": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "partitionId",
+              "localId"
+            ]
+          },
+          "direction": {
+            "enum": [
+              "upstream",
+              "downstream"
+            ]
+          },
+          "slot": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "enum": [
+                  "input",
+                  "output",
+                  "argument",
+                  "receiver",
+                  "parameter",
+                  "returnValue",
+                  "propertyValue",
+                  "element"
+                ]
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "name",
+              "ordinal"
+            ]
+          },
+          "kinds": {
+            "type": "array",
+            "uniqueItems": true,
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "references",
+                "aliases",
+                "defines",
+                "reads",
+                "writes",
+                "mutates",
+                "returns",
+                "throws",
+                "captures",
+                "flowsTo",
+                "controlNext",
+                "controlTrue",
+                "controlFalse",
+                "exceptional",
+                "callTarget",
+                "constructTarget",
+                "argumentToParameter",
+                "returnToResult",
+                "bindingCandidate",
+                "sharesStorage",
+                "copies",
+                "packs",
+                "transfers",
+                "dispatches",
+                "consumes",
+                "evidenceInput"
+              ]
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "records": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "edges": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65536
+              },
+              "workMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 250
+              }
+            },
+            "required": []
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "repoRoot",
+          "generation",
+          "seed",
+          "direction"
         ]
       }
     },
