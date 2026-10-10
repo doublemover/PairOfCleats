@@ -23,6 +23,7 @@ const text = [
   'function mutate(box: {value: number}, input: number) { box.value = input; return box.value; }',
   'function replaced() { try { return 1; } finally { return 2; } }',
   'function suppressed() { try { return 1; } finally { throw 2; } }',
+  'function classWrites() { let x = 0; class C { static { x = 1; } value = (x = 2); } return x; }',
   'function guarded(fn: any, value: any) { let x = 0; fn?.(x = 1); const y = value ?? x; switch(y) { case 0: x = 2; } return x; }'
 ].join('\r\n');
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-cfg-'));
@@ -81,6 +82,17 @@ try {
   const catchWrite = edges.find(edge => edge.kind === 'writes' && edge.to.partitionId === catchRef.partitionId && edge.to.localId === catchRef.localId);
   assert.ok(catchWrite);
   assert.ok(edges.some(edge => edge.kind === 'flowsTo' && edge.to.partitionId === catchWrite.from.partitionId && edge.to.localId === catchWrite.from.localId), 'thrown payload reaches the catch binding value');
+
+  const classOwner = sourceFile.statements.find(node => node.name?.text === 'classWrites');
+  const classReturn = expressionFor(classOwner.body.statements.at(-1).expression);
+  const classRead = edges.find(edge => edge.kind === 'reads' && edge.to.partitionId === classReturn.partitionId && edge.to.localId === classReturn.localId);
+  assert.ok(classRead, 'static block writes reach the surrounding function CFG');
+  const classValue = values.get(classRead.from.localId);
+  assert.equal(classValue.data.origin, 'definition');
+  const classDefinition = edges.find(edge => edge.kind === 'defines' && edge.to.localId === classValue.id && edge.to.partitionId === flow.partition.partitionId);
+  const staticValue = expressionFor(classOwner.body.statements[1].members[0].body.statements[0].expression.right);
+  assert.deepEqual(classDefinition.from, staticValue, 'instance-field initializer is not executed at class definition time');
+  assert.match(flow.coverage[0].reason, /class_storage_private_and_self_binding_effects_unresolved/);
 
   const mutate = flow.summaries.find(summary => summary.owner.name?.text === 'mutate');
   assert.deepEqual(mutate.effects.map(effect => ({parameter: effect.parameter, path: effect.path})), [{parameter: 0, path: ['value']}]);
