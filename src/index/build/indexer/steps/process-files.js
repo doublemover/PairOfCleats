@@ -1,6 +1,6 @@
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
-import { createSemanticDiskAccount } from '../../artifacts/writers/semantic/partition.js';
+import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
 import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
@@ -633,6 +633,17 @@ export const processFiles = async ({
   });
 
   let treeSitterScheduler = null;
+  if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
+    const reopened = await reopenSemanticDiskAccount({
+      limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
+      roots: [incrementalState?.incrementalDir, runtime.buildRoot,
+        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'builds'),
+        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'semantic-frontier')],
+      signal: effectiveAbortSignal
+    });
+    state.semanticDiskAccount = reopened.account;
+    state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
+  }
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
     const cachedParseFiles = await preloadParseCheckpoints({entries,incrementalState});
@@ -2036,7 +2047,7 @@ export const processFiles = async ({
           storage: { generation: { baseBuildId: runtimeRef.buildId, semanticRevision: 0 },
             relativePath: path.relative(runtimeRef.buildRoot, path.join(outDir, 'semantic')).split(path.sep).join('/') },
           repositoryNamespace: runtimeRef.repoId || getRepoId(runtimeRef.root),
-          diskAccount: state.semanticDiskAccount ||= createSemanticDiskAccount(runtimeRef.semanticPolicy.storage.maxDiskWorkingSetBytes)
+          diskAccount: state.semanticDiskAccount
         } : null,
         mode,
         fileTextCache,

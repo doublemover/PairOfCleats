@@ -183,7 +183,8 @@ export async function readCachedBundle({
         storage: semanticContext.storage, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal });
       return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, ...embedded };
     } catch (error) {
-      if (error.code !== 'ERR_SEMANTIC_CACHE_MISMATCH') throw error;
+      if (!['ERR_SEMANTIC_CACHE_MISMATCH', 'ERR_SEMANTIC_CACHE_INTEGRITY',
+        'ERR_SEMANTIC_INTEGRITY', 'ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
       return { cachedBundle: null, fileHash, buffer: currentBytes };
     }
   };
