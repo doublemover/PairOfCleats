@@ -1,6 +1,8 @@
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
 import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
+import { preloadFileCompletions } from '../../incremental/file-completion.js';
+import { createSemanticCacheDependencySignatures } from '../../incremental/semantic-cache-dependencies.js';
 import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
@@ -633,6 +635,7 @@ export const processFiles = async ({
   });
 
   let treeSitterScheduler = null;
+  let completedSemanticFiles = new Set();
   if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
     const reopened = await reopenSemanticDiskAccount({
       limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
@@ -644,11 +647,18 @@ export const processFiles = async ({
     state.semanticDiskAccount = reopened.account;
     state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
   }
+  if (runtime.semanticPolicy?.enabled && mode === 'code') {
+    completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
+      semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
+        signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
+          dependencySignatures: incrementalState.manifest.dependencySignatures,
+          policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
+  }
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
     const cachedParseFiles = await preloadParseCheckpoints({entries,incrementalState});
     const plannerInput = resolveTreeSitterPlannerEntries({
-      entries: entries.filter(entry=>!cachedParseFiles.has(entry.abs)),
+      entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
       root: runtime.root
     });
     if (plannerInput.skipped > 0) {
