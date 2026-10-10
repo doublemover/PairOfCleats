@@ -119,23 +119,11 @@ export const replayCommitJournal = (records = [], { expectedSeqs = [] } = {}) =>
   const expected = Array.isArray(expectedSeqs) && expectedSeqs.length
     ? expectedSeqs.slice().sort((a, b) => a - b)
     : Array.from(committed).sort((a, b) => a - b);
-  const first = expected.length ? expected[0] : 0;
-  let nextCommitSeq = first;
-  if (expected.length) {
-    const expectedSet = new Set(expected);
-    const upperBound = expected[expected.length - 1];
-    let cursor = expected[0];
-    while (cursor <= upperBound) {
-      if (expectedSet.has(cursor) && !committed.has(cursor)) {
-        nextCommitSeq = cursor;
-        break;
-      }
-      cursor += 1;
-      if (cursor > upperBound) {
-        nextCommitSeq = upperBound + 1;
-      }
-    }
+  if (expected.some(seq => !Number.isSafeInteger(seq) || seq < 0 || seq >= Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError('Stage1 replay sequence IDs must have a representable safe-integer successor.');
   }
+  const nextCommitSeq = expected.find(seq => !committed.has(seq))
+    ?? (expected.length ? expected[expected.length - 1] + 1 : 0);
 
   return {
     nextCommitSeq,
@@ -309,7 +297,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       ? (envelopeBySeq.get(nextCommitSeq) || null)
       : null;
     const commitLag = Number.isFinite(maxSeenSeq) && Number.isFinite(nextCommitSeq)
-      ? Math.max(0, maxSeenSeq - nextCommitSeq)
+      ? Math.max(0, seqLedger.slotAtOrAfter(maxSeenSeq) - seqLedger.slotAtOrAfter(nextCommitSeq))
       : 0;
     return {
       aborted,
@@ -382,7 +370,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
       if (!waiter || waiter.settled) continue;
       const bypass = Number.isFinite(waiter.orderIndex)
         && Number.isFinite(stateSnapshot.nextCommitSeq)
-        && waiter.orderIndex <= (stateSnapshot.nextCommitSeq + (waiter.bypassWindow || 0));
+        && seqLedger.toSlot(waiter.orderIndex) >= 0
+        && seqLedger.slotAtOrAfter(waiter.orderIndex) <= (seqLedger.slotAtOrAfter(stateSnapshot.nextCommitSeq) + (waiter.bypassWindow || 0));
       if (canResolveGlobal || bypass) {
         settleWaiter(waiter, (entry) => entry.resolve());
       } else {
@@ -432,7 +421,8 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     const stateSnapshot = snapshot();
     const withinBypassWindow = Number.isFinite(orderIndex)
       && Number.isFinite(stateSnapshot.nextCommitSeq)
-      && orderIndex <= (stateSnapshot.nextCommitSeq + bypassWindow);
+      && seqLedger.toSlot(orderIndex) >= 0
+      && seqLedger.slotAtOrAfter(orderIndex) <= (seqLedger.slotAtOrAfter(stateSnapshot.nextCommitSeq) + bypassWindow);
     const blockedByCount = stateSnapshot.pendingCount > maxPendingBeforeBackpressure;
     const blockedByBytes = stateSnapshot.pendingBytes > maxPendingBytes;
     const blockedByLag = stateSnapshot.commitLag > commitLagHard;
@@ -610,14 +600,14 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
           const batch = [];
           let cursor = nextSeq;
           drainPhase = `batch:${nextSeq}`;
-          while (!aborted) {
+          while (!aborted && cursor !== null) {
             const existingEnvelope = envelopeBySeq.get(cursor) || null;
             const stateCode = resolveTerminalStateForDrain(cursor, existingEnvelope);
             if (!TERMINAL_SET.has(stateCode)) break;
             const envelope = existingEnvelope || ensureEnvelope(cursor);
             envelope.terminalState = envelope.terminalState || stateCode;
             batch.push({ seq: cursor, stateCode, envelope });
-            cursor += 1;
+            cursor = seqLedger.nextExpectedSeq(cursor);
           }
 
           if (!batch.length) break;
@@ -816,7 +806,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (aborted) return;
     aborted = true;
     abortError = err instanceof Error ? err : new Error(String(err || 'Ordered appender aborted.'));
-    for (let seq = seqLedger.startSeq; seq <= seqLedger.endSeq; seq += 1) {
+    for (const seq of seqLedger.sequenceIds) {
       const stateCode = seqLedger.getState(seq);
       if (
         stateCode === STAGE1_SEQ_STATE.UNUSED
