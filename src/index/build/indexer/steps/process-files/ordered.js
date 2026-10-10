@@ -679,7 +679,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     return drainPromise;
   };
 
-  const setTerminalEnvelope = (seq, terminalState, { result = null, shardMeta = null, reasonCode = 0 } = {}) => {
+  const setTerminalEnvelope = (seq, terminalState, { result = null, shardMeta = null, reasonCode = 0, lease = null } = {}) => {
     if (!Number.isFinite(seq)) {
       return Promise.reject(new Error(`Invalid ordered seq value: ${seq}`));
     }
@@ -691,6 +691,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (existingState === COMMITTED) {
       return Promise.resolve();
     }
+    if (lease && !isCurrentLease(lease)) return Promise.resolve({ ignored: 'stale_result_owner' });
     if (normalizedSeq > maxSeenSeq) maxSeenSeq = normalizedSeq;
 
     const envelope = ensureEnvelope(normalizedSeq);
@@ -757,6 +758,15 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     if (seqLedger.getState(seq) === STAGE1_SEQ_STATE.DISPATCHED) {
       seqLedger.transition(seq, STAGE1_SEQ_STATE.IN_FLIGHT, { ownerId, nowMs: Date.now() });
     }
+    const slot = seqLedger.toSlot(seq);
+    return slot < 0 ? null : { seq, ownerId: seqLedger.leaseOwner[slot], attempt: seqLedger.attempts[slot] };
+  };
+
+  const isCurrentLease = lease => {
+    if (!lease || !Number.isInteger(lease.seq)) return false;
+    const slot = seqLedger.toSlot(lease.seq);
+    return slot >= 0 && [STAGE1_SEQ_STATE.DISPATCHED, STAGE1_SEQ_STATE.IN_FLIGHT].includes(seqLedger.getState(lease.seq))
+      && seqLedger.leaseOwner[slot] === lease.ownerId && seqLedger.attempts[slot] === lease.attempt;
   };
 
   const heartbeat = (orderIndex, ownerId) => seqLedger.heartbeat(Math.floor(Number(orderIndex)), ownerId, Date.now());
@@ -849,10 +859,11 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
   };
 
   return {
-    enqueue(orderIndex, result, shardMeta) {
+    enqueue(orderIndex, result, shardMeta, lease = null) {
       return setTerminalEnvelope(orderIndex, TERMINAL_SUCCESS, {
         result,
         shardMeta,
+        lease,
         reasonCode: 0
       });
     },
@@ -873,6 +884,7 @@ export const buildOrderedAppender = (handleFileResult, state, options = {}) => {
     },
     noteDispatched,
     noteInFlight,
+    isCurrentLease,
     resetForRetry,
     heartbeat,
     reclaimExpiredLeases,
