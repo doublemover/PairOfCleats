@@ -1,3 +1,4 @@
+import { assertSemanticEnvelope } from '../../../../../contracts/validators/semantic-envelopes.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createArtifactSemanticStore } from '../../../../../semantic/artifact-store.js';
@@ -10,8 +11,14 @@ import { writeJsonObjectFile } from '../../../../../shared/json-stream/json-writ
 export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enabled,
   enqueueWrite, addPieceFile, declareArtifactFamily, signal }) => {
   const descriptors = [...(state.semanticFactsByFile?.values() || [])];
-  const partitions = descriptors.flatMap((entry) => entry.partitions || [entry.partition]).sort((a, b) => a.partitionId.localeCompare(b.partitionId));
+  const descriptorsBySource = new Map(descriptors.map((entry) => [entry.sourceUnitId, entry]));
+  const partitions = descriptors.flatMap((entry) => assertSemanticEnvelope('fileFactsRef', entry).partitions).sort((a, b) => a.partitionId.localeCompare(b.partitionId));
   const generation = { baseBuildId: indexState.buildId, semanticRevision: 0 };
+  for (const descriptor of descriptors) {
+    if (descriptor.storage.generation.baseBuildId !== generation.baseBuildId) {
+      throw Object.assign(new Error('Semantic file descriptor generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
+    }
+  }
   declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', ...SEMANTIC_MEMBER_NAMES] });
   enqueueWrite('semantic-family', async () => {
     const semanticRoot = path.join(outDir, 'semantic');
@@ -39,6 +46,10 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     const registered = new Set();
     for (const partition of partitions) {
       for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources', { signal })) {
+        const descriptor = descriptorsBySource.get(source.sourceUnitId);
+        if (!descriptor || descriptor.sourceHash !== source.byteHash || descriptor.repositoryNamespace !== source.repositoryNamespace) {
+          throw Object.assign(new Error('Semantic descriptor/source identity mismatch.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+        }
         const filePath = path.join(semanticRoot, 'semantic-sources', source.byteHash + '.utf8');
         if (!registered.has(filePath)) { await fs.stat(filePath); register('semantic_source_text', filePath); registered.add(filePath); }
       }

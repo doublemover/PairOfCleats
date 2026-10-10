@@ -28,10 +28,21 @@ head. None is a blanket release-readiness claim.
 
 ## Semantic indexing implementation (2026-10-10)
 
+Latest checkpoint: TypeScript SourceFile/context reuse and bounded semantic
+collection are wired through the production registry; no new Program is created.
+The real fixture now builds both JS and TS and checks constructor operands through
+publication and SQLite (8.72s, `.testLogs/run-1791621998512-3zjxgf`). Strict portable
+file descriptors and detail request/result schemas are implemented. Descriptor
+hashes exclude physical relocation; generation, counts and source joins are checked.
+Golden rejection fixtures pass and are enrolled in the ordered gate lane.
+Recovery testing exposed missing retained-source verification before publication;
+bounded byte/text hash verification now runs before publication and after cleanup.
+Storage/cache and query packages are dependency-ready; staffing expansion remains
+unapproved. Recovery fixtures passed 9/9 (integration receipt `.testLogs/run-1791622065668-lbs9n4`, storage `.testLogs/run-1791622065495-9e7rqt`); TypeScript language checks passed 2/2 (`.testLogs/run-1791621847040-j2q4x1`). Offline runtime evidence schemas remain pending. No runtime capture.
+
 Status: **in progress; foundation and storage checkpoint**, on
 `codex/semantic-indexing-20261010` from PR547 head
-`5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. One solo lead owns all edits;
-additional staffing remains unapproved. The frozen owner specification governs
+`5d33a0a2c3d9e336bc64d85926a4afd0fef57118`. The Astra MEDIUM lead owns shared integration; two explicitly approved GPT-6.1 Sol MEDIUM helpers completed TypeScript syntax and recovery fixtures. The frozen owner specification governs
 identity, UTF-16 coordinates, immutable facts, whole-generation publication and
 offline runtime ingestion. No full-corpus inference restart or benchmark campaign.
 
@@ -61,13 +72,13 @@ The shared detail service pins repository/generation, returns coverage, bounds
 records/bytes/work, and uses request-bound opaque continuations. CLI/MCP/HTTP tools
 are not advertised yet; the tested surface is the shared production library.
 
-Remaining: TypeScript/embedded adapters and compiler bindings; fusion of the
+Remaining: embedded adapters and compiler bindings; fusion of the
 legacy relation-summary walk with structural collection (both currently reuse
 the same parsed AST); complete config
 overrides/targeted policy; complete def-use/control/boundary semantics; shared
 resident admission with sparse indexing disabled; bundle/incremental SQLite route
 integration; durable frontier tasks; runtime evidence schemas/adapters; public
-query schemas and surface wiring. Semantic-enabled file processing currently
+query surface wiring and expanded indexed hydration. Semantic-enabled file processing currently
 refreshes syntax instead of reusing chunk-only cached bundles, preventing absent
 facts from being treated as a semantic cache hit. Durable semantic cache reuse is
 still required. Unsupported analysis phases are explicitly unsupported, not

@@ -6,6 +6,7 @@ import { SEMANTIC_MEMBER_NAMES } from '../../contracts/schemas/semantic-envelope
 export const validateSemanticPartitions = async ({ store, partitions, signal = null }) => {
   const sizes = new Map(partitions.map((p) => [p.partitionId,
     p.members.semantic_records.reduce((sum, piece) => sum + piece.count, 0)]));
+  const verifiedSources = new Set();
   for (const partition of partitions) {
     const hashes = {};
     const checkRef = (ref) => {
@@ -36,6 +37,11 @@ export const validateSemanticPartitions = async ({ store, partitions, signal = n
       hashes[member] = hash.digest('hex');
     }
     if (!source) throw new Error('Missing semantic source manifest.');
+    const sourceKey = canonicalSemanticJson(source);
+    if (!verifiedSources.has(sourceKey)) {
+      await store.verifySource(source, { signal });
+      verifiedSources.add(sourceKey);
+    }
     const actual = semanticHash('pairofcleats.semantic.partition-content.v1', {
       partitionId: partition.partitionId, sourceUnitId: partition.sourceUnitId, producerHash: partition.producerHash,
       contextHash: partition.contextHash, policyHash: partition.policyHash, memberHashes: hashes

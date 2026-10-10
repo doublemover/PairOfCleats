@@ -1,3 +1,4 @@
+import { createTypeScriptSyntaxContext, prepareTypeScriptSyntax } from '../../lang/typescript/syntax-context.js';
 import path from 'node:path';
 import {
   isCLike,
@@ -405,7 +406,10 @@ const MANAGED_LANGUAGE_ADAPTERS = [
     collectImports: collectTypeScriptImports,
     prepare: async ({ text, mode, ext, relPath, options }) => {
       if (mode !== 'code') return {};
-      if (options?.typescript?.importsOnly === true) return {};
+      const typeScriptSyntaxContext = createTypeScriptSyntaxContext();
+      const syntaxOptions = { ...options, ext, relPath, typeScriptSyntaxContext };
+      const tsSyntax = options?.semanticEnabled ? prepareTypeScriptSyntax(text, syntaxOptions) : null;
+      if (options?.typescript?.importsOnly === true) return { tsSyntax, typeScriptSyntaxContext };
       let tsChunks = await buildTreeSitterChunksAsync({
         text,
         languageId: ext === '.tsx' ? 'tsx' : 'typescript',
@@ -417,14 +421,15 @@ const MANAGED_LANGUAGE_ADAPTERS = [
           ...(options && typeof options === 'object' ? options : {}),
           ext,
           relPath,
+          typeScriptSyntaxContext,
           parser: options?.typescript?.parser
         });
       }
-      return { tsChunks };
+      return { tsChunks, tsSyntax, typeScriptSyntaxContext };
     },
     buildRelations: ({ text, context, options, ext }) => {
       if (options?.typescript?.importsOnly === true) {
-        const imports = collectTypeScriptImports(text, { ...options, ext });
+        const imports = collectTypeScriptImports(text, { ...options, ext, typeScriptSyntaxContext: context.typeScriptSyntaxContext });
         return {
           imports,
           exports: [],
@@ -432,7 +437,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
           usages: []
         };
       }
-      return buildTypeScriptRelations(text, context.tsChunks, { ...options, ext });
+      return buildTypeScriptRelations(text, context.tsChunks, { ...options, ext, typeScriptSyntaxContext: context.typeScriptSyntaxContext });
     },
     extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
     flow: ({ text, chunk, options }) => (options?.typescript?.importsOnly === true
@@ -507,4 +512,3 @@ export const LANGUAGE_REGISTRY = [
   ...buildHeuristicAdapters(),
   ...buildConfigFileAdapters()
 ];
-

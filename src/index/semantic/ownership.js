@@ -1,3 +1,4 @@
+import { createSemanticFactsRef } from './file-ref.js';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
@@ -28,7 +29,7 @@ const createOwnershipLookup = (chunks) => {
   } };
 };
 export const collectSemanticOwnership = async ({ facts, chunks, bytes,
-  repositoryNamespace, stagingRoot, diskAccount, policy, signal, scheduleIo }) => {
+  repositoryNamespace, stagingRoot, storage, diskAccount, policy, signal, scheduleIo }) => {
   const lookup = createOwnershipLookup(chunks);
   const source = facts.source;
   const policyHash = semanticHash('semantic.ownership-policy.v1', { chunks: lookup.spans });
@@ -61,6 +62,7 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
       }
     }
     await flush();
-    return { root: facts.root, partition: facts.partition, summary: facts.summary, partitions: [facts.partition, await sink.finalizeSource()] };
+    return createSemanticFactsRef({ source, syntaxPartitionId: facts.partition.partitionId, storage,
+      coverage: facts.coverage, partitions: [facts.partition, await sink.finalizeSource()] });
   } catch (error) { await sink.abort(); throw error; }
 };
