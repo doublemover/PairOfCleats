@@ -57,7 +57,9 @@ frontier store before new semantic credits; overlapping paths/hard links are cou
 once. New immutable ordinary snapshots reserve encoding space before writing.
 The cap is deliberately conservative, including retained ordinary build artifacts;
 there is no implicit cache deletion to satisfy it. Full concurrent transient-byte
-accounting and stale lease-owner integration remain open. The lightweight fixtures
+accounting remains open. The ordered appender now validates the existing ledger's
+owner and attempt token before admitting a worker result; stale retry owners are
+ignored without replacing the active result. The lightweight fixtures
 also exercise a higher-cap retry and sparse, out-of-order duplicate application.
 
 Status: **in progress; compiler/value evidence, offline runtime import and durable

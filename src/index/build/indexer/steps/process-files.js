@@ -2151,8 +2151,9 @@ export const processFiles = async ({
           async (entry, ctx) => {
             const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
             const orderIndex = resolveStableEntryOrderIndex(entry, queueIndex);
+            let stage1Lease = null;
             if (Number.isFinite(orderIndex) && typeof orderedAppender.noteInFlight === 'function') {
-              orderedAppender.noteInFlight(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
+              stage1Lease = orderedAppender.noteInFlight(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
             }
             const stableFileIndex = Number.isFinite(entry?.fileIndex)
               ? entry.fileIndex
@@ -2299,7 +2300,7 @@ export const processFiles = async ({
               shardId: shardMeta?.id || null
             });
             try {
-              return await runWithTimeout(
+              const result = await runWithTimeout(
                 (signal) => {
                   if (stage1ShuttingDown) {
                     const err = new Error('[cleanup] stage1 tail cleanup has started; refusing new process-file task.');
@@ -2345,6 +2346,8 @@ export const processFiles = async ({
                   })
                 }
               );
+              if (result && typeof result === 'object') result.stage1Lease = stage1Lease;
+              return result;
             } catch (err) {
               if (err?.code === 'FILE_PROCESS_TIMEOUT') {
                 logLine(
@@ -2498,6 +2501,7 @@ export const processFiles = async ({
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = orderedBatchEntries[entryIndex];
               const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
+              if (result?.stage1Lease && !orderedAppender.isCurrentLease(result.stage1Lease)) return;
               try {
                 const bypassedForLowYield = Number.isFinite(orderIndex)
                   ? lowYieldBypassOrderIndices.delete(Math.floor(orderIndex))
@@ -2582,7 +2586,7 @@ export const processFiles = async ({
                     durationMs: clampDurationMs(fileMetrics.embeddingMs)
                   });
                 }
-                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta, result.stage1Lease);
                 markOrderedEntryComplete(
                   orderIndex,
                   shardProgress,
