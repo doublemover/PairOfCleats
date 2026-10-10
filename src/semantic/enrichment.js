@@ -17,6 +17,7 @@ import { createEnrichmentBudget, enrichmentError, enrichmentSame, openEnrichment
 
 export const DEFAULT_ENRICHMENT_LIMITS = Object.freeze({ maxTasks: 32, maxBytes: 65536, maxMs: 2000, drainMaxMs: 60000 });
 const sorted = values => [...values].sort();
+const executors = ['bind','localFlow','crossFileFlow'];
 const sameTaskInputs = (old, next) => old.kind === next.kind && old.policyHash === next.policyHash
   && semanticTaskInputHash(old) === semanticTaskInputHash(next)
   && enrichmentSame(sorted(old.sourceUnits), sorted(next.sourceUnits))
@@ -55,7 +56,8 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   const { repoRoot, generation, limits, action } = request;
   const budget = createEnrichmentBudget(limits.maxMs, signal);
   const inventory = await budget.run(() => openEnrichmentInventory({ repoRoot, userConfig, generation, budget }));
-  const ids = request.taskIds.length ? sorted(request.taskIds) : sorted(inventory.tasks.keys()).slice(0, limits.maxTasks);
+  const candidates = action === 'drain' ? [...inventory.tasks.values()].filter(task => executors.includes(task.kind) && task.reason !== 'analysis_dependency_disabled' && !inventory.manifest.completedTasks?.some(row => row.taskId === task.taskId)).map(task => task.taskId) : [...inventory.tasks.keys()];
+  const ids = request.taskIds.length ? sorted(request.taskIds) : sorted(candidates).slice(0, limits.maxTasks);
   if (ids.length > limits.maxTasks) throw enrichmentError('Task selection exceeds its window allowance.', 'ERR_SEMANTIC_ENRICHMENT_BUDGET');
   const tasks = ids.map(id => {
     const task = inventory.tasks.get(id);
@@ -69,9 +71,9 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     tasks: tasks.map(task => ({ taskId: task.taskId, kind: task.kind, baseBuildId: task.baseBuildId,
       inputHash: semanticTaskInputHash(task), policyHash: task.policyHash, targetSetHash: task.targetSetHash,
       executable: false,
-      reason: task.kind !== 'bind' ? 'executor_not_available' : 'dependency_authority_unavailable',
+      reason: !executors.includes(task.kind) ? 'executor_not_available' : task.reason === 'analysis_dependency_disabled' ? 'analysis_dependency_disabled' : 'dependency_authority_unavailable',
       state: inventory.manifest.completedTasks?.some(row => row.taskId === task.taskId) ? 'completed' : 'not-inspected' })),
-    publishedGeneration: null, lineage: [], supportedExecutors: ['bind'], diagnostics: ['whole_generation_publication_only',
+    publishedGeneration: null, lineage: [], supportedExecutors: executors, diagnostics: ['whole_generation_publication_only',
       'full_source_rebuild_no_targeted_parse_reuse'], validation: 'implementation-unverified' };
   if (!request.taskIds.length && inventory.tasks.size > limits.maxTasks) result.diagnostics.push('plan_window_truncated_select_exact_task_ids');
   dependencyAuthority ||= { async verify({ repoRoot, inventory, task, signal }) {
@@ -98,7 +100,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   };
   for (const task of tasks) {
     const authority = await budget.run(() => verifyAuthority(task, 'before-work', budget.signal));
-    if (authority && task.kind === 'bind') {
+    if (authority && executors.includes(task.kind) && task.reason !== 'analysis_dependency_disabled') {
       authorities.set(task.taskId, authority);
       Object.assign(result.tasks.find(row => row.taskId === task.taskId), { executable: true, reason: null });
     }

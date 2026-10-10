@@ -6,6 +6,7 @@ export const SEMANTIC_TRACE_REQUEST_SCHEMA = object({
   repoRoot: text, generation: SEMANTIC_GENERATION_SCHEMA, seed: SEMANTIC_RECORD_REF_SCHEMA,
   direction: { enum: ['upstream', 'downstream'] }
 }, {
+  backend: {enum:['artifact','sqlite']},
   slot: object({ name: { enum: ['input', 'output', 'argument', 'receiver', 'parameter', 'returnValue', 'propertyValue', 'element'] }, ordinal: integer }),
   kinds: { type: 'array', uniqueItems: true, minItems: 1, items: { enum: SEMANTIC_EDGE_KINDS } },
   limits: object({}, { records: bounded(128), edges: bounded(512), depth: bounded(64), bytes: bounded(65536), workMs: bounded(250) }),

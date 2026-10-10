@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4.5",
+  "schemaVersion": "1.4.6",
   "tools": [
     {
       "name": "bootstrap",
@@ -2355,6 +2355,416 @@
       }
     },
     {
+      "name": "semantic_enrichment",
+      "description": "Experimental, qualification pending: plan by default; explicit enqueue persists pending tasks, explicit drain requires verified dependency authority and whole-generation publication. No live retrieval overlays.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseBuildId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "semanticRevision": {
+                "const": 0
+              }
+            },
+            "required": [
+              "baseBuildId",
+              "semanticRevision"
+            ]
+          },
+          "action": {
+            "enum": [
+              "plan",
+              "enqueue",
+              "drain"
+            ],
+            "default": "plan"
+          },
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^st1:[a-f0-9]{64}$"
+            },
+            "maxItems": 32,
+            "uniqueItems": true
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxTasks": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32
+              },
+              "maxBytes": {
+                "type": "integer",
+                "minimum": 4096,
+                "maximum": 1048576
+              },
+              "maxMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30000
+              },
+              "drainMaxMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 600000
+              }
+            },
+            "required": [
+              "maxTasks",
+              "maxBytes",
+              "maxMs",
+              "drainMaxMs"
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "repoRoot",
+          "generation"
+        ]
+      }
+    },
+    {
+      "name": "semantic_explain",
+      "description": "Experimental, qualification pending: explain a pinned static witness and suggest exact source/task plan or enqueue requests. Never executes suggested work automatically.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseBuildId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "semanticRevision": {
+                "const": 0
+              }
+            },
+            "required": [
+              "baseBuildId",
+              "semanticRevision"
+            ]
+          },
+          "seed": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "partitionId": {
+                "type": "string",
+                "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+              },
+              "localId": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "partitionId",
+              "localId"
+            ]
+          },
+          "direction": {
+            "enum": [
+              "upstream",
+              "downstream"
+            ]
+          },
+          "backend": {
+            "enum": [
+              "artifact",
+              "sqlite"
+            ]
+          },
+          "slot": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "enum": [
+                  "input",
+                  "output",
+                  "argument",
+                  "receiver",
+                  "parameter",
+                  "returnValue",
+                  "propertyValue",
+                  "element"
+                ]
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "name",
+              "ordinal"
+            ]
+          },
+          "kinds": {
+            "type": "array",
+            "uniqueItems": true,
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "references",
+                "aliases",
+                "defines",
+                "reads",
+                "writes",
+                "mutates",
+                "returns",
+                "throws",
+                "captures",
+                "flowsTo",
+                "controlNext",
+                "controlTrue",
+                "controlFalse",
+                "exceptional",
+                "callTarget",
+                "constructTarget",
+                "argumentToParameter",
+                "returnToResult",
+                "bindingCandidate",
+                "sharesStorage",
+                "copies",
+                "packs",
+                "transfers",
+                "dispatches",
+                "consumes",
+                "evidenceInput"
+              ]
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "records": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "edges": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 512
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65536
+              },
+              "workMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 250
+              }
+            },
+            "required": []
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "repoRoot",
+          "generation",
+          "seed",
+          "direction"
+        ]
+      }
+    },
+    {
+      "name": "semantic_find",
+      "description": "Experimental, qualification pending: discover pinned structural or compiler-target candidates with bounded coverage. Similarity is not behavioral equivalence.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1
+          },
+          "generation": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseBuildId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "semanticRevision": {
+                "const": 0
+              }
+            },
+            "required": [
+              "baseBuildId",
+              "semanticRevision"
+            ]
+          },
+          "selector": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "field": {
+                    "enum": [
+                      "astKind",
+                      "operation",
+                      "invocationKind"
+                    ]
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "field",
+                  "value"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "target": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "partitionId": {
+                        "type": "string",
+                        "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                      },
+                      "localId": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "partitionId",
+                      "localId"
+                    ]
+                  }
+                },
+                "required": [
+                  "target"
+                ]
+              }
+            ]
+          },
+          "backend": {
+            "enum": [
+              "artifact",
+              "sqlite"
+            ]
+          },
+          "compareTo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "partitionId": {
+                "type": "string",
+                "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+              },
+              "localId": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "partitionId",
+              "localId"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "records": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65536
+              },
+              "workMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 250
+              }
+            },
+            "required": []
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "repoRoot",
+          "generation",
+          "selector"
+        ]
+      }
+    },
+    {
       "name": "semantic_trace",
       "description": "Trace source-pinned value relationships with evidence, boundary requests and explicit incomplete frontiers. Does not execute runtime capture.",
       "inputSchema": {
@@ -2405,6 +2815,12 @@
             "enum": [
               "upstream",
               "downstream"
+            ]
+          },
+          "backend": {
+            "enum": [
+              "artifact",
+              "sqlite"
             ]
           },
           "slot": {

@@ -2,7 +2,7 @@ import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
 import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
 import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
 import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
-import { runToolingPass } from '../../../../type-inference-crossfile/tooling.js';
+import { runToolingPass, prepareToolingPassDocuments } from '../../../../type-inference-crossfile/tooling.js';
 import { getToolingConfig } from '../../../../../shared/dict-utils.js';
 import { mergeCrossFileInferenceView } from './cross-file-view.js';
 import { log } from '../../../../../shared/progress-runtime.js';
@@ -92,14 +92,19 @@ export const runCrossFileInference = async ({
   // Bind immutable source occurrences before the legacy resolver builds target indexes.
   // Reuse this tooling pass for legacy types instead of constructing a second Program.
   if (mode === 'code' && runtime.semanticPolicy?.enabled) {
-    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling });
+    const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
+    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal });
+    const toolingConfig = getToolingConfig(runtime.root);
+    const toolingDocuments = await prepareToolingPassDocuments({ chunks: state.chunks.filter(chunk => semanticSession.fileTextByFile.has(chunk.file?.replace(/\\/g, '/'))), fileTextByFile: semanticSession.fileTextByFile,
+      toolingConfig, semanticSession, semanticLspSession, log });
+    const compilerDocuments = semanticSession.describeCompilerDocuments(toolingDocuments.documents);
+    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling, compilerDocuments });
     await work.run(async ({ signal }) => {
-      const semanticSession = await createSemanticCompilerSession({ state, runtime, signal });
-      const semanticLspSession = await createSemanticLspSession({ state, runtime, signal });
+      semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
       if (semanticSession.enabled || semanticLspSession.enabled) {
         await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
           chunks: state.chunks, entryByUid: new Map(), log,
-          toolingConfig: getToolingConfig(runtime.root), fileTextByFile: semanticSession.fileTextByFile,
+          toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
           abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
         useTooling = false;
       }

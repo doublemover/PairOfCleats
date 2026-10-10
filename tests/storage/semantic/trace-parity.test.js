@@ -1,6 +1,7 @@
 import { assertSemanticOperationIndex } from '../../../src/contracts/validators/semantic-operation-index.js';
 import { operationIndexEntries, compareOperationIndexRows } from '../../../src/semantic/operation-index.js';
 import { createSemanticFindService } from '../../../src/semantic/find.js';
+import { createSemanticExplainService } from '../../../src/semantic/explain.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -53,6 +54,14 @@ try {
   db.exec('BEGIN'); for (const descriptor of partitions) await ingestSemanticPartition({ db, store: base, descriptor }); db.exec('COMMIT');
   db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(fixture.generation));
   const sqlite = createSqliteSemanticStore({ db, repoRoot: fixture.root, indexPath: ':memory:', generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
+  const rows=async(store,member)=>{const result=[];for await(const row of store.iterateRows(fixture.partitionId,member,{batchRows:1}))result.push(row);return result;};
+  assert.deepEqual(await rows(artifact,'semantic_sources'),await rows(sqlite,'semantic_sources'),'source inventory backend parity');
+  assert.deepEqual(await rows(artifact,'semantic_frontier'),await rows(sqlite,'semantic_frontier'),'empty frontier backend parity');
+  const explainRequest={repoRoot:fixture.root,generation:fixture.generation,seed:refs[0],direction:'downstream',limits:{records:2,edges:2,bytes:16384}};
+  const explain=async(store)=>createSemanticExplainService()({store,manifest:{generation:fixture.generation,partitions,completedTasks:[]},request:explainRequest});
+  const artifactExplanation=await explain(artifact),sqliteExplanation=await explain(sqlite);
+  assert.deepEqual(sqliteExplanation.sourceRefs,artifactExplanation.sourceRefs,'source-pinned explain backend parity');
+  assert.deepEqual(sqliteExplanation.enrichment,artifactExplanation.enrichment,'no invented pending work on either backend');
   const selector = {field:'astKind',value:call.data.astKind};
   const findAll = async store => {const service=createSemanticFindService(),records=[];let cursor=null;do {const page=await service({store,request:{repoRoot:fixture.root,generation:fixture.generation,selector,limits:{records:1},cursor}});records.push(...page.records);assert.ok(page.matches.every(match=>match.category==='structural-candidate'));cursor=page.cursor;}while(cursor);return records;};
   assert.deepEqual(await findAll(artifact),await findAll(sqlite),'operation selector pagination parity');

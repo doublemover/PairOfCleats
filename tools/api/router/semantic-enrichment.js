@@ -17,7 +17,7 @@ export const handleSemanticEnrichmentRoute = async ({ req, res, corsHeaders, par
     sendJson(res, 200, { ok: true, result }, corsHeaders || {});
   } catch (error) {
     const failure = classifySemanticEnrichmentError(error);
-    const code = failure.status === 404 ? ERROR_CODES.NOT_FOUND : failure.status < 500 ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL;
+    const code = failure.status === 404 ? ERROR_CODES.NOT_FOUND : failure.status === 403 ? ERROR_CODES.FORBIDDEN : failure.status < 500 ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL;
     sendError(res, failure.status, code, failure.message, { semanticCode: failure.code, ...failure }, corsHeaders || {});
   } finally { req.off('aborted', abort); res.off('close', abort); res.off('error', abort); }
   return true;

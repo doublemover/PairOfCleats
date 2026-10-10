@@ -1,4 +1,7 @@
 import { handleSemanticTraceRoute } from './router/semantic-trace.js';
+import { handleSemanticFindRoute } from './router/semantic-find.js';
+import { handleSemanticExplainRoute } from './router/semantic-explain.js';
+import { handleSemanticEnrichmentRoute } from './router/semantic-enrichment.js';
 import { handleRuntimeEvidenceRoute } from './router/runtime-evidence.js';
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { handleSemanticDetailRoute } from './router/semantic.js';
@@ -363,6 +366,12 @@ export const createApiRouter = ({
 
       if (requestUrl.pathname === '/analysis/semantic-trace' && req.method === 'POST') {
         await handleSemanticTraceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
+        return;
+      }
+      if (req.method === 'POST' && ['/analysis/semantic-find','/analysis/semantic-explain','/analysis/semantic-enrichment'].includes(requestUrl.pathname)) {
+        const handler = requestUrl.pathname.endsWith('semantic-find') ? handleSemanticFindRoute
+          : requestUrl.pathname.endsWith('semantic-explain') ? handleSemanticExplainRoute : handleSemanticEnrichmentRoute;
+        await handler({req,res,corsHeaders,parseJsonBody,resolveRepo});
         return;
       }
 

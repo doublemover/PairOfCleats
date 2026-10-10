@@ -5,9 +5,11 @@ import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
 
 /** Bounded suggestions only. The explicit enrichment service revalidates targets before enqueue. */
-const project = async ({ store, manifest, request, result, signal }) => {
+const project = async ({ store, manifest, request, result, signal, maxMs }) => {
+  manifest ||= store.getExplainInventory?.();
   const sourceRefs = [], suggestions = [], reasons = [];
   const enrichment = { status: 'unavailable', reasons, suggestions };
+  if (manifest?.completedTasks === null) reasons.push('Task completion metadata is unavailable; suggested immutable tasks require an explicit plan status check.');
   if (!manifest || typeof store.iterateRows !== 'function') {
     reasons.push('Pinned source/frontier inventory is unavailable on this store.');
     return { sourceRefs, enrichment };
@@ -15,7 +17,7 @@ const project = async ({ store, manifest, request, result, signal }) => {
   if (canonicalSemanticJson(manifest.generation) !== canonicalSemanticJson(request.generation)) {
     throw Object.assign(new Error('Explanation inventory generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
   }
-  const began = performance.now(), maxMs = Math.min(request.limits?.workMs || 250, 250);
+  const began = performance.now();
   const expired = () => performance.now() - began >= maxMs;
   const sources = new Map(), byPartition = new Map(manifest.partitions.map(row => [row.partitionId, row]));
   let scanned = 0, truncated = false;
@@ -73,9 +75,11 @@ const project = async ({ store, manifest, request, result, signal }) => {
 
 export const projectExplainEnrichment = async input => {
   throwIfAborted(input.signal);
-  const deadline = AbortSignal.timeout(Math.min(input.request.limits?.workMs || 250, 250));
+  const maxMs=Math.max(0,Math.min(input.maxMs??input.request.limits?.workMs??250,250));
+  if(maxMs===0)return {sourceRefs:[],enrichment:{status:'partial',suggestions:[],reasons:['Trace consumed the work allowance; source/frontier projection requires another bounded request.']}};
+  const deadline = AbortSignal.timeout(Math.max(1,Math.ceil(maxMs)));
   const signal = input.signal ? AbortSignal.any([input.signal, deadline]) : deadline;
-  try { return await project({ ...input, signal }); }
+  try { return await project({ ...input, signal, maxMs }); }
   catch (error) {
     throwIfAborted(input.signal);
     if (!deadline.aborted) throw error;

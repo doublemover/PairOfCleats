@@ -19,6 +19,8 @@ const text = [
   'function finish() { let x = 0; try { x = 1; return x; } finally { x = 2; } }',
   'function caught() { let x = 0; try { throw 1; } catch (e) { x = 2; } return x; }',
   'function fields(key: string) { const obj = {meta: {scale: 2}, get effect() { return 9; }}; const alias = obj; alias.meta.scale = 3; const value = obj.meta.scale; return [value, obj[key], obj.effect]; }',
+  'function payload(value: unknown) { try { throw value; } catch (error) { return error; } }',
+  'function mutate(box: {value: number}, input: number) { box.value = input; return box.value; }',
   'function replaced() { try { return 1; } finally { return 2; } }',
   'function suppressed() { try { return 1; } finally { throw 2; } }',
   'function guarded(fn: any, value: any) { let x = 0; fn?.(x = 1); const y = value ?? x; switch(y) { case 0: x = 2; } return x; }'
@@ -71,6 +73,13 @@ try {
   assert.equal(replaced.returns.length, 1, 'finally return overrides the pending try return');
   const suppressed = flow.summaries.find(summary => summary.owner.name?.text === 'suppressed');
   assert.equal(suppressed.returns.length, 0, 'finally throw suppresses the pending return');
+  const payload = flow.summaries.find(summary => summary.owner.name?.text === 'payload');
+  assert.equal(payload.exceptions.length, 0, 'explicit caught payload does not become an escaping exception');
+  const mutate = flow.summaries.find(summary => summary.owner.name?.text === 'mutate');
+  assert.deepEqual(mutate.effects.map(effect => ({parameter: effect.parameter, path: effect.path})), [{parameter: 0, path: ['value']}]);
+  assert.ok(mutate.parameterFields.some(field => field.parameter === 0 && field.path.join('.') === 'value'));
+  assert.ok(flow.fieldAccesses.length > 0);
+  assert.match(flow.coverage[0].reason, /heap_path_alias_accessor_and_escape/);
   const storage = await collectCompilerStorageFlow(argumentsFor);
   const storageStore = createArtifactSemanticStore({ root, repoRoot: 'cfg-fixture', artifactSurfaceVersion: '0.1.0',
     generation: { baseBuildId: 'fixture', semanticRevision: 0 }, partitions: [partition, storage.partition] });

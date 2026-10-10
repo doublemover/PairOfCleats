@@ -1,5 +1,5 @@
 import { createSemanticFindService } from '../../semantic/find.js';
-import { openPublishedSemanticStore } from '../../semantic/published-store.js';
+import { openSemanticQueryStore } from '../../semantic/query-store.js';
 import { normalizeSemanticConfig } from '../../index/semantic/config.js';
 import { assertSemanticFind } from '../../contracts/validators/semantic-find.js';
 import { resolveSemanticGenerationIndexDir } from '../../semantic/generation.js';
@@ -9,7 +9,7 @@ import { canonicalSemanticJson } from '../../index/semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
-export const createSemanticFindRunner = ({ openStore = openPublishedSemanticStore, maxServices = 32 } = {}) => {
+export const createSemanticFindRunner = ({ openStore = openSemanticQueryStore, maxServices = 32 } = {}) => {
   if (!Number.isSafeInteger(maxServices) || maxServices < 1 || maxServices > 64) throw new TypeError('Invalid semantic service cache bound.');
   const services = new Map();
   return async (request, { signal = null, userConfig = null } = {}) => {
@@ -28,10 +28,12 @@ export const createSemanticFindRunner = ({ openStore = openPublishedSemanticStor
       while (services.size > maxServices) services.delete(services.keys().next().value);
     }
     const indexDir = await resolveSemanticGenerationIndexDir({ repoRoot: request.repoRoot, generation: request.generation, userConfig: config });
-    const { store } = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,
-      requireQueryIndex: true });
-    throwIfAborted(signal);
-    return service({ store, request, signal });
+    const opened = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,
+      requireQueryIndex: true, backend: request.backend || 'artifact', signal });
+    try {
+      throwIfAborted(signal);
+      return await service({ store: opened.store, manifest: opened.manifest, request, signal });
+    } finally { opened.close?.(); }
   };
 };
 export const runSemanticFind = createSemanticFindRunner();

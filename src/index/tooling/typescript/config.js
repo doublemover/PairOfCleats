@@ -70,10 +70,15 @@ export const parseTsConfig = (ts, configPath, log, system = ts.sys) => {
   const parsed = ts.parseJsonConfigFileContent(
     configFile.config,
     system,
-    path.dirname(configPath)
+    path.dirname(configPath), undefined, configPath
   );
   if (parsed?.errors?.length) {
     log(`[index] TypeScript tsconfig warnings: ${formatDiagnostic(ts, parsed.errors[0])}`);
   }
   return parsed;
+};
+
+export const selectTypeScriptDocuments = (documents, config = {}) => {
+  const allowed = new Set(['.ts', '.tsx', '.mts', '.cts', ...(config.allowJs !== false ? ['.js', '.mjs', '.cjs', ...(config.includeJsx !== false ? ['.jsx'] : [])] : [])]);
+  return documents.filter(doc => allowed.has(String(doc.effectiveExt || '').toLowerCase()));
 };

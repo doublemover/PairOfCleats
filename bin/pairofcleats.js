@@ -745,9 +745,9 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'semantic') {
     const sub = rest.shift();
-    if (!['detail', 'trace'].includes(sub)) failCli('Use pairofcleats semantic detail|trace --request request.json [--all].');
+    if (!['detail', 'trace','find','explain','enrichment'].includes(sub)) failCli('Use pairofcleats semantic detail|trace|find|explain|enrichment --request request.json.');
     validateArgs(rest, ['request', 'all'], ['request']);
-    return { script: sub === 'trace' ? 'tools/analysis/semantic-trace.js' : 'tools/analysis/semantic-detail.js', extraArgs: [], args: rest };
+    return { script: 'tools/analysis/semantic-' + sub + '.js', extraArgs: [], args: rest };
   }
   if (primary === 'context-pack') {
     const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
