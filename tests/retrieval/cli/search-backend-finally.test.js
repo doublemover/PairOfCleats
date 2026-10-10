@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,11 +26,16 @@ await fs.mkdir(path.dirname(dbPath), { recursive: true });
 const indexDir = getIndexDir(repo, 'code', userConfig);
 await fs.mkdir(indexDir, { recursive: true });
 await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]');
+await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, compatibilityKey: 'backend-lifecycle-fixture', mode: 'code'
+}));
 await writePiecesManifest(indexDir, [
-  { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }
+  { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
+  { name: 'index_state', path: 'index_state.json', format: 'json' }
 ], { compatibilityKey: 'backend-lifecycle-fixture' });
 const writer = new Database(dbPath);
 writer.exec(CREATE_TABLES_SQL);
+writeSqliteIndexFormat(writer);
 writer.pragma(`user_version = ${SCHEMA_VERSION}`);
 writer.prepare('INSERT INTO token_stats (mode, avg_doc_len, total_docs) VALUES (?, ?, ?)').run('code', 1, 0);
 writer.close();

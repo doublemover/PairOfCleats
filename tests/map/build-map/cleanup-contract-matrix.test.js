@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -66,7 +67,7 @@ const cases = [
       await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
       await fsPromises.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
       await fsPromises.writeFile(path.join(repoRoot, 'src', 'a.js'), 'export function alpha() { return 1; }\n');
-      await fsPromises.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({
+      await fsPromises.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         pieces: [
           {
             name: 'repo_map',

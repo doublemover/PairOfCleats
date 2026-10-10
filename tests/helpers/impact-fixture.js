@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,7 +18,7 @@ export const createImpactRepoFixture = ({
   const piecesDir = path.join(indexDir, 'pieces');
   fs.mkdirSync(piecesDir, { recursive: true });
 
-  fs.writeFileSync(path.join(piecesDir, 'manifest.json'), JSON.stringify({
+  fs.writeFileSync(path.join(piecesDir, 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey,
     pieces: [
       { name: 'graph_relations', path: 'pieces/graph_relations.json' },
