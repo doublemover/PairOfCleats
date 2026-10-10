@@ -23,6 +23,8 @@ export const openSemanticQueryStore = async options => {
     db.pragma('query_only = ON');db.pragma('cache_size = -512');
     const store = createSqliteSemanticStore({db,indexPath,repoRoot:options.repoRoot,generation:options.generation,
       artifactSurfaceVersion:published.manifest.artifactSurfaceVersion,manifest:published.manifest});
+    if (store.cursorScope !== published.store.cursorScope) throw Object.assign(new Error('SQLite and retained-source partition inventories differ.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+    store.getSourceSpans = published.store.getSourceSpans;
     return {store,manifest:published.manifest,close:()=>db.close()};
   } catch(error){db.close();throw error;}
 };
