@@ -5,7 +5,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
 
 const TABLES = ['semantic_records', 'semantic_operands', 'semantic_edges',
-  'semantic_ownership', 'semantic_coverage', 'semantic_analysis'];
+  'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_analysis'];
 let savepointSequence = 0;
 
 /**
@@ -17,7 +17,7 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
   if (!db.inTransaction) throw new Error('Semantic ingestion requires a caller-owned transaction.');
   assertSemanticEnvelope('partition', descriptor);
   const partitionId = descriptor.partitionId;
-  for (const member of ['semantic_lookup', 'semantic_frontier']) {
+  for (const member of ['semantic_frontier']) {
     if (descriptor.members[member].some((piece) => piece.count !== 0)) {
       throw new Error('Semantic SQLite ingestion does not yet support nonempty ' + member + '.');
     }
@@ -77,6 +77,10 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
     let coverageOrdinal = 0;
     for await (const row of readRows('semantic_coverage')) {
       insertCoverage.run(partitionId, coverageOrdinal++, row.phase, row.state, canonicalSemanticJson(row));
+    }
+    const insertLookup = db.prepare('INSERT INTO semantic_lookup VALUES (?, ?, ?, ?)');
+    for await (const row of readRows('semantic_lookup')) {
+      insertLookup.run(partitionId, row.id, row.kind, canonicalSemanticJson(row));
     }
     const hashes = Object.fromEntries(SEMANTIC_MEMBER_NAMES.map((name) => [name, memberHashes[name].digest('hex')]));
     const canonicalHash = semanticHash('pairofcleats.semantic.partition-content.v1', {

@@ -8,7 +8,7 @@ import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelop
 import { validateSemanticRecord } from '../contracts/validators/semantic.js';
 
 const FAMILY = {
-  semantic_records: 'node', semantic_operands: 'operand', semantic_edges: 'edge',
+  semantic_lookup: 'lookup', semantic_records: 'node', semantic_operands: 'operand', semantic_edges: 'edge',
   semantic_ownership: 'ownership', semantic_coverage: 'coverage'
 };
 const error = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
@@ -196,6 +196,17 @@ export const createArtifactSemanticStore = ({
     }
     return result;
   };
-  return { generation: { ...generation }, getRecords, getSourceSpans, iterateRows };
+  const getCoverage = async (partitionIds, { signal = null } = {}) => {
+    if (partitionIds.length > maxRecords) throw error('Coverage request exceeds record allowance.');
+    const rows = [];
+    for (const partitionId of new Set(partitionIds)) {
+      for await (const row of iterateRows(partitionId, 'semantic_coverage', { signal })) {
+        if (rows.length >= 512) throw error('Coverage response exceeds allowance.');
+        rows.push(row);
+      }
+    }
+    return rows;
+  };
+  return { repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows };
 
 };

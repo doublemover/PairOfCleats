@@ -11,7 +11,7 @@ import { assertSemanticEnvelope } from '../../../../../contracts/validators/sema
 import { SEMANTIC_MEMBER_NAMES } from '../../../../../contracts/schemas/semantic-envelopes.js';
 
 const MEMBERS = Object.freeze({
-  node: 'semantic_records', operand: 'semantic_operands', edge: 'semantic_edges',
+  lookup: 'semantic_lookup', node: 'semantic_records', operand: 'semantic_operands', edge: 'semantic_edges',
   coverage: 'semantic_coverage', ownership: 'semantic_ownership'
 });
 const fail = (message, code = 'ERR_SEMANTIC_CONTRACT') => Object.assign(new Error(message), { code });

@@ -96,6 +96,7 @@ try {
   db.exec('BEGIN');
   await ingestSemanticPartition({ db, store, descriptor: small });
   db.exec('COMMIT');
+  db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(generation));
   const sqlite = createSqliteSemanticStore({
     db, repoRoot: root, indexPath: path.join(root, 'fixture.sqlite'),
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation

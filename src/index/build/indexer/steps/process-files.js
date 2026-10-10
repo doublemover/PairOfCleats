@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { createSemanticDiskAccount } from '../../artifacts/writers/semantic/partition.js';
+import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
 import {
@@ -956,6 +959,10 @@ export const processFiles = async ({
           if (!chunkUid || stateRef.chunkUidToFile.has(chunkUid)) continue;
           stateRef.chunkUidToFile.set(chunkUid, result.relKey);
         }
+      }
+      if (result.semanticFactsRef) {
+        if (!stateRef.semanticFactsByFile) stateRef.semanticFactsByFile = new Map();
+        stateRef.semanticFactsByFile.set(result.relKey, result.semanticFactsRef);
       }
       if (result.fileRelations) {
         stateRef.fileRelations.set(result.relKey, result.fileRelations);
@@ -2017,6 +2024,11 @@ export const processFiles = async ({
         : null;
       const { processFile } = createFileProcessor({
         root: runtimeRef.root,
+        semantic: runtimeRef.semanticPolicy?.enabled && mode === 'code' ? {
+          policy: runtimeRef.semanticPolicy, stagingRoot: path.join(outDir, 'semantic'),
+          repositoryNamespace: runtimeRef.repoId || getRepoId(runtimeRef.root),
+          diskAccount: state.semanticDiskAccount ||= createSemanticDiskAccount(runtimeRef.semanticPolicy.storage.maxDiskWorkingSetBytes)
+        } : null,
         mode,
         fileTextCache,
         treeSitterScheduler,

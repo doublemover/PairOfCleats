@@ -1,3 +1,5 @@
+import { collectSemanticOwnership } from '../../semantic/ownership.js';
+import { collectFileSemanticFacts } from '../../semantic/collect-file.js';
 import { captureChunkingCheckpoint, resolveChunkingCheckpoint } from '../incremental/stage-reuse.js';
 import { assignSegmentUids, discoverSegments } from '../../segments.js';
 import { toRepoPosixPath } from '../../scm/paths.js';
@@ -257,7 +259,7 @@ export const processFileCpu = async (context) => {
       relKey,
       mode,
       text,
-      languageContextOptions,
+      languageContextOptions: { ...languageContextOptions, semanticEnabled: Boolean(context.semantic) },
       treeSitterEnabled,
       treeSitterLanguagePasses,
       treeSitterConfigForMode,
@@ -335,6 +337,12 @@ export const processFileCpu = async (context) => {
     fileBytes,
     fileLines: totalLines
   });
+  let semanticFactsRef = null;
+  if (context.semantic && mode === 'code') {
+    semanticFactsRef = await collectFileSemanticFacts({ ...context.semantic,
+      bytes: context.sourceBytes, text, ast: languageContext.jsAst, language: lang?.id || 'unknown',
+      relPath: relKey, signal, scheduleIo: runIo });
+  }
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;
   if (mode === 'code' && effectiveRelationsEnabled && lang && typeof lang.buildRelations === 'function') {
@@ -1005,7 +1013,11 @@ export const processFileCpu = async (context) => {
     return chunkResult;
   }
 
+  if (semanticFactsRef) semanticFactsRef = await collectSemanticOwnership({ ...context.semantic,
+    facts: semanticFactsRef, chunks: chunkResult.chunks, bytes: context.sourceBytes,
+    language: lang?.id || 'unknown', relPath: relKey, signal, scheduleIo: runIo });
   return {
+    semanticFactsRef,
     chunks: chunkResult.chunks,
     parseCheckpoint,
     fileRelations,

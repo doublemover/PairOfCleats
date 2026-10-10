@@ -1,3 +1,4 @@
+import { enqueueSemanticArtifacts } from '../artifacts/writers/semantic/family.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -2092,6 +2093,9 @@ export async function writeIndexArtifacts(input) {
       });
     }
   }
+  if (mode === 'code') enqueueSemanticArtifacts({ state, root, outDir, indexState,
+    enabled: indexingConfig.semantic?.enabled === true, enqueueWrite, addPieceFile,
+    declareArtifactFamily, signal: effectiveAbortSignal });
   const fileRelationsCompression = resolveShardCompression('file_relations');
   const fileRelationsOrdering = enqueueFileRelationsArtifacts({
     state,
