@@ -9,6 +9,7 @@ import { canonicalSemanticJson, semanticHash } from '../../semantic/identity.js'
 import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import { createArtifactSemanticStore, resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
 
 const fail = (message, code = 'ERR_SEMANTIC_CACHE_INTEGRITY') => Object.assign(new Error(message), { code });
 const MAX_DESCRIPTOR_BYTES = 32 * 1024 * 1024;
@@ -18,8 +19,11 @@ const dependencyHash = (signatures) => {
     || !HASH.test(signatures.semantic)) {
     throw new TypeError('Semantic cache dependency signatures are required.');
   }
-  const { semanticAnalysis, semanticLayout, ...extraction } = signatures;
-  return semanticHash('pairofcleats.semantic.cache-dependencies.v1', extraction);
+  // Syntax ownership does not depend on lexical analysis, compiler policy or
+  // physical output layout. Those lanes carry their own invalidation keys.
+  return semanticHash('pairofcleats.semantic.cache-dependencies.v2', {
+    parse: signatures.parse || null, semantic: signatures.semantic
+  });
 };
 const cacheKeyFor = (factsRef, signatures) => semanticHash('pairofcleats.semantic.cache-entry.v1', {
   canonicalHash: factsRef.canonicalHash, dependencyHash: dependencyHash(signatures)
@@ -96,6 +100,9 @@ const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAcc
     await fs.copyFile(source, destination, fsConstants.COPYFILE_EXCL);
     const handle = await fs.open(destination, 'r+');
     try { await handle.sync(); } finally { await handle.close(); }
+    await syncParentDirectory(destination);
+    // Part/source directories may have been created by this copy.
+    await syncParentDirectory(path.dirname(destination));
     throwIfAborted(signal);
     copied.add(relative);
   };
@@ -167,8 +174,11 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     diskAccount.reserve(bytes.length); reserved += bytes.length;
     const handle = await fs.open(path.join(temporary, 'descriptor.json'), 'wx');
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    await syncParentDirectory(path.join(temporary, 'descriptor.json'));
     throwIfAborted(signal);
     await fs.rename(temporary, finalRoot);
+    await syncParentDirectory(finalRoot);
+    await syncParentDirectory(cacheRoot);
     return locator;
   } catch (error) {
     await fs.rm(temporary, { recursive: true, force: true });

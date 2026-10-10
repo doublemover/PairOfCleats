@@ -868,6 +868,7 @@ export function createFileProcessor(options) {
       fileChunks,
       parseCheckpoint: cpuResult?.parseCheckpoint || null,
       fileRelations,
+      lexiconFilterStats,
       vfsManifestRows,
       fileEncoding: artifacts.fileEncoding || null,
       fileEncodingFallback: typeof artifacts.fileEncodingFallback === 'boolean'
