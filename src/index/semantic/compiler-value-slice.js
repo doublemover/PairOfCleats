@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -7,9 +8,9 @@ import { throwIfAborted } from '../../shared/abort.js';
 export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes, expressionFor,
   observations, source, bytes, bindingPartition, context, isDefaultLibrary, root, policy, diskAccount, signal }) => {
   if (policy.enrichment.localFlow === 'off' || policy.enrichment.localFlow === 'deferred') return null;
-  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-value-slice', version: '2' },
+  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-value-slice', version: SEMANTIC_ANALYSIS_VERSIONS.valueSlice },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context,
-    dependencySummaryHashes: [], analysisPolicy: { version: 2, fieldPathDepth: policy.enrichment.fieldPathDepth } });
+    dependencySummaryHashes: [], analysisPolicy: { version: Number(SEMANTIC_ANALYSIS_VERSIONS.valueSlice), fieldPathDepth: policy.enrichment.fieldPathDepth } });
   const ref = localId => ({ partitionId, localId }), rows = [], edges = [], constants = new Map();
   let id = 0, modeled = 0, unresolved = 0;
   const functionOwners = new WeakMap(), declarationOwners = new Map();
@@ -23,7 +24,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   };
   const evidence = ref(id++);
   rows.push({ family: 'node', row: { id: evidence.localId, kind: 'evidence', span: null, scope: null,
-    data: { method: 'syntax-and-checker-model', producerId: 'semantic-value-slice', producerVersion: '2',
+    data: { method: 'syntax-and-checker-model', producerId: 'semantic-value-slice', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.valueSlice,
       evidenceKind: 'modeled', sourceRef: source.sourceUnitId, artifactRef: null } } });
   const edge = (kind, from, to, certainty = 'exact-static', callSite = null, operandOrdinal = null) => {
     if (from && to) edges.push({ kind, from, to, callSite, operandOrdinal, contextKey: context.contextKey,
@@ -169,7 +170,7 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
   ];
   for (const row of coverage) rows.push({ family: 'coverage', row });
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
-    producerHash: semanticHash('semantic.value-model-producer.v1', { version: 2 }),
+    producerHash: semanticHash('semantic.value-model-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.valueSlice) }),
     policyHash: semanticHash('semantic.value-model-policy.v1', { fieldPathDepth: policy.enrichment.fieldPathDepth }),
     contextHash: context.contextKey, diskAccount, signal });
   return { partition, coverage };

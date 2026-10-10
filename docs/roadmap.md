@@ -145,6 +145,14 @@ are deliberately conservative until reopen reconciles actual bytes, avoiding dou
 credits from duplicate writers. The focused recovery fixture covers rejection before
 replacement and cleanup after partial cache copy.
 
+Derived replay and deferred task policy identities now include the same producer
+versions used by compiler, flow, Worker, boundary and LSP partition writers.
+Analysis-affecting path/language overrides also invalidate derived replay; resource
+budgets and physical layout leave syntax extraction intact. Context-free deferred
+coverage no longer bypasses analysis invalidation merely because it lacks a compiler
+context. Syntax and known structural ownership remain independently reusable.
+The focused analysis-version identity fixture covers these invalidation boundaries.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

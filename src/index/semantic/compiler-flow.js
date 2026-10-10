@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { compilerInvocationInputs } from './compiler-invocation.js';
 import { createCompilerFieldPaths } from './compiler-flow-fields.js';
 import { buildCompilerFlowGraph } from './compiler-flow-graph.js';
@@ -8,16 +9,16 @@ import { throwIfAborted } from '../../shared/abort.js';
 export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expressionFor, declarationFor,
   source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
   if (['off', 'deferred'].includes(policy.enrichment.localFlow)) return null;
-  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-cfg-flow', version: '7' },
+  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-cfg-flow', version: SEMANTIC_ANALYSIS_VERSIONS.cfgFlow },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context, dependencySummaryHashes: [],
-    analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: 7, fieldPathDepth: policy.enrichment.fieldPathDepth } });
+    analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow), fieldPathDepth: policy.enrichment.fieldPathDepth } });
   const local = key => ({ local: key }), ledger = new Map(), edges = [], operands = [], allReasons = new Set(), summaries = [], fieldAccesses = [], aliases = [], callEffects = [];
   const add = (key, kind, node, data) => {
     if (!ledger.has(key)) ledger.set(key, { kind, span: node ? [node.getStart(sourceFile), node.end] : null, scope: null, data });
     return local(key);
   };
   const evidence = add('evidence', 'evidence', null, { method: 'structured-cfg-reaching-definitions', producerId: 'semantic-flow',
-    producerVersion: '7', evidenceKind: 'static-analysis', sourceRef: source.sourceUnitId, artifactRef: null });
+    producerVersion: SEMANTIC_ANALYSIS_VERSIONS.cfgFlow, evidenceKind: 'static-analysis', sourceRef: source.sourceUnitId, artifactRef: null });
   const edge = (kind, from, to, condition = null, certainty = 'exact-static') => {
     if (from && to) edges.push({ kind, from, to, callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition, evidence, certainty });
   };
@@ -259,7 +260,7 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
     reason: allReasons.size ? [...allReasons].sort().join(';') : null, observedCount: totalBlocks, completedCount: solvedBlocks, frontierRef: null };
   rows.push({ family: 'coverage', row: coverage });
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
-    producerHash: semanticHash('semantic.cfg-producer.v1', { version: 7 }), contextHash: context.contextKey,
+    producerHash: semanticHash('semantic.cfg-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow) }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations, fieldPathDepth: policy.enrichment.fieldPathDepth }), diskAccount, signal });
   return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), fieldAccesses, aliases, callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
 };

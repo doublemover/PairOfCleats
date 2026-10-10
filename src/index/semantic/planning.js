@@ -1,4 +1,4 @@
-import { semanticHash } from './identity.js';
+import { semanticAnalysisPolicyIdentity } from './analysis-versions.js';
 import { throwIfAborted } from '../../shared/abort.js';
 /** Reuse existing walk counts; unknown timing is not a measured zero. */
 export const planSemanticSource = (policy, { sourceUnitId, sourceHash, syntaxPartitionId, metrics = {}, reuseReady = false }) => {
@@ -12,7 +12,7 @@ export const planSemanticSource = (policy, { sourceUnitId, sourceHash, syntaxPar
     if (policy.targetSelectionConfigured && !policy.targets.length) { modes[phase] = 'off'; reasons[phase] = policy.staleTargetCount ? 'target_source_hash_mismatch' : 'source_not_targeted'; continue; }
     reasons[phase] = setting !== 'auto' ? 'explicit_policy' : reuseReady ? 'compatible_tooling_reuse_ready' : measured ? modes[phase] === 'eager' ? 'measured_within_inline_budget' : 'measured_exceeds_inline_budget' : 'analysis_cost_measurement_unavailable';
   }
-  return { sourceUnitId, sourceHash, syntaxPartitionId, matchingRuleIds: policy.matchingRuleIds || [], policyHash: policy.identity?.analysis || semanticHash('semantic.analysis-policy.v1', { enrichment: policy.enrichment }), identity: policy.identity,
+  return { sourceUnitId, sourceHash, syntaxPartitionId, matchingRuleIds: policy.matchingRuleIds || [], policyHash: policy.identity?.analysis || semanticAnalysisPolicyIdentity(policy), identity: policy.identity,
     metrics: { nodes: metrics.nodes || 0, operands: metrics.operands || 0, calls: metrics.calls || 0, observedMs: observed ? metrics.elapsedMs : null, estimatedMs, basis: measured ? 'measured-analysis' : 'reuse-existing-walk', analysisMeasured: measured }, readiness: reuseReady ? 'compatible-tooling-ready' : measured ? 'measured' : 'unknown', modes, reasons };
 };
 /** FIFO admission bounds active writer buffers; producer rows remain one awaited batch per producer. */

@@ -1,4 +1,5 @@
 import { createSemanticFactsRef } from './file-ref.js';
+import { SEMANTIC_OWNERSHIP_VERSION, SEMANTIC_OWNERSHIP_PRODUCER_HASH } from './analysis-versions.js';
 import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
@@ -33,11 +34,11 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
   const lookup = createOwnershipLookup(chunks);
   const source = facts.source;
   const policyHash = semanticHash('semantic.ownership-policy.v1', { chunks: lookup.spans });
-  const partitionId = createAnalysisPartitionId({ pass: { name: 'chunk-ownership', version: '1' },
+  const partitionId = createAnalysisPartitionId({ pass: { name: 'chunk-ownership', version: SEMANTIC_OWNERSHIP_VERSION },
     inputPartitionHashes: [facts.partition.canonicalHash], compilerContext: null,
     dependencySummaryHashes: [], analysisPolicy: { policyHash } });
   const sink = await createSemanticPartitionSink({ stagingRoot, source, sourceBytes: bytes, partitionId,
-    producerHash: semanticHash('semantic.ownership-producer.v1', { version: 1 }), policyHash,
+    producerHash: SEMANTIC_OWNERSHIP_PRODUCER_HASH, policyHash,
     diskAccount, signal, scheduleIo, batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
   const store = createArtifactSemanticStore({ root: stagingRoot, repoRoot: repositoryNamespace,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: { baseBuildId: 'staging', semanticRevision: 0 }, partitions: [facts.partition] });

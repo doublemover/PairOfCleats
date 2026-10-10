@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { createSemanticFactsRef } from './file-ref.js';
@@ -13,11 +14,11 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
   for (const document of documents) {
     throwIfAborted(signal);
     const effective = document.policy || policy, { item, bytes, calls } = document;
-    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-call-flow', version: '4' }, inputPartitionHashes: hashes,
+    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-call-flow', version: SEMANTIC_ANALYSIS_VERSIONS.callFlow }, inputPartitionHashes: hashes,
       compilerContext: { ...group.context, source: item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
       analysisPolicy: documents.map(value => ({ source: value.item.source.sourceUnitId, enrichment: (value.policy || policy).enrichment })).sort((a,b) => a.source.localeCompare(b.source)) });
     const evidence = { partitionId, localId: 0 }, rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
-      data: { method: 'monotone-call-site-may-depend-summary', producerId: 'semantic-flow', producerVersion: '4', evidenceKind: 'static-analysis', sourceRef: item.source.sourceUnitId, artifactRef: null } } }];
+      data: { method: 'monotone-call-site-may-depend-summary', producerId: 'semantic-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.callFlow, evidenceKind: 'static-analysis', sourceRef: item.source.sourceUnitId, artifactRef: null } } }];
     const edges = [], reasons = new Set(); let completed = 0, nextId = 1;
     const mode = effective.enrichment.crossFileFlow;
     const emit = (kind, from, to, call, ordinal = null) => from && to && edges.push({ kind, from, to, callSite: call.occurrence,
@@ -116,7 +117,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       reason: reasons.size ? [...reasons].sort().join(';') : null, observedCount: calls.length, completedCount: completed, frontierRef: null };
     rows.push({ family: 'coverage', row: coverage });
     const partition = await writeSemanticAnalysis({ rows, policy: effective, stagingRoot: item.root, source: item.source, sourceBytes: bytes, partitionId,
-      producerHash: semanticHash('semantic.call-flow-producer.v1', { version: 4 }), contextHash: group.context.contextKey,
+      producerHash: semanticHash('semantic.call-flow-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.callFlow) }), contextHash: group.context.contextKey,
       policyHash: semanticHash('semantic.call-flow-policy.v1', effective.enrichment), diskAccount: state.semanticDiskAccount, signal });
     const current = state.semanticFactsByFile.get(item.file);
     state.semanticFactsByFile.set(item.file, createSemanticFactsRef({ source: item.source, storage: current.storage, syntaxPartitionId: current.syntaxPartitionId,

@@ -10,6 +10,7 @@ import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import { createArtifactSemanticStore, resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
+import { SEMANTIC_OWNERSHIP_PRODUCER_HASH } from '../../semantic/analysis-versions.js';
 
 const fail = (message, code = 'ERR_SEMANTIC_CACHE_INTEGRITY') => Object.assign(new Error(message), { code });
 const MAX_DESCRIPTOR_BYTES = 32 * 1024 * 1024;
@@ -81,7 +82,13 @@ export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleD
       if (source.path !== expectedSourcePath) throw fail('Semantic cache source path changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
     }
   }
-  if (envelope.dependencySignatures.semanticAnalysis !== expectedDependencySignatures.semanticAnalysis && factsRef.partitions.some(partition => partition.contextHash !== null)) throw fail('Derived semantic cache analysis policy changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
+  // Deferred/frontier partitions can have no compiler context too. Only syntax
+  // and its known structural ownership producer are independent of analysis.
+  if (envelope.dependencySignatures.semanticAnalysis !== expectedDependencySignatures.semanticAnalysis
+    && factsRef.partitions.some(partition => partition.partitionId !== factsRef.syntaxPartitionId
+      && (partition.contextHash !== null || partition.producerHash !== SEMANTIC_OWNERSHIP_PRODUCER_HASH))) {
+    throw fail('Derived semantic cache analysis policy changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
+  }
   return { factsRef, store, root, dependencySignatures: envelope.dependencySignatures };
 };
 
