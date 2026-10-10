@@ -3,7 +3,8 @@ import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from '
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { buildCallDependencySummaries } from './compiler-call-summaries.js';
+import { propertyPathsOverlap } from './compiler-property-paths.js';
+import { buildCallDependencySummaries, joinCallDependencySummaries, callInput } from './compiler-call-summaries.js';
 /** Call-site-owned may-depend channels; shared callee facts remain immutable. */
 export const collectCompilerCrossFileFlow = async ({ group, state, policy, signal }) => {
   const documents = group.flowDocuments || [], output = [];
@@ -34,30 +35,43 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       if (!routes.has(key)) routes.set(key, { reads: [], exceptionTargets: [] });
       const value = routes.get(key); value.reads.push(...route.reads); value.exceptionTargets.push(...route.exceptionTargets);
     }
-    const aliases = new Map((document.aliases || []).map(value => [canonicalSemanticJson(value.ref), value]));
+    const aliases = document.aliases || [];
     let remainingEffectWork = 1000000;
     const same = (a,b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
     if (mode === 'off' || mode === 'deferred') reasons.add(mode === 'off' ? 'cross_file_flow_disabled' : 'cross_file_flow_deferred');
     else for (const call of [...calls].sort((a,b) => canonicalSemanticJson(a.occurrence).localeCompare(canonicalSemanticJson(b.occurrence)))) {
       throwIfAborted(signal);
       const result = call.result || call.occurrence, route = routes.get(canonicalSemanticJson(result));
-      let summary = !call.incompleteTargets && call.targets.length === 1 ? summaries.functions.get(canonicalSemanticJson(call.targets[0])) : null;
+      const summary = joinCallDependencySummaries(call,summaries.functions);
+      if(summary?.restEffectsUnsupported) reasons.add('rest_parameter_array_effect_mapping_unresolved');
+      if(summary?.alternatives > 1) reasons.add('call_target_alternative_may_summaries');
+      if(summary?.remainder) reasons.add('call_target_summary_remainder_unknown');
       if (call.incompleteTargets || call.targets.length !== 1) reasons.add('call_target_ambiguous_or_unresolved');
       else if (!summary) reasons.add('target_summary_unavailable');
-      if (summary && (summary.async || summary.generator || call.invocationKind === 'construct')) {
-        reasons.add('async_generator_or_constructor_result_model_required'); summary = null;
+      if(!summary || !summary.complete || call.hasSpread) {
+        const unknown=valueFor('unknown',result);
+        emit('flowsTo',call.receiver,unknown,call);
+        for(let ordinal=0;ordinal<(call.arguments||[]).length;ordinal++)emit('flowsTo',call.arguments[ordinal],unknown,call,ordinal);
+        emit('flowsTo',unknown,result,call);
+        reasons.add('unknown_call_return_remainder');
       }
       if (summary && !summary.complete) reasons.add('callee_local_flow_partial');
       if (summary?.widened) reasons.add('recursive_field_path_depth_widened');
       if (summary && !summary.converged) reasons.add('callee_recursive_summary_incomplete');
+      if(summary && !call.hasSpread) for(const mapping of summary.parameterMappings) {
+        for(let ordinal=0;ordinal<(call.arguments||[]).length;ordinal++) {
+          const rest=mapping.restIndex>=0&&ordinal>=mapping.restIndex;
+          emit(rest?'packs':'argumentToParameter',call.arguments[ordinal],mapping.parameters[rest?mapping.restIndex:ordinal],call,ordinal);
+        }
+      }
       if (summary?.returns.length) {
         // Only the established return channel crosses into the callee context.
         for (const returned of summary.returns) emit('returnToResult', returned, result, call);
         if (!call.hasSpread && effective.enrichment.callContextDepth > 0) {
           const value = valueFor('return', result);
           for (const ordinal of [...summary.dependencies].sort((a,b) => a-b)) {
-            const argument = call.arguments?.[ordinal];
-            if (argument) emit('flowsTo', argument, value, call, ordinal);
+            const argument = callInput(call,ordinal);
+            if (argument) emit('flowsTo', argument, value, call, ordinal < 0 ? null : ordinal);
             else reasons.add('default_or_missing_argument_channel');
           }
           emit('flowsTo', value, result, call);
@@ -69,26 +83,29 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       if (effective.enrichment.callContextDepth === 0) reasons.add('context_insensitive_call_channels');
       if (summary && !call.hasSpread && effective.enrichment.callContextDepth > 0) {
         for (const effect of summary.effectDependencies.values()) {
-          const argument = call.arguments?.[effect.parameter], alias = argument && aliases.get(canonicalSemanticJson(argument));
-          if (!alias) { reasons.add('effect_argument_storage_mapping_unavailable'); continue; }
-          const path = [...alias.path, ...effect.path];
-          if (path.length > effective.enrichment.fieldPathDepth) { reasons.add('effect_field_path_depth_widened'); continue; }
-          const value = valueFor('heap', result, alias.root);
-          for (const ordinal of [...effect.dependencies].sort((a,b) => a-b)) if (call.arguments?.[ordinal]) emit('flowsTo', call.arguments[ordinal], value, call, ordinal);
-          for (const ref of effect.refs) emit('evidenceInput', ref, value, call);
-          if (!effect.dependencies.size) reasons.add('constant_effect_provenance_only');
-          for (const read of route?.reads || []) {
-            throwIfAborted(signal);
-            if (--remainingEffectWork < 0) { reasons.add('call_effect_instantiation_budget'); break; }
-            if (same(read.root, alias.root) && same(read.path, path)) emit('writes', value, read.ref, call);
+          const argument = callInput(call,effect.parameter), candidates = argument ? aliases.filter(value => same(value.ref,argument)) : [];
+          if (!candidates.length) { reasons.add('effect_argument_storage_mapping_unavailable'); continue; }
+          for(const alias of candidates) {
+            const path = [...alias.path, ...effect.path];
+            if (path.length > effective.enrichment.fieldPathDepth) { reasons.add('effect_field_path_depth_widened'); continue; }
+            const value = valueFor('heap', result, alias.root);
+            for (const ordinal of [...effect.dependencies].sort((a,b) => a-b)) if (callInput(call,ordinal)) emit('flowsTo', callInput(call,ordinal), value, call, ordinal < 0 ? null : ordinal);
+            for (const ref of effect.refs) emit('evidenceInput', ref, value, call);
+            if (!effect.dependencies.size) reasons.add('constant_effect_provenance_only');
+            for (const read of route?.reads || []) {
+              throwIfAborted(signal);
+              if (--remainingEffectWork < 0) { reasons.add('call_effect_instantiation_budget'); break; }
+              if (same(read.root, alias.root) && propertyPathsOverlap(read.path, path)) emit('writes', value, read.ref, call);
+            }
+            reasons.add('call_field_effects_alias_accessor_and_order_conservative');
           }
-          reasons.add('call_field_effects_alias_accessor_and_order_conservative');
         }
       }
       // Unknown external/partial calls retain a call-owned unknown effect candidate.
       // These are may effects; no unique storage identity or runtime mutation is asserted.
       if ((!summary || !summary.complete || call.hasSpread) && route?.reads.length) {
         const unknown = valueFor('unknown', result);
+        emit('flowsTo',call.receiver,unknown,call);
         for (let ordinal = 0; ordinal < (call.arguments || []).length; ordinal++) emit('flowsTo', call.arguments[ordinal], unknown, call, ordinal);
         for (const read of route.reads) {
           if (--remainingEffectWork < 0) { reasons.add('call_effect_instantiation_budget'); break; }
@@ -98,8 +115,9 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       }
       if (route?.exceptionTargets.length) {
         const exception = valueFor('unknown', result);
-        const dependencies = summary && !call.hasSpread ? summary.exceptionDependencies : new Set((call.arguments || []).map((_,ordinal) => ordinal));
-        for (const ordinal of [...dependencies].sort((a,b) => a-b)) if (call.arguments?.[ordinal]) emit('flowsTo', call.arguments[ordinal], exception, call, ordinal);
+        if(!summary || !summary.complete) emit('flowsTo',call.receiver,exception,call);
+        const dependencies = summary && !summary.remainder && !call.hasSpread ? summary.exceptionDependencies : new Set((call.arguments || []).map((_,ordinal) => ordinal));
+        for (const ordinal of [...dependencies].sort((a,b) => a-b)) if (callInput(call,ordinal)) emit('flowsTo', callInput(call,ordinal), exception, call, ordinal < 0 ? null : ordinal);
         for (const target of route.exceptionTargets) emit('throws', exception, target, call);
         for (const ref of summary?.exceptions || []) emit('evidenceInput', ref, exception, call);
         reasons.add('call_exception_payload_and_delivery_modeled');

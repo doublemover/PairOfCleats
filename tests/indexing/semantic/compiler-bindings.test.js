@@ -13,6 +13,8 @@ const repo = path.join(temp, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'lib.ts'), 'export function original(x: number) { return x + 1; } export {original as renamed};');
 await fs.writeFile(path.join(repo, 'input.ts'), 'import {renamed as imported} from "./lib"; export function run() { const a = imported(1); const b = imported(2); { const imported = (x: number) => x * 2; imported(3); } return new Float32Array([a,b]); } export function movement(worker: Worker) { const buffer = new ArrayBuffer(32); const view = new Float32Array(buffer, 0, 4); const copy = new Float32Array([1,2]); const capture = () => view; const payload = {values:view, copy}; worker.postMessage(payload, [buffer]); return payload; }');
+const dynamicText='function first(x:number,y:number){return x;} function second(x:number,y:number){return y;} export function alternatives(flag:boolean,a:number,b:number){const pick=flag?first:second;return pick(a,b);} class Base {run(x:number){return x;}} class Derived extends Base {run(x:number){return x+1;}} const receiver:Base=new Derived(); receiver.run(2);';
+await fs.writeFile(path.join(repo,'dynamic.ts'),dynamicText);
 // Exercise eager cold/warm completion under a bounded allowance for the entire build process.
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
   indexing: { ...(process.env.POC_SEMANTIC_FIXTURE_WORKER_POOL === 'off' ? { workerPool: { enabled: false } } : {}), semantic: { enabled: true, profile: 'rich', execution: { compilerAdmission: { maxResidentBytes: 2147483648 } }, enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } }, embeddings: { enabled: false },
@@ -23,21 +25,28 @@ try {
   const indexDir = getIndexDir(repo, 'code', loadUserConfig(repo));
   const manifest = JSON.parse(await fs.readFile(path.join(indexDir, 'semantic_manifest.json'), 'utf8'));
   const { store } = await openPublishedSemanticStore({ indexDir, repoRoot: repo, generation: manifest.generation });
-  const records = new Map(), edges = [], coverage = [];
+  const records = new Map(), edges = [], coverage = [], sourcePaths=new Map();
   for (const partition of manifest.partitions) {
+    for await(const source of store.iterateRows(partition.partitionId,'semantic_sources'))sourcePaths.set(partition.partitionId,source.path);
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.set(partition.partitionId + ':' + row.id, row);
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(row);
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push(row);
   }
   assert.ok([...records.values()].some(row => row.kind === 'binding'), 'compiler bindings persist with type inference disabled');
-  assert.ok(edges.some(row => row.kind === 'aliases'), 'renamed import/re-export chain persists');
-  const calls = edges.filter(row => row.kind === 'callTarget' && records.get(row.to.partitionId + ':' + row.to.localId)?.kind === 'declaration').sort((a,b) => a.from.localId - b.from.localId);
+  assert.ok(edges.some(row => row.kind === 'aliases'), 'renamed import/re-export chain persists across an export occurrence without a declaration row');
+  const calls = edges.filter(row => row.kind === 'callTarget' && sourcePaths.get(row.from.partitionId)==='input.ts' && records.get(row.to.partitionId + ':' + row.to.localId)?.kind === 'declaration').sort((a,b) => a.from.localId - b.from.localId);
   assert.equal(calls.length, 3);
   assert.deepEqual(calls[0].to, calls[1].to);
   assert.notEqual(calls[0].to.partitionId, calls[0].from.partitionId, 'renamed import resolves to library source, not the import binding');
   assert.notDeepEqual(calls[1].to, calls[2].to, 'shadowed binding is distinct');
   assert.notDeepEqual(calls[0].from, calls[1].from, 'same target retains each occurrence');
   assert.ok(edges.some(row => row.kind === 'constructTarget'));
+  const dynamicCalls=edges.filter(edge=>edge.kind==='callTarget'&&sourcePaths.get(edge.from.partitionId)==='dynamic.ts');
+  const callText=edge=>{const span=records.get(edge.from.partitionId+':'+edge.from.localId)?.span;return span?dynamicText.slice(...span):null;};
+  const alternatives=dynamicCalls.filter(edge=>callText(edge)==='pick(a,b)');
+  assert.equal(alternatives.length,2,'production compiler session preserves both callable alternatives');
+  assert.ok(alternatives.every(edge=>edge.certainty==='modeled'));
+  assert.ok(dynamicCalls.some(edge=>callText(edge)==='receiver.run(2)'&&edge.certainty==='modeled'),'production member dispatch stays modeled');
   const returned = edges.filter(row => row.kind === 'returnToResult');
   assert.ok(returned.length >= 3, 'resolved local/imported calls retain return channels: ' + JSON.stringify({ returned, flowCoverage: coverage.filter(row => row.phase === 'crossFileFlow') }));
   assert.ok(returned.every(row => row.callSite && row.certainty === 'modeled'));

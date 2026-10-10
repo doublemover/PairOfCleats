@@ -1,3 +1,4 @@
+import { createCompilerDispatchResolver } from './compiler-dispatch.js';
 import { retainedWasmSource } from './wasm/retained-source.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { compilerInvocationInputs, compilerInvocationTargets } from './compiler-invocation.js';
@@ -65,9 +66,10 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
     if (hashText(text) !== source.textHash) throw new Error('Compiler source snapshot mismatch.');
-    const declarations = new Map();
+    const declarations = new Map(), callables = new Map();
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) {
       if (row.kind === 'declaration' && row.span) declarations.set(spanKey(row.span), { partitionId: syntax.partitionId, localId: row.id });
+      if(row.kind === 'expression' && row.span && ['ArrowFunction','FunctionExpression','MethodDeclaration','Constructor','GetAccessor','SetAccessor'].includes(row.data.astKind)) callables.set(spanKey(row.span),{partitionId:syntax.partitionId,localId:row.id});
     }
     const declarationIds = new Set([...declarations.values()].map(ref => ref.localId));
     for (const partition of descriptor.partitions) for await (const join of store.iterateRows(partition.partitionId, 'semantic_ownership', { signal })) {
@@ -77,7 +79,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     }
     const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: source.mapping ? [...state.semanticFactsByFile].find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId, metrics: { nodes: descriptor.counts?.semantic_records || 0, operands: descriptor.counts?.semantic_operands || 0 } });
-    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, sourceMap, policy: sourcePolicy, plan });
+    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, callables, sourceMap, policy: sourcePolicy, plan });
     texts.set(source.path, text);
   }
   // VFS segmentation reads the exact retained container, never today's working tree.
@@ -209,7 +211,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         const target = group.mappedFiles.get(keyPath(sf.fileName)) || inventory.get(keyPath(sf.fileName));
         if (target) {
           if (hashTextCached(sf) !== target.source.textHash) return null;
-          return target.declarations.get(start + ':' + end) || null;
+          return target.declarations.get(start + ':' + end) || (ts.isFunctionLike(declaration) ? target.callables?.get(declaration.getStart(sf) + ':' + declaration.end) : null) || null;
         }
         // Unindexed repository sources are frontiers, not external library declarations.
         const relative = path.relative(runtime.root, sf.fileName);
@@ -226,6 +228,8 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         return group.sourceHashes.get(key);
       };
       const expressionFor = node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null;
+      const dispatchTargets = createCompilerDispatchResolver({ts,checker,nodes:nodeIndex.nodes(),declarationRef});
+      const dispatchReasons = new Set();
       const selectedScopes = await collectSemanticTargetScopes({ policy, store: item.store, partitionId: item.syntax.partitionId, signal });
       const symbolTargets = symbol => (symbol?.declarations || []).map(declarationRef).filter(Boolean);
       for await (const row of item.store.iterateRows(item.syntax.partitionId, 'semantic_records', { signal })) {
@@ -241,29 +245,34 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         let symbol = node ? checker.getSymbolAtLocation(invocation ? node.expression || node.tag : node) : null;
         let targets = symbolTargets(symbol), aliasTargets = [];
         if (symbol && (symbol.flags & ts.SymbolFlags.Alias)) {
-          const seen = new Set();
+          const seen = new Set(); let aliasOrigins=targets;
           while (symbol && (symbol.flags & ts.SymbolFlags.Alias) && !seen.has(symbol)) {
             seen.add(symbol);
             const next = typeof checker.getImmediateAliasedSymbol === 'function'
               ? checker.getImmediateAliasedSymbol(symbol) || checker.getAliasedSymbol(symbol) : checker.getAliasedSymbol(symbol);
             if (!next || next === symbol) { targets = []; break; }
             const nextTargets = symbolTargets(next);
-            for (const from of targets) for (const to of nextTargets) {
+            for (const from of aliasOrigins) for (const to of nextTargets) {
               const key = canonicalSemanticJson({ from, to }); aliases.set(key, { from, to });
             }
-            aliasTargets.push(...targets); targets = nextTargets; symbol = next;
+            // Export names are occurrence rows, not declarations. Preserve the last
+            // mapped binding across that intermediate checker alias.
+            aliasTargets.push(...targets); if(nextTargets.length)aliasOrigins=nextTargets;
+            targets = nextTargets; symbol = next;
           }
         }
-        let signature = null, incompleteTargets = false, parameterMappingAllowed = false;
+        let signature = null, incompleteTargets = false, parameterMappingAllowed = false, targetCertainty = 'exact-static';
         if (node && invocation) {
           signature = checker.getResolvedSignature(node);
-          const resolved = compilerInvocationTargets({ ts, checker, node, signature, declarationRef, targets });
+          const resolved = compilerInvocationTargets({ ts, checker, node, signature, declarationRef, targets, dispatch:dispatchTargets });
           targets = resolved.targets; incompleteTargets = resolved.incomplete; parameterMappingAllowed = resolved.parameterMappingAllowed;
+          targetCertainty = resolved.certainty;
+          for(const reason of resolved.reasons)dispatchReasons.add(reason);
         }
         const unique = [...new Map(targets.map(target => [canonicalSemanticJson(target), target])).values()];
         observations.push({ node, occurrence, span: row.span, scope: row.scope, targets: unique, invocation,
           invocationKind: row.data.invocationKind || null, unresolved: !node || !unique.length || incompleteTargets,
-          incompleteTargets, parameterMappingAllowed,
+          incompleteTargets, parameterMappingAllowed, targetCertainty,
           aliasTargets, signatureDeclaration: signature?.declaration || null,
           parameterTargets: (signature?.declaration?.parameters || []).map(parameter => parameter.dotDotDotToken ? null : declarationRef(parameter)) });
       }
@@ -283,8 +292,8 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       }
       const expand = target => target.externalKey ? externalRefs.get(target.externalKey) : target;
       const edges = [];
-      const edge = (kind, from, to, callSite = null, operandOrdinal = null) => edges.push({ kind, from, to, callSite, operandOrdinal,
-        contextKey: context.contextKey, condition: null, evidence, certainty: 'exact-static' });
+      const edge = (kind, from, to, callSite = null, operandOrdinal = null, certainty = 'exact-static') => edges.push({ kind, from, to, callSite, operandOrdinal,
+        contextKey: context.contextKey, condition: null, evidence, certainty });
       let completedCount = 0;
       for (const observation of observations.sort((a, b) => a.occurrence.localId - b.occurrence.localId)) {
         const targets = observation.targets.map(expand);
@@ -323,7 +332,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         for (const target of targets) {
           edge('bindingCandidate', binding, target);
           edge(observation.invocation ? observation.invocationKind === 'construct' ? 'constructTarget' : 'callTarget' : 'references',
-            observation.occurrence, target, observation.invocation ? observation.occurrence : null);
+            observation.occurrence, target, observation.invocation ? observation.occurrence : null, null, observation.targetCertainty);
         }
       }
       for (const { from, to } of aliases.values()) edge('aliases', expand(from), expand(to));
@@ -331,8 +340,8 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       for (let id = 0; id < uniqueEdges.length; id += 1) rows.push({ family: 'edge', row: { id, ...uniqueEdges[id][1] } });
       for (const [value, id] of names) rows.push({ family: 'lookup', row: { kind: 'name', id, value } });
       const coverage = { scope: { sourceUnitId: item.source.sourceUnitId }, phase: 'bindings',
-        state: !policy.targetSelectionConfigured && completedCount === observations.length ? 'complete' : 'partial',
-        reason: policy.targetSelectionConfigured ? 'targeted_binding_scope_widened_or_selected_only' : completedCount === observations.length ? null : 'unresolved_or_unmapped_checker_occurrence',
+        state: !policy.targetSelectionConfigured && !dispatchReasons.size && completedCount === observations.length ? 'complete' : 'partial',
+        reason: [...new Set([...dispatchReasons,...(policy.targetSelectionConfigured ? ['targeted_binding_scope_widened_or_selected_only'] : completedCount === observations.length ? [] : ['unresolved_or_unmapped_checker_occurrence'])])].sort().join(';') || null,
         observedCount: observations.length, completedCount, frontierRef: null };
       rows.push({ family: 'coverage', row: coverage });
       const bytes = await fs.readFile(path.join(item.root, 'semantic-sources', item.source.byteHash + '.utf8'));
@@ -358,7 +367,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         expressionFor,
         declarationFor: declaration => {
           const node = declaration?.name || declaration;
-          return node ? item.declarations.get(node.getStart(sourceFile) + ':' + node.end) || null : null;
+          return node ? item.declarations.get(node.getStart(sourceFile) + ':' + node.end) || (ts.isFunctionLike(declaration) ? item.callables.get(declaration.getStart(sourceFile)+':'+declaration.end) : null) || null : null;
         }, source: item.source, bytes, bindingPartition: partition, context,
         root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (flow) {
@@ -369,6 +378,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),
           calls: observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence, span: observation.span,
             targets: observation.targets.map(expand), incompleteTargets: observation.incompleteTargets, invocationKind: observation.invocationKind,
+            receiver: observation.node && (ts.isPropertyAccessExpression(observation.node.expression || observation.node.tag) || ts.isElementAccessExpression(observation.node.expression || observation.node.tag)) ? expressionFor((observation.node.expression || observation.node.tag).expression) : null,
             arguments: compilerInvocationInputs(ts, observation.node).runtimeArguments.map(expressionFor), result: expressionFor(observation.node),
             hasImplicitArguments: compilerInvocationInputs(ts, observation.node).implicitTemplateObject,
             hasSpread: observation.node?.arguments?.some(ts.isSpreadElement) || false })) });
