@@ -14,7 +14,7 @@ try {
   const work = await prepareSemanticBindingWork({ state: fixture.state, runtime: fixture.runtime });
   assert.equal(work.task.kind, 'bind'); assert.equal(work.task.sourceUnits.length, 2);
   let executed = 0;
-  assert.deepEqual(await work.run(() => { executed += 1; }), { ran: false, reason: 'manual_deferred_binding_task' });
+  assert.deepEqual(await work.run(() => { executed += 1; }), { ran: false, reason: 'manual_deferred_compiler_tasks', receipts: [] });
   assert.equal(executed, 0); assert.equal(fixture.state.semanticCompletedTasks, undefined);
   const control = fixture.openControl();
   try {
@@ -25,7 +25,7 @@ try {
       coverageToProduce: ['crossFileFlow'], taskId: createSemanticTaskId({ kind: 'crossFileFlow', inputHashes: work.task.inputHashes,
         policyHash: work.task.policyHash, targetSetHash: 'a'.repeat(64) }) };
     control.enqueue({ task: unrelated, durableInputHashes: new Set(work.task.inputHashes) });
-    const [lease] = control.leaseReady({ baseBuildId: work.task.baseBuildId, taskId: work.task.taskId, owner: 'exact-test', now: 1, leaseMs: 10 });
+    const [lease] = control.leaseReady({ baseBuildId: work.task.baseBuildId, taskId: work.task.taskId, owner: 'exact-test', now: 1, leaseMs: 10, dependencyHashes: new Map(work.task.dependencies.map(row => [row.dependencyKey,row.expectedHash])) });
     assert.equal(lease.taskId, work.task.taskId);
     assert.equal(control.getTask(unrelated.taskId).state, 'pending');
     assert.equal(control.getTask(unrelated.taskId).attempt, 0, 'exact binding lease never consumes unrelated ready CFG work');
@@ -40,7 +40,7 @@ try {
     generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions: primary.partitions });
   const taskRows = [];
   for (const partition of primary.partitions) for await (const row of store.iterateRows(partition.partitionId, 'semantic_frontier')) taskRows.push(row);
-  assert.deepEqual(taskRows, [work.task], 'durable immutable descriptor exists before control-store execution');
+  assert.deepEqual(taskRows, work.tasks, 'durable immutable descriptor exists before control-store execution');
 
   fixture.runtime.semanticPolicy.enrichment.localFlow = 'deferred';
   const analysisTasks = await persistSemanticAnalysisFrontiers({ state: fixture.state, runtime: fixture.runtime });

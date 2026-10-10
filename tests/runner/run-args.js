@@ -22,6 +22,7 @@ export const parseArgs = () => {
     .option('no-color', { type: 'boolean', default: false })
     .option('jobs', { type: 'number' })
     .option('retries', { type: 'number' })
+    .option('native-status-redo', { type: 'boolean', default: true, describe: 'Rerun native failure exit statuses once; disable to preserve first-failure qualification.' })
     .option('timeout-ms', { type: 'number' })
     .option('allow-timeouts', { type: 'boolean', default: false })
     .option('fail-fast', { type: 'boolean', default: false })

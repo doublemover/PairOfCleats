@@ -661,7 +661,7 @@ const main = async () => {
     failFast: argv['fail-fast'],
     timeoutGraceMs: DEFAULT_TIMEOUT_GRACE_MS,
     skipExitCode: SKIP_EXIT_CODE,
-    redoExitCodes: REDO_EXIT_CODES,
+    redoExitCodes: argv['native-status-redo'] ? REDO_EXIT_CODES : [],
     maxOutputBytes: MAX_OUTPUT_BYTES,
     borderPattern: BORDER_PATTERN,
     laneLabel,

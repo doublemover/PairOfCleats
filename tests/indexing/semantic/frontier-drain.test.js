@@ -35,6 +35,20 @@ try {
   const recovered = await drainSemanticFrontier({ ...options, findPublished: async ({ task: selected, inputHash }) => ({
     taskId: selected.taskId, policyHash: selected.policyHash, baseBuildId: selected.baseBuildId, inputHash, manifestHash: 'e'.repeat(64), publishedBuildId: 'already-published' }) });
   assert.equal(recovered.recovered, 1); assert.equal(called, 1, 'recover published outputs without rerunning analysis');
+  const nextTask = hash => { const next={...task,targetSetHash:hash.repeat(64)};next.taskId=createSemanticTaskId({kind:next.kind,inputHashes:next.inputHashes,policyHash:next.policyHash,targetSetHash:next.targetSetHash});control.enqueue({task:next,durableInputHashes:new Set(next.inputHashes)});return next; };
+  const cancelled=nextTask('1'), controller=new AbortController();controller.abort(new Error('already cancelled'));
+  await assert.rejects(drainSemanticFrontier({...options,signal:controller.signal}),{name:'AbortError'});
+  assert.equal(control.getTask(cancelled.taskId).attempt,0,'pre-abort never consumes a lease');
+  const during=new AbortController();
+  await assert.rejects(drainSemanticFrontier({...options,maxTasks:1,signal:during.signal,handlers:{localFlow:async()=>{during.abort(new Error('mid-work cancellation'));return {fact:'derived'};}}}),{name:'AbortError'});
+  assert.equal(control.getTask(cancelled.taskId).state,'cancelled');assert.equal(control.getOutput(cancelled.taskId),null);
+  const expired=nextTask('2');let clock=100, publishedExpired=false;
+  const expiration=await drainSemanticFrontier({...options,maxTasks:1,now:()=>clock,handlers:{localFlow:async()=>{clock=5101;return {fact:'derived'};}},publishGeneration:async()=>{publishedExpired=true;throw new Error('expired work must never publish');}});
+  assert.equal(expiration.failed,1);assert.equal(publishedExpired,false);assert.equal(control.getOutput(expired.taskId),null);
+  const [restarted]=control.leaseReady({baseBuildId:'base',taskId:expired.taskId,owner:'restart',now:clock,leaseMs:5000,limit:1});
+  assert.equal(restarted.taskId,expired.taskId);assert.equal(restarted.attempt,2,'restart reclaims an expired original task without retargeting');
+  control.release({taskId:expired.taskId,owner:'restart',now:clock,reason:'fixture complete',cancelled:true});
+  assert.equal(control.getTask(task.taskId).state,'completed','failure and cancellation preserve earlier publication');
   const unavailable = await drainSemanticFrontier({ control: { available: false } });
   assert.equal(unavailable.status, 'unavailable');
   console.log('explicit frontier drain uses existing scheduler and acknowledges only verified publication');

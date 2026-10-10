@@ -33,6 +33,7 @@ export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, o
         return handler({ task, inputHash: lease.inputHash, signal });
       });
       throwIfAborted(signal);
+      control.renew({ taskId: task.taskId, owner, now: now(), leaseMs });
       const publication = await publishGeneration({ task, inputHash: lease.inputHash, output, signal });
       await control.acknowledgePublished({ taskId: task.taskId, owner, publication, verifyPublication, now });
       result.completed += 1;

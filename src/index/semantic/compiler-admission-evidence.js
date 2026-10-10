@@ -56,14 +56,16 @@ export const persistCompilerAdmissionDeferral = async ({ state, runtime, selecte
     for await (const row of store.iterateRows(current.syntaxPartitionId, 'semantic_sources', { signal })) source = row;
     const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-admission', version: '1' },
       inputPartitionHashes: item.task.inputHashes, compilerContext: null, dependencySummaryHashes: [],
-      analysisPolicy: { taskId: item.task.taskId, decisionHash: semanticHash('semantic.compiler-admission-decision.v1', decision) } });
+      analysisPolicy: { taskId: item.task.taskId, sourceUnitId: source.sourceUnitId, decisionHash: semanticHash('semantic.compiler-admission-decision.v1', decision) } });
     const coverage = { scope: { sourceUnitId: source.sourceUnitId }, phase: item.phase, state: 'deferred',
       reason: decision.reason, observedCount: null, completedCount: 0, frontierRef: item.task.taskId };
     const partition = await writeSemanticAnalysis({ policy: item.policy, stagingRoot: item.root, source,
       sourceBytes: await fs.readFile(path.join(item.root, 'semantic-sources', source.byteHash + '.utf8')), partitionId,
       producerHash: semanticHash('semantic.compiler-admission-producer.v1', { version: 1 }), policyHash: decision.policyHash,
       diskAccount: state.semanticDiskAccount, signal, rows: [{ family: 'coverage', row: coverage }] });
+    const previous = current.partitions.find(row => row.partitionId === partition.partitionId);
+    if (previous && previous.canonicalHash !== partition.canonicalHash) throw new Error('Compiler admission coverage identity conflict.');
     state.semanticFactsByFile.set(file, createSemanticFactsRef({ source, storage: current.storage,
-      syntaxPartitionId: current.syntaxPartitionId, partitions: [...current.partitions, partition], coverage: [...current.coverage, coverage] }));
+      syntaxPartitionId: current.syntaxPartitionId, partitions: [...current.partitions.filter(row => row.partitionId !== partition.partitionId), partition], coverage: [...current.coverage, coverage] }));
   }
 };

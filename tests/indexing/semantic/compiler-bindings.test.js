@@ -13,8 +13,9 @@ const repo = path.join(temp, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'lib.ts'), 'export function original(x: number) { return x + 1; } export {original as renamed};');
 await fs.writeFile(path.join(repo, 'input.ts'), 'import {renamed as imported} from "./lib"; export function run() { const a = imported(1); const b = imported(2); { const imported = (x: number) => x * 2; imported(3); } return new Float32Array([a,b]); } export function movement(worker: Worker) { const buffer = new ArrayBuffer(32); const view = new Float32Array(buffer, 0, 4); const copy = new Float32Array([1,2]); const capture = () => view; const payload = {values:view, copy}; worker.postMessage(payload, [buffer]); return payload; }');
+// Exercise eager cold/warm completion under a bounded allowance for the entire build process.
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-  indexing: { ...(process.env.POC_SEMANTIC_FIXTURE_WORKER_POOL === 'off' ? { workerPool: { enabled: false } } : {}), semantic: { enabled: true, profile: 'rich', enrichment: { crossFileFlow: 'eager' } }, embeddings: { enabled: false },
+  indexing: { ...(process.env.POC_SEMANTIC_FIXTURE_WORKER_POOL === 'off' ? { workerPool: { enabled: false } } : {}), semantic: { enabled: true, profile: 'rich', execution: { compilerAdmission: { maxResidentBytes: 2147483648 } }, enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 try {
@@ -72,7 +73,14 @@ try {
   assert.notEqual(warm.generation.baseBuildId, manifest.generation.baseBuildId);
   assert.deepEqual(warm.partitions.filter(p => p.partitionId.startsWith('sy1:')).map(p => p.canonicalHash).sort(),
     manifest.partitions.filter(p => p.partitionId.startsWith('sy1:')).map(p => p.canonicalHash).sort(), 'warm reuse retains exact immutable syntax');
-  assert.notEqual(warm.completedTasks[0].taskId, manifest.completedTasks[0].taskId, 'new generation creates its own target request without retargeting old task');
+  const {store:warmStore}=await openPublishedSemanticStore({indexDir:warmDir,repoRoot:repo,generation:warm.generation});
+  const warmBindings=[],warmTargets=[];
+  for(const partition of warm.partitions){
+    for await(const row of warmStore.iterateRows(partition.partitionId,'semantic_records'))if(row.kind==='binding')warmBindings.push(JSON.stringify(row));
+    for await(const row of warmStore.iterateRows(partition.partitionId,'semantic_edges'))if(row.kind==='callTarget')warmTargets.push(JSON.stringify(row));
+  }
+  assert.deepEqual(warmBindings.sort(),[...records.values()].filter(row=>row.kind==='binding').map(row=>JSON.stringify(row)).sort(),'warm cache retains checker observations without requiring redundant task execution');
+  assert.deepEqual(warmTargets.sort(),edges.filter(row=>row.kind==='callTarget').map(row=>JSON.stringify(row)).sort(),'warm cache retains exact call targets');
   assert.ok(warm.completedTasks.every(receipt => receipt.baseBuildId === warm.generation.baseBuildId));
 
 } finally { await fs.rm(temp, { recursive: true, force: true }); }

@@ -56,6 +56,44 @@ crash campaign, native-worker diagnosis or benchmark was run. The operating guid
 generated inventories are refreshed. Further flow and production qualification remain
 parked after this bounded publication checkpoint.
 
+Repair qualification after `8ad892e4` (2026-10-10): the existing two helpers and
+lead ran bounded Node26 selections with 30-second test limits, zero retries and
+`--native-status-redo=false`. Fixes reconnect field writes/reads to the heap-flow
+ledger (flow producer 4), recognize checker-owned Node web-global timer declarations
+(boundary producer 2), revalidate leases before publication, normalize Windows probe
+result paths, and make deferred coverage partitions source-qualified and replay-safe.
+The runner now exposes the explicit native-redo switch; default behavior is unchanged.
+
+Focused query/storage, call-summary/flow/boundary, phase drain, cancellation, expired
+lease/restart and publication recovery checks pass. CLI/MCP/HTTP detail, find, explain
+and trace are exercised; these public-service fixtures disable workers to isolate
+query contracts. NodeNext/Bundler/project-option/VFS resolver constructions pass.
+The worker-enabled embedded cold/warm mapping fixture passes (13.9s). The compiler
+cold/warm fixture passes with workers disabled and an explicit bounded 2 GiB fixture
+allowance (19.2s); its default 512 MiB allowance correctly deferred warm work after a
+process-wide high-water receipt. Warm assertions now compare actual bindings and
+call targets rather than require redundant task completion.
+
+**Native crash remains unresolved.** Normal worker-enabled compiler builds still
+produce raw `3221225477 / 0xC0000005`. A ProcDump capture with the matching official
+Node26.8.1 PDB shows `C0000374` heap corruption in V8 free-list/page release during
+worker-isolate disposal. This identifies the failing native operation, not the
+origin of the corruption. Ready workers also fail; isolated import/startup and pool
+teardown probes pass. Serial termination and optional-native-module isolation do not
+reliably prevent the failure. No worker mitigation or runtime/hardware/ABI blame is
+claimed. A final normal worker-enabled compiler cold/warm run passed in 20.3s
+(`.testLogs/run-1791636659811-fsz05n`); that isolated pass and the embedded pass do
+not close the preceding intermittent failures. Repository bootstrap, apply-patches,
+native repair/verify and `npm run verify` were not run in this repair span. The local
+Node26 SQLite provision is not evidence that those prerequisites completed; native
+attribution remains provisional pending their validation.
+Receipts, matching symbols, dump and analysis are retained under
+`temp/semantic-indexing/native-repair-*` and the original `.testLogs` attempt paths.
+Qualification inventory: `temp/semantic-indexing/repair-qualification.json`.
+No full CI, broad benchmark, automatic capture or feature expansion was run. Five
+additional storage cases and broad release checks remain unrun. This is a bounded
+repair handoff with a native blocker, not completed frozen-spec acceptance.
+
 Implemented with focused evidence:
 
 - Source-owned JS/TS structure, exact UTF-16 coordinates, retained immutable source,

@@ -22,7 +22,7 @@ await fs.mkdir(repoRoot);
 const input = path.join(repoRoot, 'input.js');
 await fs.writeFile(input, 'export function run(input) { return f(1,2,3,4,5,{items:[input,,3]}); }');
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-  indexing: { semantic: { enabled: true }, embeddings: { enabled: false },
+  indexing: { workerPool: { enabled: false }, semantic: { enabled: true }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 let server, router;

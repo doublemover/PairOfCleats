@@ -18,7 +18,16 @@ const argsKey = (method, args) => {
   if (typeof normalized[0] === 'string') normalized[0] = process.platform === 'win32' ? path.resolve(normalized[0]).toLowerCase() : path.resolve(normalized[0]);
   return canonicalSemanticJson({ method, args: normalized });
 };
-const resultKey = (method, result) => method === 'readFile' ? (result === undefined ? null : digest(result)) : result ?? null;
+const resultKey = (method, result) => {
+  if (method === 'readFile') return result === undefined ? null : digest(result);
+  // Filesystem probe authority follows the host's path comparison semantics.
+  // Windows replay normalizes arguments; normalize returned paths equivalently.
+  if (method === 'realpath' && typeof result === 'string') return pathIdentity(result);
+  if (['readDirectory', 'getDirectories'].includes(method) && Array.isArray(result)) {
+    return result.map(value => process.platform === 'win32' ? value.toLowerCase() : value);
+  }
+  return result ?? null;
+};
 export const compilerInventoryHash = inventory => semanticHash(COMPILER_DEPENDENCY_KEY, inventory);
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
