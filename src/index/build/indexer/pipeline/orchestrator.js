@@ -487,7 +487,8 @@ export const runPipelineStageOrchestrator = async ({
   await pruneIncrementalState({
     runtime: runtimeRef,
     incrementalState,
-    seenFiles
+    seenFiles,
+    state
   });
 
   log(`   → Indexed ${state.chunks.length} chunks, total tokens: ${state.totalTokens.toLocaleString()}`);

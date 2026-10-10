@@ -6,10 +6,12 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { assertSemanticEnrichment } from '../contracts/validators/semantic-enrichment.js';
 import { getRepoCacheRoot, loadUserConfig } from '../shared/dict-utils.js';
-import { atomicWriteJson } from '../shared/io/atomic-write.js';
+import { writeSemanticJson } from '../index/semantic/disk-writes.js';
+import { reopenSemanticDiskAccount } from '../index/build/incremental/working-set.js';
+import { normalizeSemanticConfig } from '../index/semantic/config.js';
 import { semanticHash } from '../index/semantic/identity.js';
-import { semanticTaskInputHash, openSemanticFrontier } from '../index/semantic/frontier.js';
-import { reconcilePublishedSemanticBindingWork } from '../index/semantic/build-frontier.js';
+import { semanticTaskInputHash } from '../index/semantic/frontier.js';
+import { reconcilePublishedSemanticBindingWork, openRepositorySemanticControl } from '../index/semantic/build-frontier.js';
 import { createSemanticEnrichmentGrant } from '../index/semantic/enrichment-context.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { createEnrichmentBudget, enrichmentError, enrichmentSame, openEnrichmentInventory,
@@ -27,17 +29,6 @@ const syntaxInventory = inventory => inventory.syntax.map(row => ({ sourceUnitId
 const boundedResult = (result, limits) => {
   if (Buffer.byteLength(JSON.stringify(result)) > limits.maxBytes) throw enrichmentError('Enrichment response exceeds its byte allowance.', 'ERR_SEMANTIC_ENRICHMENT_BUDGET');
   return assertSemanticEnrichment('result', result);
-};
-const openControl = async ({ repoRoot, userConfig, Database, maxAttempts = 3 }) => {
-  if (Database === undefined) {
-    try { Database = (await import('better-sqlite3')).default; }
-    catch (error) { if (['ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND'].includes(error.code)) return { available: false }; throw error; }
-  }
-  if (typeof Database !== 'function') return { available: false };
-  const cacheRoot = getRepoCacheRoot(repoRoot, userConfig), directory = path.join(cacheRoot, 'semantic-frontier');
-  await fs.mkdir(directory, { recursive: true });
-  if (!isWithinRoot(toRealPathSync(directory), toRealPathSync(cacheRoot))) throw enrichmentError('Frontier control directory escapes repository cache.');
-  return openSemanticFrontier({ Database, filename: path.join(directory, 'control.sqlite'), maxAttempts });
 };
 const readJournal = async filename => {
   try {
@@ -116,7 +107,10 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   const cacheRoot = toRealPathSync(getRepoCacheRoot(repoRoot, userConfig));
   if (!isWithinRoot(toRealPathSync(directory), cacheRoot)) throw enrichmentError('Drain journal escapes its repository cache.');
   const journalPath = path.join(directory, requestId + '.json'), previous = await readJournal(journalPath);
-  const control = await openControl({ repoRoot, userConfig, Database });
+  const diskAccount = (await reopenSemanticDiskAccount({ limit: normalizeSemanticConfig(userConfig.indexing?.semantic).storage.maxDiskWorkingSetBytes, roots: [cacheRoot], signal })).account;
+  const runtime = { root: repoRoot, userConfig };
+  if (Database !== undefined) runtime.semanticFrontierDatabase = Database;
+  const control = await openRepositorySemanticControl(runtime, diskAccount, signal);
   if (!control.available) { result.status = 'unavailable'; result.diagnostics.push('sqlite_control_store_unavailable'); return boundedResult(result, limits); }
   let current = null, journal = null, renewal = null, primaryFailure = null;
   const owner = 'manual-drain:' + randomUUID(), leases = new Map();
@@ -124,7 +118,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   signal?.addEventListener('abort', abort, { once: true });
   if (signal?.aborted) abort();
   let deadline = null;
-  const writeJournal = async () => { assertSemanticEnrichment('journal', journal); await atomicWriteJson(journalPath, journal, { spaces: 0 }); };
+  const writeJournal = async () => { assertSemanticEnrichment('journal', journal); await writeSemanticJson({ filename: journalPath, value: journal, diskAccount, signal }); };
   const recover = async candidate => {
     if (!candidate?.newBuildRoot || !candidate.lineage.length) return false;
     if (!candidate.publishedGeneration) throw enrichmentError('Recovery journal does not pin a published generation.');
@@ -169,6 +163,9 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     if (action === 'drain' && await recover(previous)) return boundedResult(result, limits);
     current = await budget.run(() => readEnrichmentCurrent({ repoRoot, userConfig }));
     if (current.buildRoot !== toRealPathSync(path.dirname(inventory.indexDir))) throw enrichmentError('Only the exact current source generation may be enqueued or drained.');
+    await budget.run(() => reconcilePublishedSemanticBindingWork({ repoRoot, userConfig,
+      buildId: generation.baseBuildId, buildRoot: current.buildRoot, modes: ['code'], signal: budget.signal,
+      ...(Database !== undefined ? { Database } : {}) }));
     await budget.run(() => verifyEnrichmentLiveSources({ repoRoot, inventory, budget }));
     for (const task of tasks) {
       await budget.run(() => verifyEnrichmentTask({ inventory, task, budget, deep: true }));
