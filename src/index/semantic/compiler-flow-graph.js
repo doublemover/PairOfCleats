@@ -52,7 +52,8 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
   const expression = (node, next, context) => {
     if (!node) return next;
     throwIfAborted(signal);
-    if (ts.isFunctionLike(node) || ts.isClassExpression(node)) return eventBlock(node, { kind: 'creation' }, next, context);
+    if (ts.isClassExpression(node)) return classDefinition(node, next, context);
+    if (ts.isFunctionLike(node)) return eventBlock(node, { kind: 'creation' }, next, context);
     if (ts.isIdentifier(node)) return lexicalRead(node) ? eventBlock(node, { kind: 'read', target: node }, next, context) : next;
     if (isChain(node)) return optionalChain(node, next, context, next);
     if (ts.isBinaryExpression(node)) {
@@ -116,6 +117,44 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       head = expression(declaration.initializer, write(declaration.name, declaration.initializer || declaration, head, context), context);
     }
     return head;
+  };
+  const hasModifier = (node, kind) => node.modifiers?.some(modifier => modifier.kind === kind);
+  const classDefinition = (node, next, context) => {
+    if (sourceFile.isDeclarationFile || (node.flags & ts.NodeFlags.Ambient)
+      || hasModifier(node, ts.SyntaxKind.DeclareKeyword)) return next;
+    // ClassDefinitionEvaluation first evaluates heritage and all computed keys,
+    // then executes static fields/blocks in source order. Instance initializers
+    // and method bodies belong to later executions, never this definition CFG.
+    // https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation
+    reasons.add('class_storage_private_and_self_binding_effects_unresolved');
+    const members = node.members.filter(member => !hasModifier(member, ts.SyntaxKind.DeclareKeyword)
+      && !hasModifier(member, ts.SyntaxKind.AbstractKeyword));
+    if ([node, ...node.members].some(item => ts.canHaveDecorators(item) && ts.getDecorators(item)?.length)) {
+      reasons.add('class_decorator_evaluation_and_replacement_unresolved');
+    }
+    let head = next;
+    for (let i = members.length - 1; i >= 0; i -= 1) {
+      const member = members[i];
+      if (ts.isClassStaticBlockDeclaration(member)) {
+        head = statement(member.body, head, { ...context, break: null, continue: null, labels: new Map() });
+      } else if (ts.isPropertyDeclaration(member) && hasModifier(member, ts.SyntaxKind.StaticKeyword)) {
+        head = expression(member.initializer, eventBlock(member, {
+          kind: 'operation', target: member, mayThrow: true
+        }, head, context), context);
+      }
+    }
+    for (let i = members.length - 1; i >= 0; i -= 1) {
+      const name = members[i].name;
+      if (name && ts.isComputedPropertyName(name)) {
+        // ToPropertyKey itself can throw, even when evaluating its input cannot.
+        head = expression(name.expression, eventBlock(name, {
+          kind: 'operation', target: name, mayThrow: true
+        }, head, context), context);
+      }
+    }
+    head = eventBlock(node, { kind: 'creation', mayThrow: true }, head, context);
+    const heritage = node.heritageClauses?.find(clause => clause.token === ts.SyntaxKind.ExtendsKeyword)?.types[0];
+    return expression(heritage?.expression, head, context);
   };
   const statement = (node, next, context) => {
     throwIfAborted(signal);
@@ -212,7 +251,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       }
       return statement(node.tryBlock, normal, inner);
     }
-    if (ts.isClassDeclaration(node)) { reasons.add('class_initialization_effects_unresolved'); return next; }
+    if (ts.isClassDeclaration(node)) return classDefinition(node, next, context);
     if (ts.isFunctionDeclaration(node) || ts.isEmptyStatement(node)
       || ts.isImportDeclaration(node) || ts.isExportDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) return next;
     reasons.add('unsupported_statement:' + ts.SyntaxKind[node.kind]);

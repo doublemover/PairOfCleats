@@ -171,6 +171,19 @@ spanning 2^48 without allocating or iterating through that range. Six focused
 Stage1 ledger/replay/backpressure/duplicate/retry fixtures pass through the normal
 test runner after a complete verified cloud bootstrap under Node 26.11.1.
 
+### Class-definition flow (2026-10-10)
+
+The next J5 slice retains runtime heritage, computed member keys and static
+field/block initialization in class declarations and expressions, including
+exception routes through enclosing catch/finally. Computed keys run before static
+initialization; instance field initializers and method bodies are not evaluated at
+class definition time. Ambient, declared and abstract-only members are erased.
+Class storage/private/self-binding and decorator effects remain explicit unresolved
+frontiers. The shared CFG producer version is 8, invalidating old derived replay
+without changing syntax identity. Class-order, existing control-region, persisted
+reaching-definition and producer-invalidation fixtures pass after verified cloud
+bootstrap (four focused checks; no broad semantic qualification claimed).
+
 ### Required bootstrap readiness (2026-10-10)
 
 Normal CLI/TUI, legacy build/search, API/MCP/indexer entry points, the test/CI

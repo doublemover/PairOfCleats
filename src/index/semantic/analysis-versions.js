@@ -4,7 +4,7 @@ import { semanticHash } from './identity.js';
  * semantics change; syntax extraction and physical layout remain independent.
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
-  compilerBindings: '3', lspBindings: '2', cfgFlow: '7', callFlow: '4',
+  compilerBindings: '3', lspBindings: '2', cfgFlow: '8', callFlow: '4',
   valueSlice: '2', storageFlow: '1', workerFlow: '3', boundaryFlow: '3'
 });
 export const SEMANTIC_OWNERSHIP_VERSION = '1';
