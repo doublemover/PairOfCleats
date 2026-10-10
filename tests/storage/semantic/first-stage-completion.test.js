@@ -1,9 +1,11 @@
+import { persistSemanticCacheEntry } from '../../../src/index/build/incremental/semantic-cache.js';
+import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createSemanticCacheFixture } from '../../helpers/semantic-cache-fixture.js';
-import { readFileCompletion, fileCompletionIdentity, preloadFileCompletions } from '../../../src/index/build/incremental/file-completion.js';
+import { readFileCompletion, fileCompletionIdentity, preloadFileCompletions, commitFileCompletion } from '../../../src/index/build/incremental/file-completion.js';
 import { loadCachedBundleForFile } from '../../../src/index/build/file-processor/incremental.js';
 import { updateBundlesWithChunks } from '../../../src/index/build/incremental/writeback.js';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
@@ -16,6 +18,30 @@ try {
     dependencySignatures: fixture.dependencies, diskAccount: fixture.account,
     buildRoot: path.join(fixture.root, 'resumed'),
     storage: { ...fixture.storage, generation: { baseBuildId: 'resumed', semanticRevision: 0 } } };
+  const fullManifestEntry = { ...completed.entry }; delete fullManifestEntry.completionKey;
+  const completionPath = path.join(fixture.bundleDir, 'completions', completed.entry.completionKey + '.json');
+  const envelope = JSON.parse(await fs.readFile(completionPath, 'utf8'));
+  const reservedBefore = fixture.account.used;
+  await commitFileCompletion({ bundleDir: fixture.bundleDir, relKey: completed.file,
+    manifestEntry: envelope.descriptor.manifestEntry, semanticFactsRef: completed.factsRef,
+    semanticContext: context, chunkCount: 0, lexiconFilterStats: envelope.descriptor.lexiconFilterStats });
+  assert.equal(fixture.account.used, reservedBefore, 'identical descriptor replay does not reserve another copy');
+  const constrained = createSemanticDiskAccount(1);
+  await assert.rejects(commitFileCompletion({ bundleDir: fixture.bundleDir, relKey: completed.file,
+    manifestEntry: fullManifestEntry, semanticFactsRef: completed.factsRef,
+    semanticContext: { ...context, diskAccount: constrained }, chunkCount: 0,
+    lexiconFilterStats: { changed: true } }), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
+  assert.deepEqual(JSON.parse(await fs.readFile(completionPath, 'utf8')), envelope, 'replacement credit failure preserves the completed descriptor');
+  const firstCopyPiece = Object.values(completed.factsRef.partitions[0].members).flat()[0];
+  const copyBudget = createSemanticDiskAccount(firstCopyPiece.bytes + firstCopyPiece.count * 8 + 1);
+  let acceptedCopyReservations = 0;
+  const reserveCopy = copyBudget.reserve.bind(copyBudget);
+  copyBudget.reserve = bytes => { reserveCopy(bytes); acceptedCopyReservations++; };
+  await assert.rejects(persistSemanticCacheEntry({ repoRoot: fixture.repoRoot,
+    bundleDir: path.join(fixture.root, 'bounded-copy'), factsRef: completed.factsRef,
+    buildRoot: fixture.buildRoot, dependencySignatures: fixture.dependencies, diskAccount: copyBudget }), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
+  assert.ok(acceptedCopyReservations >= 2, 'failure occurs after part data and offsets were copied');
+  assert.equal(copyBudget.used, 0, 'failed cache copy returns credits only after owned staging cleanup');
   const read = (sourceBytes = completed.bytes, semanticContext = context) => readFileCompletion({
     bundleDir: fixture.bundleDir, relKey: completed.file, sourceBytes, semanticContext });
   assert.ok(completed.entry.completionKey, 'completion is durable before apply or Stage2');
