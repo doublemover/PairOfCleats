@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { compilerInvocationInputs, compilerInvocationTargets } from './compiler-invocation.js';
 import { collectCompilerBoundaryFlow } from './compiler-boundary-flow.js';
 import { createCompilerDependencySystem, compilerInventoryHash } from './compiler-dependencies.js';
@@ -194,9 +195,9 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       for (const phase of ['localFlow', 'crossFileFlow']) policy.enrichment[phase] = (state.semanticPhaseAdmissions ? state.semanticPhaseAdmissions.get(item.source.sourceUnitId)?.has(phase) : semanticPhasePolicy(item.policy, item.plan, phase, runtime, item.source.sourceUnitId).admitted) ? 'eager' : item.policy.enrichment[phase] === 'off' ? 'off' : 'deferred';
       if (hashText(sourceFile.text) !== item.source.textHash) throw Object.assign(new Error('Compiler/source join rejected.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
       const { context } = group;
-      const partitionId = createAnalysisPartitionId({ pass: { name: 'typescript-bindings', version: '3' },
+      const partitionId = createAnalysisPartitionId({ pass: { name: 'typescript-bindings', version: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings },
         inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context,
-        dependencySummaryHashes: group.dependencyHashes, analysisPolicy: { bindings: 'checker', version: 3, policy: item.policy.identity.analysis } });
+        dependencySummaryHashes: group.dependencyHashes, analysisPolicy: { bindings: 'checker', version: Number(SEMANTIC_ANALYSIS_VERSIONS.compilerBindings), policy: item.policy.identity.analysis } });
       const ref = localId => ({ partitionId, localId });
       const external = new Map(), observations = [], aliases = new Map(), expressions = new Map();
       const declarationRef = declaration => {
@@ -334,7 +335,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       rows.push({ family: 'coverage', row: coverage });
       const bytes = await fs.readFile(path.join(item.root, 'semantic-sources', item.source.byteHash + '.utf8'));
       const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source,
-        sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: '3', compiler: ts.version }),
+        sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings, compiler: ts.version }),
         contextHash: context.contextKey, policyHash: item.policy.identity.analysis,
         diskAccount: state.semanticDiskAccount, signal });
       for (const observation of observations) if (observation.invocation) {

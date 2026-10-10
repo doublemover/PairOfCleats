@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
 import { planSemanticSource } from './planning.js';
 import fs from 'node:fs/promises';
@@ -115,7 +116,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
         const response = definitionEnabled ? await requestDefinition({ name: target.name }, position) : { attempted: false, skipReason: 'definition_unsupported' };
         observations.push({ target, position, response: response || { attempted: true, payload: null } });
       }
-      const partitionId = createAnalysisPartitionId({ pass: { name: 'lsp-bindings', version: '2' }, inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey, dependencySummaryHashes: [context.moduleResolutionHash], analysisPolicy: { policy: item.policy.identity.analysis, evidence: semanticHash('semantic.lsp-responses.v1', observations) } });
+      const partitionId = createAnalysisPartitionId({ pass: { name: 'lsp-bindings', version: SEMANTIC_ANALYSIS_VERSIONS.lspBindings }, inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey, dependencySummaryHashes: [context.moduleResolutionHash], analysisPolicy: { policy: item.policy.identity.analysis, evidence: semanticHash('semantic.lsp-responses.v1', observations) } });
       const ref = localId => ({ partitionId, localId }), rows = [], names = new Map(); let nextId = 0, edgeId = 0, completedCount = 0, failed = false, deferred = false;
       const intern = value => { if (!names.has(value)) names.set(value, names.size); return names.get(value); };
       for (const { target, position, response } of observations) {

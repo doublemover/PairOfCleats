@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import path from 'node:path';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { createSemanticFactsRef } from './file-ref.js';
@@ -17,11 +18,11 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     if (container && (!doc.item.source.mapping || doc.item.source.mapping.quality === 'exact')) {
       const key = keyPath(path.resolve(group.repoRoot, container)); if (!entries.has(key)) entries.set(key, []); entries.get(key).push(doc);
     }
-    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-worker-source-flow', version: '3' }, inputPartitionHashes: hashes,
+    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-worker-source-flow', version: SEMANTIC_ANALYSIS_VERSIONS.workerFlow }, inputPartitionHashes: hashes,
       compilerContext: { context: group.context.contextKey, source: doc.item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
       analysisPolicy: { mode: policy.enrichment.crossFileFlow, fieldPathDepth: policy.enrichment.fieldPathDepth } });
     const evidence = { partitionId, localId: 0 }, rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
-      data: { method: 'compiler-platform-worker-source-model', producerId: 'semantic-worker-flow', producerVersion: '3', evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef: null } } }];
+      data: { method: 'compiler-platform-worker-source-model', producerId: 'semantic-worker-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.workerFlow, evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef: null } } }];
     ledgers.set(doc, { partitionId, evidence, rows, edges: [], reasons: new Set(), nextId: 1, observed: 0, completed: 0 });
   }
   const authority = (doc, declaration, names, libraries = ['lib.dom.d.ts','lib.webworker.d.ts']) => declaration && group.isDefaultLibrary(declaration.getSourceFile()) && libraries.includes(library(declaration)) && names.includes(ownerName(declaration));
@@ -243,7 +244,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     const coverage = { scope:{sourceUnitId:doc.item.source.sourceUnitId},phase:'boundaryModels',state:'partial',reason:[...new Set([...ledger.reasons,'source_candidates_only_runtime_delivery_and_clone_effects_unobserved'])].sort().join(';'),observedCount:ledger.observed,completedCount:ledger.completed,frontierRef:null };
     ledger.rows.push({family:'coverage',row:coverage});
     const policy = doc.policy || argumentsPolicy;
-    const partition = await writeSemanticAnalysis({rows:ledger.rows,policy,stagingRoot:doc.item.root,source:doc.item.source,sourceBytes:doc.bytes,partitionId:ledger.partitionId,producerHash:semanticHash('semantic.worker-source-producer.v1',{version:3}),policyHash:semanticHash('semantic.worker-source-policy.v1',policy.enrichment),contextHash:group.context.contextKey,diskAccount:state.semanticDiskAccount,signal});
+    const partition = await writeSemanticAnalysis({rows:ledger.rows,policy,stagingRoot:doc.item.root,source:doc.item.source,sourceBytes:doc.bytes,partitionId:ledger.partitionId,producerHash:semanticHash('semantic.worker-source-producer.v1',{version: Number(SEMANTIC_ANALYSIS_VERSIONS.workerFlow)}),policyHash:semanticHash('semantic.worker-source-policy.v1',policy.enrichment),contextHash:group.context.contextKey,diskAccount:state.semanticDiskAccount,signal});
     const current=state.semanticFactsByFile.get(doc.item.file); state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,storage:current.storage,syntaxPartitionId:current.syntaxPartitionId,partitions:[...current.partitions.filter(row=>row.partitionId!==partition.partitionId),partition],coverage:[...current.coverage,coverage]})); output.push(partition);
   }
   return output;
