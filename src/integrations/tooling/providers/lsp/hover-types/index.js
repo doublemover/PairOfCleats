@@ -218,7 +218,9 @@ export const processDocumentTypes = async ({
   positionEncoding = 'utf-16',
   checks,
   checkFlags,
-  abortSignal = null
+  abortSignal = null,
+  semanticSession = null,
+  semanticTargets: preparedSemanticTargets = null
 }) => {
   throwIfAborted(abortSignal);
   if (guard.isOpen()) return { enrichedDelta: 0 };
@@ -227,6 +229,7 @@ export const processDocumentTypes = async ({
     ? guardRun
     : ((fn, options) => guard.run(fn, options));
 
+  const semanticTargets = preparedSemanticTargets || (semanticSession ? await semanticSession.targetsForDocument(doc) : []);
   const docTargetIndex = targetIndexesByPath.get(doc.virtualPath) || null;
   const interactiveAllowed = docPathPolicy?.suppressInteractive !== true;
   const fileHoverStats = hoverFileStats.get(doc.virtualPath) || createHoverFileStats();
@@ -256,24 +259,20 @@ export const processDocumentTypes = async ({
 
   try {
     throwIfAborted(abortSignal);
-    if (documentSymbolControl?.disabled === true) {
+    if (documentSymbolControl?.disabled === true && !semanticTargets.length) {
       return { enrichedDelta: 0 };
     }
-    if (docPathPolicy?.skipDocumentSymbol === true) {
+    if (docPathPolicy?.skipDocumentSymbol === true && !semanticTargets.length) {
       return { enrichedDelta: 0 };
     }
     openedHere = openOwnedLspDocument({ client, doc, uri, legacyUri, languageId, openDocs, registerDocument });
     const documentSymbolBudget = requestBudgetControllers?.documentSymbol || null;
-    if (
-      documentSymbolBudget
-      && typeof documentSymbolBudget.tryReserve === 'function'
-      && !documentSymbolBudget.tryReserve()
-    ) {
-      return { enrichedDelta: 0 };
-    }
+    const collectSymbols = documentSymbolControl?.disabled !== true && docPathPolicy?.skipDocumentSymbol !== true
+      && (!documentSymbolBudget || typeof documentSymbolBudget.tryReserve !== 'function' || documentSymbolBudget.tryReserve());
+    if (!collectSymbols && !semanticTargets.length) return { enrichedDelta: 0 };
     let symbols = null;
     try {
-      symbols = await runGuarded(
+      if (collectSymbols) symbols = await runGuarded(
         ({ timeoutMs: guardTimeout }) => client.request(
           'textDocument/documentSymbol',
           { textDocument: { uri } },
@@ -306,11 +305,11 @@ export const processDocumentTypes = async ({
       } else {
         recordDocumentSymbolFailureCheck({ cmd, checks, checkFlags, err });
       }
-      return { enrichedDelta: 0 };
+      if (!semanticTargets.length) return { enrichedDelta: 0 };
     }
 
     const flattened = flattenSymbols(symbols || []);
-    if (!flattened.length) {
+    if (!flattened.length && !semanticTargets.length) {
       return { enrichedDelta: 0 };
     }
 
@@ -698,7 +697,7 @@ export const processDocumentTypes = async ({
         return Promise.resolve({ attempted: false, info: null });
       }
       if (!reserveRequestBudget(budget)) return Promise.resolve({ attempted: false, info: null });
-      const cachedInfo = tryReadRequestCache(cacheKey, position);
+      const cachedInfo = semanticSession ? null : tryReadRequestCache(cacheKey, position);
       const runRequest = typeof limiter === 'function'
         ? limiter
         : hoverLimiter;
@@ -723,7 +722,7 @@ export const processDocumentTypes = async ({
             { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
           ));
           const locations = extractDefinitionLocations(payload);
-          if (!locations.length) return null;
+          if (!locations.length) return { attempted: true, info: null, payload };
           const allowedUris = new Set([String(uri || '')]);
           if (legacyUri) allowedUris.add(String(legacyUri));
           const info = parseLocationSignatureInfo(locations, allowedUris, symbol);
@@ -731,10 +730,10 @@ export const processDocumentTypes = async ({
             writePositiveRequestCache(cacheKey, position, info);
             fileHoverStats[succeededMetric] += 1;
             hoverMetrics[succeededMetric] += 1;
-            return { attempted: true, info };
+            return { attempted: true, info, payload };
           }
           writeNegativeRequestCache(cacheKey, position);
-          return { attempted: true, info: null };
+          return { attempted: true, info: null, payload };
         } catch (err) {
           const info = handleStageRequestError({
             err,
@@ -752,7 +751,7 @@ export const processDocumentTypes = async ({
             resolvedHoverDisableAfterTimeouts
           });
           writeNegativeRequestCache(cacheKey, position);
-          return { attempted: true, info };
+          return { attempted: true, info, error: { code: err?.code || 'ERR_LSP_REQUEST', message: String(err?.message || err) } };
         }
       })();
       requestByPosition.set(key, promise);
@@ -1100,6 +1099,7 @@ export const processDocumentTypes = async ({
       succeededFlag: 'referencesSucceeded'
     });
 
+    if (semanticSession) await semanticSession.collectDocument({ doc, uri, targets: semanticTargets, requestDefinition, positionEncoding, providerId: requestCacheProviderId, providerVersion: requestCacheProviderVersion, workspaceKey: requestCacheWorkspaceKey, definitionEnabled: definitionEnabled !== false && interactiveAllowed });
     const candidateRows = [];
     const unresolvedRate = symbolRecords.length > 0
       ? (unresolvedRecords.length / symbolRecords.length)

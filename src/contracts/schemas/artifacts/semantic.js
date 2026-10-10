@@ -14,6 +14,7 @@ const rows = { semantic_sources: SEMANTIC_SOURCE_SCHEMA, semantic_records: SEMAN
 export const SEMANTIC_FAMILY_SCHEMA = object({ schemaVersion: { const: 1 }, semanticSchemaVersion: { const: 1 },
   artifactSurfaceVersion: { const: '0.1.0' }, generation: SEMANTIC_GENERATION_SCHEMA,
   status: { enum: ['partial', 'disabled'] }, partitions: array(SEMANTIC_PARTITION_SCHEMA), warnings: array({ type: 'string' }) }, { contexts: SEMANTIC_PROVIDER_SCHEMA.properties.contexts,
+  evidenceArtifacts: array(object({ path: { type: 'string', pattern: '^semantic-evidence/[a-f0-9]{64}\\.json$' }, hash: semanticHashSchema, bytes: semanticInteger })),
   frontierTargets: array(object({ path: { type: 'string', pattern: '^semantic-frontier-targets/[a-f0-9]{64}\\.json$' },
     hash: semanticHashSchema, bytes: semanticInteger })),
   completedTasks: array(object({ taskId: SEMANTIC_TASK_SCHEMA.properties.taskId,

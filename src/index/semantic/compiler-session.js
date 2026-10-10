@@ -1,3 +1,5 @@
+import { collectCompilerCrossFileFlow } from './compiler-cross-file-flow.js';
+import { collectCompilerFlow } from './compiler-flow.js';
 import { collectCompilerValueSlice } from './compiler-value-slice.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -8,6 +10,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { createAnalysisPartitionId, createSymbolGroupId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
+import { resolveSemanticPartPath } from '../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
 const hashText = text => createHash('sha256').update(text, 'utf8').digest('hex');
@@ -37,7 +40,16 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
     const syntax = descriptor.partitions.find(p => p.partitionId === descriptor.syntaxPartitionId);
     let source;
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
-    if (!source || source.mapping || !['javascript', 'typescript'].includes(source.language)) continue;
+    if (!source || !['javascript', 'typescript'].includes(source.language)) continue;
+    let sourceMap = null;
+    if (source.mapping) {
+      const mapBytes = await fs.readFile(await resolveSemanticPartPath(root, source.mapping.mapRef));
+      sourceMap = JSON.parse(mapBytes.toString('utf8'));
+      if (createHash('sha256').update(mapBytes).digest('hex') !== path.basename(source.mapping.mapRef, '.json') || semanticHash('semantic.embedded-map.v1', sourceMap) !== source.mapping.identity) throw new Error('Compiler embedded mapping mismatch.');
+      const parent = [...state.semanticFactsByFile.values()].find(value => value.sourceUnitId === source.mapping.parentSourceUnitId);
+      if (!parent || sourceMap.parentSourceUnitId !== parent.sourceUnitId || sourceMap.parentByteHash !== parent.sourceHash || sourceMap.localEnd !== source.textLength || sourceMap.quality !== source.mapping.quality) throw new Error('Compiler embedded parent mismatch.');
+      if (source.mapping.quality !== 'exact') continue;
+    }
     await store.verifySource(source, { signal });
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
@@ -52,16 +64,21 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         declarationChunks.set(refKey(join.recordRef), join.chunkUid);
       }
     }
-    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations });
+    inventory.set(keyPath(path.join(runtime.root, source.path)), { file, descriptor, source, root, store, syntax, declarations, sourceMap });
     texts.set(source.path, text);
   }
-  const sourceForDoc = doc => inventory.get(keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath)));
+  const sourceForDoc = doc => {
+    if (doc.semanticSourceUnitId && !doc.segmentUid) return [...inventory.values()].find(item => !item.source.mapping && item.source.sourceUnitId === doc.semanticSourceUnitId);
+    const container = keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath));
+    if (doc.segmentUid) return [...inventory.values()].find(item => item.sourceMap?.segmentUid === doc.segmentUid && item.sourceMap.parentStart === doc.segmentRange?.start && item.sourceMap.parentEnd === doc.segmentRange?.end && item.sourceMap.localEnd === doc.text.length && texts.get(item.source.path) === doc.text && [...state.semanticFactsByFile].some(([parentFile, parent]) => parent.sourceUnitId === item.source.mapping.parentSourceUnitId && keyPath(path.join(runtime.root, parentFile)) === container));
+    return inventory.get(container);
+  };
   return {
     fileTextByFile: texts,
     prepareDocuments(documents) {
-      const result = [...documents];
+      const result = documents.map(doc => { const item = sourceForDoc(doc); return item ? { ...doc, semanticSourceUnitId: item.source.sourceUnitId } : doc; });
       const present = new Set(result.filter(doc => !doc.segmentUid).map(doc => keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath))));
-      for (const [file, item] of inventory) if (!present.has(file)) {
+      for (const [file, item] of inventory) if (!item.source.mapping && !present.has(file)) {
         result.push({ virtualPath: item.source.path, containerPath: item.source.path,
           languageId: item.source.language, effectiveExt: path.extname(item.source.path),
           text: texts.get(item.source.path), docHash: item.source.textHash, lineIndex: item.source.lineStarts,
@@ -90,7 +107,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       providerId: 'typescript', providerVersion: '2.1.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
       contexts.push(context);
       state.semanticCompilerContexts = contexts;
-      return { context, mappedFiles, dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
+      return { context, mappedFiles, flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
     },
     async collectDocument({ ts, checker, sourceFile, nodeIndex, group }) {
       const item = group.mappedFiles.get(keyPath(sourceFile.fileName));
@@ -142,8 +159,8 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
           while (symbol && (symbol.flags & ts.SymbolFlags.Alias) && !seen.has(symbol)) {
             seen.add(symbol);
             const next = typeof checker.getImmediateAliasedSymbol === 'function'
-              ? checker.getImmediateAliasedSymbol(symbol) : checker.getAliasedSymbol(symbol);
-            if (!next || next === symbol) break;
+              ? checker.getImmediateAliasedSymbol(symbol) || checker.getAliasedSymbol(symbol) : checker.getAliasedSymbol(symbol);
+            if (!next || next === symbol) { targets = []; break; }
             const nextTargets = symbolTargets(next);
             for (const from of targets) for (const to of nextTargets) {
               const key = canonicalSemanticJson({ from, to }); aliases.set(key, { from, to });
@@ -245,12 +262,29 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         observations, source: item.source, bytes, bindingPartition: partition, context,
         isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (valueSlice) emitted.push(valueSlice.partition);
+      const flow = await collectCompilerFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
+        expressionFor: node => node ? expressions.get(node.getStart(sourceFile) + ':' + node.end) || null : null,
+        declarationFor: declaration => {
+          const node = declaration?.name || declaration;
+          return node ? item.declarations.get(node.getStart(sourceFile) + ':' + node.end) || null : null;
+        }, source: item.source, bytes, bindingPartition: partition, context,
+        root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
+      if (flow) {
+        emitted.push(flow.partition);
+        group.flowDocuments.push({ item, bytes, partition: flow.partition,
+          summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
+            async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),
+          calls: observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence,
+            targets: observation.targets.map(expand), invocationKind: observation.invocationKind })) });
+      }
+
       const current = state.semanticFactsByFile.get(item.file);
       state.semanticFactsByFile.set(item.file, createSemanticFactsRef({ source: item.source,
         syntaxPartitionId: current.syntaxPartitionId, storage: current.storage,
-        partitions: [...current.partitions.filter(p => p.partitionId !== partition.partitionId && p.partitionId !== valueSlice?.partition.partitionId), partition, ...(valueSlice ? [valueSlice.partition] : [])],
-        coverage: [...current.coverage.filter(c => c.phase !== 'bindings' && (!valueSlice || !['localFlow', 'boundaryModels'].includes(c.phase))), coverage, ...(valueSlice?.coverage || [])] }));
+        partitions: [...current.partitions.filter(p => p.partitionId !== partition.partitionId && p.partitionId !== valueSlice?.partition.partitionId && p.partitionId !== flow?.partition.partitionId), partition, ...(valueSlice ? [valueSlice.partition] : []), ...(flow ? [flow.partition] : [])],
+        coverage: [...current.coverage.filter(c => c.phase !== 'bindings' && (!valueSlice || !['localFlow', 'boundaryModels'].includes(c.phase))), coverage, ...(valueSlice?.coverage || []), ...(flow?.coverage || [])] }));
     },
+    async finishGroup(group) { emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); },
     output() { return { schemaVersion: 1, contexts, partitions: emitted, coverageRef: null, diagnosticsRef: null }; }
   };
 };

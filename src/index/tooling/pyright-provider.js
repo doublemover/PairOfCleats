@@ -295,6 +295,7 @@ export const createPyrightProvider = () => ({
     const checks = [...duplicateChecks];
     if (!docs.length || !targets.length) {
       return {
+        ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
         provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
@@ -416,6 +417,7 @@ export const createPyrightProvider = () => ({
       });
     }
     const result = await collectLspTypes({
+      semanticSession: ctx.semanticLspSession || null,
       ...runtimeConfig,
       rootDir: ctx.repoRoot,
       workspaceRootDir: requestPlan.workspaceRootDir,

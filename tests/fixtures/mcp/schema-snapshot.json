@@ -305,6 +305,38 @@
   },
   "tools": [
     {
+      "name": "runtime_evidence",
+      "properties": [
+        "destination",
+        "repoRoot",
+        "request",
+        "schemaVersion"
+      ],
+      "required": [
+        "destination",
+        "repoRoot",
+        "request",
+        "schemaVersion"
+      ]
+    },
+    {
+      "name": "runtime_families",
+      "properties": [
+        "cursor",
+        "destination",
+        "limits",
+        "repoRoot",
+        "schemaVersion"
+      ],
+      "required": [
+        "cursor",
+        "destination",
+        "limits",
+        "repoRoot",
+        "schemaVersion"
+      ]
+    },
+    {
       "name": "semantic_trace",
       "properties": [
         "cursor",

@@ -14,7 +14,7 @@ await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'lib.ts'), 'export function original(x: number) { return x + 1; } export {original as renamed};');
 await fs.writeFile(path.join(repo, 'input.ts'), 'import {renamed as imported} from "./lib"; export function run() { const a = imported(1); const b = imported(2); { const imported = (x: number) => x * 2; imported(3); } return new Float32Array([a,b]); } export function movement(worker: Worker) { const buffer = new ArrayBuffer(32); const view = new Float32Array(buffer, 0, 4); const copy = new Float32Array([1,2]); const capture = () => view; const payload = {values:view, copy}; worker.postMessage(payload, [buffer]); return payload; }');
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-  indexing: { semantic: { enabled: true, profile: 'rich' }, embeddings: { enabled: false },
+  indexing: { ...(process.env.POC_SEMANTIC_FIXTURE_WORKER_POOL === 'off' ? { workerPool: { enabled: false } } : {}), semantic: { enabled: true, profile: 'rich', enrichment: { crossFileFlow: 'eager' } }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 try {
@@ -33,9 +33,14 @@ try {
   const calls = edges.filter(row => row.kind === 'callTarget' && records.get(row.to.partitionId + ':' + row.to.localId)?.kind === 'declaration').sort((a,b) => a.from.localId - b.from.localId);
   assert.equal(calls.length, 3);
   assert.deepEqual(calls[0].to, calls[1].to);
+  assert.notEqual(calls[0].to.partitionId, calls[0].from.partitionId, 'renamed import resolves to library source, not the import binding');
   assert.notDeepEqual(calls[1].to, calls[2].to, 'shadowed binding is distinct');
   assert.notDeepEqual(calls[0].from, calls[1].from, 'same target retains each occurrence');
   assert.ok(edges.some(row => row.kind === 'constructTarget'));
+  const returned = edges.filter(row => row.kind === 'returnToResult');
+  assert.ok(returned.length >= 3, 'resolved local/imported calls retain return channels: ' + JSON.stringify({ returned, flowCoverage: coverage.filter(row => row.phase === 'crossFileFlow') }));
+  assert.ok(returned.every(row => row.callSite && row.certainty === 'modeled'));
+  assert.notDeepEqual(returned[0].callSite, returned[1].callSite, 'return channels retain call occurrences');
   assert.ok(edges.some(row => row.kind === 'argumentToParameter'), 'each resolved positional argument has its parameter edge');
   assert.ok(edges.some(row => row.kind === 'captures'), 'closure retains immutable lexical capture');
   assert.ok(edges.some(row => row.kind === 'sharesStorage'), 'typed-array view retains storage relation');

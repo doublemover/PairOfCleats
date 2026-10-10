@@ -251,7 +251,8 @@ export async function collectLspTypes({
   sessionMaxLifetimeMs = null,
   sessionPoolingEnabled = true,
   abortSignal = null,
-  toolingRoot = null
+  toolingRoot = null,
+  semanticSession = null
 }) {
   const toolingAbortSignal = abortSignal && typeof abortSignal.aborted === 'boolean'
     ? abortSignal
@@ -358,7 +359,7 @@ export async function collectLspTypes({
   if (executionAuthority) {
     return buildEmptyCollectResult([executionAuthority.check], { ...runtime, executionAuthority: { state: 'blocked', reasonCode: executionAuthority.reasonCode } });
   }
-  if (!docs.length || !targetList.length || (collectTypes === false && !captureDiagnostics)) {
+  if (!docs.length || (!targetList.length && !semanticSession?.hasTargetedWork) || (collectTypes === false && !captureDiagnostics && !semanticSession?.hasTargetedWork)) {
     runtime.selection = {
       providerId: resolvedProviderId,
       totalDocs: docs.length,
@@ -394,7 +395,11 @@ export async function collectLspTypes({
     targetsByPath.set(target.virtualPath, list);
   }
 
-  const docsToOpen = docs.filter((doc) => (targetsByPath.get(doc.virtualPath) || []).length);
+  const semanticTargetsByPath = new Map();
+  if (semanticSession) for (const doc of docs) semanticTargetsByPath.set(doc.virtualPath, await semanticSession.targetsForDocument(doc));
+  const scopeTargetsByPath = new Map(targetsByPath);
+  for (const [file, semanticTargets] of semanticTargetsByPath) if (semanticTargets.length) scopeTargetsByPath.set(file, [...(targetsByPath.get(file) || []), ...semanticTargets]);
+  const docsToOpen = docs.filter((doc) => (scopeTargetsByPath.get(doc.virtualPath) || []).length);
   if (!docsToOpen.length) {
     runtime.selection = {
       providerId: resolvedProviderId,
@@ -741,7 +746,7 @@ export async function collectLspTypes({
       const adaptiveScopePlan = __resolveAdaptiveLspScopePlanForTests({
         providerId: resolvedProviderId,
         docs: docsToOpen,
-        targetsByPath,
+        targetsByPath: scopeTargetsByPath,
         clientMetrics: typeof client.getMetrics === 'function' ? client.getMetrics() : null,
         documentSymbolConcurrency: resolvedDocumentSymbolConcurrency,
         hoverMaxPerFile: resolvedHoverMaxPerFile,
@@ -798,7 +803,7 @@ export async function collectLspTypes({
       const effectiveHoverMaxPerFile = adaptiveScopePlan.hoverMaxPerFile;
       const requestBudgetPlan = __resolveAdaptiveLspRequestBudgetPlanForTests({
         providerId: resolvedProviderId,
-        selection: adaptiveScopePlan,
+        selection: { ...adaptiveScopePlan, semanticDefinitionTargets: selectedDocsToOpen.reduce((total, doc) => total + (semanticTargetsByPath.get(doc.virtualPath)?.length || 0), 0) },
         clientMetrics: typeof client.getMetrics === 'function' ? client.getMetrics() : null,
         lifecycleState: lifecycleHealth.getState(),
         guardState: guard.getState ? guard.getState() : null,
@@ -905,6 +910,10 @@ export async function collectLspTypes({
         })
         : null;
 
+      if (semanticSession) for (const doc of selectedDocsToOpen) {
+        const uri = await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache });
+        semanticSession.registerDocument(doc, uri);
+      }
       const processDoc = async (doc) => {
         throwIfAborted(toolingAbortSignal);
         const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
@@ -989,7 +998,7 @@ export async function collectLspTypes({
           positionEncoding,
           checks,
           checkFlags,
-          abortSignal: toolingAbortSignal
+          abortSignal: toolingAbortSignal, semanticSession, semanticTargets: semanticTargetsByPath.get(doc.virtualPath) || []
         });
         enriched += enrichedDelta;
       };
@@ -1123,6 +1132,7 @@ export async function collectLspTypes({
 
       return {
         byChunkUid,
+        ...(semanticSession ? { semanticFacts: semanticSession.output() } : {}),
         diagnosticsByChunkUid,
         enriched,
         diagnosticsCount,

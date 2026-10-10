@@ -585,10 +585,14 @@ export function createFileProcessor(options) {
       updateCrashStage('pre-cpu:cache-reuse:hit');
       if (semantic) {
         cachedOutcome.result.semanticFactsRef = cachedResult.semanticFactsRef;
+        cachedOutcome.result.semanticSegmentFactsRefs = cachedResult.semanticSegmentFactsRefs || [];
+        cachedOutcome.result.semanticEvidenceArtifacts = cachedResult.semanticEvidenceArtifacts || [];
         cachedOutcome.result.manifestEntry.semanticCache = incrementalState.manifest.files[relKey].semanticCache;
+        cachedOutcome.result.manifestEntry.semanticSegmentCaches = incrementalState.manifest.files[relKey].semanticSegmentCaches || [];
+        cachedOutcome.result.manifestEntry.semanticEvidenceArtifacts = incrementalState.manifest.files[relKey].semanticEvidenceArtifacts || [];
         cachedOutcome.result.postingsPayload = buildPostingsPayloadMetadata({
           chunks: cachedOutcome.result.chunks, fileRelations: cachedOutcome.result.fileRelations,
-          vfsManifestRows: cachedOutcome.result.vfsManifestRows, semanticFactsRef: cachedResult.semanticFactsRef
+          vfsManifestRows: cachedOutcome.result.vfsManifestRows, semanticSegmentFactsRefs: cachedResult.semanticSegmentFactsRefs || [], semanticEvidenceArtifacts: cachedResult.semanticEvidenceArtifacts || [], semanticFactsRef: cachedResult.semanticFactsRef
         });
       }
       if (!cachedOutcome.result.postingsPayload) {
@@ -599,7 +603,7 @@ export function createFileProcessor(options) {
         });
       }
       if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
@@ -855,7 +859,7 @@ export function createFileProcessor(options) {
     throwIfAborted();
     updateCrashStage('post-cpu:write-bundle:start');
     const manifestEntry = await writeBundleForFile({
-      semanticContext, semanticFactsRef: cpuResult?.semanticFactsRef || null,
+      semanticContext, semanticSegmentFactsRefs: cpuResult?.semanticSegmentFactsRefs || [], semanticEvidenceArtifacts: cpuResult?.semanticEvidenceArtifacts || [], semanticFactsRef: cpuResult?.semanticFactsRef || null,
       runIo,
       incrementalState,
       relKey,
@@ -896,7 +900,7 @@ export function createFileProcessor(options) {
       chunks: fileChunks,
       fileRelations,
       vfsManifestRows,
-      semanticFactsRef: cpuResult?.semanticFactsRef || null
+      semanticSegmentFactsRefs: cpuResult?.semanticSegmentFactsRefs || [], semanticEvidenceArtifacts: cpuResult?.semanticEvidenceArtifacts || [], semanticFactsRef: cpuResult?.semanticFactsRef || null
     });
     recordFileMetrics({
       fileLineCount,
@@ -911,7 +915,7 @@ export function createFileProcessor(options) {
       relKey,
       fileIndex,
       cached: false,
-      semanticFactsRef: cpuResult?.semanticFactsRef || null,
+      semanticSegmentFactsRefs: cpuResult?.semanticSegmentFactsRefs || [], semanticEvidenceArtifacts: cpuResult?.semanticEvidenceArtifacts || [], semanticFactsRef: cpuResult?.semanticFactsRef || null,
       durationMs: fileDurationMs,
       chunks: fileChunks,
       fileRelations,

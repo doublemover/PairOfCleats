@@ -666,6 +666,7 @@ export const createSourcekitProvider = () => ({
     const checks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
     if (!docs.length || !targets.length) {
       return {
+        ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
         provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
@@ -922,6 +923,7 @@ export const createSourcekitProvider = () => ({
 
     try {
       const result = await collectLspTypes({
+        semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: docs,

@@ -48,8 +48,8 @@ Implemented with focused evidence:
 - A conservative value slice records immutable definitions, reads, lexical captures
   and structured packing. Checker-matched default-library models distinguish
   typed-array view/copy relationships and message dispatch/transfer requests.
-  CFG, mutable reaching definitions, dynamic realms and observed delivery remain
-  explicitly incomplete; the slice is not full SSA or runtime proof.
+  Local CFG and mutable reaching definitions are now retained; field-sensitive
+  effects, dynamic realms and observed delivery remain explicitly incomplete.
 - Sorted JSONL/offset query indexes and generation-pinned detail provide bounded
   record, argument, name and ownership hydration with artifact/SQLite parity.
   Artifact/SQLite trace parity and public CLI/MCP/HTTP integration pass focused checks.
@@ -59,12 +59,36 @@ Implemented with focused evidence:
   publish immutable standalone runtime families with content-addressed raw inputs.
   Capture/runtime/build/workload identities, missing mappings and code lifetimes
   stay separate. Import never executes or attaches; arbitrary V8 text logs and
-  runtime-to-source-query overlays are not yet supported.
+  independent runtime-to-source overlays are not yet supported.
 - Source-pinned binding task descriptors use a dedicated transactional control DB,
   exact task leases and the existing relations scheduler. Manual/absent-control
   paths stay deferred; completion receipts are acknowledged after whole-generation
   promotion. Production fresh/warm builds and crash-recovery integration pass focused checks.
   Cached old-generation task descriptors cannot be silently relocated.
+
+Current follow-on slice adds local CFG/reaching definitions and merge values, guarded
+optional/nullish/switch paths, exceptional/finally routes and per-call return channels.
+The virtual compiler host resolves retained repository imports to existing Program
+SourceFiles, so renamed imports reach actual library declarations. Unsupported
+heap/context/async effects remain partial. Targeted LSP locations and exact embedded
+source/cache/ownership transport now persist evidence sidecars. Runtime family lookup
+and bounded observation queries are exposed through CLI/MCP/HTTP (MCP schema 1.4.4).
+Local/cross-file deferred descriptors survive control-store reopen.
+
+Focused Node26 receipts: CFG 2.50s (`run-1791627361546-6m1mp9`), virtual imports
+0.315s (`run-1791628134948-kuy2zh`), deferred lifecycle 1.87s
+(`run-1791627719531-dh7z7i`), LSP 1.80s (`run-1791628089207-hgbpj2`), runtime
+query/public/storage checks passed (`run-1791627901223-zhoakn`,
+`run-1791628031363-6703ap`, `run-1791627695885-q29r54`). Production compiler
+fresh/warm passes 12.823s and embedded fresh/warm passes 9.600s with fixture worker
+pools explicitly disabled. These checks do not establish default-worker stability.
+
+Native exit 3221225477 / 0xC0000005 recurred on both attempts in
+`run-1791627691446-9vx75b` and embedded run `run-1791627866233-p1fldx`.
+Parent-owned durable failure receipts now preserve exact runtime/executable, redacted
+arguments, PID/times, raw status, output and last observed phase; focused receipt
+fixture passes (`run-1791627501203-cee281`). The last observed marker was worker-pool
+teardown; the cause remains unknown. A passing retry is not resolution.
 
 Artifact surface **0.1.0**, SQLite **15**, semantic schemas **1** remain the exact
 cutover. The reader audit covers artifact/state/pointer/cache/bundle/SQLite paths,
@@ -86,12 +110,12 @@ retry passed; the native fault remains undiagnosed. Final trace public surfaces 
 indexed artifact/SQLite trace parity passes 5.48s (`run-1791626204277-az8do3`); runtime import
 passes 4/4 (`run-1791624970201-cy7yks`), canonical import CLI passes
 (`run-1791625972821-or578j`), and binding lifecycle/recovery passes 3/3
-(`run-1791625965364-lckhod`). MCP snapshots were intentionally updated to schema
+(`run-1791625965364-lckhod`). Prior MCP snapshots were intentionally updated to schema
 1.4.3; both checks pass (`run-1791626136790-3xvdov`). Repository formatting and the
 command surface audit pass. Broad suites remain unrun.
 
-Remaining: full CFG/SSA, mutable/field-sensitive and cross-file summaries, resolved
-Worker entry/consumer paths, LSP locations and embedded adapters; syntax/relation
+Remaining: complete field/context-sensitive CFG/SSA and SCC cross-file summaries,
+resolved Worker entry/consumer paths and broader LSP/provider coverage; syntax/relation
 walk fusion and shared resident admission; complete config overrides and targeted
 policies; general manual deferred-drain interface; operation discovery/equivalence;
 runtime lookup joins and additional native log adapters. Huge-file intra-file

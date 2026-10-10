@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4.3",
+  "schemaVersion": "1.4.4",
   "tools": [
     {
       "name": "bootstrap",
@@ -1108,6 +1108,485 @@
         },
         "required": [
           "chunk"
+        ]
+      }
+    },
+    {
+      "name": "runtime_evidence",
+      "description": "Query explicitly pinned saved runtime families with exact capture/source/workload/code-lifetime selectors. Never executes, probes or attaches.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "repositoryNamespace": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "generation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseBuildId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "semanticRevision": {
+                    "const": 0
+                  }
+                },
+                "required": [
+                  "baseBuildId",
+                  "semanticRevision"
+                ]
+              },
+              "familyGenerations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "maxItems": 32,
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "selectors": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "captureIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4096
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  },
+                  "runtime": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "executableHash": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "nodeVersion": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "v8Version": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "os": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "architecture": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          }
+                        },
+                        "required": [
+                          "executableHash",
+                          "nodeVersion",
+                          "v8Version",
+                          "os",
+                          "architecture"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "workload": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "fingerprint": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                          },
+                          "phase": {
+                            "enum": [
+                              "warmup",
+                              "capture",
+                              "mixed",
+                              "unknown"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "fingerprint",
+                          "phase"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "scope": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "sessionId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "processId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                          },
+                          "isolateId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "workerId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4096
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "sessionId",
+                          "processId",
+                          "isolateId",
+                          "workerId"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "sourceUnitId": {
+                          "type": "string",
+                          "pattern": "^su1:[a-f0-9]{64}$"
+                        },
+                        "byteHash": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "sourceUnitId",
+                        "byteHash"
+                      ]
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  },
+                  "records": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "partitionId": {
+                          "type": "string",
+                          "pattern": "^(sy1|sa1):[a-f0-9]{64}$"
+                        },
+                        "localId": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "partitionId",
+                        "localId"
+                      ]
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  },
+                  "codeVersions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "sessionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "processId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "codeId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "lifetimeId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
+                      "required": [
+                        "sessionId",
+                        "processId",
+                        "codeId",
+                        "lifetimeId"
+                      ]
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  },
+                  "evidenceIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4096
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  },
+                  "kinds": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "cpuProfile",
+                        "scriptMetadata",
+                        "typeObservation",
+                        "icEvent",
+                        "mapEvent",
+                        "compilerFeedback",
+                        "codeVersion",
+                        "codeLifecycle",
+                        "sourceMapping",
+                        "optimization",
+                        "deoptimization",
+                        "nativeDisassembly",
+                        "wasmBytecode",
+                        "counter",
+                        "transfer",
+                        "wait",
+                        "derivedClaim"
+                      ]
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  },
+                  "joinQualities": {
+                    "type": "array",
+                    "items": {
+                      "enum": [
+                        "exact-source",
+                        "source-map",
+                        "heuristic",
+                        "ambiguous",
+                        "unresolved"
+                      ]
+                    },
+                    "maxItems": 32,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "captureIds",
+                  "runtime",
+                  "workload",
+                  "scope",
+                  "sources",
+                  "records",
+                  "codeVersions",
+                  "evidenceIds",
+                  "kinds",
+                  "joinQualities"
+                ]
+              },
+              "limits": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "maxRecords": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 128
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "minimum": 4096,
+                    "maximum": 1048576
+                  },
+                  "maxMs": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000
+                  }
+                },
+                "required": [
+                  "maxRecords",
+                  "maxBytes",
+                  "maxMs"
+                ]
+              },
+              "cursor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "repositoryNamespace",
+              "generation",
+              "familyGenerations",
+              "selectors",
+              "limits",
+              "cursor"
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "repoRoot",
+          "destination",
+          "request"
+        ]
+      }
+    },
+    {
+      "name": "runtime_families",
+      "description": "Discover retained immutable saved runtime families within an authorized repository destination. Bounded paging; never captures or executes.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "repoRoot": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxFamilies": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 32
+              },
+              "maxScan": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              },
+              "maxBytes": {
+                "type": "integer",
+                "minimum": 4096,
+                "maximum": 1048576
+              },
+              "maxMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              }
+            },
+            "required": [
+              "maxFamilies",
+              "maxScan",
+              "maxBytes",
+              "maxMs"
+            ]
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "repoRoot",
+          "destination",
+          "limits",
+          "cursor"
         ]
       }
     },

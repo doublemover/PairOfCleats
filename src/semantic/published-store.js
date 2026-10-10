@@ -31,6 +31,10 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
   if (generation && (generation.baseBuildId !== manifest.generation.baseBuildId || generation.semanticRevision !== 0)) {
     throw Object.assign(new Error('Semantic generation no longer matches the requested build.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
   }
+  const registeredEvidence = new Set(pieces.pieces.filter(piece => piece.name === 'semantic_evidence').map(piece => piece.path));
+  for (const artifact of manifest.evidenceArtifacts || []) {
+    if (!registeredEvidence.has('semantic/' + artifact.path)) throw Object.assign(new Error('Semantic evidence is not registered.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+  }
   let queryIndex = null;
   const queryPiece = pieces.pieces?.find((piece) => piece.name === 'semantic_query_index' && piece.path === 'semantic_query_index.json');
   if (queryPiece) {

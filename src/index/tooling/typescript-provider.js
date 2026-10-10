@@ -376,11 +376,13 @@ export const createTypeScriptProvider = () => ({
       mergedOptions.allowJs = compilerDefaults.allowJs;
       mergedOptions.checkJs = compilerDefaults.checkJs;
 
-      const vfsMap = new Map();
+      const vfsMap = new Map(), sourcePaths = new Map(), moduleOrigins = new Map();
       const rootNames = [];
       for (const doc of groupDocs) {
         const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
         vfsMap.set(normalizePathKey(absPath, useCaseSensitive), doc.text);
+        if (doc.containerPath) moduleOrigins.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
+        if (doc.containerPath && !doc.segmentUid) sourcePaths.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
         rootNames.push(absPath);
       }
       const finalRootNames = parsedConfig?.fileNames
@@ -403,7 +405,7 @@ export const createTypeScriptProvider = () => ({
         continue;
       }
 
-      const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap);
+      const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins);
       const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, host });
       const checker = program.getTypeChecker();
       const semanticGroup = ctx.semanticSession?.beginGroup({ ts, program, options: mergedOptions, documents: groupDocs, configPath: group.configPath });
@@ -477,6 +479,7 @@ export const createTypeScriptProvider = () => ({
           };
         }
       }
+      if (semanticGroup) await ctx.semanticSession.finishGroup(semanticGroup);
     }
 
     return {

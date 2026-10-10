@@ -21,8 +21,11 @@ Source-owned JavaScript/TypeScript structure retains ordered arguments, construc
 object/array structure and UTF-16 source spans. The grouped TypeScript compiler
 supplies separately scoped binding evidence without requiring legacy type inference
 to be enabled. Aliases, repeated call occurrences and external declarations remain
-separate records. The first value slice covers immutable definitions and selected
-checker-matched typed-array and message-dispatch models. A dispatch request is not
+separate records. Local control flow retains mutable reaching definitions, merge
+values, branches, loops and exceptional routes. Resolved calls retain distinct
+return channels; context-insensitive channels and unsupported effects report partial
+coverage. Selected checker-matched typed-array and message-dispatch models remain
+conservative. A dispatch request is not
 proof of delivery, detachment, execution thread or actual runtime values.
 
 ## Detail and traces
@@ -87,8 +90,11 @@ Task state and leases live in a separate semantic frontier SQLite control databa
 Missing control-store capability leaves work deferred. Completion is acknowledged
 only after normal whole-generation promotion. Changing generations produces a new
 target request; old tasks are never retargeted by filename. A general manual drain
-CLI, independent overlay publication, complete CFG/SSA and broad LSP enrichment are
-not yet available.
+CLI, independent overlay publication and complete field/context-sensitive analysis
+are not yet available. Local and cross-file deferred tasks retain durable descriptors.
+Targeted LSP locations reuse the existing session independently of signature
+completeness. Embedded JS/TS source snapshots retain exact local-to-container maps;
+coarse or synthetic mappings do not claim exact bindings.
 
 ## Saved runtime evidence
 
@@ -110,4 +116,48 @@ Supported adapters are saved Inspector CPU profiles and versioned
 arbitrary V8 diagnostic text. Missing source hashes, unsupported fields and ambiguous
 joins stay explicit. Raw artifacts are content-addressed and normalized projections
 publish as a standalone immutable family. These are not source-index overlays, and
-runtime lookup is not yet exposed through semantic trace.
+runtime lookup is separate from semantic trace.
+
+Discover retained families, then query explicit immutable generation IDs:
+
+```sh
+pairofcleats runtime families --request runtime-families.json --all
+pairofcleats runtime lookup --request runtime-query.json --all
+```
+
+Discovery requests contain `schemaVersion: 1`, `repoRoot`, `destination`,
+`limits: {maxFamilies, maxScan, maxBytes, maxMs}` and `cursor: null`. A lookup request
+contains `schemaVersion: 1`, `repoRoot`, `destination` and `request`, the strict runtime
+query contract in `src/contracts/schemas/runtime-query.js`. Destinations resolve
+relative to the repository and must remain within it or its configured repository
+cache after resolving symlinks and junctions.
+
+The nested query pins `repositoryNamespace`, the source `generation` and
+`familyGenerations`. Selectors match capture IDs, executable/version/platform,
+workload fingerprint and phase, session/process/isolate/worker, exact source hashes,
+source record references and exact code lifetimes. Empty selector lists impose no
+filter; nullable selectors use `null`. The library exports
+`defaultRuntimeQuerySelectors()` and `DEFAULT_RUNTIME_QUERY_LIMITS`; the latter uses
+32 records, 64 KiB and 250 ms. Every request supplies limits and `cursor: null` for
+the first page. Opaque continuation cursors bind those exact selectors, limits and
+family generations. `--all` streams bounded pages without launching a capture.
+
+MCP exposes `runtime_families` and `runtime_evidence`; HTTP POST routes are
+`/analysis/runtime-families` and `/analysis/runtime-evidence`. All surfaces share the
+same destination boundary and saved-family service. Results separate observations
+from derived claims and provide explanations and plan-only next-observation
+proposals. Capture coverage and source-join counts remain explicit: a complete CPU
+profile does not establish an exact source mapping. Current saved adapters project
+direct observations; general causal derived-claim projection is explicitly unsupported.
+Sampling does not prove all
+executions or call counts. Native listing hashes from the custom interchange retain
+their exact code lifetimes; lookup does not claim arbitrary V8 native-log support.
+
+Queries verify the manifest, registered lookup index, offset table and hydrated row
+hashes. They do not read every raw artifact on each request; that distinction is
+reported in the result's integrity fields. All imported generation directories are
+retained, so lookup is not restricted to the latest convenience pointer. Families
+without the versioned lookup index return an explicit unavailable/reingest error;
+discovery labels those same-format retained families `unavailable-reingest` while
+still listing available families. There is no old-format lookup fallback or migration. Reingestion preserves the saved inputs
+and publishes a new immutable family when its projection changes.

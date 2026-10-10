@@ -107,6 +107,15 @@ const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAcc
         if (source.sourceUnitId !== factsRef.sourceUnitId || source.byteHash !== factsRef.sourceHash
           || source.repositoryNamespace !== factsRef.repositoryNamespace) throw fail('Semantic cache source manifest differs from descriptor.');
         await copy('semantic-sources/' + source.byteHash + '.utf8', source.byteLength);
+        if (source.mapping) {
+          const relative = source.mapping.mapRef;
+          if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(relative)) throw fail('Invalid source mapping evidence path.');
+          const mapBytes = await fs.readFile(await resolveSemanticPartPath(sourceRoot, relative));
+          if (hashBytes(mapBytes) !== path.basename(relative, '.json')) throw fail('Source mapping evidence checksum mismatch.');
+          const mapping = JSON.parse(mapBytes.toString('utf8'));
+          if (semanticHash('semantic.embedded-map.v1', mapping) !== source.mapping.identity) throw fail('Source mapping evidence identity mismatch.');
+          await copy(relative, mapBytes.length);
+        }
       }
     }
     return reserved;
@@ -168,7 +177,7 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
 
 /** Return a verified descriptor rebased to the new immutable whole-build generation. */
 export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleDir, locator, dependencySignatures,
-  sourceHash, sourcePath, repositoryNamespace, targetBuildRoot, storage, diskAccount, signal = null }) => {
+  sourceHash, sourcePath, repositoryNamespace, targetBuildRoot, storage, diskAccount, evidenceArtifacts = [], signal = null }) => {
   if (!HASH.test(sourceHash) || typeof sourcePath !== 'string' || !sourcePath
     || typeof repositoryNamespace !== 'string' || !repositoryNamespace) {
     throw new TypeError('Current semantic source hash and repository namespace are required.');
@@ -187,7 +196,7 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
   const parent = await resolveSemanticPartPath(targetBuildRoot, storage.relativePath);
   const temporary = await fs.mkdtemp(path.join(parent, 'semantic-cache-'));
   let reserved = 0;
-  let retainedSourceBytes = 0;
+  let retainedSourceBytes = 0, retainedEvidenceBytes = 0;
   try {
     reserved = await copyFactsFiles({ factsRef: opened.factsRef, store: opened.store,
       sourceRoot: opened.root, targetRoot: temporary, diskAccount, signal });
@@ -213,6 +222,14 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
       diskAccount.release(sourceBytes); reserved -= sourceBytes;
     }
     await fs.rm(path.join(temporary, 'semantic-sources'), { recursive: true, force: true });
+    for await (const source of opened.store.iterateRows(opened.factsRef.syntaxPartitionId, 'semantic_sources', { signal })) if (source.mapping) {
+      const relative = source.mapping.mapRef, from = await resolveSemanticPartPath(temporary, relative), bytes = await fs.readFile(from), target = path.join(parent, relative);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      try { await fs.link(from, target); retainedEvidenceBytes += bytes.length; }
+      catch (error) { if (error.code !== 'EEXIST') throw error; if (!(await fs.readFile(target)).equals(bytes)) throw fail('Retained source mapping collision.'); diskAccount.release(bytes.length); reserved -= bytes.length; }
+      const record = { path: relative, hash: hashBytes(bytes), bytes: bytes.length };
+      if (!evidenceArtifacts.some(entry => entry.path === relative)) evidenceArtifacts.push(record);
+    }
     const result = { ...opened.factsRef, storage: structuredClone(storage), partitions };
     assertSemanticEnvelope('fileFactsRef', result);
     const store = createArtifactSemanticStore({ root: parent, repoRoot,
@@ -222,7 +239,7 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
     return result;
   } catch (error) {
     await fs.rm(temporary, { recursive: true, force: true });
-    diskAccount.release(reserved - retainedSourceBytes);
+    diskAccount.release(reserved - retainedSourceBytes - retainedEvidenceBytes);
     throw error;
   }
 };

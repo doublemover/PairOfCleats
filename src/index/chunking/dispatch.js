@@ -112,6 +112,7 @@ const CODE_CHUNKERS = [
       if (context?.tsChunks) return context.tsChunks;
       const parser = context?.typescript?.importsOnly ? 'heuristic' : context?.typescript?.parser;
       return buildTypeScriptChunks(text, {
+        typeScriptSyntaxContext: context?.typeScriptSyntaxContext, sourceFile: context?.tsSyntax?.sourceFile, ts: context?.tsSyntax?.ts,
         ext,
         relPath,
         parser,
