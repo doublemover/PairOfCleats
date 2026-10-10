@@ -52,6 +52,9 @@ const join = object({ quality: { enum: ['exact-source', 'source-map', 'heuristic
   sourceUnitId: nullable(sourceId), sourceHash: nullable(hash), targets: list(ref), reasons: strings,
   sourceMapHash: nullable(hash) });
 const codeKey = object({ sessionId: text, processId: text, codeId: text, lifetimeId: text });
+const mapKey = object({ sessionId: text, processId: text, mapId: text, lifetimeId: text });
+const inlineFrame = object({ codeVersion: codeKey, sourceHash: nullable(hash), sourceRange: nullable(range) });
+const inlineFrames = { type: 'array', maxItems: 64, items: inlineFrame };
 const payloads = {
   cpuProfile: object({ profileNodeId: integer, parentNodeId: nullable(integer), functionName: text,
     scriptId: nullable(text), url: nullable(text), lineNumber: nullable(integer), columnNumber: nullable(integer),
@@ -61,12 +64,12 @@ const payloads = {
     executionContextId: nullable(text), sourceMapHash: nullable(hash), wasmModuleHash: nullable(hash) }),
   sourceMapping: object({ scriptId: nullable(text), functionId: nullable(text), sourceRange: nullable(range),
     generatedRange: nullable(range), wasmModuleHash: nullable(hash), wasmFunctionIndex: nullable(integer),
-    codeVersion: nullable(codeKey), inlinedInto: nullable(codeKey) }),
+    codeVersion: nullable(codeKey), inlinedInto: nullable(codeKey) }, { inlineFrames }),
   typeObservation: object({ site: nullable(text), slot: nullable(text), tags: strings, shapes: strings,
     receiverCategories: strings, count: nullable(integer), sampleMethod: text, window: nullable(object({ start: timestamp, end: timestamp })) }),
   codeVersion: object({ key: codeKey, functionId: nullable(text), moduleHash: nullable(hash), tier: nullable(text),
     architecture: text, codeHash: nullable(hash), disassemblyHash: nullable(hash),
-    address: nullable(text), size: nullable(integer), created: timestamp, retired: timestamp }),
+    address: nullable(text), size: nullable(integer), created: timestamp, retired: timestamp }, { inlineFrames }),
   codeLifecycle: object({ key: codeKey, event: { enum: ['create', 'move', 'retire', 'deopt'] },
     fromAddress: nullable(text), toAddress: nullable(text), reason: nullable(text) }),
   nativeDisassembly: object({ key: codeKey, architecture: text, bytesHash: nullable(hash), listingHash: hash, range: nullable(range) }),
@@ -79,12 +82,26 @@ const payloads = {
 };
 for (const kind of ['icEvent', 'mapEvent', 'compilerFeedback', 'optimization', 'deoptimization']) {
   payloads[kind] = object({ site: nullable(text), slot: nullable(text), functionId: nullable(text),
-    codeVersion: nullable(codeKey), state: nullable(text), reason: nullable(text), detailRef: nullable(rawRef) });
+    codeVersion: nullable(codeKey), state: nullable(text), reason: nullable(text), detailRef: nullable(rawRef) }, {
+    map: nullable(mapKey), previousMap: nullable(mapKey),
+    mapLifecycle: { enum: ['create', 'transition', 'retire'] },
+    feedbackMaps: { type: 'array', maxItems: 64, uniqueItems: true, items: mapKey }, inlineFrames
+  });
 }
 for (const kind of ['counter', 'transfer', 'wait']) {
   payloads[kind] = object({ name: text, value: nullable({ type: 'number' }), unit: nullable(text),
     fromContext: nullable(text), toContext: nullable(text), category: nullable(text) });
 }
+Object.assign(payloads.mapEvent.properties, {
+  shapeHash: nullable(hash), descriptorCount: nullable(integer)
+});
+Object.assign(payloads.compilerFeedback.properties, {
+  feedbackVectorId: nullable(text), feedbackKind: nullable(text)
+});
+Object.assign(payloads.deoptimization.properties, {
+  deoptId: nullable(text), bytecodeOffset: nullable(integer), bailoutType: nullable(text)
+});
+Object.assign(payloads.icEvent.properties, { accessKind: nullable(text) });
 export const RUNTIME_EVIDENCE_SCHEMA = { oneOf: Object.entries(payloads).map(([kind, data]) => object({
   schemaVersion: { const: 1 }, evidenceId: text, captureId: text, projectionVersion: text,
   kind: { const: kind }, evidenceClass: { const: kind === 'derivedClaim' ? 'inferred' : 'observed' },

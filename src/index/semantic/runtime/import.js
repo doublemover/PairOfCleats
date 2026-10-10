@@ -13,6 +13,7 @@ import { retainRuntimeRaw, hashRuntimeFile, runtimeByteHash, runtimeImportError,
 import { OFFLINE_RUNTIME_PARSER, createAdapterCoverage, markRuntimeCoverage, runtimeEventLimit } from './adapters/shared.js';
 import { adaptCpuProfile } from './adapters/cpu-profile.js';
 import { adaptCodeLog } from './adapters/code-log.js';
+import { selectOfflineRuntimeAdapter } from './adapters/inventory.js';
 import { writeRuntimeQueryIndex, openRuntimeQueryIndex, assertRuntimeIndexedRow } from './query-index.js';
 
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
@@ -171,8 +172,9 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
       for (const artifact of artifacts) {
         throwIfAborted(signal);
         const state = createAdapterCoverage(artifact); coverage.push(state);
-        const adapter = artifact.formatVersion === '1' && artifact.format === 'inspector-cpu-profile' ? adaptCpuProfile
-          : artifact.formatVersion === '1' && artifact.format === 'pairofcleats-code-log' ? adaptCodeLog : null;
+        const descriptor = selectOfflineRuntimeAdapter(artifact);
+        const adapter = descriptor?.adapter === 'cpu-profile' ? adaptCpuProfile
+          : descriptor?.adapter === 'code-log' ? adaptCodeLog : null;
         if (!adapter) { markRuntimeCoverage(state, 'unsupported_raw_format_or_version', 0, 'unsupported'); continue; }
         const filename = await resolveSemanticPartPath(destination, artifact.storageRef);
         for await (const row of adapter({ filename, artifact, capture, sourceCandidates, scriptHashes, coverage: state, signal })) {

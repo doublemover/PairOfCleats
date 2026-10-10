@@ -28,10 +28,10 @@ export const createSemanticExplainRunner = ({ openStore = openPublishedSemanticS
       while (services.size > maxServices) services.delete(services.keys().next().value);
     }
     const indexDir = await resolveSemanticGenerationIndexDir({ repoRoot: request.repoRoot, generation: request.generation, userConfig: config });
-    const { store } = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,
+    const { store, manifest } = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,
       requireQueryIndex: true });
     throwIfAborted(signal);
-    return service({ store, request, signal });
+    return service({ store, manifest, request, signal });
   };
 };
 export const runSemanticExplain = createSemanticExplainRunner();

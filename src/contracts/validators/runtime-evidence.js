@@ -20,9 +20,18 @@ export const assertRuntimeEvidence = (kind, value) => {
     if (value.join.quality === 'exact-source' && (!value.join.sourceUnitId || !value.join.sourceHash)) fail('Exact join requires source identity and hash.');
     if (value.join.quality === 'unresolved' && value.join.targets.length) fail('Unresolved join cannot assert targets.');
     if (value.kind !== 'derivedClaim' && !value.rawRefs.length) fail('Direct observation requires raw evidence.');
-    if (value.data.key && (value.data.key.sessionId !== value.scope.sessionId || value.data.key.processId !== value.scope.processId)) fail('Code lifetime scope mismatch.');
+    for (const key of [value.data.key, value.data.codeVersion, value.data.inlinedInto, value.data.map, value.data.previousMap,
+      ...(value.data.feedbackMaps || []), ...(value.data.inlineFrames || []).map(frame => frame.codeVersion)].filter(Boolean)) {
+      if (key.sessionId !== value.scope.sessionId || key.processId !== value.scope.processId) fail('Code/map lifetime scope mismatch.');
+    }
     if (value.timestamp && value.timestamp.clockDomain !== value.clock.domain) fail('Timestamp clock mismatch.');
-    for (const range of [value.data.sourceRange, value.data.generatedRange, value.data.range, ...value.rawRefs.map(row => row.byteRange)]) {
+    for (const at of [value.data.created, value.data.retired].filter(Boolean)) {
+      if (at.clockDomain !== value.clock.domain) fail('Code lifetime clock mismatch.');
+    }
+    if (value.data.created && value.data.retired && value.data.created.value > value.data.retired.value) fail('Code lifetime interval mismatch.');
+    if (value.data.mapLifecycle && (value.kind !== 'mapEvent' || !value.data.map)) fail('Map lifecycle requires a map event and exact map identity.');
+    for (const range of [value.data.sourceRange, value.data.generatedRange, value.data.range,
+      ...(value.data.inlineFrames || []).map(frame => frame.sourceRange), value.data.detailRef?.byteRange, ...value.rawRefs.map(row => row.byteRange)]) {
       if (range && range.end < range.start) fail('Runtime range must be half-open and ordered.');
     }
   }
@@ -42,7 +51,7 @@ export const assertRuntimeProjection = ({ capture, evidence }) => {
       throw Object.assign(new TypeError('Runtime projection capture/workload identity mismatch.'), { code: 'ERR_RUNTIME_EVIDENCE_JOIN' });
     }
     ids.add(record.evidenceId);
-    for (const reference of record.rawRefs) {
+    for (const reference of [...record.rawRefs, ...(record.data.detailRef ? [record.data.detailRef] : [])]) {
       const artifact = raw.get(reference.artifactId);
       if (!artifact || artifact.hash !== reference.hash || (reference.byteRange && reference.byteRange.end > artifact.byteLength)) {
         throw Object.assign(new TypeError('Runtime raw evidence reference mismatch.'), { code: 'ERR_RUNTIME_EVIDENCE_JOIN' });

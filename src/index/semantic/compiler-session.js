@@ -1,3 +1,5 @@
+import { collectCompilerBoundaryFlow } from './compiler-boundary-flow.js';
+import { createCompilerDependencySystem, compilerInventoryHash } from './compiler-dependencies.js';
 import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
 import { planSemanticSource } from './planning.js';
 import { collectCompilerStorageFlow } from './compiler-storage-flow.js';
@@ -26,6 +28,7 @@ const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 export const createSemanticCompilerSession = async ({ state, runtime, signal = null }) => {
   const policy = runtime.semanticPolicy, inventory = new Map(), texts = new Map();
   const emitted = [], contexts = [], declarationChunks = new Map();
+  let activeCompilerSystem = null;
   const chunksByUid = new Map((state.chunks || []).map(chunk => [chunk.chunkUid || chunk.metaV2?.chunkUid, chunk]));
   const detailsByFile = new Map();
   for (const chunk of state.chunks || []) {
@@ -81,6 +84,20 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
   };
   return {
     fileTextByFile: texts,
+    compilerSystem(ts, documents) {
+      const inventories = state.semanticCompilerDependencyInventories || [];
+      if (!inventories.length) throw Object.assign(new Error('Compiler has no sealed dependency authority.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
+      for (const doc of documents) {
+        const source = sourceForDoc(doc)?.source;
+        if (!source || source.mapping || !inventories.every(authority => authority.sourceInputs.some(input => input.path === source.path
+          && input.sourceUnitId === source.sourceUnitId && input.byteHash === source.byteHash && input.textHash === hashText(doc.text)))) {
+          throw Object.assign(new Error('Compiler VFS root is outside sealed source authority.'), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
+        }
+      }
+      const observations = inventories.flatMap(item => item.observations);
+      activeCompilerSystem = createCompilerDependencySystem({ ts, inventory: { observations }, signal }).system;
+      return activeCompilerSystem;
+    },
     prepareDocuments(documents) {
       const result = documents.map(doc => { const item = sourceForDoc(doc); return item ? { ...doc, semanticSourceUnitId: item.source.sourceUnitId } : doc; });
       const present = new Set(result.filter(doc => !doc.segmentUid).map(doc => keyPath(path.resolve(runtime.root, doc.containerPath || doc.virtualPath))));
@@ -98,7 +115,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       const sources = program.getSourceFiles().map(sf => ({ path: sf.fileName.split(path.sep).join('/'), hash: hashText(sf.text) }))
         .sort((a, b) => order(a.path, b.path));
       const configHash = semanticHash('semantic.compiler-config.v1', { options: JSON.parse(JSON.stringify(options)), configPath: configPath || null });
-      const moduleResolutionHash = semanticHash('semantic.compiler-dependencies.v1', sources);
+      const moduleResolutionHash = semanticHash('semantic.compiler-dependencies.v1', { sources, authorities: (state.semanticCompilerDependencyInventories || []).map(compilerInventoryHash).sort() });
       const vfsMappingHash = semanticHash('semantic.compiler-vfs.v1', documents.map(doc => ({
         virtualPath: doc.virtualPath, sourceUnitId: sourceForDoc(doc)?.source.sourceUnitId || null
       })).sort((a, b) => order(a.virtualPath, b.virtualPath)));
@@ -110,10 +127,10 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       }
       const context = { contextKey, sourceUnits: [...new Map([...mappedFiles.values()].map(item => [item.source.sourceUnitId,
         { sourceUnitId: item.source.sourceUnitId, byteHash: item.source.byteHash }])).values()].sort((a, b) => order(a.sourceUnitId, b.sourceUnitId)),
-      providerId: 'typescript', providerVersion: '2.2.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
+      providerId: 'typescript', providerVersion: '2.3.0', compilerVersion: ts.version, configHash, moduleResolutionHash, vfsMappingHash };
       contexts.push(context);
       state.semanticCompilerContexts = contexts;
-      return { context, mappedFiles, mappedDocuments, repoRoot: runtime.root, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
+      return { context, mappedFiles, mappedDocuments, compilerReadFile: activeCompilerSystem?.readFile, repoRoot: runtime.root, workerDocuments: [], flowDocuments: [], dependencyHashes: sources.map(row => row.hash), isDefaultLibrary: sf => program.isSourceFileDefaultLibrary(sf), sourceHashes: new Map(sources.map(row => [keyPath(row.path), row.hash])) };
     },
     async collectDocument({ ts, checker, sourceFile, nodeIndex, group }) {
       const item = group.mappedFiles.get(keyPath(sourceFile.fileName));
@@ -314,7 +331,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         partitions: [...current.partitions.filter(p => p.partitionId !== partition.partitionId && p.partitionId !== valueSlice?.partition.partitionId && p.partitionId !== flow?.partition.partitionId && p.partitionId !== storageFlow?.partition.partitionId), partition, ...(valueSlice ? [valueSlice.partition] : []), ...(flow ? [flow.partition] : []), ...(storageFlow ? [storageFlow.partition] : [])],
         coverage: [...current.coverage.filter(c => c.phase !== 'bindings' && (!valueSlice || !['localFlow', 'boundaryModels'].includes(c.phase))), coverage, ...(valueSlice?.coverage || []), ...(flow?.coverage || []), ...(storageFlow?.coverage || [])] }));
     },
-    async finishGroup(group) { emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerWorkerFlow({ group, state, policy, signal })); group.workerDocuments = []; },
+    async finishGroup(group) { emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerWorkerFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerBoundaryFlow({ group, state, policy, signal })); group.workerDocuments = []; },
     output() { return { schemaVersion: 1, contexts, partitions: emitted, coverageRef: null, diagnosticsRef: null }; }
   };
 };

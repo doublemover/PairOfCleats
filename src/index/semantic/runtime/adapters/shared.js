@@ -1,7 +1,7 @@
 import { semanticHash } from '../../identity.js';
 import { joinRuntimeSource } from '../plan.js';
 
-export const OFFLINE_RUNTIME_PARSER = Object.freeze({ id: 'pairofcleats-offline-runtime', version: '1' });
+export const OFFLINE_RUNTIME_PARSER = Object.freeze({ id: 'pairofcleats-offline-runtime', version: '2' });
 export const runtimeEventLimit = capture => Math.min(capture.limits.maxEvents, 100000,
   Math.floor(capture.limits.processTreeMemoryBytes / 4096));
 export const unknownFields = (value, keys) => Object.keys(value || {}).some(key => !keys.includes(key));
