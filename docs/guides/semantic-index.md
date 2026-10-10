@@ -40,6 +40,52 @@ unresolved. Generic serialization is a packing request; transfer and shared-stor
 requests remain separate, and none asserts delivery, detachment or a copied backing
 buffer. User-defined APIs with matching names do not receive platform models.
 
+## WASM module evidence
+
+The checker-authorized boundary pass decodes bounded core WASM binaries supplied
+as a direct `new Uint8Array([literal bytes])` to `new WebAssembly.Module`,
+`WebAssembly.compile`, or `WebAssembly.instantiate`. Const module/instance aliases,
+`new WebAssembly.Instance`, awaited compilation, and both awaited instantiation
+overloads preserve provenance. Mutable or escaped instantiation-result wrappers do not authorize instance joins.
+Typed-array aliases remain unavailable because
+`const` does not make their contents immutable. No module is compiled, instantiated
+or executed by this analysis; the runtime's static `WebAssembly.validate` checks
+decoded binaries, and its V8 version participates in the partition identity.
+
+The decoder retains types, indexed imports/functions/tables/memories/globals,
+exports, start functions, active element/data segments, custom section locations,
+and instruction immediates. Bounded numeric core instructions, structured blocks,
+loops, branches, direct calls and multi-value signatures produce stack/local merge
+values, control edges and possible trap exits. Unreachable syntax remains retained
+without fabricated value flow. Indirect-call target sets, global/memory state,
+aliases and effects are explicitly incomplete. Calls use context-insensitive
+channels; graph reachability is a modeled dependency, not a runtime value proof.
+
+Host exports join the exact decoded export name and function index of the resolved
+instance. Each instantiation owns separate channels. Literal import objects join
+only the declared module/name pairs to immutable source callbacks, preserving
+parameter positions and simple synchronous return expressions. Spreads, duplicate
+keys, accessors, mutable function declarations, dynamic names and ambiguous origins
+do not acquire exact target links. Numeric conversions, exceptions, host multi-value
+packing and actual activation remain partial even when a target is exact.
+
+Binary bytes, SHA-256 identity, byte ranges, decoded instructions and their semantic
+RecordRefs are saved through the existing immutable evidence registry. Binary nodes
+have null text spans; byte offsets never claim UTF-16 source coordinates. This
+reuses source-owned analysis partitions and the normal artifact/SQLite publication
+contracts. Per module limits are 64 KiB, 4096 vector entries/instructions, 256 locals
+including parameters, 128 nested control frames, 32768 graph nodes and 131072 edges;
+over-budget modules or graphs retain explicit reasons rather than guessed output.
+
+Standalone `.wasm` discovery/source snapshots, streaming or filesystem-loaded bytes,
+mutable byte buffers, cross-source instance aliases, reference/GC/SIMD/atomic and
+exception-handling instructions, passive segments, shared-memory/memory64 forms,
+and richer host completions remain unsupported. Malformed decoded modules fail
+static validation and produce no module links. Generic host-boundary candidates
+remain available when exact module provenance is unavailable. Binary format
+references: [core instructions](https://webassembly.github.io/spec/core/binary/instructions.html)
+and [core modules](https://webassembly.github.io/spec/core/binary/modules.html).
+
 ## Detail and traces
 
 Requests must name the exact repository and generation, plus a semantic RecordRef.
