@@ -74,7 +74,7 @@ allowance (19.2s); its default 512 MiB allowance correctly deferred warm work af
 process-wide high-water receipt. Warm assertions now compare actual bindings and
 call targets rather than require redundant task completion.
 
-**Native crash remains unresolved.** Normal worker-enabled compiler builds still
+**Pre-bootstrap native investigation.** Normal worker-enabled compiler builds intermittently
 produce raw `3221225477 / 0xC0000005`. A ProcDump capture with the matching official
 Node26.8.1 PDB shows `C0000374` heap corruption in V8 free-list/page release during
 worker-isolate disposal. This identifies the failing native operation, not the
@@ -93,6 +93,36 @@ Qualification inventory: `temp/semantic-indexing/repair-qualification.json`.
 No full CI, broad benchmark, automatic capture or feature expansion was run. Five
 additional storage cases and broad release checks remain unrun. This is a bounded
 repair handoff with a native blocker, not completed frozen-spec acceptance.
+
+Setup and rerun checkpoint after `49b42e7f` (2026-10-10): the lead completed
+`npm run bootstrap` under Node26.8.1/npm11.19.0, including dependency install,
+repository patches and native rebuilds. Explicit patch confirmation, native repair
+and native verification then passed; all required native packages are loadable.
+The optional sharp package was absent and skipped. Bootstrap aligned the installed
+Piscina from 5.1.4 to the already-declared/locked stable 5.3.2; the manifest and lock
+required no Piscina version change. Dependency alignment is not attribution of the
+prior heap corruption to a particular package.
+
+The user authorized review and approval of npm's install-script warning. All 48
+listed package instances were reviewed and covered by 47 unique version-pinned
+`allowScripts` entries. `npm install-scripts ls --json` now returns no pending
+approvals; future package versions are not blanket approved.
+
+The 11 enrolled setup/rerun checks all passed, with no failures, timeouts, skips or
+retries, using jobs1, 30-second per-test limits and `--native-status-redo=false`.
+Normal worker-enabled compiler cold/warm bindings passed in 20.5s and embedded
+source mapping passed in 14.8s. Admission, lifecycle, publication recovery, compiler
+flow, boundary flow, phase drain, Perl native reset, native scheduler and the
+CLI/MCP/HTTP semantic trace service checks passed. Query/phase fixture worker
+isolation remains as documented above. Original failure receipts and dump remain
+preserved. The earlier native failure did not recur in these requested reruns;
+its exact corruption origin remains unidentified. No further crash diagnosis,
+full CI, `npm run verify` or benchmark campaign was run after setup.
+
+Setup receipt: `temp/semantic-indexing/setup-qualification.json`; exact rerun
+results: `temp/semantic-indexing/setup-rerun-results.json`; runner receipts:
+`.testLogs/run-1791637522302-3st86l`. Lead-only continuation; the existing helpers
+remain held. This is a bounded setup/repair checkpoint, not frozen-spec completion.
 
 Implemented with focused evidence:
 
