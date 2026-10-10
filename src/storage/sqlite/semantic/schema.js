@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS semantic_ownership (
   PRIMARY KEY(partition_id, record_partition, local_id, chunk_uid, role)
 );
 CREATE INDEX IF NOT EXISTS semantic_ownership_chunk ON semantic_ownership(chunk_uid);
+CREATE INDEX IF NOT EXISTS semantic_operation_ast ON semantic_records(json_extract(payload,'$.data.astKind'),partition_id,local_id) WHERE record_kind='expression';
+CREATE INDEX IF NOT EXISTS semantic_operation_operator ON semantic_records(json_extract(payload,'$.data.operation'),partition_id,local_id) WHERE record_kind='expression';
+CREATE INDEX IF NOT EXISTS semantic_operation_invocation ON semantic_records(json_extract(payload,'$.data.invocationKind'),partition_id,local_id) WHERE record_kind='expression';
 CREATE TABLE IF NOT EXISTS semantic_coverage (
   partition_id TEXT NOT NULL, ordinal INTEGER NOT NULL, phase TEXT NOT NULL,
   state TEXT NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(partition_id, ordinal)

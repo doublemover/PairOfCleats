@@ -202,3 +202,18 @@ without the versioned lookup index return an explicit unavailable/reingest error
 discovery labels those same-format retained families `unavailable-reingest` while
 still listing available families. There is no old-format lookup fallback or migration. Reingestion preserves the saved inputs
 and publishes a new immutable family when its projection changes.
+
+Implementation checkpoint (not yet a public query capability): source code now includes
+`semantic-find` and `semantic-explain` service/CLI/MCP/HTTP wrappers. They remain outside
+public catalogs until artifact/SQLite parity and surface qualification pass. Find uses
+exact AST/operator/invocation selectors or a recorded target candidate, and can compare
+bounded ordered syntax. Literal/name/type/effect gaps are explicit; a matching structural
+hash does not establish equivalent behavior. Cursors bind the exact generation, store
+inventory and request. Explain returns static evidence classes and cited producer methods.
+
+The new enrichment coordinator defaults to plan-only. Enqueue writes only the dedicated
+frontier control store. Existing source-only tasks cannot be safely drained because they
+lack a sealed complete compiler/config/module-resolution dependency inventory; the service
+reports this blocker before building. Its future verified whole-generation path preserves
+old/new task lineage and may rebuild source, so it does not promise targeted parse reuse.
+The wrappers are implemented but unqualified and unregistered.

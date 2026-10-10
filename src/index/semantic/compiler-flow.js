@@ -145,7 +145,7 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
         }
       }
     }
-    summaries.push({ owner, ownerRef, declaration: owner.parent && ts.isVariableDeclaration(owner.parent) && owner.parent.initializer === owner ? declarationFor(owner.parent) : declarationFor(owner), returns: returnRefs,
+    summaries.push({ owner, ownerRef, span: [owner.getStart(sourceFile), owner.end], declaration: owner.parent && ts.isVariableDeclaration(owner.parent) && owner.parent.initializer === owner ? declarationFor(owner.parent) : declarationFor(owner), returns: returnRefs,
       parameters: (owner.parameters || []).map(parameter => declarationFor(parameter)), complete: complete && graph.reasons.size === 0 });
   }
   const keys = [...ledger.keys()].sort(), ids = new Map(keys.map((key, id) => [key, id]));
@@ -170,5 +170,5 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
     producerHash: semanticHash('semantic.cfg-producer.v1', { version: 2 }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations }), diskAccount, signal });
-  return { partition, coverage: [coverage], summaries: summaries.map(summary => ({ ...summary, returns: summary.returns.map(expand) })) };
+  return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), summaries: summaries.map(summary => ({ ...summary, returns: summary.returns.map(expand) })) };
 };

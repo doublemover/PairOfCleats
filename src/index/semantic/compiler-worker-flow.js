@@ -8,9 +8,11 @@ const library = node => node?.getSourceFile().fileName.replaceAll('\\', '/').spl
 const ownerName = node => { let parent = node; while (parent && !parent.name && parent.parent) parent = parent.parent; return parent?.name?.text || ''; };
 /** Source-resolved dispatch candidates. These edges never attest thread execution or delivery. */
 export const collectCompilerWorkerFlow = async ({ group, state, policy, signal = null }) => {
+  const argumentsPolicy = policy;
   const documents = [...(group.workerDocuments || [])].sort((a,b) => a.item.source.sourceUnitId.localeCompare(b.item.source.sourceUnitId)), output = [], hashes = documents.map(doc => doc.bindingPartition.canonicalHash).sort();
   const entries = new Map(), ledgers = new Map();
   for (const doc of documents) {
+    const policy = doc.policy || argumentsPolicy;
     const container = doc.containerPath || (!doc.item.source.mapping ? doc.item.source.path : null);
     if (container && (!doc.item.source.mapping || doc.item.source.mapping.quality === 'exact')) {
       const key = keyPath(path.resolve(group.repoRoot, container)); if (!entries.has(key)) entries.set(key, []); entries.get(key).push(doc);
@@ -89,8 +91,8 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     }
     consumers.set(doc,found);
   }
-  const enabled = !['off','deferred'].includes(policy.enrichment.crossFileFlow);
-  if (enabled) for (const doc of documents) for (const observation of doc.observations) {
+  const enabledFor = doc => !['off','deferred'].includes((doc.policy || argumentsPolicy).enrichment.crossFileFlow);
+  for (const doc of documents) if (enabledFor(doc)) for (const observation of doc.observations) {
     throwIfAborted(signal);
     if (!observation.invocation || !observation.node) continue;
     if (doc.ts.isNewExpression(observation.node) && authority(doc,observation.signatureDeclaration,['Worker'])) {
@@ -126,7 +128,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
           if (local.length === 1 && !seen.has(local[0].initializer)) pending.push({node:local[0].initializer,depth});
         }
         if (platformType(doc,node,['SharedArrayBuffer'])) { const shared = boundary(doc,node,'worker-shared-storage-request',invocation); edge(doc,'sharesStorage',doc.expressionFor(node),shared,invocation,0); edge(doc,'dispatches',shared,dispatch,invocation); continue; }
-        if (depth >= policy.enrichment.fieldPathDepth) { if (doc.ts.isObjectLiteralExpression(node) || doc.ts.isArrayLiteralExpression(node)) ledger.reasons.add('shared_field_depth_budget'); continue; }
+        if (depth >= (doc.policy || argumentsPolicy).enrichment.fieldPathDepth) { if (doc.ts.isObjectLiteralExpression(node) || doc.ts.isArrayLiteralExpression(node)) ledger.reasons.add('shared_field_depth_budget'); continue; }
         if (doc.ts.isObjectLiteralExpression(node)) for (const property of node.properties) { const value = doc.ts.isPropertyAssignment(property) ? property.initializer : doc.ts.isShorthandPropertyAssignment(property) ? property.name : null; if (value) pending.push({node:value,depth:depth+1}); else ledger.reasons.add('shared_field_spread_or_computed'); }
         else if (doc.ts.isArrayLiteralExpression(node)) for (const value of node.elements) if (!doc.ts.isOmittedExpression(value) && !doc.ts.isSpreadElement(value)) pending.push({node:value,depth:depth+1});
       }
@@ -144,6 +146,7 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     const sorted = [...new Map(ledger.edges.map(edge => [canonicalSemanticJson(edge),edge])).entries()].sort(([a],[b])=>a<b?-1:a>b?1:0); sorted.forEach(([,edge],id)=>ledger.rows.push({family:'edge',row:{id,...edge}}));
     const coverage = { scope:{sourceUnitId:doc.item.source.sourceUnitId},phase:'boundaryModels',state:'partial',reason:[...new Set([...ledger.reasons,'source_candidates_only_runtime_delivery_and_clone_effects_unobserved'])].sort().join(';'),observedCount:ledger.observed,completedCount:ledger.completed,frontierRef:null };
     ledger.rows.push({family:'coverage',row:coverage});
+    const policy = doc.policy || argumentsPolicy;
     const partition = await writeSemanticAnalysis({rows:ledger.rows,policy,stagingRoot:doc.item.root,source:doc.item.source,sourceBytes:doc.bytes,partitionId:ledger.partitionId,producerHash:semanticHash('semantic.worker-source-producer.v1',{version:1}),policyHash:semanticHash('semantic.worker-source-policy.v1',policy.enrichment),contextHash:group.context.contextKey,diskAccount:state.semanticDiskAccount,signal});
     const current=state.semanticFactsByFile.get(doc.item.file); state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,storage:current.storage,syntaxPartitionId:current.syntaxPartitionId,partitions:[...current.partitions.filter(row=>row.partitionId!==partition.partitionId),partition],coverage:[...current.coverage,coverage]})); output.push(partition);
   }

@@ -1,3 +1,5 @@
+import { resolveSemanticSourcePolicy } from './policy.js';
+import { semanticByteAdmissionFor } from './planning.js';
 import { collectSemanticOwnership } from './ownership.js';
 import { createSemanticSourceSnapshot } from './source.js';
 import { createSyntaxPartitionId, semanticHash } from './identity.js';
@@ -42,7 +44,8 @@ export const collectEmbeddedSemanticSources = async ({ parentFacts, segments, te
     } else if (language === 'javascript') { local.jsAst = parseJavaScriptAst(segmentText, { ...javascript, ext: local.ext }); ast = local.jsAst; parser = getJavaScriptSyntaxIdentity(ast); }
     syntaxContexts.set(key, local);
     parser ||= { family: 'unavailable', version: '0', options: {} };
-    const structuralPolicy = { structure: 'complete', adapterVersion: 1 };
+    const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: snapshot.manifest.sourceUnitId, sourceHash: snapshot.manifest.byteHash, path: parent.path, language });
+    const structuralPolicy = { structure: 'complete', adapterVersion: 2, extraction: sourcePolicy.identity.extraction, languageEnabled: sourcePolicy.languages.includes(language) };
     const partitionId = createSyntaxPartitionId({ sourceUnitId: snapshot.manifest.sourceUnitId, parser,
       extractor: { schemaVersion: 1, version: language === 'typescript' ? TYPESCRIPT_ADAPTER_VERSION : JAVASCRIPT_ADAPTER_VERSION }, structuralPolicy });
     const unavailable = !policy.languages.includes(language) ? { state: 'disabled', reason: 'language_policy_disabled' }
@@ -50,7 +53,7 @@ export const collectEmbeddedSemanticSources = async ({ parentFacts, segments, te
     const collector = (language === 'typescript' ? createTypeScriptSemanticCollector : createSemanticCollector)({ ts, ast: unavailable ? null : ast, unavailable, source: snapshot.manifest, partitionId, signal }, policy.storage);
     const sink = await createSemanticPartitionSink({ stagingRoot, source: snapshot.manifest, sourceBytes: bytes, partitionId,
       producerHash: semanticHash('semantic.syntax-producer.v1', parser), policyHash: semanticHash('semantic.structural-policy.v1', structuralPolicy), structuralSlots: collector.structuralSlots,
-      diskAccount, signal, scheduleIo, batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
+      diskAccount, signal, scheduleIo, byteAdmission: semanticByteAdmissionFor(diskAccount, policy.storage.maxQueuedBytes), batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });
     const coverage = [];
     try {
       for (const batch of collector.batches) { for (const entry of batch.rows) if (entry.family === 'coverage') coverage.push(entry.row); await sink.appendBatch(batch); }

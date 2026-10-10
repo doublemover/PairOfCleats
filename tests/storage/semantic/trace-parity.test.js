@@ -1,3 +1,6 @@
+import { assertSemanticOperationIndex } from '../../../src/contracts/validators/semantic-operation-index.js';
+import { operationIndexEntries, compareOperationIndexRows } from '../../../src/semantic/operation-index.js';
+import { createSemanticFindService } from '../../../src/semantic/find.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -44,11 +47,15 @@ try {
   ]));
   const analysis = await edgeSink.finalizeSource(), partitions = [syntax, analysis], base = fixture.store(partitions);
   const index = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
-  const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, queryIndex: index });
+  const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
+  const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, operationIndex, queryIndex: index });
   db = new Database(':memory:'); db.pragma('user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
   db.exec('BEGIN'); for (const descriptor of partitions) await ingestSemanticPartition({ db, store: base, descriptor }); db.exec('COMMIT');
   db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(fixture.generation));
   const sqlite = createSqliteSemanticStore({ db, repoRoot: fixture.root, indexPath: ':memory:', generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
+  const selector = {field:'astKind',value:call.data.astKind};
+  const findAll = async store => {const service=createSemanticFindService(),records=[];let cursor=null;do {const page=await service({store,request:{repoRoot:fixture.root,generation:fixture.generation,selector,limits:{records:1},cursor}});records.push(...page.records);assert.ok(page.matches.every(match=>match.category==='structural-candidate'));cursor=page.cursor;}while(cursor);return records;};
+  assert.deepEqual(await findAll(artifact),await findAll(sqlite),'operation selector pagination parity');
   const queryPlans = [];
   const observedDb = { pragma: (...args) => db.pragma(...args), prepare(sql) { if (sql.includes('FROM semantic_edges')) queryPlans.push(sql); return db.prepare(sql); } };
   createSqliteSemanticStore({ db: observedDb, repoRoot: fixture.root, indexPath: ':memory:', generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });

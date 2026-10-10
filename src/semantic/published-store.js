@@ -1,3 +1,4 @@
+import { assertSemanticOperationIndex } from '../contracts/validators/semantic-operation-index.js';
 import { checksumFile } from '../shared/hash.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import fs from 'node:fs/promises';
@@ -49,7 +50,18 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
       if (!registered.has('semantic/' + piece.path) || !registered.has('semantic/' + piece.offsetsPath)) throw new Error('Semantic query index part is not registered.');
     }
   } else if (requireQueryIndex) throw Object.assign(new Error('Semantic query lookup index is unavailable in this generation.'), { code: 'ERR_SEMANTIC_QUERY_INDEX_UNAVAILABLE' });
+  let operationIndex = null;
+  const operationPiece = pieces.pieces.find(piece => piece.name === 'semantic_operation_index' && piece.path === 'semantic_operation_index.json');
+  if (operationPiece) {
+    const file = await resolveSemanticPartPath(indexDir, operationPiece.path);
+    if ((await fs.stat(file)).size > 32 * 1024 * 1024) throw new Error('Operation index manifest exceeds allowance.');
+    const checksum = await checksumFile(file);
+    if (operationPiece.checksum !== checksum.algo + ':' + checksum.value) throw new Error('Operation index checksum mismatch.');
+    operationIndex = assertSemanticOperationIndex(JSON.parse(await fs.readFile(file,'utf8')));
+    const registered = new Set(pieces.pieces.map(piece => piece.path));
+    for (const piece of operationIndex.pieces) if (!registered.has('semantic/' + piece.path) || !registered.has('semantic/' + piece.offsetsPath)) throw new Error('Unregistered operation index part.');
+  }
   const store = createArtifactSemanticStore({ root: path.join(indexDir, 'semantic'), repoRoot,
-    artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions, queryIndex });
+    artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions, operationIndex, queryIndex });
   return { store, manifest };
 };

@@ -135,10 +135,43 @@ passes 4/4 (`run-1791624970201-cy7yks`), canonical import CLI passes
 1.4.3; both checks pass (`run-1791626136790-3xvdov`). Repository formatting and the
 command surface audit pass. Broad suites remain unrun.
 
+Code-first continuation after `7812f84a` (2026-10-10, **implemented but unqualified**):
+
+- Cross-file return dependencies now use bounded monotone SCC summaries over existing
+  local-flow records. Each call retains its own result value; trace state balances
+  invocation and compiler-context crossings. Spread positions, iteration/work limits,
+  unknown effects, exceptional contracts and incomplete local flow remain frontiers.
+- Derived operation lookup has uncompressed sorted artifact/offset indexes and SQLite
+  expression indexes, with exact syntax selectors and indexed target-candidate lookup.
+  Bounded ordered structural comparisons and evidence explanations keep candidate
+  similarity separate from binding identity or behavioral equivalence.
+- Ordered language/path policy overrides, source-pinned target selectors, separated
+  policy identities and shared semantic writer-byte admission are wired through extraction,
+  compiler/LSP and deferred-work planning. Scheduling does not trim syntax facts.
+- Plan/enqueue/manual-drain coordinator code uses the dedicated control store and the
+  normal whole-generation build publisher. **Drain is blocked for existing source-only
+  tasks:** their immutable descriptors do not seal complete compiler/config/module
+  resolution dependencies. Do not execute or supersede those tasks as exact completion.
+  The future verified drain route may rediscover/reparse source; targeted parse reuse
+  is not implemented.
+- Find, explain and enrichment schemas, services and standalone surface wrappers exist.
+  Public catalog/router/command registration is deliberately pending parity qualification.
+  Existing advertised semantic detail/trace surfaces are unchanged.
+
+This span is code-first: `npm run format` passed; Node26 syntax checks passed for all
+60 changed/new JavaScript files; schema and integration imports passed; `git diff
+--check` passed. All four unrelated workflow file hashes were preserved. New
+`indexing/semantic/call-summary-context` assertions and extended
+`storage/semantic/trace-parity` discovery assertions are written but **not run**.
+No production rebuild, native-crash investigation, broad fixture campaign, benchmark,
+MCP/API qualification or full frozen-spec acceptance is claimed. Prior crash receipts
+above remain unresolved. Qualification must precede advertising the new operations.
+
 Remaining: complete field/context-sensitive CFG/SSA and SCC cross-file summaries,
 broader Worker/process/async boundary and LSP/provider coverage; syntax/relation
-walk fusion and shared resident admission; complete config overrides and targeted
-policies; general manual deferred-drain interface; operation discovery/equivalence;
+walk fusion and pre-production resident admission; qualification of config overrides and targeted
+policies; sealed compiler-dependency inventories and executable deferred analysis drains;
+public discovery/explanation qualification, richer operation constraints/projections;
 additional runtime inference/native log adapters and cross-generation runtime joins. Huge-file intra-file
 partitioning/fairness is a later improvement, not a new gate. Independent overlays
 remain outside v1. No claim of full frozen-spec completion; the temporary package

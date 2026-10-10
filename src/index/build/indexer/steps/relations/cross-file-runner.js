@@ -92,7 +92,7 @@ export const runCrossFileInference = async ({
   // Bind immutable source occurrences before the legacy resolver builds target indexes.
   // Reuse this tooling pass for legacy types instead of constructing a second Program.
   if (mode === 'code' && runtime.semanticPolicy?.enabled) {
-    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal });
+    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling });
     await work.run(async ({ signal }) => {
       const semanticSession = await createSemanticCompilerSession({ state, runtime, signal });
       const semanticLspSession = await createSemanticLspSession({ state, runtime, signal });
