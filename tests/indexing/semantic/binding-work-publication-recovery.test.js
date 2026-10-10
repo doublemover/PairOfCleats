@@ -52,6 +52,10 @@ try {
   const recoveredPending = await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
     buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database });
   assert.equal(recoveredPending.pending, 1 + analysisTasks.length, 'source-only published inventory rebuilds durable pending control state');
+  await fs.writeFile(controlPath, 'damaged control storage');
+  const repairedPending = await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
+    buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database });
+  assert.equal(repairedPending.pending, 1 + analysisTasks.length, 'corrupt control rebuild uses the same verified current publication');
   control = fixture.openControl();
   try {
     assert.deepEqual(control.getDescriptor(manual.task.taskId), manual.task);

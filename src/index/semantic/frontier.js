@@ -1,3 +1,4 @@
+import { semanticSqliteTransaction } from './sqlite-disk.js';
 import { canonicalSemanticJson, semanticHash } from './identity.js';
 import { assertSemanticTask } from '../../contracts/validators/semantic-task.js';
 const fail = (message, code = 'ERR_SEMANTIC_FRONTIER') => Object.assign(new Error(message), { code });
@@ -24,16 +25,21 @@ CREATE TABLE dependency_inventory(baseBuildId TEXT NOT NULL,dependencyKey TEXT N
 CREATE TABLE task_descriptors(taskId TEXT PRIMARY KEY,payload TEXT NOT NULL,
  FOREIGN KEY(taskId) REFERENCES tasks(taskId));`;
 /** Dedicated transactional control database; never accepts the live retrieval database. */
-export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retryDelayMs = 1000 }) => {
+export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retryDelayMs = 1000, diskAccount = null }) => {
   if (typeof Database !== 'function') return { available: false, reason: 'sqlite_control_store_unavailable' };
   integer(maxAttempts, 'max attempts'); integer(retryDelayMs, 'retry delay');
   const db = new Database(filename);
   try {
     db.pragma('synchronous = FULL');
     db.pragma('busy_timeout = 5000');
+    if (db.pragma('quick_check', { simple: true }) !== 'ok') throw fail('Corrupt semantic control store.', 'SQLITE_CORRUPT');
+    if (db.pragma('journal_mode', { simple: true }) !== 'delete') throw fail('Unsupported semantic control journal mode.');
+    db.pragma('cache_spill = OFF');
+    db.pragma('temp_store = MEMORY');
+    const transaction = semanticSqliteTransaction({ db, filename, diskAccount });
     // Serialize discovery with creation: two recovering workers may both open a
     // missing store, but only the holder of the write lock may decide it is empty.
-    db.transaction(() => {
+    transaction(() => {
       const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all().map(row => row.name);
       if (tables.length && (tables.length !== 6 || !tables.includes('frontier_meta') || tables.some(name => !['frontier_meta', 'tasks', 'dependencies', 'outputs', 'task_descriptors', 'dependency_inventory'].includes(name)))) {
         throw fail('Semantic frontier requires its own control database.', 'ERR_SEMANTIC_CONTROL_STORE_SCOPE');
@@ -55,7 +61,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
       }
       return row;
     };
-    const enqueue = ({ task, durableInputHashes }) => db.transaction(() => {
+    const enqueue = ({ task, durableInputHashes }) => transaction(() => {
       assertSemanticTask(task);
       if (!(durableInputHashes instanceof Set) || task.inputHashes.some(hash => !durableInputHashes.has(hash))) throw fail('Task inputs must be durable before enqueue.');
       const payload = canonicalSemanticJson(task), existing = descriptor(task.taskId);
@@ -70,7 +76,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
       for (const dependency of task.dependencies) insert.run(task.taskId, dependency.dependencyKey, dependency.expectedHash);
       return read(task.taskId);
     }).immediate();
-    const leaseReady = ({ baseBuildId, taskId = null, owner, now = Date.now(), leaseMs = 30000, limit = 16, dependencyHashes = new Map() }) => db.transaction(() => {
+    const leaseReady = ({ baseBuildId, taskId = null, owner, now = Date.now(), leaseMs = 30000, limit = 16, dependencyHashes = new Map() }) => transaction(() => {
       text(baseBuildId, 'base build'); text(owner, 'lease owner'); integer(now, 'clock'); integer(leaseMs, 'lease duration', 1); integer(limit, 'window size', 1);
       if (taskId !== null) text(taskId, 'task filter');
       if (limit > 128 || !Number.isSafeInteger(now + leaseMs)) throw new TypeError('Lease window exceeds bounds.');
@@ -100,7 +106,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
       }
       return result;
     }).immediate();
-    const release = ({ taskId, owner, now = Date.now(), reason, transient = false, cancelled = false }) => db.transaction(() => {
+    const release = ({ taskId, owner, now = Date.now(), reason, transient = false, cancelled = false }) => transaction(() => {
       integer(now, 'clock'); text(reason, 'reason');
       const row = requireLease({ taskId, owner, now });
       const state = cancelled ? 'cancelled' : transient && row.attempt < maxAttempts ? 'pending' : 'failed';
@@ -109,7 +115,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
         .run(state, JSON.stringify({ reason, transient, retryAt }), taskId);
       return read(taskId);
     }).immediate();
-    const renew = ({ taskId, owner, now = Date.now(), leaseMs = 30000 }) => db.transaction(() => {
+    const renew = ({ taskId, owner, now = Date.now(), leaseMs = 30000 }) => transaction(() => {
       integer(now, 'clock'); integer(leaseMs, 'lease duration', 1); requireLease({ taskId, owner, now });
       if (!Number.isSafeInteger(now + leaseMs)) throw new TypeError('Unsafe lease expiry.');
       db.prepare('UPDATE tasks SET leaseUntil=? WHERE taskId=?').run(now + leaseMs, taskId);
@@ -123,7 +129,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
         || typeof verifyPublication !== 'function' || !await verifyPublication(publication)) {
         throw fail('Completion requires verified generation publication for the exact task inputs.', 'ERR_SEMANTIC_PUBLICATION_REQUIRED');
       }
-      return db.transaction(() => {
+      return transaction(() => {
         const current = requireLease({ taskId, owner, now: now() });
         if (current.inputHash !== before.inputHash || current.attempt !== before.attempt) throw fail('Task changed during publication verification.');
         db.prepare('INSERT INTO outputs VALUES(?,?,?)').run(taskId, publication.manifestHash, publication.publishedBuildId);
@@ -140,7 +146,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
         || typeof verifyPublication !== 'function' || !await verifyPublication(publication)) {
         throw fail('Published task recovery requires verified exact current inputs.', 'ERR_SEMANTIC_PUBLICATION_REQUIRED');
       }
-      return db.transaction(() => {
+      return transaction(() => {
         const current = read(taskId);
         if (!current || ['cancelled', 'superseded'].includes(current.state) || current.inputHash !== before.inputHash) throw fail('Task became stale during output recovery.');
         const existing = db.prepare('SELECT * FROM outputs WHERE taskId=?').get(taskId);
@@ -150,7 +156,7 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
         return read(taskId);
       }).immediate();
     };
-    const supersede = ({ taskId, expectedInputHash }) => db.transaction(() => {
+    const supersede = ({ taskId, expectedInputHash }) => transaction(() => {
       const row = read(taskId);
       if (!row || row.inputHash !== expectedInputHash) throw fail('Stale task supersession request.');
       if (row.state === 'completed') return row;

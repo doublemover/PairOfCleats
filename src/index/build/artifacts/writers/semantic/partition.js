@@ -1,3 +1,4 @@
+import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { retainSemanticSource } from '../../../../semantic/source-storage.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -118,6 +119,7 @@ export const createSemanticPartitionSink = async ({
       finally { await offsetsHandle.close(); }
       const dataHandle = await fs.open(filePath, 'r+');
       try { await dataHandle.sync(); } finally { await dataHandle.close(); }
+      await syncParentDirectory(filePath);
       await validateOffsetsAgainstFile(filePath, offsetsPath);
     });
     throwIfAborted(signal);
@@ -190,6 +192,7 @@ export const createSemanticPartitionSink = async ({
         members
       };
       assertSemanticEnvelope('partition', descriptor);
+      await syncParentDirectory(directory);
       throwIfAborted(signal);
       closed = true;
       return descriptor;

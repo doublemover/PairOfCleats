@@ -46,17 +46,18 @@ benchmark entry paths and never silently installs. The intentional `includeSeman
 surface has a reviewed 72-flag cap. Earlier cloud bootstrap, continuation and
 74-case repair receipts remain in the checkpoint archive; hosted CI is exact-head evidence.
 
-Recovery continuation adds interrupted-worker replay, concurrent control/cache
-publication, temporary bundle accounting and retained-cache cleanup at worker
-barriers. Enqueue/drain reconstruct current published task state before leasing.
+Recovery covers interrupted-worker replay, control/cache publication, retained-cache
+cleanup, semantic metadata and SQLite journal admission. Corrupt control repair
+quarantines originals and resumes durable rename intents; controlled process cuts
+cover repair and hot-journal rollback. Enqueue/drain verify publication before leasing.
 The [recovery checkpoint](archived/semantic-recovery-checkpoint-2026-10-10.md)
-records nine focused passes, the 39-test local gate and remaining validation boundaries.
+records checks and validation boundaries.
 
 Next, in order: remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
 integration; WASM module decoding and exact host/module joins; Python/C/Swift/Rust
-adapters. The calibrated estimator remains last priority. Process-wide crash/power-loss
-qualification, accounting for remaining build/control-store transient writers,
-corrupt control-store repair and full public-surface qualification remain open.
+adapters. The calibrated estimator remains last priority. Hardware power-loss,
+unrelated build-writer/global disk quotas and full public-surface qualification
+remain open; lost control-only cancellation/retry history is not reconstructible.
 
 ## Current Initiatives
 
