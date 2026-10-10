@@ -109,6 +109,12 @@ All payload/options inputs and clone requests are preserved, with start/close,
 transfer, runtime instance and delivery uncertainty explicit. The bounded Worker
 fixture passes with forward/reverse and separate-channel counterexamples.
 
+CFG producer 6 evaluates parameter defaults only on the undefined-input branch,
+in declaration order, retaining the existing rest/pattern/frontier limits. Explicit
+throw payloads now reach the catch binding value rather than disappearing at the
+handler boundary; failures inside catch route outward through finally. The focused
+control-region and compiler-flow fixtures pass, including an actual payload edge.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the

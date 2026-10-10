@@ -59,3 +59,16 @@ assert.ok(!calls(reachable(next), iteration).includes('getValues()'), 'the itera
 const binding = iteration.blocks.find(block => block.event?.kind === 'write' && block.event.target.getText(iteration.sourceFile) === 'value');
 assert.equal(binding.event.origin, 'unknown', 'the iterable itself is never asserted to be the yielded value');
 console.log('optional-chain guard regions, labeled finally routes and single iterator initialization passed');
+
+const defaults = build('function defaults(a = first(), b = second(a)) { return b; }');
+const defaultGuards = defaults.blocks.filter(block => block.event?.predicate?.operation === 'isUndefined');
+assert.equal(defaultGuards.length, 2);
+const firstGuard = defaultGuards.find(block => block.node.getText(defaults.sourceFile).startsWith('a ='));
+assert.ok(calls(reachable(firstGuard.successors.find(edge => edge.kind === 'controlTrue').to), defaults).includes('first()'));
+assert.ok(!calls(reachable(firstGuard.successors.find(edge => edge.kind === 'controlFalse').to), defaults).includes('first()'), 'provided argument skips its default expression');
+const catchGraph = build('function caught() { try { fail(); } catch (error) { failAgain(error); } finally { clean(); } }');
+const catchBinding = catchGraph.blocks.find(block => block.event?.kind === 'catch');
+assert.ok(catchBinding);
+const failure = catchGraph.blocks.find(block => catchGraph.ts.isCallExpression(block.node) && block.node.getText(catchGraph.sourceFile) === 'failAgain(error)' && block.event?.kind === 'operation');
+const exceptional = failure.successors.find(edge => edge.kind === 'exceptional').to;
+assert.ok(!reachable(exceptional).has(catchBinding), 'exceptions in catch do not re-enter its binding');

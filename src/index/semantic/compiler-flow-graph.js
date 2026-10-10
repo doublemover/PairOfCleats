@@ -199,9 +199,16 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       const inner = { ...context, return: returned, exception: thrown, labels,
         break: context.break ? wrap(context.break) : null, continue: context.continue ? wrap(context.continue) : null };
       if (node.catchClause) {
-        inner.exception = statement(node.catchClause.block, normal, inner);
-        if (node.catchClause.variableDeclaration) inner.exception = write(node.catchClause.variableDeclaration.name,
-          node.catchClause.variableDeclaration, inner.exception, inner, 'unknown');
+        // Catch-body and binding failures go through finally toward the outer
+        // exception route; they must never re-enter the same catch handler.
+        const catchContext = { ...inner }, variable = node.catchClause.variableDeclaration;
+        let caught = statement(node.catchClause.block, normal, catchContext);
+        if (variable) {
+          caught = ts.isIdentifier(variable.name)
+            ? eventBlock(variable.name, { kind: 'catch', target: variable.name, value: variable, origin: 'unknown' }, caught, catchContext)
+            : write(variable.name, variable, caught, catchContext, 'unknown');
+        }
+        inner.exception = caught;
       }
       return statement(node.tryBlock, normal, inner);
     }
@@ -218,7 +225,13 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
   for (let i = (owner.parameters?.length || 0) - 1; i >= 0; i -= 1) {
     const parameter = owner.parameters[i];
     if (parameter.initializer || parameter.dotDotDotToken || !ts.isIdentifier(parameter.name)) reasons.add('parameter_pattern_default_or_rest_conservative');
-    head = write(parameter.name, parameter, head, context, 'parameter');
+    const present = write(parameter.name, parameter, head, context, 'parameter');
+    if (parameter.initializer) {
+      const branch = add(parameter, { kind: 'condition', predicate: { operation: 'isUndefined', inputs: [parameter] } });
+      link(branch, expression(parameter.initializer, write(parameter.name, parameter.initializer, head, context), context), 'controlTrue');
+      link(branch, present, 'controlFalse');
+      head = branch;
+    } else head = present;
   }
   const entry = add(owner, null, 'entry'); link(entry, head);
   return { blocks, entry, exit, exception, reasons };
