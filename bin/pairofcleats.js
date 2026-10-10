@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { projectIndexFormatError } from '../src/shared/index-format-error.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -562,7 +563,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'ingest') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('ingest requires a subcommand: ctags, gtags, lsif, scip', {
+      failCli('ingest requires a subcommand: ctags, gtags, lsif, scip, runtime-evidence', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -575,6 +576,9 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'lsif') {
       return { script: 'tools/ingest/lsif.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'runtime-evidence') {
+      return { script: 'tools/ingest/runtime-evidence.js', extraArgs: [], args: rest };
     }
     if (sub === 'scip') {
       return { script: 'tools/ingest/scip.js', extraArgs: [], args: rest };
@@ -735,9 +739,9 @@ function resolveCommand(primary, rest) {
   }
   if (primary === 'semantic') {
     const sub = rest.shift();
-    if (sub !== 'detail') failCli('Use pairofcleats semantic detail --request request.json [--all].');
+    if (!['detail', 'trace'].includes(sub)) failCli('Use pairofcleats semantic detail|trace --request request.json [--all].');
     validateArgs(rest, ['request', 'all'], ['request']);
-    return { script: 'tools/analysis/semantic-detail.js', extraArgs: [], args: rest };
+    return { script: sub === 'trace' ? 'tools/analysis/semantic-trace.js' : 'tools/analysis/semantic-detail.js', extraArgs: [], args: rest };
   }
   if (primary === 'context-pack') {
     const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
@@ -1174,6 +1178,12 @@ function isHelpAllCommand(value) {
 
 if (isDirectExecution(import.meta.url)) {
   main().catch((err) => {
+    const format = projectIndexFormatError(err);
+    if (format) {
+      process.stderr.write(JSON.stringify({ ok: false, code: format.nativeCode, message: err.message, ...format, details: format }) + '\n');
+      process.exitCode = 1;
+      return;
+    }
     const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
     failCli(err?.message || String(err), {
       code,

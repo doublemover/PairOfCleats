@@ -1,3 +1,4 @@
+import { runSemanticTraceTool } from './tools/handlers/semantic-trace.js';
 import { runSemanticDetailTool } from './tools/handlers/semantic.js';
 import { configStatus, indexStatus } from './repo.js';
 import { cacheGc, cleanArtifacts, reportArtifacts } from './tools/handlers/artifacts.js';
@@ -77,6 +78,7 @@ export const TOOL_HANDLERS = new Map([
   ['search', runSearch],
   ['context_pack', runContextPack],
   ['semantic_detail', runSemanticDetailTool],
+  ['semantic_trace', runSemanticTraceTool],
   ['risk_delta', runRiskDelta],
   ['risk_explain', runRiskExplain],
   ['search_workspace', runWorkspaceSearch],

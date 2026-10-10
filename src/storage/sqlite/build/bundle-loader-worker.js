@@ -1,3 +1,4 @@
+import { projectIndexFormatError } from '../../../shared/index-format-error.js';
 import { readBundleFile } from '../../../shared/bundle-io.js';
 
 export default async function loadBundleWorker(task) {
@@ -8,13 +9,14 @@ export default async function loadBundleWorker(task) {
     return { ok: false, reason: 'missing bundle path' };
   }
   try {
-    const result = await readBundleFile(bundlePath);
+    const result = await readBundleFile(bundlePath, { repoRoot: task.repoRoot || process.cwd() });
     if (!result?.ok) {
       return { ok: false, reason: result?.reason || 'invalid bundle' };
     }
     return { ok: true, bundle: result.bundle };
   } catch (err) {
-    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
+    const format = projectIndexFormatError(err);
+    if (format) return { ok: false, formatError: { message: err.message, ...format } };
     return { ok: false, reason: err?.message || String(err) };
   }
 }

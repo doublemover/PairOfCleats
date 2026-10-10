@@ -32,6 +32,7 @@ export const resolveCurrentBuildGeneration = (data, options = {}) => {
 };
 
 export const readCurrentBuildGeneration = ({
+  repoRoot = process.cwd(),
   currentJsonPath,
   repoCacheRoot,
   buildsRoot,
@@ -59,7 +60,7 @@ export const readCurrentBuildGeneration = ({
     const raw = fs.readFileSync(currentJsonPath, 'utf8');
     const data = JSON.parse(raw) || {};
     assertCurrentIndexFormat({ operation: 'read', component: 'build pointer',
-      foundVersion: data.artifactSurfaceVersion, repoRoot: data.repoRoot || process.cwd(), indexPath: currentJsonPath });
+      foundVersion: data.artifactSurfaceVersion, repoRoot, indexPath: currentJsonPath });
     const generation = resolveCurrentBuildGeneration(data, {
       repoCacheRoot,
       buildsRoot,

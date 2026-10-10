@@ -239,6 +239,7 @@ export const resolveRunnerSelectionPlan = async ({
  * @returns {object}
  */
 export const resolveModeSelectionPlan = ({
+  repoRoot = process.cwd(),
   mode,
   modeIndexDirs,
   modeOutputPaths,
@@ -265,6 +266,7 @@ export const resolveModeSelectionPlan = ({
     modeRowCountHint,
     outputExists,
     sqliteRuntime: probeSqliteTargetRuntime({
+      repoRoot,
       Database,
       dbPath: outputPath
     })

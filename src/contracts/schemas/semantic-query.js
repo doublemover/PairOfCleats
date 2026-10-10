@@ -1,5 +1,6 @@
 import { SEMANTIC_RECORD_REF_SCHEMA, SEMANTIC_NODE_SCHEMA, SEMANTIC_COVERAGE_SCHEMA, SEMANTIC_EDGE_SCHEMA, SEMANTIC_OPERAND_SCHEMA, SEMANTIC_OWNERSHIP_SCHEMA } from './semantic.js';
 import { SEMANTIC_GENERATION_SCHEMA, semanticObject as object, semanticText as text, semanticInteger as integer, semanticNullable as nullable } from './semantic-envelopes.js';
+export const SEMANTIC_COVERAGE_PROJECTION_SCHEMA = { ...SEMANTIC_COVERAGE_SCHEMA, properties: { ...SEMANTIC_COVERAGE_SCHEMA.properties, partitionId: SEMANTIC_RECORD_REF_SCHEMA.properties.partitionId } };
 const fields = { type: 'array', uniqueItems: true, items: { enum: ['span', 'scope', 'data'] } };
 const bounded = (maximum) => ({ type: 'integer', minimum: 1, maximum });
 export const SEMANTIC_DETAIL_REQUEST_SCHEMA = object({
@@ -24,8 +25,8 @@ export const SEMANTIC_DETAIL_RESULT_SCHEMA = object({
   }) },
   evidenceRefs: { type: 'array', items: SEMANTIC_RECORD_REF_SCHEMA },
   coverage: object({
-    extraction: { type: 'array', items: SEMANTIC_COVERAGE_SCHEMA },
-    analysis: { type: 'array', items: SEMANTIC_COVERAGE_SCHEMA },
+    extraction: { type: 'array', items: SEMANTIC_COVERAGE_PROJECTION_SCHEMA },
+    analysis: { type: 'array', items: SEMANTIC_COVERAGE_PROJECTION_SCHEMA },
     response: object({ state: { enum: ['complete', 'partial'] }, returnedCount: integer }, { hydratedCount: integer })
   }),
   frontier: { type: 'array', items: { oneOf: [

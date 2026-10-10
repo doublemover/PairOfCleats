@@ -2,6 +2,7 @@ import { resolveStageRefresh } from '../incremental/stage-reuse.js';
 import { readCachedBundle, writeIncrementalBundle } from '../incremental.js';
 
 export async function loadCachedBundleForFile({
+  repoRoot = process.cwd(),
   runIo,
   incrementalState,
   absPath,
@@ -10,6 +11,7 @@ export async function loadCachedBundleForFile({
   semanticContext = null
 }) {
   const result = await runIo(() => readCachedBundle({
+    repoRoot,
     enabled: incrementalState.enabled,
     absPath,
     relKey,

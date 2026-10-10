@@ -492,6 +492,7 @@
               "properties": {
                 "maxRecords": { "type": "integer", "minimum": 1, "maximum": 128 },
                 "maxRows": { "type": "integer", "minimum": 1, "maximum": 512 },
+                "maxDepth": { "type": "integer", "minimum": 1, "maximum": 64 },
                 "maxBytes": { "type": "integer", "minimum": 1, "maximum": 65536 },
                 "maxWorkMs": { "type": "integer", "minimum": 1, "maximum": 250 },
                 "maxContinuations": { "type": "integer", "minimum": 1, "maximum": 4096 },

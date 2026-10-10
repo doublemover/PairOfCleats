@@ -1,3 +1,5 @@
+import { handleSemanticTraceRoute } from './router/semantic-trace.js';
+import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { handleSemanticDetailRoute } from './router/semantic.js';
 import path from 'node:path';
 import { search, status } from '../../src/integrations/core/index.js';
@@ -266,6 +268,11 @@ export const createApiRouter = ({
       sendJson(res, 200, attachObservability({ ok: true, result: publicBody }, requestObservability), responseHeaders);
     } catch (err) {
       if (req.aborted || res.writableEnded || (!ignoreControllerAbort && controller.signal.aborted)) return;
+      const format = projectIndexFormatError(err);
+      if (format) {
+        sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, responseHeaders);
+        return;
+      }
       if (isNoIndexError(err)) {
         sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
           error: err?.message || String(err)
@@ -343,6 +350,11 @@ export const createApiRouter = ({
             error: err?.message || String(err)
           }, corsHeaders || {});
         }
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/semantic-trace' && req.method === 'POST') {
+        await handleSemanticTraceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 
@@ -528,6 +540,7 @@ export const createApiRouter = ({
           sendJson(res, 200, result, corsHeaders || {});
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
+          const format = projectIndexFormatError(err);
           const isNoIndex = isNoIndexError(err);
           const isClientError = isFederatedClientError(err);
           sendError(
@@ -614,7 +627,8 @@ export const createApiRouter = ({
           await sse.sendEvent('error', attachObservability({
             ok: false,
             code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
-            message: err?.message || 'Search failed.'
+            message: err?.message || 'Search failed.',
+            ...(format ? { ...format, details: format } : {})
           }, requestObservability));
           await sse.sendEvent('done', attachObservability({ ok: false }, requestObservability));
         }
@@ -641,6 +655,11 @@ export const createApiRouter = ({
       sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
     } catch (err) {
       if (res.writableEnded) return;
+      const format = projectIndexFormatError(err);
+      if (format) {
+        sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, corsHeaders || {});
+        return;
+      }
       sendError(
         res,
         500,

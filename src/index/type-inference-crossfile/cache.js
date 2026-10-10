@@ -272,6 +272,7 @@ export const buildCrossFileFingerprint = ({
           start: Number.isSafeInteger(entry?.start) ? entry.start : null,
           end: Number.isSafeInteger(entry?.end) ? entry.end : null,
           semanticFactsHash: entry?.semanticFactsHash || null,
+          compilerBinding: entry?.compilerBinding || null,
           args: Array.isArray(entry?.args) ? entry.args : [],
           targetChunkUid: entry?.targetChunkUid || null,
           targetCandidates: Array.isArray(entry?.targetCandidates) ? entry.targetCandidates : []

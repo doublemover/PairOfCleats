@@ -24,9 +24,9 @@ const cacheKeyFor = (factsRef, signatures) => semanticHash('pairofcleats.semanti
   canonicalHash: factsRef.canonicalHash, dependencyHash: dependencyHash(signatures)
 });
 const hashBytes = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const assertLocator = (locator, bundleDir) => {
+const assertLocator = (locator, bundleDir, repoRoot) => {
   assertCurrentIndexFormat({ operation: 'resume', component: 'semantic cache locator',
-    foundVersion: locator?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: bundleDir });
+    foundVersion: locator?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
   if (locator?.schemaVersion !== 1 || !HASH.test(locator.cacheKey) || !HASH.test(locator.descriptorHash)
     || !HASH.test(locator.canonicalHash) || !HASH.test(locator.extractionHash)
     || !/^su1:[a-f0-9]{64}$/.test(locator.sourceUnitId)
@@ -37,10 +37,10 @@ const assertLocator = (locator, bundleDir) => {
 };
 
 /** Open one immutable per-file cache object; callers validate dependencies before reuse. */
-export const openSemanticCacheEntry = async ({ bundleDir, locator, expectedDependencySignatures,
+export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleDir, locator, expectedDependencySignatures,
   expectedSourceHash = null, expectedSourceUnitId = null, expectedSourcePath = null,
   expectedRepositoryNamespace = null, signal = null }) => {
-  assertLocator(locator, bundleDir);
+  assertLocator(locator, bundleDir, repoRoot);
   throwIfAborted(signal);
   const relative = 'semantic/' + locator.cacheKey;
   const descriptorPath = await resolveSemanticPartPath(bundleDir, relative + '/descriptor.json');
@@ -49,9 +49,9 @@ export const openSemanticCacheEntry = async ({ bundleDir, locator, expectedDepen
   if (hashBytes(bytes) !== locator.descriptorHash) throw fail('Semantic cache descriptor checksum mismatch.');
   const envelope = JSON.parse(bytes.toString('utf8'));
   assertCurrentIndexFormat({ operation: 'resume', component: 'semantic cache object',
-    foundVersion: envelope.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: descriptorPath });
+    foundVersion: envelope.artifactSurfaceVersion, repoRoot, indexPath: descriptorPath });
   assertCurrentIndexFormat({ operation: 'resume', component: 'semantic cache schema', expectedVersion: 1,
-    foundVersion: envelope.schemaVersion, repoRoot: process.cwd(), indexPath: descriptorPath });
+    foundVersion: envelope.schemaVersion, repoRoot, indexPath: descriptorPath });
   if (Object.keys(envelope).some(key => !['schemaVersion', 'artifactSurfaceVersion', 'dependencySignatures', 'factsRef'].includes(key))) {
     throw fail('Unknown semantic cache object fields.');
   }
@@ -68,7 +68,7 @@ export const openSemanticCacheEntry = async ({ bundleDir, locator, expectedDepen
   }
   if (factsRef.storage.relativePath !== 'parts') throw fail('Invalid semantic cache object storage.');
   const root = await resolveSemanticPartPath(bundleDir, relative + '/parts');
-  const store = createArtifactSemanticStore({ root, repoRoot: factsRef.repositoryNamespace,
+  const store = createArtifactSemanticStore({ root, repoRoot,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: factsRef.storage.generation,
     partitions: factsRef.partitions });
   if (expectedSourcePath !== null) {
@@ -114,7 +114,7 @@ const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAcc
 };
 
 /** Persist descriptor and parts once per file; bundle shards contain no semantic payload. */
-export const persistSemanticCacheEntry = async ({ bundleDir, factsRef, buildRoot,
+export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleDir, factsRef, buildRoot,
   dependencySignatures, diskAccount, signal = null }) => {
   assertSemanticEnvelope('fileFactsRef', factsRef);
   const cacheKey = cacheKeyFor(factsRef, dependencySignatures);
@@ -137,12 +137,12 @@ export const persistSemanticCacheEntry = async ({ bundleDir, factsRef, buildRoot
     const existingDescriptor = await resolveSemanticPartPath(bundleDir, 'semantic/' + cacheKey + '/descriptor.json');
     if ((await fs.stat(existingDescriptor)).size > MAX_DESCRIPTOR_BYTES) throw fail('Semantic cache descriptor exceeds allowance.');
     const existingLocator = { ...locator, descriptorHash: hashBytes(await fs.readFile(existingDescriptor)) };
-    const existing = await openSemanticCacheEntry({ bundleDir, locator: existingLocator, expectedDependencySignatures: dependencySignatures, signal });
+    const existing = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: existingLocator, expectedDependencySignatures: dependencySignatures, signal });
     await validateSemanticPartitions({ store: existing.store, partitions: existing.factsRef.partitions, signal });
     return existingLocator;
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const sourceRoot = await resolveSemanticPartPath(buildRoot, factsRef.storage.relativePath);
-  const store = createArtifactSemanticStore({ root: sourceRoot, repoRoot: factsRef.repositoryNamespace,
+  const store = createArtifactSemanticStore({ root: sourceRoot, repoRoot,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: factsRef.storage.generation, partitions: factsRef.partitions });
   await validateSemanticPartitions({ store, partitions: factsRef.partitions, signal });
   const temporary = await fs.mkdtemp(path.join(cacheRoot, '.pending-'));
@@ -150,7 +150,7 @@ export const persistSemanticCacheEntry = async ({ bundleDir, factsRef, buildRoot
   let reserved = 0;
   try {
     reserved = await copyFactsFiles({ factsRef, store, sourceRoot, targetRoot, diskAccount, signal });
-    const copiedStore = createArtifactSemanticStore({ root: targetRoot, repoRoot: factsRef.repositoryNamespace,
+    const copiedStore = createArtifactSemanticStore({ root: targetRoot, repoRoot,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: portable.storage.generation, partitions: portable.partitions });
     await validateSemanticPartitions({ store: copiedStore, partitions: portable.partitions, signal });
     diskAccount.reserve(bytes.length); reserved += bytes.length;
@@ -167,16 +167,19 @@ export const persistSemanticCacheEntry = async ({ bundleDir, factsRef, buildRoot
 };
 
 /** Return a verified descriptor rebased to the new immutable whole-build generation. */
-export const relocateSemanticCacheEntry = async ({ bundleDir, locator, dependencySignatures,
+export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleDir, locator, dependencySignatures,
   sourceHash, sourcePath, repositoryNamespace, targetBuildRoot, storage, diskAccount, signal = null }) => {
   if (!HASH.test(sourceHash) || typeof sourcePath !== 'string' || !sourcePath
     || typeof repositoryNamespace !== 'string' || !repositoryNamespace) {
     throw new TypeError('Current semantic source hash and repository namespace are required.');
   }
-  const opened = await openSemanticCacheEntry({ bundleDir, locator,
+  const opened = await openSemanticCacheEntry({ repoRoot, bundleDir, locator,
     expectedDependencySignatures: dependencySignatures, expectedSourceHash: sourceHash,
     expectedSourcePath: sourcePath, expectedRepositoryNamespace: repositoryNamespace, signal });
   assertSemanticEnvelope('fileFactsRef', { ...opened.factsRef, storage });
+  if (opened.factsRef.partitions.some(partition => partition.members.semantic_frontier.some(piece => piece.count > 0))) {
+    throw fail('Generation-pinned deferred work cannot be relocated through the per-file syntax cache; rebuild its task from current source facts.', 'ERR_SEMANTIC_CACHE_MISMATCH');
+  }
   await validateSemanticPartitions({ store: opened.store, partitions: opened.factsRef.partitions, signal });
   await fs.mkdir(targetBuildRoot, { recursive: true });
   // Validate the destination directory through the same containment boundary as parts.
@@ -203,7 +206,7 @@ export const relocateSemanticCacheEntry = async ({ bundleDir, locator, dependenc
     try { await fs.link(copiedSource, sourceTarget); retainedSourceBytes = sourceBytes; }
     catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      const check = createArtifactSemanticStore({ root: parent, repoRoot: repositoryNamespace,
+      const check = createArtifactSemanticStore({ root: parent, repoRoot,
         artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: storage.generation, partitions });
       const sources = opened.store.iterateRows(opened.factsRef.syntaxPartitionId, 'semantic_sources', { signal });
       for await (const source of sources) await check.verifySource(source, { signal });
@@ -212,7 +215,7 @@ export const relocateSemanticCacheEntry = async ({ bundleDir, locator, dependenc
     await fs.rm(path.join(temporary, 'semantic-sources'), { recursive: true, force: true });
     const result = { ...opened.factsRef, storage: structuredClone(storage), partitions };
     assertSemanticEnvelope('fileFactsRef', result);
-    const store = createArtifactSemanticStore({ root: parent, repoRoot: repositoryNamespace,
+    const store = createArtifactSemanticStore({ root: parent, repoRoot,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: storage.generation, partitions });
     await validateSemanticPartitions({ store, partitions, signal });
     throwIfAborted(signal);

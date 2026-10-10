@@ -18,7 +18,7 @@ import { SYMBOL_CALL_SITE_ARTIFACT_SCHEMA_DEFS } from './artifacts/symbols-call-
 import { VFS_ARTIFACT_SCHEMA_DEFS } from './artifacts/vfs.js';
 
 export const MANIFEST_ONLY_ARTIFACT_NAMES = [
-  'semantic_source_text', 'semantic_query_index_rows', 'semantic_query_index_offsets', ...SEMANTIC_MEMBER_NAMES.map((name) => name + '_offsets'),
+  'semantic_source_text', 'semantic_frontier_targets', 'semantic_query_index_rows', 'semantic_query_index_offsets', ...SEMANTIC_MEMBER_NAMES.map((name) => name + '_offsets'),
   'dense_vectors_hnsw',
   'dense_vectors_doc_hnsw',
   'dense_vectors_code_hnsw',

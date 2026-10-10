@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { createSemanticTaskId } from '../../../src/index/semantic/identity.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { persistSemanticCacheEntry, relocateSemanticCacheEntry, openSemanticCacheEntry } from '../../../src/index/build/incremental/semantic-cache.js';
@@ -57,6 +58,16 @@ try {
   await assert.rejects(relocateSemanticCacheEntry({ ...options, targetBuildRoot: path.join(fixture.root, 'denied'),
     diskAccount: insufficient }), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
   assert.equal(insufficient.used, 0);
+  const inputHashes = ['a'.repeat(64)], policyHash = 'b'.repeat(64), targetSetHash = 'c'.repeat(64);
+  const pending = await fixture.createFile({ file: 'pending.js', text: 'g(1);', extraRows: source => [{ family: 'frontier', row: {
+    schemaVersion: 1, taskId: createSemanticTaskId({ kind: 'bind', inputHashes, policyHash, targetSetHash }),
+    kind: 'bind', baseBuildId: fixture.generation.baseBuildId, sourceUnits: [source.sourceUnitId], inputHashes,
+    policyHash, targetSetHash, targetsRef: 'semantic-frontier-targets/' + targetSetHash + '.json',
+    dependencies: [], priority: 1, reason: 'fixture_pending', coverageToProduce: ['bindings']
+  } }] });
+  await assert.rejects(relocateSemanticCacheEntry({ ...options, locator: pending.entry.semanticCache,
+    sourceHash: pending.source.byteHash, sourcePath: pending.file }), { code: 'ERR_SEMANTIC_CACHE_MISMATCH' },
+  'a cached generation-pinned task cannot be retargeted to the new build');
   const originalPath = path.join(fixture.buildRoot, fixture.storage.relativePath, file.partition.members.semantic_records[0].path);
   const oldBytes = await fs.readFile(originalPath);
   const cache = await openSemanticCacheEntry({ bundleDir: fixture.bundleDir, locator, expectedDependencySignatures: fixture.dependencies });

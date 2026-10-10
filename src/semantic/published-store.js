@@ -11,7 +11,8 @@ import { createArtifactSemanticStore, resolveSemanticPartPath } from './artifact
 /** Open only a complete family already registered in the pinned build manifest. */
 export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generation = null, requireQueryIndex = false }) => {
   const pieces = loadPiecesManifest(indexDir, { repoRoot });
-  if (!pieces.pieces?.some((piece) => piece.name === 'semantic_manifest' && piece.path === 'semantic_manifest.json')) {
+  const manifestPiece = pieces.pieces?.find((piece) => piece.name === 'semantic_manifest' && piece.path === 'semantic_manifest.json');
+  if (!manifestPiece) {
     throw Object.assign(new Error('Semantic family is unavailable in this generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
   }
   const filePath = path.join(indexDir, 'semantic_manifest.json');
@@ -21,6 +22,8 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
     foundVersion: manifest.artifactSurfaceVersion, repoRoot, indexPath: filePath });
   assertCurrentIndexFormat({ operation: 'semantic_detail', component: 'semantic schema', expectedVersion: 1,
     foundVersion: manifest.semanticSchemaVersion, repoRoot, indexPath: filePath });
+  const manifestChecksum = await checksumFile(filePath);
+  if (manifestPiece.checksum !== manifestChecksum.algo + ':' + manifestChecksum.value) throw Object.assign(new Error('Semantic manifest checksum mismatch.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
   const validation = validateArtifact('semantic_manifest', manifest);
   if (!validation.ok) throw new Error('Invalid semantic manifest: ' + validation.errors.join('; '));
   if (pieces.buildId !== manifest.generation.baseBuildId) throw new Error('Mixed semantic/build manifest generations.');

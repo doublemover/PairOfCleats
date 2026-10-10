@@ -221,6 +221,9 @@ export const COMMAND_REGISTRY = Object.freeze([
     expectedArtifacts: ['ingest:lsif'],
     supportTier: 'operator'
   }),
+  entry('ingest.runtime-evidence', ['ingest', 'runtime-evidence'], 'tools/ingest/runtime-evidence.js', 'Import explicitly authorized saved runtime evidence without executing a workload.', {
+    helpGroup: 'Ingest', supportTier: 'experimental'
+  }),
   entry('ingest.scip', ['ingest', 'scip'], 'tools/ingest/scip.js', 'Ingest SCIP index.', {
     helpGroup: 'Ingest',
     expectedArtifacts: ['ingest:scip'],
@@ -326,6 +329,10 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('graph-context', ['graph-context'], 'tools/analysis/graph-context.js', 'Build a graph context pack for a seed.', {
     helpGroup: 'Graph',
     supportTier: 'operator'
+  }),
+  entry('semantic.trace', ['semantic', 'trace'], 'tools/analysis/semantic-trace.js', 'Trace source-pinned value relationships and explicit evidence frontiers.', {
+    helpGroup: 'Graph', supportTier: 'experimental',
+    helpExamples: ['pairofcleats semantic trace --request request.json --all']
   }),
   entry('semantic.detail', ['semantic', 'detail'], 'tools/analysis/semantic-detail.js', 'Inspect exact semantic records and related syntax in a pinned generation.', {
     helpGroup: 'Graph', supportTier: 'experimental',

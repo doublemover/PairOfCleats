@@ -810,13 +810,13 @@ const appendDeltaLog = async (
   }
 };
 
-export const loadBuildState = async (buildRoot) => {
+export const loadBuildState = async (buildRoot, { repoRoot = null } = {}) => {
   const cache = getCacheEntry(buildRoot);
   const statePath = resolveStatePath(buildRoot);
   const fingerprint = await readFingerprint(statePath);
   if (fingerprintsMatch(fingerprint, cache.fingerprint) && cache.state) {
     assertCurrentIndexFormat({ operation: 'resume', component: 'build state',
-      foundVersion: cache.state.artifactSurfaceVersion, repoRoot: cache.state.repoRoot || process.cwd(), indexPath: statePath });
+      foundVersion: cache.state.artifactSurfaceVersion, repoRoot: repoRoot || cache.state.repoRoot || process.cwd(), indexPath: statePath });
     return { state: cache.state, loaded: true, cache };
   }
   const parsed = fingerprint
@@ -829,7 +829,7 @@ export const loadBuildState = async (buildRoot) => {
     })
     : null;
   if (parsed) assertCurrentIndexFormat({ operation: 'resume', component: 'build state',
-    foundVersion: parsed.artifactSurfaceVersion, repoRoot: parsed.repoRoot || process.cwd(), indexPath: statePath });
+    foundVersion: parsed.artifactSurfaceVersion, repoRoot: repoRoot || parsed.repoRoot || process.cwd(), indexPath: statePath });
   cache.state = parsed;
   cache.fingerprint = fingerprint;
   cache.lastHash = parsed ? hashJson(parsed) : null;

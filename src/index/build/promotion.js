@@ -15,6 +15,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { assertArtifactPublicationReady } from './artifact-publication.js';
 import { withGeneratedArtifactMetadata } from '../../shared/generated-artifact-core.js';
+import { reconcilePublishedSemanticBindingWork } from '../semantic/build-frontier.js';
 
 const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 
@@ -121,6 +122,11 @@ export async function promoteBuild({
   }, 'builds-current');
   await fs.mkdir(buildsRoot, { recursive: true });
   await atomicWriteJson(currentPath, payload, { spaces: 0 });
+  try {
+    await reconcilePublishedSemanticBindingWork({ repoRoot, userConfig, buildId, buildRoot: resolvedBuildRoot, modes: promotedModes });
+  } catch (error) {
+    log('[build] warning: semantic task acknowledgement remains pending after publication: ' + (error.code || error.message));
+  }
   log('[build] updated current.json', {
     fileOnlyLine: `[build] updated current.json -> ${currentPath}`
   });

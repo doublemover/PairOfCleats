@@ -1,3 +1,7 @@
+import { prepareSemanticBindingWork } from '../../../../semantic/build-frontier.js';
+import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
+import { runToolingPass } from '../../../../type-inference-crossfile/tooling.js';
+import { getToolingConfig } from '../../../../../shared/dict-utils.js';
 import { mergeCrossFileInferenceView } from './cross-file-view.js';
 import { log } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
@@ -59,7 +63,7 @@ export const runCrossFileInference = async ({
     riskInterproceduralEmitArtifacts
   });
   const allowCrossFileInference = crossFileInferenceEnabled !== false;
-  const useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
+  let useTooling = typeof policy?.typeInference?.tooling?.enabled === 'boolean'
     ? policy.typeInference.tooling.enabled
     : (typeInferenceEnabled && typeInferenceCrossFileEnabled && runtime.toolingEnabled);
   const hugeRepoInferenceLiteConfig = runtime.indexingConfig?.hugeRepoInferenceLite
@@ -82,6 +86,23 @@ export const runCrossFileInference = async ({
     || riskAnalysisCrossFileEnabled
     || riskInterproceduralEnabled
   );
+
+  // Bind immutable source occurrences before the legacy resolver builds target indexes.
+  // Reuse this tooling pass for legacy types instead of constructing a second Program.
+  if (mode === 'code' && runtime.semanticPolicy?.enabled) {
+    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal });
+    await work.run(async ({ signal }) => {
+      const semanticSession = await createSemanticCompilerSession({ state, runtime, signal });
+      if (semanticSession.enabled) {
+        await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
+          chunks: state.chunks, entryByUid: new Map(), log,
+          toolingConfig: getToolingConfig(runtime.root), fileTextByFile: semanticSession.fileTextByFile,
+          abortSignal: signal, semanticSession, applyTypes: useTooling });
+        useTooling = false;
+      }
+      return semanticSession.output();
+    });
+  }
 
   if (mode === 'code' && crossFileEnabled) {
     crashLogger.updatePhase('cross-file');

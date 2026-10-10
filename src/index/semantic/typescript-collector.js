@@ -5,7 +5,7 @@ import { getTypeScriptSyntaxIdentity } from '../../lang/typescript/syntax-contex
 import { TYPESCRIPT_CHILD_FIELDS, TYPESCRIPT_STRUCTURAL_SLOTS,
   typeScriptKindName } from '../../lang/typescript/syntax-adapter.js';
 
-export const TYPESCRIPT_ADAPTER_VERSION = '1';
+export const TYPESCRIPT_ADAPTER_VERSION = '2';
 const scopeKinds = new Set('SourceFile Block CatchClause ClassDeclaration ClassExpression InterfaceDeclaration ModuleDeclaration FunctionDeclaration FunctionExpression ArrowFunction MethodDeclaration Constructor GetAccessor SetAccessor ClassStaticBlockDeclaration'.split(' '));
 const declarationParents = new Set('VariableDeclaration Parameter BindingElement FunctionDeclaration FunctionExpression ClassDeclaration ClassExpression InterfaceDeclaration TypeAliasDeclaration EnumDeclaration EnumMember ModuleDeclaration TypeParameter ImportClause ImportSpecifier NamespaceImport ImportEqualsDeclaration'.split(' '));
 const slotFor = (kind, field) => {
@@ -27,7 +27,7 @@ const rolesFor = (frame) => {
   const field = frame.field;
   if (field === 'name' && declarationParents.has(kind)) return kind.startsWith('Import') || kind === 'NamespaceImport'
     ? ['import', 'definition'] : ['definition'];
-  if (kind === 'ExportSpecifier') return ['export', 'reference'];
+  if (kind === 'ExportSpecifier') return field === 'name' ? ['export', 'definition'] : ['export', 'reference'];
   if (field === 'name' && /Method|Accessor/.test(kind || '')) return ['definition', 'property'];
   if (field === 'propertyName' || (field === 'name' && /Property|Method|Accessor/.test(kind || ''))) return ['property'];
   if (field === 'tag' && kind === 'TaggedTemplateExpression') return ['call', 'reference'];

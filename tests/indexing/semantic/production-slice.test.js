@@ -20,7 +20,7 @@ const text = 'export function run(buffer) { const view = new Float32Array(buffer
 await fs.writeFile(path.join(repoRoot, 'input.js'), text);
 await fs.writeFile(path.join(repoRoot, 'input.ts'), 'export function typed(buffer: ArrayBuffer) { return new Float32Array(buffer, 0, 6); }');
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-  indexing: { semantic: { enabled: true, profile: 'rich' }, embeddings: { enabled: false },
+  indexing: { semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'off' } }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 try {

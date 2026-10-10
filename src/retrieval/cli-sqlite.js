@@ -250,6 +250,9 @@ export async function createSqliteBackend(options) {
     const lease = usesCacheLeases ? dbCache.acquire(dbPath, { generationTag }) : null;
     const cached = usesCacheLeases ? lease?.db : dbCache?.get?.(dbPath, { generationTag });
     if (cached) {
+      try { assertSqliteIndexFormat({ db: cached, operation: 'search',
+        repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
+      } catch (error) { lease?.release(); throw error; }
       openedByPath.set(dbPath, {
         db: cached,
         generationTag,
@@ -438,10 +441,11 @@ export async function getSqliteChunkCount(dbPath, mode) {
       }
     }).key;
     const cached = sqliteChunkCountCache.get(cacheKey);
-    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
+
 
     db = new Database(dbPath, { readonly: true });
     assertSqliteIndexFormat({ db, operation: 'probe', repoRoot: process.cwd(), indexPath: dbPath });
+    if (cached && cached.mtimeMs === stat.mtimeMs) return cached.count;
     const manifestRow = db.prepare('SELECT SUM(chunk_count) as count FROM file_manifest WHERE mode = ?')
       .get(mode);
     if (Number.isFinite(manifestRow?.count)) {

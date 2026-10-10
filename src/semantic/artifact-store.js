@@ -1,6 +1,7 @@
+import { createNeighborReader } from './neighbors.js';
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import { assertQueryIndexRow, compareQueryIndexRows, queryIndexOwnerCompare } from './query-index.js';
-import { canonicalSemanticJson } from '../index/semantic/identity.js';
+import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -204,10 +205,12 @@ export const createArtifactSemanticStore = ({
   const getCoverage = async (partitionIds, { signal = null } = {}) => {
     if (partitionIds.length > maxRecords) throw error('Coverage request exceeds record allowance.');
     const rows = [];
-    for (const partitionId of new Set(partitionIds)) {
+    const sources = new Set(partitionIds.map(id => inventory.get(id)?.sourceUnitId));
+    const selected = [...inventory.values()].filter(p => sources.has(p.sourceUnitId)).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0);
+    for (const { partitionId } of selected) {
       for await (const row of iterateRows(partitionId, 'semantic_coverage', { signal })) {
         if (rows.length >= 512) throw error('Coverage response exceeds allowance.');
-        rows.push(row);
+        rows.push({ ...row, partitionId });
       }
     }
     return rows;
@@ -282,7 +285,7 @@ export const createArtifactSemanticStore = ({
     throwIfAborted(signal);
     checkQueryIndex();
     if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
-      || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records'].includes(member)
+      || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records', 'semantic_edges'].includes(member)
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
     const bound = async (upper) => {
       let low = 0, high = queryIndex.rowCount;
@@ -317,7 +320,10 @@ export const createArtifactSemanticStore = ({
         const row = hydrated[i];
         const owner = member === 'semantic_records' ? row.data.expression : member === 'semantic_operands' ? row.parent : member === 'semantic_ownership' ? row.recordRef
           : { partitionId, localId: row.id };
-        if (canonicalSemanticJson(owner) !== canonicalSemanticJson(ref)) throw error('Query index points to a different owner.');
+        const matches = member === 'semantic_edges'
+          ? [row.from, row.to].some(endpoint => canonicalSemanticJson(endpoint) === canonicalSemanticJson(ref))
+          : canonicalSemanticJson(owner) === canonicalSemanticJson(ref);
+        if (!matches) throw error('Query index points to a different owner.');
         rows[entries[i].index] = member === 'semantic_lookup' ? { partitionId, id: row.id, value: row.value }
           : member === 'semantic_records' ? { ...row, ref: { partitionId, localId: row.id },
             availableFieldGroups: ['span', 'scope', 'data'], omittedFieldGroups: [] } : row;
@@ -344,6 +350,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { backend: 'artifact', storeId: root, verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage };
+  return { backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };

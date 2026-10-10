@@ -693,7 +693,7 @@ export async function buildDatabaseFromBundles({
     // then own the loader immediately so every later failure closes it.
     let bundleLoader = null;
     try {
-      bundleLoader = createBundleLoader({ bundleThreads, workerPath });
+      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot });
       const useBundleWorkers = bundleLoader.useWorkers;
       if (emitOutput && useBundleWorkers) {
         log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);

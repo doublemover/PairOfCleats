@@ -5,7 +5,7 @@ const integer = (value, label, min = 0) => {
   if (!Number.isSafeInteger(value) || value < min) throw new TypeError('Invalid ' + label);
 };
 const text = (value, label) => { if (typeof value !== 'string' || !value) throw new TypeError('Invalid ' + label); };
-const inputHash = task => semanticHash('pairofcleats.semantic.task-input.v1', {
+export const semanticTaskInputHash = task => semanticHash('pairofcleats.semantic.task-input.v1', {
   inputHashes: [...task.inputHashes].sort(), sourceUnits: [...task.sourceUnits].sort(),
   dependencies: [...task.dependencies].sort((a, b) => a.dependencyKey.localeCompare(b.dependencyKey))
 });
@@ -60,24 +60,25 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
         return read(task.taskId);
       }
       db.prepare('INSERT INTO tasks VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run(task.taskId, task.kind, task.baseBuildId,
-        inputHash(task), task.policyHash, task.targetsRef, 'pending', task.priority, 0, null, null, null);
+        semanticTaskInputHash(task), task.policyHash, task.targetsRef, 'pending', task.priority, 0, null, null, null);
       db.prepare('INSERT INTO task_descriptors VALUES(?,?)').run(task.taskId, payload);
       const insert = db.prepare('INSERT INTO dependencies VALUES(?,?,?)');
       for (const dependency of task.dependencies) insert.run(task.taskId, dependency.dependencyKey, dependency.expectedHash);
       return read(task.taskId);
     }).immediate();
-    const leaseReady = ({ baseBuildId, owner, now = Date.now(), leaseMs = 30000, limit = 16, dependencyHashes = new Map() }) => db.transaction(() => {
+    const leaseReady = ({ baseBuildId, taskId = null, owner, now = Date.now(), leaseMs = 30000, limit = 16, dependencyHashes = new Map() }) => db.transaction(() => {
       text(baseBuildId, 'base build'); text(owner, 'lease owner'); integer(now, 'clock'); integer(leaseMs, 'lease duration', 1); integer(limit, 'window size', 1);
+      if (taskId !== null) text(taskId, 'task filter');
       if (limit > 128 || !Number.isSafeInteger(now + leaseMs)) throw new TypeError('Lease window exceeds bounds.');
-      db.prepare("UPDATE tasks SET state=CASE WHEN attempt>=? THEN 'failed' ELSE 'pending' END,leaseOwner=NULL,leaseUntil=NULL,lastError=? WHERE baseBuildId=? AND state='leased' AND leaseUntil<=?")
-        .run(maxAttempts, JSON.stringify({ reason: 'lease_expired', retryAt: now }), baseBuildId, now);
+      db.prepare("UPDATE tasks SET state=CASE WHEN attempt>=? THEN 'failed' ELSE 'pending' END,leaseOwner=NULL,leaseUntil=NULL,lastError=? WHERE baseBuildId=? AND (? IS NULL OR taskId=?) AND state='leased' AND leaseUntil<=?")
+        .run(maxAttempts, JSON.stringify({ reason: 'lease_expired', retryAt: now }), baseBuildId, taskId, taskId, now);
       // One generation-scoped inventory per caller snapshot; never reuse stale readiness.
       db.prepare('DELETE FROM dependency_inventory WHERE baseBuildId=?').run(baseBuildId);
       const inventory = db.prepare('INSERT INTO dependency_inventory VALUES(?,?,?)');
       for (const [key, hash] of dependencyHashes) inventory.run(baseBuildId, key, hash);
-      db.prepare("UPDATE tasks SET state='blocked' WHERE baseBuildId=? AND state IN ('pending','blocked') AND EXISTS (SELECT 1 FROM dependencies d LEFT JOIN dependency_inventory i ON i.baseBuildId=tasks.baseBuildId AND i.dependencyKey=d.dependencyKey WHERE d.taskId=tasks.taskId AND (i.actualHash IS NULL OR i.actualHash<>d.expectedHash))").run(baseBuildId);
-      const candidates = db.prepare("SELECT * FROM tasks WHERE baseBuildId=? AND state IN ('pending','blocked') AND attempt<? AND (lastError IS NULL OR json_extract(lastError,'$.retryAt') IS NULL OR json_extract(lastError,'$.retryAt')<=?) AND NOT EXISTS (SELECT 1 FROM dependencies d LEFT JOIN dependency_inventory i ON i.baseBuildId=tasks.baseBuildId AND i.dependencyKey=d.dependencyKey WHERE d.taskId=tasks.taskId AND (i.actualHash IS NULL OR i.actualHash<>d.expectedHash)) ORDER BY priority DESC,taskId LIMIT ?")
-        .all(baseBuildId, maxAttempts, now, limit);
+      db.prepare("UPDATE tasks SET state='blocked' WHERE baseBuildId=? AND (? IS NULL OR taskId=?) AND state IN ('pending','blocked') AND EXISTS (SELECT 1 FROM dependencies d LEFT JOIN dependency_inventory i ON i.baseBuildId=tasks.baseBuildId AND i.dependencyKey=d.dependencyKey WHERE d.taskId=tasks.taskId AND (i.actualHash IS NULL OR i.actualHash<>d.expectedHash))").run(baseBuildId, taskId, taskId);
+      const candidates = db.prepare("SELECT * FROM tasks WHERE baseBuildId=? AND (? IS NULL OR taskId=?) AND state IN ('pending','blocked') AND attempt<? AND (lastError IS NULL OR json_extract(lastError,'$.retryAt') IS NULL OR json_extract(lastError,'$.retryAt')<=?) AND NOT EXISTS (SELECT 1 FROM dependencies d LEFT JOIN dependency_inventory i ON i.baseBuildId=tasks.baseBuildId AND i.dependencyKey=d.dependencyKey WHERE d.taskId=tasks.taskId AND (i.actualHash IS NULL OR i.actualHash<>d.expectedHash)) ORDER BY priority DESC,taskId LIMIT ?")
+        .all(baseBuildId, taskId, taskId, maxAttempts, now, limit);
       const result = [];
       for (const row of candidates) {
         if (result.length === limit) break;

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
 import { createOptionalFtsTables, listOptionalFtsTables, createFtsInserter } from '../../src/storage/sqlite/fts-variants.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -9,6 +10,8 @@ import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
 import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
+import { CREATE_SEMANTIC_TABLES_SQL } from '../../src/storage/sqlite/semantic/schema.js';
+import { CREATE_INDEX_FORMAT_META_SQL } from '../../src/storage/sqlite/index-format.js';
 import { CREATE_TABLES_SQL, REQUIRED_TABLES, SCHEMA_VERSION } from '../../src/storage/sqlite/schema.js';
 import { hasRequiredTables, normalizeFilePath, replaceSqliteDatabase } from '../../src/storage/sqlite/utils.js';
 import { applyBuildPragmas, restoreBuildPragmas } from '../../src/storage/sqlite/build/pragmas.js';
@@ -24,6 +27,37 @@ import {
 } from '../../src/storage/sqlite/build-helpers.js';
 import { collectManifestByNormalized } from '../../src/storage/sqlite/build/from-artifacts/sources.js';
 import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
+
+
+/** Copy immutable facts and metadata in bounded batches, retaining source row order. */
+const copySemanticTables = (sourceDb, outDb) => {
+  outDb.exec(CREATE_INDEX_FORMAT_META_SQL);
+  outDb.exec(CREATE_SEMANTIC_TABLES_SQL);
+  const names = ['index_format_meta', ...[...CREATE_SEMANTIC_TABLES_SQL.matchAll(/CREATE TABLE IF NOT EXISTS (semantic_[a-z_]+)/g)].map(match => match[1])];
+  const generation = sourceDb.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
+  for (const table of names) {
+    const exists = sourceDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table);
+    if (!exists) {
+      if (generation) throw new Error('Semantic compaction source is missing ' + table + '.');
+      continue;
+    }
+    const columns = sourceDb.prepare('PRAGMA table_info("' + table + '")').all().map(row => row.name);
+    if (columns.some(name => !/^[a-z_]+$/.test(name))) throw new Error('Invalid semantic compaction column.');
+    const keys = ['rowid', ...columns];
+    const insert = outDb.prepare('INSERT INTO "' + table + '" (' + keys.map(name => '"' + name + '"').join(',') + ') VALUES (' + keys.map(() => '?').join(',') + ')');
+    const write = outDb.transaction(rows => { for (const row of rows) insert.run(...keys.map(name => row[name])); });
+    let rows = [], bytes = 0;
+    for (const row of sourceDb.prepare('SELECT rowid, * FROM "' + table + '" ORDER BY rowid').iterate()) {
+      const size = Buffer.byteLength(JSON.stringify(row));
+      if (rows.length && (rows.length >= 256 || bytes + size > 1048576)) { write(rows); rows = []; bytes = 0; }
+      rows.push(row); bytes += size;
+    }
+    if (rows.length) write(rows);
+    const expected = sourceDb.prepare('SELECT COUNT(*) AS total FROM "' + table + '"').get().total;
+    const actual = outDb.prepare('SELECT COUNT(*) AS total FROM "' + table + '"').get().total;
+    if (actual !== expected) throw new Error('Semantic compaction count mismatch: ' + table);
+  }
+};
 
 let Database;
 try {
@@ -101,10 +135,20 @@ export async function compactDatabase(input) {
   });
 
   const sourceDb = new Database(dbPath, { readonly: true });
+  try { assertSqliteIndexFormat({ db: sourceDb, repoRoot: input.repoRoot || process.cwd(), indexPath: dbPath, operation: 'compact' }); }
+  catch (error) { sourceDb.close(); throw error; }
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
     sourceDb.close();
     logger.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
     process.exit(1);
+  }
+  const semanticGeneration = sourceDb.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
+  const knownSemanticTables = new Set([...CREATE_SEMANTIC_TABLES_SQL.matchAll(/CREATE TABLE IF NOT EXISTS (semantic_[a-z_]+)/g)].map(match => match[1]));
+  const unknownTables = sourceDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'semantic_%'").all().filter(row => !knownSemanticTables.has(row.name));
+  const otherModes = semanticGeneration ? sourceDb.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode != ?').get(mode).total : 0;
+  if (unknownTables.length || otherModes > 0) {
+    sourceDb.close();
+    throw Object.assign(new Error('Semantic compaction is unsupported for unknown semantic tables or shared mode databases; use separate mode databases and rebuild from source with pairofcleats index build --repo "' + (input.repoRoot || process.cwd()) + '" --mode all.'), { code: 'ERR_SQLITE_COMPACTION_UNSUPPORTED' });
   }
   const modeColumnByTable = new Map();
   /**
@@ -155,36 +199,39 @@ export async function compactDatabase(input) {
   if (fs.existsSync(tempPath)) await fsPromises.rm(tempPath, { force: true });
 
   const outDb = new Database(tempPath);
-  const pragmaState = applyBuildPragmas(outDb, { inputBytes: sourceSize });
-  outDb.exec(CREATE_TABLES_SQL);
-  createOptionalFtsTables(outDb, listOptionalFtsTables(sourceDb).map(table => table.replace('chunks_fts_', '')));
-  outDb.pragma(`user_version = ${SCHEMA_VERSION}`);
+  let pragmaState = null;
+  let afterStats;
+  try {
+    pragmaState = applyBuildPragmas(outDb, { inputBytes: sourceSize });
+    outDb.exec(CREATE_TABLES_SQL);
+    createOptionalFtsTables(outDb, listOptionalFtsTables(sourceDb).map(table => table.replace('chunks_fts_', '')));
+    outDb.pragma(`user_version = ${SCHEMA_VERSION}`);
 
-  let vectorAnnLoaded = false;
-  let vectorAnnReady = false;
-  let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
-  let vectorAnnColumn = vectorExtension.column || 'embedding';
-  let insertVectorAnn = null;
-  let vectorAnnWarned = false;
-  if (vectorAnnEnabled) {
-    const loadResult = loadVectorExtension(outDb, vectorExtension, `sqlite ${mode}`);
-    if (loadResult.ok) {
-      vectorAnnLoaded = true;
-      if (hasVectorTable(outDb, vectorAnnTable)) {
-        vectorAnnReady = true;
-        insertVectorAnn = outDb.prepare(
-          `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
+    let vectorAnnLoaded = false;
+    let vectorAnnReady = false;
+    let vectorAnnTable = vectorExtension.table || 'dense_vectors_ann';
+    let vectorAnnColumn = vectorExtension.column || 'embedding';
+    let insertVectorAnn = null;
+    let vectorAnnWarned = false;
+    if (vectorAnnEnabled) {
+      const loadResult = loadVectorExtension(outDb, vectorExtension, `sqlite ${mode}`);
+      if (loadResult.ok) {
+        vectorAnnLoaded = true;
+        if (hasVectorTable(outDb, vectorAnnTable)) {
+          vectorAnnReady = true;
+          insertVectorAnn = outDb.prepare(
+            `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
+          );
+        }
+      } else {
+        logger.warn(
+          `[compact] Vector extension unavailable for ${mode}: ${loadResult.reason}. ` +
+        'ANN acceleration may be missing until embeddings are rebuilt with the extension available.'
         );
       }
-    } else {
-      logger.warn(
-        `[compact] Vector extension unavailable for ${mode}: ${loadResult.reason}. ` +
-        'ANN acceleration may be missing until embeddings are rebuilt with the extension available.'
-      );
     }
-  }
 
-  const insertChunk = outDb.prepare(`
+    const insertChunk = outDb.prepare(`
     INSERT OR REPLACE INTO chunks (
       id, chunk_id, mode, file, start, end, startLine, endLine, ext, kind, name,
       metaV2_json, headline, preContext, postContext, weight, tokens, phrase_tokens, ngrams, codeRelations,
@@ -199,286 +246,294 @@ export async function compactDatabase(input) {
     );
   `);
 
-  const insertFts = createFtsInserter(outDb);
+    const insertFts = createFtsInserter(outDb);
 
-  const insertTokenVocab = outDb.prepare(
-    'INSERT OR REPLACE INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)'
-  );
-  const insertTokenPosting = outDb.prepare(
-    'INSERT OR REPLACE INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)'
-  );
-  const insertDocLength = outDb.prepare(
-    'INSERT OR REPLACE INTO doc_lengths (mode, doc_id, len) VALUES (?, ?, ?)'
-  );
-  const insertTokenStats = outDb.prepare(
-    'INSERT OR REPLACE INTO token_stats (mode, avg_doc_len, total_docs) VALUES (?, ?, ?)'
-  );
-  const insertPhraseVocab = outDb.prepare(
-    'INSERT OR REPLACE INTO phrase_vocab (mode, phrase_id, ngram) VALUES (?, ?, ?)'
-  );
-  const insertPhrasePosting = outDb.prepare(
-    'INSERT OR REPLACE INTO phrase_postings (mode, phrase_id, doc_id) VALUES (?, ?, ?)'
-  );
-  const insertChargramVocab = outDb.prepare(
-    'INSERT OR REPLACE INTO chargram_vocab (mode, gram_id, gram) VALUES (?, ?, ?)'
-  );
-  const insertChargramPosting = outDb.prepare(
-    'INSERT OR REPLACE INTO chargram_postings (mode, gram_id, doc_id) VALUES (?, ?, ?)'
-  );
-  const insertMinhash = outDb.prepare(
-    'INSERT OR REPLACE INTO minhash_signatures (mode, doc_id, sig) VALUES (?, ?, ?)'
-  );
-  const insertDense = outDb.prepare(
-    'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
-  );
-  const insertDenseMeta = outDb.prepare(
-    'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  );
-  const insertFileManifest = outDb.prepare(
-    'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
-  );
-
-  const fileManifestStmt = sourceDb.prepare(
-    'SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?'
-  );
-  const fileManifest = collectManifestByNormalized(fileManifestStmt.iterate(mode), {
-    fileFromRecord: (row) => row?.file,
-    entryFromRecord: (row) => row
-  });
-
-  const docIdMap = new Map();
-  const fileCounts = new Map();
-  let nextDocId = 0;
-
-  const chunkStmt = sourceDb.prepare(
-    'SELECT * FROM chunks WHERE mode = ? ORDER BY file, start, id'
-  );
-  const insertChunksTx = outDb.transaction(() => {
-    for (const row of chunkStmt.iterate(mode)) {
-      const normalizedFile = normalizeFilePath(row.file);
-      const newId = nextDocId++;
-      const oldId = Number(row.id);
-      docIdMap.set(oldId, newId);
-
-      const chunkRow = {
-        ...row,
-        id: newId,
-        mode,
-        file: normalizedFile
-      };
-      insertChunk.run(chunkRow);
-
-      const tokensText = parseTokens(row.tokens).join(' ');
-      const { signature, doc } = extractChunkDocmetaFieldsFromJson(row.docmeta);
-      insertFts.run({
-        id: newId,
-        file: normalizedFile,
-        name: row.name,
-        signature,
-        kind: row.kind,
-        headline: row.headline,
-        doc,
-        tokensText
-      });
-
-      bumpFileCount(fileCounts, normalizedFile);
-    }
-  });
-  insertChunksTx();
-
-  const denseMeta = sourceDb.prepare(
-    'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
-  ).get(mode);
-  const quantization = resolveQuantizationParams({
-    minVal: denseMeta?.min_val,
-    maxVal: denseMeta?.max_val,
-    levels: denseMeta?.levels
-  });
-  if (denseMeta) {
-    insertDenseMeta.run(
-      mode,
-      denseMeta.dims ?? null,
-      denseMeta.scale ?? 1.0,
-      denseMeta.model ?? null,
-      quantization.minVal,
-      quantization.maxVal,
-      quantization.levels
+    const insertTokenVocab = outDb.prepare(
+      'INSERT OR REPLACE INTO token_vocab (mode, token_id, token) VALUES (?, ?, ?)'
     );
-  }
-  const vectorAnnDims = Number.isFinite(denseMeta?.dims) ? denseMeta.dims : null;
-  if (vectorAnnLoaded && !vectorAnnReady && vectorAnnDims) {
-    const created = ensureVectorTable(outDb, vectorExtension, denseMeta.dims);
-    if (created.ok) {
-      vectorAnnReady = true;
-      vectorAnnTable = created.tableName;
-      vectorAnnColumn = created.column;
-      insertVectorAnn = outDb.prepare(
-        `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
-      );
-    } else {
-      logger.warn(`[compact] Failed to create vector table for ${mode}: ${created.reason}`);
-    }
-  }
+    const insertTokenPosting = outDb.prepare(
+      'INSERT OR REPLACE INTO token_postings (mode, token_id, doc_id, tf) VALUES (?, ?, ?, ?)'
+    );
+    const insertDocLength = outDb.prepare(
+      'INSERT OR REPLACE INTO doc_lengths (mode, doc_id, len) VALUES (?, ?, ?)'
+    );
+    const insertTokenStats = outDb.prepare(
+      'INSERT OR REPLACE INTO token_stats (mode, avg_doc_len, total_docs) VALUES (?, ?, ?)'
+    );
+    const insertPhraseVocab = outDb.prepare(
+      'INSERT OR REPLACE INTO phrase_vocab (mode, phrase_id, ngram) VALUES (?, ?, ?)'
+    );
+    const insertPhrasePosting = outDb.prepare(
+      'INSERT OR REPLACE INTO phrase_postings (mode, phrase_id, doc_id) VALUES (?, ?, ?)'
+    );
+    const insertChargramVocab = outDb.prepare(
+      'INSERT OR REPLACE INTO chargram_vocab (mode, gram_id, gram) VALUES (?, ?, ?)'
+    );
+    const insertChargramPosting = outDb.prepare(
+      'INSERT OR REPLACE INTO chargram_postings (mode, gram_id, doc_id) VALUES (?, ?, ?)'
+    );
+    const insertMinhash = outDb.prepare(
+      'INSERT OR REPLACE INTO minhash_signatures (mode, doc_id, sig) VALUES (?, ?, ?)'
+    );
+    const insertDense = outDb.prepare(
+      'INSERT OR REPLACE INTO dense_vectors (mode, doc_id, vector) VALUES (?, ?, ?)'
+    );
+    const insertDenseMeta = outDb.prepare(
+      'INSERT OR REPLACE INTO dense_meta (mode, dims, scale, model, min_val, max_val, levels) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    );
+    const insertFileManifest = outDb.prepare(
+      'INSERT OR REPLACE INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
+    );
 
-  const insertDocLengthsTx = outDb.transaction(() => {
-    const stmt = sourceDb.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?');
-    for (const row of stmt.iterate(mode)) {
-      const newId = docIdMap.get(Number(row.doc_id));
-      if (newId === undefined) continue;
-      insertDocLength.run(mode, newId, row.len);
-    }
-  });
-  insertDocLengthsTx();
+    const fileManifestStmt = sourceDb.prepare(
+      'SELECT file, hash, mtimeMs, size FROM file_manifest WHERE mode = ?'
+    );
+    const fileManifest = collectManifestByNormalized(fileManifestStmt.iterate(mode), {
+      fileFromRecord: (row) => row?.file,
+      entryFromRecord: (row) => row
+    });
 
-  const insertMinhashTx = outDb.transaction(() => {
-    const stmt = sourceDb.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ?');
-    for (const row of stmt.iterate(mode)) {
-      const newId = docIdMap.get(Number(row.doc_id));
-      if (newId === undefined) continue;
-      insertMinhash.run(mode, newId, row.sig);
-    }
-  });
-  insertMinhashTx();
+    const docIdMap = new Map();
+    const fileCounts = new Map();
+    let nextDocId = 0;
 
-  const insertDenseTx = outDb.transaction(() => {
-    const stmt = sourceDb.prepare('SELECT doc_id, vector FROM dense_vectors WHERE mode = ?');
-    for (const row of stmt.iterate(mode)) {
-      const newId = docIdMap.get(Number(row.doc_id));
-      if (newId === undefined) continue;
-      insertDense.run(mode, newId, row.vector);
-      if (vectorAnnLoaded && !vectorAnnReady && !vectorAnnWarned) {
-        logger.warn(`[compact] Skipping vector table for ${mode}: missing dense_meta dims.`);
-        vectorAnnWarned = true;
+    const chunkStmt = sourceDb.prepare(
+      'SELECT * FROM chunks WHERE mode = ? ORDER BY file, start, id'
+    );
+    const insertChunksTx = outDb.transaction(() => {
+      for (const row of chunkStmt.iterate(mode)) {
+        const normalizedFile = normalizeFilePath(row.file);
+        const newId = nextDocId++;
+        const oldId = Number(row.id);
+        docIdMap.set(oldId, newId);
+
+        const chunkRow = {
+          ...row,
+          id: newId,
+          mode,
+          file: normalizedFile
+        };
+        insertChunk.run(chunkRow);
+
+        const tokensText = parseTokens(row.tokens).join(' ');
+        const { signature, doc } = extractChunkDocmetaFieldsFromJson(row.docmeta);
+        insertFts.run({
+          id: newId,
+          file: normalizedFile,
+          name: row.name,
+          signature,
+          kind: row.kind,
+          headline: row.headline,
+          doc,
+          tokensText
+        });
+
+        bumpFileCount(fileCounts, normalizedFile);
       }
-      if (vectorAnnReady && insertVectorAnn) {
-        const floatVec = dequantizeUint8ToFloat32(
-          row.vector,
-          quantization.minVal,
-          quantization.maxVal,
-          quantization.levels
+    });
+    insertChunksTx();
+
+    const denseMeta = sourceDb.prepare(
+      'SELECT dims, scale, model, min_val, max_val, levels FROM dense_meta WHERE mode = ?'
+    ).get(mode);
+    const quantization = resolveQuantizationParams({
+      minVal: denseMeta?.min_val,
+      maxVal: denseMeta?.max_val,
+      levels: denseMeta?.levels
+    });
+    if (denseMeta) {
+      insertDenseMeta.run(
+        mode,
+        denseMeta.dims ?? null,
+        denseMeta.scale ?? 1.0,
+        denseMeta.model ?? null,
+        quantization.minVal,
+        quantization.maxVal,
+        quantization.levels
+      );
+    }
+    const vectorAnnDims = Number.isFinite(denseMeta?.dims) ? denseMeta.dims : null;
+    if (vectorAnnLoaded && !vectorAnnReady && vectorAnnDims) {
+      const created = ensureVectorTable(outDb, vectorExtension, denseMeta.dims);
+      if (created.ok) {
+        vectorAnnReady = true;
+        vectorAnnTable = created.tableName;
+        vectorAnnColumn = created.column;
+        insertVectorAnn = outDb.prepare(
+          `INSERT OR REPLACE INTO ${vectorAnnTable} (rowid, ${vectorAnnColumn}) VALUES (?, ?)`
         );
-        const encoded = encodeVector(floatVec, vectorExtension);
-        if (encoded) insertVectorAnn.run(toSqliteRowId(newId), encoded);
+      } else {
+        logger.warn(`[compact] Failed to create vector table for ${mode}: ${created.reason}`);
       }
     }
-  });
-  insertDenseTx();
 
-  const tokenIdToValue = new Map();
-  const tokenVocabStmt = sourceDb.prepare('SELECT token_id, token FROM token_vocab WHERE mode = ? ORDER BY token_id');
-  for (const row of tokenVocabStmt.iterate(mode)) {
-    tokenIdToValue.set(Number(row.token_id), row.token);
+    const insertDocLengthsTx = outDb.transaction(() => {
+      const stmt = sourceDb.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?');
+      for (const row of stmt.iterate(mode)) {
+        const newId = docIdMap.get(Number(row.doc_id));
+        if (newId === undefined) continue;
+        insertDocLength.run(mode, newId, row.len);
+      }
+    });
+    insertDocLengthsTx();
+
+    const insertMinhashTx = outDb.transaction(() => {
+      const stmt = sourceDb.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ?');
+      for (const row of stmt.iterate(mode)) {
+        const newId = docIdMap.get(Number(row.doc_id));
+        if (newId === undefined) continue;
+        insertMinhash.run(mode, newId, row.sig);
+      }
+    });
+    insertMinhashTx();
+
+    const insertDenseTx = outDb.transaction(() => {
+      const stmt = sourceDb.prepare('SELECT doc_id, vector FROM dense_vectors WHERE mode = ?');
+      for (const row of stmt.iterate(mode)) {
+        const newId = docIdMap.get(Number(row.doc_id));
+        if (newId === undefined) continue;
+        insertDense.run(mode, newId, row.vector);
+        if (vectorAnnLoaded && !vectorAnnReady && !vectorAnnWarned) {
+          logger.warn(`[compact] Skipping vector table for ${mode}: missing dense_meta dims.`);
+          vectorAnnWarned = true;
+        }
+        if (vectorAnnReady && insertVectorAnn) {
+          const floatVec = dequantizeUint8ToFloat32(
+            row.vector,
+            quantization.minVal,
+            quantization.maxVal,
+            quantization.levels
+          );
+          const encoded = encodeVector(floatVec, vectorExtension);
+          if (encoded) insertVectorAnn.run(toSqliteRowId(newId), encoded);
+        }
+      }
+    });
+    insertDenseTx();
+
+    const tokenIdToValue = new Map();
+    const tokenVocabStmt = sourceDb.prepare('SELECT token_id, token FROM token_vocab WHERE mode = ? ORDER BY token_id');
+    for (const row of tokenVocabStmt.iterate(mode)) {
+      tokenIdToValue.set(Number(row.token_id), row.token);
+    }
+
+    const tokenValueToNewId = new Map();
+    let nextTokenId = 0;
+    const insertTokenTx = outDb.transaction(() => {
+      const stmt = sourceDb.prepare('SELECT token_id, doc_id, tf FROM token_postings WHERE mode = ? ORDER BY token_id, doc_id');
+      for (const row of stmt.iterate(mode)) {
+        const newDocId = docIdMap.get(Number(row.doc_id));
+        if (newDocId === undefined) continue;
+        const token = tokenIdToValue.get(Number(row.token_id));
+        if (!token) continue;
+        let newTokenId = tokenValueToNewId.get(token);
+        if (newTokenId === undefined) {
+          newTokenId = nextTokenId++;
+          tokenValueToNewId.set(token, newTokenId);
+          insertTokenVocab.run(mode, newTokenId, token);
+        }
+        insertTokenPosting.run(mode, newTokenId, newDocId, row.tf);
+      }
+    });
+    insertTokenTx();
+
+    const phraseIdToValue = new Map();
+    const phraseVocabStmt = sourceDb.prepare('SELECT phrase_id, ngram FROM phrase_vocab WHERE mode = ? ORDER BY phrase_id');
+    for (const row of phraseVocabStmt.iterate(mode)) {
+      phraseIdToValue.set(Number(row.phrase_id), row.ngram);
+    }
+
+    const phraseValueToNewId = new Map();
+    let nextPhraseId = 0;
+    const insertPhraseTx = outDb.transaction(() => {
+      const stmt = sourceDb.prepare('SELECT phrase_id, doc_id FROM phrase_postings WHERE mode = ? ORDER BY phrase_id, doc_id');
+      for (const row of stmt.iterate(mode)) {
+        const newDocId = docIdMap.get(Number(row.doc_id));
+        if (newDocId === undefined) continue;
+        const ngram = phraseIdToValue.get(Number(row.phrase_id));
+        if (!ngram) continue;
+        let newPhraseId = phraseValueToNewId.get(ngram);
+        if (newPhraseId === undefined) {
+          newPhraseId = nextPhraseId++;
+          phraseValueToNewId.set(ngram, newPhraseId);
+          insertPhraseVocab.run(mode, newPhraseId, ngram);
+        }
+        insertPhrasePosting.run(mode, newPhraseId, newDocId);
+      }
+    });
+    insertPhraseTx();
+
+    const gramIdToValue = new Map();
+    const gramVocabStmt = sourceDb.prepare('SELECT gram_id, gram FROM chargram_vocab WHERE mode = ? ORDER BY gram_id');
+    for (const row of gramVocabStmt.iterate(mode)) {
+      gramIdToValue.set(Number(row.gram_id), row.gram);
+    }
+
+    const gramValueToNewId = new Map();
+    let nextGramId = 0;
+    const insertChargramTx = outDb.transaction(() => {
+      const stmt = sourceDb.prepare('SELECT gram_id, doc_id FROM chargram_postings WHERE mode = ? ORDER BY gram_id, doc_id');
+      for (const row of stmt.iterate(mode)) {
+        const newDocId = docIdMap.get(Number(row.doc_id));
+        if (newDocId === undefined) continue;
+        const gram = gramIdToValue.get(Number(row.gram_id));
+        if (!gram) continue;
+        let newGramId = gramValueToNewId.get(gram);
+        if (newGramId === undefined) {
+          newGramId = nextGramId++;
+          gramValueToNewId.set(gram, newGramId);
+          insertChargramVocab.run(mode, newGramId, gram);
+        }
+        insertChargramPosting.run(mode, newGramId, newDocId);
+      }
+    });
+    insertChargramTx();
+
+    const stats = outDb.prepare(
+      'SELECT COUNT(*) AS total_docs, AVG(len) AS avg_doc_len FROM doc_lengths WHERE mode = ?'
+    ).get(mode) || {};
+    insertTokenStats.run(
+      mode,
+      typeof stats.avg_doc_len === 'number' ? stats.avg_doc_len : 0,
+      typeof stats.total_docs === 'number' ? stats.total_docs : 0
+    );
+
+    const manifestRows = buildFileManifestRows({
+      mode,
+      fileCounts,
+      manifestByNormalized: fileManifest
+    });
+    const insertManifestTx = outDb.transaction((rows) => {
+      for (const manifestRow of rows) {
+        insertFileManifest.run(
+          manifestRow.mode,
+          manifestRow.file,
+          manifestRow.hash,
+          manifestRow.mtimeMs,
+          manifestRow.size,
+          manifestRow.chunk_count
+        );
+      }
+    });
+    insertManifestTx(manifestRows);
+
+    copySemanticTables(sourceDb, outDb);
+    assertSqliteIndexFormat({ db: outDb, repoRoot: input.repoRoot || process.cwd(), indexPath: tempPath, operation: 'compact-output' });
+    outDb.exec('VACUUM');
+    afterStats = {
+      bytes: Number(fs.statSync(tempPath).size) || 0,
+      chunks: countRows(outDb, 'chunks'),
+      dense: countRows(outDb, 'dense_vectors')
+    };
+  } catch (error) {
+    try { outDb.close(); } catch {}
+    await fsPromises.rm(tempPath, { force: true });
+    throw error;
+  } finally {
+    try { restoreBuildPragmas(outDb, pragmaState); } catch {}
+    try { outDb.close(); } catch {}
+    sourceDb.close();
   }
-
-  const tokenValueToNewId = new Map();
-  let nextTokenId = 0;
-  const insertTokenTx = outDb.transaction(() => {
-    const stmt = sourceDb.prepare('SELECT token_id, doc_id, tf FROM token_postings WHERE mode = ? ORDER BY token_id, doc_id');
-    for (const row of stmt.iterate(mode)) {
-      const newDocId = docIdMap.get(Number(row.doc_id));
-      if (newDocId === undefined) continue;
-      const token = tokenIdToValue.get(Number(row.token_id));
-      if (!token) continue;
-      let newTokenId = tokenValueToNewId.get(token);
-      if (newTokenId === undefined) {
-        newTokenId = nextTokenId++;
-        tokenValueToNewId.set(token, newTokenId);
-        insertTokenVocab.run(mode, newTokenId, token);
-      }
-      insertTokenPosting.run(mode, newTokenId, newDocId, row.tf);
-    }
-  });
-  insertTokenTx();
-
-  const phraseIdToValue = new Map();
-  const phraseVocabStmt = sourceDb.prepare('SELECT phrase_id, ngram FROM phrase_vocab WHERE mode = ? ORDER BY phrase_id');
-  for (const row of phraseVocabStmt.iterate(mode)) {
-    phraseIdToValue.set(Number(row.phrase_id), row.ngram);
-  }
-
-  const phraseValueToNewId = new Map();
-  let nextPhraseId = 0;
-  const insertPhraseTx = outDb.transaction(() => {
-    const stmt = sourceDb.prepare('SELECT phrase_id, doc_id FROM phrase_postings WHERE mode = ? ORDER BY phrase_id, doc_id');
-    for (const row of stmt.iterate(mode)) {
-      const newDocId = docIdMap.get(Number(row.doc_id));
-      if (newDocId === undefined) continue;
-      const ngram = phraseIdToValue.get(Number(row.phrase_id));
-      if (!ngram) continue;
-      let newPhraseId = phraseValueToNewId.get(ngram);
-      if (newPhraseId === undefined) {
-        newPhraseId = nextPhraseId++;
-        phraseValueToNewId.set(ngram, newPhraseId);
-        insertPhraseVocab.run(mode, newPhraseId, ngram);
-      }
-      insertPhrasePosting.run(mode, newPhraseId, newDocId);
-    }
-  });
-  insertPhraseTx();
-
-  const gramIdToValue = new Map();
-  const gramVocabStmt = sourceDb.prepare('SELECT gram_id, gram FROM chargram_vocab WHERE mode = ? ORDER BY gram_id');
-  for (const row of gramVocabStmt.iterate(mode)) {
-    gramIdToValue.set(Number(row.gram_id), row.gram);
-  }
-
-  const gramValueToNewId = new Map();
-  let nextGramId = 0;
-  const insertChargramTx = outDb.transaction(() => {
-    const stmt = sourceDb.prepare('SELECT gram_id, doc_id FROM chargram_postings WHERE mode = ? ORDER BY gram_id, doc_id');
-    for (const row of stmt.iterate(mode)) {
-      const newDocId = docIdMap.get(Number(row.doc_id));
-      if (newDocId === undefined) continue;
-      const gram = gramIdToValue.get(Number(row.gram_id));
-      if (!gram) continue;
-      let newGramId = gramValueToNewId.get(gram);
-      if (newGramId === undefined) {
-        newGramId = nextGramId++;
-        gramValueToNewId.set(gram, newGramId);
-        insertChargramVocab.run(mode, newGramId, gram);
-      }
-      insertChargramPosting.run(mode, newGramId, newDocId);
-    }
-  });
-  insertChargramTx();
-
-  const stats = outDb.prepare(
-    'SELECT COUNT(*) AS total_docs, AVG(len) AS avg_doc_len FROM doc_lengths WHERE mode = ?'
-  ).get(mode) || {};
-  insertTokenStats.run(
-    mode,
-    typeof stats.avg_doc_len === 'number' ? stats.avg_doc_len : 0,
-    typeof stats.total_docs === 'number' ? stats.total_docs : 0
-  );
-
-  const manifestRows = buildFileManifestRows({
-    mode,
-    fileCounts,
-    manifestByNormalized: fileManifest
-  });
-  const insertManifestTx = outDb.transaction((rows) => {
-    for (const manifestRow of rows) {
-      insertFileManifest.run(
-        manifestRow.mode,
-        manifestRow.file,
-        manifestRow.hash,
-        manifestRow.mtimeMs,
-        manifestRow.size,
-        manifestRow.chunk_count
-      );
-    }
-  });
-  insertManifestTx(manifestRows);
-
-  outDb.exec('VACUUM');
-  const afterStats = {
-    bytes: Number(fs.statSync(tempPath).size) || 0,
-    chunks: countRows(outDb, 'chunks'),
-    dense: countRows(outDb, 'dense_vectors')
-  };
-  restoreBuildPragmas(outDb, pragmaState);
-  outDb.close();
-  sourceDb.close();
 
   if (dryRun) {
     await fsPromises.rm(tempPath, { force: true });
@@ -550,6 +605,7 @@ if (isDirectRun) {
     modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
     await compactDatabase({
       dbPath: target.path,
+      repoRoot: root,
       mode: target.mode,
       vectorExtension,
       dryRun: argv['dry-run'],

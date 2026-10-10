@@ -1,11 +1,14 @@
 /** One document scan per live Program; nodes never cross the provider boundary. */
 export const createTypeScriptNodeIndex = (ts, sourceFile, getName) => {
-  const rows = [], names = new Map(), stack = [sourceFile];
+  const rows = [], names = new Map(), spans = new Map(), stack = [sourceFile];
   while (stack.length) {
     const node = stack.pop();
     const name = getName(ts, node, sourceFile);
     const row = { node, name, start: node.getStart(sourceFile), end: node.getEnd() };
     rows.push(row);
+    const key = row.start + ":" + row.end;
+    if (!spans.has(key)) spans.set(key, []);
+    spans.get(key).push(node);
     if (name) {
       let bucket = names.get(name);
       if (!bucket) names.set(name, bucket = []);
@@ -24,6 +27,8 @@ export const createTypeScriptNodeIndex = (ts, sourceFile, getName) => {
   const root = build(0, rows.length);
   return {
     nodeCount: rows.length,
+    nodes: () => ({ *[Symbol.iterator]() { for (const row of rows) yield row.node; } }),
+    exact: (start, end) => spans.get(start + ":" + end) || [],
     named: name => names.get(name) || [],
     overlapping(range) {
       if (!range || range.end <= range.start) return [];
