@@ -307,3 +307,9 @@ Source selectors may include `range: {"start":10,"end":20}` for exact half-open
 UTF-16 overlap discovery. The range must be nonempty and is valid only with
 `sourcePath` or `sourceUnitId`. The indexed source bucket is filtered within the
 normal work budget; drain cursors even when an intermediate page has no matches.
+
+Structural fingerprint projection 2 includes hashes of exact retained literal text
+(up to 4 KiB per literal) alongside ordered syntax. Numeric spelling, string escapes,
+regular expressions and template text remain distinct. Missing/oversized retained
+source makes the projection incomplete; hash matches are still structural candidates,
+with binding, type and effect constraints unchecked, never equivalence probabilities.

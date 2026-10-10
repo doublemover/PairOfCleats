@@ -121,6 +121,13 @@ including overlapping enclosing operations, without an unbounded fact scan. The
 focused artifact/SQLite fixture passes boundary, absent-range and invalid-range
 cases. This is bounded interval filtering, not a new interval-tree index.
 
+Structural fingerprint projection 2 hashes bounded, verified retained literal text,
+so equal-shaped `1 + 2`, `1 + 3` and `0x1 + 2` are distinct without claiming numeric
+or behavioral equivalence. Missing/oversized source projections remain incomplete;
+integrity failures propagate. SQLite public queries use retained excerpts only after
+matching their partition inventory to the artifact generation. The tiny literal
+fingerprint fixture passes; binding/type/effect constraints remain separate.
+
 The recovery continuation adds corruption-local cache repair, successful empty/disabled
 lane replay, and first-admitted duplicate-result ownership during awaited application.
 Reopening charges retained builds, incremental caches, pending/corrupt parts and the
