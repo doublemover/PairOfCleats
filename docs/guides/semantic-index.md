@@ -28,10 +28,21 @@ coverage. Selected checker-matched typed-array and message-dispatch models remai
 conservative. A dispatch request is not
 proof of delivery, detachment, execution thread or actual runtime values.
 
-Allocation/field candidates retain const receiver alias identity and explicit writes.
-They are modeled dependencies, with unknown alias escape, getter, dynamic-key and
-write-order effects in coverage. Local return summaries respect explicit finally
-return/throw overrides; more complex completion alternatives remain conservative.
+Allocation/field candidates retain conditional and mutable receiver aliases, explicit
+weak writes, bounded literal-key unions and widened unknown keys. Overlapping paths
+share may dependencies; alias order, escape, accessors and prototype effects remain
+unknown. Local summaries retain bare/implicit undefined returns and respect explicit
+finally return/throw overrides; more complex completion alternatives remain conservative.
+
+Call-site summaries join bounded source-backed callable alternatives, retain positional
+and rest-argument channels, and keep an unknown result/effect remainder when targets
+or summaries are incomplete. Visible object/class methods, inherited members, callable
+fields and source prototype replacements contribute modeled dispatch candidates.
+Receiver field effects can reach following caller reads. These candidates do not prove
+runtime dispatch: getters returning callables, proxies, private brands, constructor
+initialization, lexical arrow receivers, rest-array mutation and escaping aliases remain
+partial. Limits include 32 alias/target candidates, 16 key candidates and bounded work;
+coverage records truncation rather than silently declaring complete analysis.
 
 With `enrichment.crossFileFlow: "eager"`, the existing compiler group can link a
 checker-authorized `new Worker(new URL("./worker.ts", import.meta.url))` to an exact
@@ -39,6 +50,14 @@ retained entry source and modeled message consumers. Dynamic entry URLs remain
 unresolved. Generic serialization is a packing request; transfer and shared-storage
 requests remain separate, and none asserts delivery, detachment or a copied backing
 buffer. User-defined APIs with matching names do not receive platform models.
+
+Verified Node `worker_threads` declarations use the same retained-source inventory
+and boundary writer. Anchored Worker entries join `workerData` uses, direct message
+payload callbacks, replies through `parentPort`, and opposite ports of a visible
+MessageChannel allocation. Const/destructured port aliases are supported. Dynamic or
+eval entries, transferred port identity, cross-file port aliases, registration order,
+instance multiplicity and actual delivery remain unknown. Node EventTarget listeners,
+BroadcastChannel and provider-specific RPC protocols are not modeled by this pass.
 
 ## WASM module evidence
 
@@ -97,9 +116,12 @@ Limits per module are 64 KiB, 4096 vector entries/instructions, 256 locals inclu
 parameters, 128 control frames, 32768 graph nodes and 131072 edges. Unknown opcodes,
 component/experimental formats, unavailable bytes, cross-source instance aliases,
 unsupported syntax, validation failures and budgets retain explicit coverage reasons.
-Standalone eager/eligible-auto flow is available; deferred task execution and
-text/declaration-target selection for binary flow are explicitly unsupported. Rebuild
-with eager local flow to produce that evidence. Binary module anchors and derived analysis use the existing syntax/analysis
+Standalone eager/eligible-auto flow accepts a source-hash-pinned ref to its syntax
+module anchor (local ID 0); coverage explicitly widens that selection to the entire
+module. Text/declaration targets and deferred binary task execution remain unsupported.
+The targeted profile still needs eager local flow explicitly selected; it does not
+schedule a deferred binary compiler task. Binary module anchors and derived analysis
+use the existing syntax/analysis
 partition split, so the shared replay fence invalidates changed analysis policy. Existing
 host-boundary candidates remain available when module provenance is unresolved.
 
