@@ -35,12 +35,13 @@ export const writeBindingFixtureFamily = async ({ state, runtime, buildId }) => 
 
 export const createBindingWorkFixture = async ({ bindings = 'deferred', deferredDrain = 'manual', afterIndexMaxMs = 30000 } = {}) => {
   const fixture = await createSemanticCacheFixture();
+  await fs.writeFile(path.join(fixture.repoRoot, 'tsconfig.json'), JSON.stringify({compilerOptions:{allowJs:true,types:[],target:'ES2022'},include:['*.js']}));
   const files = [await fixture.createFile(), await fixture.createFile({ file: 'other.js' })];
   const state = { semanticFactsByFile: new Map(files.map(file => [file.file, file.factsRef])), semanticDiskAccount: fixture.account };
   const runtime = { root: fixture.repoRoot, buildRoot: fixture.buildRoot, repoCacheRoot: path.join(fixture.root, 'control-cache'),
     semanticFrontierDatabase: Database, semanticPolicy: normalizeSemanticConfig({ enabled: true,
       enrichment: { bindings }, execution: { deferredDrain, afterIndexMaxMs } }),
-    scheduler: { schedule: async (lane, options, fn) => {
+    scheduler: { stats: () => ({tokens:{mem:{total:4,used:0}},adaptive:{memoryPerTokenMb:768,maxInFlightBytes:null},queues:{relations:{maxInFlightBytes:null,maxPendingBytes:null}}}), schedule: async (lane, options, fn) => {
       if (lane !== 'relations') throw new Error('Binding work must use existing relations lane.');
       throwIfAborted(options.signal); return fn();
     } } };

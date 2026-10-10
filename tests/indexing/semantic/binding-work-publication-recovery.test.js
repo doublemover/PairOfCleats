@@ -71,6 +71,7 @@ try {
   const next = await prepareSemanticBindingWork({ state: fixture.state, runtime: fixture.runtime });
   assert.notEqual(next.task.taskId, manual.task.taskId);
   assert.equal(next.task.policyHash, manual.task.policyHash, 'new target generation alone separates identical binding requests');
+  fixture.runtime.semanticEnrichmentDrain={maxMs:30000,admitTask:async({task})=>task.taskId===next.task.taskId};
   const ran = await next.run(fixture.emitBindings);
   assert.equal(ran.ran, true);
   const family = await writeBindingFixtureFamily({ state: fixture.state, runtime: fixture.runtime, buildId: nextGeneration.baseBuildId });

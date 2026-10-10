@@ -9,6 +9,8 @@ import { buildIndex } from '../../../src/integrations/core/index.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { openPublishedSemanticStore } from '../../../src/semantic/published-store.js';
+import { runSemanticFind } from '../../../src/integrations/tooling/semantic-find.js';
+import { runSemanticExplain } from '../../../src/integrations/tooling/semantic-explain.js';
 import { runSemanticTrace } from '../../../src/integrations/tooling/semantic-trace.js';
 import { handleToolCall } from '../../../tools/mcp/tools.js';
 import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
@@ -18,7 +20,7 @@ const repoRoot = path.join(temp, 'repo');
 await fs.mkdir(repoRoot);
 await fs.writeFile(path.join(repoRoot, 'input.ts'), 'export function pack() { const a = 1; const b = a + 2; const c = {b}; return c; }');
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-  indexing: { semantic: { enabled: true, profile: 'rich' }, embeddings: { enabled: false },
+  indexing: { workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } }, embeddings: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 let server, router;
@@ -40,8 +42,8 @@ try {
   router = createApiRouter({ host: '127.0.0.1', defaultRepo: repoRoot, allowedRepoRoots: [repoRoot] });
   server = http.createServer((req, res) => router.handleRequest(req, res));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  const post = async payload => {
-    const response = await fetch('http://127.0.0.1:' + server.address().port + '/analysis/semantic-trace', {
+  const post = async (payload, route = 'semantic-trace') => {
+    const response = await fetch('http://127.0.0.1:' + server.address().port + '/analysis/' + route, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload)
     });
     return { status: response.status, body: await response.json() };
@@ -63,6 +65,33 @@ try {
   assert.ok(pages.flatMap(page => page.edges).some(edge => edge.kind === 'reads'));
   assert.ok(pages.every(page => page.coverage.analysis.some(row => row.state !== 'complete')), 'partial static analysis remains explicit');
   await assert.rejects(runSemanticTrace({ ...request, direction: 'upstream', cursor: first.cursor }), { code: 'ERR_SEMANTIC_CURSOR_EXPIRED' });
+  // Find/explain use the same source-pinned generation through each already registered public surface.
+  const findRequest = { repoRoot, generation: manifest.generation, selector: { field: 'astKind', value: 'BinaryExpression' }, limits: { records: 1 } };
+  const found = await runSemanticFind(findRequest);
+  assert.equal(found.records.length, 1);
+  assert.ok(found.matches.every(match => match.category === 'structural-candidate'));
+  assert.deepEqual({ ...await handleToolCall('semantic_find', findRequest), cursor: null }, { ...found, cursor: null });
+  const foundHttp = await post(findRequest, 'semantic-find');
+  assert.equal(foundHttp.status, 200);
+  assert.deepEqual({ ...foundHttp.body.result, cursor: null }, { ...found, cursor: null });
+  assert.equal((await post({ ...findRequest, selector: { field: 'runtime-equivalent', value: 'yes' } }, 'semantic-find')).status, 400);
+  await fs.writeFile(requestFile, JSON.stringify(findRequest));
+  const foundCli = JSON.parse((await promisify(execFile)(process.execPath, ['bin/pairofcleats.js', 'semantic', 'find', '--request', requestFile], { cwd: process.cwd(), timeout: 10000, maxBuffer: 1048576 })).stdout);
+  assert.deepEqual({ ...foundCli, cursor: null }, { ...found, cursor: null });
+  const explainRequest = { ...request, limits: { records: 4, edges: 4, depth: 12 } };
+  const explained = await runSemanticExplain(explainRequest);
+  assert.ok(explained.sourceRefs.length > 0);
+  assert.ok(explained.sourceRefs.every(ref => ref.coordinateUnit === 'utf16' && ref.sourceHash.length === 64));
+  assert.ok(explained.explanations.every(edge => edge.limitations.some(reason => reason.includes('not an observed runtime'))));
+  assert.deepEqual({ ...await handleToolCall('semantic_explain', explainRequest), cursor: null }, { ...explained, cursor: null });
+  const explainedHttp = await post(explainRequest, 'semantic-explain');
+  assert.equal(explainedHttp.status, 200);
+  assert.deepEqual({ ...explainedHttp.body.result, cursor: null }, { ...explained, cursor: null });
+  assert.equal((await post({ ...explainRequest, cursor: 'expired' }, 'semantic-explain')).status, 410);
+  await fs.writeFile(requestFile, JSON.stringify(explainRequest));
+  const explainedCli = JSON.parse((await promisify(execFile)(process.execPath, ['bin/pairofcleats.js', 'semantic', 'explain', '--request', requestFile], { cwd: process.cwd(), timeout: 10000, maxBuffer: 1048576 })).stdout);
+  assert.deepEqual({ ...explainedCli, cursor: null }, { ...explained, cursor: null });
+  for (const name of ['semantic_find', 'semantic_explain']) assert.ok(getToolDefs().some(tool => tool.name === name));
   const manifestPath = path.join(indexDir, 'semantic_manifest.json');
   const saved = await fs.readFile(manifestPath, 'utf8');
   await fs.writeFile(manifestPath, JSON.stringify({ ...JSON.parse(saved), artifactSurfaceVersion: '0.0.2' }));
@@ -70,7 +99,7 @@ try {
   assert.equal(rejected.status, 409);
   assert.equal(rejected.body.nativeCode, 'ERR_INDEX_FORMAT_UNSUPPORTED');
   await fs.writeFile(manifestPath, saved);
-  console.log('semantic trace CLI/MCP/HTTP pinned witness surfaces passed');
+  console.log('semantic find/explain/trace CLI/MCP/HTTP pinned witness surfaces passed (worker pool disabled)');
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));
   router?.close();

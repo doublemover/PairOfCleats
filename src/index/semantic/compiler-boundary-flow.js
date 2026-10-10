@@ -31,7 +31,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       entries.get(key).push(doc);
     }
     const effective = doc.policy || policy;
-    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-execution-boundaries', version: '1' }, inputPartitionHashes: inputHashes,
+    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-execution-boundaries', version: '2' }, inputPartitionHashes: inputHashes,
       compilerContext: { contextKey: group.context.contextKey, sourceUnitId: doc.item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
       analysisPolicy: { enrichment: effective.enrichment, authorityVersion: 1 } });
     ledgers.set(doc, { partitionId, rows: [], edges: [], reasons: new Set(), nextId: 0, observed: 0, completedSites: new Set(), policy: effective, uses: new Map(), returns: new Map() });
@@ -98,7 +98,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     diskAccount: state.semanticDiskAccount, inventory: state.semanticEvidenceArtifacts, signal });
     const ref = { partitionId: ledger.partitionId, localId: ledger.nextId++ };
     ledger.rows.push({ family: 'node', row: { id: ref.localId, kind: 'evidence', span: [node.getStart(doc.sourceFile), node.end], scope: null,
-      data: { method: 'compiler-platform-execution-boundary', producerId: 'semantic-boundary', producerVersion: '1', evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef } } });
+      data: { method: 'compiler-platform-execution-boundary', producerId: 'semantic-boundary', producerVersion: '2', evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef } } });
     return ref;
   };
   const boundary = (doc, node, model, invocation, toContext = null) => {
@@ -192,7 +192,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       const promiseMethod = defaultLibrary(verified) && names.includes('Promise') && ['then', 'catch', 'finally'].find(name => names.includes(name));
       const promiseAction = defaultLibrary(verified) && has(verified, 'PromiseConstructor') && ['resolve', 'reject', 'all', 'allSettled', 'race', 'any'].find(name => names.includes(name));
       const promiseExecutor = defaultLibrary(verified) && has(verified, 'PromiseConstructor') && ts.isNewExpression(node);
-      const timer = (defaultLibrary(verified) || sameModule(verified, 'timers')) && ['queueMicrotask', 'setTimeout', 'setInterval'].find(name => names.includes(name));
+      const timer = (defaultLibrary(verified) || sameModule(verified, 'timers') || verified.family === 'node-type-package' && verified.library === 'web-globals/timers.d.ts') && ['queueMicrotask', 'setTimeout', 'setInterval'].find(name => names.includes(name));
       const event = defaultLibrary(verified) && names.includes('addEventListener') && ['lib.dom.d.ts', 'lib.webworker.d.ts'].includes(verified.library);
       if (promiseMethod || promiseAction || promiseExecutor || timer || event) {
         ledger.observed += 1;
@@ -299,7 +299,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       reason: [...new Set([...ledger.reasons, 'static_candidates_only_no_runtime_thread_delivery_or_effect_claim'])].sort().join(';'), observedCount: ledger.observed, completedCount: ledger.completedSites.size, frontierRef: null };
     ledger.rows.push({ family: 'coverage', row: coverage });
     const partition = await writeSemanticAnalysis({ rows: ledger.rows, policy: ledger.policy, stagingRoot: doc.item.root, source: doc.item.source, sourceBytes: doc.bytes,
-      partitionId: ledger.partitionId, producerHash: semanticHash('semantic.execution-boundary-producer.v1', { version: 1 }), policyHash: semanticHash('semantic.execution-boundary-policy.v1', ledger.policy.enrichment),
+      partitionId: ledger.partitionId, producerHash: semanticHash('semantic.execution-boundary-producer.v1', { version: 2 }), policyHash: semanticHash('semantic.execution-boundary-policy.v1', ledger.policy.enrichment),
       contextHash: group.context.contextKey, diskAccount: state.semanticDiskAccount, signal });
     const current = state.semanticFactsByFile.get(doc.item.file);
     state.semanticFactsByFile.set(doc.item.file, createSemanticFactsRef({ source: doc.item.source, storage: current.storage, syntaxPartitionId: current.syntaxPartitionId,

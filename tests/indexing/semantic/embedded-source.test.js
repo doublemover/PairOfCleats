@@ -12,7 +12,7 @@ const repoRoot = path.join(temp, 'repo'); await fs.mkdir(repoRoot);
 const text = '<template>hé😀</template>\r\n<script lang="ts">\r\nexport function run(buffer: ArrayBuffer) { const view = new Float32Array(buffer); f(1,2,3,4,5,{values:view,items:[1,,3]}); return view; }\r\n</script>\r\n<script setup>\r\nconst greeting = "hé😀"; call(greeting);\r\n</script>';
 await fs.writeFile(path.join(repoRoot, 'input.vue'), text);
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-  indexing: { workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'off' } }, embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
+  indexing: { ...(process.env.POC_SEMANTIC_FIXTURE_WORKER_POOL === 'off' ? { workerPool: { enabled: false } } : {}), semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'off' } }, embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, treeSitter: { enabled: false } }
 } });
 try {
   const build = async () => { await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: true, 'stub-embeddings': true, 'scm-provider': 'none' }); const dir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot)); return { dir, manifest: JSON.parse(await fs.readFile(path.join(dir, 'semantic_manifest.json'), 'utf8')) }; };

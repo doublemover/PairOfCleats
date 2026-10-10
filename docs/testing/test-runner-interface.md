@@ -94,6 +94,10 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
   - Retries for a failing test.
   - Default: 0 locally, 1 when `CI` is set.
 
+- `--native-status-redo <boolean>`
+  - Default: true; selected native exit statuses are rerun once independently of retries.
+  - Use `--native-status-redo=false --retries 0` for first-failure qualification.
+
 - `--timeout-ms <n>`
   - Hard timeout per test process.
   - Default: 30000, with lane overrides:
@@ -344,5 +348,6 @@ observed phase marker is evidence of progress, not attribution of the crash phas
 Logs and receipts are flushed before reporting failure. No dump collection, system
 configuration changes or child-side exception handling are required.
 
-Native redo exits are configured separately from `--retries`; a passing redo does
+Native redo exits are configured separately from `--retries`; disable them with
+`--native-status-redo=false`. A passing redo does
 not resolve a preceding native failure. Preserve every attempt receipt.
