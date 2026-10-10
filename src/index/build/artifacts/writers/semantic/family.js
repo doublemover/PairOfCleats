@@ -12,7 +12,8 @@ import { createArtifactSemanticStore } from '../../../../../semantic/artifact-st
 import { validateSemanticPartitions } from '../../../../semantic/reconcile.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../../../../contracts/schemas/semantic-envelopes.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../../contracts/versioning.js';
-import { writeJsonObjectFile } from '../../../../../shared/json-stream/json-writers.js';
+import { writeSemanticJson } from '../../../../semantic/disk-writes.js';
+import { normalizeSemanticConfig } from '../../../../semantic/config.js';
 
 /** Existing write queue owns this family; existing whole-build promoter exposes it. */
 export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enabled,
@@ -31,6 +32,7 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
   }
   declareArtifactFamily({ family: 'semantic', owner: 'semantic', requiredMembers: ['semantic_manifest', 'semantic_query_index', 'semantic_operation_index', ...SEMANTIC_MEMBER_NAMES, ...(frontierTargets.length ? ['semantic_frontier_targets'] : []), ...(evidenceArtifacts.length ? ['semantic_evidence'] : [])] });
   enqueueWrite('semantic-family', async () => {
+    const diskAccount = state.semanticDiskAccount || createSemanticDiskAccount(normalizeSemanticConfig().storage.maxDiskWorkingSetBytes);
     const semanticRoot = path.join(outDir, 'semantic');
     const store = createArtifactSemanticStore({ root: semanticRoot, repoRoot: root,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions });
@@ -79,25 +81,25 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
         throw new Error('Semantic completion receipt mismatch.');
       }
     }
-    await writeJsonObjectFile(path.join(outDir, 'semantic_manifest.json'), { fields: manifest, atomic: true });
+    await writeSemanticJson({ filename: path.join(outDir, 'semantic_manifest.json'), value: manifest, diskAccount, signal });
     const register = (name, filePath, count = 0) => addPieceFile({ type: 'semantic', name,
       format: filePath.endsWith('.jsonl') ? 'jsonl' : filePath.endsWith('.json') ? 'json' : 'binary', count }, filePath);
     for (const artifact of evidenceArtifacts) register('semantic_evidence', path.join(semanticRoot, artifact.path));
     for (const target of frontierTargets) register('semantic_frontier_targets', path.join(semanticRoot, target.path));
     register('semantic_manifest', path.join(outDir, 'semantic_manifest.json'), partitions.length);
     const queryIndex = await writeSemanticQueryIndex({ root: semanticRoot, repoRoot: root, generation, partitions, store,
-      diskAccount: state.semanticDiskAccount || createSemanticDiskAccount(0), signal });
-    await writeJsonObjectFile(path.join(outDir, 'semantic_query_index.json'), { fields: queryIndex, atomic: true });
+      diskAccount, signal });
+    await writeSemanticJson({ filename: path.join(outDir, 'semantic_query_index.json'), value: queryIndex, diskAccount, signal });
     register('semantic_query_index', path.join(outDir, 'semantic_query_index.json'), queryIndex.rowCount);
     for (const piece of queryIndex.pieces) {
       register('semantic_query_index_rows', path.join(semanticRoot, piece.path), piece.count);
       register('semantic_query_index_offsets', path.join(semanticRoot, piece.offsetsPath), piece.count);
     }
     const operationIndex = await writeSemanticQueryIndex({ root: semanticRoot, generation, partitions, store,
-      diskAccount: state.semanticDiskAccount || createSemanticDiskAccount(0), signal,
+      diskAccount, signal,
       entries: operationIndexEntries(store, partitions, signal), compareRows: compareOperationIndexRows,
       keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 });
-    await writeJsonObjectFile(path.join(outDir, 'semantic_operation_index.json'), { fields: operationIndex, atomic: true });
+    await writeSemanticJson({ filename: path.join(outDir, 'semantic_operation_index.json'), value: operationIndex, diskAccount, signal });
     register('semantic_operation_index', path.join(outDir, 'semantic_operation_index.json'), operationIndex.rowCount);
     for (const piece of operationIndex.pieces) {
       register('semantic_operation_index_rows', path.join(semanticRoot, piece.path), piece.count);
@@ -106,7 +108,7 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     for (const member of SEMANTIC_MEMBER_NAMES) {
       const inventory = partitions.map((p) => ({ partitionId: p.partitionId, pieces: p.members[member] }));
       const filePath = path.join(outDir, member + '.json');
-      await writeJsonObjectFile(filePath, { fields: { schemaVersion: 1, generation, partitions: inventory }, atomic: true });
+      await writeSemanticJson({ filename: filePath, value: { schemaVersion: 1, generation, partitions: inventory }, diskAccount, signal });
       register(member, filePath, inventory.length);
       for (const partition of partitions) for (const piece of partition.members[member]) {
         register(member, path.join(semanticRoot, piece.path), piece.count);

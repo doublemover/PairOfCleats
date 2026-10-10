@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeBundleFile } from '../../../shared/bundle-io.js';
-
-const writers = new WeakMap();
+import { withSemanticDiskWriter } from '../../semantic/disk-writes.js';
+export { withSemanticDiskWriter } from '../../semantic/disk-writes.js';
 const size = async (filename, replacing = false) => {
   try {
     const stat = await fs.stat(filename);
@@ -15,17 +15,6 @@ const size = async (filename, replacing = false) => {
  * exists. Serialize same-name writes on the shared build account so concurrent
  * retries cannot each return the same old snapshot's credit.
  */
-export const withSemanticDiskWriter = async (diskAccount, filename, write) => {
-  let pending = writers.get(diskAccount);
-  if (!pending) { pending = new Map(); writers.set(diskAccount, pending); }
-  const key = path.resolve(filename);
-  const prior = pending.get(key) || Promise.resolve();
-  const operation = prior.catch(() => {}).then(write);
-  pending.set(key, operation);
-  try { return await operation; }
-  finally { if (pending.get(key) === operation) pending.delete(key); }
-};
-
 export const writeAccountedBundle = async ({ diskAccount, ...options }) => {
   if (!diskAccount) return writeBundleFile(options);
   const key = path.resolve(options.bundlePath);

@@ -1,3 +1,4 @@
+import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { assertSemanticQueryIndex } from '../../../../../contracts/validators/semantic-query-index.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -103,6 +104,8 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
         try { await offsetsHandle.writeFile(offsets); await offsetsHandle.sync(); } finally { await offsetsHandle.close(); }
         const dataHandle = await fs.open(file, 'r+');
         try { await dataHandle.sync(); } finally { await dataHandle.close(); }
+        await syncParentDirectory(file);
+        await syncParentDirectory(directory);
       });
       pieces.push({ path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + '.offsets',
         hash: hash.digest('hex'), offsetsHash: createHash('sha256').update(offsets).digest('hex'),

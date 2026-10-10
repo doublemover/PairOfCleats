@@ -110,19 +110,35 @@ snapshots, cache objects and interrupted cache-copy directories can be removed.
 Missing or malformed pinned descriptors defer cleanup rather than guess what is
 safe to remove. Source files and published generations are outside this sweep.
 
-The shared disk account includes retained files on reopen and temporary bundle
-encodings during Stage1 and Stage2 writes. Replacements keep the old bytes charged
-until the write succeeds; duplicate relocation copies return credits only after
-physical removal. Failed writes retain conservative reservations until reopen.
-This is byte admission for these owned writes, not an operating-system disk quota
-or a bound on unrelated processes, SQLite journal growth or all build artifacts.
+The shared disk account includes retained files on reopen, temporary Stage1/Stage2
+bundle encodings, semantic family metadata, evidence/target/source blobs, manual
+drain journals and control repair files. Replacements keep old bytes charged until
+the write succeeds; duplicate copies return credits only after physical removal.
+Immutable blobs are fsynced under a temporary name before linking the final name.
+Partition/index directories are synced before returning their durable references.
+Failed writes retain conservative reservations until reopen.
+
+Control transactions admit main-file growth and rollback-journal space under the
+SQLite writer lock before changing pages. DELETE journals, disabled cache spilling,
+in-memory temporary tables and a SQLite page ceiling bound admitted file writes;
+capacity failures roll back. Runtime lookup staging also avoids unaccounted SQLite
+temporary files. Accounting is shared within the owning operation, not an OS quota
+across independent processes or a bound on unrelated build artifacts.
 
 Verified current published manifests can reconstruct pending descriptors and
 completed receipts after the control database is lost. Enqueue/drain reconcile
 that inventory before leasing work. Unpublished or superseded generation roots
-cannot reconstruct current work. A corrupt database is reported; it is not
-silently replaced, and a reconstructed store cannot recover cancellation/retry
-history that existed only in the lost database.
+cannot reconstruct current work. Corrupt control stores are rebuilt in a private
+replacement using that same verification. A short open/repair lock and live-client
+markers fence replacement; uncertain or active owners block repair. Damaged main
+and journal files are retained in a checksum-pinned quarantine. A durable repair
+intent resumes interrupted renames before admitting another control client.
+Scope/schema, permission, busy and capacity errors do not trigger replacement.
+Absent verified published tasks, corruption remains an explicit failure. Quarantine
+and abandoned replacement bytes remain charged; they are preserved for diagnosis.
+A reconstructed store cannot recover cancellation/retry history that existed only
+in the lost database. Controlled child-process tests cover hot-journal rollback and
+repair rename cuts; they do not establish hardware power-loss durability.
 
 Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`
 to retain a durable pending descriptor. `after-index` permits bounded work through
