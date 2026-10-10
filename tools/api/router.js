@@ -354,9 +354,10 @@ export const createApiRouter = ({
         return;
       }
 
-      if (['/analysis/runtime-evidence', '/analysis/runtime-families'].includes(requestUrl.pathname) && req.method === 'POST') {
+      if (['/analysis/runtime-evidence', '/analysis/runtime-families', '/analysis/runtime-compare', '/analysis/runtime-claims'].includes(requestUrl.pathname) && req.method === 'POST') {
         await handleRuntimeEvidenceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo,
-          operation: requestUrl.pathname.endsWith('runtime-families') ? 'families' : 'lookup' });
+          operation: requestUrl.pathname.endsWith('runtime-compare') ? 'compare' : requestUrl.pathname.endsWith('runtime-claims') ? 'claims'
+            : requestUrl.pathname.endsWith('runtime-families') ? 'families' : 'lookup' });
         return;
       }
 

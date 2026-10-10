@@ -51,6 +51,13 @@ try {
   for (const descriptor of fixture.state.semanticFactsByFile.values()) {
     for (const phase of ['localFlow', 'crossFileFlow']) assert.ok(descriptor.coverage.some(row => row.phase === phase && row.state === 'deferred' && analysisTasks.some(task => task.taskId === row.frontierRef)));
   }
+  const noAttempts = await createBindingWorkFixture({ bindings: 'eager' });
+  try {
+    noAttempts.runtime.semanticPolicy.execution.maxAttempts = 0;
+    const disabled = await prepareSemanticBindingWork({ state: noAttempts.state, runtime: noAttempts.runtime });
+    const result = await disabled.run(() => { throw new Error('zero attempts must not execute'); });
+    assert.equal(result.ran, false);
+  } finally { await noAttempts.cleanup(); }
   const unavailable = await createBindingWorkFixture({ bindings: 'eager' });
   try {
     unavailable.runtime.semanticFrontierDatabase = null;

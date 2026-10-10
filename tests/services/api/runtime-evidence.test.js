@@ -30,7 +30,7 @@ try {
   const clean = result => ({ ...result, cost: result.cost ? { ...result.cost, elapsedMs: 0, responseBytes: 0 } : undefined });
   const expected = await runRuntimeEvidenceLookup(payload);
   assert.equal(expected.observations.length, 2); assert.ok(expected.nextCursor);
-  assert.equal(MCP_SCHEMA_VERSION, '1.4.4');
+  assert.equal(MCP_SCHEMA_VERSION, '1.4.5');
   for (const name of ['runtime_evidence', 'runtime_families']) assert.ok(getToolDefs().some(tool => tool.name === name && tool.inputSchema.additionalProperties === false));
   assert.deepEqual(clean(await handleToolCall('runtime_evidence', payload)), clean(expected));
   const families = await runRuntimeFamilyDiscovery(discovery);

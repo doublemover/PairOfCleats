@@ -90,6 +90,27 @@ arguments, PID/times, raw status, output and last observed phase; focused receip
 fixture passes (`run-1791627501203-cee281`). The last observed marker was worker-pool
 teardown; the cause remains unknown. A passing retry is not resolution.
 
+The next integrated slice adds conservative allocation/field candidates with shared
+const-alias identities, explicit getter/dynamic/depth frontiers, and finally return
+suppression. Published local/cross-file task descriptors now reconstruct after control
+DB loss; zero attempts perform no execution (three focused checks pass in
+`run-1791628873221-bzv3md`). Saved-capture comparison and immutable derived-claim lookup pass 3/3 focused checks
+(`run-1791629091229-6tjn5e`), with old lookup/MCP/recovery regressions 4/4 passing
+(`run-1791628890722-cxk5te`). MCP is now 1.4.5. Comparisons require matching saved
+identities and only describe source-location sample counts; no causal/rate or timing
+equivalence claim is made. Literal source-resolved Worker entry/message-consumer links pass the actual Program
+fixture (2.234s, `run-1791628938583-zqui9n`) and worker-disabled production publication
+plus paginated artifact/SQLite trace parity (10.032s, temporary receipt
+`temp/semantic-indexing/compiler-worker-production-validation-2/receipt.json`). Fake
+platform names, dynamic entry URLs and direct shared/transferred payload counterexamples
+remain explicit. The first production assertion failed by inspecting only one bounded
+page; the corrected fixture drains opaque continuations and compares canonical evidence.
+No default-worker retry was used. Final flow check passes 0.907s
+(`run-1791628974873-ggpejl`). Final review corrected receiver boundary realm
+direction; its explicit assertion passes 2.56s (`run-1791629291540-wfnu34`).
+The revised CFG pass uses analysis version 2, preserving schema1 and invalidating
+only its derived partition identity.
+
 Artifact surface **0.1.0**, SQLite **15**, semantic schemas **1** remain the exact
 cutover. The reader audit covers artifact/state/pointer/cache/bundle/SQLite paths,
 metadata-only probes, worker propagation and public format diagnostics. SQLite
@@ -115,10 +136,10 @@ passes 4/4 (`run-1791624970201-cy7yks`), canonical import CLI passes
 command surface audit pass. Broad suites remain unrun.
 
 Remaining: complete field/context-sensitive CFG/SSA and SCC cross-file summaries,
-resolved Worker entry/consumer paths and broader LSP/provider coverage; syntax/relation
+broader Worker/process/async boundary and LSP/provider coverage; syntax/relation
 walk fusion and shared resident admission; complete config overrides and targeted
 policies; general manual deferred-drain interface; operation discovery/equivalence;
-runtime lookup joins and additional native log adapters. Huge-file intra-file
+additional runtime inference/native log adapters and cross-generation runtime joins. Huge-file intra-file
 partitioning/fairness is a later improvement, not a new gate. Independent overlays
 remain outside v1. No claim of full frozen-spec completion; the temporary package
 tracker records exact ownership, dependencies and focused receipts.

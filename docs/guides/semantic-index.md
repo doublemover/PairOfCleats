@@ -28,6 +28,18 @@ coverage. Selected checker-matched typed-array and message-dispatch models remai
 conservative. A dispatch request is not
 proof of delivery, detachment, execution thread or actual runtime values.
 
+Allocation/field candidates retain const receiver alias identity and explicit writes.
+They are modeled dependencies, with unknown alias escape, getter, dynamic-key and
+write-order effects in coverage. Local return summaries respect explicit finally
+return/throw overrides; more complex completion alternatives remain conservative.
+
+With `enrichment.crossFileFlow: "eager"`, the existing compiler group can link a
+checker-authorized `new Worker(new URL("./worker.ts", import.meta.url))` to an exact
+retained entry source and modeled message consumers. Dynamic entry URLs remain
+unresolved. Generic serialization is a packing request; transfer and shared-storage
+requests remain separate, and none asserts delivery, detachment or a copied backing
+buffer. User-defined APIs with matching names do not receive platform models.
+
 ## Detail and traces
 
 Requests must name the exact repository and generation, plus a semantic RecordRef.
@@ -152,6 +164,35 @@ direct observations; general causal derived-claim projection is explicitly unsup
 Sampling does not prove all
 executions or call counts. Native listing hashes from the custom interchange retain
 their exact code lifetimes; lookup does not claim arbitrary V8 native-log support.
+
+Saved capture comparisons and derived claims use separate strict schema1 requests
+in `src/contracts/schemas/runtime-claims.js`:
+
+```sh
+pairofcleats runtime compare --request runtime-compare.json
+pairofcleats runtime claims --request runtime-claims.json --all
+```
+
+The comparison service wrapper contains `schemaVersion: 1`, `repoRoot`, `destination`
+and `request`. Its request pins `repositoryNamespace`, source `generation`,
+`leftFamily`, `rightFamily`, exact `sources`, bounded `limits` and explicit `persist`.
+Compatibility requires the same source inventory, build, runtime, workload fingerprint,
+input shape, phase, instrumentation, scope and clock. Differences produce explicit
+incompatibility reasons. Supported comparisons describe exact-source CPU sample
+counts; they do not infer rates, call counts, equal code versions, timing alignment,
+performance improvements or causality. Next-observation proposals require separate
+authorization before any new collection or execution.
+
+With `persist: true`, complete derived claim records and their supporting/contradicting
+observation citations are saved as an immutable family under `claims/<claimGeneration>`.
+The separate `claims/current.json` convenience pointer never changes the imported
+observation pointer or source index. Lookup pins `claimGeneration`, source generation,
+namespace, limits and cursor. It verifies cited observations and retained raw hashes
+on every request; missing or tampered support is an error. Prior claim families remain
+available. MCP tools are `runtime_compare` and `runtime_claims`; HTTP POST routes are
+`/analysis/runtime-compare` and `/analysis/runtime-claims`. All surfaces use the same
+repository destination authority and bounded service. General causal inference remains
+unsupported.
 
 Queries verify the manifest, registered lookup index, offset table and hydrated row
 hashes. They do not read every raw artifact on each request; that distinction is

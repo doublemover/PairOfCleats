@@ -235,7 +235,7 @@ export const reconcilePublishedSemanticBindingWork = async ({ repoRoot, userConf
       const tasks = new Map();
       for (const partition of manifest.partitions) for await (const task of store.iterateRows(partition.partitionId, 'semantic_frontier')) {
         assertSemanticTask(task);
-        if (task.kind !== 'bind' || task.baseBuildId !== buildId) continue;
+        if (task.baseBuildId !== buildId) continue;
         await readTargetSet({ root: path.join(indexDir, 'semantic'), task, generation,
           syntaxPartitions: manifest.partitions.filter(row => row.partitionId.startsWith('sy1:')) });
         const targetPath = 'semantic/' + task.targetsRef;
