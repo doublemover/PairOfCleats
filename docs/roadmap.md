@@ -58,6 +58,8 @@ Next: multi-worker recovery, transient accounting, retained-cache cleanup/contro
 reconstruction; JS/TS frontiers, WASM host/module joins, retrieval/provider integration
 and native adapters. Estimator and public-surface qualification remain open.
 
+[Architecture repairs and checks](archived/architecture-contract-audit-2026-10-11.md).
+
 ## Current Initiatives
 
 | Initiative | Status | Done now | Remaining / next |

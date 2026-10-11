@@ -28,3 +28,19 @@ const single = buildWarmPoolTasks({ ...input, schedulerConfig: { warmPoolPerGram
 assert.deepEqual(single[0].grammarKeys, executionOrder);
 assert.equal(single[0].estimatedParseCost, 404);
 console.log('warm-pool skew fixture: predicted tail 400 -> 202 cost units; exact coverage and canonical per-lane order preserved (synthetic, not wall-clock speedup)');
+
+// Follow the production handoff: finalized groups -> serialized plan metadata
+// -> runner preparation -> per-process tasks with bounded timeouts.
+const { buildPlanGroupArtifacts } = await import('../../../src/index/build/tree-sitter-scheduler/plan/execution.js');
+const { prepareTreeSitterSchedulerTasks } = await import('../../../src/index/build/tree-sitter-scheduler/runner/task-preparation.js');
+const finalizedGroups = executionOrder.map((grammarKey, index) => ({
+  grammarKey, baseGrammarKey: 'cpp', estimatedParseCost: costs[index], jobs: []
+}));
+const artifacts = buildPlanGroupArtifacts(finalizedGroups);
+const prepared = prepareTreeSitterSchedulerTasks({
+  planResult: { groups: finalizedGroups, plan: { executionOrder, groupMeta: artifacts.groupMeta, jobs: artifacts.totalJobs } },
+  schedulerConfig: { warmPoolPerGrammar: 2, execConcurrency: 2, subprocessTimeoutMs: 45000 }
+});
+assert.deepEqual(prepared.plannedTasks.map(task => task.estimatedParseCost), [202, 202]);
+assert.ok(prepared.plannedTasks.every(task => task.costBalanced && task.timeoutMs === 45000));
+assert.deepEqual(prepared.plannedTasks.flatMap(task => task.grammarKeys).sort(), executionOrder.slice().sort());
