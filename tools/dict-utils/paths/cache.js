@@ -131,6 +131,12 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const enabledTools = normalizeToolList(tooling.enabledTools);
   const disabledTools = normalizeToolList(tooling.disabledTools);
   const resolveOrder = normalizeOrder(typescript.resolveOrder) || ['repo', 'cache', 'global'];
+  const typeRepresentation = typescript.typeRepresentation === undefined ? 'legacy' : typescript.typeRepresentation;
+  if (typeRepresentation !== 'legacy' && typeRepresentation !== 'symbolic') {
+    throw Object.assign(new TypeError('tooling.typescript.typeRepresentation must be legacy or symbolic.'), {
+      code: 'ERR_TYPESCRIPT_TYPE_REPRESENTATION'
+    });
+  }
   const maxFiles = Number(typescript.maxFiles);
   const maxFileBytes = Number(typescript.maxFileBytes);
   const maxProgramFiles = Number(typescript.maxProgramFiles);
@@ -181,6 +187,7 @@ export function getToolingConfig(repoRoot, userConfig = null) {
       enabled: typescript.enabled !== false,
       resolveOrder,
       useTsconfig: typescript.useTsconfig !== false,
+      typeRepresentation,
       tsconfigPath: typeof typescript.tsconfigPath === 'string' ? typescript.tsconfigPath : '',
       allowJs: typescript.allowJs !== false,
       checkJs: typescript.checkJs !== false,

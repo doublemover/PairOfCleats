@@ -1,5 +1,5 @@
 {
-  "schemaHash": "f977fe9461aef970f861d89fe799a94d2a9c7a66",
+  "schemaHash": "c466df2faea2e2bd31068ce2a4b6bbea28e581c7",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -1311,6 +1311,34 @@
       "optionalFields": [
         "extensions"
       ]
+    },
+    {
+      "artifact": "symbolic_type_graph",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "contextKey",
+        "domain",
+        "nodes",
+        "rootIds",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "symbolic_type_manifest",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "artifactSurfaceVersion",
+        "generation",
+        "graphs",
+        "schemaVersion",
+        "status"
+      ],
+      "optionalFields": []
     },
     {
       "artifact": "symbols",

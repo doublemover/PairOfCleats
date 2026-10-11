@@ -234,6 +234,7 @@
               ]
             },
             "useTsconfig": { "type": "boolean" },
+            "typeRepresentation": { "type": "string", "enum": ["legacy", "symbolic"], "default": "legacy" },
             "tsconfigPath": { "type": "string" },
             "allowJs": { "type": "boolean" },
             "checkJs": { "type": "boolean" },

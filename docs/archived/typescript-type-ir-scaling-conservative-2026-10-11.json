@@ -1,0 +1,1091 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-11T09:18:42.350Z",
+  "runtime": {
+    "node": "v26.11.1",
+    "v8": "14.6.202.34-node.37",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "purpose": "bounded finite-string kernel scaling evidence",
+  "method": "one fresh process per fixed case, no forced GC, default logical budgets, 20-second cooperative deadline, 29-second subprocess timeout",
+  "caveats": [
+    "single samples, not a throughput benchmark",
+    "RSS and heap are process snapshots, not peaks or hard bounds",
+    "construction creates the flat operand array once; arbitrary incremental insertion is not claimed linear",
+    "membership input lengths are explicit; compressed-word doubling is covered separately by the compact fixture",
+    "0/1/many classification does not compute the exact language cardinality"
+  ],
+  "sourceSha256": {
+    "arena.js": "b92b0660024099acf0c7dfd03c2321213576ed31f799e45ea96f7aff76daf3c4",
+    "budget.js": "d016cce0f6bd8db81af567aae3be5e103b9aebd7420d58da114c521f977be14a",
+    "queries.js": "88a71e0594b89cb7b68d0c5f44f714a75938be09b78c2cadbd94e48c514bb1e7",
+    "sequence.js": "d2aa1371d93e7a11f32fa32958973970dd7e5258549a964615b0008ac821f3dc",
+    "serialization.js": "1a4fe641deea017f601b6664db7b8a4c076902a004b407c4e4046f4cf0edb738"
+  },
+  "cases": [
+    {
+      "mode": "repeated",
+      "width": 64,
+      "denotation": "2^64",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72200192,
+        "heapUsed": 11583328,
+        "heapTotal": 15339520,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 3.3202850000000126,
+          "before": {
+            "rss": 72200192,
+            "heapUsed": 11589912,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 72331264,
+            "heapUsed": 11793728,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 0.6700280000000021,
+          "before": {
+            "rss": 72331264,
+            "heapUsed": 11810824,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 72331264,
+            "heapUsed": 11839488,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 2.0701709999999878,
+          "before": {
+            "rss": 72331264,
+            "heapUsed": 11840256,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 72863744,
+            "heapUsed": 12288856,
+            "heapTotal": 16125952,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 0.4280770000000018,
+          "before": {
+            "rss": 72863744,
+            "heapUsed": 12289648,
+            "heapTotal": 16125952,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 73256960,
+            "heapUsed": 12950368,
+            "heapTotal": 16125952,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 9,
+        "chargedBytes": 14377,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 64,
+      "canonicalSerializedUtf8Bytes": 2155,
+      "serializedSha256": "a923cd30bdcf6bd5580b18c37d3a66cc358a09764a64c487298fe3eaf54d674f",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 64,
+          "sha256": "3138bb9bc78df27c473ecfd1410f7bd45ebac1f59cf3ff9cfe4db77aab7aedd3"
+        },
+        {
+          "utf16Length": 64,
+          "sha256": "7838c010e411b4d90db3320a1deff107568cfc86c653ea83bcb64898a8f0c53f"
+        }
+      ],
+      "processAfter": {
+        "rss": 73256960,
+        "heapUsed": 12951600,
+        "heapTotal": 16125952,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "repeated",
+      "width": 256,
+      "denotation": "2^256",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 71979008,
+        "heapUsed": 11525512,
+        "heapTotal": 15339520,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 2.9811160000000143,
+          "before": {
+            "rss": 72110080,
+            "heapUsed": 11532096,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 72634368,
+            "heapUsed": 12706056,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 0.4588899999999967,
+          "before": {
+            "rss": 72634368,
+            "heapUsed": 12009344,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 72773632,
+            "heapUsed": 12040976,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 5.8561420000000055,
+          "before": {
+            "rss": 72773632,
+            "heapUsed": 12041744,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 75395072,
+            "heapUsed": 9814416,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 0.48930100000001175,
+          "before": {
+            "rss": 75395072,
+            "heapUsed": 9815208,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 75526144,
+            "heapUsed": 10464344,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 11,
+        "chargedBytes": 17826,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 256,
+      "canonicalSerializedUtf8Bytes": 2660,
+      "serializedSha256": "edc1592dbfe18e5db54e650cb6f309cbcd0dee9c84c99912810254ae49fcbb4d",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 256,
+          "sha256": "67f022195ee405142968ca1b53ae2513a8bab0404d70577785316fa95218e8ba"
+        },
+        {
+          "utf16Length": 256,
+          "sha256": "bffa36919a79c0dd39254694df5f4a6c1237c0b76a27499fd06e439871d70fc1"
+        }
+      ],
+      "processAfter": {
+        "rss": 75526144,
+        "heapUsed": 10465576,
+        "heapTotal": 16650240,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "repeated",
+      "width": 1024,
+      "denotation": "2^1024",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72167424,
+        "heapUsed": 11614432,
+        "heapTotal": 15601664,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 5.535071999999985,
+          "before": {
+            "rss": 72167424,
+            "heapUsed": 11621016,
+            "heapTotal": 15601664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 74526720,
+            "heapUsed": 13074864,
+            "heapTotal": 16912384,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 0.667414000000008,
+          "before": {
+            "rss": 74526720,
+            "heapUsed": 13077752,
+            "heapTotal": 16912384,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 74665984,
+            "heapUsed": 13112400,
+            "heapTotal": 16912384,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 9.918151999999992,
+          "before": {
+            "rss": 74665984,
+            "heapUsed": 13113168,
+            "heapTotal": 16912384,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 78544896,
+            "heapUsed": 10654000,
+            "heapTotal": 19009536,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 0.4107960000000048,
+          "before": {
+            "rss": 78544896,
+            "heapUsed": 10654792,
+            "heapTotal": 19009536,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 78544896,
+            "heapUsed": 11158264,
+            "heapTotal": 19009536,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 13,
+        "chargedBytes": 21324,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 1024,
+      "canonicalSerializedUtf8Bytes": 3165,
+      "serializedSha256": "4cab1411b654284bef3285e73bacf16bc1f8adee1155bbad708c323cb78e285c",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 1024,
+          "sha256": "b4a38f5f5a21b6ba9f2008878beaa3a708866c66cbada71ba28ec359b5a53c3c"
+        },
+        {
+          "utf16Length": 1024,
+          "sha256": "2c5df9acaa75587d0fd3ac3b81a73e997c0b12624cb90512349328ecea42793d"
+        }
+      ],
+      "processAfter": {
+        "rss": 78544896,
+        "heapUsed": 10692432,
+        "heapTotal": 19009536,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "repeated",
+      "width": 4096,
+      "denotation": "2^4096",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72126464,
+        "heapUsed": 11616192,
+        "heapTotal": 15077376,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 13.36436500000002,
+          "before": {
+            "rss": 72126464,
+            "heapUsed": 11622776,
+            "heapTotal": 15077376,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 76976128,
+            "heapUsed": 12672168,
+            "heapTotal": 18747392,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 0.6865950000000112,
+          "before": {
+            "rss": 76976128,
+            "heapUsed": 12675056,
+            "heapTotal": 18747392,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 77377536,
+            "heapUsed": 12707784,
+            "heapTotal": 18747392,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 29.131867,
+          "before": {
+            "rss": 77377536,
+            "heapUsed": 12708552,
+            "heapTotal": 18747392,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 82575360,
+            "heapUsed": 14334056,
+            "heapTotal": 21106688,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 0.4974819999999909,
+          "before": {
+            "rss": 82575360,
+            "heapUsed": 14334848,
+            "heapTotal": 21106688,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 82575360,
+            "heapUsed": 14449792,
+            "heapTotal": 21106688,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 15,
+        "chargedBytes": 24688,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 4096,
+      "canonicalSerializedUtf8Bytes": 3669,
+      "serializedSha256": "9d6d826c76df82ecd7e7b1598851cc0022eb5cc1d1ceca343529806eafc6188f",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 4096,
+          "sha256": "1d05a1711752d58cd7b1a0fc3b865510186533adc6b73b84fba762884acfa52d"
+        },
+        {
+          "utf16Length": 4096,
+          "sha256": "b8a6268a517338e3dc026e58be3470df7f40e0902ccdf3579ddbeded9e4b25ee"
+        }
+      ],
+      "processAfter": {
+        "rss": 82575360,
+        "heapUsed": 14387184,
+        "heapTotal": 21106688,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "distinct",
+      "width": 64,
+      "denotation": "2^64",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72114176,
+        "heapUsed": 11577440,
+        "heapTotal": 15339520,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 5.774111000000005,
+          "before": {
+            "rss": 72114176,
+            "heapUsed": 11584024,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 73687040,
+            "heapUsed": 12953680,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 1.7643070000000023,
+          "before": {
+            "rss": 73687040,
+            "heapUsed": 12956568,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 74080256,
+            "heapUsed": 9275504,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 1.1381520000000194,
+          "before": {
+            "rss": 74080256,
+            "heapUsed": 9276272,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 74080256,
+            "heapUsed": 9758864,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 0.9326030000000003,
+          "before": {
+            "rss": 74080256,
+            "heapUsed": 9759656,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 74080256,
+            "heapUsed": 10162632,
+            "heapTotal": 16650240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 255,
+        "chargedBytes": 384283,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 310,
+      "canonicalSerializedUtf8Bytes": 46432,
+      "serializedSha256": "1afa923e36e3e37a510745c1699d1d362566e5003ab673bf4beb07955c5fcb75",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 310,
+          "sha256": "09bd555d5e88a74ef8ba400b6ac4fb42e752970020d1bc4398ff687e2902a36f"
+        },
+        {
+          "utf16Length": 310,
+          "sha256": "d3b4bc6eaa1c5eeedc527817c0cc5b63bdb5ae3e874c82b118b6b69f1b67a337"
+        }
+      ],
+      "processAfter": {
+        "rss": 74080256,
+        "heapUsed": 10163864,
+        "heapTotal": 16650240,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "distinct",
+      "width": 256,
+      "denotation": "2^256",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72241152,
+        "heapUsed": 11617632,
+        "heapTotal": 15339520,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 16.337830999999994,
+          "before": {
+            "rss": 72241152,
+            "heapUsed": 11624216,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 76173312,
+            "heapUsed": 12795952,
+            "heapTotal": 18223104,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 4.730710999999985,
+          "before": {
+            "rss": 76173312,
+            "heapUsed": 12798840,
+            "heapTotal": 18223104,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 78016512,
+            "heapUsed": 10358624,
+            "heapTotal": 19460096,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 3.3434000000000026,
+          "before": {
+            "rss": 78016512,
+            "heapUsed": 10359392,
+            "heapTotal": 19460096,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 78934016,
+            "heapUsed": 11917392,
+            "heapTotal": 19460096,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 2.896981000000011,
+          "before": {
+            "rss": 78934016,
+            "heapUsed": 11918184,
+            "heapTotal": 19460096,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 79720448,
+            "heapUsed": 12679424,
+            "heapTotal": 19460096,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 1023,
+        "chargedBytes": 1559074,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 1426,
+      "canonicalSerializedUtf8Bytes": 186329,
+      "serializedSha256": "88b841ffd03fd6401a1df0703c81cfea84e49362a9551053d54a9f679c7e8207",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 1426,
+          "sha256": "eb8a2857f6343cf4c0be869508bea56545e0a44f90a1c89e32f3f2e7ba3f581c"
+        },
+        {
+          "utf16Length": 1426,
+          "sha256": "1d9bf71c3060425d0fed5aa81ca06491c91e4c688362535cafdebced0d4ae9ab"
+        }
+      ],
+      "processAfter": {
+        "rss": 79720448,
+        "heapUsed": 12680656,
+        "heapTotal": 19460096,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "distinct",
+      "width": 1024,
+      "denotation": "2^1024",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72634368,
+        "heapUsed": 11653344,
+        "heapTotal": 15339520,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 40.63704799999999,
+          "before": {
+            "rss": 72634368,
+            "heapUsed": 11659928,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 81817600,
+            "heapUsed": 11821632,
+            "heapTotal": 20459520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 10.40627900000004,
+          "before": {
+            "rss": 81817600,
+            "heapUsed": 11824520,
+            "heapTotal": 20459520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 83230720,
+            "heapUsed": 14084448,
+            "heapTotal": 21209088,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "membership": {
+          "elapsedMs": 7.659207999999978,
+          "before": {
+            "rss": 83230720,
+            "heapUsed": 14085216,
+            "heapTotal": 21209088,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 84410368,
+            "heapUsed": 14725272,
+            "heapTotal": 21245952,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "classify": {
+          "elapsedMs": 8.960630999999978,
+          "before": {
+            "rss": 84410368,
+            "heapUsed": 14726064,
+            "heapTotal": 21245952,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 87293952,
+            "heapUsed": 14948664,
+            "heapTotal": 21770240,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        }
+      },
+      "failures": [],
+      "status": "complete",
+      "arena": {
+        "nodes": 4095,
+        "chargedBytes": 6299838,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 6058,
+      "canonicalSerializedUtf8Bytes": 746250,
+      "serializedSha256": "4bc11cfe324c3138b961dbbe5f7a2ed1f32fa690c501cd7f44c33fbd6b4e4100",
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 6058,
+          "sha256": "ec84763ed121cf6783afb6a615b3fff19a8626266aa50c541d0519df329a1e7b"
+        },
+        {
+          "utf16Length": 6058,
+          "sha256": "69f75bd5e958b1701dbbf2657e07be522cd1ed4a47ed314e9c4ad8d3e094712a"
+        }
+      ],
+      "processAfter": {
+        "rss": 87293952,
+        "heapUsed": 14949896,
+        "heapTotal": 21770240,
+        "external": 4584716,
+        "arrayBuffers": 212631
+      },
+      "processExit": {
+        "status": 0,
+        "signal": null,
+        "error": null
+      }
+    },
+    {
+      "mode": "distinct",
+      "width": 4096,
+      "denotation": "2^4096",
+      "denotationBasis": "independent uniquely delimited binary positions; mathematical fact, not enumerated or computed exact count",
+      "runtime": {
+        "node": "v26.11.1",
+        "v8": "14.6.202.34-node.37",
+        "platform": "linux",
+        "arch": "x64"
+      },
+      "limits": {
+        "maxSteps": 5000000,
+        "maxAllocationBytes": 67108864,
+        "maxStates": 100000,
+        "maxInputChars": 1000000
+      },
+      "processBefore": {
+        "rss": 72290304,
+        "heapUsed": 11621608,
+        "heapTotal": 15339520,
+        "external": 4584676,
+        "arrayBuffers": 212631
+      },
+      "phases": {
+        "construct": {
+          "elapsedMs": 131.292745,
+          "before": {
+            "rss": 72290304,
+            "heapUsed": 11628192,
+            "heapTotal": 15339520,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 97783808,
+            "heapUsed": 24078712,
+            "heapTotal": 35057664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          }
+        },
+        "serialize": {
+          "elapsedMs": 25.451953000000003,
+          "before": {
+            "rss": 97783808,
+            "heapUsed": 24081600,
+            "heapTotal": 35057664,
+            "external": 4584716,
+            "arrayBuffers": 212631
+          },
+          "after": {
+            "rss": 98312192,
+            "heapUsed": 20182720,
+            "heapTotal": 35889152,
+            "external": 4584716,
+            "arrayBuffers": 212595
+          }
+        },
+        "membership": {
+          "elapsedMs": 33.321731,
+          "before": {
+            "rss": 98312192,
+            "heapUsed": 20185488,
+            "heapTotal": 35889152,
+            "external": 4584716,
+            "arrayBuffers": 212595
+          },
+          "after": {
+            "rss": 103329792,
+            "heapUsed": 30069496,
+            "heapTotal": 41041920,
+            "external": 4584680,
+            "arrayBuffers": 212595
+          }
+        },
+        "classify": {
+          "elapsedMs": 34.559365000000014,
+          "before": {
+            "rss": 103329792,
+            "heapUsed": 30070288,
+            "heapTotal": 41041920,
+            "external": 4584680,
+            "arrayBuffers": 212595
+          },
+          "after": {
+            "rss": 113852416,
+            "heapUsed": 29108224,
+            "heapTotal": 48504832,
+            "external": 4584680,
+            "arrayBuffers": 212595
+          }
+        }
+      },
+      "failures": [
+        {
+          "phase": "serialize",
+          "code": "ERR_TOOLING_REQUIRED_COMPUTATION_INCOMPLETE",
+          "name": "ToolingRequiredComputationError",
+          "message": "Finite-string type IR computation incomplete: maxSteps_exceeded",
+          "reason": "maxSteps_exceeded",
+          "operation": "type-ir.serialize",
+          "details": {
+            "coverage": "incomplete",
+            "requested": 6065193,
+            "used": {
+              "steps": 65533,
+              "allocationBytes": 16914480,
+              "states": 16383
+            },
+            "limits": {
+              "maxSteps": 5000000,
+              "maxAllocationBytes": 67108864,
+              "maxStates": 100000,
+              "maxInputChars": 1000000
+            }
+          }
+        }
+      ],
+      "status": "failed",
+      "arena": {
+        "nodes": 16383,
+        "chargedBytes": 25297110,
+        "maxArenaBytes": 67108864,
+        "maxArenaNodes": 100000
+      },
+      "queryInputUtf16Length": 27562,
+      "membership": true,
+      "cardinalityClass": "many",
+      "witnesses": [
+        {
+          "utf16Length": 27562,
+          "sha256": "5d3d492cac08d854db33181afa10d4233e37faf02329fa0d38365ae7dd78f094"
+        },
+        {
+          "utf16Length": 27562,
+          "sha256": "9f7250e024b024c925bf2259b40cd32935491d3c1b86aeb6f49c1149e32fe3a2"
+        }
+      ],
+      "processAfter": {
+        "rss": 113852416,
+        "heapUsed": 29109520,
+        "heapTotal": 48504832,
+        "external": 4584680,
+        "arrayBuffers": 212595
+      },
+      "processExit": {
+        "status": 1,
+        "signal": null,
+        "error": null
+      }
+    }
+  ],
+  "complete": false
+}

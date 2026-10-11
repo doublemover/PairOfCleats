@@ -1,4 +1,5 @@
 import { SEMANTIC_ARTIFACT_SCHEMA_DEFS } from './artifacts/semantic.js';
+import { SYMBOLIC_TYPE_MANIFEST_SCHEMA, SYMBOLIC_TYPE_GRAPH_SCHEMA } from './symbolic-types.js';
 import { SEMANTIC_MEMBER_NAMES } from './semantic-envelopes.js';
 import {
   CORE_POST_DENSE_VECTOR_ARTIFACT_SCHEMA_DEFS,
@@ -55,6 +56,8 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {
+  symbolic_type_manifest: SYMBOLIC_TYPE_MANIFEST_SCHEMA,
+  symbolic_type_graph: SYMBOLIC_TYPE_GRAPH_SCHEMA,
   ...SEMANTIC_ARTIFACT_SCHEMA_DEFS,
   ...CORE_PRE_VFS_ARTIFACT_SCHEMA_DEFS,
   ...VFS_ARTIFACT_SCHEMA_DEFS,

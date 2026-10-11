@@ -3,6 +3,14 @@ import path from 'node:path';
 import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
 import { loadTypeScript } from './typescript/load.js';
 import { createVirtualCompilerHost } from './typescript/host.js';
+import { createTypeScriptRootNames } from './typescript/roots.js';
+import { createCompilerDependencySystem } from '../semantic/compiler-dependencies.js';
+import { createFiniteStringProjection, createSymbolicEvaluationContext, projectFiniteStringDeclaration,
+  requiredSymbolicComputation } from './typescript/symbolic.js';
+import { isRequiredToolingComputationError } from './required-computation.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
+import { runTypeScriptProviderSubprocess } from './typescript/runtime/index.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 import { selectTypeScriptDocuments, createDefaultCompilerOptions, resolveTsconfigOverride, findNearestConfig, parseTsConfig } from './typescript/config.js';
 
@@ -143,9 +151,9 @@ const buildTypeScriptDiagnosticCheck = ({
   contributionState
 });
 
-export const createTypeScriptProvider = () => ({
+export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
   id: 'typescript',
-  version: '2.5.0',
+  version: '3.0.0',
   label: 'TypeScript',
   priority: 10,
   languages: ['typescript', 'tsx', 'javascript', 'jsx'],
@@ -165,250 +173,346 @@ export const createTypeScriptProvider = () => ({
     });
   },
   async run(ctx, inputs) {
-    const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
-    const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
-    const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
-    const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'typescript' });
-    const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
-    if (ctx?.toolingConfig?.typescript?.enabled === false) {
-      log({ level: 'info', message: 'TypeScript tooling disabled.' });
-      return { provider: { id: 'typescript', version: '2.5.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
-    }
-    const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
-    if (!ts) {
-      log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
-      return {
-        provider: { id: 'typescript', version: '2.5.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: appendDiagnosticChecks(baseDiagnostics, [
-          buildTypeScriptDiagnosticCheck({
-            name: 'typescript_runtime_unavailable',
-            status: 'error',
-            message: 'TypeScript runtime module not found.',
-            triggerClass: 'runtime_unavailable',
-            degradedEligible: true
-          })
-        ])
-      };
-    }
-    const config = ctx?.toolingConfig?.typescript || {};
-    const useCaseSensitive = typeof ts?.sys?.useCaseSensitiveFileNames === 'boolean'
-      ? ts.sys.useCaseSensitiveFileNames
-      : process.platform !== 'win32';
-    const rootDocs = selectTypeScriptDocuments(documents, config);
-    if (!rootDocs.length) {
-      return {
-        provider: { id: 'typescript', version: '2.5.0', configHash: this.getConfigHash(ctx) },
-        byChunkUid: {},
-        diagnostics: baseDiagnostics
-      };
-    }
-
-    const maxFiles = Number.isFinite(config.maxFiles) ? Math.max(1, config.maxFiles) : null;
-    const maxProgramFiles = Number.isFinite(config.maxProgramFiles) ? Math.max(1, config.maxProgramFiles) : null;
-    const maxFileBytes = Number.isFinite(config.maxFileBytes) ? Math.max(1, config.maxFileBytes) : null;
-
-    const compilerSystem = ctx.semanticSession?.compilerSystem(ts, rootDocs) || ts.sys;
-    const configOverride = resolveTsconfigOverride(ctx.repoRoot, ctx.toolingConfig, (message) => log({ level: 'warn', message }), compilerSystem);
-    const useTsconfig = config.useTsconfig !== false;
-    const configCache = new Map();
-    const configGroups = new Map();
-    const orderedDocs = rootDocs.slice().sort((a, b) => a.virtualPath.localeCompare(b.virtualPath));
-    for (const doc of orderedDocs) {
-      const containerPath = doc.containerPath || doc.virtualPath;
-      const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
-      const configPath = configOverride
-        ? configOverride
-        : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache, useCaseSensitive, compilerSystem) : null);
-      const key = configPath || '__default__';
-      const group = configGroups.get(key) || { configPath, documents: [] };
-      group.documents.push(doc);
-      configGroups.set(key, group);
-    }
-
-    const byChunkUid = {};
-    const diagnostics = [];
-    if (duplicateChecks.length) diagnostics.push(...duplicateChecks);
-    const targetsByDoc = new Map();
-    for (const target of targets) {
-      const chunkRef = target?.chunkRef || target?.chunk || null;
-      if (!target?.virtualPath || !chunkRef?.chunkUid) continue;
-      const list = targetsByDoc.get(target.virtualPath) || [];
-      list.push({ ...target, chunkRef });
-      targetsByDoc.set(target.virtualPath, list);
-    }
-
-    const parsedConfigCache = new Map();
-    const compilerDefaults = createDefaultCompilerOptions(ts, config);
-    for (const group of configGroups.values()) {
-      const groupDocs = group.documents || [];
-      if (maxFiles && groupDocs.length > maxFiles) {
-        diagnostics.push({
-          ...buildTypeScriptDiagnosticCheck({
-            name: 'cap_maxFiles',
-            status: 'warn',
-            message: `TypeScript provider skipped ${groupDocs.length} docs (maxFiles=${maxFiles}).`,
-            triggerClass: 'planner_cap',
-            degradedEligible: false,
-            contributionState: 'skipped'
-          }),
-          maxFiles,
-          skippedDocuments: groupDocs.length
-        });
-        continue;
+    const signal = ctx?.abortSignal || ctx?.signal;
+    const symbolicMode = ctx?.toolingConfig?.typescript?.typeRepresentation === 'symbolic';
+    try {
+      throwIfAborted(signal);
+      const configuredRepresentation = ctx?.toolingConfig?.typescript?.typeRepresentation;
+      const representation = configuredRepresentation === undefined ? 'legacy' : configuredRepresentation;
+      if (!['legacy', 'symbolic'].includes(representation)) throw requiredSymbolicComputation('invalid_type_representation');
+      if (symbolicMode && ctx?.semanticSession) throw requiredSymbolicComputation('semantic_session_representation_not_supported');
+      if (symbolicMode && !subprocessChild) return await runTypeScriptProviderSubprocess(ctx, inputs, {
+        signal,
+        ...(Number.isSafeInteger(ctx.toolingConfig?.timeoutMs) && ctx.toolingConfig.timeoutMs > 0
+          ? { timeoutMs: ctx.toolingConfig.timeoutMs } : {})
+      });
+      const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
+      const documents = Array.isArray(inputs?.documents) ? inputs.documents : [];
+      const targets = Array.isArray(inputs?.targets) ? inputs.targets : [];
+      const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'typescript' });
+      if (symbolicMode && duplicateChecks.length) throw requiredSymbolicComputation('duplicate_target_identity');
+      const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
+      if (ctx?.toolingConfig?.typescript?.enabled === false) {
+        log({ level: 'info', message: 'TypeScript tooling disabled.' });
+        return { provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
       }
-      if (maxFileBytes) {
-        const oversized = groupDocs.find((doc) => Buffer.byteLength(doc.text || '', 'utf8') > maxFileBytes);
-        if (oversized) {
+      const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
+      if (!ts) {
+        if (symbolicMode) throw requiredSymbolicComputation('typescript_runtime_unavailable');
+        log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
+        return {
+          provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: appendDiagnosticChecks(baseDiagnostics, [
+            buildTypeScriptDiagnosticCheck({
+              name: 'typescript_runtime_unavailable',
+              status: 'error',
+              message: 'TypeScript runtime module not found.',
+              triggerClass: 'runtime_unavailable',
+              degradedEligible: true
+            })
+          ])
+        };
+      }
+      const config = ctx?.toolingConfig?.typescript || {};
+      const useCaseSensitive = typeof ts?.sys?.useCaseSensitiveFileNames === 'boolean'
+        ? ts.sys.useCaseSensitiveFileNames
+        : process.platform !== 'win32';
+      const rootDocs = selectTypeScriptDocuments(documents, config);
+      if (!rootDocs.length) {
+        if (symbolicMode && targets.length) throw requiredSymbolicComputation('target_documents_unavailable');
+        return {
+          provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) },
+          byChunkUid: {},
+          diagnostics: baseDiagnostics
+        };
+      }
+
+      const maxFiles = Number.isFinite(config.maxFiles) ? Math.max(1, config.maxFiles) : null;
+      const maxProgramFiles = Number.isFinite(config.maxProgramFiles) ? Math.max(1, config.maxProgramFiles) : null;
+      const maxFileBytes = Number.isFinite(config.maxFileBytes) ? Math.max(1, config.maxFileBytes) : null;
+
+      const capturedCompiler = symbolicMode ? createCompilerDependencySystem({ ts, signal }) : null;
+      const compilerSystem = capturedCompiler?.system || ctx.semanticSession?.compilerSystem(ts, rootDocs) || ts.sys;
+      const configOverride = resolveTsconfigOverride(ctx.repoRoot, ctx.toolingConfig, (message) => log({ level: 'warn', message }), compilerSystem);
+      if (symbolicMode && config.tsconfigPath && !configOverride) throw requiredSymbolicComputation('compiler_config_override_unavailable');
+      const useTsconfig = config.useTsconfig !== false;
+      const configCache = new Map();
+      const configGroups = new Map();
+      const orderedDocs = rootDocs.slice().sort((a, b) => a.virtualPath.localeCompare(b.virtualPath));
+      for (const doc of orderedDocs) {
+        const containerPath = doc.containerPath || doc.virtualPath;
+        const containerDir = path.dirname(path.resolve(ctx.repoRoot, containerPath));
+        const configPath = configOverride
+          ? configOverride
+          : (useTsconfig ? findNearestConfig(containerDir, ctx.repoRoot, configCache, useCaseSensitive, compilerSystem) : null);
+        const key = configPath || '__default__';
+        const group = configGroups.get(key) || { configPath, documents: [] };
+        group.documents.push(doc);
+        configGroups.set(key, group);
+      }
+
+      const byChunkUid = {};
+      let symbolicTypeGraphs = [];
+      const symbolicCoverage = { required: 0, answered: 0, notApplicable: 0 };
+      const diagnostics = [];
+      if (duplicateChecks.length) diagnostics.push(...duplicateChecks);
+      const targetsByDoc = new Map();
+      const selectedDocumentPaths = new Set(rootDocs.map(doc => doc.virtualPath));
+      for (const target of targets) {
+        const chunkRef = target?.chunkRef || target?.chunk || null;
+        if (!target?.virtualPath || !chunkRef?.chunkUid) {
+          if (symbolicMode) throw requiredSymbolicComputation('invalid_target_identity');
+          continue;
+        }
+        if (symbolicMode && !selectedDocumentPaths.has(target.virtualPath)) {
+          throw requiredSymbolicComputation('target_document_not_selected', { virtualPath: target.virtualPath });
+        }
+        const list = targetsByDoc.get(target.virtualPath) || [];
+        list.push({ ...target, chunkRef });
+        targetsByDoc.set(target.virtualPath, list);
+      }
+
+      const parsedConfigCache = new Map();
+      const compilerDefaults = createDefaultCompilerOptions(ts, config);
+      let groupOrdinal = 0;
+      for (const group of configGroups.values()) {
+        groupOrdinal += 1;
+        const groupDocs = group.documents || [];
+        if (maxFiles && groupDocs.length > maxFiles) {
+          if (symbolicMode) throw requiredSymbolicComputation('cap_maxFiles', { maxFiles, documents: groupDocs.length });
           diagnostics.push({
             ...buildTypeScriptDiagnosticCheck({
-              name: 'cap_maxFileBytes',
+              name: 'cap_maxFiles',
               status: 'warn',
-              message: `TypeScript provider skipped ${oversized.virtualPath} (size > ${maxFileBytes}).`,
+              message: `TypeScript provider skipped ${groupDocs.length} docs (maxFiles=${maxFiles}).`,
               triggerClass: 'planner_cap',
               degradedEligible: false,
               contributionState: 'skipped'
             }),
-            maxFileBytes,
-            virtualPath: oversized.virtualPath
+            maxFiles,
+            skippedDocuments: groupDocs.length
           });
           continue;
         }
-      }
-
-      let parsedConfig = null;
-      if (group.configPath) {
-        if (parsedConfigCache.has(group.configPath)) {
-          parsedConfig = parsedConfigCache.get(group.configPath);
-        } else {
-          parsedConfig = parseTsConfig(ts, group.configPath, (message) => log({ level: 'warn', message }), compilerSystem);
-          parsedConfigCache.set(group.configPath, parsedConfig);
-        }
-      }
-
-      const mergedOptions = parsedConfig?.options
-        ? { ...compilerDefaults, ...parsedConfig.options }
-        : { ...compilerDefaults };
-      // Ensure tooling config overrides win for JS parity.
-      mergedOptions.allowJs = compilerDefaults.allowJs;
-      mergedOptions.checkJs = compilerDefaults.checkJs;
-
-      const vfsMap = new Map(), sourcePaths = new Map(), moduleOrigins = new Map();
-      const rootNames = [];
-      for (const doc of groupDocs) {
-        const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
-        vfsMap.set(normalizePathKey(absPath, useCaseSensitive), doc.text);
-        if (doc.containerPath) moduleOrigins.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
-        if (doc.containerPath && !doc.segmentUid) sourcePaths.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
-        rootNames.push(absPath);
-      }
-      const finalRootNames = parsedConfig?.fileNames
-        ? Array.from(new Set([...parsedConfig.fileNames, ...rootNames]))
-        : rootNames;
-
-      if (maxProgramFiles && finalRootNames.length > maxProgramFiles) {
-        diagnostics.push({
-          ...buildTypeScriptDiagnosticCheck({
-            name: 'cap_maxProgramFiles',
-            status: 'warn',
-            message: `TypeScript provider skipped program with ${finalRootNames.length} files (maxProgramFiles=${maxProgramFiles}).`,
-            triggerClass: 'planner_cap',
-            degradedEligible: false,
-            contributionState: 'skipped'
-          }),
-          maxProgramFiles,
-          programFiles: finalRootNames.length
-        });
-        continue;
-      }
-
-      const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins, compilerSystem);
-      const authorizeSource = ctx.semanticSession?.authorizeCompilerProgram({ configPath: group.configPath, options: mergedOptions, rootNames: finalRootNames });
-      if (authorizeSource) {
-        const getSourceFile = host.getSourceFile;
-        host.getSourceFile = (...args) => authorizeSource(getSourceFile(...args));
-      }
-      const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, projectReferences: parsedConfig?.projectReferences, host });
-      const checker = program.getTypeChecker();
-      const semanticGroup = ctx.semanticSession?.beginGroup({ ts, program, options: mergedOptions, documents: groupDocs, configPath: group.configPath });
-
-      for (const doc of groupDocs) {
-        const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
-        const sourceFile = program.getSourceFile(absPath);
-        if (!sourceFile) continue;
-        const nodeIndex = createTypeScriptNodeIndex(ts, sourceFile, getNodeName);
-        if (semanticGroup) await ctx.semanticSession.collectDocument({ ts, checker, sourceFile, nodeIndex, group: semanticGroup });
-        const docTargets = targetsByDoc.get(doc.virtualPath) || [];
-        for (const target of docTargets) {
-          const result = findNodeForTarget(ts, target, ctx?.strict !== false, nodeIndex);
-          if (!result.node) {
+        if (maxFileBytes) {
+          const oversized = groupDocs.find((doc) => Buffer.byteLength(doc.text || '', 'utf8') > maxFileBytes);
+          if (oversized) {
+            if (symbolicMode) throw requiredSymbolicComputation('cap_maxFileBytes', { maxFileBytes, virtualPath: oversized.virtualPath });
             diagnostics.push({
               ...buildTypeScriptDiagnosticCheck({
-                name: 'node_match',
-                status: result.status === 'ambiguous' ? 'warn' : 'error',
-                message: `TypeScript target ${result.status} for ${target.chunkRef.chunkUid}`,
-                triggerClass: 'planner_target_match',
+                name: 'cap_maxFileBytes',
+                status: 'warn',
+                message: `TypeScript provider skipped ${oversized.virtualPath} (size > ${maxFileBytes}).`,
+                triggerClass: 'planner_cap',
                 degradedEligible: false,
                 contributionState: 'skipped'
               }),
-              targetStatus: result.status,
-              chunkUid: target.chunkRef.chunkUid,
-              virtualPath: target.virtualPath || null
+              maxFileBytes,
+              virtualPath: oversized.virtualPath
             });
             continue;
           }
-          const extracted = extractTypes(ts, checker, sourceFile, result.node);
-          if (!extracted) continue;
-          const nodeName = getNodeName(ts, result.node, sourceFile) || target?.symbolHint?.name || null;
-          const kindGroup = target?.symbolHint?.kind || null;
-          const symbolKey = buildSymbolKey({
-            virtualPath: target.virtualPath,
-            qualifiedName: nodeName,
-            kindGroup
-          });
-          const signatureKey = buildSignatureKey({ qualifiedName: nodeName, signature: extracted.signature });
-          const scopedId = buildScopedSymbolId({
-            kindGroup: kindGroup || 'other',
-            symbolKey,
-            signatureKey,
-            chunkUid: target.chunkRef?.chunkUid || null
-          });
-          const symbolId = buildSymbolId({ scopedId, scheme: 'heur' });
-          const symbolRef = symbolKey ? {
-            symbolKey,
-            symbolId,
-            signatureKey,
-            scopedId,
-            kind: target?.symbolHint?.kind || null,
-            qualifiedName: nodeName,
-            languageId: doc.languageId || null,
-            definingChunk: target.chunkRef || null,
-            evidence: { scheme: 'heur', confidence: result.status === 'ok' ? 'medium' : 'low' }
-          } : null;
-          byChunkUid[target.chunkRef.chunkUid] = {
-            chunk: target.chunkRef,
-            payload: {
-              returnType: extracted.returnType,
-              paramTypes: extracted.paramTypes,
-              signature: extracted.signature
-            },
-            ...(symbolRef ? { symbolRef } : {}),
-            provenance: {
-              provider: 'typescript',
-              version: '2.5.0',
-              collectedAt: new Date().toISOString()
-            }
-          };
         }
-      }
-      if (semanticGroup) await ctx.semanticSession.finishGroup(semanticGroup);
-    }
 
-    return {
-      provider: { id: 'typescript', version: '2.5.0', configHash: this.getConfigHash(ctx) },
-      byChunkUid,
-      ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),
-      diagnostics: diagnostics.length ? { checks: diagnostics } : null
-    };
+        let parsedConfig = null;
+        if (group.configPath) {
+          if (parsedConfigCache.has(group.configPath)) {
+            parsedConfig = parsedConfigCache.get(group.configPath);
+          } else {
+            parsedConfig = parseTsConfig(ts, group.configPath, (message) => log({ level: 'warn', message }), compilerSystem);
+            parsedConfigCache.set(group.configPath, parsedConfig);
+          }
+        }
+
+        if (symbolicMode && group.configPath && (!parsedConfig || parsedConfig.errors?.length)) {
+          throw requiredSymbolicComputation('compiler_config_diagnostics', { configPath: group.configPath });
+        }
+
+        const mergedOptions = parsedConfig?.options
+          ? { ...compilerDefaults, ...parsedConfig.options }
+          : { ...compilerDefaults };
+        // Ensure tooling config overrides win for JS parity.
+        mergedOptions.allowJs = compilerDefaults.allowJs;
+        mergedOptions.checkJs = compilerDefaults.checkJs;
+
+        const vfsMap = new Map(), sourcePaths = new Map(), moduleOrigins = new Map();
+        const rootNames = [];
+        for (const doc of groupDocs) {
+          const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
+          vfsMap.set(normalizePathKey(absPath, useCaseSensitive), doc.text);
+          if (doc.containerPath) moduleOrigins.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
+          if (doc.containerPath && !doc.segmentUid) sourcePaths.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
+          rootNames.push(absPath);
+        }
+        const finalRootNames = createTypeScriptRootNames({ configRootNames: parsedConfig?.fileNames || [],
+          virtualRootNames: rootNames, sourcePaths, useCaseSensitive });
+
+        if (maxProgramFiles && finalRootNames.length > maxProgramFiles) {
+          if (symbolicMode) throw requiredSymbolicComputation('cap_maxProgramFiles', { maxProgramFiles, roots: finalRootNames.length });
+          diagnostics.push({
+            ...buildTypeScriptDiagnosticCheck({
+              name: 'cap_maxProgramFiles',
+              status: 'warn',
+              message: `TypeScript provider skipped program with ${finalRootNames.length} files (maxProgramFiles=${maxProgramFiles}).`,
+              triggerClass: 'planner_cap',
+              degradedEligible: false,
+              contributionState: 'skipped'
+            }),
+            maxProgramFiles,
+            programFiles: finalRootNames.length
+          });
+          continue;
+        }
+
+        const groupStartedAt = Date.now();
+        let progressAt = groupStartedAt, processedTargets = 0;
+        const groupTargetCount = groupDocs.reduce((count, doc) => count + (targetsByDoc.get(doc.virtualPath)?.length || 0), 0);
+        const progress = (phase, program = null) => {
+          const memory = process.memoryUsage();
+          progressAt = Date.now();
+          log({ level: 'info', message: `[tooling] typescript group=${groupOrdinal}/${configGroups.size} phase=${phase} `
+          + `config=${group.configPath || '<default>'} compiler=${ts.version} docs=${groupDocs.length} `
+          + `configRoots=${parsedConfig?.fileNames?.length || 0} roots=${finalRootNames.length} `
+          + `sources=${program ? program.getSourceFiles().length : 'pending'} targets=${processedTargets}/${groupTargetCount} `
+          + `elapsedMs=${progressAt - groupStartedAt} heapUsedBytes=${memory.heapUsed} rssBytes=${memory.rss}.` });
+        };
+        const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins, compilerSystem);
+        const authorizeSource = ctx.semanticSession?.authorizeCompilerProgram({ configPath: group.configPath, options: mergedOptions, rootNames: finalRootNames });
+        if (authorizeSource) {
+          const getSourceFile = host.getSourceFile;
+          host.getSourceFile = (...args) => authorizeSource(getSourceFile(...args));
+        }
+        progress('create-program:start');
+        const program = ts.createProgram({ rootNames: finalRootNames, options: mergedOptions, projectReferences: parsedConfig?.projectReferences, host });
+        progress('create-program:done', program);
+        progress('checker:start', program);
+        const checker = program.getTypeChecker();
+        progress('checker:done', program);
+        const evaluatedContext = symbolicMode ? createSymbolicEvaluationContext({ ts, program,
+          observations: capturedCompiler.observations, rootNames: finalRootNames, options: mergedOptions,
+          projectReferences: parsedConfig?.projectReferences || [], documents: groupDocs,
+          configPath: group.configPath, signal }) : null;
+        const symbolicProjection = evaluatedContext ? createFiniteStringProjection({ ts, checker,
+          contextKey: evaluatedContext.contextKey, signal, documents: groupDocs, repoRoot: ctx.repoRoot }) : null;
+        const symbolicPending = [];
+        const semanticGroup = ctx.semanticSession?.beginGroup({ ts, program, options: mergedOptions, documents: groupDocs, configPath: group.configPath });
+
+        for (const doc of groupDocs) {
+          const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
+          const sourceFile = program.getSourceFile(absPath);
+          if (!sourceFile) {
+            if (symbolicMode && targetsByDoc.get(doc.virtualPath)?.length) throw requiredSymbolicComputation('target_source_file_unavailable', { virtualPath: doc.virtualPath });
+            continue;
+          }
+          const nodeIndex = createTypeScriptNodeIndex(ts, sourceFile, getNodeName);
+          if (semanticGroup) await ctx.semanticSession.collectDocument({ ts, checker, sourceFile, nodeIndex, group: semanticGroup });
+          const docTargets = targetsByDoc.get(doc.virtualPath) || [];
+          for (const target of docTargets) {
+            throwIfAborted(signal);
+            if (Date.now() - progressAt >= 10000) progress('targets', program);
+            processedTargets += 1;
+            const result = findNodeForTarget(ts, target, ctx?.strict !== false, nodeIndex);
+            if (!result.node) {
+              if (symbolicMode) throw requiredSymbolicComputation('target_' + result.status, { chunkUid: target.chunkRef.chunkUid, virtualPath: target.virtualPath });
+              diagnostics.push({
+                ...buildTypeScriptDiagnosticCheck({
+                  name: 'node_match',
+                  status: result.status === 'ambiguous' ? 'warn' : 'error',
+                  message: `TypeScript target ${result.status} for ${target.chunkRef.chunkUid}`,
+                  triggerClass: 'planner_target_match',
+                  degradedEligible: false,
+                  contributionState: 'skipped'
+                }),
+                targetStatus: result.status,
+                chunkUid: target.chunkRef.chunkUid,
+                virtualPath: target.virtualPath || null
+              });
+              continue;
+            }
+            if (symbolicMode && !isFunctionLike(ts, result.node)) {
+              if (['function', 'method'].includes(String(target.symbolHint?.kind || '').toLowerCase())) {
+                throw requiredSymbolicComputation('target_function_form_mismatch', { chunkUid: target.chunkRef.chunkUid });
+              }
+              // The legacy provider has no type query for these target kinds.
+              symbolicCoverage.notApplicable += 1;
+              continue;
+            }
+            if (symbolicMode) symbolicCoverage.required += 1;
+            const symbolicDeclaration = symbolicProjection?.collect(result.node) || null;
+            const extracted = symbolicDeclaration ? { signature: symbolicDeclaration.signatureIdentity }
+              : extractTypes(ts, checker, sourceFile, result.node);
+            if (!extracted) continue;
+            const nodeName = getNodeName(ts, result.node, sourceFile) || target?.symbolHint?.name || null;
+            const kindGroup = target?.symbolHint?.kind || null;
+            const symbolKey = buildSymbolKey({
+              virtualPath: target.virtualPath,
+              qualifiedName: nodeName,
+              kindGroup
+            });
+            const signatureKey = buildSignatureKey({ qualifiedName: nodeName, signature: extracted.signature });
+            const scopedId = buildScopedSymbolId({
+              kindGroup: kindGroup || 'other',
+              symbolKey,
+              signatureKey,
+              chunkUid: target.chunkRef?.chunkUid || null
+            });
+            const symbolId = buildSymbolId({ scopedId, scheme: 'heur' });
+            const symbolRef = symbolKey ? {
+              symbolKey,
+              symbolId,
+              signatureKey,
+              scopedId,
+              kind: target?.symbolHint?.kind || null,
+              qualifiedName: nodeName,
+              languageId: doc.languageId || null,
+              definingChunk: target.chunkRef || null,
+              evidence: { scheme: 'heur', confidence: result.status === 'ok' ? 'medium' : 'low' }
+            } : null;
+            byChunkUid[target.chunkRef.chunkUid] = {
+              chunk: target.chunkRef,
+              payload: symbolicDeclaration ? {} : {
+                returnType: extracted.returnType,
+                paramTypes: extracted.paramTypes,
+                signature: extracted.signature
+              },
+              ...(symbolRef ? { symbolRef } : {}),
+              provenance: {
+                provider: 'typescript',
+                version: '3.0.0',
+                collectedAt: new Date().toISOString()
+              }
+            };
+            if (symbolicDeclaration) {
+              symbolicCoverage.answered += 1;
+              symbolicPending.push({ declaration: symbolicDeclaration, output: byChunkUid[target.chunkRef.chunkUid] });
+            }
+          }
+        }
+        if (semanticGroup) await ctx.semanticSession.finishGroup(semanticGroup);
+        if (symbolicProjection) {
+          evaluatedContext.assertUnchanged();
+          const graph = symbolicProjection.finish();
+          if (graph) {
+            symbolicTypeGraphs = mergeSymbolicTypeGraphs(symbolicTypeGraphs, [graph]);
+            for (const pending of symbolicPending) pending.output.payload.typeExpressions = projectFiniteStringDeclaration(pending.declaration, graph);
+          }
+        }
+        progress('complete', program);
+      }
+
+      return {
+        provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) },
+        byChunkUid,
+        ...(symbolicMode ? { symbolicTypeGraphs, execution: { complete: true, representation: 'symbolic', coverage: symbolicCoverage } } : {}),
+        ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),
+        diagnostics: diagnostics.length ? { checks: diagnostics } : null
+      };
+    } catch (error) {
+      if (!symbolicMode || isRequiredToolingComputationError(error) || isAbortError(error)) throw error;
+      const failure = requiredSymbolicComputation('symbolic_backend_failed', { code: error?.code || null, message: error?.message || String(error) });
+      failure.cause = error;
+      throw failure;
+    }
   }
 });

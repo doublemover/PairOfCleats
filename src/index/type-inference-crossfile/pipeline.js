@@ -160,6 +160,7 @@ export async function applyCrossFileInference({
   crossFileCacheMaxBytes = DEFAULT_CROSS_FILE_CACHE_MAX_BYTES,
   inferenceLite = false,
   inferenceLiteHighSignalOnly = true,
+  symbolicTypeGraphs = [],
   abortSignal = null
 }) {
   if (!enabled) {
@@ -179,7 +180,13 @@ export async function applyCrossFileInference({
     inferenceLiteHighSignalOnly
   });
 
-  const cachedStats = await readCrossFileInferenceCache({
+  const toolingPropagationOptions = resolveToolingPropagationOptions({ rootDir, useTooling });
+  const symbolicMode = toolingPropagationOptions.toolingConfig?.typescript?.typeRepresentation === 'symbolic'
+    || symbolicTypeGraphs.length > 0;
+  // The existing fingerprint does not own all compiler/config/ambient reads.
+  // Keep durable graph publication; recompute symbolic providers until replay
+  // has a complete live context identity, rather than accepting stale facts.
+  const cachedStats = symbolicMode ? null : await readCrossFileInferenceCache({
     cachePath: cacheContext.cachePath,
     chunks,
     crossFileFingerprint: cacheContext.crossFileFingerprint,
@@ -194,10 +201,6 @@ export async function applyCrossFileInference({
     });
   }
 
-  const toolingPropagationOptions = resolveToolingPropagationOptions({
-    rootDir,
-    useTooling
-  });
   const stats = await runCrossFilePropagation({
     rootDir,
     buildRoot,
@@ -209,11 +212,12 @@ export async function applyCrossFileInference({
     fileRelations,
     inferenceLite,
     inferenceLiteHighSignalOnly,
+    symbolicTypeGraphs,
     abortSignal,
     ...toolingPropagationOptions
   });
 
-  await writeCrossFileInferenceCache({
+  if (!symbolicMode) await writeCrossFileInferenceCache({
     cacheDir: cacheContext.cacheDir,
     cachePath: cacheContext.cachePath,
     chunks,

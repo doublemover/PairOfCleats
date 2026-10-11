@@ -8,8 +8,10 @@ import { stableStringify } from '../../shared/stable-json.js';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
 import { writeJsonValue } from '../../shared/json-stream/encode.js';
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import { mergeSymbolicTypeGraphs, validateTypeExpressionReferences } from '../../shared/symbolic-types.js';
+import { isRequiredToolingComputationError } from '../tooling/required-computation.js';
 
-export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
+export const CROSS_FILE_CACHE_SCHEMA_VERSION = 2;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
@@ -348,6 +350,11 @@ export const readCrossFileInferenceCache = async ({
         }
         return null;
       }
+      const symbolicTypeGraphs = mergeSymbolicTypeGraphs([], cached.symbolicTypeGraphs || []);
+      const inventory = new Map(symbolicTypeGraphs.map(entry => [entry.graphId, entry]));
+      for (const row of cached.rows) {
+        if (row.docmeta?.typeExpressions != null) validateTypeExpressionReferences(row.docmeta.typeExpressions, inventory);
+      }
       const applied = applyCachedCrossFileOutput({
         chunks,
         cacheRows: cached.rows
@@ -361,10 +368,11 @@ export const readCrossFileInferenceCache = async ({
               : `[perf] cross-file cache hit: restored ${cached.rows.length} chunk updates.`
           );
         }
-        return normalizeCacheStats(cacheStats);
+        return { ...normalizeCacheStats(cacheStats), symbolicTypeGraphs };
       }
     }
   } catch (err) {
+    if (isRequiredToolingComputationError(err)) throw err;
     if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (err?.code === 'ENOENT') {
       return null;
@@ -405,6 +413,11 @@ export const writeCrossFileInferenceCache = async ({
   try {
     const generatedAt = new Date().toISOString();
     const normalizedStats = normalizeCacheStats(stats);
+    const symbolicTypeGraphs = mergeSymbolicTypeGraphs([], stats?.symbolicTypeGraphs || []);
+    const inventory = new Map(symbolicTypeGraphs.map(entry => [entry.graphId, entry]));
+    for (const chunk of chunks) {
+      if (chunk.docmeta?.typeExpressions != null) validateTypeExpressionReferences(chunk.docmeta.typeExpressions, inventory);
+    }
     const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
     const baseBytes = await measureCrossFileCachePayloadBytes(withGeneratedCacheMetadata({
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
@@ -412,6 +425,7 @@ export const writeCrossFileInferenceCache = async ({
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
+      symbolicTypeGraphs,
       admission: null
     }, 'cross-file-inference'), []);
     const rowEntries = [];
@@ -435,6 +449,10 @@ export const writeCrossFileInferenceCache = async ({
       maxBytes: cacheMaxBytes
     });
     const rows = admissionSelection.retained.map((entry) => entry.row);
+    if (symbolicTypeGraphs.length && admissionSelection.dropped.length) {
+      log('[perf] cross-file symbolic cache write skipped: complete output does not fit the cache allowance.');
+      return;
+    }
     if (!rows.length && rowEntries.length > 0) {
       if (typeof log === 'function') {
         log(
@@ -472,6 +490,7 @@ export const writeCrossFileInferenceCache = async ({
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
+      symbolicTypeGraphs,
       admission
     }, 'cross-file-inference');
     // Admission diagnostics and provenance also count toward the byte cap.
@@ -491,6 +510,7 @@ export const writeCrossFileInferenceCache = async ({
       atomic: true
     });
   } catch (err) {
+    if (isRequiredToolingComputationError(err)) throw err;
     if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (typeof log === 'function') {
       log(`[perf] cross-file cache write failed: ${err?.message || err}`);

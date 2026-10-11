@@ -1,14 +1,15 @@
 {
-  "generatedAt": "2026-10-11T02:35:31.450Z",
+  "generatedAt": "2026-10-11T09:18:46.543Z",
   "budgets": {
-    "configKeys": 2,
+    "configKeys": 3,
     "envVars": 1,
     "cliFlags": 72
   },
   "allowlists": {
     "configKeys": [
       "cache.root",
-      "quality"
+      "quality",
+      "tooling.typescript.typeRepresentation"
     ],
     "envVars": [
       "PAIROFCLEATS_API_TOKEN"
@@ -637,6 +638,7 @@
       "tooling.typescript.maxProgramFiles",
       "tooling.typescript.resolveOrder",
       "tooling.typescript.tsconfigPath",
+      "tooling.typescript.typeRepresentation",
       "tooling.typescript.useTsconfig",
       "tooling.vfs.coalesceSegments",
       "tooling.vfs.coldStartCache.cacheRoot",
@@ -657,8 +659,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 456,
-    "leafKeys": 370,
+    "totalKeys": 457,
+    "leafKeys": 371,
     "topLevel": [
       {
         "key": "cache",
@@ -710,7 +712,7 @@
       },
       {
         "key": "tooling",
-        "count": 80
+        "count": 81
       }
     ]
   },
@@ -3044,6 +3046,14 @@
       "enum": null
     },
     {
+      "path": "tooling.typescript.typeRepresentation",
+      "type": "string",
+      "enum": [
+        "legacy",
+        "symbolic"
+      ]
+    },
+    {
       "path": "tooling.typescript.useTsconfig",
       "type": "boolean",
       "enum": null
@@ -3144,7 +3154,8 @@
   ],
   "configKeysPublic": [
     "cache.root",
-    "quality"
+    "quality",
+    "tooling.typescript.typeRepresentation"
   ],
   "configKeysUnknown": [],
   "envVars": [
@@ -4698,6 +4709,7 @@
         "tests/security/zig-workspace-execution-authority.test.js",
         "tests/tooling/config/loader-schema-contract.test.js",
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse.test.js",
+        "tests/tooling/typescript-runtime-subprocess.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -9280,6 +9292,7 @@
       "src/index/semantic/compiler-session.js",
       "src/index/semantic/embedded-source.js",
       "src/index/tooling/typescript-provider.js",
+      "src/index/tooling/typescript/symbolic.js",
       "src/integrations/tooling/context-pack.js",
       "src/integrations/tooling/graph-context.js",
       "src/integrations/tooling/impact.js",
@@ -9330,6 +9343,8 @@
       "tests/storage/semantic/runtime-query-integrity.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
       "tests/tooling/signature-parse/signature-contract-matrix.test.js",
+      "tests/tooling/typescript-root-preflight.test.js",
+      "tests/tooling/typescript-symbolic-frontend.test.js",
       "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/api/server.js",

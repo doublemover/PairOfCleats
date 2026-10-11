@@ -177,6 +177,12 @@ export const buildConfigContractDoc = (options = {}) => {
   lines.push('- `--includeSemantic` (boolean, default false): include bounded semantic evidence and pinned follow-up requests in context packs.');
   lines.push('- CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.');
   lines.push('- Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.');
+  lines.push('');
+  lines.push('### TypeScript type representation');
+  lines.push('');
+  lines.push('- `tooling.typescript.typeRepresentation` accepts `legacy` (default) or experimental `symbolic`.');
+  lines.push('- Symbolic mode preserves closed finite-string annotations as shared, versioned expressions; unsupported required queries block completion.');
+  lines.push('- This is a representation migration, not legacy display-string equivalence or complete TypeScript support. See `docs/guides/typescript-symbolic-types.md`.');
 
   const docBody = lines.join(eol) + eol;
   return includeBom ? `\uFEFF${docBody}` : docBody;

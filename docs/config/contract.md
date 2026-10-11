@@ -461,6 +461,7 @@ tooling.typescript.maxFiles (number)
 tooling.typescript.maxProgramFiles (number)
 tooling.typescript.resolveOrder
 tooling.typescript.tsconfigPath (string)
+tooling.typescript.typeRepresentation (string) enum=legacy|symbolic
 tooling.typescript.useTsconfig (boolean)
 tooling.vfs (object)
 tooling.vfs.coalesceSegments (boolean)
@@ -495,6 +496,7 @@ tooling.vfs.tokenMode (string)
 - retrieval.relationBoost.maxBoost = 1.5
 - retrieval.relationBoost.perCall = 0.25
 - retrieval.relationBoost.perUse = 0.1
+- tooling.typescript.typeRepresentation = "legacy"
 
 ## Env overrides (runtime)
 
@@ -554,3 +556,9 @@ Notes:
 - `--includeSemantic` (boolean, default false): include bounded semantic evidence and pinned follow-up requests in context packs.
 - CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.
 - Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.
+
+### TypeScript type representation
+
+- `tooling.typescript.typeRepresentation` accepts `legacy` (default) or experimental `symbolic`.
+- Symbolic mode preserves closed finite-string annotations as shared, versioned expressions; unsupported required queries block completion.
+- This is a representation migration, not legacy display-string equivalence or complete TypeScript support. See `docs/guides/typescript-symbolic-types.md`.
