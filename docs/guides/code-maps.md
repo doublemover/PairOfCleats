@@ -28,6 +28,14 @@ Useful options (subset):
 - `--include imports,calls,usages,dataflow,exports`
 - Guardrails: `--max-files`, `--max-members-per-file`, `--max-edges`, `--top-k-by-degree`
 
+## Interactive evidence workspace
+
+Run `pairofcleats service api --repo /your/repository` and open the printed `/map/workspace`
+URL. The integrated Reladraw workspace reads the published artifact catalog, bounded artifact
+pages and existing search/analysis queries. Exported map JSON and report JSON can also be opened
+locally. See [coverage, controls and verification limits](reladraw-workspace.md).
+This workspace does not replace `map-iso`; both consume the same indexed metadata.
+
 ## Graphviz is optional
 
 PairOfCleats can always produce **DOT** output (and the JSON map model) without Graphviz.

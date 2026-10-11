@@ -31,5 +31,24 @@ try {
   await assert.rejects(browser.read(repo,{...input,cursor:pending.cursor}),/expired/);
   await assert.rejects(browser.read(repo,{...input,generation:'stale'}),/generation changed/);
   await assert.rejects(browser.read(repo,{...input,name:'absent'}),/absent/);
+  const tokens=[];
+  for(let i=0;i<9;i++) tokens.push((await browser.read(repo,input)).cursor);
+  await assert.rejects(browser.read(repo,{...input,cursor:tokens[0]}),/expired/);
+  assert.ok((await browser.read(repo,{...input,cursor:tokens[8]})).rows.length);
+  const cancelled=new AbortController();cancelled.abort();
+  await assert.rejects(browser.read(repo,input,cancelled.signal),{name:'AbortError'});
+  const writeRows=async value=>{
+    await browser.close();await fs.writeFile(path.join(dir,'chunk_meta.json'),JSON.stringify(value));
+    await writePiecesManifest(dir,pieces,{buildId:String(value.length)});
+    return {...input,generation:(await browser.catalog(repo)).generation};
+  };
+  const byteBound=await writeRows(Array.from({length:200},(_,id)=>({id,start:id,end:id+1,name:'x'.repeat(2000)})));
+  const bounded=await browser.read(repo,byteBound);
+  assert.ok(bounded.rows.length<128);assert.ok(Buffer.byteLength(JSON.stringify(bounded.rows))<66000);
+  const tooWide=await writeRows([{id:0,start:0,end:1,name:'x'.repeat(65536)}]);
+  await assert.rejects(browser.read(repo,tooWide),/64 KiB/);
+  const tooLarge=await writeRows(Array.from({length:3000},(_,id)=>({id,start:id,end:id+1,name:'x'.repeat(1024)})));
+  await assert.rejects(browser.read(repo,tooLarge),/max|large|limit|size|bytes/i);
+  const restored=await writeRows(rows);assert.equal((await browser.read(repo,restored)).rows.length,128);
   console.log(`All ${inventory.length} registered artifact surfaces inventoried; bounded pagination, single-use cursors, expiration, absence and generation checks passed.`);
 } finally {await browser.close(); await fs.rm(temp,{recursive:true,force:true});}
