@@ -13,7 +13,7 @@ const repo = path.join(temp, 'repo');
 await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, 'lib.ts'), 'export function original(x: number) { return x + 1; } export {original as renamed};');
 await fs.writeFile(path.join(repo, 'input.ts'), 'import {renamed as imported} from "./lib"; export function run() { const a = imported(1); const b = imported(2); { const imported = (x: number) => x * 2; imported(3); } return new Float32Array([a,b]); } export function movement(worker: Worker) { const buffer = new ArrayBuffer(32); const view = new Float32Array(buffer, 0, 4); const copy = new Float32Array([1,2]); const capture = () => view; const payload = {values:view, copy}; worker.postMessage(payload, [buffer]); return payload; }');
-const dynamicText='function first(x:number,y:number){return x;} function second(x:number,y:number){return y;} export function alternatives(flag:boolean,a:number,b:number){const pick=flag?first:second;return pick(a,b);} class Base {run(x:number){return x;}} class Derived extends Base {run(x:number){return x+1;}} const receiver:Base=new Derived(); receiver.run(2);';
+const dynamicText='function first(x:number,y:number){return x;} function second(x:number,y:number){return y;} export function alternatives(flag:boolean,a:number,b:number){const pick=flag?first:second;return pick(a,b);} class Base {run(x:number){return x;}} class Derived extends Base {run(x:number){return x+1;}} const receiver:Base=new Derived(); receiver.run(2); function adapted(this:{value:number},x:number){return x;} adapted.call({value:0},9); const bound=adapted.bind({value:0}); bound(10);';
 await fs.writeFile(path.join(repo,'dynamic.ts'),dynamicText);
 // Exercise eager cold/warm completion under a bounded allowance for the entire build process.
 applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
@@ -47,6 +47,11 @@ try {
   assert.equal(alternatives.length,2,'production compiler session preserves both callable alternatives');
   assert.ok(alternatives.every(edge=>edge.certainty==='modeled'));
   assert.ok(dynamicCalls.some(edge=>callText(edge)==='receiver.run(2)'&&edge.certainty==='modeled'),'production member dispatch stays modeled');
+  for(const text of ['adapted.call({value:0},9)','bound(10)']) {
+    const target=dynamicCalls.find(edge=>callText(edge)===text);
+    assert.ok(target&&target.certainty==='modeled','production adapter resolves source candidate '+text);
+    assert.ok(edges.some(edge=>edge.kind==='argumentToParameter'&&edge.callSite?.partitionId===target.from.partitionId&&edge.callSite.localId===target.from.localId),'production adapter retains normalized argument channels '+text);
+  }
   const returned = edges.filter(row => row.kind === 'returnToResult');
   assert.ok(returned.length >= 3, 'resolved local/imported calls retain return channels: ' + JSON.stringify({ returned, flowCoverage: coverage.filter(row => row.phase === 'crossFileFlow') }));
   assert.ok(returned.every(row => row.callSite && row.certainty === 'modeled'));
