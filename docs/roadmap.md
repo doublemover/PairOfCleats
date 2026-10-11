@@ -9,10 +9,9 @@ The completion integration, dependency updates, CI repairs and scoped security f
 have landed on main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542),
 commit `2529d718db780da22c49f188202b6f1550a1833d`. Its exact source tree passed the
 hosted platform and gate checks before merge. Release-wide acceptance remains open.
-Use this page for current status, the [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
-for revision-specific receipts and limits, the linked contracts for behavior, and
-the archived worklogs for historical evidence. Hosted CI is bounded validation,
-not release-wide readiness.
+Use this page for status, [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
+for receipts/limits, contracts for behavior, and archives for history.
+Hosted CI is bounded validation, not release-wide readiness.
 
 ## Source-of-Truth Rules
 
@@ -214,14 +213,13 @@ records subsequent fixes, hosted analyses and explicit residual limits.
 
 Dependency evidence includes the recorded JavaScript remediation, native grammar
 activation, q8/ONNX inference and RustSec/toolchain checks. See
-[dependency security](guides/dependency-security.md). An audit snapshot is dated
-proof, and does not certify future advisories or close hosted alerts by itself.
+[dependency security](guides/dependency-security.md). Dated audit evidence does not certify future advisories or close hosted alerts.
 
-The earlier interrupted `ci-lite` run remains an incomplete historical run in
-the [integration checkpoint archive](archived/ordinary-integration-roadmap-2026-10-06.md).
-New exact-head lane receipts do not rewrite that history. Interactive TUI behavior,
-optional native platforms, a fresh full duplicate audit and representative
-end-to-end performance measurements remain separate checks.
+The interrupted `ci-lite` run remains incomplete in the
+[integration archive](archived/ordinary-integration-roadmap-2026-10-06.md).
+New receipts do not rewrite it. Interactive TUI, optional native platforms,
+fresh full duplicate audits and representative end-to-end performance remain
+separate checks.
 
 May 20â€“22 validation and USR Gate A/B/C statements are historical checkpoint
 records. The Gate B1-B7 technical, compatibility, matrix, conformance,
@@ -241,10 +239,8 @@ USR rollout phases Aâ€“H and lifecycle acceptance remain in the
 - [Historical release-evidence record](roadmap-release-validation-evidence-20260521.md)
 - [Earlier task-list reconciliation](archived/task-list-reconciliation-2026-10-02.md)
 
-The archived roadmap preserves the previous authored text byte-for-byte, including
-its completed lanes, abandoned/no-adopt migrations, command outcomes and evidence
-citations. The active page carries their current disposition rather than another
-copy of the transcript.
+The archive preserves prior text byte-for-byte: completed lanes, abandoned/no-adopt
+migrations, command outcomes and citations. This page carries current disposition.
 
 ## Validation Commands
 
@@ -256,10 +252,9 @@ node tools/docs/generated-surfaces.js --check-freshness
 git diff --check
 ```
 
-Choose only affected checks and respect the execution environment's resource
-budget. Do not run a full index build, release campaign or duplicate scan merely
-to update a status page. Reproduce behavioral failures with small fixtures before
-expanding validation.
+Use affected checks within the environment's resource budget. Status edits do not
+justify full indexes, release campaigns or duplicate scans. Reproduce failures
+with small fixtures before expanding validation.
 
 [Orchestration and cleanup checkpoint](archived/orchestration-checkpoint-2026-10-11.md): bounded fixtures implemented; full-corpus qualification remains open.
 
