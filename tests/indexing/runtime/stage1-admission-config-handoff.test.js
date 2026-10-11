@@ -30,6 +30,11 @@ for (const absent of [undefined, null]) {
   assert.equal(planned[0].entryCount, 10, 'ordinary one-file lag must not shrink the default cost window');
 }
 
+for (const maxPending of [undefined, null, 0]) {
+  const runtime = { ...resolveRuntime(), queues: { cpu: { maxPending } } };
+  assert.equal(resolvePostingsQueueConfig(runtime).maxPending, 96, 'unlimited upstream queue uses the scaled postings default, never a one-item cap');
+}
+
 const zero = resolveRuntime({ postings: { maxHeapFraction: 0 }, window: { commitLagSoft: 0 } });
 assert.equal(createPostingsQueue(resolvePostingsQueueConfig(zero)).stats().limits.maxHeapFraction, 0);
 assert.equal(resolveStage1WindowPlannerConfig(zero).commitLagSoft, 0, 'explicit zero remains an immediate adaptive threshold');

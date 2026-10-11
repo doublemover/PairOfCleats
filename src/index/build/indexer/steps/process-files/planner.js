@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileExt, toPosix } from '../../../../../shared/file-paths.js';
 import { coerceClampedFraction, coerceNonNegativeInt, coercePositiveInt } from '../../../../../shared/number-coerce.js';
+import { normalizeSchedulerMaxPending } from '../../../../../shared/concurrency/scheduler-core-policy.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { shouldSkipTreeSitterPlanningForPath } from '../../../tree-sitter-scheduler/policy.js';
 
@@ -31,9 +32,7 @@ const MB = 1024 * 1024;
  */
 export const resolvePostingsQueueConfig = (runtime) => {
   const config = runtime?.stage1Queues?.postings || {};
-  const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
-    ? runtime.queues.cpu.maxPending
-    : null;
+  const cpuPending = normalizeSchedulerMaxPending(runtime?.queues?.cpu?.maxPending);
   const cpuConcurrency = Number.isFinite(runtime?.cpuConcurrency)
     ? Math.max(1, Math.floor(runtime.cpuConcurrency))
     : 1;
@@ -93,9 +92,7 @@ export const resolvePostingsQueueConfig = (runtime) => {
 export const resolveOrderedAppenderConfig = (runtime) => {
   const config = runtime?.stage1Queues?.ordered || {};
   const windowConfig = runtime?.stage1Queues?.window || {};
-  const cpuPending = Number.isFinite(runtime?.queues?.cpu?.maxPending)
-    ? runtime.queues.cpu.maxPending
-    : null;
+  const cpuPending = normalizeSchedulerMaxPending(runtime?.queues?.cpu?.maxPending);
   const fileConcurrency = Number.isFinite(runtime?.fileConcurrency)
     ? Math.max(1, Math.floor(runtime.fileConcurrency))
     : 1;
