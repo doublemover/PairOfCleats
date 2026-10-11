@@ -1,3 +1,5 @@
+import { joinProviderCallSummaries } from './provider-call-joins.js';
+import { collectCompilerImplicitCalls } from './compiler-implicit-calls.js';
 import { createCompilerDispatchResolver } from './compiler-dispatch.js';
 import { retainedWasmSource } from './wasm/retained-source.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
@@ -31,7 +33,7 @@ const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 /** One build-owned session. Inventories hold declarations; full rows live only for the active document. */
 export const createSemanticCompilerSession = async ({ state, runtime, signal = null }) => {
   const policy = runtime.semanticPolicy, inventory = new Map(), texts = new Map(), wasmModules = new Map();
-  const emitted = [], contexts = [], declarationChunks = new Map();
+  const emitted = [], contexts = [], groups = [], declarationChunks = new Map();
   let activeCompilerSystem = null;
   const chunksByUid = new Map((state.chunks || []).map(chunk => [chunk.chunkUid || chunk.metaV2?.chunkUid, chunk]));
   const detailsByFile = new Map();
@@ -376,12 +378,13 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
           fieldAccesses: flow.fieldAccesses || [], aliases: flow.aliases || [], callEffects: flow.callEffects || [],
           summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),
-          calls: observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence, span: observation.span,
+          calls: [...collectCompilerImplicitCalls({ts,checker,nodes:nodeIndex.nodes(),expressionFor,declarationRef:node=>{const ref=declarationRef(node);return ref?.externalKey?null:ref;}}).map(({node,...call})=>({...call,targets:call.targets.map(expand)})),...observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence, span: observation.span,
             targets: observation.targets.map(expand), incompleteTargets: observation.incompleteTargets, invocationKind: observation.invocationKind,
-            receiver: observation.node && (ts.isPropertyAccessExpression(observation.node.expression || observation.node.tag) || ts.isElementAccessExpression(observation.node.expression || observation.node.tag)) ? expressionFor((observation.node.expression || observation.node.tag).expression) : null,
+            suppressResult:observation.invocationKind==='construct'||observation.node?.expression?.kind===ts.SyntaxKind.SuperKeyword,
+            receiver: observation.invocationKind==='construct'?expressionFor(observation.node):observation.node?.expression?.kind===ts.SyntaxKind.SuperKeyword?expressionFor(observation.node.expression):observation.node && (ts.isPropertyAccessExpression(observation.node.expression || observation.node.tag) || ts.isElementAccessExpression(observation.node.expression || observation.node.tag)) ? expressionFor((observation.node.expression || observation.node.tag).expression) : null,
             arguments: compilerInvocationInputs(ts, observation.node).runtimeArguments.map(expressionFor), result: expressionFor(observation.node),
             hasImplicitArguments: compilerInvocationInputs(ts, observation.node).implicitTemplateObject,
-            hasSpread: observation.node?.arguments?.some(ts.isSpreadElement) || false })) });
+            hasSpread: observation.node?.arguments?.some(ts.isSpreadElement) || false }))] });
       }
 
       group.workerDocuments.push({ ts, checker, item, bytes, policy, sourceFile, nodes: nodeIndex.nodes(), observations, bindingPartition: partition,
@@ -393,7 +396,15 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         partitions: [...current.partitions.filter(p => p.partitionId !== partition.partitionId && p.partitionId !== valueSlice?.partition.partitionId && p.partitionId !== flow?.partition.partitionId && p.partitionId !== storageFlow?.partition.partitionId), partition, ...(valueSlice ? [valueSlice.partition] : []), ...(flow ? [flow.partition] : []), ...(storageFlow ? [storageFlow.partition] : [])],
         coverage: [...current.coverage.filter(c => c.phase !== 'bindings' && (!valueSlice || !['localFlow', 'boundaryModels'].includes(c.phase))), coverage, ...(valueSlice?.coverage || []), ...(flow?.coverage || []), ...(storageFlow?.coverage || [])] }));
     },
-    async finishGroup(group) { emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerWorkerFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerBoundaryFlow({ group, state, policy, signal })); group.workerDocuments = []; },
+    async finishGroup(group) { groups.push({context:group.context,dependencyHashes:group.dependencyHashes,flowDocuments:group.flowDocuments}); emitted.push(...await collectCompilerCrossFileFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerWorkerFlow({ group, state, policy, signal })); emitted.push(...await collectCompilerBoundaryFlow({ group, state, policy, signal })); group.workerDocuments = []; },
+    async joinProviderOutput(output) {
+      try {for(const group of groups) {
+        if(!output.partitions.length||!group.flowDocuments.length)continue;
+        const first=group.flowDocuments[0].item,partitions=[...state.semanticFactsByFile.values()].flatMap(value=>value.partitions);
+        const store=createArtifactSemanticStore({root:first.root,repoRoot:runtime.root,artifactSurfaceVersion:ARTIFACT_SURFACE_VERSION,generation:first.descriptor.storage.generation,partitions});
+        emitted.push(...await joinProviderCallSummaries({group,output,store,state,policy,signal}));
+      }}finally{groups.length=0;}
+    },
     output() { return { schemaVersion: 1, contexts, partitions: emitted, coverageRef: null, diagnosticsRef: null }; }
   };
 };

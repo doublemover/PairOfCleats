@@ -1,5 +1,6 @@
 import { canonicalSemanticJson } from './identity.js';
-import { compilerPropertyKeys } from './compiler-property-paths.js';
+import { compilerClassDefinitions, compilerReturnExpressions } from './compiler-object-model.js';
+import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
 export const collectCompilerAliasAssignments = (ts, checker, nodes) => {
   const assignments = new Map();
   for (const node of nodes) if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left)) {
@@ -74,15 +75,28 @@ export const createCompilerFieldPaths = ({ ts, checker, owner, sourceFile, assig
           for (const member of node.properties) {
             if (ts.isSpreadAssignment(member)) { next.push(member.expression); reasons.add('field_initial_spread_or_computed_override'); continue; }
             const keys = compilerPropertyKeys({ts,checker,node:member.name,reasons});
-            if (name !== null && !keys.includes(null) && !keys.includes(name)) continue;
+            if (!propertyKeySetsOverlap([name],keys)) continue;
             const value = ts.isPropertyAssignment(member) ? member.initializer : ts.isShorthandPropertyAssignment(member) ? member.name : null;
-            if (value) next.push(value); else reasons.add('field_initial_accessor_or_method_unresolved');
+            if (value) next.push(value); else if(ts.isGetAccessorDeclaration(member))next.push(...compilerReturnExpressions({ts,owner:member,reasons})); else reasons.add('field_initial_accessor_or_method_unresolved');
           }
+        } else if(ts.isNewExpression(node)) {
+          const classes=compilerClassDefinitions({ts,checker,node:node.expression,reasons}),seen=new Set();
+          while(classes.length) {
+            const definition=classes.pop();if(seen.has(definition))continue;seen.add(definition);
+            if(seen.size>16){reasons.add('field_initial_heritage_budget');break;}
+            for(const member of definition.members) {
+              if(!member.name||member.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.StaticKeyword)||!propertyKeySetsOverlap([name],compilerPropertyKeys({ts,checker,node:member.name,reasons})))continue;
+              if(ts.isPropertyDeclaration(member)&&member.initializer)next.push(member.initializer);
+              else if(ts.isGetAccessorDeclaration(member))next.push(...compilerReturnExpressions({ts,owner:member,reasons}));
+            }
+            for(const clause of definition.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)classes.push(...compilerClassDefinitions({ts,checker,node:type.expression,reasons}));
+          }
+          reasons.add('constructor_return_override_initializer_order_and_escape_conservative');
         } else if (ts.isArrayLiteralExpression(node)) {
           const spread = node.elements.some(element => ts.isSpreadElement(element));
           if (spread) reasons.add('field_initial_array_spread_index_unknown');
           if (name === null || spread) next.push(...node.elements.filter(element=>!ts.isOmittedExpression(element)).map(element=>ts.isSpreadElement(element)?element.expression:element));
-          else if (/^(0|[1-9][0-9]*)$/.test(name)) next.push(node.elements[Number(name)]);
+          else if (typeof name==='string' && /^(0|[1-9][0-9]*)$/.test(name)) next.push(node.elements[Number(name)]);
         } else reasons.add('field_initial_constructor_or_prototype_unresolved');
       }
       candidates = next.slice(0,32); if(next.length>32) reasons.add('field_initial_candidate_budget');

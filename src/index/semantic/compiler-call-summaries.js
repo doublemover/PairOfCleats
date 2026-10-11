@@ -75,8 +75,8 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   };
   const instantiateTarget=(call,target)=>{
     if(remainingWork--<=0){exhausted=true;return false;}
-    if(!target||target.async||target.generator||call.invocationKind==='construct'||call.hasSpread)return false;
-    let changed=false;for(const input of dependencyInputs(call,target,target.dependencies))changed=add(input,call.result)||changed;
+    if(!target||target.async||target.generator||call.invocationKind==='construct'&&!target.constructible||call.hasSpread)return false;
+    let changed=false;if(!call.suppressResult)for(const input of dependencyInputs(call,target,target.dependencies))changed=add(input,call.result)||changed;
     const owner=functions.get(call.ownerId);if(!owner)return changed;
     // Only call-owned summaries propagate exception inputs. No raw callee payload crosses calls.
     for(const input of dependencyInputs(call,target,target.exceptionDependencies))for(const destination of call.effectRoutes?.exceptionTargets||[])changed=add(input,destination)||changed;
@@ -105,7 +105,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
   const instantiate = call => {
     let changed = false;
     for(const ref of call.targets.slice(0,32)) changed = instantiateTarget(call,functions.get(key(ref))) || changed;
-    if(call.incompleteTargets || call.targets.length > 32 || !call.targets.length || call.hasSpread || call.invocationKind === 'construct' || call.targets.some(ref=>{const target=functions.get(key(ref));return !target||target.async||target.generator||!target.complete;})) {
+    if(call.incompleteTargets || call.targets.length > 32 || !call.targets.length || call.hasSpread || call.targets.some(ref=>{const target=functions.get(key(ref));return !target||target.async||target.generator||!target.complete||call.invocationKind==='construct'&&!target.constructible;})) {
       for(const argument of [call.receiver,...(call.arguments || [])]) changed = add(argument,call.result) || changed;
       const owner = functions.get(call.ownerId); if(owner) {
         changed=owner.complete!==false||changed; owner.complete = false;
@@ -137,7 +137,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
 /** Join known alternatives at the call site without promoting the remainder to exactness. */
 export const joinCallDependencySummaries = (call, functions) => {
   const targets = call.targets.slice(0,32).map(ref=>functions.get(key(ref)));
-  const usable = targets.filter(summary=>summary && !summary.async && !summary.generator && call.invocationKind !== 'construct');
+  const usable = targets.filter(summary=>summary && !summary.async && !summary.generator && (call.invocationKind !== 'construct'||summary.constructible));
   if(!usable.length) return null;
   const effects = new Map(), refs = values => [...new Map(values.map(ref=>[key(ref),ref])).values()];
   for(const summary of usable) for(const effect of summary.effectDependencies.values()) {

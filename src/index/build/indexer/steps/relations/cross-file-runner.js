@@ -110,6 +110,7 @@ export const runCrossFileInference = async ({
       }
       const lspOutput = semanticLspSession.output();
       await mergeSemanticProviderOutput({ output: lspOutput, state, runtime, signal });
+      await semanticSession.joinProviderOutput(lspOutput);
       const compilerOutput = semanticSession.output();
       return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
         partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
