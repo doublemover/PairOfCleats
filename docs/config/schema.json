@@ -822,6 +822,32 @@
             "memoryTokens": { "type": "number" },
             "lowResourceMode": { "type": "boolean" },
             "starvationMs": { "type": "number" },
+            "adaptive": {
+              "type": "boolean",
+              "description": "Enable adaptive scheduler tokens and surfaces. Defaults to true."
+            },
+            "adaptiveSurfaces": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "surfaces": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "parse": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "description": "Stage1 file admission bounds when scheduler adaptive mode is enabled. Omitted bounds use runtime defaults; equal bounds select fixed admission capacity without disabling byte or ordered backpressure.",
+                      "properties": {
+                        "minConcurrency": { "type": "integer", "minimum": 1 },
+                        "maxConcurrency": { "type": "integer", "minimum": 1 },
+                        "initialConcurrency": { "type": "integer", "minimum": 1 }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "queues": {
               "type": "object",
               "additionalProperties": {

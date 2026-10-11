@@ -52,7 +52,7 @@ union now passes targeted cloud checks after grouped format, checksum and lifecy
 repairs; hosted CI remains exact-head evidence.
 
 [Watchdog repair](archived/watchdog-recovery-2026-10-11.md) and
-[read-performance receipt](archived/semantic-recovery-performance-2026-10-11.md):
+[read performance/admission](archived/stage1-concurrency-2026-10-11.md):
 bounded validation/diagnostics; 59% less completion-validation time in a local
 4,000-node fixture. Full-index impact is unmeasured.
 Next: multi-worker recovery, transient accounting, retained-cache cleanup/control-store

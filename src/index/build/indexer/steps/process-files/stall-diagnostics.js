@@ -166,6 +166,7 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
 
   const parseSurface = stats?.adaptive?.surfaces?.parse && typeof stats.adaptive.surfaces.parse === 'object'
     ? {
+      enabled: stats.adaptive.surfaceControllersEnabled === true,
       minConcurrency: Number(stats.adaptive.surfaces.parse.minConcurrency) || 0,
       maxConcurrency: Number(stats.adaptive.surfaces.parse.maxConcurrency) || 0,
       currentConcurrency: Number(stats.adaptive.surfaces.parse.currentConcurrency) || 0,
@@ -218,8 +219,8 @@ export const formatStage1SchedulerStallSummary = (snapshot) => {
     return `${name}=r${queue.running}/p${queue.pending}/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`;
   };
   return [
-    parse
-      ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}`
+    parse?.enabled === false ? 'parse=disabled' : parse
+      ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}/min${parse.minConcurrency}/max${parse.maxConcurrency}`
       : 'parse=n/a',
     formatQueue('stage1.cpu'),
     formatQueue('stage1.io'),

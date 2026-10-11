@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T19:41:35.751Z",
+  "generatedAt": "2026-10-11T02:29:10.514Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -406,6 +406,10 @@
       "indexing.riskInterprocedural.semantics[].toParams",
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
+      "indexing.scheduler.adaptive",
+      "indexing.scheduler.adaptiveSurfaces.surfaces.parse.initialConcurrency",
+      "indexing.scheduler.adaptiveSurfaces.surfaces.parse.maxConcurrency",
+      "indexing.scheduler.adaptiveSurfaces.surfaces.parse.minConcurrency",
       "indexing.scheduler.cpuTokens",
       "indexing.scheduler.enabled",
       "indexing.scheduler.ioTokens",
@@ -639,8 +643,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 385,
-    "leafKeys": 321,
+    "totalKeys": 392,
+    "leafKeys": 325,
     "topLevel": [
       {
         "key": "cache",
@@ -652,7 +656,7 @@
       },
       {
         "key": "indexing",
-        "count": 196
+        "count": 203
       },
       {
         "key": "mcp",
@@ -1386,6 +1390,41 @@
     {
       "path": "indexing.scheduler",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptive",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse.initialConcurrency",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse.maxConcurrency",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse.minConcurrency",
+      "type": "integer",
       "enum": null
     },
     {
