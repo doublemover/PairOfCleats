@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-10T19:55:29.081Z",
-  "ok": true,
+  "generatedAt": "2026-10-11T09:36:58.488Z",
+  "ok": false,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
@@ -100,9 +100,12 @@
     "artifactSchemas": {
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
-      "sourceCount": 86,
+      "sourceCount": 88,
       "docCount": 86,
-      "missingInDocs": [],
+      "missingInDocs": [
+        "symbolic_type_graph",
+        "symbolic_type_manifest"
+      ],
       "extraInDocs": []
     },
     "scoreBreakdown": {

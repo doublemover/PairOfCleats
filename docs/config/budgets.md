@@ -39,7 +39,7 @@ runtime security boundary.
 
 ## Current reviewed limits
 
-- Public config keys: 2
+- Public config keys: 3
 - Public env vars: 1
 - Public entry-point CLI flags: 72
 
@@ -54,6 +54,16 @@ config key. Shared request projection/schema and evidence fixtures cover it.
 
 Update these budgets only when intentionally expanding or shrinking the
 documented surface area.
+
+The 2026-10-11 increase from 2 to 3 admits
+`tooling.typescript.typeRepresentation`, an explicit versioned backend choice.
+It accepts `legacy` (default, existing TypeScript presentation) or `symbolic`
+(experimental closed finite-string annotation IR). The symbolic backend does
+not publish partial answers as complete or automatically expand unsupported
+types in the legacy checker. Eligibility, source authority, configuration and
+provider fixtures cover this mode. Cache/replay reuse is disabled in symbolic
+mode until a live complete compiler-context fingerprint is available. See
+[the backend contract](../guides/typescript-symbolic-types.md).
 
 ## Rationale
 

@@ -90,6 +90,70 @@ return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
 Extraction, analysis and response coverage are separate. Query coverage carries
 partition provenance and retains incomplete evidence rather than claiming no path.
 
+## Shared symbolic finite-string types
+
+The explicit `tooling.typescript.typeRepresentation: "symbolic"` backend retains
+supported finite-string annotations as one shared, content-addressed flat DAG per
+compiler/provider context. Literal, union and concatenation nodes retain exact
+language meaning without enumerating Cartesian products. This is a finite-string
+subset, not a universal TypeScript representation. Unsupported mandatory operations
+or exhausted allowances stop the requested enrichment with an explicit incomplete
+computation; display text is not substituted for semantic identity.
+The envelope's `interpretation: "declared-type-denotation"` distinguishes this
+declared finite language from a TypeScript checker's recovery type (for example,
+`any` after a complexity diagnostic). It does not assert that the checker produced
+the same internal type object.
+
+`symbolic_type_manifest.json` and its `symbolic_type_graph` pieces participate in
+the normal piece registry and whole-generation publication. Chunk metadata carries
+only `docmeta.typeExpressions` / `metaV2.types.expressions` references and separate
+declaration provenance/display metadata. Graph IDs hash the entire immutable flat
+encoding and context; node IDs are context-scoped. Graph files are not copied into
+each chunk. This family works with `indexing.semantic.enabled: false`.
+
+Use the existing detail operation with `refs: []` and one to sixteen `typeQueries`.
+Copy an exact published reference, including `schemaVersion`, `domain: "finite-string"`,
+`graphId`, `contextKey` and `nodeId`, from the chunk metadata:
+
+```json
+{
+  "repoRoot": "<repoRoot>",
+  "generation": {"baseBuildId":"<buildId>","semanticRevision":0},
+  "refs": [],
+  "typeQueries": [{
+    "ref": {
+      "schemaVersion": 1,
+      "domain": "finite-string",
+      "graphId": "stg1:<published graph hash>",
+      "contextKey": "<published context key>",
+      "nodeId": "tir1:<published node hash>"
+    },
+    "operation": "membership",
+    "value": "candidate"
+  }]
+}
+```
+
+`membership` returns an exact `contains` boolean; `classify` omits `value` and
+returns `cardinality: "zero" | "one" | "many"` with zero, one or two concrete
+witnesses. Results are in `typeResults`. These operations do not enumerate the
+language, and do not claim language equivalence or universal type assignability.
+The existing detail CLI, MCP and HTTP routes use the same request schema.
+
+Requests pin an immutable generation, registered graph checksum, context and node.
+Missing, corrupt or mismatched evidence fails explicitly. Metadata, graph hydration,
+operation work and output are bounded; exceeding a bound returns an incomplete
+computation rather than a truncated semantic answer. Type queries cannot use detail
+cursors; issue a separate type-only request when record detail requires pagination.
+The graph limit is 16 MiB, with at most 256 graph entries / 64 MiB per family, and
+declaration metadata has a 256 KiB aggregate allowance. These are logical/data
+admission limits, not hard process-RSS isolation.
+
+Symbolic-mode cross-file and provider replay are currently bypassed because the
+legacy replay fingerprint does not prove the complete compiler/config/ambient-read
+context. Durable generation-pinned queries remain supported. This is a cold-rebuild
+limitation, not an incremental dependency-invalidation claim.
+
 ## Interrupted Stage1 recovery
 
 A missing publication or stale `running` heartbeat does not invalidate immutable

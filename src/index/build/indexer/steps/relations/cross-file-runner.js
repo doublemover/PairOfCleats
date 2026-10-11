@@ -9,6 +9,7 @@ import { log } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
 import { applyCrossFileInference } from '../../../../type-inference-crossfile.js';
+import { mergeSymbolicTypeGraphs } from '../../../../../shared/symbolic-types.js';
 import {
   applyCrossFileInferenceBudgetPlan,
   buildCrossFileInferenceBudgetPlan,
@@ -102,10 +103,11 @@ export const runCrossFileInference = async ({
     await work.run(async ({ signal }) => {
       semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
       if (semanticSession.enabled || semanticLspSession.enabled) {
-        await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
+        const toolingResult = await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
           chunks: state.chunks, entryByUid: new Map(), log,
           toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
           abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
+        state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], toolingResult.symbolicTypeGraphs || []);
         useTooling = false;
       }
       const lspOutput = semanticLspSession.output();
@@ -172,9 +174,11 @@ export const runCrossFileInference = async ({
       fileRelations: inferenceFileRelations,
       inferenceLite: inferenceLiteEnabled,
       inferenceLiteHighSignalOnly,
+      symbolicTypeGraphs: state.symbolicTypeGraphs || [],
       abortSignal
     });
     mergeCrossFileInferenceView(state.chunks, inferenceChunks);
+    state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], crossFileStats?.symbolicTypeGraphs || []);
     const crossFileDurationMs = Date.now() - crossFileStart;
     log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
     if (crossFileStats?.toolingReuse) {

@@ -11,6 +11,7 @@ import { isAbsolutePathNative, isUncPath } from '../../shared/file-paths.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
 import { writeToolingCacheJson } from '../tooling/cache-storage.js';
 import { normalizePathForPlatform } from '../../shared/path-normalize.js';
+import { normalizeTypeExpressions, mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
 import { buildToolingDiagnosticRecord, redactToolingDiagnosticText } from './tooling-diagnostic-record.js';
 const EMPTY_TOOLING_PASS_STATS = Object.freeze({
   inferredReturns: 0,
@@ -166,6 +167,12 @@ const applyToolingTypes = ({ byChunkUid, chunkByUid, entryByUid }) => {
     mergeToolingSources(chunk, info.provenance);
     const payload = info.payload;
     let touched = false;
+    if (payload.typeExpressions) {
+      // Display text is presentation only. Never feed it into string-based
+      // inferred-type propagation as if it were the denoted language.
+      chunk.docmeta.typeExpressions = normalizeTypeExpressions(payload.typeExpressions);
+      touched = true;
+    }
     if (payload.signature && !chunk.docmeta.signature) {
       chunk.docmeta.signature = payload.signature;
       touched = true;
@@ -422,6 +429,7 @@ export const runToolingPass = async ({
 
   return {
     inferredReturns: applyResult.inferredReturns || 0,
+    symbolicTypeGraphs: mergeSymbolicTypeGraphs([], result.symbolicTypeGraphs || []),
     ...degradedStats,
     ...runtimeStats
   };

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
+import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
 import { readTextFile } from '../../shared/encoding.js';
 import { FLOW_CONFIDENCE, FLOW_SOURCE } from './constants.js';
 import { addInferredParam, addInferredReturn } from './apply.js';
@@ -152,6 +153,7 @@ export async function runCrossFilePropagation({
   toolingRetries = 2,
   toolingBreaker = 3,
   toolingLogDir = null,
+  symbolicTypeGraphs: inputSymbolicTypeGraphs = [],
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
@@ -307,6 +309,7 @@ export async function runCrossFilePropagation({
     return text;
   };
 
+  let symbolicTypeGraphs = mergeSymbolicTypeGraphs([], inputSymbolicTypeGraphs);
   const toolingEnabled = useTooling && enableTypeInference && toolingConfig?.autoEnableOnDetect !== false;
   if (toolingEnabled) {
     const filesToLoad = new Set();
@@ -371,6 +374,7 @@ export async function runCrossFilePropagation({
     toolingRequests += toolingResult.toolingRequests || 0;
     toolingRequestFailures += toolingResult.toolingRequestFailures || 0;
     toolingRequestTimeouts += toolingResult.toolingRequestTimeouts || 0;
+    symbolicTypeGraphs = mergeSymbolicTypeGraphs(symbolicTypeGraphs, toolingResult.symbolicTypeGraphs || []);
   }
 
   const getChunkText = async (chunk) => {
@@ -915,6 +919,7 @@ export async function runCrossFilePropagation({
     toolingRequests,
     toolingRequestFailures,
     toolingRequestTimeouts,
+    symbolicTypeGraphs,
     droppedCallLinks,
     droppedCallSummaries,
     droppedUsageLinks,
