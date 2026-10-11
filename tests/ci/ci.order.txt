@@ -137,3 +137,4 @@ tooling/typescript-type-ir-boundaries
 tooling/typescript-type-ir-compact
 tooling/typescript-type-ir-exact
 shared/stable-json-null-prototype
+indexing/imports/import-resolution-typescript-runtime-extensions

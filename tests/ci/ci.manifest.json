@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 107,
+    "hero": 108,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -841,6 +841,12 @@
     {
       "id": "shared/stable-json-null-prototype",
       "order": 138,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/imports/import-resolution-typescript-runtime-extensions",
+      "order": 139,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
