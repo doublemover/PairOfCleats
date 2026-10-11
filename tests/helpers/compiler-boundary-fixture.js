@@ -52,7 +52,7 @@ export const createCompilerBoundaryFixture = async (root, texts, binaries = {}, 
   if (withFlow) for(const doc of documents) {
     const flow=await collectCompilerFlow({...doc, source:doc.item.source, root:stagingRoot, diskAccount:account, context:{contextKey:'a'.repeat(64)},
       declarationFor:node=> {const anchor=node?.name||node;return anchor?doc.item.declarations.get(anchor.getStart(doc.sourceFile)+':'+anchor.end):null;} });
-    flowDocuments.push({summaries:flow.summaries,flowEdges:flow.edges});syntaxPartitions.push(flow.partition);
+    flowDocuments.push({...doc,partition:flow.partition,policy,summaries:flow.summaries,flowEdges:flow.edges,aliases:flow.aliases,fieldAccesses:flow.fieldAccesses,callEffects:flow.callEffects,calls:[]});syntaxPartitions.push(flow.partition);
     const current=state.semanticFactsByFile.get(doc.item.file);
     state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,syntaxPartitionId:current.syntaxPartitionId,storage:current.storage,partitions:[...current.partitions,flow.partition],coverage:[...current.coverage,...flow.coverage]}));
   }

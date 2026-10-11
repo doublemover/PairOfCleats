@@ -11,7 +11,7 @@ export const compilerInvocationInputs = (ts, node) => {
     runtimeArguments: argumentsList, implicitTemplateObject: false };
 };
 /** A chosen overload/signature must not collapse callable union alternatives. */
-export const compilerInvocationTargets = ({ ts, checker, node, signature, declarationRef, targets }) => {
+export const compilerInvocationTargets = ({ ts, checker, node, signature, declarationRef, targets, dispatch = null }) => {
   const callee = node.expression || node.tag;
   const type = callee && checker.getTypeAtLocation(callee);
   let incomplete = false, candidates = targets;
@@ -27,6 +27,16 @@ export const compilerInvocationTargets = ({ ts, checker, node, signature, declar
       }
     }
   } else if (signature?.declaration && !targets.length) candidates = [declarationRef(signature.declaration)].filter(Boolean);
+  const resolved = dispatch?.(node);
+  let certainty = 'exact-static', reasons = [];
+  if(resolved) {
+    if(resolved.targets.length) candidates = resolved.propertyDispatch ? [...candidates,...resolved.targets] : resolved.targets;
+    const excluded=new Set(resolved.excludedTargets.map(canonicalSemanticJson));
+    candidates=candidates.filter(target=>!excluded.has(canonicalSemanticJson(target)));
+    incomplete ||= resolved.incomplete;
+    if(resolved.modeled || resolved.incomplete) certainty='modeled';
+    reasons=resolved.reasons;
+  }
   const unique = [...new Map(candidates.map(target => [canonicalSemanticJson(target), target])).values()];
-  return { targets: unique, incomplete, parameterMappingAllowed: unique.length === 1 && !incomplete };
+  return { targets: unique, incomplete, certainty, reasons, parameterMappingAllowed: unique.length === 1 && !incomplete && certainty === 'exact-static' };
 };
