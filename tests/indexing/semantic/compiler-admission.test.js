@@ -3,7 +3,7 @@ import { assertCompilerAdmissionStart, makeCompilerAdmissionReceipt, normalizeCo
 import { normalizeSemanticConfig } from '../../../src/index/semantic/config.js';
 const h='a'.repeat(64), now=10000;
 const inventory={compilerVersion:'5.9.3',toolingHash:h,compilerReceipt:{hash:h},closure:{schemaVersion:1,complete:true,files:[{path:'source.ts',hash:h,bytes:100,contextKey:'project'}],totalFiles:1,totalBytes:100,maxFileBytes:100,projectCount:1}};
-const schedulerStats={tokens:{mem:{total:2,used:0}},adaptive:{memoryPerTokenMb:1,maxInFlightBytes:8192},queues:{relations:{maxInFlightBytes:8192,maxPendingBytes:8192}}};
+const schedulerStats={tokens:{mem:{total:2,used:0}},adaptive:{memoryPerTokenMb:1,maxInFlightBytes:8192},queues:{'stage2.relations':{maxInFlightBytes:8192,maxPendingBytes:8192}}};
 const policy={maxResidentBytes:4096,maxBytes:2048};
 const options={inventory,schedulerStats,policy,runtimeHash:h,now};
 assert.equal(planCompilerAdmission(options).reason,'compiler_analysis_cost_unknown');
@@ -13,7 +13,7 @@ assert.equal(explicit.admitted,true);
 assert.equal(explicit.request.bytes,4096);
 assert.equal(explicit.reservation.basis,'explicit-policy-ceiling');
 assertCompilerAdmissionStart(explicit,schedulerStats);
-assert.equal(planCompilerAdmission({...options,explicit:true,schedulerStats:{...schedulerStats,adaptive:{...schedulerStats.adaptive,maxInFlightBytes:null},queues:{relations:{maxInFlightBytes:null,maxPendingBytes:null}}}}).admitted,true);
+assert.equal(planCompilerAdmission({...options,explicit:true,schedulerStats:{...schedulerStats,adaptive:{...schedulerStats.adaptive,maxInFlightBytes:null},queues:{'stage2.relations':{maxInFlightBytes:null,maxPendingBytes:null}}}}).admitted,true);
 for(const cap of [-1,NaN,Infinity,'1024'])assert.equal(planCompilerAdmission({...options,explicit:true,schedulerStats:{...schedulerStats,adaptive:{...schedulerStats.adaptive,maxInFlightBytes:cap}}}).reason,'scheduler_byte_capacity_invalid');
 const receipt=makeCompilerAdmissionReceipt({decision:explicit,runtimeHash:h,elapsedMs:20,peakRssBytes:1024,complete:true,measuredAt:now});
 const measured=planCompilerAdmission({...options,receipt});
@@ -32,8 +32,8 @@ const tokenBound={...schedulerStats,adaptive:{...schedulerStats.adaptive,memoryP
 assert.equal(planCompilerAdmission({...options,schedulerStats:tokenBound,explicit:true}).reason,'scheduler_memory_capacity_exceeded');
 for(const [name,stats]of [
   ['scheduler_global_bytes_exceeded',{...schedulerStats,adaptive:{...schedulerStats.adaptive,maxInFlightBytes:100}}],
-  ['scheduler_relations_bytes_exceeded',{...schedulerStats,queues:{relations:{maxInFlightBytes:100}}}],
-  ['scheduler_relations_pending_bytes_exceeded',{...schedulerStats,queues:{relations:{maxPendingBytes:100}}}]
+  ['scheduler_relations_bytes_exceeded',{...schedulerStats,queues:{'stage2.relations':{maxInFlightBytes:100}}}],
+  ['scheduler_relations_pending_bytes_exceeded',{...schedulerStats,queues:{'stage2.relations':{maxPendingBytes:100}}}]
 ]){
   assert.equal(planCompilerAdmission({...options,schedulerStats:stats,explicit:true}).reason,name);
   assert.throws(()=>assertCompilerAdmissionStart(explicit,stats),error=>error.code==='ERR_SEMANTIC_COMPILER_ADMISSION'&&error.reason===name);

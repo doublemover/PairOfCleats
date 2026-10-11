@@ -1,3 +1,4 @@
+import { SCHEDULER_QUEUE_NAMES } from '../build/runtime/scheduler.js';
 import { semanticHash } from './identity.js';
 
 export const DEFAULT_COMPILER_ADMISSION_POLICY = Object.freeze({maxFiles:10000,maxBytes:134217728,maxProjects:32,
@@ -39,8 +40,8 @@ const capacityReason = (request,snapshot) => {
   if(!Number.isSafeInteger(total)||total<1)return 'scheduler_memory_capacity_unavailable';
   if(request.mem>total)return 'scheduler_memory_capacity_exceeded';
   for(const [reason,cap] of [['scheduler_global_bytes_exceeded',snapshot.adaptive?.maxInFlightBytes],
-    ['scheduler_relations_bytes_exceeded',snapshot.queues?.relations?.maxInFlightBytes],
-    ['scheduler_relations_pending_bytes_exceeded',snapshot.queues?.relations?.maxPendingBytes]]){
+    ['scheduler_relations_bytes_exceeded',snapshot.queues?.[SCHEDULER_QUEUE_NAMES.stage2Relations]?.maxInFlightBytes],
+    ['scheduler_relations_pending_bytes_exceeded',snapshot.queues?.[SCHEDULER_QUEUE_NAMES.stage2Relations]?.maxPendingBytes]]){
     if(cap!=null&&(!Number.isSafeInteger(cap)||cap<0))return 'scheduler_byte_capacity_invalid';
     if(cap>0&&request.bytes>cap)return reason;
   }

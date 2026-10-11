@@ -1,3 +1,4 @@
+import { SCHEDULER_QUEUE_NAMES } from '../build/runtime/scheduler.js';
 import { planCompilerAdmission, assertCompilerAdmissionStart, makeCompilerAdmissionReceipt, normalizeCompilerAdmissionPolicy } from './compiler-admission.js';
 import { loadCompilerAdmissionReceipts, persistCompilerAdmission, persistCompilerAdmissionDeferral } from './compiler-admission-evidence.js';
 import { semanticHash } from './identity.js';
@@ -81,7 +82,7 @@ export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, f
       if(item.phase === 'crossFileFlow') phases.add('localFlow'); state.semanticPhaseAdmissions.set(source,phases);
     }
     state.semanticCompilerDependencyInventories=[...authorities.values()];
-    const output=await runtime.scheduler.schedule('relations',{...decision.request,signal:child.signal},()=>{
+    const output=await runtime.scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Relations,{...decision.request,signal:child.signal},()=>{
       assertCompilerAdmissionStart(decision, runtime.scheduler.stats(), runtime.schedulerConfig);
       state.semanticCompilerAdmissionGrant = { authorityHash: compilerInventoryHash(inventory), decision };
       return fn({signal:child.signal});

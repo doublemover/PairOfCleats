@@ -6,7 +6,8 @@ import { createAnalysisPartitionId } from '../../src/index/semantic/identity.js'
 import { createSemanticFactsRef } from '../../src/index/semantic/file-ref.js';
 import { writeSemanticAnalysis } from '../../src/index/semantic/analysis-write.js';
 import { openSemanticFrontier } from '../../src/index/semantic/frontier.js';
-import { throwIfAborted } from '../../src/shared/abort.js';
+import { createBuildScheduler } from '../../src/shared/concurrency/scheduler-core.js';
+import { resolveSchedulerConfig } from '../../src/index/build/runtime/scheduler.js';
 import { createSemanticCacheFixture } from './semantic-cache-fixture.js';
 import { enqueueSemanticArtifacts } from '../../src/index/build/artifacts/writers/semantic/family.js';
 import { writeArtifactPublicationRecord } from '../../src/index/build/artifact-publication.js';
@@ -41,10 +42,10 @@ export const createBindingWorkFixture = async ({ bindings = 'deferred', deferred
   const runtime = { root: fixture.repoRoot, buildRoot: fixture.buildRoot, repoCacheRoot: path.join(fixture.root, 'control-cache'),
     semanticFrontierDatabase: Database, semanticPolicy: normalizeSemanticConfig({ enabled: true,
       enrichment: { bindings }, execution: { deferredDrain, afterIndexMaxMs } }),
-    scheduler: { stats: () => ({tokens:{mem:{total:4,used:0}},adaptive:{memoryPerTokenMb:768,maxInFlightBytes:null},queues:{relations:{maxInFlightBytes:null,maxPendingBytes:null}}}), schedule: async (lane, options, fn) => {
-      if (lane !== 'relations') throw new Error('Binding work must use existing relations lane.');
-      throwIfAborted(options.signal); return fn();
-    } } };
+    scheduler: createBuildScheduler(resolveSchedulerConfig({
+      argv: {}, rawArgv: [], envConfig: {}, indexingConfig: { scheduler: { cpuTokens: 2, ioTokens: 2, memoryTokens: 4 } },
+      envelope: { concurrency: { cpuConcurrency: { value: 2 }, ioConcurrency: { value: 2 } } }
+    })) };
   const openControl = () => openSemanticFrontier({ Database, filename: path.join(runtime.repoCacheRoot, 'semantic-frontier', 'control.sqlite') });
   const emitBindings = async ({ signal, onlyFirst = false } = {}) => {
     const partitions = [];
@@ -65,5 +66,8 @@ export const createBindingWorkFixture = async ({ bindings = 'deferred', deferred
     }
     return { schemaVersion: 1, contexts: [], partitions, coverageRef: null, diagnosticsRef: null };
   };
-  return { ...fixture, files, state, runtime, emitBindings, openControl };
+  return { ...fixture, files, state, runtime, emitBindings, openControl, cleanup: async () => {
+    await runtime.scheduler.shutdown({ awaitRunning: true });
+    await fixture.cleanup();
+  } };
 };
