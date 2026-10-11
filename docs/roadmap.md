@@ -46,16 +46,16 @@ benchmark entry paths and never silently installs. The intentional `includeSeman
 surface has a reviewed 72-flag cap. Earlier cloud bootstrap, continuation and
 74-case repair receipts remain in the checkpoint archive; hosted CI is exact-head evidence.
 
-Recovery covers interrupted-worker replay, control/cache publication, retained-cache
-cleanup, semantic metadata and SQLite journal admission. Corrupt control repair
-quarantines originals and resumes durable rename intents; controlled process cuts
-cover repair and hot-journal rollback. Enqueue/drain verify publication before leasing.
-The [recovery checkpoint](archived/semantic-recovery-checkpoint-2026-10-10.md)
-records checks and validation boundaries.
+Recovery covers interrupted workers, control reconstruction, retained-cache cleanup
+and transient-space admission; [receipts and limits](archived/semantic-recovery-checkpoint-2026-10-10.md).
+Python/C/Swift/Rust now have opt-in native syntax, modeled structured control,
+source-pinned eager provider bindings and indexed retrieval. [Language inventory](archived/native-language-semantics-2026-10-11.md)
+records focused evidence and open gaps; deferred native enrichment, compiler value/alias
+flow and live non-C provider acceptance remain open.
 
 Next, in order: remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
-integration; WASM module decoding and exact host/module joins; Python/C/Swift/Rust
-adapters. The calibrated estimator remains last priority. Hardware power-loss,
+integration; WASM module decoding and exact host/module joins; remaining native-language
+analysis. The calibrated estimator remains last priority. Hardware power-loss,
 unrelated build-writer/global disk quotas and full public-surface qualification
 remain open; lost control-only cancellation/retry history is not reconstructible.
 
@@ -241,10 +241,8 @@ USR rollout phases Aâ€“H and lifecycle acceptance remain in the
 - [Historical release-evidence record](roadmap-release-validation-evidence-20260521.md)
 - [Earlier task-list reconciliation](archived/task-list-reconciliation-2026-10-02.md)
 
-The archived roadmap preserves the previous authored text byte-for-byte, including
-its completed lanes, abandoned/no-adopt migrations, command outcomes and evidence
-citations. The active page carries their current disposition rather than another
-copy of the transcript.
+The archived roadmap preserves completed lanes, abandoned migrations, command
+outcomes and historical evidence; this page carries their current disposition.
 
 ## Validation Commands
 

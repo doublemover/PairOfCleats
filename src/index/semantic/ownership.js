@@ -64,6 +64,6 @@ export const collectSemanticOwnership = async ({ facts, chunks, bytes,
     }
     await flush();
     return createSemanticFactsRef({ source, syntaxPartitionId: facts.partition.partitionId, storage,
-      coverage: facts.coverage, partitions: [facts.partition, await sink.finalizeSource()] });
+      coverage: facts.coverage, partitions: [facts.partition, ...(facts.analysisPartitions || []), await sink.finalizeSource()] });
   } catch (error) { await sink.abort(); throw error; }
 };

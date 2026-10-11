@@ -505,7 +505,7 @@ export const createClangdProvider = () => ({
       ? inputs.log
       : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
     const { docs, targets } = resolveClangdDocumentsAndTargets(inputs);
-    if (!docs.length || !targets.length) {
+    if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         state: 'skipped',
         blockProvider: false,
@@ -656,7 +656,7 @@ export const createClangdProvider = () => ({
         );
       }
     }
-    if (!selectedDocs.length || !targets.length) {
+    if (!selectedDocs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},

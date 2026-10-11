@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T19:41:35.751Z",
+  "generatedAt": "2026-10-11T00:03:20.046Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -4580,7 +4580,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 490,
+    "totalFlags": 491,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4792,6 +4792,7 @@
       "git-sha",
       "global",
       "grace-days",
+      "grammarVersion",
       "graph",
       "graphFixture",
       "groups",
@@ -5235,6 +5236,12 @@
           "properties",
           "required",
           "type"
+        ]
+      },
+      {
+        "file": "src/index/semantic/native-syntax.js",
+        "flags": [
+          "grammarVersion"
         ]
       },
       {
