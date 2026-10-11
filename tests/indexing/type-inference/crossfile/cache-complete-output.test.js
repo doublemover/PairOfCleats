@@ -38,6 +38,10 @@ try {
   const restored = fresh();
   assert.equal((await read(restored)).inferredReturns, 1);
   assert.deepEqual(restored, inferred, 'complete output retains the existing cache-hit fast path');
+  await fs.writeFile(cachePath, JSON.stringify({ ...full, schemaVersion: 2 }));
+  const preExtensionFix = fresh();
+  assert.equal(await read(preExtensionFix), null, 'schema-2 symbolic checkpoint predates the runtime-extension fix and must not replay');
+  assert.deepEqual(preExtensionFix, fresh(), 'old-schema rejection must happen before mutation');
   for (const [name, rows] of [
     ['missing row', full.rows.slice(0, 1)],
     ['duplicate row', [full.rows[0], full.rows[0]]],
