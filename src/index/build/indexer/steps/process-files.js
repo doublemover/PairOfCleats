@@ -860,6 +860,7 @@ export const processFiles = async ({
     let checkpoint = null;
     let progress = null;
     let markOrderedEntryComplete = () => false;
+    let getStage1WorkloadSnapshot = () => null;
     let getStage1ProgressSnapshot = () => ({
       total: Number.isFinite(progress?.total) ? progress.total : 0,
       count: Number.isFinite(progress?.count) ? progress.count : 0,
@@ -1946,7 +1947,8 @@ export const processFiles = async ({
         limit: 1
       }).total;
       const oldestInFlight = collectStalledFiles(3)
-        .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`);
+        .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`
+          + (entry.substage ? `[${entry.substage}:${Math.round((entry.substageElapsedMs || 0) / 1000)}s]` : ''));
       const oldestText = oldestInFlight.length ? ` oldest=${oldestInFlight.join(',')}` : '';
       const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
       const admissionText = formatStage1SchedulerStallSummary(schedulerSnapshot);
@@ -1957,7 +1959,8 @@ export const processFiles = async ({
           startedAtMs: processStart,
           nowMs: now,
           inFlight: inFlightFiles.size,
-          trackedSubprocesses
+          trackedSubprocesses,
+          workload: getStage1WorkloadSnapshot()
         })} orderedPending=${orderedPending}${oldestText}${admissionText ? ` ${admissionText}` : ''}`,
         {
           kind: 'status',
@@ -1969,6 +1972,7 @@ export const processFiles = async ({
           orderedPending,
           trackedSubprocesses,
           oldestInFlight,
+          workload: getStage1WorkloadSnapshot(),
           scheduler: schedulerSnapshot
         }
       );
@@ -2290,7 +2294,8 @@ export const processFiles = async ({
                   activeDurationMs,
                   scmProcQueueWaitMs,
                   queueDelayMs,
-                  thresholdMs: fileWatchdogMs
+                  thresholdMs: fileWatchdogMs,
+                  substage: inFlightFiles.get(orderIndex)?.substage || null
                 });
               }, fileWatchdogMs);
               watchdog.unref?.();
@@ -2335,6 +2340,12 @@ export const processFiles = async ({
                     fileSubprocessOwnershipId,
                     () => processFile(entry, stableFileIndex, {
                       signal,
+                      onStage: (substage) => {
+                        const tracked = inFlightFiles.get(orderIndex);
+                        if (!tracked || tracked.substage === substage) return;
+                        tracked.substage = substage;
+                        tracked.substageStartedAt = Date.now();
+                      },
                       onScmProcQueueWait: (queueWaitMs) => {
                         if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
                         if (lifecycle) {
@@ -2562,7 +2573,8 @@ export const processFiles = async ({
                   markOrderedEntryComplete(
                     orderIndex,
                     shardProgress,
-                    entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                    entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null),
+                    { status: 'skipped', inputBytes: entry?.stat?.size || entry?.bytes || 0 }
                   );
                   orderedCompletionTracker.track(completion, () => {
                     lastOrderedCompletionAt = Date.now();
@@ -2613,7 +2625,9 @@ export const processFiles = async ({
                 markOrderedEntryComplete(
                   orderIndex,
                   shardProgress,
-                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null),
+                  { status: result.skip ? 'skipped' : 'complete', inputBytes: fileMetrics?.bytes || entry?.stat?.size || entry?.bytes || 0,
+                    chunks: result.chunks?.length || 0, cached: fileMetrics?.cached === true }
                 );
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
@@ -2657,7 +2671,8 @@ export const processFiles = async ({
                 markOrderedEntryComplete(
                   orderIndex,
                   shardProgress,
-                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null),
+                  { status: 'failed', inputBytes: entry?.stat?.size || entry?.bytes || 0 }
                 );
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
@@ -2953,6 +2968,7 @@ export const processFiles = async ({
     });
     const stage1ProgressTracker = createStage1ProgressTracker({
       total: entries.length,
+      totalInputBytes: entries.reduce((sum, entry) => sum + Math.max(0, Number(entry?.stat?.size || entry?.bytes) || 0), 0),
       mode,
       checkpoint,
       onTick: () => {
@@ -2969,6 +2985,7 @@ export const processFiles = async ({
     progress = stage1ProgressTracker.progress;
     markOrderedEntryComplete = stage1ProgressTracker.markOrderedEntryComplete;
     getStage1ProgressSnapshot = stage1ProgressTracker.snapshot;
+    getStage1WorkloadSnapshot = stage1ProgressTracker.workloadSnapshot;
     if (stallSnapshotMs > 0) {
       const stallSnapshotIntervalMs = Math.max(250, Math.floor(stallSnapshotMs / 2));
       stallSnapshotTimer = setInterval(watchdogCallback(() => {

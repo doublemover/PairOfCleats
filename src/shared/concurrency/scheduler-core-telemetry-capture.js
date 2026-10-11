@@ -80,7 +80,7 @@ export function createSchedulerTelemetryCapture(deps = {}) {
    * Aggregate queue depth in one pass over current queue order.
    * This is called only when a sample is emitted to avoid extra hot-path work.
    */
-  const buildQueueDepthState = () => {
+  const buildQueueDepthState = (at) => {
     const byQueue = {};
     let pending = 0;
     let pendingBytes = 0;
@@ -96,6 +96,7 @@ export function createSchedulerTelemetryCapture(deps = {}) {
       running += queueRunning;
       inFlightBytes += queueInFlightBytes;
       byQueue[queue.name] = {
+        ...(typeof deps.snapshotQueueAdmission === 'function' ? deps.snapshotQueueAdmission(queue, at) : {}),
         pending: queuePending,
         pendingBytes: queuePendingBytes,
         running: queueRunning,
@@ -107,7 +108,7 @@ export function createSchedulerTelemetryCapture(deps = {}) {
 
   const captureSchedulingTraceAt = (now, reason, force) => {
     if (!force && (now - lastTraceAtMs) < getTraceIntervalMs()) return null;
-    const queueDepth = buildQueueDepthState();
+    const queueDepth = buildQueueDepthState(now);
     const sample = {
       at: new Date(now).toISOString(),
       elapsedMs: Math.max(0, now - startedAtMs),
@@ -140,7 +141,7 @@ export function createSchedulerTelemetryCapture(deps = {}) {
   const captureQueueDepthSnapshotAt = (now, reason, force) => {
     if (!isQueueDepthSnapshotsEnabled()) return null;
     if (!force && (now - lastQueueDepthSnapshotAtMs) < getQueueDepthSnapshotIntervalMs()) return null;
-    const queueDepth = buildQueueDepthState();
+    const queueDepth = buildQueueDepthState(now);
     const snapshot = {
       at: new Date(now).toISOString(),
       elapsedMs: Math.max(0, now - startedAtMs),

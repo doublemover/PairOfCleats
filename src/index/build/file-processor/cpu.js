@@ -340,9 +340,11 @@ export const processFileCpu = async (context) => {
   });
   let semanticFactsRef = null;
   if (context.semantic && mode === 'code') {
+    updateCrashStage('semantic:collect-file:start');
     semanticFactsRef = await collectFileSemanticFacts({ ...context.semantic,
       bytes: context.sourceBytes, text, ast: languageContext.tsSyntax?.sourceFile || languageContext.jsAst, ts: languageContext.tsSyntax?.ts, language: lang?.id || 'unknown',
       relPath: relKey, signal, scheduleIo: runIo });
+    updateCrashStage('semantic:collect-file:done');
   }
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;
@@ -813,7 +815,9 @@ export const processFileCpu = async (context) => {
   } catch (err) {
     return failFile('parse-error', 'segment-uid', err);
   }
+  if (semanticFactsRef) updateCrashStage('semantic:embedded-sources:start');
   const embeddedSemantic = semanticFactsRef ? await collectEmbeddedSemanticSources({ ...context.semantic, parentFacts: semanticFactsRef, segments, text, signal, scheduleIo: runIo, javascript: languageOptions?.javascript, typescript: languageOptions?.typescript }) : null;
+  if (semanticFactsRef) updateCrashStage('semantic:embedded-sources:done');
   const segmentContext = {
     semanticSyntaxContexts: embeddedSemantic?.syntaxContexts,
     ...languageContext,
@@ -1009,17 +1013,20 @@ export const processFileCpu = async (context) => {
     chunkingDiagnostics,
     failFile,
     buildStage,
-    fileIndex
+    fileIndex,
+    onStage: context.onStage
   });
 
   if (chunkResult?.skip) {
     return chunkResult;
   }
 
+  if (semanticFactsRef) updateCrashStage('semantic:ownership:start');
   if (semanticFactsRef) semanticFactsRef = await collectSemanticOwnership({ ...context.semantic,
     facts: semanticFactsRef, chunks: chunkResult.chunks, bytes: context.sourceBytes,
     language: lang?.id || 'unknown', relPath: relKey, signal, scheduleIo: runIo });
   const semanticSegmentFactsRefs = await collectEmbeddedSemanticOwnership({ ...context.semantic, embedded: embeddedSemantic, chunks: chunkResult.chunks, signal, scheduleIo: runIo });
+  if (semanticFactsRef) updateCrashStage('semantic:ownership:done');
   return {
     semanticFactsRef,
     semanticSegmentFactsRefs,
