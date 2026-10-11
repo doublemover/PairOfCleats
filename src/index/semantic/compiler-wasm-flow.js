@@ -1,3 +1,4 @@
+import { compilerRuntimeParameters } from './compiler-invocation.js';
 import { createWasmHostBytes } from './wasm/host-bytes.js';
 import { decodeWasmModule } from './wasm/decode.js';
 import { projectWasmModule } from './wasm/project.js';
@@ -14,6 +15,29 @@ export const createCompilerWasmFlow = ({ group, state, authority, ledgers, handl
   const completions = new Map();
   for (const document of group.flowDocuments || []) for (const summary of document.summaries) completions.set(refKey(summary.ownerRef), { summary, edges: document.flowEdges });
   const hostBytes = createWasmHostBytes({ group, authority, ledgers, signal });
+  const safeHandleUse = (doc, node, kind, seen = new Set()) => {
+    const ts = doc.ts, parent = node.parent;
+    if (!parent || seen.size >= 32) return false;
+    if (ts.isParenthesizedExpression(parent) || ts.isAsExpression(parent) || ts.isNonNullExpression(parent)) return safeHandleUse(doc, parent, kind, seen);
+    if (ts.isVariableDeclaration(parent) && parent.initializer === node && parent.parent.flags & ts.NodeFlags.Const) {
+      const symbol = doc.checker.getSymbolAtLocation(parent.name);
+      if (!symbol || seen.has(symbol)) return false;
+      return (ledgers.get(doc).uses.get(symbol) || []).every(use => use.node === parent.name || safeHandleUse(doc, use.node, kind, new Set(seen).add(symbol)));
+    }
+    // Promise callbacks can expose the same settled instance or mutable result to
+    // unobserved writes. Only await and immutable aliases preserve provenance.
+    if (kind.startsWith('promise-')) return ts.isAwaitExpression(parent)
+      && safeHandleUse(doc, parent, kind.slice(8), seen);
+    if (kind === 'instantiated') return ts.isPropertyAccessExpression(parent)
+      && parent.expression === node && parent.name.text === 'instance'
+      && safeHandleUse(doc, parent, 'instance', seen);
+    // Instance.exports is inherited and can be shadowed on an escaped instance,
+    // even though the native exports object itself is frozen.
+    if (!ts.isPropertyAccessExpression(parent) || parent.expression !== node || parent.name.text !== 'exports') return false;
+    const outer = parent.parent;
+    return !(ts.isBinaryExpression(outer) && outer.left === parent && outer.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && outer.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+      || ts.isDeleteExpression(outer) || ts.isPrefixUnaryExpression(outer) || ts.isPostfixUnaryExpression(outer));
+  };
   const resolve = async (doc, input, seen = new Set()) => {
     if (!input || seen.size >= 32 || seen.has(input)) return null;
     seen = new Set(seen).add(input);
@@ -25,15 +49,13 @@ export const createCompilerWasmFlow = ({ group, state, authority, ledgers, handl
       const declaration = declarations[0];
       if (!ts.isVariableDeclaration(declaration) || declaration.getSourceFile() !== doc.sourceFile || !(declaration.parent.flags & ts.NodeFlags.Const)) return null;
       const result = await resolve(doc, declaration.initializer, seen);
-      // The byte-overload result is an ordinary mutable {module, instance} object.
-      // A const binding alone cannot authorize its .instance after writes/escape.
-      if (result?.kind === 'instantiated') for (const use of ledger.uses.get(symbol) || []) {
-        if (use.node === declaration.name) continue;
-        const member = use.node.parent, parent = member.parent;
-        const read = ts.isPropertyAccessExpression(member) && member.expression === use.node && member.name.text === 'instance';
-        const write = ts.isBinaryExpression(parent) && parent.left === member && parent.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && parent.operatorToken.kind <= ts.SyntaxKind.LastAssignment
-          || ts.isDeleteExpression(parent) || ts.isPrefixUnaryExpression(parent) || ts.isPostfixUnaryExpression(parent);
-        if (!read || write) { ledger.reasons.add('wasm_instantiation_result_mutation_or_escape'); return null; }
+      // A const binding alone cannot authorize mutable results or instances after
+      // writes/escape, including access through the promise's settled value.
+      const guardedKinds = ['instance', 'instantiated', 'promise-instance', 'promise-instantiated'];
+      if (guardedKinds.includes(result?.kind) && (ledger.uses.get(symbol) || []).some(use => use.node !== declaration.name && !safeHandleUse(doc, use.node, result.kind, new Set([symbol])))) {
+        const reason = result.kind.startsWith('promise-') ? 'wasm_instantiation_promise_mutation_or_escape'
+          : result.kind === 'instantiated' ? 'wasm_instantiation_result_mutation_or_escape' : 'wasm_instance_mutation_or_escape';
+        ledger.reasons.add(reason); return null;
       }
       return result;
     }
@@ -60,7 +82,7 @@ export const createCompilerWasmFlow = ({ group, state, authority, ledgers, handl
     if (streaming || (!isInstance && !instantiate) || moduleHandle?.kind !== 'module') moduleHandle = null;
     if (!moduleHandle && !isInstance) {
       const recovered = await hostBytes.read(doc, args[0]);
-      if (recovered && (streaming ? ['response', 'promise-response'].includes(recovered.kind) : recovered.kind === 'bytes')) {
+      if (recovered && (streaming ? ['response', 'promise-response'].includes(recovered.kind) : ['bytes', 'buffer'].includes(recovered.kind))) {
         const decoded = decodeWasmModule(recovered.bytes, { signal });
         if (decoded.status === 'decoded') moduleHandle = { ...recovered, kind: 'module', decoded: decoded.module };
         else ledger.reasons.add(decoded.reason);
@@ -117,7 +139,7 @@ export const createCompilerWasmFlow = ({ group, state, authority, ledgers, handl
       const asynchronous = handler.node.asteriskToken || handler.node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword);
       if (asynchronous) { ledger.reasons.add('wasm_async_or_generator_host_result_not_awaited'); continue; }
       fn.params.forEach((parameter, ordinal) => {
-        const parameters=handler.node.parameters, rest=parameters.findIndex(param=>param.dotDotDotToken);
+        const parameters=compilerRuntimeParameters(ts, handler.node), rest=parameters.findIndex(param=>param.dotDotDotToken);
         const target=parameters[rest>=0&&ordinal>=rest?rest:ordinal];
         if(!target||!ts.isIdentifier(target.name)) { ledger.reasons.add('wasm_import_host_parameter_mapping_unresolved'); return; }
         if(target.initializer)ledger.reasons.add('wasm_host_default_parameter_conversion_branch_unresolved');

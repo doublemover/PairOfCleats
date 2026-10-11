@@ -7,9 +7,13 @@ export const createWasmTaskInventory = sources => ({schemaVersion:1,kind:'wasm-b
   validatorRuntime:WASM_VALIDATOR_RUNTIME,sources:sources.map(source=>({sourceUnitId:source.sourceUnitId,byteHash:source.byteHash,byteLength:source.byteLength})).sort((a,b)=>a.sourceUnitId.localeCompare(b.sourceUnitId))});
 export const wasmTaskInventoryHash=inventory=>semanticHash(WASM_DEPENDENCY_KEY,inventory);
 export const assertWasmTaskAuthority = (task,target) => {
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!object(task) || !object(target) || !Array.isArray(task.dependencies) || task.dependencies.some(row => !object(row))
+    || !Array.isArray(task.coverageToProduce) || !Array.isArray(task.sourceUnits)) throw fail('Invalid bounded binary task authority.');
   const inventory=target.binaryInventory,dependency=task.dependencies.find(row=>row.dependencyKey===WASM_DEPENDENCY_KEY);
   if(!inventory) {if(dependency)throw fail('Missing binary authority.');return;}
-  if(target.compilerInventory || task.kind!=='localFlow'||task.coverageToProduce.length!==1||task.coverageToProduce[0]!=='localFlow'
+  if(!object(inventory) || !Array.isArray(inventory.sources) || inventory.sources.some(row => !object(row))
+    || target.compilerInventory || task.kind!=='localFlow'||task.coverageToProduce.length!==1||task.coverageToProduce[0]!=='localFlow'
     ||task.dependencies.length!==1||!dependency||dependency.expectedHash!==wasmTaskInventoryHash(inventory)
     ||inventory.schemaVersion!==1||inventory.kind!=='wasm-binary'||!Array.isArray(inventory.sources)||inventory.sources.length!==1
     ||canonicalSemanticJson(Object.keys(inventory).sort())!==canonicalSemanticJson(['kind','producerVersion','schemaVersion','sources','validatorRuntime'])
