@@ -46,6 +46,28 @@ assert.ok(snapshot.process.stack.frames.length);
 tracker.observeQueueDelay(40);
 assert.equal(buildSnapshot().queueDelayMs.avgMs, 24, 'later snapshots read current timing state');
 
+const diagnostic = buildStage1ProcessingStallSnapshot({ runtime: {
+  scheduler: { stats: () => ({ activity: { pendingBytes: 200, inFlightBytes: 400 },
+    tokens: { cpu: { total: 4, used: 4 }, io: { total: 2, used: 1 }, mem: { total: 8, used: 6 } },
+    adaptive: { maxInFlightBytes: 1024 } }) },
+  workerPool: { stats: () => ({ activeTasks: 4, queuedTasks: 9, maxWorkers: 4, configuredMaxWorkers: 8,
+    disabled: false, pendingRestart: true, restartAttempts: 2, heapLimitMb: 256,
+    memoryPressure: { state: 'hard', unboundedHistory: new Array(10000).fill('omit') } }) },
+  quantizePool: { stats: () => { throw new Error('x'.repeat(1000)); } }
+} });
+assert.equal(diagnostic.stage, 'stage1.processing');
+assert.equal(diagnostic.workers.length, 2);
+assert.deepEqual(diagnostic.workers[0], { pool: 'workerPool', available: true, activeTasks: 4,
+  queuedTasks: 9, maxWorkers: 4, configuredMaxWorkers: 8, disabled: false, pendingRestart: true,
+  restartAttempts: 2, heapLimitMb: 256, memoryPressureState: 'hard' });
+assert.equal(diagnostic.workers[1].available, false);
+assert.equal(diagnostic.workers[1].error.length, 256, 'broken diagnostics are bounded data');
+assert.deepEqual(diagnostic.scheduler.tokens.cpu, { total: 4, used: 4 });
+assert.equal(diagnostic.scheduler.activity.inFlightBytes, 400);
+assert.equal(diagnostic.scheduler.maxInFlightBytes, 1024);
+assert.ok(diagnostic.process.memory.rssBytes > 0);
+assert.equal(snapshot.workers[0].available, false, 'missing workers are unknown, not healthy');
+
 const fixture = await createSemanticCacheFixture();
 try {
   const completed = await fixture.createFile();

@@ -177,13 +177,20 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
   return {
     activity: {
       pending: Number(stats?.activity?.pending) || 0,
-      running: Number(stats?.activity?.running) || 0
+      running: Number(stats?.activity?.running) || 0,
+      pendingBytes: Number(stats?.activity?.pendingBytes) || 0,
+      inFlightBytes: Number(stats?.activity?.inFlightBytes) || 0
     },
     utilization: {
       cpu: Number(stats?.utilization?.cpu) || 0,
       io: Number(stats?.utilization?.io) || 0,
       mem: Number(stats?.utilization?.mem) || 0
     },
+    tokens: Object.fromEntries(['cpu', 'io', 'mem'].map(name => [name, {
+      total: Number(stats?.tokens?.[name]?.total) || 0,
+      used: Number(stats?.tokens?.[name]?.used) || 0
+    }])),
+    maxInFlightBytes: Number(stats?.adaptive?.maxInFlightBytes) || 0,
     parseSurface,
     highlightedQueues,
     topPendingQueues
@@ -276,6 +283,23 @@ export const buildStage1ProcessingStallSnapshot = ({
     limit: 8
   });
   const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
+  // Read existing counters only: no worker probes, process walks or unbounded
+  // per-worker histories in a watchdog callback. A broken stats owner is data.
+  const workers = ['workerPool', 'quantizePool'].map(name => {
+    if (typeof runtime?.[name]?.stats !== 'function') return { pool: name, available: false };
+    try {
+      const stats = runtime[name].stats();
+      if (!stats || typeof stats !== 'object') return { pool: name, available: false };
+      return { pool: name, available: true,
+        activeTasks: Number(stats.activeTasks) || 0, queuedTasks: Number(stats.queuedTasks) || 0,
+        maxWorkers: Number(stats.maxWorkers) || 0, configuredMaxWorkers: Number(stats.configuredMaxWorkers) || 0,
+        disabled: stats.disabled === true, pendingRestart: stats.pendingRestart === true,
+        restartAttempts: Number(stats.restartAttempts) || 0, heapLimitMb: Number(stats.heapLimitMb) || null,
+        memoryPressureState: typeof stats.memoryPressure?.state === 'string' ? stats.memoryPressure.state.slice(0, 64) : null };
+    } catch (error) {
+      return { pool: name, available: false, error: String(error?.message || error).slice(0, 256) };
+    }
+  });
   const commitLag = Math.max(
     0,
     (Number(orderedSnapshot?.maxSeenSeq) || 0) - (Number(orderedSnapshot?.nextCommitSeq) || 0)
@@ -287,6 +311,8 @@ export const buildStage1ProcessingStallSnapshot = ({
     reason,
     generatedAt: new Date(nowMs).toISOString(),
     source: 'stage1-watchdog',
+    stage: 'stage1.processing',
+    workers,
     idleMs: resolvedIdleMs,
     progressDone: progress?.count || 0,
     progressTotal: progress?.total || 0,
