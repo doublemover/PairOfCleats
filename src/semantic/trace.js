@@ -6,7 +6,7 @@ import { throwIfAborted } from '../shared/abort.js';
 const fail = (code, message) => Object.assign(new Error(message), { code });
 export const DEFAULT_TRACE_KINDS = Object.freeze('defines reads writes mutates returns captures flowsTo argumentToParameter returnToResult sharesStorage copies packs transfers dispatches consumes'.split(' '));
 const refKey = ref => canonicalSemanticJson(ref);
-const visitKey = (ref, stack = []) => canonicalSemanticJson({ ref, stack });
+const visitKey = (ref, stack = [], traverse = true) => canonicalSemanticJson({ ref, stack, traverse });
 /** Bounded source-pinned traversal; continuations retain only refs and member offsets. */
 export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, maxDepth = 64,
   maxBytes = 65536, maxWorkMs = 250, maxContinuations = 64, ttlMs = 300000 } = {}) => {
@@ -39,7 +39,7 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
     const admit = (family, row) => { result[family].push(row); if (fits()) return true; result[family].pop(); return false; };
     const next = () => { state.index += 1; state.stage = 'record'; state.offset = 0; progressed = true; };
     const enqueue = (ref, depth, traverse, stack = []) => {
-      const identity = visitKey(ref, stack);
+      const identity = visitKey(ref, stack, traverse);
       if (seen.has(identity)) return;
       if (seen.size >= 16384) { state.truncated = true; result.frontier.push({ ref, reason: 'visited_budget' }); return; }
       seen.add(identity); state.seen.push(identity); state.queue.push({ ref, depth, traverse, stack });

@@ -10,7 +10,7 @@ import { projectWasmModule } from './project.js';
 
 /** Module-only files use normal completion/publication and derived replay fences,
  * without fake text chunks or a second cache, lease or storage owner. */
-export const collectStandaloneWasm = async ({ bytes, relPath, repositoryNamespace, stagingRoot, storage, diskAccount, policy, signal }) => {
+export const collectStandaloneWasm = async ({ bytes, relPath, repositoryNamespace, stagingRoot, storage, diskAccount, policy, flowGranted = false, signal }) => {
   const source = createWasmSourceSnapshot({ bytes, repositoryNamespace, path: relPath });
   const effective = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, path: relPath, language: 'wasm' });
   const parser = { family: 'wasm-binary', version: SEMANTIC_ANALYSIS_VERSIONS.wasmFlow, runtime: WASM_VALIDATOR_RUNTIME };
@@ -33,16 +33,16 @@ export const collectStandaloneWasm = async ({ bytes, relPath, repositoryNamespac
     const targeted = effective.targetSelectionConfigured;
     const moduleTarget = effective.targets.some(target=>target.ref?.partitionId===syntaxPartitionId&&target.ref.localId===0);
     const supportedTarget = !targeted || moduleTarget;
-    const includeFlow = supportedTarget && plan.modes.localFlow === 'eager';
+    const includeFlow = supportedTarget && (plan.modes.localFlow === 'eager' || flowGranted && plan.modes.localFlow !== 'off');
     const partitionId = createAnalysisPartitionId({ pass: 'wasm-binary', inputPartitionHashes: [syntax.canonicalHash],
-      compilerContext: parser, dependencySummaryHashes: [], analysisPolicy: effective.identity.analysis });
+      compilerContext: parser, dependencySummaryHashes: [], analysisPolicy: {policy:effective.identity.analysis,includeFlow} });
     const ledger = { partitionId, rows: [], edges: [], reasons: new Set(), nextId: 0 };
     if(moduleTarget)ledger.reasons.add('wasm_module_target_widens_to_whole_module');
     const projected = await projectWasmModule({ ledger, module: decoded.module, bytes, invocation, source, stagingRoot, state, includeFlow, signal });
     ledger.edges.forEach((row, id) => ledger.rows.push({ family: 'edge', row: { id, ...row } }));
     const flowCoverage = { scope: { sourceUnitId: source.sourceUnitId }, phase: 'localFlow',
-      state: !projected ? 'partial' : includeFlow ? 'partial' : plan.modes.localFlow === 'off' ? 'disabled' : 'unsupported',
-      reason: !projected ? 'wasm_flow_graph_budget' : includeFlow ? [...ledger.reasons].sort().join(';') : !supportedTarget ? 'wasm_text_or_declaration_target_not_supported' : plan.modes.localFlow === 'off' ? 'wasm_local_flow_off' : 'wasm_deferred_flow_not_scheduled',
+      state: !projected ? 'partial' : includeFlow ? 'partial' : plan.modes.localFlow === 'off' ? 'disabled' : !supportedTarget ? 'unsupported' : 'deferred',
+      reason: !projected ? 'wasm_flow_graph_budget' : includeFlow ? [...ledger.reasons].sort().join(';') : !supportedTarget ? 'wasm_text_or_declaration_target_not_supported' : plan.modes.localFlow === 'off' ? 'wasm_local_flow_off' : 'wasm_deferred_flow_requires_task',
       observedCount: projected?.graph.nodes.length ?? null, completedCount: projected && includeFlow ? projected.graph.functions.length : 0, frontierRef: null };
     ledger.rows.push({ family: 'coverage', row: flowCoverage }); coverage.push(flowCoverage);
     partitions.push(await writeSemanticAnalysis({ ...common, rows: ledger.rows, partitionId,

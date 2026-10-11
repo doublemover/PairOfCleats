@@ -6,7 +6,8 @@ const nodeAuthority = value => value?.family === 'node-type-package' && ['worker
 /** Node callbacks consume the payload directly (not browser MessageEvent.data).
  * https://nodejs.org/api/worker_threads.html — retained-source candidates only. */
 export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,ledgers,boundary,edge,enabledFor,signal}) => {
-  const authority=createCompilerBoundaryAuthority(group), endpoints=new WeakMap(), consumers=[], constructions=[];
+  const authority=createCompilerBoundaryAuthority(group), endpoints=new WeakMap(), consumers=[], constructions=[], registrations=[];
+  const byFile=new Map(documents.map(doc=>[keyPath(doc.sourceFile.fileName),doc])),received=new Map(documents.map(doc=>[doc,new Map()]));
   const declaration = (doc,node) => authority.declaration(doc.checker.getResolvedSignature(node)?.declaration);
   const symbol = (doc,node) => {let value=doc.checker.getSymbolAtLocation(node);if(value?.flags & doc.ts.SymbolFlags.Alias)value=doc.checker.getAliasedSymbol(value);return value;};
   const named = async (doc,node,name) => {
@@ -15,6 +16,7 @@ export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,led
   const endpoint = async (doc,input,seen=new Set()) => {
     const ts=doc.ts;if(!input||seen.has(input)||seen.size>=32)return null;seen=new Set(seen).add(input);
     if(ts.isParenthesizedExpression(input)||ts.isAsExpression(input)||ts.isNonNullExpression(input))return endpoint(doc,input.expression,seen);
+    const receivedPorts=await receivedEndpoint(doc,input);if(receivedPorts)return receivedPorts;
     if(await named(doc,ts.isPropertyAccessExpression(input)?input.name:input,'parentPort'))return {kind:'parent',doc};
     if(ts.isIdentifier(input)) {
       const declaration=symbol(doc,input)?.valueDeclaration;
@@ -24,7 +26,7 @@ export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,led
           const channel=await endpoint(doc,owner.initializer,seen);if(channel?.kind==='channel')return {kind:'port',doc,node:channel.node,port:key.text};
         }
       }
-      if(declaration&&ts.isVariableDeclaration(declaration)&&declaration.getSourceFile()===doc.sourceFile&&declaration.parent.flags & ts.NodeFlags.Const)return endpoint(doc,declaration.initializer,seen);
+      if(declaration&&ts.isVariableDeclaration(declaration)&&declaration.parent.flags & ts.NodeFlags.Const) {const owner=byFile.get(keyPath(declaration.getSourceFile().fileName));if(owner)return endpoint(owner,declaration.initializer,seen);}
       return null;
     }
     if(endpoints.has(input))return endpoints.get(input);
@@ -46,6 +48,41 @@ export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,led
       if(!doc.ts.isPropertyAssignment(property)&&!doc.ts.isShorthandPropertyAssignment(property))return null;
       const name=property.name;if(!doc.ts.isIdentifier(name)&&!doc.ts.isStringLiteralLike(name)||result.has(name.text)||name.text==='__proto__')return null;
       result.set(name.text,doc.ts.isPropertyAssignment(property)?property.initializer:property.name);
+    }
+    return result;
+  };
+  const portCandidates=value=>value?.kind==='port'?[value]:value?.kind==='received-ports'?value.ports:[];
+  const portSame=(a,b)=>a.node===b.node&&a.doc===b.doc&&a.port===b.port;
+  const receivedEndpoint = async (doc,input) => {
+    const ts=doc.ts,parts=[];let base=input;
+    while(base&&(ts.isPropertyAccessExpression(base)||ts.isElementAccessExpression(base))) {
+      const key=ts.isPropertyAccessExpression(base)?base.name:base.argumentExpression;
+      if(!key||(ts.isPropertyAccessExpression(base)?!ts.isIdentifier(key):!ts.isStringLiteralLike(key))||parts.length>=8)return null;
+      parts.unshift(key.text);base=base.expression;
+    }
+    if(!base||!ts.isIdentifier(base))return null;
+    const root=await named(doc,base,'workerData')?'workerData':symbol(doc,base),paths=received.get(doc).get(root),ports=paths?.get(JSON.stringify(parts));
+    return ports?.length?{kind:'received-ports',ports}:null;
+  };
+  const bindPorts = (doc,root,parts,ports) => {
+    if(!received.get(doc).has(root))received.get(doc).set(root,new Map());
+    const paths=received.get(doc).get(root),key=JSON.stringify(parts),old=paths.get(key)||[];let changed=false;
+    for(const port of ports)if(!old.some(value=>portSame(value,port))) {if(old.length>=32){ledgers.get(doc).reasons.add('node_worker_transfer_candidate_budget');break;}old.push(port);changed=true;}
+    paths.set(key,old);return changed;
+  };
+  const transferredPayload = async (doc,input,list) => {
+    if(!input||!list||!doc.ts.isArrayLiteralExpression(list)||list.elements.some(doc.ts.isSpreadElement))return [];
+    const allowed=[];for(const value of list.elements.slice(0,32))allowed.push(...portCandidates(await endpoint(doc,value)));
+    if(list.elements.length>32)ledgers.get(doc).reasons.add('node_worker_transfer_list_budget');
+    const result=[],pending=[{doc,node:input,parts:[],seen:new Set()}];
+    while(pending.length) {
+      if(!consumeJoin(doc))break;const item=pending.pop(),ts=item.doc.ts;let node=item.node;
+      if(!node||item.seen.has(node)||item.seen.size>=32||item.parts.length>8){ledgers.get(doc).reasons.add('node_worker_transfer_payload_budget');continue;}
+      const seen=new Set(item.seen).add(node);
+      const ports=portCandidates(await endpoint(item.doc,node)).filter(port=>allowed.some(value=>portSame(value,port)));
+      if(ports.length){result.push({parts:item.parts,ports,node,doc:item.doc});continue;}
+      if(ts.isIdentifier(node)) {const declaration=symbol(item.doc,node)?.valueDeclaration,owner=declaration&&byFile.get(keyPath(declaration.getSourceFile().fileName));if(owner&&ts.isVariableDeclaration(declaration)&&declaration.parent.flags&ts.NodeFlags.Const)pending.push({...item,doc:owner,node:declaration.initializer,seen});continue;}
+      if(ts.isObjectLiteralExpression(node)) {const props=properties(item.doc,node);if(!props){ledgers.get(doc).reasons.add('node_worker_transfer_payload_shape_unresolved');continue;}for(const [key,value] of props)pending.push({...item,node:value,parts:[...item.parts,key],seen});}
     }
     return result;
   };
@@ -90,14 +127,41 @@ export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,led
     if(ts.isNewExpression(node)) {const value=await endpoint(doc,node);if(value?.kind==='worker')constructions.push({...value,entry:await entryFor(value)});continue;}
     if(!ts.isCallExpression(node)||!ts.isPropertyAccessExpression(node.expression)||!['on','once','addListener'].includes(node.expression.name.text)||node.arguments.length<2||!ts.isStringLiteralLike(node.arguments[0])||node.arguments[0].text!=='message')continue;
     const verified=await declaration(doc,node);
-    if(!verified||verified.family!=='node-type-package'||!['worker_threads','node:worker_threads','events','node:events'].includes(verified.moduleName))continue;
+    const declared=verified?.family==='node-type-package'&&['worker_threads','node:worker_threads','events','node:events'].includes(verified.moduleName);
     const receiver=await endpoint(doc,node.expression.expression),fn=callback(doc,node.arguments[1]);
-    if(!receiver||!fn)continue;
+    if(!fn)continue;
     const parameter=fn.parameters[0];if(!parameter||!ts.isIdentifier(parameter.name)){ledgers.get(doc).reasons.add('node_worker_message_binding_pattern_unresolved');continue;}
     const parameterSymbol=doc.checker.getSymbolAtLocation(parameter.name);
     const data=(payloadUses.get(doc).get(parameterSymbol)||[]).filter(use=>use.node!==parameter.name&&use.node.pos>=fn.pos&&use.node.end<=fn.end).map(use=>use.ref);
-    consumers.push({doc,node,receiver,data,invocation:doc.expressionFor(node)});
+    registrations.push({doc,node,receiver,data,parameterSymbol,declared,invocation:doc.expressionFor(node)});
   }
+  // Construction payloads establish candidate transferred endpoints before message joins.
+  for(const worker of constructions) if(worker.entry&&enabledFor(worker.entry)) {
+    const options=properties(worker.doc,worker.node.arguments?.[1]);
+    for(const value of await transferredPayload(worker.doc,options?.get('workerData'),options?.get('transferList')))bindPorts(worker.entry,'workerData',value.parts,value.ports);
+  }
+  const sends=[];
+  for(const doc of documents)if(enabledFor(doc))for(const observation of doc.observations) {
+    const call=observation.node,ts=doc.ts;if(!call||!ts.isCallExpression(call)||!ts.isPropertyAccessExpression(call.expression)||call.expression.name.text!=='postMessage')continue;
+    sends.push({doc,call,declared:nodeAuthority(await declaration(doc,call))});
+  }
+  const peers = async (doc,receiver,consumer) => {
+    const other=consumer.receiver;
+    return receiver?.kind==='worker'&&other?.kind==='parent'&&consumer.doc===await entryFor(receiver)
+      || receiver?.kind==='parent'&&other?.kind==='worker'&&await entryFor(other)===doc
+      || portCandidates(receiver).some(port=>portCandidates(other).some(value=>value.node===port.node&&value.doc===port.doc&&value.port!==port.port));
+  };
+  let changed=true,round=0;
+  while(changed&&round++<8) {
+    changed=false;consumers.length=0;
+    for(const registration of registrations) {registration.receiver=await endpoint(registration.doc,registration.node.expression.expression);if(registration.receiver&&(registration.declared||portCandidates(registration.receiver).length))consumers.push(registration);}
+    for(const send of sends) {
+      if(!consumeJoin(send.doc))break;const receiver=await endpoint(send.doc,send.call.expression.expression);if(!receiver||!send.declared&&!portCandidates(receiver).length)continue;
+      const payload=await transferredPayload(send.doc,send.call.arguments[0],send.call.arguments[1]);if(!payload.length)continue;
+      for(const consumer of consumers) {if(!consumeJoin(send.doc))break;if(await peers(send.doc,receiver,consumer))for(const value of payload)changed=bindPorts(consumer.doc,consumer.parameterSymbol,value.parts,value.ports)||changed;}
+    }
+  }
+  if(changed)for(const doc of documents)if(enabledFor(doc))ledgers.get(doc).reasons.add('node_worker_transfer_fixed_point_budget');
   for(const worker of constructions) {
     const {doc,node,entry}=worker,invocation=doc.expressionFor(node),ledger=ledgers.get(doc);ledger.observed++;
     const request=make(doc,node,'node-worker-construction-request',invocation,entry?'source:'+entry.item.source.sourceUnitId:null);
@@ -115,21 +179,21 @@ export const collectCompilerNodeWorkerFlow = async ({group,documents,entries,led
   for(const doc of documents) if(enabledFor(doc)) for(const observation of doc.observations) {
     const call=observation.node,ts=doc.ts;
     if(!call||!ts.isCallExpression(call)||!ts.isPropertyAccessExpression(call.expression)||call.expression.name.text!=='postMessage')continue;
-    const verified=await declaration(doc,call);if(!nodeAuthority(verified))continue;
-    const receiver=await endpoint(doc,call.expression.expression),invocation=doc.expressionFor(call);if(!receiver||!invocation)continue;
+    const verified=await declaration(doc,call),receiver=await endpoint(doc,call.expression.expression),invocation=doc.expressionFor(call);if(!receiver||!invocation||!nodeAuthority(verified)&&!portCandidates(receiver).length)continue;
     const ledger=ledgers.get(doc);ledger.observed++;
     const dispatch=make(doc,call,'node-worker-message-dispatch-request',invocation);
     edge(doc,'dispatches',invocation,dispatch,invocation);
     for(let ordinal=0;ordinal<call.arguments.length;ordinal++)edge(doc,'consumes',doc.expressionFor(call.arguments[ordinal]),dispatch,invocation,ordinal);
     if(call.arguments[0]) {const clone=make(doc,call.arguments[0],'node-worker-clone-request',invocation);edge(doc,'packs',doc.expressionFor(call.arguments[0]),clone,invocation,0);edge(doc,'dispatches',clone,dispatch,invocation);}
-    const targetEntry=receiver.kind==='worker'?await entryFor(receiver):null;
+    if(receiver.kind==='received-ports') {
+      const transfer=make(doc,call.expression.expression,'node-worker-transferred-port-candidate',invocation);
+      for(const port of receiver.ports)edge(doc,'transfers',port.doc.expressionFor(port.node),transfer,invocation);
+      edge(doc,'dispatches',transfer,dispatch,invocation);ledgers.get(doc).reasons.add('node_worker_transfer_detachment_instance_and_delivery_unobserved');
+    }
     let matched=0;
     for(const consumer of consumers) {
       if(!consumeJoin(doc))break;
-      const other=consumer.receiver;
-      const matches=receiver.kind==='worker'&&other.kind==='parent'&&consumer.doc===targetEntry
-        || receiver.kind==='parent'&&other.kind==='worker'&&await entryFor(other)===doc
-        || receiver.kind==='port'&&other.kind==='port'&&other.node===receiver.node&&other.doc===doc&&other.port!==receiver.port;
+      const matches=await peers(doc,receiver,consumer);
       if(!matches)continue;
       const receive=make(consumer.doc,consumer.node,'node-worker-message-consumer-candidate',consumer.invocation,'source:'+consumer.doc.item.source.sourceUnitId,'source:'+doc.item.source.sourceUnitId);
       edge(doc,'dispatches',dispatch,receive,invocation);for(const target of consumer.data) {if(!consumeJoin(doc))break;edge(consumer.doc,'consumes',receive,target,invocation,0);}matched++;

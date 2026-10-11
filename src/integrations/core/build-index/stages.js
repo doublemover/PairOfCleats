@@ -764,6 +764,7 @@ export const runStage = async (
           root: runtime.root,
           modes: preprocessModes,
           documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
+          semanticPolicy: runtime.semanticPolicy,
           recordsDir: runtime.recordsDir,
           recordsConfig: runtime.recordsConfig,
           scmProvider: runtime.scmProvider,
