@@ -1,3 +1,4 @@
+import { createAbortError } from '../../../../shared/abort.js';
 import {
   PRESSURE_STATE_NORMAL,
   clampRatio,
@@ -36,6 +37,7 @@ export const createWorkerPoolQueue = (input = {}) => {
     maxGlobalRssBytes = 0
   } = input;
 
+  let closed = false;
   let pressureState = PRESSURE_STATE_NORMAL;
   let pressureTransitions = 0;
   let lastPressureTransitionAtMs = 0;
@@ -205,10 +207,12 @@ export const createWorkerPoolQueue = (input = {}) => {
    * @returns {Promise<{languageId:string,limit:number}|null>}
    */
   const acquireLanguageThrottleSlot = async (payload) => {
+    if (closed) throw createAbortError('Worker admission is closed');
     const languageId = normalizeLanguageId(payload?.languageId);
     const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
     if (!languageId || mode !== 'code') return null;
     while (true) {
+      if (closed) throw createAbortError('Worker admission is closed');
       const sample = readProcessPressureSample();
       updatePressureState({
         pressureRatio: sample.pressureRatio,
@@ -275,7 +279,16 @@ export const createWorkerPoolQueue = (input = {}) => {
     }
   });
 
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    for (const key of [...pressureThrottleWaitersByLanguage.keys()]) notifyWaitersForKey(key);
+    pressureCache.clear();
+  };
+
   return {
+    close,
+    isClosed: () => closed,
     notifyThrottleWaiters,
     readProcessPressureSample,
     updatePressureState,

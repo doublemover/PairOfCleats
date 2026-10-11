@@ -1,3 +1,4 @@
+import { isAbortError } from '../../../shared/abort.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import os from 'node:os';
 import util from 'node:util';
@@ -135,6 +136,7 @@ export async function createIndexerWorkerPool(input = {}) {
   const maxRestartAttempts = 3;
   const restartBaseDelayMs = 5000;
   const restartMaxDelayMs = 10000;
+  let lifecycle = null;
   try {
     const configuredMaxWorkers = Number.isFinite(poolConfig?.maxWorkers)
       ? Math.max(1, Math.floor(poolConfig.maxWorkers))
@@ -246,7 +248,6 @@ export async function createIndexerWorkerPool(input = {}) {
       maxGlobalRssBytes
     });
 
-    let lifecycle = null;
     const workerCoordinator = createWorkerProcessCoordinator({
       poolLabel,
       normalizedStage,
@@ -571,6 +572,7 @@ export async function createIndexerWorkerPool(input = {}) {
           }
           queueController.recordPressureCacheEntry(payload);
           throttleSlot = await queueController.acquireLanguageThrottleSlot(payload);
+          if (queueController.isClosed()) return null;
           const result = await lifecycle.getPool().run(
             sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
             { name: 'tokenizeChunk' }
@@ -578,6 +580,7 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
+          if (queueController.isClosed() && isAbortError(err)) return null;
           return handleWorkerTaskError({
             err,
             payload,
@@ -637,7 +640,7 @@ export async function createIndexerWorkerPool(input = {}) {
         }
       },
       async destroy() {
-        queueController.notifyThrottleWaiters();
+        queueController.close();
         await destroyWorkerPoolLifecycleWithTimeout({
           lifecycle,
           poolLabel,
@@ -647,6 +650,18 @@ export async function createIndexerWorkerPool(input = {}) {
       }
     };
   } catch (err) {
+    // Initialization can fail after Piscina has acquired threads (listener
+    // attachment, diagnostics or initial metrics). Returning a fallback must
+    // not detach those workers from their existing lifecycle owner.
+    if (lifecycle) {
+      try {
+        await destroyWorkerPoolLifecycleWithTimeout({
+          lifecycle, poolLabel, timeoutMs: resolvedCleanupTimeoutMs, log
+        });
+      } catch (cleanupError) {
+        throw new AggregateError([err, cleanupError], 'Worker pool initialization and cleanup failed.');
+      }
+    }
     log(`Worker pool unavailable: ${err?.message || err}`);
     return null;
   }
