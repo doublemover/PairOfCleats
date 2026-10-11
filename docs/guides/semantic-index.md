@@ -90,6 +90,17 @@ return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
 Extraction, analysis and response coverage are separate. Query coverage carries
 partition provenance and retains incomplete evidence rather than claiming no path.
 
+## Interrupted Stage1 recovery
+
+A missing publication or stale `running` heartbeat does not invalidate immutable
+per-file completion records. After the run owner confirms processing has stopped,
+repeat the same source/configuration/cache-root invocation with `--incremental`
+explicitly enabled. A fresh generation validates retained completion descriptors,
+bundle checksums and semantic parts before parser scheduling; invalid members miss
+individually. Preserve the abandoned build metadata as historical evidence.
+The [watchdog recovery procedure](../archived/watchdog-recovery-2026-10-11.md)
+describes the campaign-compatible diagnostic fix and exact application boundaries.
+
 ## Deferred analysis and compiler admission
 
 Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`

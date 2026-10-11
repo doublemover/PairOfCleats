@@ -346,3 +346,16 @@ export const summarizeStage1SoftKickCleanup = (cleanupResults = []) => {
     cleanupResults: summaries
   };
 };
+
+/** Keep asynchronous watchdog diagnostics on the normal stage failure path.
+ * The stage owns cancellation and ordered-drain rejection; diagnostics own no
+ * process exit or build-state mutation.
+ */
+export const createStage1WatchdogCallback = ({ run, onError, signal }) => () => {
+  if (signal?.aborted) return;
+  try { run(); } catch (cause) {
+    const error = new Error('Stage1 watchdog callback failed: ' + (cause?.message || String(cause)), { cause });
+    error.code = 'ERR_STAGE1_WATCHDOG';
+    onError(error);
+  }
+};

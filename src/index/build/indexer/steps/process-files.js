@@ -142,6 +142,7 @@ import {
 } from './process-files/planner.js';
 import {
   buildStage1ProcessingStallSnapshot,
+  createStage1WatchdogCallback,
   collectStage1StalledFiles,
   formatStage1SchedulerStallSummary,
   formatStage1StalledFileText,
@@ -1514,6 +1515,12 @@ export const processFiles = async ({
     const collectStalledFiles = (limit = 6) => (
       collectStage1StalledFiles(inFlightFiles, { limit })
     );
+    // Timer exceptions must reject normal stage work so phase failure and durable
+    // shutdown handling can run; an uncaught timer bypasses that recovery path.
+    const watchdogCallback = run => createStage1WatchdogCallback({
+      run, signal: effectiveAbortSignal,
+      onError: error => { orderedAppender.abort(error); abortProcessing(error); }
+    });
     const buildProcessingStallSnapshot = ({
       reason = 'stall_snapshot',
       idleMs = null,
@@ -1531,7 +1538,7 @@ export const processFiles = async ({
         getOrderedPendingCount,
         orderedAppender,
         postingsQueue,
-        queueDelaySummary,
+        queueDelaySummary: stageTimingTracker.getQueueDelaySummary(),
         stage1WindowSnapshot: resolveStage1WindowSnapshot(),
         stage1OwnershipPrefix: stage1OwnershipPrefix,
         runtime
@@ -1994,7 +2001,7 @@ export const processFiles = async ({
     };
     const preDispatchHeartbeatMs = Math.max(10000, progressHeartbeatMs || FILE_PROGRESS_HEARTBEAT_DEFAULT_MS);
     if (preDispatchHeartbeatMs > 0) {
-      preDispatchWatchdogTimer = setInterval(() => {
+      preDispatchWatchdogTimer = setInterval(watchdogCallback(() => {
         if (stage1StallAbortTriggered) return;
         const elapsedMs = Math.max(0, Date.now() - preDispatchPhaseAtMs);
         if (elapsedMs >= preDispatchHeartbeatMs) {
@@ -2023,7 +2030,7 @@ export const processFiles = async ({
           orderedAppender.abort(err);
           abortProcessing(err);
         }
-      }, preDispatchHeartbeatMs);
+      }), preDispatchHeartbeatMs);
       preDispatchWatchdogTimer.unref?.();
     }
     /**
@@ -2122,9 +2129,9 @@ export const processFiles = async ({
       const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });
       if (stage1StallAbortMs > 0 && !stallAbortTimer) {
         const pollMs = Math.max(2000, Math.min(10000, Math.floor(stage1StallAbortMs / 6)));
-        stallAbortTimer = setInterval(() => {
+        stallAbortTimer = setInterval(watchdogCallback(() => {
           evaluateStalledProcessing('stall_poll_timer');
-        }, pollMs);
+        }), pollMs);
         stallAbortTimer.unref?.();
       }
       if (!watchdogAdaptiveLogged && Number(fileWatchdogConfig.adaptiveSlowFloorMs) > 0) {
@@ -2958,15 +2965,15 @@ export const processFiles = async ({
     getStage1ProgressSnapshot = stage1ProgressTracker.snapshot;
     if (stallSnapshotMs > 0) {
       const stallSnapshotIntervalMs = Math.max(250, Math.floor(stallSnapshotMs / 2));
-      stallSnapshotTimer = setInterval(() => {
+      stallSnapshotTimer = setInterval(watchdogCallback(() => {
         emitProcessingStallSnapshot();
-      }, stallSnapshotIntervalMs);
+      }), stallSnapshotIntervalMs);
       stallSnapshotTimer.unref?.();
     }
     if (progressHeartbeatMs > 0) {
-      progressHeartbeatTimer = setInterval(() => {
+      progressHeartbeatTimer = setInterval(watchdogCallback(() => {
         emitProcessingProgressHeartbeat();
-      }, progressHeartbeatMs);
+      }), progressHeartbeatMs);
       progressHeartbeatTimer.unref?.();
     }
     clearPreDispatchWatchdog();
