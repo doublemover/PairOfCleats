@@ -28,6 +28,7 @@ const clampDurationMs = (value) => {
  * @returns {{
  *  recordStageTimingSample:Function,
  *  observeQueueDelay:Function,
+ *  getQueueDelaySummary:Function,
  *  observeWatchdogNearThreshold:Function,
  *  buildPayload:Function
  * }}
@@ -219,6 +220,7 @@ export const createStage1TimingBreakdownTracker = ({
   return {
     recordStageTimingSample,
     observeQueueDelay,
+    getQueueDelaySummary: () => ({ ...queueDelaySummary }),
     observeWatchdogNearThreshold,
     buildPayload
   };

@@ -51,7 +51,8 @@ old author-workspace receipts remain historical. The 74-case cross-platform fail
 union now passes targeted cloud checks after grouped format, checksum and lifecycle
 repairs; hosted CI remains exact-head evidence.
 
-Next, in order: full interrupted multi-worker recovery and transient accounting;
+Priority repair: [watchdog crash and cache-preserving resume](archived/watchdog-recovery-2026-10-11.md).
+Next: full interrupted multi-worker recovery and transient accounting;
 remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
 integration; WASM module decoding and exact host/module joins; Python/C/Swift/Rust
 adapters. The calibrated estimator remains last priority. Retained-cache cleanup,
