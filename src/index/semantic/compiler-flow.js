@@ -1,13 +1,14 @@
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { propertyPathsOverlap } from './compiler-property-paths.js';
-import { compilerInvocationInputs } from './compiler-invocation.js';
+import { compilerCallAdapter } from './compiler-call-adapter.js';
+import { compilerRuntimeParameters, compilerInvocationInputs } from './compiler-invocation.js';
 import { createCompilerFieldPaths, collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 import { buildCompilerFlowGraph } from './compiler-flow-graph.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
 /** Source-owned definition versions plus monotone reaching-definition joins. */
-export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expressionFor, declarationFor,
+export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourceFile, nodes, expressionFor, declarationFor,
   source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
   if (['off', 'deferred'].includes(policy.enrichment.localFlow)) return null;
   const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-cfg-flow', version: SEMANTIC_ANALYSIS_VERSIONS.cfgFlow },
@@ -206,7 +207,9 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
         if (location.parameter !== null) effects.push({ parameter: location.parameter, path: location.path, ref: heapWrites.get(block) });
       }
       if ((event?.kind === 'operation' && (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node))) || ['heapRead','heapWrite'].includes(event?.kind)) {
-        for(const {argument} of compilerInvocationInputs(ts,block.node).inputs) fields.rootsFor(argument);
+        const adapter=compilerCallAdapter({ts,checker,node:block.node,isDefaultLibrary});
+        for(const argument of adapter?.runtimeArguments||compilerInvocationInputs(ts,block.node).runtimeArguments) fields.rootsFor(argument);
+        if(adapter) {fields.rootsFor(adapter.receiver);for(const reason of adapter.reasons)reasons.add(reason);}
         const callee=['heapRead','heapWrite'].includes(event?.kind)?event.target:block.node.expression||block.node.tag;
         if(ts.isNewExpression(block.node))fields.rootsFor(block.node);
         if(callee?.kind===ts.SyntaxKind.SuperKeyword)fields.rootsFor(callee);
@@ -280,8 +283,8 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
       edge('returns',input,result,null,'modeled'); returnRefs.push(result);
     }
     summaries.push({ owner, ownerRef, span: [owner.getStart(sourceFile), owner.end], declaration: owner.parent && ts.isVariableDeclaration(owner.parent) && owner.parent.initializer === owner ? declarationFor(owner.parent) : declarationFor(owner) || (owner !== sourceFile ? ownerRef : null), returns: returnRefs,
-      constructible:ts.isConstructorDeclaration(owner)||ts.isFunctionDeclaration(owner)||ts.isFunctionExpression(owner), lexicalReceiver: ts.isArrowFunction(owner), restIndex: (owner.parameters || []).findIndex(parameter=>parameter.dotDotDotToken),
-      parameters: (owner.parameters || []).map(parameter => declarationFor(parameter)), parameterFields, effects, exceptions: exceptionRefs, complete: complete && reasons.size === 0 });
+      constructible:ts.isConstructorDeclaration(owner)||ts.isFunctionDeclaration(owner)||ts.isFunctionExpression(owner), lexicalReceiver: ts.isArrowFunction(owner), restIndex: compilerRuntimeParameters(ts,owner).findIndex(parameter=>parameter.dotDotDotToken),
+      parameters: compilerRuntimeParameters(ts,owner).map(parameter => declarationFor(parameter)), parameterFields, effects, exceptions: exceptionRefs, complete: complete && reasons.size === 0 });
     for (const reason of reasons) allReasons.add(reason);
   }
   const keys = [...ledger.keys()].sort(), ids = new Map(keys.map((key, id) => [key, id]));
