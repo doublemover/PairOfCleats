@@ -75,3 +75,23 @@ watchdog and scheduler regressions passed (5.35 seconds; slowest 2.42 seconds).
 Formatting, config budget, environment usage, generated freshness, command
 surface, workflow contract, all 39 gate fixtures (7.43 seconds; slowest 3.88 seconds),
 and `git diff --check` passed. No broad index, validation campaign or publication was performed.
+
+## Configuration maintenance follow-up
+
+The immediate restart patch is `0653746d9779cbd62c490d85dd9573d9f9f36e96`.
+The separate maintenance change removes the duplicate manual known-config-key
+list: the validator and inventory now use the same schema declarations. The
+schema collector includes named properties inside nested arrays/maps; imports
+no longer regenerate committed reports as a side effect. Public budgets and
+CLI/environment allowlists remain intentional review points. Type/range/enum
+and unknown-key validation still runs normally. The documented
+[edit workflow](../config/inventory-notes.md#editing-supported-configuration)
+identifies the single declaration and generated outputs. The indexing owner
+does not need this tooling-only follow-up to restart with eight slots.
+
+Maintenance validation: all five focused inventory fixtures passed (4.45 seconds;
+slowest 2.34 seconds), including schema-only additions/removals and nested map/array
+coverage. Formatting, config budget, environment usage, generated freshness, command
+surface, workflow contract, all 39 gate fixtures (7.25 seconds; slowest 3.83 seconds),
+and diff whitespace checks passed for the follow-up. No failures, timeouts or skips.
+The earlier six runtime fixtures apply unchanged; the follow-up edits tooling/docs only.
