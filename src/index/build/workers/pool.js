@@ -1,3 +1,4 @@
+import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import os from 'node:os';
 import util from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -54,14 +55,19 @@ export const destroyWorkerPoolLifecycleWithTimeout = async ({
   poolLabel = 'tokenize',
   timeoutMs = null,
   log = defaultLog
-} = {}) => (
-  runBuildCleanupWithTimeout({
+} = {}) => {
+  const result = await runBuildCleanupWithTimeout({
     label: `worker-pool.${poolLabel}.lifecycle-destroy`,
     cleanup: () => lifecycle?.destroy?.(),
     timeoutMs,
     log
-  })
-);
+  });
+  if (!result.timedOut || typeof lifecycle?.forceDestroy !== 'function') return result;
+  // A timeout only abandons the wait. It does not stop a worker. Escalate via
+  // the same lifecycle owner so existing Piscina termination is actually run.
+  await lifecycle.forceDestroy();
+  return { ...result, pending: false, forced: true };
+};
 
 /**
  * Create a single indexer worker pool with crash logging, restart handling,
@@ -697,21 +703,37 @@ export async function createIndexerWorkerPools(input = {}) {
     config: { ...baseConfig, maxWorkers: tokenizeBudget },
     poolName: 'tokenize'
   });
-  const quantizePool = await createIndexerWorkerPool({
-    ...input,
-    config: { ...baseConfig, maxWorkers: quantizeBudget },
-    poolName: 'quantize'
-  });
-
+  // Register ownership as each pool becomes available. The shared lifecycle
+  // owner attempts every cleanup even when another fails, including partial
+  // initialization. Its reverse-order close matches acquisition order.
+  const lifecycle = createLifecycleRegistry({ name: 'indexer-worker-pools' });
+  if (tokenizePool?.destroy) {
+    lifecycle.registerCleanup(() => tokenizePool.destroy(), { label: 'tokenize' });
+  }
+  let quantizePool;
+  try {
+    quantizePool = await createIndexerWorkerPool({
+      ...input,
+      config: { ...baseConfig, maxWorkers: quantizeBudget },
+      poolName: 'quantize'
+    });
+    if (quantizePool?.destroy && quantizePool !== tokenizePool) {
+      lifecycle.registerCleanup(() => quantizePool.destroy(), { label: 'quantize' });
+    }
+  } catch (error) {
+    try {
+      await lifecycle.close();
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Worker pool initialization and cleanup failed.');
+    }
+    throw error;
+  }
   const finalTokenizePool = tokenizePool || quantizePool;
   const finalQuantizePool = quantizePool || tokenizePool;
-  const destroy = async () => {
-    if (finalTokenizePool?.destroy) {
-      await finalTokenizePool.destroy();
-    }
-    if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
-      await finalQuantizePool.destroy();
-    }
+  let destroyPromise = null;
+  const destroy = () => {
+    if (!destroyPromise) destroyPromise = lifecycle.close();
+    return destroyPromise;
   };
   return {
     tokenizePool: finalTokenizePool,
