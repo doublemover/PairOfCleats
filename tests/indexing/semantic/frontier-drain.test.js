@@ -10,7 +10,7 @@ import { drainSemanticFrontier } from '../../../src/index/semantic/frontier-drai
 import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core/index.js';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-frontier-drain-'));
 const control = openSemanticFrontier({ Database, filename: path.join(root, 'control.sqlite') });
-const scheduler = createBuildScheduler({ enabled: true, cpuTokens: 1, ioTokens: 1, memoryTokens: 2, queues: { relations: { priority: 1 } } });
+const scheduler = createBuildScheduler({ enabled: true, cpuTokens: 1, ioTokens: 1, memoryTokens: 2, queues: { 'stage2.relations': { priority: 1 } } });
 const task = { schemaVersion: 1, kind: 'localFlow', baseBuildId: 'base', sourceUnits: ['su1:' + 'a'.repeat(64)],
   inputHashes: ['b'.repeat(64)], policyHash: 'c'.repeat(64), targetSetHash: 'd'.repeat(64), targetsRef: 'immutable:targets',
   dependencies: [], priority: 1, reason: 'bounded_deferred_analysis', coverageToProduce: ['localFlow'] };
@@ -28,6 +28,8 @@ try {
     verifyPublication: async () => published };
   const result = await drainSemanticFrontier(options);
   assert.equal(result.completed, 1); assert.equal(called, 1); assert.equal(result.status, 'complete');
+  assert.equal(scheduler.stats().queues['stage2.relations'].started, 1);
+  assert.equal(scheduler.stats().queues.relations, undefined, 'drain must not invent an unconfigured lane');
   assert.equal(control.getTask(task.taskId).state, 'completed');
   const recovery = { ...task, targetSetHash: 'f'.repeat(64) };
   recovery.taskId = createSemanticTaskId({ kind: recovery.kind, inputHashes: recovery.inputHashes, policyHash: recovery.policyHash, targetSetHash: recovery.targetSetHash });

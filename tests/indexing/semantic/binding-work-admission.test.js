@@ -18,6 +18,11 @@ for (const bindings of ['eager']) {
     const work = await prepareSemanticBindingWork({ state: fixture.state, runtime: fixture.runtime });
     const result = await work.run(fixture.emitBindings);
     assert.equal(result.ran, true);
+    const queueStats = fixture.runtime.scheduler.stats().queues;
+    assert.equal(queueStats['stage2.relations'].started, 1, 'compiler work reaches the canonical scheduler lane');
+    assert.equal(queueStats['stage2.relations'].surface, 'inference');
+    assert.equal(queueStats['stage2.relations'].priority, 32);
+    assert.equal(queueStats.relations, undefined, 'no unconfigured lookalike lane is created');
     assert.deepEqual(fixture.state.semanticCompletedTasks, result.receipts);
     const control = fixture.openControl();
     try {
