@@ -1,3 +1,4 @@
+import { buildStackMeshes } from './stack-scene.js';
 import { state } from './state.js';
 import { clamp } from './utils.js';
 import { applyHeightFog, createGlassMaterial, createTextPlane, createWireframe } from './materials.js';
@@ -34,6 +35,7 @@ const countMemberFlows = (member) => {
 };
 
 export const buildMeshes = () => {
+  if(state.layoutStyle==='stacks')return buildStackMeshes();
   const {
     THREE,
     visuals,

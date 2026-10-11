@@ -1,3 +1,4 @@
+import { updateStackVisibility } from './stack-scene.js';
 export const resolveLodTier = ({ zoom, edgeCount, frameMs, performance }) => {
   const lod = performance?.lod || {};
   const budget = Number.isFinite(performance?.frameBudgetMs) ? performance.frameBudgetMs : 18;
@@ -13,6 +14,7 @@ export const resolveLodTier = ({ zoom, edgeCount, frameMs, performance }) => {
 
 export const applyLodTier = (state, tier) => {
   if (!state || !tier) return;
+  if(state.layoutStyle==='stacks'){updateStackVisibility();return;}
   if (state.lodTier === tier) return;
   state.lodTier = tier;
 

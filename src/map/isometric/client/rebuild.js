@@ -1,10 +1,11 @@
+import { focusStack } from './stack-navigation.js';
 import { state } from './state.js';
 import { clearGroup, disposeObject } from './scene-utils.js';
 import { applyHeightFog, updateFog, updateGridGlow, updateFlowLights } from './materials.js';
 import { computeLayout } from './layout.js';
 import { buildMeshes } from './meshes.js';
 import { buildEdges } from './edges.js';
-import { applyHighlights, renderSelectionDetails } from './selection.js';
+import { applyHighlights, renderSelectionDetails, setSelection } from './selection.js';
 
 const resetScene = () => {
   clearGroup(state.fileGroup);
@@ -91,7 +92,10 @@ export const rebuildScene = () => {
     position: state.camera.position.clone(),
     zoom: state.camera.zoom
   };
+  const previousSelection=state.selectedInfo;
+  const firstLayout=!state.cameraInitialized;
   resetScene();
+  state.selectedInfo=null;
   computeLayout();
 
   const {
@@ -114,9 +118,9 @@ export const rebuildScene = () => {
   const gridSize = Math.max(80, Math.ceil(bounds.maxSpan * 1.4 / 10) * 10);
   const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize);
   const groundMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1a1f26,
-    metalness: 0.55,
-    roughness: 0.6,
+    color: state.layoutStyle==='stacks' ? 0x0c1520 : 0x1a1f26,
+    metalness: state.layoutStyle==='stacks' ? 0.08 : 0.55,
+    roughness: state.layoutStyle==='stacks' ? 0.92 : 0.6,
     envMapIntensity: Math.min(1.6, visuals.glass.envMapIntensity * 0.25)
   });
   applyHeightFog(groundMaterial);
@@ -242,4 +246,8 @@ export const rebuildScene = () => {
     }
   }
   applyHighlights();
+  if(state.layoutStyle==='stacks'){
+    if(previousSelection){const ref=previousSelection.type==='member'?state.memberInstanceById.get(String(previousSelection.id)):state.fileInstanceByKey.get(previousSelection.file);if(ref)setSelection({object:ref.mesh,instanceId:ref.instanceId});}
+    else if(firstLayout) focusStack();
+  }
 };

@@ -112,7 +112,7 @@ async function compileSource() {
     if (!diagramMode) return;
     validSource = $('source').value; compiled = result; diagram = mountDiagram($('diagram'), compiled, story.bindings, selection);
     if (selected) diagram.select(selected);
-    $('compile-status').textContent = `${compiled.layout.nodes.length} shapes · Reladraw 0.16.0`;
+    $('compile-status').textContent = `${compiled.layout.nodes.length} shapes · ${compiled.layout.nodes.filter(node => story.bindings[node.name]).length} bound identities · Reladraw 0.16.0`;
     $('export-svg').disabled = false; $('export-story').disabled = false;
   } catch (error) {
     if (error.name !== 'AbortError') { $('compile-status').textContent = error.message; notice(error.message, true); }

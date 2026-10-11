@@ -109,9 +109,10 @@ real application controls and actual Reladraw output but cannot qualify visual l
 A future authorized browser session should verify the remaining visual checklist below. The two-file published test index
 now covers catalog→semantic detail, actual code maps, graph context, impact and ranked memory search. The functional gate is assessed with producer, router, compiler and DOM tests; visual qualification remains explicitly open.
 
-The second stage remains unstarted: colored geometric stacks, segment-level links, larger-stack
-links and overall pipeline plumbing; semantic zoom, legible hierarchy and bounded navigation.
-Do not interpret this checkpoint as permission to skip the renderer comparison/readability gate.
+After the expanded eight-test producer/DOM suite passed, the owner directed proceeding with
+alternate validation rather than blocking on browser sign-in. The second-stage implementation
+is documented in [Semantic stacks](code-maps.md#semantic-stacks-threejs). Visual qualification
+remains separate from the programmatic functional gate.
 
 ## Alternate validation and remaining visual checks
 
