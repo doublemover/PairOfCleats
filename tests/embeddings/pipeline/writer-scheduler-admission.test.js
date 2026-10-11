@@ -53,3 +53,29 @@ assert.ok(writer.stats().peakPendingBytes <= 12);
 await assert.rejects(writer.enqueue(async () => {}, { bytes: 13 }), /byte budget/);
 await scheduler.shutdown();
 console.log('scheduler to embedding writer admission contracts passed');
+
+// Replay deterministic low-pressure telemetry over real scheduler queue stats.
+// A hard cap tightened during cooldown must not wait for the pressure timer.
+{
+  const owner = createBuildScheduler({ enabled: true, ioTokens: 8, cpuTokens: 1,
+    queues: { [name]: {} } });
+  const observed = { stats: () => {
+    const stats = owner.stats();
+    return { ...stats, adaptive: { ...stats.adaptive,
+      signals: { memory: { rssUtilization: 0.1, gcPressureScore: 0 } } } };
+  } };
+  let time = 0;
+  const policy = createEmbeddingWriterAdmission({ scheduler: observed, now: () => time,
+    indexingConfig: { embeddings: { writerAdaptiveStepMs: null, writerAdaptiveRssLow: null,
+      writerAdaptiveRssHigh: null } } });
+  assert.equal(policy.resolve(), 5);
+  owner.registerQueue(name, { maxPending: 1 });
+  time = 10;
+  assert.equal(policy.resolve(), 1, 'hard shrink bypasses 500ms adaptive cooldown');
+  owner.registerQueue(name, { maxPending: null });
+  time = 20;
+  assert.equal(policy.resolve(), 1, 'removing cap does not accelerate pressure-based expansion');
+  time = 500;
+  assert.equal(policy.resolve(), 3, 'restore floor and resume normal bounded expansion');
+  await owner.shutdown();
+}
