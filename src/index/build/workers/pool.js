@@ -467,6 +467,9 @@ export async function createIndexerWorkerPool(input = {}) {
       } else {
         await lifecycle.scheduleRestart(reason);
       }
+      // Existing pressure waiters also belong to an unrecoverable pool. Let
+      // them release active counters so its idle shutdown can finish.
+      if (lifecycle.isPermanentlyDisabled()) queueController.close();
       logWorkerTaskError({
         payload,
         payloadMetaPool,

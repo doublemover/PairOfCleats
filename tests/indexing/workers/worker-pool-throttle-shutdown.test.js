@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { createIndexerWorkerPool } from '../../../src/index/build/workers/pool.js';
 import { createWorkerPoolQueue } from '../../../src/index/build/workers/pool/queue.js';
+import { runWithTimeout } from '../../../src/shared/promise-timeout.js';
 
 const originalMemoryUsage = process.memoryUsage;
 const highPressure = Object.assign(() => ({ rss: 2 * 1024 ** 3, heapUsed: 10, heapTotal: 100 }), originalMemoryUsage);
@@ -33,4 +34,35 @@ try {
   await Promise.allSettled(tasks);
   await pool.destroy();
 }
-console.log('worker shutdown cancels pre-worker pressure admission and closes physical threads');
+// An unrecoverable running-task failure must close the same pressure waiters
+// even before an explicit destroy call. Otherwise active counters prevent the
+// lifecycle's own idle shutdown from ever completing.
+const disabled = await createIndexerWorkerPool({ config: { enabled: true, maxWorkers: 1, cleanupTimeoutMs: 50,
+  memoryPressure: { languageThrottle: throttle } }, memoryPolicy: { maxGlobalRssMb: 1024 },
+dictConfig: {}, postingsConfig: {}, log: () => {} });
+assert.ok(disabled);
+const disabledPhysical = disabled.pool;
+const originalRun = disabledPhysical.run;
+let blocked;
+try {
+  process.memoryUsage = highPressure;
+  let settled = false;
+  blocked = disabled.tokenizeChunk({ mode: 'code', languageId: 'typescript', text: 'const x = 1;' })
+    .then(value => { settled = true; return value; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settled, false);
+  disabledPhysical.run = async () => { throw Object.assign(new Error('injected clone failure'), { name: 'DataCloneError' }); };
+  assert.equal(await disabled.tokenizeChunk({ mode: 'code', languageId: 'python', text: 'x = 1' }), null);
+  assert.equal(await runWithTimeout(() => blocked, { timeoutMs: 1000 }), null,
+    'permanent disable closes existing admission waiters without an external destroy');
+  assert.equal(settled, true);
+  assert.equal(disabled.stats().activeTasks, 0);
+  assert.equal(disabled.stats().pendingRestart, false);
+  assert.equal(disabledPhysical.threads.length, 0);
+} finally {
+  process.memoryUsage = originalMemoryUsage;
+  disabledPhysical.run = originalRun;
+  await disabled.destroy();
+  await blocked;
+}
+console.log('worker shutdown and permanent disable cancel pressure admission and close physical threads');
