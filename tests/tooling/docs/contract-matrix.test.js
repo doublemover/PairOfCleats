@@ -585,6 +585,12 @@ const expandSimpleBraceAlternates = (value) => {
   assert.match(roadmapText, /guides\/recovery-low-load-2026-10-03\.md/,
     'the finalization correction must link its bounded evidence and resource configuration');
   assert.ok(Buffer.byteLength(roadmapText) < 20000, 'keep the active roadmap concise; archive completed transcripts');
+  // core.autocrlf changes checkout bytes without changing authored content.
+  // Keep the same strict budget on BOTH forms, so Linux publication checks
+  // catch Windows expansion rather than weakening or normalizing away the cap.
+  const crlfRoadmapText = roadmapText.replace(/\r?\n/g, '\r\n');
+  assert.ok(Buffer.byteLength(crlfRoadmapText) < 20000,
+    'keep the active roadmap below 20000 UTF-8 bytes in CRLF checkouts too; archive completed transcripts');
 
   const validationSection = roadmapText.match(/## Validation Commands\r?\n([\s\S]*?)$/);
   assert.ok(validationSection);
