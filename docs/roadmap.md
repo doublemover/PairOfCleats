@@ -52,16 +52,15 @@ union now passes targeted cloud checks after grouped format, checksum and lifecy
 repairs; hosted CI remains exact-head evidence.
 
 The [WASM receipt](archived/wasm-semantic-checkpoint-2026-10-10.md) records PR550;
-the [JS/Node follow-up](archived/js-semantic-frontiers-2026-10-10.md) records its separate
-branch, validation and remaining limits. Module-targeted eager WASM flow is supported;
-binary deferred execution remains unsupported. An inherited cache-reader assertion
-still conflicts with the syntax/analysis policy split.
+[PR552](https://github.com/doublemover/PairOfCleats/pull/552) publishes the JS/Node
+checkpoint. The isolated [capability follow-on](archived/semantic-capabilities-2026-10-11.md)
+adds deferred binary tasks, constructor/accessor/private-path candidates, transferred
+Node ports, provider summary joins and a paginated-trace fix. The cache-reader identity conflict stays with recovery.
 
 Next: interrupted multi-worker recovery/transient accounting (separate owner);
-remaining constructor/accessor/private/escape and call/completion precision; transferred
-worker ports and provider/retrieval joins; deferred binary tasks; Python/C/Swift/Rust
-adapters. Estimator calibration stays last. Cache cleanup, control-store reconstruction
-and full public-surface qualification remain open.
+object/escape and completion precision; browser transferred ports, runtime/RPC joins;
+Python/C/Swift/Rust adapters. Estimator calibration stays last. Cache cleanup,
+control-store reconstruction and full public-surface qualification remain open.
 
 ## Current Initiatives
 
