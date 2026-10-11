@@ -1,3 +1,5 @@
+const handleMapArtifactsRoute = async (...args) => (await import('./router/map-artifacts.js')).handleMapArtifactsRoute(...args);
+const handleMapWorkspaceRoute = async (...args) => (await import('./router/map-workspace.js')).handleMapWorkspaceRoute(...args);
 // Keep health/startup independent of request-only search and semantic graphs.
 const handleSemanticTraceRoute = async (...args) => (await import('./router/semantic-trace.js')).handleSemanticTraceRoute(...args);
 const handleSemanticFindRoute = async (...args) => (await import('./router/semantic-find.js')).handleSemanticFindRoute(...args);
@@ -315,8 +317,15 @@ export const createApiRouter = ({
         res.end();
         return;
       }
+      if (await handleMapWorkspaceRoute(req, res, requestUrl, corsHeaders || {})) return;
+
       if (!isAuthorized(req)) {
         sendError(res, 401, ERROR_CODES.UNAUTHORIZED, 'Missing or invalid API token.', {}, corsHeaders || {});
+        return;
+      }
+
+      if (req.method === 'POST' && ['/map/catalog', '/map/artifact'].includes(requestUrl.pathname)) {
+        await handleMapArtifactsRoute({ req, res, requestUrl, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 

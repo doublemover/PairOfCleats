@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T09:18:46.543Z",
+  "generatedAt": "2026-10-11T22:00:45.703Z",
   "budgets": {
     "configKeys": 3,
     "envVars": 1,
@@ -5962,6 +5962,12 @@
         ]
       },
       {
+        "file": "tests/map/workspace/published-fixture.test.js",
+        "flags": [
+          "mode"
+        ]
+      },
+      {
         "file": "tests/perf/indexing/validate/stage-usage-checklist.test.js",
         "flags": [
           "mode"
@@ -7758,11 +7764,12 @@
       },
       {
         "flag": "mode",
-        "count": 35,
+        "count": 36,
         "files": [
           "bin/pairofcleats.js",
           "src/lang/typescript/syntax-context.js",
           "tests/map/build-contract-matrix.test.js",
+          "tests/map/workspace/published-fixture.test.js",
           "tests/perf/indexing/validate/stage-usage-checklist.test.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/graph/neighborhood-cache.js",
@@ -9333,6 +9340,7 @@
       "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js",
       "tests/lang/contracts/xml-lexical-boundaries.test.js",
       "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
+      "tests/map/workspace/projection.test.js",
       "tests/perf/bench/run.test.js",
       "tests/services/api/runtime-claims.test.js",
       "tests/services/api/runtime-evidence.test.js",
