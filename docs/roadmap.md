@@ -261,6 +261,8 @@ budget. Do not run a full index build, release campaign or duplicate scan merely
 to update a status page. Reproduce behavioral failures with small fixtures before
 expanding validation.
 
+[Orchestration and cleanup checkpoint](archived/orchestration-checkpoint-2026-10-11.md): bounded fixtures implemented; full-corpus qualification remains open.
+
 ## Archive and viewer queue (2026-10-09 checkpoint)
 
 [Historical CPU/archive receipts](archived/semantic-campaign-checkpoint-2026-10-10.md)
