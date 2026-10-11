@@ -260,15 +260,16 @@ with small fixtures before expanding validation.
 
 [Orchestration and cleanup checkpoint](archived/orchestration-checkpoint-2026-10-11.md): bounded fixtures implemented; full-corpus qualification remains open.
 
-## Archive and viewer queue (2026-10-09 checkpoint)
+## Archive and viewer checkpoint
 
-[Historical CPU/archive receipts](archived/semantic-campaign-checkpoint-2026-10-10.md)
-and [current policy/gates](guides/archive-pipeline-integration-20261009.md) retain
-exact measurements. Full corpus remains stopped at 100 units / 555 vectors;
-selective embedding and W8 are not promoted. Original DATs/source units remain
-preserved. Finish numerical, relevance and kernel-dispatch qualification before
-promotion; PR547 merge is unapproved. The [viewer replacement queue](guides/viewer-replacement-queue-20261009.md)
-stays behind embedding qualification. Alternative engines and optional Defuddle
-remain research; no installs or corpus restart are implied.
+[Archive receipts](archived/semantic-campaign-checkpoint-2026-10-10.md) and
+[current gates](guides/archive-pipeline-integration-20261009.md) retain measurements.
+Full corpus remains stopped at 100 units / 555 vectors; selective embedding and
+W8 are not promoted. Original DATs/source units remain preserved. Numerical,
+relevance and kernel-dispatch qualification precede promotion; PR547 merge is
+unapproved. Alternative engines and Defuddle remain research; no installs or corpus restart.
 
-Viewer checkpoint: bounded Reladraw evidence workspace implemented; browser acceptance blocked, Three.js replacement not started. See [coverage and remaining gates](guides/reladraw-workspace.md).
+Reladraw workspace and Three.js semantic stacks supersede the
+[historical queue](guides/viewer-replacement-queue-20261009.md). Producer, DOM and
+geometry checks passed; browser/GPU qualification remains open. See
+[coverage](guides/reladraw-workspace.md).
