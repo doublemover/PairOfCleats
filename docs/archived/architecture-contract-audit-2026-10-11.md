@@ -25,6 +25,7 @@ specified campaign tree. The tests and call paths below establish current covera
 | Per-file substages and weighted terminal progress were missing | Existing crash-stage updater forwards `onStage` independently of crash logging; `process-files.js` records it on in-flight entries. Existing actual file-processor fixture, heartbeat and weighted-progress deduplication fixtures pass. Retained; workload bytes remain terminal input weights, not an analysis-cost or memory estimate. |
 | Graceful cleanup could abandon stuck Piscina workers | Existing graceful deadline reaches `forceDestroy` and the shared Piscina termination owner; serialized shutdown and split-pool sibling cleanup remain present and tested. Two further caller gaps, partial initialization and pre-worker pressure waiters, are now repaired below. |
 | Stage1 fixed-eight controls were rejected by schema | Current schema and resolver support the existing three parse bounds. The real scheduler/runtime/ordered-commit regression still admits eight, enforces a stricter byte cap and cancels queued work. No admission or timeout increase was introduced. Runtime queue registration was separately overwriting explicit pending limits; repaired below. |
+| Configuration inventory duplicated the schema and ran on import | The maintenance repair is present: `tools/config/inventory.js` derives supported leaf keys through `inventory/schema.js`, while `tools/config/validate.js` feeds that same schema to `validateConfig`. Inventory generation is guarded by `isDirectExecution`; no duplicate known-key declaration or import-side regeneration was restored. Existing schema-authority, nested schema-scan and inventory fixtures are retained. |
 | Durable dependency-aware semantic scheduling and publication already exist | Frontier leases, closure verification, whole-generation publication and recovery remain owned by existing modules. Their admission/lifecycle/publication tests now use the actual build scheduler rather than a stub that repeated the wrong queue name. |
 | Historical scattered cache roots | The reported Windows storage screenshot is not proof of a current source defect. Runtime repo roots come from `getRepoCacheRoot`; Tree-sitter defaults live below that root; cross-file inference receives `runtime.repoCacheRoot`; embeddings delegates to the shared layout resolver. Bounded cache/root contract fixtures were selected. No Windows location or retained-cache inventory was inspected or modified. |
 
@@ -132,9 +133,20 @@ owned remaining compute cost; failed files do not get marked complete.
 The review reported two additional concrete handoffs to that change's owner:
 a cooldown could temporarily ignore a newly tightened writer cap, and absent FD
 telemetry could become a one-file cap while later FD reductions below the initial
-file concurrency were ignored. Their follow-up commits and test receipts are
-separate from this audit branch and must be included when assembling the batch.
+file concurrency were ignored. The owner repaired all three paths in
+`817c34459d2e3cfb1d638be7e3fa87e5bd44df92`: hard limits precede cooldown, absent FD
+telemetry preserves the existing static descriptor budget, and live FD reductions
+constrain both fixed/adaptive file admission below initial concurrency. Independent
+review verified the canonical coercer, the shared scheduler statistics and the
+actual production file pump. Both embedding commits were then cherry-picked into
+a separate local integration branch without changing the audit-only branch.
 Existing single-provider dispatch and cache-writer serialization were retained.
+The independent `embeddings/pipeline/grouped-work-failure-ledger` regression binds
+the actual processor callbacks to the work ledger for eight cases: direct/global
+batching, provider failure/scheduler abort, and zero/one preceding successful
+batches. It verifies unfinished groups and token cost remain, failed batches add
+no throughput sample, file publication is not reached, and all provider/request
+reservations and pending bytes/texts drain to zero.
 
 ## Validation and limits
 
@@ -179,3 +191,29 @@ ceilings, zero retries and native-status redo disabled. No synthetic planning re
 process-tree behavior, full-index wall time/RSS, hardware/provider concurrency and
 representative artifact equivalence remain unmeasured; the historical Windows
 stall's root cause is not inferred from these source defects.
+
+## Combined review checkpoint
+
+The separate integration branch composes the audit head `b8c1ee2` with embedding
+commits `11c767a` and `817c344` (local cherry-picks `532d5b6` and `f46a8d1`). Its
+83 bounded scheduler, semantic, worker, config-handoff and embedding fixtures
+passed (`.testLogs/run-1791757954062-okz9wl`, 49.2 seconds total, slowest 10.2
+seconds), followed by 39/39 gate fixtures
+(`.testLogs/run-1791758003741-ayedk7`, 25.5 seconds). Format, config budget,
+environment, freshness, command surface, workflow and whitespace checks passed.
+
+The historical schema-maintenance fixture had a stale expected public budget of
+two, while the unchanged campaign inventory already declares three public keys,
+including `tooling.typescript.typeRepresentation`. The bounded reconciliation
+initially passed five of six fixtures and failed that assertion
+(`.testLogs/run-1791758084708-vej1fk`). Only the fixture is corrected: it now asserts
+the exact existing three-key public allowlist as well as the unchanged budget.
+Schema-only additions/removals and nested validation are still checked. All six
+inventory fixtures and the independent failed-work ledger fixture then passed
+(`.testLogs/run-1791758194299-vf6cob`, 2.38 seconds); formatting passed again.
+
+Further production failure-path review reproduced an existing embedding file-pump
+ownership bug: after one task rejected the outer promise, a successful sibling
+could still start the next file during caller cleanup. This was handed back to the
+embedding owner for an admission-stop/owned-drain repair and regression. Its later
+integration receipt is recorded separately from the preceding green checkpoint.

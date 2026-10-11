@@ -38,7 +38,10 @@ const inventory = await generate();
 for (const key of ['fixtureNewSetting', 'fixtureModes[].count', 'fixtureProviders.*.mode']) {
   assert.ok(inventory.allowlists.knownConfigKeys.includes(key), key + ' must derive from the schema alone');
 }
-assert.deepEqual(inventory.budgets, { configKeys: 2, envVars: 1, cliFlags: 72 });
+assert.deepEqual(inventory.budgets, { configKeys: 3, envVars: 1, cliFlags: 72 });
+assert.deepEqual(inventory.allowlists.configKeys, [
+  'cache.root', 'quality', 'tooling.typescript.typeRepresentation'
+], 'schema-only fixture keys must not expand the reviewed public surface');
 assert.equal(validateConfig(schema, {
   fixtureNewSetting: 8, fixtureModes: [{ count: 2 }], fixtureProviders: { local: { mode: 'fast' } }
 }).ok, true);
