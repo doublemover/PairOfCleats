@@ -324,3 +324,13 @@ Structural fingerprint projection 2 includes hashes of exact retained literal te
 regular expressions and template text remain distinct. Missing/oversized retained
 source makes the projection incomplete; hash matches are still structural candidates,
 with binding, type and effect constraints unchecked, never equivalence probabilities.
+
+Recovery validates JSONL offsets in bounded 64 KiB windows for each of the data and
+offsets files. Every newline boundary is still checked; source/part hashes and
+semantic row validation remain required. Repeated validation uses size, mtime and
+ctime metadata, without retaining semantic rows. Watchdog snapshots include worker
+queue/restart/disable counters, memory-pressure state and scheduler token/byte
+capacity alongside progress, stalled files and process memory. Missing worker
+stats are explicitly unavailable, not evidence that a worker is healthy. See the
+[focused performance receipt](../archived/semantic-recovery-performance-2026-10-11.md)
+for measured scope and limits.

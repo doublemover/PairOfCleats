@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { throwIfAborted } from '../abort.js';
 import { parseJsonlLine } from './jsonl.js';
 import { MAX_JSON_BYTES } from './constants.js';
 import { toJsonTooLargeError } from './limits.js';
@@ -11,6 +12,7 @@ export const OFFSETS_COMPRESSION = 'none';
 const OFFSET_BYTES = 8;
 const MAX_OFFSETS_SPAN_BYTES = 4 * 1024 * 1024;
 const JSONL_ROWS_AT_MAX_BATCH_BYTES = 8 * 1024 * 1024;
+const OFFSETS_VALIDATION_WINDOW_BYTES = 64 * 1024;
 const OFFSETS_VALIDATION_CACHE = new Map();
 const OFFSETS_VALIDATION_CACHE_MAX = 256;
 
@@ -23,8 +25,10 @@ const getCachedOffsetsValidation = (key, jsonlStat, offsetsStat) => {
   if (
     cached.jsonlSize !== jsonlStat.size
     || cached.jsonlMtimeMs !== jsonlStat.mtimeMs
+    || cached.jsonlCtimeMs !== jsonlStat.ctimeMs
     || cached.offsetsSize !== offsetsStat.size
     || cached.offsetsMtimeMs !== offsetsStat.mtimeMs
+    || cached.offsetsCtimeMs !== offsetsStat.ctimeMs
   ) {
     OFFSETS_VALIDATION_CACHE.delete(key);
     return null;
@@ -39,8 +43,10 @@ const setCachedOffsetsValidation = (key, jsonlStat, offsetsStat) => {
   OFFSETS_VALIDATION_CACHE.set(key, {
     jsonlSize: jsonlStat.size,
     jsonlMtimeMs: jsonlStat.mtimeMs,
+    jsonlCtimeMs: jsonlStat.ctimeMs,
     offsetsSize: offsetsStat.size,
-    offsetsMtimeMs: offsetsStat.mtimeMs
+    offsetsMtimeMs: offsetsStat.mtimeMs,
+    offsetsCtimeMs: offsetsStat.ctimeMs
   });
   while (OFFSETS_VALIDATION_CACHE.size > OFFSETS_VALIDATION_CACHE_MAX) {
     const oldest = OFFSETS_VALIDATION_CACHE.keys().next().value;
@@ -398,67 +404,72 @@ export const readJsonlRowsAt = async (
 };
 
 /**
- * Validate offset monotonicity and bounds against a JSONL source file.
+ * Validate offset monotonicity and newline boundaries with bounded scratch space.
  * @param {string} jsonlPath
  * @param {string} offsetsPath
+ * @param {{signal?:AbortSignal|null}} [options]
  * @returns {Promise<boolean>}
  */
-export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath) => {
-  const [offsets, jsonlStat, offsetsStat] = await Promise.all([
-    readOffsetsFile(offsetsPath),
-    fs.stat(jsonlPath),
-    fs.stat(offsetsPath)
-  ]);
+export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath, { signal = null } = {}) => {
+  throwIfAborted(signal);
+  const [jsonlStat, offsetsStat] = await Promise.all([fs.stat(jsonlPath), fs.stat(offsetsPath)]);
+  throwIfAborted(signal);
   const cacheKey = buildValidationCacheKey(jsonlPath, offsetsPath);
-  if (getCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat)) {
-    return true;
-  }
-  const fileSize = Number(jsonlStat.size) || 0;
-  if (offsets.length && offsets[0] !== 0) {
-    throw createOffsetsInvalidError(`Offsets must start at zero for ${offsetsPath}`);
-  }
-  let last = -1;
-  const boundaryPositions = [];
-  for (let i = 0; i < offsets.length; i += 1) {
-    const offset = offsets[i];
-    if (!Number.isFinite(offset) || offset < 0) {
-      throw createOffsetsInvalidError(`Invalid offset value: ${offset}`);
-    }
-    if (offset <= last) {
-      throw createOffsetsInvalidError(`Offsets not monotonic for ${offsetsPath}`);
-    }
-    if (offset >= fileSize) {
-      throw createOffsetsInvalidError(`Offset exceeds file size for ${jsonlPath}`);
-    }
-    if (i > 0) {
-      boundaryPositions.push(offset - 1);
-    }
-    last = offset;
-  }
-  if (offsets.length && fileSize > 0) {
-    boundaryPositions.push(fileSize - 1);
-    const handle = await fs.open(jsonlPath, 'r');
-    try {
-      const buffer = Buffer.allocUnsafe(1);
-      for (let i = 0; i < boundaryPositions.length; i += 1) {
-        const position = boundaryPositions[i];
-        const { bytesRead } = await handle.read(buffer, 0, 1, position);
-        if (bytesRead !== 1) {
-          throw createOffsetsInvalidError(`JSONL boundary read failed for ${jsonlPath}`);
+  if (getCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat)) return true;
+  const count = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
+  const fileSize = jsonlStat.size;
+  const offsetsHandle = await fs.open(offsetsPath, 'r');
+  let jsonlHandle;
+  try {
+    jsonlHandle = await fs.open(jsonlPath, 'r');
+    // Fixed scratch space, independent of row count. Do not materialize the
+    // sidecar or a second array of boundary positions on recovery scans.
+    const offsetBuffer = Buffer.allocUnsafe(Math.min(offsetsStat.size, OFFSETS_VALIDATION_WINDOW_BYTES));
+    const dataBuffer = Buffer.allocUnsafe(Math.min(fileSize, OFFSETS_VALIDATION_WINDOW_BYTES));
+    let last = -1;
+    for (let first = 0; first < count;) {
+      throwIfAborted(signal);
+      const batchCount = Math.min(offsetBuffer.length / OFFSET_BYTES, count - first);
+      const length = batchCount * OFFSET_BYTES;
+      const { bytesRead } = await offsetsHandle.read(offsetBuffer, 0, length, first * OFFSET_BYTES);
+      assertExactRead(bytesRead, length, 'Offsets sidecar short read for ' + offsetsPath);
+      for (let i = 0; i < batchCount; i += 1) {
+        const offset = readOffsetValue(offsetBuffer, i);
+        if (first === 0 && i === 0 && offset !== 0) {
+          throw createOffsetsInvalidError('Offsets must start at zero for ' + offsetsPath);
         }
-        if (buffer[0] !== 0x0a) {
-          if (i === boundaryPositions.length - 1) {
-            throw createOffsetsInvalidError(`JSONL missing trailing newline for ${jsonlPath}`);
+        if (offset <= last) throw createOffsetsInvalidError('Offsets not monotonic for ' + offsetsPath);
+        if (offset >= fileSize) throw createOffsetsInvalidError('Offset exceeds file size for ' + jsonlPath);
+        last = offset;
+      }
+      // Coalesce only boundaries within a 64 KiB span. Sparse/large records
+      // still read one byte, instead of scanning their intervening payloads.
+      const isLastBatch = first + batchCount === count;
+      const boundaryCount = batchCount + (isLastBatch ? 1 : 0);
+      const positionAt = (i) => i === batchCount ? fileSize - 1 : readOffsetValue(offsetBuffer, i) - 1;
+      for (let i = first === 0 ? 1 : 0; i < boundaryCount;) {
+        throwIfAborted(signal);
+        const start = positionAt(i);
+        let end = i + 1;
+        while (end < boundaryCount && positionAt(end) - start < dataBuffer.length) end += 1;
+        const readLength = positionAt(end - 1) - start + 1;
+        const { bytesRead: dataBytes } = await jsonlHandle.read(dataBuffer, 0, readLength, start);
+        assertExactRead(dataBytes, readLength, 'JSONL boundary read failed for ' + jsonlPath);
+        for (; i < end; i += 1) {
+          const position = positionAt(i);
+          if (dataBuffer[position - start] !== 0x0a) {
+            throw createOffsetsInvalidError(i === batchCount
+              ? 'JSONL missing trailing newline for ' + jsonlPath
+              : 'Offset boundary missing newline at byte ' + position + ' for ' + jsonlPath);
           }
-          throw createOffsetsInvalidError(
-            `Offset boundary missing newline at byte ${position} for ${jsonlPath}`
-          );
         }
       }
-    } finally {
-      await handle.close();
+      first += batchCount;
     }
+  } finally {
+    await Promise.allSettled([offsetsHandle.close(), jsonlHandle?.close()]);
   }
+  throwIfAborted(signal);
   setCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat);
   return true;
 };

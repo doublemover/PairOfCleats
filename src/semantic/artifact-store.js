@@ -81,7 +81,7 @@ export const createArtifactSemanticStore = ({
       if (dataStat.size !== piece.bytes || offsetsStat.size !== piece.count * 8
         || await hashFile(dataPath, signal) !== piece.hash
         || await hashFile(offsetsPath, signal) !== piece.offsetsHash) throw error('Semantic part hash/size mismatch.');
-      await validateOffsetsAgainstFile(dataPath, offsetsPath);
+      await validateOffsetsAgainstFile(dataPath, offsetsPath, { signal });
       validated.set(key, signature);
       while (validated.size > validationCacheEntries) validated.delete(validated.keys().next().value);
     }
