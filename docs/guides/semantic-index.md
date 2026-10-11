@@ -30,8 +30,9 @@ proof of delivery, detachment, execution thread or actual runtime values.
 
 Allocation/field candidates retain conditional and mutable receiver aliases, explicit
 weak writes, bounded literal-key unions and widened unknown keys. Overlapping paths
-share may dependencies; alias order, escape, accessors and prototype effects remain
-unknown. Local summaries retain bare/implicit undefined returns and respect explicit
+share may dependencies. Private property paths use source/class identity and cannot
+alias dynamic public keys. This models lexical brands, not runtime brand checks;
+alias order, escape and prototype effects remain unknown. Local summaries retain bare/implicit undefined returns and respect explicit
 finally return/throw overrides; more complex completion alternatives remain conservative.
 
 Call-site summaries join bounded source-backed callable alternatives, retain positional
@@ -39,9 +40,12 @@ and rest-argument channels, and keep an unknown result/effect remainder when tar
 or summaries are incomplete. Visible object/class methods, inherited members, callable
 fields and source prototype replacements contribute modeled dispatch candidates.
 Receiver field effects can reach following caller reads. These candidates do not prove
-runtime dispatch: getters returning callables, proxies, private brands, constructor
-initialization, lexical arrow receivers, rest-array mutation and escaping aliases remain
-partial. Limits include 32 alias/target candidates, 16 key candidates and bounded work;
+runtime dispatch. Visible constructors, parameter properties and instance field
+initializers supply receiver effects; default derived constructors and explicit super
+calls retain bounded base candidates. Getter/setter invocations use the shared call
+summary contract, and getter return expressions can supply callable candidates.
+Constructor object-return overrides, initialization order, proxies, runtime private
+brands, lexical arrow receivers, rest-array mutation and escaping aliases remain partial. Limits include 32 alias/target candidates, 16 key candidates and bounded work;
 coverage records truncation rather than silently declaring complete analysis.
 
 With `enrichment.crossFileFlow: "eager"`, the existing compiler group can link a
@@ -54,9 +58,12 @@ buffer. User-defined APIs with matching names do not receive platform models.
 Verified Node `worker_threads` declarations use the same retained-source inventory
 and boundary writer. Anchored Worker entries join `workerData` uses, direct message
 payload callbacks, replies through `parentPort`, and opposite ports of a visible
-MessageChannel allocation. Const/destructured port aliases are supported. Dynamic or
-eval entries, transferred port identity, cross-file port aliases, registration order,
-instance multiplicity and actual delivery remain unknown. Node EventTarget listeners,
+MessageChannel allocation. Const/destructured and source-backed imported port aliases
+are supported. A port present in both a literal payload and its literal transfer list
+can retain endpoint identity through workerData or a message callback. Nested literal
+paths are bounded to depth 8, 32 endpoint candidates and 8 join rounds; dynamic keys,
+missing transfer lists and unresolved payloads do not establish identity. Dynamic or
+eval entries, registration order, instance multiplicity and actual delivery remain unknown. Node EventTarget listeners,
 BroadcastChannel and provider-specific RPC protocols are not modeled by this pass.
 
 ## WASM module evidence
@@ -118,9 +125,14 @@ component/experimental formats, unavailable bytes, cross-source instance aliases
 unsupported syntax, validation failures and budgets retain explicit coverage reasons.
 Standalone eager/eligible-auto flow accepts a source-hash-pinned ref to its syntax
 module anchor (local ID 0); coverage explicitly widens that selection to the entire
-module. Text/declaration targets and deferred binary task execution remain unsupported.
-The targeted profile still needs eager local flow explicitly selected; it does not
-schedule a deferred binary compiler task. Binary module anchors and derived analysis
+module. Text/declaration targets remain unsupported. Deferred binary local-flow tasks
+use the shared frontier, leases, scheduler and normal generation publication. Each
+task pins one retained module, decoder version and validator runtime. Manual drain
+and after-index execution use a binary capability without creating a TypeScript
+Program or compiler admission receipt. The scheduler reserves 64 MiB per module;
+this is a capacity estimate, not a hard heap bound. Source verification surrounds
+execution and rejects changed bytes. The targeted profile can select a pinned
+module anchor and defer its local flow. Binary module anchors and derived analysis
 use the existing syntax/analysis
 partition split, so the shared replay fence invalidates changed analysis policy. Existing
 host-boundary candidates remain available when module provenance is unresolved.
@@ -128,6 +140,18 @@ host-boundary candidates remain available when module provenance is unresolved.
 Format references: [core instructions](https://webassembly.github.io/spec/core/binary/instructions.html),
 [core modules](https://webassembly.github.io/spec/core/binary/modules.html), and
 [execution semantics](https://webassembly.github.io/spec/core/exec/instructions.html).
+
+## Provider joins
+
+Provider selection validates the complete source/context/reference inventory before
+changing file facts. Conflicting immutable partition identities fail atomically;
+identical duplicates are selected once. LSP call targets name actual invocation
+records, excluding receiver/key-variable occurrences. Validated provider candidates
+can join existing source function summaries within the same compiler group and
+generation, using the shared argument/return/effect channels. The join scans at most
+4096 edges and retains at most 32 targets per call; missing summaries and truncated
+candidates preserve an unknown remainder. It does not infer external implementations
+or provider-specific RPC protocols.
 
 ## Detail and traces
 
