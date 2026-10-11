@@ -51,14 +51,15 @@ are aligned; author-workspace receipts remain historical. The 74-case cross-plat
 union now passes targeted cloud checks after grouped format, checksum and lifecycle
 repairs; hosted CI remains exact-head evidence.
 
-The [WASM receipt](archived/wasm-semantic-checkpoint-2026-10-10.md) records PR550;
-[PR552](https://github.com/doublemover/PairOfCleats/pull/552) publishes the JS/Node
-checkpoint. The isolated [capability follow-on](archived/semantic-capabilities-2026-10-11.md)
-adds deferred binary tasks, constructor/accessor/private-path candidates, transferred
-Node ports, provider summary joins and a paginated-trace fix. The cache-reader identity conflict stays with recovery.
+[Earlier WASM work](archived/wasm-semantic-checkpoint-2026-10-10.md);
+[Capabilities](archived/semantic-capabilities-2026-10-11.md)
+add deferred binary tasks and source/provider joins. The isolated
+[precision follow-on](archived/semantic-precision-2026-10-11.md) adds object aliases,
+call/apply/bind channels, browser transferred ports, explicit provider alias chains
+and rejects mutated/escaped WASM provenance. Runtime certainty and recovery remain open.
 
 Next: interrupted multi-worker recovery/transient accounting (separate owner);
-object/escape and completion precision; browser transferred ports, runtime/RPC joins;
+object/escape and completion precision; dynamic endpoints and runtime/RPC joins;
 Python/C/Swift/Rust adapters. Estimator calibration stays last. Cache cleanup,
 control-store reconstruction and full public-surface qualification remain open.
 

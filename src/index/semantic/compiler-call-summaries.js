@@ -3,6 +3,8 @@ import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 const key = canonicalSemanticJson;
 export const callInput = (call, ordinal) => ordinal === -1 ? call.receiver : call.arguments?.[ordinal];
+export const callUnknownInputs = call => [...new Map([call.receiver, ...(call.arguments || []), ...(call.unknownInputs || [])]
+  .filter(Boolean).map(ref => [key(ref), ref])).values()];
 const argumentOrdinals = (call, summary, ordinal) => summary.restIndex >= 0 && ordinal === summary.restIndex
   ? (call.arguments || []).slice(ordinal).map((_,index)=>ordinal+index) : [ordinal];
 const dependencyInputs = (call, summary, dependencies) => [...dependencies].flatMap(ordinal=>argumentOrdinals(call,summary,ordinal).map(index=>callInput(call,index)));
@@ -106,10 +108,10 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     let changed = false;
     for(const ref of call.targets.slice(0,32)) changed = instantiateTarget(call,functions.get(key(ref))) || changed;
     if(call.incompleteTargets || call.targets.length > 32 || !call.targets.length || call.hasSpread || call.targets.some(ref=>{const target=functions.get(key(ref));return !target||target.async||target.generator||!target.complete||call.invocationKind==='construct'&&!target.constructible;})) {
-      for(const argument of [call.receiver,...(call.arguments || [])]) changed = add(argument,call.result) || changed;
+      for(const argument of callUnknownInputs(call)) changed = add(argument,call.result) || changed;
       const owner = functions.get(call.ownerId); if(owner) {
         changed=owner.complete!==false||changed; owner.complete = false;
-        const values=[call.receiver,...(call.arguments || [])].filter(Boolean);
+        const values=callUnknownInputs(call);
         for(const value of values) {
           for(const read of call.effectRoutes?.reads || []) changed=add(value,read.ref)||changed;
           for(const destination of call.effectRoutes?.exceptionTargets || []) changed=add(value,destination)||changed;

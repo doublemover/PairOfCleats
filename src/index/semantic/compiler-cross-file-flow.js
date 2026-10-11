@@ -4,7 +4,7 @@ import { writeSemanticAnalysis } from './analysis-write.js';
 import { createSemanticFactsRef } from './file-ref.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { propertyPathsOverlap } from './compiler-property-paths.js';
-import { buildCallDependencySummaries, joinCallDependencySummaries, callInput } from './compiler-call-summaries.js';
+import { buildCallDependencySummaries, joinCallDependencySummaries, callInput, callUnknownInputs } from './compiler-call-summaries.js';
 /** Call-site-owned may-depend channels; shared callee facts remain immutable. */
 export const collectCompilerCrossFileFlow = async ({ group, state, policy, signal }) => {
   const documents = group.flowDocuments || [], output = [];
@@ -52,6 +52,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       if(['getter','setter'].includes(call.invocationKind))for(const target of call.targets)emit('callTarget',call.occurrence,target,call);
       if(!call.suppressResult && (!summary || !summary.complete || call.hasSpread)) {
         const unknown=valueFor('unknown',result);
+        for(const input of call.unknownInputs || [])emit('flowsTo',input,unknown,call);
         emit('flowsTo',call.receiver,unknown,call);
         for(let ordinal=0;ordinal<(call.arguments||[]).length;ordinal++)emit('flowsTo',call.arguments[ordinal],unknown,call,ordinal);
         emit('flowsTo',unknown,result,call);
@@ -108,6 +109,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       // These are may effects; no unique storage identity or runtime mutation is asserted.
       if ((!summary || !summary.complete || call.hasSpread) && route?.reads.length) {
         const unknown = valueFor('unknown', result);
+        for(const input of call.unknownInputs || [])emit('flowsTo',input,unknown,call);
         emit('flowsTo',call.receiver,unknown,call);
         for (let ordinal = 0; ordinal < (call.arguments || []).length; ordinal++) emit('flowsTo', call.arguments[ordinal], unknown, call, ordinal);
         for (const read of route.reads) {
@@ -118,6 +120,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       }
       if (route?.exceptionTargets.length) {
         const exception = valueFor('unknown', result);
+        if(!summary || !summary.complete || call.hasSpread)for(const input of callUnknownInputs(call))emit('flowsTo',input,exception,call);
         if(!summary || !summary.complete) emit('flowsTo',call.receiver,exception,call);
         const dependencies = summary && !summary.remainder && !call.hasSpread ? summary.exceptionDependencies : new Set((call.arguments || []).map((_,ordinal) => ordinal));
         for (const ordinal of [...dependencies].sort((a,b) => a-b)) if (callInput(call,ordinal)) emit('flowsTo', callInput(call,ordinal), exception, call, ordinal < 0 ? null : ordinal);

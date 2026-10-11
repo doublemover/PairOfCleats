@@ -32,7 +32,10 @@ Allocation/field candidates retain conditional and mutable receiver aliases, exp
 weak writes, bounded literal-key unions and widened unknown keys. Overlapping paths
 share may dependencies. Private property paths use source/class identity and cannot
 alias dynamic public keys. This models lexical brands, not runtime brand checks;
-alias order, escape and prototype effects remain unknown. Local summaries retain bare/implicit undefined returns and respect explicit
+alias order, escape and prototype effects remain unknown. Nested object/array
+destructuring, defaults and mutable receiver alternatives retain bounded candidate
+paths. Nested shorthand/spread initializers resolve the selected field rather than
+using the whole spread object; snapshot and overwrite order remain conservative. Local summaries retain bare/implicit undefined returns and respect explicit
 finally return/throw overrides; more complex completion alternatives remain conservative.
 
 Call-site summaries join bounded source-backed callable alternatives, retain positional
@@ -48,12 +51,31 @@ Constructor object-return overrides, initialization order, proxies, runtime priv
 brands, lexical arrow receivers, rest-array mutation and escaping aliases remain partial. Limits include 32 alias/target candidates, 16 key candidates and bounded work;
 coverage records truncation rather than silently declaring complete analysis.
 
+Checker-authorized Function.call/apply and same-source const bound functions can
+reuse source summaries with normalized receiver and argument positions. Literal
+apply arrays retain positions; dynamic array-like inputs do not. Bind prefixes and
+the first bound receiver survive subsequent binding. TypeScript's type-only `this`
+parameter consumes no runtime argument. Unknown method-replacement effects retain
+original operands separately, including receivers ignored by native bind semantics.
+Callable adaptation is bounded to 16 alias steps, 32 positional arguments and
+64 unknown-only inputs; bound construction, cross-source bound captures, runtime
+receiver coercion and arbitrary method replacement remain unproved.
+
 With `enrichment.crossFileFlow: "eager"`, the existing compiler group can link a
 checker-authorized `new Worker(new URL("./worker.ts", import.meta.url))` to an exact
 retained entry source and modeled message consumers. Dynamic entry URLs remain
 unresolved. Generic serialization is a packing request; transfer and shared-storage
 requests remain separate, and none asserts delivery, detachment or a copied backing
 buffer. User-defined APIs with matching names do not receive platform models.
+
+Browser ports can retain source endpoint candidates through worker requests/replies
+and port relays. A literal transfer list establishes MessageEvent.ports candidates
+in port-relative order; uncertain intervening entries prevent unsupported index
+claims. Literal object/array payload paths can retain transferred port identity.
+Missing, dynamic, duplicate or oversized transfers do not establish unsupported
+identity. Limits are 8 propagation rounds, 32 candidates/list entries, depth 8 and
+100,000 join operations. Typed declarations or established source provenance are
+required; speculative listener names alone never establish a worker-global endpoint.
 
 Verified Node `worker_threads` declarations use the same retained-source inventory
 and boundary writer. Anchored Worker entries join `workerData` uses, direct message
@@ -88,6 +110,11 @@ retained generation. These are modeled candidates: response MIME, delivery and
 runtime filesystem bytes are unobserved. No network request, working-tree module
 read, compilation, instantiation or execution occurs during analysis. Mutable or
 escaped byte buffers and instantiation-result wrappers do not authorize exact joins.
+ArrayBuffer-backed typed-array views retain shared mutation checks; typed-array
+copy constructors remain distinct. Escaped or shadowed Instance aliases cannot
+establish native exports provenance; escaped instantiation promises also fail the
+join, while safe awaited const aliases remain usable. Type-only `this` parameters in imported host
+callbacks do not shift WASM runtime argument or rest-parameter positions.
 
 The bounded decoder retains recursive/function/struct/array types, imports/exports,
 functions, tables, memories, globals, tags, start entries, active/passive/declarative
@@ -148,8 +175,12 @@ changing file facts. Conflicting immutable partition identities fail atomically;
 identical duplicates are selected once. LSP call targets name actual invocation
 records, excluding receiver/key-variable occurrences. Validated provider candidates
 can join existing source function summaries within the same compiler group and
-generation, using the shared argument/return/effect channels. The join scans at most
-4096 edges and retains at most 32 targets per call; missing summaries and truncated
+generation, using the shared argument/return/effect channels. Directional,
+context-qualified exact declaration aliases may connect an external/provider target
+to a retained source body; value/heap aliases and names alone do not authorize that
+join. Call and construct targets stay distinct. The join scans at most 4096 edges,
+8 alias levels, 256 queued aliases and 32768 traversal steps, retaining at most
+32 targets per call; missing summaries and truncated
 candidates preserve an unknown remainder. It does not infer external implementations
 or provider-specific RPC protocols.
 
