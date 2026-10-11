@@ -342,7 +342,7 @@ export const processFileCpu = async (context) => {
   if (context.semantic && mode === 'code') {
     semanticFactsRef = await collectFileSemanticFacts({ ...context.semantic,
       bytes: context.sourceBytes, text, ast: languageContext.tsSyntax?.sourceFile || languageContext.jsAst, ts: languageContext.tsSyntax?.ts, language: lang?.id || 'unknown',
-      relPath: relKey, signal, scheduleIo: runIo });
+      relPath: relKey, signal, scheduleIo: runIo, scheduleParse: runTreeSitter, nativeParserEnabled: treeSitterEnabled });
   }
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;

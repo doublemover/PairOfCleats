@@ -17,7 +17,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 const keyPath = file => { const value = path.resolve(file); return process.platform === 'win32' ? value.toLowerCase() : value; };
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
-export const createSemanticLspSession = async ({ state, runtime, signal = null }) => {
+export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
   const inventory = new Map(), byUri = new Map(), texts = new Map(), emitted = [], contexts = new Map(), completed = new Set();
   const policy = runtime.semanticPolicy;
   state.semanticEvidenceArtifacts ||= [];
@@ -28,7 +28,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     const syntax = facts.partitions.find(partition => partition.partitionId === facts.syntaxPartitionId);
     let source;
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
-    if (!source) continue;
+    if (!source || languages && !languages.includes(source.language)) continue;
     await store.verifySource(source, { signal });
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
     const occurrenceIds = new Set();
@@ -65,7 +65,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     get enabled() { return inventory.size > 0; }, get hasTargetedWork() { return [...inventory.values()].some(item => item.unresolvedCount > 0); }, fileTextByFile: texts,
     setSignal(value) { signal = value; },
     prepareDocuments(documents) {
-      const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
+      const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc, languageId: item.source.language, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
       for (const item of inventory.values()) if (!item.source.mapping && !present.has(item.source.sourceUnitId)) result.push({ virtualPath: item.source.path, containerPath: item.source.path, languageId: item.source.language, effectiveExt: path.extname(item.source.path), text: item.text, docHash: item.source.textHash, lineIndex: item.source.lineStarts, segmentUid: null, segmentRange: { start: 0, end: item.source.textLength }, semanticSourceUnitId: item.source.sourceUnitId });
       return result;
     },
@@ -77,6 +77,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     },
     async targetsForDocument(doc) {
       const item = itemForDoc(doc); if (!item) return [];
+      if (eagerOnly && item.policy.enrichment.bindings !== 'eager') return [];
       if (state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)) return [];
       if (!semanticPhasePolicy(item.policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return [];
       if (doc.text !== item.text) throw Object.assign(new Error('LSP source snapshot mismatch.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
@@ -98,6 +99,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     async collectDocument({ doc, uri, requestDefinition, positionEncoding = 'utf-16', providerId = 'lsp', providerVersion = '1', workspaceKey = null, definitionEnabled = true, targets = null }) {
       const item = itemForDoc(doc); if (!item) return;
       const policy = item.policy;
+      if (eagerOnly && policy.enrichment.bindings !== 'eager') return;
       if (state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)) return;
       if (!semanticPhasePolicy(policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return;
       api.registerDocument(doc, uri);
@@ -142,7 +144,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
           }
         }
         const unique = [...new Map(candidates.map(value => [refKey(value), value])).values()];
-        const status = unique.length > 1 ? 'ambiguous' : unique.length === 1 && exact.length === 1 ? 'resolved' : unique.length ? 'heuristic' : 'unresolved';
+        const status = unique.length > 1 ? 'ambiguous' : unique.length === 1 && exact.length > 0 ? 'resolved' : unique.length ? 'heuristic' : 'unresolved';
         if (status === 'resolved') completedCount += 1;
         if (response.error) failed = true; if (response.attempted !== true) deferred = true;
         const binding = ref(nextId++); rows.push({ family: 'node', row: { id: binding.localId, kind: 'binding', span: target.span, scope: target.scope,
