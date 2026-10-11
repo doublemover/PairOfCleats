@@ -66,6 +66,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let shutdownWhenIdle = false;
   let shutdownPromise = null;
   let destroyPromise = null;
+  let forceDestroyPromise = null;
   let destroying = false;
   let pendingRestart = false;
   let idleShutdownWaiters = [];
@@ -90,11 +91,11 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   });
 
   const shutdownPool = async () => {
-    if (!pool) return;
     if (shutdownPromise) {
       await shutdownPromise;
       return;
     }
+    if (!pool) return;
     const currentPool = pool;
     pool = null;
     shutdownPromise = (async () => {
@@ -322,6 +323,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   };
 
   const destroy = async () => {
+    if (forceDestroyPromise) return forceDestroyPromise;
     if (!destroyPromise) {
       destroyPromise = (async () => {
         destroying = true;
@@ -349,6 +351,36 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     await destroyPromise;
   };
 
+  /**
+   * Escalate an expired graceful drain through the existing Piscina destructor.
+   * Never waits for active-task counters: a stuck task is why escalation exists.
+   * Reuses shutdown serialization, timeout and hard thread-termination fallback;
+   * no new pool may be created and all graceful destroy callers settle together.
+   *
+   * @returns {Promise<void>}
+   */
+  const forceDestroy = () => {
+    if (!forceDestroyPromise) {
+      forceDestroyPromise = (async () => {
+        destroying = true;
+        permanentlyDisabled = true;
+        disabled = true;
+        pendingRestart = false;
+        restartAtMs = 0;
+        shutdownWhenIdle = false;
+        try {
+          if (restarting) await restarting;
+          await shutdownPool();
+          settleIdleShutdownWaiters();
+        } catch (error) {
+          settleIdleShutdownWaiters(error);
+          throw error;
+        }
+      })();
+    }
+    return forceDestroyPromise;
+  };
+
   const pressureDownscaleStats = () => ({
     enabled: autoDownscaleOnPressure,
     rssThreshold: downscaleRssThreshold,
@@ -374,6 +406,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     scheduleRestart,
     handleTaskDrained,
     destroy,
+    forceDestroy,
     getPool: () => pool,
     isDisabled: () => disabled,
     isPermanentlyDisabled: () => permanentlyDisabled,
