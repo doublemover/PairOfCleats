@@ -5,7 +5,7 @@ import { semanticHash } from './identity.js';
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   compilerBindings: '4', lspBindings: '2', cfgFlow: '9', callFlow: '5',
-  valueSlice: '2', storageFlow: '1', workerFlow: '4', boundaryFlow: '6', wasmFlow: '3'
+  valueSlice: '2', storageFlow: '1', workerFlow: '4', boundaryFlow: '6', wasmFlow: '4'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must
 // not reuse a partition validated by a different engine version.
