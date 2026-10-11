@@ -12,6 +12,8 @@ const scheduler = createBuildScheduler({
   memoryTokens: 1
 });
 
+scheduler.registerQueue('adapter-zero-limits', { maxPending: 1, maxPendingBytes: 1, maxInFlightBytes: 1 });
+
 const queue = createSchedulerQueueAdapter({
   scheduler,
   queueName: 'adapter-zero-limits',

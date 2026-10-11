@@ -1,9 +1,10 @@
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
+import { normalizeSchedulerByteLimit, normalizeSchedulerMaxPending } from './scheduler-core-policy.js';
 
 /**
  * Adapt a build scheduler queue to a PQueue-like interface used by runWithQueue.
- * @param {{scheduler:ReturnType<typeof createBuildScheduler>,queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number,backpressure?:boolean}} input
+ * @param {{scheduler:ReturnType<typeof createBuildScheduler>,queueName:string,tokens?:{cpu?:number,io?:number,mem?:number},maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number,backpressure?:boolean,queueConfig?:object|null}} input
  * @returns {{add:(fn:()=>Promise<any>,options?:{bytes?:number,signal?:AbortSignal|null})=>Promise<any>,onIdle:()=>Promise<void>,clear:()=>void,maxPending?:number,maxPendingBytes?:number,maxInFlightBytes?:number,concurrency?:number}}
  */
 export function createSchedulerQueueAdapter({
@@ -14,7 +15,8 @@ export function createSchedulerQueueAdapter({
   maxPendingBytes,
   maxInFlightBytes,
   concurrency,
-  backpressure = false
+  backpressure = false,
+  queueConfig = null
 }) {
   if (!scheduler || typeof scheduler.schedule !== 'function') {
     throw new Error('Scheduler queue adapter requires a scheduler instance.');
@@ -22,23 +24,25 @@ export function createSchedulerQueueAdapter({
   if (!queueName) {
     throw new Error('Scheduler queue adapter requires a queue name.');
   }
-  const toPositiveInt = (value) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return null;
-    return Math.floor(parsed);
-  };
-  const resolvedMaxPending = toPositiveInt(maxPending);
-  const resolvedMaxPendingBytes = toPositiveInt(maxPendingBytes);
-  const resolvedMaxInFlightBytes = toPositiveInt(maxInFlightBytes);
-  scheduler.registerQueue?.(queueName, {
-    ...(resolvedMaxPending != null ? { maxPending: resolvedMaxPending } : {}),
-    ...(resolvedMaxPendingBytes != null
-      ? { maxPendingBytes: resolvedMaxPendingBytes }
-      : {}),
-    ...(resolvedMaxInFlightBytes != null
-      ? { maxInFlightBytes: resolvedMaxInFlightBytes }
-      : {})
+  // Runtime defaults bound the producer window; configured scheduler limits
+  // independently own admission. Preserve explicit zero (unlimited) at that
+  // boundary, while retaining the producer's own bounded working set.
+  const producerMaxPending = normalizeSchedulerMaxPending(maxPending);
+  const producerMaxPendingBytes = normalizeSchedulerByteLimit(maxPendingBytes);
+  const producerMaxInFlightBytes = normalizeSchedulerByteLimit(maxInFlightBytes);
+  const registered = scheduler.registerQueue?.(queueName, {
+    ...(maxPending != null ? { maxPending: producerMaxPending ?? 0 } : {}),
+    ...(maxPendingBytes != null ? { maxPendingBytes: producerMaxPendingBytes ?? 0 } : {}),
+    ...(maxInFlightBytes != null ? { maxInFlightBytes: producerMaxInFlightBytes ?? 0 } : {}),
+    ...(queueConfig || {})
   });
+  const intersectLimit = (producerLimit, schedulerLimit) => (
+    producerLimit == null ? schedulerLimit
+      : schedulerLimit == null ? producerLimit : Math.min(producerLimit, schedulerLimit)
+  );
+  const resolvedMaxPending = intersectLimit(producerMaxPending, normalizeSchedulerMaxPending(registered?.maxPending));
+  const resolvedMaxPendingBytes = intersectLimit(producerMaxPendingBytes, normalizeSchedulerByteLimit(registered?.maxPendingBytes));
+  const resolvedMaxInFlightBytes = intersectLimit(producerMaxInFlightBytes, normalizeSchedulerByteLimit(registered?.maxInFlightBytes));
   const pending = new Set();
   let admitted = 0;
   const admissionWaiters = [];
@@ -131,13 +135,9 @@ export function createSchedulerQueueAdapter({
     add,
     onIdle,
     clear,
-    maxPending: Number.isFinite(Number(maxPending)) ? Math.floor(Number(maxPending)) : undefined,
-    maxPendingBytes: Number.isFinite(Number(maxPendingBytes))
-      ? Math.floor(Number(maxPendingBytes))
-      : undefined,
-    maxInFlightBytes: Number.isFinite(Number(maxInFlightBytes))
-      ? Math.floor(Number(maxInFlightBytes))
-      : undefined,
+    maxPending: resolvedMaxPending ?? (maxPending === 0 ? 0 : undefined),
+    maxPendingBytes: resolvedMaxPendingBytes ?? (maxPendingBytes === 0 ? 0 : undefined),
+    maxInFlightBytes: resolvedMaxInFlightBytes ?? (maxInFlightBytes === 0 ? 0 : undefined),
     concurrency: Number.isFinite(Number(concurrency)) ? Math.floor(Number(concurrency)) : undefined
   };
 }
