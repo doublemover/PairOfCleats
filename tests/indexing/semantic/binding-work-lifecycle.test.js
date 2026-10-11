@@ -57,6 +57,10 @@ try {
     const disabled = await prepareSemanticBindingWork({ state: noAttempts.state, runtime: noAttempts.runtime });
     const result = await disabled.run(() => { throw new Error('zero attempts must not execute'); });
     assert.equal(result.ran, false);
+    assert.equal(result.reason, 'compiler_task_not_ready');
+    const zeroControl = noAttempts.openControl();
+    try { assert.equal(zeroControl.getTask(disabled.task.taskId).attempt, 0); }
+    finally { zeroControl.close(); }
   } finally { await noAttempts.cleanup(); }
   const unavailable = await createBindingWorkFixture({ bindings: 'eager' });
   try {

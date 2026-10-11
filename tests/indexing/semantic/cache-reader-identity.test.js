@@ -36,10 +36,22 @@ try {
     dependencySignatures: fixture.dependencySignatures, root: fixture.repoRoot,
     policy: { ...fixture.policy, enrichment: { ...fixture.policy.enrichment, fieldPathDepth: 5 } }
   });
-  assert.notEqual(changedDependencies.semantic, fixture.dependencies.semantic);
-  assert.equal((await readCachedBundle({ ...options, semanticContext: {
+  assert.equal(changedDependencies.semantic, fixture.dependencies.semantic,
+    'flow policy does not invalidate exact syntax extraction');
+  assert.notEqual(changedDependencies.semanticAnalysis, fixture.dependencies.semanticAnalysis);
+  const syntaxReuse = await readCachedBundle({ ...options, semanticContext: {
     ...options.semanticContext, dependencySignatures: changedDependencies
-  } })).cachedBundle, null);
+  } });
+  assert.ok(syntaxReuse.cachedBundle, 'syntax-only snapshots survive analysis policy changes');
+  assert.equal(syntaxReuse.semanticFactsRef.extractionHash, file.factsRef.extractionHash);
+  const changedParser = createSemanticCacheDependencySignatures({
+    dependencySignatures: fixture.dependencySignatures, root: fixture.repoRoot, policy: fixture.policy,
+    languageOptions: { javascript: { sourceType: 'script' } }
+  });
+  assert.notEqual(changedParser.semantic, fixture.dependencies.semantic);
+  assert.equal((await readCachedBundle({ ...options, semanticContext: {
+    ...options.semanticContext, dependencySignatures: changedParser
+  } })).cachedBundle, null, 'parser policy changes invalidate syntax reuse');
   await fs.writeFile(options.absPath, 'g(1);');
   assert.equal((await readCachedBundle(options)).cachedBundle, null,
     'same-size current source tamper cannot pass via an unchanged stat signature');

@@ -1,4 +1,5 @@
 import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
+import { runNativeSemanticProviders } from '../../../../semantic/native-provider-pass.js';
 import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
 import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
 import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
@@ -93,7 +94,7 @@ export const runCrossFileInference = async ({
   // Reuse this tooling pass for legacy types instead of constructing a second Program.
   if (mode === 'code' && runtime.semanticPolicy?.enabled) {
     const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
-    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal });
+    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal, languages: ['javascript', 'typescript'] });
     const toolingConfig = getToolingConfig(runtime.root);
     const toolingDocuments = await prepareToolingPassDocuments({ chunks: state.chunks.filter(chunk => semanticSession.fileTextByFile.has(chunk.file?.replace(/\\/g, '/'))), fileTextByFile: semanticSession.fileTextByFile,
       toolingConfig, semanticSession, semanticLspSession, log });
@@ -114,6 +115,7 @@ export const runCrossFileInference = async ({
       return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
         partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
     });
+    await runNativeSemanticProviders({ state, runtime, toolingConfig, log, signal: abortSignal });
   }
 
   if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });

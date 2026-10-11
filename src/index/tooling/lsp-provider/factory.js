@@ -110,7 +110,7 @@ export const createConfiguredLspProvider = (server) => {
         providerId,
         inputs
       });
-      if (!preparedInputs.documents.length || !preparedInputs.targets.length) {
+      if (!preparedInputs.documents.length || (!preparedInputs.targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
         return {
           provider: { id: providerId, version: this.version, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},

@@ -61,7 +61,7 @@ export const openRepositorySemanticControl = async (runtime, diskAccount = null,
     if (!verified) throw fail('Control repair requires published semantic tasks.', 'ERR_SEMANTIC_PUBLICATION_REQUIRED');
   };
   return openSemanticControlStore({ Database, filename, diskAccount, reconstruct, signal,
-    maxAttempts: runtime.semanticPolicy?.execution?.maxAttempts || 3 });
+    maxAttempts: runtime.semanticPolicy?.execution?.maxAttempts ?? 3 });
 };
 const openControl = openRepositorySemanticControl;
 const writeTargetSet = async ({ root, targetSet, targetSetHash, diskAccount, signal }) => {

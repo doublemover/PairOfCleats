@@ -338,7 +338,11 @@
               "items": {
                 "enum": [
                   "javascript",
-                  "typescript"
+                  "typescript",
+                  "python",
+                  "c",
+                  "swift",
+                  "rust"
                 ]
               }
             },
