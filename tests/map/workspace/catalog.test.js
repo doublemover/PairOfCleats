@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { getIndexDir } from '../../../src/shared/repo-paths.js';
+import { loadUserConfig } from '../../../src/shared/dict-utils.js';
+import { createArtifactBrowser, artifactInventory } from '../../../src/map/workspace/catalog.js';
+import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/contracts/schemas/artifacts.js';
+const temp=await fs.mkdtemp(path.join(os.tmpdir(),'poc-viewer-catalog-'));
+const repo=path.join(temp,'repo'); await fs.mkdir(repo);
+applyTestEnv({cacheRoot:path.join(temp,'cache')});
+const dir=getIndexDir(repo,'code',loadUserConfig(repo)); await fs.mkdir(dir,{recursive:true});
+let now=0; const browser=createArtifactBrowser({clock:()=>now});
+try {
+  const rows=Array.from({length:300},(_,id)=>({id,start:id,end:id+1,name:`row ${id}`}));
+  await fs.writeFile(path.join(dir,'chunk_meta.json'),JSON.stringify(rows));
+  const pieces=[{name:'chunk_meta',path:'chunk_meta.json',format:'json'}];
+  await writePiecesManifest(dir,pieces);
+  const catalog=await browser.catalog(repo);
+  assert.ok(catalog.artifacts.find(x=>x.name==='chunk_meta').available);
+  const inventory=artifactInventory();
+  for(const name of [...Object.keys(ARTIFACT_SCHEMA_DEFS),...MANIFEST_ONLY_ARTIFACT_NAMES]) assert.ok(inventory.some(x=>x.name===name),name);
+  const input={name:'chunk_meta',generation:catalog.generation};
+  const a=await browser.read(repo,input); assert.equal(a.rows.length,128);assert.equal(a.ordinal,0);assert.ok(a.cursor);
+  const b=await browser.read(repo,{...input,cursor:a.cursor});assert.equal(b.rows[0].id,128);
+  await assert.rejects(browser.read(repo,{...input,cursor:a.cursor}),/expired/);
+  const c=await browser.read(repo,{...input,cursor:b.cursor});assert.equal(c.rows.length,44);assert.equal(c.cursor,null);
+  const pending=await browser.read(repo,input);now=60001;
+  await assert.rejects(browser.read(repo,{...input,cursor:pending.cursor}),/expired/);
+  await assert.rejects(browser.read(repo,{...input,generation:'stale'}),/generation changed/);
+  await assert.rejects(browser.read(repo,{...input,name:'absent'}),/absent/);
+  console.log(`All ${inventory.length} registered artifact surfaces inventoried; bounded pagination, single-use cursors, expiration, absence and generation checks passed.`);
+} finally {await browser.close(); await fs.rm(temp,{recursive:true,force:true});}

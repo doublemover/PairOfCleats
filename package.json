@@ -148,7 +148,8 @@
     "xxhash-wasm": "^1.1.0",
     "yaml": "^2.8.3",
     "yargs": "^18.0.0",
-    "yauzl": "^3.4.0"
+    "yauzl": "^3.4.0",
+    "reladraw": "0.16.0"
   },
   "optionalDependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",

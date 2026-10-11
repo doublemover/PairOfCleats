@@ -1,0 +1,12 @@
+import fs from 'node:fs/promises';
+import http from 'node:http';
+import { handleMapWorkspaceRoute } from '../../../tools/api/router/map-workspace.js';
+import { sourceFixture } from './source-fixture.js';
+import { requireBootstrap } from '../../../src/shared/bootstrap-readiness.js';
+await requireBootstrap();
+const destination = process.argv[2];
+if (!destination) throw new Error('Provide a task-owned evidence directory.');
+await fs.mkdir(destination,{recursive:true});
+await fs.writeFile(destination+'/semantic.json',JSON.stringify(sourceFixture().result));
+const server=http.createServer(async(req,res)=>{if(await handleMapWorkspaceRoute(req,res,new URL(req.url,'http://localhost')))return;res.writeHead(404);res.end();});
+server.listen(0,'127.0.0.1',()=>{const port=server.address().port;fs.writeFile(destination+'/server.json',JSON.stringify({port,pid:process.pid}));console.log(JSON.stringify({port,pid:process.pid}));});

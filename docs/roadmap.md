@@ -270,3 +270,5 @@ preserved. Finish numerical, relevance and kernel-dispatch qualification before
 promotion; PR547 merge is unapproved. The [viewer replacement queue](guides/viewer-replacement-queue-20261009.md)
 stays behind embedding qualification. Alternative engines and optional Defuddle
 remain research; no installs or corpus restart are implied.
+
+Viewer checkpoint: bounded Reladraw evidence workspace implemented; browser acceptance blocked, Three.js replacement not started. See [coverage and remaining gates](guides/reladraw-workspace.md).
