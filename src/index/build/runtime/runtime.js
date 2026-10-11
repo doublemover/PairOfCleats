@@ -841,6 +841,7 @@ export async function createBuildRuntime({
     embeddingConcurrency,
     pendingLimits: envelope.queues,
     scheduler,
+    schedulerConfig,
     stage1Queues,
     procConcurrency,
     memoryPolicy: runtimeMemoryPolicy
