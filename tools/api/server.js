@@ -92,9 +92,10 @@ server.listen({ port, host }, () => {
   const actualPort = typeof address === 'object' && address ? address.port : port;
   const baseUrl = `http://${formatHostForUrl(host)}:${actualPort}`;
   if (jsonOutput) {
-    console.log(JSON.stringify({ ok: true, host, port: actualPort, repo: defaultRepo, baseUrl, trustBoundary }));
+    console.log(JSON.stringify({ ok: true, host, port: actualPort, repo: defaultRepo, baseUrl, mapWorkspaceUrl: `${baseUrl}/map/workspace`, trustBoundary }));
   } else {
     log(`[api] listening at ${baseUrl}`);
+    log(`[api] evidence workspace: ${baseUrl}/map/workspace`);
     log(`[api] repo root: ${defaultRepo}`);
     log(`[api] trust boundary: ${formatApiTrustBoundarySummary(trustBoundary)}`);
     if (trustBoundary.repos?.effectiveAllowedRepoRoots?.length) {

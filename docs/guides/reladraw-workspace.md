@@ -11,7 +11,9 @@ No upstream contribution, GitHub publication or live user indexing is part of th
 ## Open and use
 
 1. Bootstrap this checkout with Node 26.x using the repository's normal procedure.
-2. Start the existing `pairofcleats service api` for the authorized repository.
+2. Start `pairofcleats service api --repo /your/repository`. From the checkout, use
+   `node bin/pairofcleats.js service api --repo /your/repository`. The existing API prints the
+   evidence-workspace URL (also `mapWorkspaceUrl` in JSON startup output).
 3. Open `/map/workspace` on the service's printed local origin.
 4. Choose **Query index**, select **catalog**, and enter `{"repoRoot":"/your/repository"}`.
    If the API requires a bearer token, enter it in the memory-only token field.
@@ -42,12 +44,12 @@ artifact names registered by this campaign's contracts. Inventory completeness d
 | --- | --- | --- | --- |
 | Code map | file/member containment and six directed relation kinds | bounded page, hierarchy, selection, type filter, all member metadata | real code-map producer fixture; source omissions preserved; 200 nodes/400 edges |
 | Graph context pack | canonical NodeRef identities, source edge orientation | relationships, witness paths, confidence, unresolved endpoints | real graph-store producer, resolved/unresolved and incoming-edge fixtures; ambiguous candidates never promoted |
-| Composite context pack | graph plus independent primary-source/types/risk/semantic evidence surfaces | source/range/excerpt inspection, evidence selection | schema-informed adapter; no real service/browser workflow qualification yet |
+| Composite context pack | graph plus independent primary-source/types/risk/semantic evidence surfaces | source/range/excerpt inspection, evidence selection | real isolated-index composite-context producer; browser workflow unqualified |
 | Semantic detail/find/trace/explain | partition + local-ID identities, scope hierarchy, operands and typed edges | ordinal slots, ownership, names, source refs, available/omitted fields, frontier and explanations | real TypeScript collector fixture validated against semantic detail contract |
 | Search | separate original-ranked result lists by mode | stable rank and hit membership, evidence inspector | real ranked memory search, duplicate-ID and rank tests; no client reranking |
-| Enrichment result | task/state cards, authority and publication lineage | inspect blocked/completed state and diagnostics | schema-informed adapter; no execution buttons |
-| Runtime evidence/families | separate observations, inferred claims, families, integrity and joins | evidence list and explicit limitations | schema-informed adapter; capture/comparison browser workflows not yet exercised |
-| Impact/architecture/test suggestions/risk | report-specific entries and ordered witness/source fields | evidence/path inspection without invented relation edges | partial adapter coverage, needs producer fixtures for each report variant |
+| Enrichment result | task/state cards, authority and publication lineage | inspect blocked/completed state and diagnostics | real published-generation plan-only service fixture; no execution buttons |
+| Runtime evidence/families | separate observations, inferred claims, families, integrity and joins | evidence list and explicit limitations | real saved synthetic capture import, observation pagination, family discovery, comparison and immutable-claim lookup; browser flows unqualified |
+| Impact/architecture/test suggestions/risk | report-specific entries and ordered witness/source fields | evidence/path inspection without invented relation edges | real architecture/test-suggestion producers and actual risk-index standalone/composite explanations; risk-delta adapter is contract-fixtured |
 | Symbolic type query | membership/cardinality results; response-inline compressed word DAG | literal/ordered-concat inspection, shared child identities, no expanded-string allocation | recovered compressed-result contract fixture; backend remains separately unpublished |
 | Logical array artifacts | manifest-pinned sequential row pages via existing loaders | 128-row / 64 KiB pages, single-use bounded cursors | 300-row loader fixture, expiration/stale/scope checks |
 | Semantic physical family | published-store row stream carrying partition/generation and exact row | semantic record → detail query | uses existing published store; real two-file published-index → rows → detail fixture passed |
@@ -98,16 +100,29 @@ API auth/origin/repository/static-path boundaries and the existing viewer contra
 
 Browser acceptance is **blocked, not passed**: the installed shell Chromium could not create its
 Unix singleton socket (`Operation not permitted`); the supported cloud browser could not reach
-the isolated shell loopback preview (`ERR_CONNECTION_REFUSED`). No screenshots, visual-quality,
+the isolated shell loopback preview (`ERR_CONNECTION_REFUSED`). A later owner-private synthetic-only Site was successfully deployed, but its cloud-browser
+authentication redirect was denied. No sign-in was performed. No screenshots, visual-quality,
 GPU, FPS, mobile-layout or genuine browser-interaction results were fabricated.
 
-Next required step is a supported private preview reachable by the cloud browser, or explicit
-approval of another suitable test environment. Public publication and user-computer tasks are
-not authorized here. After browser access, run real repeated/interrupt flows and inspect screenshots;
-add producer-backed fixtures for remaining report families. The two-file published test index
-now covers catalog→semantic detail, actual code maps, graph context, impact and ranked memory search. Complete the Reladraw stage's usefulness gate before starting
-Three.js replacement.
+Per the owner’s direction, continue without asking for sign-in/setup. DOM emulation exercises
+real application controls and actual Reladraw output but cannot qualify visual layout or GPU behavior.
+A future authorized browser session should verify the remaining visual checklist below. The two-file published test index
+now covers catalog→semantic detail, actual code maps, graph context, impact and ranked memory search. The functional gate is assessed with producer, router, compiler and DOM tests; visual qualification remains explicitly open.
 
 The second stage remains unstarted: colored geometric stacks, segment-level links, larger-stack
 links and overall pipeline plumbing; semantic zoom, legible hierarchy and bounded navigation.
 Do not interpret this checkpoint as permission to skip the renderer comparison/readability gate.
+
+## Alternate validation and remaining visual checks
+
+DOM emulation is separate from browser acceptance. It exercises selection, Enter/space targets,
+directed relationship navigation/history, filtering, renderer replacement, invalid-editor recovery,
+repeated page changes and inert SVG handling. It does not run native Workers or WebGL.
+
+Resource fixtures exercise 64 KiB page cuts, oversized individual row rejection, 3 MiB JSON
+artifact rejection, eight-reader eviction, cancellation and recovery after rejection. Large complete
+exports are intentionally rejected; this does not establish unrestricted large-index support.
+
+Still requiring rendered visual QA: overlapping/occluded labels and pick overlays; keyboard focus
+visibility and screen-reader order; fit/zoom scroll anchoring; narrow-screen panel sizing; download
+behavior; native Worker deadlines/cancellation under CPU pressure; and real service-to-UI workflows.

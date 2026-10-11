@@ -21,12 +21,13 @@ export const detectFamily = input => {
   if (data.options && data.summary && Array.isArray(data.nodes)) return 'map';
   if (Array.isArray(data.records) && data.coverage && data.generation) return 'semantic';
   if (Array.isArray(data.tasks) && data.action && data.generation) return 'enrichment';
-  if (Array.isArray(data.observations) || Array.isArray(data.families) || Array.isArray(data.derivedClaims)) return 'runtime';
+  if (Array.isArray(data.observations) || Array.isArray(data.families) || Array.isArray(data.derivedClaims) || (Array.isArray(data.claims) && (data.pinnedFamilies || data.claimGeneration))) return 'runtime';
   if (Array.isArray(data.impacted)) return 'impact';
   if (Array.isArray(data.violations)) return 'architecture';
   if (Array.isArray(data.suggestions)) return 'tests';
   if (data.seed && Array.isArray(data.nodes) && Array.isArray(data.edges)) return 'graph';
   if (Array.isArray(data.code) || Array.isArray(data.prose) || Array.isArray(data.hits) || Array.isArray(data.results)) return 'search';
+  if (data.deltas?.flows && data.from && data.to) return 'risk-delta';
   if (Array.isArray(data.flows) || data.risk?.flows || data.analysisStatus) return 'risk';
   if (data.artifactSurfaceVersion || data.partitions || data.pieces || data.buildId || data.snapshots) return 'index';
   return 'unknown';
@@ -127,11 +128,23 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     section('Published generation', data.publishedGeneration);
     section('Diagnostics', data.diagnostics);
   } else if (family === 'runtime') {
-    for (const key of ['observations', 'derivedClaims', 'families']) {
+    for (const key of ['observations', 'derivedClaims', 'claims', 'families']) {
       section(key, data[key], 'evidence');
       for (const row of array(data[key])) add(`${key}:${row.evidenceId ?? row.generationId ?? seen}`, row.kind ?? row.captureId ?? key, key, row);
     }
-    for (const key of ['explanations', 'derivedCoverage', 'integrity', 'cost', 'omitted', 'pinnedFamilies']) section(key, data[key]);
+    for (const key of ['explanations', 'derivedCoverage', 'integrity', 'cost', 'omitted', 'pinnedFamilies', 'status', 'reasons', 'claimGeneration']) section(key, data[key]);
+  } else if (family === 'risk-delta') {
+    for (const kind of ['flows', 'partialFlows']) {
+      const delta = data.deltas[kind];
+      for (const change of ['added', 'removed', 'changed']) {
+        const rows = array(delta?.[change]); section(`${kind} · ${change}`, rows, 'paths');
+        for (const row of rows) add(`delta:${kind}:${change}:${seen}`, row.flowId ?? row.partialFlowId ?? `${change} ${seen + 1}`, change, row);
+      }
+    }
+    section('Before snapshot and source scope', data.from, 'manifest');
+    section('After snapshot and source scope', data.to, 'manifest');
+    section('Delta totals and unchanged counts', data.summary);
+    section('Delta filters', data.filters);
   } else if (family === 'impact') {
     for (const row of array(data.impacted)) add(refKey(row.ref), labelRef(row.ref), 'impacted', row, row.ref);
     section('Impact witnesses', data.impacted, 'paths');

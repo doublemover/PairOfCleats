@@ -47,3 +47,8 @@ assert.equal(word.family,'symbolic');assert.equal(word.nodes.length,2);assert.eq
 const roots = projectOutput({options:{},summary:{},nodes:Array.from({length:12},(_,i)=>({path:`group${i}`,name:`Group ${i}`,members:[]})),edges:[]});
 assert.equal(resolve(parse(authorProjection(roots).source)).nodes.length,12);
 assert.equal(parse(`node safe ${quoteLabel('x'.repeat(239)+'\\"')}`).statements.length,1);
+
+// Shape comes directly from buildRiskDeltaPayload's public return contract.
+const deltaBefore={flowId:'flow-1',confidence:0.4},deltaAfter={flowId:'flow-1',confidence:0.8};
+const delta=projectOutput({version:1,from:{ref:'before'},to:{ref:'after'},summary:{flowCounts:{changed:1}},deltas:{flows:{added:[],removed:[],changed:[{flowId:'flow-1',before:deltaBefore,after:deltaAfter}],unchangedCount:0},partialFlows:{added:[],removed:[],changed:[],unchangedCount:0}}});
+assert.equal(delta.family,'risk-delta');assert.equal(delta.nodes[0].kind,'changed');assert.strictEqual(delta.nodes[0].detail.before,deltaBefore);assert.strictEqual(delta.nodes[0].detail.after,deltaAfter);
