@@ -31,3 +31,11 @@ The compute estimate uses the latest two minutes, capped at 64 completed batch s
 - Synthetic 32-text alternating-length case: baseline and grouped execution both make four calls. Estimated padded tokens fall from 8192 to 4160; this is a deterministic packing measurement, not a measured production inference speedup.
 - Remaining-size fixture distinguishes a 40-character completed file from a 4000-character remaining file, refines known work, replaces obsolete throughput samples and reaches zero only after accounted work completes.
 - Existing pipeline, batching policy, writer queue and small stub stage-three observability fixtures are exercised. No full source index, paid inference or user-machine experiment is required for these regressions.
+
+## Independent-review follow-up
+
+The independent review identified two further resource-handoff defects. Writer pressure cooldown ran before reading a newly tightened scheduler cap. The file consumer also converted an absent FD sample into one, and its dynamic ceiling could not fall below the original file parallelism.
+
+Both hard caps are now reconciled before pressure cooldown. Writer expansion still follows the existing floor/ceiling and cadence. The extracted file admission owner uses the shared positive-integer coercer and existing static FD budget; missing/null/zero/invalid telemetry does not invent a limit. Real live FD limits bind even when pressure-based adaptation is disabled. Previously admitted files drain naturally, while the production pump stops starting replacements above the new limit. Final telemetry no longer raises an actual reduced concurrency back to the initial value. Null optional pressure settings use defaults rather than becoming zero.
+
+Regressions include a real scheduler writer-cap update at 10ms inside the 500ms cooldown, cap removal/expansion, initial real scheduler null FD state passed through static-budget/file-parallelism resolution, and live FD shrink/recovery through the production adaptive file pump. Deterministic memory/FD samples are explicitly replayed in tests; no live-machine pressure observation is claimed.

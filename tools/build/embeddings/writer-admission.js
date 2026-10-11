@@ -14,11 +14,11 @@ export const createEmbeddingWriterAdmission = ({ scheduler, indexingConfig = {},
   const ceiling = Math.max(initialLimit, Math.min(16, initialLimit * 2));
   const floor = Math.max(1, Math.ceil(initialLimit * 0.5));
   const config = indexingConfig?.embeddings || {};
-  const stepMs = Number.isFinite(Number(config.writerAdaptiveStepMs))
+  const stepMs = config.writerAdaptiveStepMs != null && Number.isFinite(Number(config.writerAdaptiveStepMs))
     ? Math.max(100, Math.floor(Number(config.writerAdaptiveStepMs))) : 500;
-  const rssLow = Number.isFinite(Number(config.writerAdaptiveRssLow))
+  const rssLow = config.writerAdaptiveRssLow != null && Number.isFinite(Number(config.writerAdaptiveRssLow))
     ? Math.max(0, Math.min(1, Number(config.writerAdaptiveRssLow))) : 0.62;
-  const rssHigh = Number.isFinite(Number(config.writerAdaptiveRssHigh))
+  const rssHigh = config.writerAdaptiveRssHigh != null && Number.isFinite(Number(config.writerAdaptiveRssHigh))
     ? Math.max(rssLow, Math.min(1, Number(config.writerAdaptiveRssHigh))) : 0.9;
   let limit = initialLimit;
   let lastAdjust = -Infinity;
@@ -26,12 +26,15 @@ export const createEmbeddingWriterAdmission = ({ scheduler, indexingConfig = {},
   return {
     initialLimit,
     resolve: () => {
-      if (now() - lastAdjust < stepMs) return limit;
       const stats = scheduler?.stats?.();
       const cap = queueLimit(stats);
       const effectiveCeiling = cap == null ? ceiling : Math.min(ceiling, cap);
       const effectiveFloor = Math.min(floor, effectiveCeiling);
-      limit = Math.max(effectiveFloor, Math.min(limit, effectiveCeiling));
+      // A scheduler hard limit always applies, including inside adaptive cooldown.
+      limit = Math.min(limit, effectiveCeiling);
+      if (cap != null && cap <= limit) reason = 'scheduler';
+      if (now() - lastAdjust < stepMs) return limit;
+      limit = Math.max(effectiveFloor, limit);
       reason = cap != null && cap <= limit ? 'scheduler' : 'default';
       const memory = stats?.adaptive?.signals?.memory;
       if (memory?.rssUtilization == null || memory?.gcPressureScore == null) return limit;
