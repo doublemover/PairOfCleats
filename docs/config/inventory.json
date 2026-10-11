@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T02:29:10.514Z",
+  "generatedAt": "2026-10-11T02:35:31.450Z",
   "budgets": {
     "configKeys": 2,
     "envVars": 1,
@@ -287,6 +287,8 @@
       "dictionary.dir",
       "dictionary.dpMaxTokenLength",
       "dictionary.dpMaxTokenLengthByFileCount",
+      "dictionary.dpMaxTokenLengthByFileCount[].dpMaxTokenLength",
+      "dictionary.dpMaxTokenLengthByFileCount[].maxFiles",
       "dictionary.enableRepoDictionary",
       "dictionary.files",
       "dictionary.includeSlang",
@@ -331,10 +333,8 @@
       "indexing.embeddings.onnx.interOpNumThreads",
       "indexing.embeddings.onnx.intraOpNumThreads",
       "indexing.embeddings.provider",
-      "indexing.fileCaps.byExt",
       "indexing.fileCaps.byExt.*.maxBytes",
       "indexing.fileCaps.byExt.*.maxLines",
-      "indexing.fileCaps.byLanguage",
       "indexing.fileCaps.byLanguage.*.maxBytes",
       "indexing.fileCaps.byLanguage.*.maxLines",
       "indexing.fileCaps.byMode.code.maxBytes",
@@ -352,7 +352,6 @@
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
       "indexing.lexicon.enabled",
-      "indexing.lexicon.languageOverrides",
       "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
       "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
       "indexing.lexicon.languageOverrides.*.relations.drop.literals",
@@ -415,7 +414,6 @@
       "indexing.scheduler.ioTokens",
       "indexing.scheduler.lowResourceMode",
       "indexing.scheduler.memoryTokens",
-      "indexing.scheduler.queues",
       "indexing.scheduler.queues.*.maxPending",
       "indexing.scheduler.queues.*.priority",
       "indexing.scheduler.starvationMs",
@@ -448,6 +446,22 @@
       "indexing.semantic.execution.maxAttempts",
       "indexing.semantic.languages",
       "indexing.semantic.overrides",
+      "indexing.semantic.overrides[].id",
+      "indexing.semantic.overrides[].match.language",
+      "indexing.semantic.overrides[].match.path",
+      "indexing.semantic.overrides[].set.enrichment.bindings",
+      "indexing.semantic.overrides[].set.enrichment.callContextDepth",
+      "indexing.semantic.overrides[].set.enrichment.crossFileFlow",
+      "indexing.semantic.overrides[].set.enrichment.fieldPathDepth",
+      "indexing.semantic.overrides[].set.enrichment.localFlow",
+      "indexing.semantic.overrides[].set.enrichment.maxSccIterations",
+      "indexing.semantic.overrides[].set.enrichment.unknownEffects",
+      "indexing.semantic.overrides[].set.execution.afterIndexMaxMs",
+      "indexing.semantic.overrides[].set.execution.deferredDrain",
+      "indexing.semantic.overrides[].set.execution.maxAttempts",
+      "indexing.semantic.overrides[].set.planning.costModel",
+      "indexing.semantic.overrides[].set.planning.inlineBudgetMs",
+      "indexing.semantic.overrides[].set.planning.prepass",
       "indexing.semantic.planning.costModel",
       "indexing.semantic.planning.inlineBudgetMs",
       "indexing.semantic.planning.prepass",
@@ -643,8 +657,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 392,
-    "leafKeys": 325,
+    "totalKeys": 456,
+    "leafKeys": 370,
     "topLevel": [
       {
         "key": "cache",
@@ -652,11 +666,11 @@
       },
       {
         "key": "dictionary",
-        "count": 11
+        "count": 14
       },
       {
         "key": "indexing",
-        "count": 203
+        "count": 253
       },
       {
         "key": "mcp",
@@ -696,7 +710,7 @@
       },
       {
         "key": "tooling",
-        "count": 69
+        "count": 80
       }
     ]
   },
@@ -729,6 +743,21 @@
     {
       "path": "dictionary.dpMaxTokenLengthByFileCount",
       "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[].dpMaxTokenLength",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[].maxFiles",
+      "type": "number",
       "enum": null
     },
     {
@@ -1030,8 +1059,38 @@
       "enum": null
     },
     {
+      "path": "indexing.fileCaps.byExt.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.fileCaps.byLanguage",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxLines",
+      "type": "number",
       "enum": null
     },
     {
@@ -1157,6 +1216,51 @@
     {
       "path": "indexing.lexicon.languageOverrides",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -1375,6 +1479,62 @@
       "enum": null
     },
     {
+      "path": "indexing.riskInterprocedural.semantics[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].frameworks",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].fromArgs",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].kind",
+      "type": "string",
+      "enum": [
+        "wrapper",
+        "propagator",
+        "builder",
+        "callback",
+        "asyncHandoff"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].languages",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].name",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].patterns",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].taintHints",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].toParams",
+      "type": "array",
+      "enum": null
+    },
+    {
       "path": "indexing.riskInterprocedural.strictness",
       "type": "string",
       "enum": [
@@ -1455,6 +1615,21 @@
     {
       "path": "indexing.scheduler.queues",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*.maxPending",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*.priority",
+      "type": "number",
       "enum": null
     },
     {
@@ -1675,6 +1850,140 @@
       "path": "indexing.semantic.overrides",
       "type": "array",
       "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].match",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].match.language",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].match.path",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.bindings",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.callContextDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.crossFileFlow",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.fieldPathDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.localFlow",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.maxSccIterations",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.unknownEffects",
+      "type": "enum",
+      "enum": [
+        "conservative"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution.afterIndexMaxMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution.deferredDrain",
+      "type": "enum",
+      "enum": [
+        "manual",
+        "after-index"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution.maxAttempts",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning.costModel",
+      "type": "enum",
+      "enum": [
+        "measured"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning.inlineBudgetMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning.prepass",
+      "type": "enum",
+      "enum": [
+        "reuse-existing-walk"
+      ]
     },
     {
       "path": "indexing.semantic.planning",
@@ -2579,6 +2888,64 @@
     {
       "path": "tooling.lsp.servers",
       "type": "array",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].args",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].cmd",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].label",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].languages",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].priority",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].retries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].uriScheme",
+      "type": "string",
+      "enum": [
+        "file",
+        "poc-vfs"
+      ]
+    },
+    {
+      "path": "tooling.lsp.servers[].version",
+      "type": "string",
       "enum": null
     },
     {

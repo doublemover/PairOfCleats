@@ -17,7 +17,10 @@ Allowlist: align with `docs/config/schema.json` top-level namespaces:
 - `retrieval`
 - `search`
 
-Subkeys must exist in the schema; unknown keys are rejected.
+Subkeys must exist in the schema; unknown keys are rejected. Supported config
+names in the inventory derive from that schema, not a second manual allowlist.
+See [the edit workflow](inventory-notes.md#editing-supported-configuration) for
+adding a declaration and regenerating its reports.
 
 ## Env vars (public)
 

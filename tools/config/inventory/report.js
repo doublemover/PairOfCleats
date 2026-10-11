@@ -18,7 +18,7 @@ export const buildInventoryReportMarkdown = (inventory) => {
   mdLines.push('');
   mdLines.push('## Allowlist drift');
   mdLines.push('');
-  mdLines.push(`- Unknown config keys: ${inventory.configKeysUnknown.length}`);
+  mdLines.push(`- Config keys derive from schema: ${inventory.configSchema.path}`);
   mdLines.push(`- Unknown env vars: ${inventory.envVarsUnknown.length}`);
   mdLines.push(`- Unknown public CLI flags: ${inventory.cliFlags.publicUnknown.length}`);
   mdLines.push('');
