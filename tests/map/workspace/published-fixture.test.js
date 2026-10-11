@@ -16,9 +16,11 @@ import { assembleCompositeContextPack } from '../../../src/context-pack/assemble
 import { runSemanticEnrichmentService } from '../../../src/semantic/enrichment.js';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
 import { search } from '../../../src/integrations/core/search.js';
+import { buildStackModel } from '../../../src/map/isometric/client/stack-model.js';
 import { buildCodeMap } from '../../../src/map/build-map.js';
 import { projectOutput } from '../../../src/map/workspace/projection.js';
 import { authorProjection } from '../../../src/map/workspace/reladraw.js';
+import { verifyMapIsoLauncher } from './launcher-fixture.js';
 import { parse, resolve } from 'reladraw';
 const temp=await fs.mkdtemp(path.join(os.tmpdir(),'poc-viewer-published-'));
 const repo=path.join(temp,'repo');await fs.mkdir(repo);
@@ -39,6 +41,7 @@ try {
   assert.ok(resolve(parse(authorProjection(projection).source)).nodes.length);
   const indexDir=getIndexDir(repo,'code',loadUserConfig(repo));
   const map=await buildCodeMap({repoRoot:repo,indexDir,options:{mode:'code'}});
+  const stacks=buildStackModel(map.nodes,map.edges);assert.equal(stacks.files.length,map.nodes.length);assert.equal(stacks.files.reduce((sum,file)=>sum+file.members.length,0),map.nodes.reduce((sum,file)=>sum+file.members.length,0));
   assert.ok(map.nodes.length>=2);const mapped=projectOutput(map);assert.ok(mapped.nodes.length>=2);
   assert.equal(resolve(parse(authorProjection(mapped).source)).nodes.length,mapped.nodes.length);
   const graphInputs=await prepareGraphInputs({repoRoot:repo,indexDir,strict:true});
@@ -63,5 +66,6 @@ try {
   const found=await search(repo,{args:['--backend','memory','--mode','code','--json'],query:'twice',emitOutput:false,exitOnError:false});
   const ranked=projectOutput(found);assert.equal(ranked.family,'search');assert.ok(ranked.nodes.length);
   assert.equal(ranked.nodes[0].detail.originalRank,1);
+  await verifyMapIsoLauncher(repo,temp);
   console.log('Real two-file published index → catalog → semantic rows → detail → Reladraw, plus real code-map producer projection passed.');
 } finally {await browser.close();await fs.rm(temp,{recursive:true,force:true});}

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T22:00:45.703Z",
+  "generatedAt": "2026-10-11T22:37:03.057Z",
   "budgets": {
     "configKeys": 3,
     "envVars": 1,
@@ -9340,7 +9340,9 @@
       "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js",
       "tests/lang/contracts/xml-lexical-boundaries.test.js",
       "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
+      "tests/map/workspace/dom-interaction.test.js",
       "tests/map/workspace/projection.test.js",
+      "tests/map/workspace/runtime-producer.test.js",
       "tests/perf/bench/run.test.js",
       "tests/services/api/runtime-claims.test.js",
       "tests/services/api/runtime-evidence.test.js",
