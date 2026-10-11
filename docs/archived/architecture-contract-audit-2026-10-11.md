@@ -217,3 +217,33 @@ ownership bug: after one task rejected the outer promise, a successful sibling
 could still start the next file during caller cleanup. This was handed back to the
 embedding owner for an admission-stop/owned-drain repair and regression. Its later
 integration receipt is recorded separately from the preceding green checkpoint.
+
+### File-pump lifetime and final integration
+
+The embedding owner repaired the reproduced lifetime issue in `2c05ccf` and the
+reviewed final-completion edge in `0aed125`, integrated locally as `6a9e1b2` and
+`07348a4`. The existing pump now stops admitting files at the first failure,
+releases every active slot, waits for already-started siblings and preserves the
+first error. Synchronous worker errors and failing admission readers use the same
+path. Completed/empty work settles without unnecessarily sampling admission again.
+No provider deadline or concurrency ceiling is increased. The new failure-drain
+regression fails on exact pre-fix runner source through a read-only module hook
+(`.testLogs/run-1791758276319-8yl0nl`), proving the early-rejection defect.
+
+The final 90-fixture combined run passed 89 and exposed one existing telemetry
+fixture race (`.testLogs/run-1791758348626-tgs6s0`, 53.5 seconds total). A worker
+sends timing through `parentPort`, independently of Piscina's result channel; the
+fixture assumed immediate delivery after awaiting the result. It now awaits the
+actual sample using the shared one-second bounded timeout, requires a real pool
+and task result rather than exit-zero skipping, and always destroys in `finally`.
+Production telemetry and task deadlines are unchanged. The corrected telemetry
+fixture plus worker shutdown and file-pump failure-drain regressions passed 3/3
+(`.testLogs/run-1791758500692-thjpgt`, 1.29 seconds); formatting and whitespace
+checks passed. The original 89/1 receipt is retained, not counted as a clean run.
+
+Final integrated source passed generated freshness and all 39 gate fixtures
+(`.testLogs/run-1791758542004-7xqqqd`, 27.1 seconds, slowest 1.86 seconds), with
+no retries, timeouts or skips. The integration checkout is a separate local
+branch; neither owner's original branch nor a live indexing process was changed.
+There are no remaining verified defects from this bounded audit awaiting repair.
+The platform/corpus qualification limits above still apply.
