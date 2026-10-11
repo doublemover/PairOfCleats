@@ -142,6 +142,7 @@ import {
 } from './process-files/planner.js';
 import {
   buildStage1ProcessingStallSnapshot,
+  buildStage1SchedulerStallSnapshot,
   createStage1WatchdogCallback,
   collectStage1StalledFiles,
   formatStage1SchedulerStallSummary,
@@ -620,6 +621,8 @@ export const processFiles = async ({
     `Indexing Concurrency: Files: ${runtime.fileConcurrency}, ` +
     `Imports: ${runtime.importConcurrency}, IO: ${ioQueueConcurrency}, CPU: ${cpuQueueConcurrency}`
   );
+  const admissionSummary = formatStage1SchedulerStallSummary(buildStage1SchedulerStallSnapshot(runtime));
+  if (admissionSummary) log('[stage1] admission ' + admissionSummary);
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
@@ -1945,6 +1948,8 @@ export const processFiles = async ({
       const oldestInFlight = collectStalledFiles(3)
         .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`);
       const oldestText = oldestInFlight.length ? ` oldest=${oldestInFlight.join(',')}` : '';
+      const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
+      const admissionText = formatStage1SchedulerStallSummary(schedulerSnapshot);
       logLine(
         `${buildFileProgressHeartbeatText({
           count: progress.count,
@@ -1953,7 +1958,7 @@ export const processFiles = async ({
           nowMs: now,
           inFlight: inFlightFiles.size,
           trackedSubprocesses
-        })} orderedPending=${orderedPending}${oldestText}`,
+        })} orderedPending=${orderedPending}${oldestText}${admissionText ? ` ${admissionText}` : ''}`,
         {
           kind: 'status',
           mode,
@@ -1963,7 +1968,8 @@ export const processFiles = async ({
           inFlight: inFlightFiles.size,
           orderedPending,
           trackedSubprocesses,
-          oldestInFlight
+          oldestInFlight,
+          scheduler: schedulerSnapshot
         }
       );
       evaluateStalledProcessing('progress_heartbeat');

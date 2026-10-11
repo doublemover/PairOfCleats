@@ -334,3 +334,35 @@ capacity alongside progress, stalled files and process memory. Missing worker
 stats are explicitly unavailable, not evidence that a worker is healthy. See the
 [focused performance receipt](../archived/semantic-recovery-performance-2026-10-11.md)
 for measured scope and limits.
+
+### File-processing concurrency
+
+The processing heartbeat's `inFlight` counts started Stage1 file jobs through
+result enqueue/skip handling. It does not count worker threads. `trackedSubprocesses`
+counts registered child processes belonging to those files; zero does not mean no
+worker threads. `orderedPending` counts unsettled ordered-completion promises;
+zero does not mean the input queue is empty.
+
+With the adaptive scheduler enabled, the `parse` surface controls concurrent
+`stage1.cpu` file jobs. To select a fixed eight-slot surface, merge this into the
+existing settings (retain other scheduler and memory settings):
+
+```json
+{"indexing":{"scheduler":{"enabled":true,"adaptive":true,"cpuTokens":8,
+  "adaptiveSurfaces":{"surfaces":{"parse":{
+    "minConcurrency":8,"maxConcurrency":8,"initialConcurrency":8
+  }}}}}}
+```
+
+Eight is an upper bound on simultaneously admitted jobs, not a promise that eight
+remain busy: byte budgets, ordered/write backpressure, input availability and
+other token consumers still apply. Fixing the minimum also prevents this surface
+from reducing slots under pressure; choose it within the run's memory budget.
+This setting does not make synchronous JavaScript run on eight CPU cores.
+
+Startup prints `[stage1] admission parse=r0/p0/cap8/min8/max8 ...`; regular
+processing heartbeats include the current running/pending/cap values. An inactive
+surface says `parse=disabled`. Settings are resolved at startup; there is no
+supported live config reload. Changing this admission policy requires a new run,
+with `--incremental` and the same source/cache/content inputs to reuse durable
+completions. See the [eight-slot receipt](../archived/stage1-concurrency-2026-10-11.md).
