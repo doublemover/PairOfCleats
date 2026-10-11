@@ -43,6 +43,9 @@ const toStage1StallFileSummary = (entry, nowMs = Date.now()) => {
     shardId: entry.shardId || null,
     fileIndex: Number.isFinite(entry.fileIndex) ? entry.fileIndex : null,
     ownershipId: typeof entry.ownershipId === 'string' ? entry.ownershipId : null,
+    substage: typeof entry.substage === 'string' ? entry.substage : null,
+    substageElapsedMs: Number.isFinite(entry.substageStartedAt)
+      ? Math.max(0, nowMs - entry.substageStartedAt) : null,
     elapsedMs: Math.max(0, nowMs - startedAt)
   };
 };
@@ -138,6 +141,12 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
       surface: queue.surface || null,
       pending: Number(queue.pending) || 0,
       running: Number(queue.running) || 0,
+      runnable: Number.isFinite(queue.runnable) ? queue.runnable : null,
+      blocked: Number.isFinite(queue.blocked) ? queue.blocked : null,
+      blockedBy: { ...(queue.blockedBy || {}) },
+      runLatencyMs: queue.runLatencyMs || null,
+      waitLatencyMs: queue.waitLatencyMs || null,
+      oldestRunningMs: Number(queue.oldestRunningMs) || 0,
       pendingBytes: Number(queue.pendingBytes) || 0,
       inFlightBytes: Number(queue.inFlightBytes) || 0,
       oldestWaitMs: Number(queue.oldestWaitMs) || 0
@@ -216,7 +225,15 @@ export const formatStage1SchedulerStallSummary = (snapshot) => {
   const formatQueue = (name) => {
     const queue = queueByName.get(name);
     if (!queue) return `${name}=n/a`;
-    return `${name}=r${queue.running}/p${queue.pending}/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`;
+    const admission = Number.isFinite(queue.runnable)
+      ? `/ready${queue.runnable}/blocked${queue.blocked}`
+      : '';
+    const blockers = Object.entries(queue.blockedBy || {})
+      .filter(([, count]) => count > 0)
+      .map(([reason, count]) => `${reason}:${count}`).join(',');
+    return `${name}=r${queue.running}/p${queue.pending}${admission}`
+      + `/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`
+      + (blockers ? `(${blockers})` : '');
   };
   return [
     parse?.enabled === false ? 'parse=disabled' : parse
