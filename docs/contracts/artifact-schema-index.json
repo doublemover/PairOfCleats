@@ -1,5 +1,5 @@
 {
-  "schemaHash": "d1def956dfd9e7f322c926d600d36101a56c6aa4",
+  "schemaHash": "f977fe9461aef970f861d89fe799a94d2a9c7a66",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -1047,6 +1047,153 @@
         "schemaVersion",
         "source",
         "totals"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_coverage",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_edges",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_frontier",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_lookup",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_manifest",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "artifactSurfaceVersion",
+        "generation",
+        "partitions",
+        "schemaVersion",
+        "semanticSchemaVersion",
+        "status",
+        "warnings"
+      ],
+      "optionalFields": [
+        "compilerAdmissions",
+        "completedTasks",
+        "contexts",
+        "evidenceArtifacts",
+        "frontierTargets",
+        "planning"
+      ]
+    },
+    {
+      "artifact": "semantic_operands",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_operation_index",
+      "schemaVersion": {
+        "const": 2
+      },
+      "requiredFields": [
+        "generation",
+        "partitionHashes",
+        "pieces",
+        "rowCount",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_ownership",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_query_index",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitionHashes",
+        "pieces",
+        "rowCount",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_records",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
+      ],
+      "optionalFields": []
+    },
+    {
+      "artifact": "semantic_sources",
+      "schemaVersion": {
+        "const": 1
+      },
+      "requiredFields": [
+        "generation",
+        "partitions",
+        "schemaVersion"
       ],
       "optionalFields": []
     },

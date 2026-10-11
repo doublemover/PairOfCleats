@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -82,7 +83,7 @@ const cases = [
         importConcurrency: 1,
         incrementalState: {
           enabled: true,
-          manifest: { files: {} },
+          manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: {} },
           bundleDir: tempRoot,
           bundleFormat: 'json'
         },
@@ -116,7 +117,7 @@ const cases = [
         importConcurrency: 1,
         incrementalState: {
           enabled: true,
-          manifest: { files: {} },
+          manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: {} },
           bundleDir: tempRoot,
           bundleFormat: 'json'
         },
@@ -245,7 +246,7 @@ const cases = [
       const logs = [];
       const log = (message) => logs.push(String(message || ''));
 
-      await fs.writeFile(cachePath, JSON.stringify({ version: 4 }, null, 2), 'utf8');
+      await fs.writeFile(cachePath, JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, version: 4 }, null, 2), 'utf8');
       await assert.rejects(
         () => loadImportResolutionCache({
           incrementalState: { incrementalDir },
@@ -264,6 +265,7 @@ const cases = [
       assert.equal(logs.some((entry) => entry.includes('Failed to read import resolution cache')), true);
 
       await fs.writeFile(cachePath, JSON.stringify({
+        artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         version: malformedLoad.cache.version,
         diagnostics: {
           version: 4,
@@ -349,7 +351,7 @@ const cases = [
         }
       });
 
-      const manifest = {
+      const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
         bundleFormat: 'json',
         files: {
           [relKey]: {

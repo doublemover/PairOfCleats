@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -44,7 +45,7 @@ try {
     extensions: { caller: { semantic: true }, tokenId: { algorithm: 'fixture' }, offsets: { stale: true } }
   });
   const allParts = [...chunkParts, ...tokenParts];
-  await save('pieces/manifest.json', {
+  await save('pieces/manifest.json', { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     version: 2, extensions: { rootCaller: 'retained' },
     pieces: [
       ...allParts.map((file) => ({

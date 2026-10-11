@@ -43,6 +43,9 @@ const toStage1StallFileSummary = (entry, nowMs = Date.now()) => {
     shardId: entry.shardId || null,
     fileIndex: Number.isFinite(entry.fileIndex) ? entry.fileIndex : null,
     ownershipId: typeof entry.ownershipId === 'string' ? entry.ownershipId : null,
+    substage: typeof entry.substage === 'string' ? entry.substage : null,
+    substageElapsedMs: Number.isFinite(entry.substageStartedAt)
+      ? Math.max(0, nowMs - entry.substageStartedAt) : null,
     elapsedMs: Math.max(0, nowMs - startedAt)
   };
 };
@@ -138,6 +141,12 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
       surface: queue.surface || null,
       pending: Number(queue.pending) || 0,
       running: Number(queue.running) || 0,
+      runnable: Number.isFinite(queue.runnable) ? queue.runnable : null,
+      blocked: Number.isFinite(queue.blocked) ? queue.blocked : null,
+      blockedBy: { ...(queue.blockedBy || {}) },
+      runLatencyMs: queue.runLatencyMs || null,
+      waitLatencyMs: queue.waitLatencyMs || null,
+      oldestRunningMs: Number(queue.oldestRunningMs) || 0,
       pendingBytes: Number(queue.pendingBytes) || 0,
       inFlightBytes: Number(queue.inFlightBytes) || 0,
       oldestWaitMs: Number(queue.oldestWaitMs) || 0
@@ -166,6 +175,7 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
 
   const parseSurface = stats?.adaptive?.surfaces?.parse && typeof stats.adaptive.surfaces.parse === 'object'
     ? {
+      enabled: stats.adaptive.surfaceControllersEnabled === true,
       minConcurrency: Number(stats.adaptive.surfaces.parse.minConcurrency) || 0,
       maxConcurrency: Number(stats.adaptive.surfaces.parse.maxConcurrency) || 0,
       currentConcurrency: Number(stats.adaptive.surfaces.parse.currentConcurrency) || 0,
@@ -177,13 +187,20 @@ export const buildStage1SchedulerStallSnapshot = (runtime) => {
   return {
     activity: {
       pending: Number(stats?.activity?.pending) || 0,
-      running: Number(stats?.activity?.running) || 0
+      running: Number(stats?.activity?.running) || 0,
+      pendingBytes: Number(stats?.activity?.pendingBytes) || 0,
+      inFlightBytes: Number(stats?.activity?.inFlightBytes) || 0
     },
     utilization: {
       cpu: Number(stats?.utilization?.cpu) || 0,
       io: Number(stats?.utilization?.io) || 0,
       mem: Number(stats?.utilization?.mem) || 0
     },
+    tokens: Object.fromEntries(['cpu', 'io', 'mem'].map(name => [name, {
+      total: Number(stats?.tokens?.[name]?.total) || 0,
+      used: Number(stats?.tokens?.[name]?.used) || 0
+    }])),
+    maxInFlightBytes: Number(stats?.adaptive?.maxInFlightBytes) || 0,
     parseSurface,
     highlightedQueues,
     topPendingQueues
@@ -208,11 +225,19 @@ export const formatStage1SchedulerStallSummary = (snapshot) => {
   const formatQueue = (name) => {
     const queue = queueByName.get(name);
     if (!queue) return `${name}=n/a`;
-    return `${name}=r${queue.running}/p${queue.pending}/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`;
+    const admission = Number.isFinite(queue.runnable)
+      ? `/ready${queue.runnable}/blocked${queue.blocked}`
+      : '';
+    const blockers = Object.entries(queue.blockedBy || {})
+      .filter(([, count]) => count > 0)
+      .map(([reason, count]) => `${reason}:${count}`).join(',');
+    return `${name}=r${queue.running}/p${queue.pending}${admission}`
+      + `/wait${Math.round((queue.oldestWaitMs || 0) / 1000)}s`
+      + (blockers ? `(${blockers})` : '');
   };
   return [
-    parse
-      ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}`
+    parse?.enabled === false ? 'parse=disabled' : parse
+      ? `parse=r${parse.running}/p${parse.pending}/cap${parse.currentConcurrency}/min${parse.minConcurrency}/max${parse.maxConcurrency}`
       : 'parse=n/a',
     formatQueue('stage1.cpu'),
     formatQueue('stage1.io'),
@@ -276,6 +301,23 @@ export const buildStage1ProcessingStallSnapshot = ({
     limit: 8
   });
   const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
+  // Read existing counters only: no worker probes, process walks or unbounded
+  // per-worker histories in a watchdog callback. A broken stats owner is data.
+  const workers = ['workerPool', 'quantizePool'].map(name => {
+    if (typeof runtime?.[name]?.stats !== 'function') return { pool: name, available: false };
+    try {
+      const stats = runtime[name].stats();
+      if (!stats || typeof stats !== 'object') return { pool: name, available: false };
+      return { pool: name, available: true,
+        activeTasks: Number(stats.activeTasks) || 0, queuedTasks: Number(stats.queuedTasks) || 0,
+        maxWorkers: Number(stats.maxWorkers) || 0, configuredMaxWorkers: Number(stats.configuredMaxWorkers) || 0,
+        disabled: stats.disabled === true, pendingRestart: stats.pendingRestart === true,
+        restartAttempts: Number(stats.restartAttempts) || 0, heapLimitMb: Number(stats.heapLimitMb) || null,
+        memoryPressureState: typeof stats.memoryPressure?.state === 'string' ? stats.memoryPressure.state.slice(0, 64) : null };
+    } catch (error) {
+      return { pool: name, available: false, error: String(error?.message || error).slice(0, 256) };
+    }
+  });
   const commitLag = Math.max(
     0,
     (Number(orderedSnapshot?.maxSeenSeq) || 0) - (Number(orderedSnapshot?.nextCommitSeq) || 0)
@@ -287,6 +329,8 @@ export const buildStage1ProcessingStallSnapshot = ({
     reason,
     generatedAt: new Date(nowMs).toISOString(),
     source: 'stage1-watchdog',
+    stage: 'stage1.processing',
+    workers,
     idleMs: resolvedIdleMs,
     progressDone: progress?.count || 0,
     progressTotal: progress?.total || 0,
@@ -345,4 +389,17 @@ export const summarizeStage1SoftKickCleanup = (cleanupResults = []) => {
     ownershipIds,
     cleanupResults: summaries
   };
+};
+
+/** Keep asynchronous watchdog diagnostics on the normal stage failure path.
+ * The stage owns cancellation and ordered-drain rejection; diagnostics own no
+ * process exit or build-state mutation.
+ */
+export const createStage1WatchdogCallback = ({ run, onError, signal }) => () => {
+  if (signal?.aborted) return;
+  try { run(); } catch (cause) {
+    const error = new Error('Stage1 watchdog callback failed: ' + (cause?.message || String(cause)), { cause });
+    error.code = 'ERR_STAGE1_WATCHDOG';
+    onError(error);
+  }
 };

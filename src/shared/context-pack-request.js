@@ -5,6 +5,7 @@ const CONTEXT_PACK_PAYLOAD_FIELDS = Object.freeze([
   'hops',
   'includeGraph',
   'includeTypes',
+  'includeSemantic',
   'includeRisk',
   'includeRiskPartialFlows',
   'strictRisk',

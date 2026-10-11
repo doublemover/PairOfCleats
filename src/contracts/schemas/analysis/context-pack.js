@@ -1,3 +1,4 @@
+import { SEMANTIC_CONTEXT_SCHEMA, SEMANTIC_CONTEXT_FEDERATION_SCHEMA } from '../semantic-context.js';
 import {
   CONTEXT_PACK_RISK_CONTRACT_VERSION,
   CONTEXT_PACK_RISK_SCHEMA_VERSION
@@ -56,6 +57,8 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
       additionalProperties: true
     },
     graph: { anyOf: [GRAPH_CONTEXT_PACK_SCHEMA, { type: 'null' }] },
+    semantic: SEMANTIC_CONTEXT_SCHEMA,
+    semanticFederation: SEMANTIC_CONTEXT_FEDERATION_SCHEMA,
     types: {
       type: ['object', 'null'],
       properties: {

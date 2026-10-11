@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { enqueueGraphRelationsArtifacts } from '../../../src/index/build/artifacts/graph-relations.js';
@@ -58,7 +59,7 @@ const writeManifest = async (pieces) => {
   await fs.mkdir(piecesDir, { recursive: true });
   await fs.writeFile(
     path.join(piecesDir, 'manifest.json'),
-    JSON.stringify({
+    JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       version: 2,
       generatedAt: new Date().toISOString(),
       mode: 'code',

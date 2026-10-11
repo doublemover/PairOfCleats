@@ -22,7 +22,7 @@ await fs.writeFile(
 );
 await assert.rejects(
   () => loadJsonArrayArtifact(fallbackDir, 'sample', { strict: false }),
-  /Missing pieces manifest|ERR_MANIFEST_MISSING/,
+  { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' },
   'expected hard cutover to reject unmanifested legacy JSON artifacts'
 );
 

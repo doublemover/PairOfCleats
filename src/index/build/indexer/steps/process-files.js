@@ -1,6 +1,8 @@
 import { assertSemanticEnvelope } from '../../../../contracts/validators/semantic-envelopes.js';
 import path from 'node:path';
-import { createSemanticDiskAccount } from '../../artifacts/writers/semantic/partition.js';
+import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
+import { preloadFileCompletions } from '../../incremental/file-completion.js';
+import { createSemanticCacheDependencySignatures } from '../../incremental/semantic-cache-dependencies.js';
 import { getRepoId } from '../../../../shared/repo-paths.js';
 import { preloadParseCheckpoints } from '../../incremental/stage-reuse.js';
 import { runWithQueue } from '../../../../shared/concurrency/run-with-queue.js';
@@ -140,6 +142,8 @@ import {
 } from './process-files/planner.js';
 import {
   buildStage1ProcessingStallSnapshot,
+  buildStage1SchedulerStallSnapshot,
+  createStage1WatchdogCallback,
   collectStage1StalledFiles,
   formatStage1SchedulerStallSummary,
   formatStage1StalledFileText,
@@ -617,6 +621,8 @@ export const processFiles = async ({
     `Indexing Concurrency: Files: ${runtime.fileConcurrency}, ` +
     `Imports: ${runtime.importConcurrency}, IO: ${ioQueueConcurrency}, CPU: ${cpuQueueConcurrency}`
   );
+  const admissionSummary = formatStage1SchedulerStallSummary(buildStage1SchedulerStallSnapshot(runtime));
+  if (admissionSummary) log('[stage1] admission ' + admissionSummary);
   const envConfig = getEnvConfig();
   const showFileProgress = envConfig.verbose === true || runtime?.argv?.verbose === true;
   const debugOrdered = envConfig.debugOrdered === true;
@@ -633,11 +639,30 @@ export const processFiles = async ({
   });
 
   let treeSitterScheduler = null;
+  let completedSemanticFiles = new Set();
+  if (runtime.semanticPolicy?.enabled && mode === 'code' && !state.semanticDiskAccount) {
+    const reopened = await reopenSemanticDiskAccount({
+      limit: runtime.semanticPolicy.storage.maxDiskWorkingSetBytes,
+      roots: [incrementalState?.incrementalDir, runtime.buildRoot,
+        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'builds'),
+        runtime.repoCacheRoot && path.join(runtime.repoCacheRoot, 'semantic-frontier')],
+      signal: effectiveAbortSignal
+    });
+    state.semanticDiskAccount = reopened.account;
+    state.semanticRetainedWorkingSet = { bytes: reopened.retainedBytes, files: reopened.retainedFiles };
+  }
+  if (runtime.semanticPolicy?.enabled && mode === 'code') {
+    completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
+      semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
+        signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
+          dependencySignatures: incrementalState.manifest.dependencySignatures,
+          policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
+  }
   const treeSitterEnabled = mode === 'code' && runtime?.languageOptions?.treeSitter?.enabled !== false;
   if (treeSitterEnabled) {
     const cachedParseFiles = await preloadParseCheckpoints({entries,incrementalState});
     const plannerInput = resolveTreeSitterPlannerEntries({
-      entries: entries.filter(entry=>!cachedParseFiles.has(entry.abs)),
+      entries: entries.filter(entry => !cachedParseFiles.has(entry.abs) && !completedSemanticFiles.has(entry.abs)),
       root: runtime.root
     });
     if (plannerInput.skipped > 0) {
@@ -835,6 +860,7 @@ export const processFiles = async ({
     let checkpoint = null;
     let progress = null;
     let markOrderedEntryComplete = () => false;
+    let getStage1WorkloadSnapshot = () => null;
     let getStage1ProgressSnapshot = () => ({
       total: Number.isFinite(progress?.total) ? progress.total : 0,
       count: Number.isFinite(progress?.count) ? progress.count : 0,
@@ -1493,6 +1519,12 @@ export const processFiles = async ({
     const collectStalledFiles = (limit = 6) => (
       collectStage1StalledFiles(inFlightFiles, { limit })
     );
+    // Timer exceptions must reject normal stage work so phase failure and durable
+    // shutdown handling can run; an uncaught timer bypasses that recovery path.
+    const watchdogCallback = run => createStage1WatchdogCallback({
+      run, signal: effectiveAbortSignal,
+      onError: error => { orderedAppender.abort(error); abortProcessing(error); }
+    });
     const buildProcessingStallSnapshot = ({
       reason = 'stall_snapshot',
       idleMs = null,
@@ -1510,7 +1542,7 @@ export const processFiles = async ({
         getOrderedPendingCount,
         orderedAppender,
         postingsQueue,
-        queueDelaySummary,
+        queueDelaySummary: stageTimingTracker.getQueueDelaySummary(),
         stage1WindowSnapshot: resolveStage1WindowSnapshot(),
         stage1OwnershipPrefix: stage1OwnershipPrefix,
         runtime
@@ -1915,8 +1947,11 @@ export const processFiles = async ({
         limit: 1
       }).total;
       const oldestInFlight = collectStalledFiles(3)
-        .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`);
+        .map((entry) => `${entry.file || 'unknown'}@${Math.round((entry.elapsedMs || 0) / 1000)}s`
+          + (entry.substage ? `[${entry.substage}:${Math.round((entry.substageElapsedMs || 0) / 1000)}s]` : ''));
       const oldestText = oldestInFlight.length ? ` oldest=${oldestInFlight.join(',')}` : '';
+      const schedulerSnapshot = buildStage1SchedulerStallSnapshot(runtime);
+      const admissionText = formatStage1SchedulerStallSummary(schedulerSnapshot);
       logLine(
         `${buildFileProgressHeartbeatText({
           count: progress.count,
@@ -1924,8 +1959,9 @@ export const processFiles = async ({
           startedAtMs: processStart,
           nowMs: now,
           inFlight: inFlightFiles.size,
-          trackedSubprocesses
-        })} orderedPending=${orderedPending}${oldestText}`,
+          trackedSubprocesses,
+          workload: getStage1WorkloadSnapshot()
+        })} orderedPending=${orderedPending}${oldestText}${admissionText ? ` ${admissionText}` : ''}`,
         {
           kind: 'status',
           mode,
@@ -1935,7 +1971,9 @@ export const processFiles = async ({
           inFlight: inFlightFiles.size,
           orderedPending,
           trackedSubprocesses,
-          oldestInFlight
+          oldestInFlight,
+          workload: getStage1WorkloadSnapshot(),
+          scheduler: schedulerSnapshot
         }
       );
       evaluateStalledProcessing('progress_heartbeat');
@@ -1973,7 +2011,7 @@ export const processFiles = async ({
     };
     const preDispatchHeartbeatMs = Math.max(10000, progressHeartbeatMs || FILE_PROGRESS_HEARTBEAT_DEFAULT_MS);
     if (preDispatchHeartbeatMs > 0) {
-      preDispatchWatchdogTimer = setInterval(() => {
+      preDispatchWatchdogTimer = setInterval(watchdogCallback(() => {
         if (stage1StallAbortTriggered) return;
         const elapsedMs = Math.max(0, Date.now() - preDispatchPhaseAtMs);
         if (elapsedMs >= preDispatchHeartbeatMs) {
@@ -2002,7 +2040,7 @@ export const processFiles = async ({
           orderedAppender.abort(err);
           abortProcessing(err);
         }
-      }, preDispatchHeartbeatMs);
+      }), preDispatchHeartbeatMs);
       preDispatchWatchdogTimer.unref?.();
     }
     /**
@@ -2036,7 +2074,7 @@ export const processFiles = async ({
           storage: { generation: { baseBuildId: runtimeRef.buildId, semanticRevision: 0 },
             relativePath: path.relative(runtimeRef.buildRoot, path.join(outDir, 'semantic')).split(path.sep).join('/') },
           repositoryNamespace: runtimeRef.repoId || getRepoId(runtimeRef.root),
-          diskAccount: state.semanticDiskAccount ||= createSemanticDiskAccount(runtimeRef.semanticPolicy.storage.maxDiskWorkingSetBytes)
+          diskAccount: state.semanticDiskAccount
         } : null,
         mode,
         fileTextCache,
@@ -2101,9 +2139,9 @@ export const processFiles = async ({
       const fileWatchdogConfig = resolveFileWatchdogConfig(runtimeRef, { repoFileCount });
       if (stage1StallAbortMs > 0 && !stallAbortTimer) {
         const pollMs = Math.max(2000, Math.min(10000, Math.floor(stage1StallAbortMs / 6)));
-        stallAbortTimer = setInterval(() => {
+        stallAbortTimer = setInterval(watchdogCallback(() => {
           evaluateStalledProcessing('stall_poll_timer');
-        }, pollMs);
+        }), pollMs);
         stallAbortTimer.unref?.();
       }
       if (!watchdogAdaptiveLogged && Number(fileWatchdogConfig.adaptiveSlowFloorMs) > 0) {
@@ -2140,8 +2178,9 @@ export const processFiles = async ({
           async (entry, ctx) => {
             const queueIndex = Number.isFinite(ctx?.index) ? ctx.index : null;
             const orderIndex = resolveStableEntryOrderIndex(entry, queueIndex);
+            let stage1Lease = null;
             if (Number.isFinite(orderIndex) && typeof orderedAppender.noteInFlight === 'function') {
-              orderedAppender.noteInFlight(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
+              stage1Lease = orderedAppender.noteInFlight(Math.floor(orderIndex), Number(entry?.fileIndex) || 0);
             }
             const stableFileIndex = Number.isFinite(entry?.fileIndex)
               ? entry.fileIndex
@@ -2255,7 +2294,8 @@ export const processFiles = async ({
                   activeDurationMs,
                   scmProcQueueWaitMs,
                   queueDelayMs,
-                  thresholdMs: fileWatchdogMs
+                  thresholdMs: fileWatchdogMs,
+                  substage: inFlightFiles.get(orderIndex)?.substage || null
                 });
               }, fileWatchdogMs);
               watchdog.unref?.();
@@ -2288,7 +2328,7 @@ export const processFiles = async ({
               shardId: shardMeta?.id || null
             });
             try {
-              return await runWithTimeout(
+              const result = await runWithTimeout(
                 (signal) => {
                   if (stage1ShuttingDown) {
                     const err = new Error('[cleanup] stage1 tail cleanup has started; refusing new process-file task.');
@@ -2300,6 +2340,12 @@ export const processFiles = async ({
                     fileSubprocessOwnershipId,
                     () => processFile(entry, stableFileIndex, {
                       signal,
+                      onStage: (substage) => {
+                        const tracked = inFlightFiles.get(orderIndex);
+                        if (!tracked || tracked.substage === substage) return;
+                        tracked.substage = substage;
+                        tracked.substageStartedAt = Date.now();
+                      },
                       onScmProcQueueWait: (queueWaitMs) => {
                         if (!(Number.isFinite(queueWaitMs) && queueWaitMs > 0)) return;
                         if (lifecycle) {
@@ -2334,6 +2380,8 @@ export const processFiles = async ({
                   })
                 }
               );
+              if (result && typeof result === 'object') result.stage1Lease = stage1Lease;
+              return result;
             } catch (err) {
               if (err?.code === 'FILE_PROCESS_TIMEOUT') {
                 logLine(
@@ -2487,6 +2535,7 @@ export const processFiles = async ({
               const entryIndex = Number.isFinite(ctx?.index) ? ctx.index : 0;
               const entry = orderedBatchEntries[entryIndex];
               const orderIndex = resolveStableEntryOrderIndex(entry, entryIndex);
+              if (result?.stage1Lease && !orderedAppender.isCurrentLease(result.stage1Lease)) return;
               try {
                 const bypassedForLowYield = Number.isFinite(orderIndex)
                   ? lowYieldBypassOrderIndices.delete(Math.floor(orderIndex))
@@ -2524,7 +2573,8 @@ export const processFiles = async ({
                   markOrderedEntryComplete(
                     orderIndex,
                     shardProgress,
-                    entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                    entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null),
+                    { status: 'skipped', inputBytes: entry?.stat?.size || entry?.bytes || 0 }
                   );
                   orderedCompletionTracker.track(completion, () => {
                     lastOrderedCompletionAt = Date.now();
@@ -2571,11 +2621,13 @@ export const processFiles = async ({
                     durationMs: clampDurationMs(fileMetrics.embeddingMs)
                   });
                 }
-                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta);
+                const completion = orderedAppender.enqueue(orderIndex, result, shardMeta, result.stage1Lease);
                 markOrderedEntryComplete(
                   orderIndex,
                   shardProgress,
-                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null),
+                  { status: result.skip ? 'skipped' : 'complete', inputBytes: fileMetrics?.bytes || entry?.stat?.size || entry?.bytes || 0,
+                    chunks: result.chunks?.length || 0, cached: fileMetrics?.cached === true }
                 );
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
@@ -2619,7 +2671,8 @@ export const processFiles = async ({
                 markOrderedEntryComplete(
                   orderIndex,
                   shardProgress,
-                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null)
+                  entry?.rel || (entry?.abs ? toPosix(path.relative(runtimeRef.root, entry.abs)) : null),
+                  { status: 'failed', inputBytes: entry?.stat?.size || entry?.bytes || 0 }
                 );
                 orderedCompletionTracker.track(completion, () => {
                   lastOrderedCompletionAt = Date.now();
@@ -2915,6 +2968,7 @@ export const processFiles = async ({
     });
     const stage1ProgressTracker = createStage1ProgressTracker({
       total: entries.length,
+      totalInputBytes: entries.reduce((sum, entry) => sum + Math.max(0, Number(entry?.stat?.size || entry?.bytes) || 0), 0),
       mode,
       checkpoint,
       onTick: () => {
@@ -2931,17 +2985,18 @@ export const processFiles = async ({
     progress = stage1ProgressTracker.progress;
     markOrderedEntryComplete = stage1ProgressTracker.markOrderedEntryComplete;
     getStage1ProgressSnapshot = stage1ProgressTracker.snapshot;
+    getStage1WorkloadSnapshot = stage1ProgressTracker.workloadSnapshot;
     if (stallSnapshotMs > 0) {
       const stallSnapshotIntervalMs = Math.max(250, Math.floor(stallSnapshotMs / 2));
-      stallSnapshotTimer = setInterval(() => {
+      stallSnapshotTimer = setInterval(watchdogCallback(() => {
         emitProcessingStallSnapshot();
-      }, stallSnapshotIntervalMs);
+      }), stallSnapshotIntervalMs);
       stallSnapshotTimer.unref?.();
     }
     if (progressHeartbeatMs > 0) {
-      progressHeartbeatTimer = setInterval(() => {
+      progressHeartbeatTimer = setInterval(watchdogCallback(() => {
         emitProcessingProgressHeartbeat();
-      }, progressHeartbeatMs);
+      }), progressHeartbeatMs);
       progressHeartbeatTimer.unref?.();
     }
     clearPreDispatchWatchdog();

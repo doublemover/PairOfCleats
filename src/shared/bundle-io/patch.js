@@ -20,6 +20,7 @@ import {
   MAX_BUNDLE_PATCH_ENTRY_BYTES
 } from '../bundle-contract.js';
 import {
+  normalizeBundleWriteIdentity,
   isPlainObject,
   runBundleTransformWorker,
   shouldOffloadBundleTransform,
@@ -241,6 +242,8 @@ export async function writeBundlePatch({
   if (resolvedFormat !== 'json') {
     return { applied: false, reason: 'unsupported-format' };
   }
+  previousBundle = normalizeBundleWriteIdentity(previousBundle, bundlePath);
+  nextBundle = normalizeBundleWriteIdentity(nextBundle, bundlePath);
   const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });
   if (!patch) return { applied: false, reason: 'no-changes' };
   const serialized = `${stringifyJsonValue(patch)}\n`;

@@ -45,13 +45,15 @@ const walkSchemaProperties = (schema, prefix, visit) => {
 
 export const collectSchemaEntries = (schema, prefix = '', entries = []) => {
   if (!schema || typeof schema !== 'object') return entries;
-  walkSchemaProperties(schema, prefix, (pathKey, child) => {
+  for (const [key, child] of Object.entries(getObjectProperties(schema) || {})) {
+    const pathKey = prefix ? `${prefix}.${key}` : key;
     entries.push({
       path: pathKey,
       type: normalizeType(child),
       enum: normalizeEnum(child)
     });
-  });
+    collectSchemaEntries(child, pathKey, entries);
+  }
   const additional = schema.additionalProperties && typeof schema.additionalProperties === 'object'
     ? schema.additionalProperties
     : null;

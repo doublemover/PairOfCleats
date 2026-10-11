@@ -30,6 +30,9 @@ dictionary (object)
 dictionary.dir (string)
 dictionary.dpMaxTokenLength (number)
 dictionary.dpMaxTokenLengthByFileCount (array)
+dictionary.dpMaxTokenLengthByFileCount[] (object)
+dictionary.dpMaxTokenLengthByFileCount[].dpMaxTokenLength (number)
+dictionary.dpMaxTokenLengthByFileCount[].maxFiles (number)
 dictionary.enableRepoDictionary (boolean)
 dictionary.files (array)
 dictionary.includeSlang (boolean)
@@ -84,7 +87,13 @@ indexing.embeddings.onnx.intraOpNumThreads (number)
 indexing.embeddings.provider (string)
 indexing.fileCaps (object)
 indexing.fileCaps.byExt (object)
+indexing.fileCaps.byExt.* (object)
+indexing.fileCaps.byExt.*.maxBytes (number)
+indexing.fileCaps.byExt.*.maxLines (number)
 indexing.fileCaps.byLanguage (object)
+indexing.fileCaps.byLanguage.* (object)
+indexing.fileCaps.byLanguage.*.maxBytes (number)
+indexing.fileCaps.byLanguage.*.maxLines (number)
 indexing.fileCaps.byMode (object)
 indexing.fileCaps.byMode.code (object)
 indexing.fileCaps.byMode.code.maxBytes (number)
@@ -110,6 +119,15 @@ indexing.ioConcurrencyCap (number)
 indexing.lexicon (object)
 indexing.lexicon.enabled (boolean)
 indexing.lexicon.languageOverrides (object)
+indexing.lexicon.languageOverrides.* (object)
+indexing.lexicon.languageOverrides.*.relations (object)
+indexing.lexicon.languageOverrides.*.relations.drop (object)
+indexing.lexicon.languageOverrides.*.relations.drop.builtins (boolean)
+indexing.lexicon.languageOverrides.*.relations.drop.keywords (boolean)
+indexing.lexicon.languageOverrides.*.relations.drop.literals (boolean)
+indexing.lexicon.languageOverrides.*.relations.drop.types (boolean)
+indexing.lexicon.languageOverrides.*.relations.enabled (boolean)
+indexing.lexicon.languageOverrides.*.relations.stableDedupe (boolean)
 indexing.lexicon.relations (object)
 indexing.lexicon.relations.drop (object)
 indexing.lexicon.relations.drop.builtins (boolean)
@@ -151,15 +169,35 @@ indexing.riskInterprocedural.emitArtifacts (string) enum=none|jsonl|off
 indexing.riskInterprocedural.enabled (boolean)
 indexing.riskInterprocedural.sanitizerPolicy (string) enum=terminate|weaken
 indexing.riskInterprocedural.semantics (array)
+indexing.riskInterprocedural.semantics[] (object)
+indexing.riskInterprocedural.semantics[].frameworks (array)
+indexing.riskInterprocedural.semantics[].fromArgs (array)
+indexing.riskInterprocedural.semantics[].id (string)
+indexing.riskInterprocedural.semantics[].kind (string) enum=wrapper|propagator|builder|callback|asyncHandoff
+indexing.riskInterprocedural.semantics[].languages (array)
+indexing.riskInterprocedural.semantics[].name (string)
+indexing.riskInterprocedural.semantics[].patterns (array)
+indexing.riskInterprocedural.semantics[].taintHints (array)
+indexing.riskInterprocedural.semantics[].toParams (array)
 indexing.riskInterprocedural.strictness (string) enum=conservative|argAware
 indexing.riskInterprocedural.summaryOnly (boolean)
 indexing.scheduler (object)
+indexing.scheduler.adaptive (boolean)
+indexing.scheduler.adaptiveSurfaces (object)
+indexing.scheduler.adaptiveSurfaces.surfaces (object)
+indexing.scheduler.adaptiveSurfaces.surfaces.parse (object)
+indexing.scheduler.adaptiveSurfaces.surfaces.parse.initialConcurrency (integer)
+indexing.scheduler.adaptiveSurfaces.surfaces.parse.maxConcurrency (integer)
+indexing.scheduler.adaptiveSurfaces.surfaces.parse.minConcurrency (integer)
 indexing.scheduler.cpuTokens (number)
 indexing.scheduler.enabled (boolean)
 indexing.scheduler.ioTokens (number)
 indexing.scheduler.lowResourceMode (boolean)
 indexing.scheduler.memoryTokens (number)
 indexing.scheduler.queues (object)
+indexing.scheduler.queues.* (object)
+indexing.scheduler.queues.*.maxPending (number)
+indexing.scheduler.queues.*.priority (number)
 indexing.scheduler.starvationMs (number)
 indexing.scm (object)
 indexing.scm.annotate (object)
@@ -172,6 +210,79 @@ indexing.scm.jj.snapshotWorkingCopy (boolean)
 indexing.scm.maxConcurrentProcesses (number)
 indexing.scm.provider (string) enum=auto|git|jj|none
 indexing.scm.timeoutMs (number)
+indexing.semantic (object)
+indexing.semantic.baseFacts (object)
+indexing.semantic.baseFacts.sourceRetention (enum) enum=content-addressed
+indexing.semantic.baseFacts.structure (enum) enum=complete
+indexing.semantic.enabled (boolean)
+indexing.semantic.enrichment (object)
+indexing.semantic.enrichment.bindings (enum) enum=off|auto|eager|deferred
+indexing.semantic.enrichment.callContextDepth (integer)
+indexing.semantic.enrichment.crossFileFlow (enum) enum=off|auto|eager|deferred
+indexing.semantic.enrichment.fieldPathDepth (integer)
+indexing.semantic.enrichment.localFlow (enum) enum=off|auto|eager|deferred
+indexing.semantic.enrichment.maxSccIterations (integer)
+indexing.semantic.enrichment.unknownEffects (enum) enum=conservative
+indexing.semantic.execution (object)
+indexing.semantic.execution.afterIndexMaxMs (integer)
+indexing.semantic.execution.compilerAdmission (object)
+indexing.semantic.execution.compilerAdmission.maxBytes (integer)
+indexing.semantic.execution.compilerAdmission.maxFiles (integer)
+indexing.semantic.execution.compilerAdmission.maxProjects (integer)
+indexing.semantic.execution.compilerAdmission.maxReceiptAgeMs (integer)
+indexing.semantic.execution.compilerAdmission.maxResidentBytes (integer)
+indexing.semantic.execution.compilerAdmission.measurementHeadroom (number)
+indexing.semantic.execution.deferredDrain (enum) enum=manual|after-index
+indexing.semantic.execution.maxAttempts (integer)
+indexing.semantic.languages (array)
+indexing.semantic.overrides (array)
+indexing.semantic.overrides[] (object)
+indexing.semantic.overrides[].id (string)
+indexing.semantic.overrides[].match (object)
+indexing.semantic.overrides[].match.language (string)
+indexing.semantic.overrides[].match.path (string)
+indexing.semantic.overrides[].set (object)
+indexing.semantic.overrides[].set.enrichment (object)
+indexing.semantic.overrides[].set.enrichment.bindings (enum) enum=off|auto|eager|deferred
+indexing.semantic.overrides[].set.enrichment.callContextDepth (integer)
+indexing.semantic.overrides[].set.enrichment.crossFileFlow (enum) enum=off|auto|eager|deferred
+indexing.semantic.overrides[].set.enrichment.fieldPathDepth (integer)
+indexing.semantic.overrides[].set.enrichment.localFlow (enum) enum=off|auto|eager|deferred
+indexing.semantic.overrides[].set.enrichment.maxSccIterations (integer)
+indexing.semantic.overrides[].set.enrichment.unknownEffects (enum) enum=conservative
+indexing.semantic.overrides[].set.execution (object)
+indexing.semantic.overrides[].set.execution.afterIndexMaxMs (integer)
+indexing.semantic.overrides[].set.execution.deferredDrain (enum) enum=manual|after-index
+indexing.semantic.overrides[].set.execution.maxAttempts (integer)
+indexing.semantic.overrides[].set.planning (object)
+indexing.semantic.overrides[].set.planning.costModel (enum) enum=measured
+indexing.semantic.overrides[].set.planning.inlineBudgetMs (integer)
+indexing.semantic.overrides[].set.planning.prepass (enum) enum=reuse-existing-walk
+indexing.semantic.planning (object)
+indexing.semantic.planning.costModel (enum) enum=measured
+indexing.semantic.planning.inlineBudgetMs (integer)
+indexing.semantic.planning.prepass (enum) enum=reuse-existing-walk
+indexing.semantic.profile (enum) enum=balanced|rich|targeted
+indexing.semantic.publication (object)
+indexing.semantic.publication.base (enum) enum=publish-with-coverage|complete-required
+indexing.semantic.publication.semantic (enum) enum=whole-generation
+indexing.semantic.query (object)
+indexing.semantic.query.cursorTtlMs (integer)
+indexing.semantic.query.maxBytes (integer)
+indexing.semantic.query.maxContinuations (integer)
+indexing.semantic.query.maxDepth (integer)
+indexing.semantic.query.maxRecords (integer)
+indexing.semantic.query.maxRows (integer)
+indexing.semantic.query.maxWorkMs (integer)
+indexing.semantic.schemaVersion
+indexing.semantic.storage (object)
+indexing.semantic.storage.batchBytes (integer)
+indexing.semantic.storage.batchRows (integer)
+indexing.semantic.storage.decodedCacheBytes (integer)
+indexing.semantic.storage.maxDiskWorkingSetBytes (integer)
+indexing.semantic.storage.maxQueuedBytes (integer)
+indexing.semantic.storage.targetPartBytes (integer)
+indexing.semantic.targets (array)
 indexing.snapshots (object)
 indexing.snapshots.keepFrozen (number)
 indexing.snapshots.keepPointer (number)
@@ -320,6 +431,17 @@ tooling.lsp.enabled (boolean)
 tooling.lsp.lifecycle (object)
 tooling.lsp.maxRetries (number)
 tooling.lsp.servers (array)
+tooling.lsp.servers[] (object)
+tooling.lsp.servers[].args
+tooling.lsp.servers[].cmd (string)
+tooling.lsp.servers[].id (string)
+tooling.lsp.servers[].label (string)
+tooling.lsp.servers[].languages
+tooling.lsp.servers[].priority (number)
+tooling.lsp.servers[].retries (number)
+tooling.lsp.servers[].timeoutMs (number)
+tooling.lsp.servers[].uriScheme (string) enum=file|poc-vfs
+tooling.lsp.servers[].version (string)
 tooling.lsp.timeoutMs (number)
 tooling.maxRetries (number)
 tooling.phpactor (object)
@@ -426,3 +548,9 @@ tooling.vfs.tokenMode (string)
 Notes:
 - Boolean flags accept `--no-<flag>` unless a command overrides negation behavior.
 - Search options list is derived from `src/retrieval/cli-args.js`.
+
+### Context-pack semantic evidence
+
+- `--includeSemantic` (boolean, default false): include bounded semantic evidence and pinned follow-up requests in context packs.
+- CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.
+- Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.

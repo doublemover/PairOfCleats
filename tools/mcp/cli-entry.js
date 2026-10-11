@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-import { getToolVersion } from '../shared/dict-utils.js';
-import { createCli } from '../../src/shared/cli.js';
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { getToolVersion } = await import('../shared/dict-utils.js');
+const { createCli } = await import('../../src/shared/cli.js');
 
 const rawArgs = process.argv.slice(2);
 

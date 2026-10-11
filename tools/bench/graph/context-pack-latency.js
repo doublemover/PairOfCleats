@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-import { isDirectExecution } from '../../../src/shared/direct-execution.js';
-import { buildGraphIndexCacheKey } from '../../../src/graph/store.js';
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { isDirectExecution } = await import('../../../src/shared/direct-execution.js');
+const { buildGraphIndexCacheKey } = await import('../../../src/graph/store.js');
+const {
   assembleCompositeContextPack,
   buildChunkIndex,
   clearContextPackCaches
-} from '../../../src/context-pack/assemble.js';
-import {
+} = await import('../../../src/context-pack/assemble.js');
+const {
   clearGraphTraversalCaches,
   durationMs,
   GRAPH_BENCH_GRAPHS,
@@ -15,7 +17,7 @@ import {
   parseGraphBenchStandardCli,
   printBaselineCurrentSummary,
   runPayloadIterations
-} from './shared.js';
+} = await import('./shared.js');
 
 export async function runContextPackLatencyBench({
   indexDir,

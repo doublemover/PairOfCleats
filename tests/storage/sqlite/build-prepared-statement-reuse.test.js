@@ -5,7 +5,7 @@ import path from 'node:path';
 import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -110,7 +110,7 @@ const createIndexDir = async (dir, shardCount) => {
     arrays: { docLengths },
     atomic: true
   });
-  await writePiecesManifest(dir, [
+  await writeSqliteArtifactManifest(dir, [
     ...shardResult.parts.map((part) => ({
       name: 'chunk_meta',
       path: part,

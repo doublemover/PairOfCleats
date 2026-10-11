@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -55,7 +56,7 @@ const result = await buildDatabaseFromBundles({
   mode: 'code',
   incrementalData: {
     bundleDir,
-    manifest: {
+    manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       files: {
         'a.js': { bundles: ['bundle-a.json'], mtimeMs: 1, size: 1, hash: 'a' },
         'b.js': { bundles: ['bundle-b.json'], mtimeMs: 2, size: 1, hash: 'b' },

@@ -47,6 +47,7 @@ const producer = scheduler.schedule('stage1.cpu', { cpu: 1 }, async () => {
 
 await sleep(25);
 assert.equal(producerStarted, false, 'expected producer queue to be backpressured by write tail');
+assert.deepEqual(scheduler.stats().queues['stage1.cpu'].blockedBy, { 'write-backpressure': 1 });
 
 releaseFirstWrite();
 await sleep(25);

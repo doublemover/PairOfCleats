@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -62,4 +63,13 @@ const patchMeta = JSON.parse(await fs.readFile(resolveBundlePatchMetaPath(bundle
 const patchStat = await fs.stat(`${bundlePath}.patch.jsonl`);
 assert.equal(patchMeta.bytes, patchStat.size, 'expected patch meta bytes to match patch file size');
 
+assert.equal(readResult.bundle.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION);
+const beforeRejectedPatch = await fs.readFile(`${bundlePath}.patch.jsonl`, 'utf8');
+const beforeRejectedChecksum = await fs.readFile(`${bundlePath}.checksum.json`, 'utf8');
+for (const side of ['previousBundle', 'nextBundle']) {
+  await assert.rejects(writeBundlePatch({ bundlePath, previousBundle: thirdBundle, nextBundle: thirdBundle,
+    [side]: { ...thirdBundle, artifactSurfaceVersion: 'unsupported-fixture' } }), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
+}
+assert.equal(await fs.readFile(`${bundlePath}.patch.jsonl`, 'utf8'), beforeRejectedPatch);
+assert.equal(await fs.readFile(`${bundlePath}.checksum.json`, 'utf8'), beforeRejectedChecksum);
 console.log('bundle io patch append test passed');

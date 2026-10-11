@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
+import { applyPatches } from './apply-patches.js';
+import { probeNativePackage } from '../../src/shared/native-package-probe.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
 import { formatSpawnFailureReason } from './rebuild-native-exit.js';
 import { probeSqliteNative, rebuildSqliteNativeFromSource } from './rebuild-native-sqlite.js';
@@ -168,98 +170,7 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
   });
 };
 
-const probePackage = async (pkgName) => {
-  if (pkgName === 'better-sqlite3') return probeSqliteNative(root);
-  /**
-   * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not
-   * actually usable with rebuilt grammars. Probe parser activation explicitly
-   * so `verify:native` / `repair:native` detect this CI-only failure mode.
-   */
-  if (pkgName === 'tree-sitter') {
-    const parserProbeScript = `
-      try {
-        const Parser = require('tree-sitter');
-        const js = require('tree-sitter-javascript');
-        const parser = new Parser();
-        const candidates = [js, js.javascript, js.language, js.default].filter(Boolean);
-        let activated = false;
-        let lastError = null;
-        for (const language of candidates) {
-          try {
-            parser.setLanguage(language);
-            const tree = parser.parse('function ok() { return 1; }');
-            if (!tree || !tree.rootNode) {
-              throw new Error('tree-sitter parser activation produced no tree');
-            }
-            activated = true;
-            break;
-          } catch (err) {
-            lastError = err;
-          }
-        }
-        if (!activated) {
-          throw lastError || new Error('tree-sitter parser activation failed');
-        }
-        process.exit(0);
-      } catch (err) {
-        const message = err && err.message ? err.message : String(err);
-        console.error(message);
-        process.exit(1);
-      }
-    `.trim();
-
-    const parserProbeResult = spawnSync(process.execPath, ['-e', parserProbeScript], {
-      cwd: root,
-      encoding: 'utf8'
-    });
-
-    if (parserProbeResult.status === 0) {
-      return { ok: true, message: null };
-    }
-
-    const message = (parserProbeResult.stderr || parserProbeResult.stdout || '').trim();
-    return {
-      ok: false,
-      message: message || 'failed to activate tree-sitter parser'
-    };
-  }
-
-  const probeScript = `
-    const pkg = process.argv[1];
-    (async () => {
-      try {
-        await import(pkg);
-        process.exit(0);
-      } catch (importErr) {
-        try {
-          require(pkg);
-          process.exit(0);
-        } catch (requireErr) {
-          const message = (requireErr && requireErr.message)
-            || (importErr && importErr.message)
-            || 'failed to load package';
-          console.error(message);
-          process.exit(1);
-        }
-      }
-    })();
-  `.trim();
-
-  const result = spawnSync(process.execPath, ['-e', probeScript, pkgName], {
-    cwd: root,
-    encoding: 'utf8'
-  });
-
-  if (result.status === 0) {
-    return { ok: true, message: null };
-  }
-
-  const message = (result.stderr || result.stdout || '').trim();
-  return {
-    ok: false,
-    message: message || `failed to load ${pkgName}`
-  };
-};
+const probePackage = pkgName => probeNativePackage(root, pkgName);
 
 const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
   const failures = [];
@@ -383,16 +294,25 @@ const repairRequiredPackages = async () => {
   console.error(`[repair:native] repaired ${failures.length} required package(s).`);
 };
 
+const recordReadiness = () => {
+  applyPatches(root, { verifyOnly: true });
+  recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES);
+  console.error('[bootstrap] Verified readiness receipt saved.');
+};
+
 let requiredFailures = 0;
 let optionalFailures = 0;
 
 if (verifyOnly) {
   await verifyRequiredPackages();
+  recordReadiness();
   process.exit(0);
 }
 
 if (repairOnly) {
   await repairRequiredPackages();
+  await verifyRequiredPackages();
+  recordReadiness();
   process.exit(0);
 }
 
@@ -452,3 +372,6 @@ if (optionalFailures > 0) {
 } else {
   console.error('[rebuild:native] completed successfully.');
 }
+
+await verifyRequiredPackages();
+recordReadiness();

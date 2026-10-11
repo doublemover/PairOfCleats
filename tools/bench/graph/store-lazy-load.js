@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-import { isDirectExecution } from '../../../src/shared/direct-execution.js';
-import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
-import { loadPiecesManifest } from '../../../src/shared/artifact-io/manifest.js';
-import { buildIndexSignature } from '../../../src/retrieval/index-cache.js';
-import { createGraphStore, buildGraphIndexCacheKey } from '../../../src/graph/store.js';
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { isDirectExecution } = await import('../../../src/shared/direct-execution.js');
+const { MAX_JSON_BYTES } = await import('../../../src/shared/artifact-io/constants.js');
+const { loadPiecesManifest } = await import('../../../src/shared/artifact-io/manifest.js');
+const { buildIndexSignature } = await import('../../../src/retrieval/index-cache.js');
+const { createGraphStore, buildGraphIndexCacheKey } = await import('../../../src/graph/store.js');
+const {
   GRAPH_BENCH_GRAPHS,
   normalizeCompareMode,
   parseGraphIndexBenchCli,
   printBaselineCurrentSummary,
   readNumberArg,
   runAsyncTimedIterations
-} from './shared.js';
+} = await import('./shared.js');
 
 export async function runGraphStoreBench({ indexDir, repoRoot, iterations, mode }) {
   const manifest = loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict: true });

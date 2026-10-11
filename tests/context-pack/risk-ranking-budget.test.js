@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -118,7 +119,7 @@ const writeManifest = async (indexDir, pieces) => {
   await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), {
     fields: {
       version: 2,
-      artifactSurfaceVersion: 'test',
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: 'compat-test',
       generatedAt: fixedNow(),
       mode: 'code',

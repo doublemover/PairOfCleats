@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/parallel-manifest-build.js --segments 2000 --segment-bytes 128 --concurrency 1,2,4,8 --samples 3 --json
-import { createCli } from '../../../src/shared/cli.js';
-import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
-import { buildVfsManifestRowsForFile } from '../../../src/index/tooling/vfs.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
+const { buildVfsManifestRowsForFile } = await import('../../../src/index/tooling/vfs.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

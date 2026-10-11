@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../src/contracts/versioning.js';
@@ -66,7 +67,7 @@ await writeJsonObjectFile(path.join(outDir, 'repo_map.meta.json'), {
   atomic: true
 });
 
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   version: 2,
   generatedAt: new Date().toISOString(),
   mode: 'code',

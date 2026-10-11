@@ -1,19 +1,27 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from './src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseBuildArgs } from './src/index/build/args.js';
-import { buildIndex } from './src/integrations/core/index.js';
-import { createDisplay } from './src/shared/cli/display.js';
-import { setProgressHandlers } from './src/shared/progress-runtime.js';
-import { buildAutoPolicy } from './src/shared/auto-policy/build.js';
-import { parseObservabilityContextEnv } from './src/shared/observability.js';
-import { resolveRuntimeEnvelope } from './src/shared/runtime-envelope/resolve.js';
-import { createAbortControllerWithHandlers, isAbortError } from './src/shared/abort.js';
-import { isDirectExecution } from './src/shared/direct-execution.js';
-import { setCacheRebuildEnv, setVerboseEnv } from './src/shared/env.js';
-import { emitLegacyCliEntrypointWarning } from './src/shared/cli/legacy-entrypoint.js';
-import { getCurrentBuildInfo, getRepoCacheRoot, getToolVersion, loadUserConfig, resolveRepoRoot } from './tools/shared/dict-utils.js';
+const { parseBuildArgs } = await import('./src/index/build/args.js');
+const { buildIndex } = await import('./src/integrations/core/index.js');
+const { createDisplay } = await import('./src/shared/cli/display.js');
+const { setProgressHandlers } = await import('./src/shared/progress-runtime.js');
+const { buildAutoPolicy } = await import('./src/shared/auto-policy/build.js');
+const { parseObservabilityContextEnv } = await import('./src/shared/observability.js');
+const { resolveRuntimeEnvelope } = await import('./src/shared/runtime-envelope/resolve.js');
+const { createAbortControllerWithHandlers, isAbortError } = await import('./src/shared/abort.js');
+const { isDirectExecution } = await import('./src/shared/direct-execution.js');
+const { setCacheRebuildEnv, setVerboseEnv } = await import('./src/shared/env.js');
+const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
+const {
+  getCurrentBuildInfo,
+  getRepoCacheRoot,
+  getToolVersion,
+  loadUserConfig,
+  resolveRepoRoot
+} = await import('./tools/shared/dict-utils.js');
 
 const normalizePath = (value) => String(value || '').replace(/\//g, path.sep);
 

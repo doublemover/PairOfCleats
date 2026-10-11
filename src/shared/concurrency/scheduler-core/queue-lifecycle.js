@@ -43,6 +43,7 @@ export function createSchedulerQueueLifecycle({ config }) {
       pendingBytes: 0,
       inFlightBytes: 0,
       running: 0,
+      runningSince: new Map(),
       stats: {
         scheduled: 0,
         started: 0,
@@ -53,6 +54,7 @@ export function createSchedulerQueueLifecycle({ config }) {
         lastWaitMs: 0,
         waitP95Ms: 0,
         waitSamples: [],
+        runSamples: [],
         waitSampleCursor: 0,
         rejectedMaxPending: 0,
         rejectedMaxPendingBytes: 0,

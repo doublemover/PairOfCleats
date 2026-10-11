@@ -1,14 +1,16 @@
-import { handleSemanticTraceRoute } from './router/semantic-trace.js';
-import { handleSemanticFindRoute } from './router/semantic-find.js';
-import { handleSemanticExplainRoute } from './router/semantic-explain.js';
-import { handleSemanticEnrichmentRoute } from './router/semantic-enrichment.js';
-import { handleRuntimeEvidenceRoute } from './router/runtime-evidence.js';
+// Keep health/startup independent of request-only search and semantic graphs.
+const handleSemanticTraceRoute = async (...args) => (await import('./router/semantic-trace.js')).handleSemanticTraceRoute(...args);
+const handleSemanticFindRoute = async (...args) => (await import('./router/semantic-find.js')).handleSemanticFindRoute(...args);
+const handleSemanticExplainRoute = async (...args) => (await import('./router/semantic-explain.js')).handleSemanticExplainRoute(...args);
+const handleSemanticEnrichmentRoute = async (...args) => (await import('./router/semantic-enrichment.js')).handleSemanticEnrichmentRoute(...args);
+const handleRuntimeEvidenceRoute = async (...args) => (await import('./router/runtime-evidence.js')).handleRuntimeEvidenceRoute(...args);
+const handleSemanticDetailRoute = async (...args) => (await import('./router/semantic.js')).handleSemanticDetailRoute(...args);
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
-import { handleSemanticDetailRoute } from './router/semantic.js';
 import path from 'node:path';
-import { search, status } from '../../src/integrations/core/index.js';
+const search = async (...args) => (await import('../../src/integrations/core/search.js')).search(...args);
+const status = async (...args) => (await import('../../src/integrations/core/status.js')).status(...args);
 import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
-import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
+const runFederatedSearch = async (...args) => (await import('../../src/retrieval/federation/coordinator.js')).runFederatedSearch(...args);
 import {
   createContextPackValidator,
   createFederatedSearchValidator,

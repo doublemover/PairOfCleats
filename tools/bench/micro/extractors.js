@@ -1,12 +1,14 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
-import { extractPdf, loadPdfExtractorRuntime } from '../../../src/index/extractors/pdf.js';
-import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extractors/docx.js';
-import { formatStats, summarizeDurations } from './utils.js';
+const { default: yargs } = await import('yargs/yargs');
+const { hideBin } = await import('yargs/helpers');
+const { extractPdf, loadPdfExtractorRuntime } = await import('../../../src/index/extractors/pdf.js');
+const { extractDocx, loadDocxExtractorRuntime } = await import('../../../src/index/extractors/docx.js');
+const { formatStats, summarizeDurations } = await import('./utils.js');
 
 const argv = yargs(hideBin(process.argv))
   .option('pdf', {

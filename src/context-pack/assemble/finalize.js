@@ -318,3 +318,9 @@ export const assembleCompositeContextPackStreaming = async ({
   }
   return payload;
 };
+
+/** Include optional semantic evidence without promoting incomplete analysis. */
+export const attachSemanticContextSection = (payload, semantic) => ({
+  ...payload, semantic,
+  evidence: { ...payload.evidence, semantic: { included: true, state: semantic.status }, complete: false }
+});

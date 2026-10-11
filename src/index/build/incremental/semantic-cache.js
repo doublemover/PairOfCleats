@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { constants as fsConstants } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
@@ -9,6 +9,8 @@ import { canonicalSemanticJson, semanticHash } from '../../semantic/identity.js'
 import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import { createArtifactSemanticStore, resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
+import { SEMANTIC_OWNERSHIP_PRODUCER_HASH } from '../../semantic/analysis-versions.js';
 
 const fail = (message, code = 'ERR_SEMANTIC_CACHE_INTEGRITY') => Object.assign(new Error(message), { code });
 const MAX_DESCRIPTOR_BYTES = 32 * 1024 * 1024;
@@ -18,8 +20,11 @@ const dependencyHash = (signatures) => {
     || !HASH.test(signatures.semantic)) {
     throw new TypeError('Semantic cache dependency signatures are required.');
   }
-  const { semanticAnalysis, semanticLayout, ...extraction } = signatures;
-  return semanticHash('pairofcleats.semantic.cache-dependencies.v1', extraction);
+  // Syntax ownership does not depend on lexical analysis, compiler policy or
+  // physical output layout. Those lanes carry their own invalidation keys.
+  return semanticHash('pairofcleats.semantic.cache-dependencies.v2', {
+    parse: signatures.parse || null, semantic: signatures.semantic
+  });
 };
 const cacheKeyFor = (factsRef, signatures) => semanticHash('pairofcleats.semantic.cache-entry.v1', {
   canonicalHash: factsRef.canonicalHash, dependencyHash: dependencyHash(signatures)
@@ -77,12 +82,18 @@ export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleD
       if (source.path !== expectedSourcePath) throw fail('Semantic cache source path changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
     }
   }
-  if (envelope.dependencySignatures.semanticAnalysis !== expectedDependencySignatures.semanticAnalysis && factsRef.partitions.some(partition => partition.contextHash !== null)) throw fail('Derived semantic cache analysis policy changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
+  // Deferred/frontier partitions can have no compiler context too. Only syntax
+  // and its known structural ownership producer are independent of analysis.
+  if (envelope.dependencySignatures.semanticAnalysis !== expectedDependencySignatures.semanticAnalysis
+    && factsRef.partitions.some(partition => partition.partitionId !== factsRef.syntaxPartitionId
+      && (partition.contextHash !== null || partition.producerHash !== SEMANTIC_OWNERSHIP_PRODUCER_HASH))) {
+    throw fail('Derived semantic cache analysis policy changed.', 'ERR_SEMANTIC_CACHE_MISMATCH');
+  }
   return { factsRef, store, root, dependencySignatures: envelope.dependencySignatures };
 };
 
 /** Copy exact files into an owned directory, never hard-linking a published generation. */
-const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAccount, signal }) => {
+const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAccount, signal, onReserve }) => {
   if (!diskAccount || typeof diskAccount.reserve !== 'function') throw new TypeError('Shared semantic disk account required.');
   let reserved = 0;
   const copied = new Set();
@@ -92,36 +103,38 @@ const copyFactsFiles = async ({ factsRef, store, sourceRoot, targetRoot, diskAcc
     const source = await resolveSemanticPartPath(sourceRoot, relative);
     const destination = path.join(targetRoot, relative);
     await fs.mkdir(path.dirname(destination), { recursive: true });
-    diskAccount.reserve(size); reserved += size;
+    diskAccount.reserve(size); reserved += size; onReserve(size);
     await fs.copyFile(source, destination, fsConstants.COPYFILE_EXCL);
     const handle = await fs.open(destination, 'r+');
     try { await handle.sync(); } finally { await handle.close(); }
+    await syncParentDirectory(destination);
+    // Part/source directories may have been created by this copy.
+    await syncParentDirectory(path.dirname(destination));
     throwIfAborted(signal);
     copied.add(relative);
   };
-  try {
-    for (const partition of factsRef.partitions) {
-      for (const pieces of Object.values(partition.members)) for (const piece of pieces) {
-        await copy(piece.path, piece.bytes);
-        await copy(piece.offsetsPath, piece.count * 8);
-      }
-      for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources', { signal })) {
-        if (source.sourceUnitId !== factsRef.sourceUnitId || source.byteHash !== factsRef.sourceHash
-          || source.repositoryNamespace !== factsRef.repositoryNamespace) throw fail('Semantic cache source manifest differs from descriptor.');
-        await copy('semantic-sources/' + source.byteHash + '.utf8', source.byteLength);
-        if (source.mapping) {
-          const relative = source.mapping.mapRef;
-          if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(relative)) throw fail('Invalid source mapping evidence path.');
-          const mapBytes = await fs.readFile(await resolveSemanticPartPath(sourceRoot, relative));
-          if (hashBytes(mapBytes) !== path.basename(relative, '.json')) throw fail('Source mapping evidence checksum mismatch.');
-          const mapping = JSON.parse(mapBytes.toString('utf8'));
-          if (semanticHash('semantic.embedded-map.v1', mapping) !== source.mapping.identity) throw fail('Source mapping evidence identity mismatch.');
-          await copy(relative, mapBytes.length);
-        }
+  for (const partition of factsRef.partitions) {
+    for (const pieces of Object.values(partition.members)) for (const piece of pieces) {
+      await copy(piece.path, piece.bytes);
+      await copy(piece.offsetsPath, piece.count * 8);
+    }
+    for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources', { signal })) {
+      if (source.sourceUnitId !== factsRef.sourceUnitId || source.byteHash !== factsRef.sourceHash
+        || source.repositoryNamespace !== factsRef.repositoryNamespace) throw fail('Semantic cache source manifest differs from descriptor.');
+      await copy('semantic-sources/' + source.byteHash + '.utf8', source.byteLength);
+      if (source.mapping) {
+        const relative = source.mapping.mapRef;
+        if (!/^semantic-evidence\/[a-f0-9]{64}\.json$/.test(relative)) throw fail('Invalid source mapping evidence path.');
+        const mapBytes = await fs.readFile(await resolveSemanticPartPath(sourceRoot, relative));
+        if (hashBytes(mapBytes) !== path.basename(relative, '.json')) throw fail('Source mapping evidence checksum mismatch.');
+        const mapping = JSON.parse(mapBytes.toString('utf8'));
+        if (semanticHash('semantic.embedded-map.v1', mapping) !== source.mapping.identity) throw fail('Source mapping evidence identity mismatch.');
+        await copy(relative, mapBytes.length);
       }
     }
-    return reserved;
-  } catch (error) { diskAccount.release(reserved); throw error; }
+  }
+  return reserved;
+
 };
 
 /** Persist descriptor and parts once per file; bundle shards contain no semantic payload. */
@@ -151,7 +164,22 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
     const existing = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: existingLocator, expectedDependencySignatures: dependencySignatures, signal });
     await validateSemanticPartitions({ store: existing.store, partitions: existing.factsRef.partitions, signal });
     return existingLocator;
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  } catch (error) {
+    throwIfAborted(signal);
+    if (error.code !== 'ENOENT') {
+      if (!['ERR_SEMANTIC_CACHE_INTEGRITY', 'ERR_SEMANTIC_INTEGRITY'].includes(error.code)
+        && !(error instanceof SyntaxError)) throw error;
+      // Preserve damaged evidence for inspection and let only this source
+      // recompute. Unrelated immutable objects and descriptors stay valid.
+      await fs.rename(finalRoot, path.join(cacheRoot, '.corrupt-' + cacheKey + '-' + randomUUID()));
+      await syncParentDirectory(finalRoot);
+    } else {
+      // An object directory can survive an interruption without its descriptor.
+      try {
+        await fs.rename(finalRoot, path.join(cacheRoot, '.incomplete-' + cacheKey + '-' + randomUUID()));
+      } catch (missing) { if (missing.code !== 'ENOENT') throw missing; }
+    }
+  }
   const sourceRoot = await resolveSemanticPartPath(buildRoot, factsRef.storage.relativePath);
   const store = createArtifactSemanticStore({ root: sourceRoot, repoRoot,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: factsRef.storage.generation, partitions: factsRef.partitions });
@@ -159,20 +187,29 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
   const temporary = await fs.mkdtemp(path.join(cacheRoot, '.pending-'));
   const targetRoot = path.join(temporary, 'parts');
   let reserved = 0;
+  let promoted = false;
   try {
-    reserved = await copyFactsFiles({ factsRef, store, sourceRoot, targetRoot, diskAccount, signal });
+    await copyFactsFiles({ factsRef, store, sourceRoot, targetRoot, diskAccount, signal, onReserve: bytes => { reserved += bytes; } });
     const copiedStore = createArtifactSemanticStore({ root: targetRoot, repoRoot,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: portable.storage.generation, partitions: portable.partitions });
     await validateSemanticPartitions({ store: copiedStore, partitions: portable.partitions, signal });
     diskAccount.reserve(bytes.length); reserved += bytes.length;
     const handle = await fs.open(path.join(temporary, 'descriptor.json'), 'wx');
     try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+    await syncParentDirectory(path.join(temporary, 'descriptor.json'));
     throwIfAborted(signal);
     await fs.rename(temporary, finalRoot);
+    promoted = true;
+    await syncParentDirectory(finalRoot);
+    await syncParentDirectory(cacheRoot);
     return locator;
   } catch (error) {
-    await fs.rm(temporary, { recursive: true, force: true });
-    diskAccount.release(reserved);
+    // Credits follow physical cleanup, never the rejected copy promise. If
+    // promotion happened before a directory-sync error, the bytes still exist.
+    if (!promoted) {
+      await fs.rm(temporary, { recursive: true, force: true });
+      diskAccount.release(reserved);
+    }
     throw error;
   }
 };
@@ -200,8 +237,8 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
   let reserved = 0;
   let retainedSourceBytes = 0, retainedEvidenceBytes = 0;
   try {
-    reserved = await copyFactsFiles({ factsRef: opened.factsRef, store: opened.store,
-      sourceRoot: opened.root, targetRoot: temporary, diskAccount, signal });
+    await copyFactsFiles({ factsRef: opened.factsRef, store: opened.store,
+      sourceRoot: opened.root, targetRoot: temporary, diskAccount, signal, onReserve: bytes => { reserved += bytes; } });
     const partitions = structuredClone(opened.factsRef.partitions);
     const prefix = path.basename(temporary);
     for (const partition of partitions) for (const pieces of Object.values(partition.members)) for (const piece of pieces) {

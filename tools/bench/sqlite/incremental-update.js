@@ -1,17 +1,19 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fsSync from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
-import { incrementalUpdateDatabase } from '../../../src/storage/sqlite/build/incremental-update.js';
-import { resolveSqliteIngestPlan } from '../../../src/storage/sqlite/utils.js';
-import { parseSimpleBenchArgs, resolveCompareMode } from '../shared.js';
-import {
+const { buildDatabaseFromBundles } = await import('../../../src/storage/sqlite/build/from-bundles.js');
+const { incrementalUpdateDatabase } = await import('../../../src/storage/sqlite/build/incremental-update.js');
+const { resolveSqliteIngestPlan } = await import('../../../src/storage/sqlite/utils.js');
+const { parseSimpleBenchArgs, resolveCompareMode } = await import('../shared.js');
+const {
   createSqliteBenchBundleFixture,
   createSqliteBenchWorkspace,
   loadSqliteBenchDatabase,
   requireSqliteDb,
   writeSqliteBenchBundle
-} from './shared.js';
+} = await import('./shared.js');
 
 const Database = await loadSqliteBenchDatabase();
 const args = parseSimpleBenchArgs();

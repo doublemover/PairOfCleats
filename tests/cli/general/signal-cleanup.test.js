@@ -12,6 +12,14 @@ const root = process.cwd();
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-cli-signal-cleanup-'));
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(temp, 'cache'), embeddings: 'off' });
 await fs.writeFile(path.join(temp, '.pairofcleats.json'), '{}');
+const importGuard = path.join(temp, 'health-import-guard.mjs');
+await fs.writeFile(importGuard, `import { registerHooks } from 'node:module';
+  registerHooks({ load(url, context, next) {
+    if (url.endsWith('/src/semantic/enrichment.js')) throw new Error('Health startup loaded request-only enrichment');
+    return next(url, context);
+  } });`);
+// NODE_OPTIONS propagates to the dispatched API child as well as its CLI parent.
+env.NODE_OPTIONS = `${env.NODE_OPTIONS || ''} --import=${JSON.stringify(importGuard)}`;
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 try {
   for (const signal of ['SIGINT', 'SIGTERM']) {
@@ -19,21 +27,24 @@ try {
       'service', 'api', '--repo', temp, '--host', '127.0.0.1', '--port', '0',
       '--allow-unauthenticated', '--json'], { cwd: temp, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
+    let ready = null;
     let stderr = '';
     let exited = null;
-    child.stdout.on('data', chunk => { output += chunk; });
+    child.stdout.on('data', chunk => {
+      output += chunk;
+      for (const line of output.split('\n')) {
+        try { const row = JSON.parse(line); if (row.baseUrl) ready = row; } catch {}
+      }
+    });
     child.stderr.on('data', chunk => { stderr += chunk; });
     child.once('exit', (code, observedSignal) => { exited = { code, signal: observedSignal }; });
     try {
-      let ready;
       const deadline = Date.now() + 8000;
       while (!ready && Date.now() < deadline) {
-        for (const line of output.split('\n')) {
-          try { const row = JSON.parse(line); if (row.baseUrl) ready = row; } catch {}
-        }
+        if (exited) break;
         if (!ready) await wait(20);
       }
-      assert.ok(ready, stderr);
+      assert.ok(ready, `API readiness failed: exit=${JSON.stringify(exited)} stdout=${output} stderr=${stderr}`);
       assert.equal((await fetch(`${ready.baseUrl}/health`)).status, 200);
       child.kill(signal);
       const exitDeadline = Date.now() + 5000;

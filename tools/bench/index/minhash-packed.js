@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -54,7 +55,7 @@ const writePiecesManifest = async (runRoot, pieces) => {
   const manifestPath = path.join(runRoot, 'pieces', 'manifest.json');
   await fs.mkdir(path.dirname(manifestPath), { recursive: true });
   await writeJsonObjectFile(manifestPath, {
-    fields: {
+    fields: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: 'bench-minhash-packed',
       pieces: Array.isArray(pieces)
         ? pieces.map((piece) => ({

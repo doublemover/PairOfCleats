@@ -1,13 +1,22 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { loadChunkMeta, loadGraphRelations, loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders.js';
-import { createOrderingHasher, stableOrderWithComparator } from '../../../src/shared/order.js';
-import { compareChunkMetaRows, createGraphRelationsIterator } from '../../../src/index/build/artifacts/helpers.js';
-import { createFileRelationsIterator } from '../../../src/index/build/artifacts/writers/file-relations.js';
-import { createRepoMapIterator } from '../../../src/index/build/artifacts/writers/repo-map.js';
-import { createSeededRng, parseSimpleBenchArgs } from '../shared.js';
+const {
+  loadChunkMeta,
+  loadGraphRelations,
+  loadJsonArrayArtifact
+} = await import('../../../src/shared/artifact-io/loaders.js');
+const { createOrderingHasher, stableOrderWithComparator } = await import('../../../src/shared/order.js');
+const {
+  compareChunkMetaRows,
+  createGraphRelationsIterator
+} = await import('../../../src/index/build/artifacts/helpers.js');
+const { createFileRelationsIterator } = await import('../../../src/index/build/artifacts/writers/file-relations.js');
+const { createRepoMapIterator } = await import('../../../src/index/build/artifacts/writers/repo-map.js');
+const { createSeededRng, parseSimpleBenchArgs } = await import('../shared.js');
 
 const resolveIndexDir = (root, args) => {
   if (args.index) {

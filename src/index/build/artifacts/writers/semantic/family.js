@@ -96,7 +96,7 @@ export const enqueueSemanticArtifacts = ({ state, root, outDir, indexState, enab
     const operationIndex = await writeSemanticQueryIndex({ root: semanticRoot, generation, partitions, store,
       diskAccount: state.semanticDiskAccount || createSemanticDiskAccount(0), signal,
       entries: operationIndexEntries(store, partitions, signal), compareRows: compareOperationIndexRows,
-      keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-' });
+      keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 });
     await writeJsonObjectFile(path.join(outDir, 'semantic_operation_index.json'), { fields: operationIndex, atomic: true });
     register('semantic_operation_index', path.join(outDir, 'semantic_operation_index.json'), operationIndex.rowCount);
     for (const piece of operationIndex.pieces) {

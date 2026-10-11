@@ -79,7 +79,7 @@ const cases = [
             const reads = [];
             validateEmbeddingArtifacts({
               report, mode: 'code', dir,
-              manifest: { pieces: [{ name: target, format: 'bin', path: `${target}.bin`, count }] },
+              manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [{ name: target, format: 'bin', path: `${target}.bin`, count }] },
               strict: true, modeReport: { ok: true, missing: [] },
               chunkMeta: [{ id: 0 }, { id: 1 }, { id: 2 }],
               validateManifestCount: (...args) => manifestCounts.push(args),
@@ -317,6 +317,17 @@ const cases = [
       await fs.rm(path.join(indexDir, 'pieces', 'manifest.json'), { force: true });
       const report = await runValidation({ repoRoot, indexRoot, strict: true });
       assertValidationIssue(report, 'pieces/manifest.json missing');
+    }
+  },
+  {
+    name: 'strict validation distinguishes present unversioned manifests from missing manifests',
+    async run() {
+      const tempRoot = await createTempRoot('index-validate-contract-unversioned-manifest');
+      const { repoRoot, indexRoot, indexDir } = await createBaseIndex({ rootDir: tempRoot });
+      await updatePiecesManifest(indexDir, manifest => { delete manifest.artifactSurfaceVersion; });
+      const report = await runValidation({ repoRoot, indexRoot, strict: true });
+      assertValidationIssue(report, 'pieces/manifest.json invalid');
+      assert.ok(!report.issues.some(issue => issue.includes('pieces/manifest.json missing')));
     }
   },
   {

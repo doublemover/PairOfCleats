@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -58,6 +59,7 @@ try {
   await writeStore(corruptPath, 'prose', LMDB_SCHEMA_VERSION, true);
   const writer = new Database(sqlitePath);
   writer.exec(CREATE_TABLES_SQL);
+  writeSqliteIndexFormat(writer);
   writer.pragma(`user_version = ${SCHEMA_VERSION}`);
   writer.close();
   new Database(invalidSqlitePath).close();

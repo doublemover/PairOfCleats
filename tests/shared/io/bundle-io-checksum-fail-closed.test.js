@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Packr, Unpackr } from 'msgpackr';
@@ -31,7 +32,7 @@ const oversizedBundle = {
   file: 'src/oversized.ts',
   chunks: [{ chunkUid: 'ck:oversized:1', text: largeText }]
 };
-const checksumFor = (value) => sha1(stableStringify(value));
+const checksumFor = (value) => sha1(stableStringify({ ...value, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION }));
 
 const writeTamperedEnvelope = async (mutate) => {
   const raw = await fs.readFile(bundlePath);

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -23,20 +24,20 @@ const stat = await fs.stat(filePath);
 const indexState = {
   generatedAt: new Date().toISOString(),
   mode: 'code',
-  artifactSurfaceVersion: '0.0.1'
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION
 };
 await fs.writeFile(path.join(outDir, 'index_state.json'), JSON.stringify(indexState, null, 2));
 
 const pieceManifest = {
   version: 1,
-  artifactSurfaceVersion: '0.0.1',
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   pieces: [
     { type: 'stats', name: 'index_state', format: 'json', path: 'index_state.json' }
   ]
 };
 await fs.writeFile(path.join(piecesDir, 'manifest.json'), JSON.stringify(pieceManifest, null, 2));
 
-const manifest = {
+const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   signatureVersion: SIGNATURE_VERSION - 1,
   files: {
     'src/a.js': {

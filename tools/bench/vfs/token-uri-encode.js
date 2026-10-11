@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/token-uri-encode.js --docs 20000 --lookups 50000 --json
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { writeJsonWithDir } from '../micro/utils.js';
-import { buildLookupIndices, clampInt, createRng, printBench, runSampled } from './shared.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { writeJsonWithDir } = await import('../micro/utils.js');
+const { buildLookupIndices, clampInt, createRng, printBench, runSampled } = await import('./shared.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

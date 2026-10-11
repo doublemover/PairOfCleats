@@ -90,6 +90,17 @@ return `ERR_SEMANTIC_CURSOR_EXPIRED`; restart with the same retained generation.
 Extraction, analysis and response coverage are separate. Query coverage carries
 partition provenance and retains incomplete evidence rather than claiming no path.
 
+## Interrupted Stage1 recovery
+
+A missing publication or stale `running` heartbeat does not invalidate immutable
+per-file completion records. After the run owner confirms processing has stopped,
+repeat the same source/configuration/cache-root invocation with `--incremental`
+explicitly enabled. A fresh generation validates retained completion descriptors,
+bundle checksums and semantic parts before parser scheduling; invalid members miss
+individually. Preserve the abandoned build metadata as historical evidence.
+The [watchdog recovery procedure](../archived/watchdog-recovery-2026-10-11.md)
+describes the campaign-compatible diagnostic fix and exact application boundaries.
+
 ## Deferred analysis and compiler admission
 
 Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`
@@ -248,7 +259,8 @@ and publishes a new immutable family when its projection changes.
 
 The experimental registered `semantic-find` and `semantic-explain` operations remain
 qualification pending. Find uses
-exact AST/operator/invocation selectors or a recorded target candidate, and can compare
+exact AST/operator/invocation selectors, sourcePath/sourceUnitId selectors, chunkUid
+ownership selectors or a recorded target candidate, and can compare
 bounded ordered syntax. Literal/name/type/effect gaps are explicit; a matching structural
 hash does not establish equivalent behavior. Cursors bind the exact generation, store
 inventory and request. Explain returns static evidence classes and cited producer methods.
@@ -258,7 +270,14 @@ pairofcleats semantic find --request find.json --all
 pairofcleats semantic explain --request explain.json --all
 ```
 
-Find requests select an exact AST kind/operator/invocation kind or recorded target.
+Find requests select an exact AST kind/operator/invocation kind, recorded target,
+retained source path/identity or chunk UID. Source selection includes operations with
+no chunk owner; chunk selection includes both primary and overlapping ownership.
+For example, `selector: {"field":"chunkUid","value":"<search-hit chunkUid>"}`
+resolves exact operation references without clients scanning the fact index.
+The derived operation index is now version 2 and requires rebuilding older indexes;
+canonical source/fact identities do not change. Source and ownership candidates
+are distinguished from structural/target candidates and imply no equivalence.
 Explain requests use the trace request shape. Find/trace/explain can explicitly choose
 `backend: "artifact"` or `"sqlite"`; SQLite opens only the requested immutable
 generation's `index-sqlite/index-code.db`, with no mutable-path fallback. Explain
@@ -271,3 +290,79 @@ MCP names are `semantic_find`, `semantic_explain`, `semantic_enrichment`; corres
 HTTP POST paths are `/analysis/semantic-find`, `/analysis/semantic-explain`,
 `/analysis/semantic-enrichment`. CLI/MCP/HTTP share strict request and repository scope
 checks. Structural similarity and modeled paths are not proof of equivalent behavior.
+
+
+### Semantic evidence in ordinary context packs
+
+Set `includeSemantic: true` in the shared context-pack request, or pass
+`--includeSemantic` to the context-pack CLI. The resolved search-hit chunk UID
+selects exact operations via ownership, including overlaps. If only a retained
+source path is resolved, source discovery also includes operations without chunks.
+The optional semantic section is independently capped at 64 KiB, in addition to
+the primary excerpt budget: up to eight discovered operations, bounded ordered
+arguments/names/ownership, one downstream witness sample and a retained-source
+excerpt. It does not parse source, schedule enrichment, execute code or capture
+runtime data. Unavailable families are explicit; corruption is an error.
+
+`semantic.followUps` contains validated semantic_find/detail/trace requests with
+repository and generation pins. When a page has a cursor, the follow-up resumes
+that page in the same running service; normal cursor expiry/restart rules apply.
+Otherwise it repeats the bounded query and can be used as a scoped starting point.
+The textual renderer summarizes evidence counts; JSON includes exact records,
+coverage, excerpts and follow-up requests. `semanticFederation.repositories`
+retains separate sections for each selected repository, with fanout bounded by
+`maxFederatedRepos` (maximum 16). Partial semantic evidence leaves the composite
+coverage incomplete; a small witness sample never certifies exhaustive behavior.
+
+Source selectors may include `range: {"start":10,"end":20}` for exact half-open
+UTF-16 overlap discovery. The range must be nonempty and is valid only with
+`sourcePath` or `sourceUnitId`. The indexed source bucket is filtered within the
+normal work budget; drain cursors even when an intermediate page has no matches.
+
+Structural fingerprint projection 2 includes hashes of exact retained literal text
+(up to 4 KiB per literal) alongside ordered syntax. Numeric spelling, string escapes,
+regular expressions and template text remain distinct. Missing/oversized retained
+source makes the projection incomplete; hash matches are still structural candidates,
+with binding, type and effect constraints unchecked, never equivalence probabilities.
+
+Recovery validates JSONL offsets in bounded 64 KiB windows for each of the data and
+offsets files. Every newline boundary is still checked; source/part hashes and
+semantic row validation remain required. Repeated validation uses size, mtime and
+ctime metadata, without retaining semantic rows. Watchdog snapshots include worker
+queue/restart/disable counters, memory-pressure state and scheduler token/byte
+capacity alongside progress, stalled files and process memory. Missing worker
+stats are explicitly unavailable, not evidence that a worker is healthy. See the
+[focused performance receipt](../archived/semantic-recovery-performance-2026-10-11.md)
+for measured scope and limits.
+
+### File-processing concurrency
+
+The processing heartbeat's `inFlight` counts started Stage1 file jobs through
+result enqueue/skip handling. It does not count worker threads. `trackedSubprocesses`
+counts registered child processes belonging to those files; zero does not mean no
+worker threads. `orderedPending` counts unsettled ordered-completion promises;
+zero does not mean the input queue is empty.
+
+With the adaptive scheduler enabled, the `parse` surface controls concurrent
+`stage1.cpu` file jobs. To select a fixed eight-slot surface, merge this into the
+existing settings (retain other scheduler and memory settings):
+
+```json
+{"indexing":{"scheduler":{"enabled":true,"adaptive":true,"cpuTokens":8,
+  "adaptiveSurfaces":{"surfaces":{"parse":{
+    "minConcurrency":8,"maxConcurrency":8,"initialConcurrency":8
+  }}}}}}
+```
+
+Eight is an upper bound on simultaneously admitted jobs, not a promise that eight
+remain busy: byte budgets, ordered/write backpressure, input availability and
+other token consumers still apply. Fixing the minimum also prevents this surface
+from reducing slots under pressure; choose it within the run's memory budget.
+This setting does not make synchronous JavaScript run on eight CPU cores.
+
+Startup prints `[stage1] admission parse=r0/p0/cap8/min8/max8 ...`; regular
+processing heartbeats include the current running/pending/cap values. An inactive
+surface says `parse=disabled`. Settings are resolved at startup; there is no
+supported live config reload. Changing this admission policy requires a new run,
+with `--incremental` and the same source/cache/content inputs to reuse durable
+completions. See the [eight-slot receipt](../archived/stage1-concurrency-2026-10-11.md).

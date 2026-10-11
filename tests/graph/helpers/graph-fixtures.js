@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -96,7 +97,7 @@ export const createGraphStoreFixture = ({
   const piecesDir = path.join(tmpDir, 'pieces');
   fs.mkdirSync(piecesDir, { recursive: true });
 
-  const manifest = {
+  const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     ...(compatibilityKey ? { compatibilityKey } : {}),
     pieces: [
       { name: 'graph_relations', path: 'pieces/graph_relations.json' },

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { loadUserConfig, getIndexDir } from '../../shared/dict-utils.js';
-import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
-import { loadChunkMeta } from '../../../src/shared/artifact-io/loaders.js';
-import { exitLikeChild } from '../../../src/tui/wrapper-exit.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { loadUserConfig, getIndexDir } = await import('../../shared/dict-utils.js');
+const { MAX_JSON_BYTES } = await import('../../../src/shared/artifact-io/constants.js');
+const { loadChunkMeta } = await import('../../../src/shared/artifact-io/loaders.js');
+const { exitLikeChild } = await import('../../../src/tui/wrapper-exit.js');
+const { spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())

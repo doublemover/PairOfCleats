@@ -1,3 +1,5 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
+import { compilerInvocationInputs, compilerInvocationTargets } from './compiler-invocation.js';
 import { collectCompilerBoundaryFlow } from './compiler-boundary-flow.js';
 import { createCompilerDependencySystem, compilerInventoryHash } from './compiler-dependencies.js';
 import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
@@ -193,9 +195,9 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       for (const phase of ['localFlow', 'crossFileFlow']) policy.enrichment[phase] = (state.semanticPhaseAdmissions ? state.semanticPhaseAdmissions.get(item.source.sourceUnitId)?.has(phase) : semanticPhasePolicy(item.policy, item.plan, phase, runtime, item.source.sourceUnitId).admitted) ? 'eager' : item.policy.enrichment[phase] === 'off' ? 'off' : 'deferred';
       if (hashText(sourceFile.text) !== item.source.textHash) throw Object.assign(new Error('Compiler/source join rejected.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
       const { context } = group;
-      const partitionId = createAnalysisPartitionId({ pass: { name: 'typescript-bindings', version: '2' },
+      const partitionId = createAnalysisPartitionId({ pass: { name: 'typescript-bindings', version: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings },
         inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context,
-        dependencySummaryHashes: group.dependencyHashes, analysisPolicy: { bindings: 'checker', version: 2, policy: item.policy.identity.analysis } });
+        dependencySummaryHashes: group.dependencyHashes, analysisPolicy: { bindings: 'checker', version: Number(SEMANTIC_ANALYSIS_VERSIONS.compilerBindings), policy: item.policy.identity.analysis } });
       const ref = localId => ({ partitionId, localId });
       const external = new Map(), observations = [], aliases = new Map(), expressions = new Map();
       const declarationRef = declaration => {
@@ -250,14 +252,16 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
             aliasTargets.push(...targets); targets = nextTargets; symbol = next;
           }
         }
-        let signature = null;
+        let signature = null, incompleteTargets = false, parameterMappingAllowed = false;
         if (node && invocation) {
           signature = checker.getResolvedSignature(node);
-          if (signature?.declaration && !targets.length) targets = [declarationRef(signature.declaration)].filter(Boolean);
+          const resolved = compilerInvocationTargets({ ts, checker, node, signature, declarationRef, targets });
+          targets = resolved.targets; incompleteTargets = resolved.incomplete; parameterMappingAllowed = resolved.parameterMappingAllowed;
         }
         const unique = [...new Map(targets.map(target => [canonicalSemanticJson(target), target])).values()];
         observations.push({ node, occurrence, span: row.span, scope: row.scope, targets: unique, invocation,
-          invocationKind: row.data.invocationKind || null, unresolved: !node || !unique.length,
+          invocationKind: row.data.invocationKind || null, unresolved: !node || !unique.length || incompleteTargets,
+          incompleteTargets, parameterMappingAllowed,
           aliasTargets, signatureDeclaration: signature?.declaration || null,
           parameterTargets: (signature?.declaration?.parameters || []).map(parameter => parameter.dotDotDotToken ? null : declarationRef(parameter)) });
       }
@@ -282,7 +286,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       let completedCount = 0;
       for (const observation of observations.sort((a, b) => a.occurrence.localId - b.occurrence.localId)) {
         const targets = observation.targets.map(expand);
-        if (targets.length) completedCount += 1;
+        if (targets.length && !observation.incompleteTargets) completedCount += 1;
         const binding = ref(nextId);
         observation.bindingRef = binding;
         if (observation.invocation) {
@@ -294,7 +298,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
               signatureKey: symbol.signatureKey || null, kindGroup: symbol.kindGroup || null };
           }).filter(Boolean);
           for (const detail of detailsByFile.get(item.source.path)?.get(spanKey(observation.span)) || []) {
-            const status = targets.length === 1 && candidates.length === 1 ? 'resolved' : targets.length > 1 ? 'ambiguous' : 'unresolved';
+            const status = targets.length === 1 && candidates.length === 1 && !observation.incompleteTargets ? 'resolved' : targets.length > 1 ? 'ambiguous' : 'unresolved';
             detail.semanticRecordRef = observation.occurrence;
             detail.compilerBinding = { ref: binding, contextKey: context.contextKey,
               symbolRef: { v: 1, targetName: detail.callee, kindHint: null, importHint: null, candidates,
@@ -303,16 +307,15 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         }
         rows.push({ family: 'node', row: { id: nextId++, kind: 'binding', span: observation.span, scope: observation.scope,
           data: { occurrence: observation.occurrence, contextKey: context.contextKey,
-            status: targets.length > 1 ? 'ambiguous' : targets.length === 1 ? 'resolved' : 'unresolved',
+            status: targets.length > 1 ? 'ambiguous' : targets.length === 1 ? observation.incompleteTargets ? 'heuristic' : 'resolved' : 'unresolved',
             signature: null, symbolGroupId: targets.length ? createSymbolGroupId({ contextKey: context.contextKey, declarations: targets }) : null,
             candidateCount: targets.length } } });
-        if (observation.invocation && observation.signatureDeclaration) {
-          const args = observation.node.arguments || [];
-          for (let ordinal = 0; ordinal < args.length; ordinal += 1) {
-            if (ts.isSpreadElement(args[ordinal])) break;
-            const parameterTarget = observation.parameterTargets[ordinal];
-            const argument = expressions.get(args[ordinal].getStart(sourceFile) + ':' + args[ordinal].end);
-            if (parameterTarget && argument) edge('argumentToParameter', argument, expand(parameterTarget), observation.occurrence, ordinal);
+        if (observation.invocation && observation.signatureDeclaration && observation.parameterMappingAllowed) {
+          for (const { argument: input, operandOrdinal, parameterOrdinal } of compilerInvocationInputs(ts, observation.node).inputs) {
+            if (ts.isSpreadElement(input)) break;
+            const parameterTarget = observation.parameterTargets[parameterOrdinal];
+            const argument = expressions.get(input.getStart(sourceFile) + ':' + input.end);
+            if (parameterTarget && argument) edge('argumentToParameter', argument, expand(parameterTarget), observation.occurrence, operandOrdinal);
           }
         }
         for (const target of targets) {
@@ -332,7 +335,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
       rows.push({ family: 'coverage', row: coverage });
       const bytes = await fs.readFile(path.join(item.root, 'semantic-sources', item.source.byteHash + '.utf8'));
       const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source,
-        sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: '2', compiler: ts.version }),
+        sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings, compiler: ts.version }),
         contextHash: context.contextKey, policyHash: item.policy.identity.analysis,
         diskAccount: state.semanticDiskAccount, signal });
       for (const observation of observations) if (observation.invocation) {
@@ -363,8 +366,9 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
           summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),
           calls: observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence, span: observation.span,
-            targets: observation.targets.map(expand), invocationKind: observation.invocationKind,
-            arguments: (observation.node?.arguments || []).map(expressionFor), result: expressionFor(observation.node),
+            targets: observation.targets.map(expand), incompleteTargets: observation.incompleteTargets, invocationKind: observation.invocationKind,
+            arguments: compilerInvocationInputs(ts, observation.node).runtimeArguments.map(expressionFor), result: expressionFor(observation.node),
+            hasImplicitArguments: compilerInvocationInputs(ts, observation.node).implicitTemplateObject,
             hasSpread: observation.node?.arguments?.some(ts.isSpreadElement) || false })) });
       }
 

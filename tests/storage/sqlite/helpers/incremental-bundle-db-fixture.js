@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -38,7 +39,7 @@ export async function setupIncrementalBundleDatabase({
   await fs.mkdir(bundleDir, { recursive: true });
 
   const files = Array.from({ length: fileCount }, (_, i) => `src/file-${i}.js`);
-  const manifest = { files: {} };
+  const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: {} };
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i];
     const bundleName = `bundle-${i}.json`;
@@ -93,7 +94,7 @@ export async function addChangedBundle({
   changedBundleName = 'bundle-changed.json',
   suffix = 'v2'
 }) {
-  const updatedManifest = { files: { ...manifest.files } };
+  const updatedManifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { ...manifest.files } };
   const changedFile = files[changedFileIndex];
   await writeBundleFile({
     bundlePath: path.join(bundleDir, changedBundleName),

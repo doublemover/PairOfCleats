@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -24,7 +25,7 @@ await fsPromises.mkdir(bundleDir, { recursive: true });
 
 const bundleName = 'bad-bundle.json';
 const bundlePath = path.join(bundleDir, bundleName);
-await fsPromises.writeFile(bundlePath, JSON.stringify({ files: [] }), 'utf8');
+await fsPromises.writeFile(bundlePath, JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: [] }), 'utf8');
 
 const result = await buildDatabaseFromBundles({
   Database,
@@ -32,7 +33,7 @@ const result = await buildDatabaseFromBundles({
   mode: 'code',
   incrementalData: {
     bundleDir,
-    manifest: {
+    manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       files: {
         'src/bad.js': { bundles: [bundleName], mtimeMs: 1, size: 0 }
       }

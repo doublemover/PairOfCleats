@@ -57,7 +57,10 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
     if ((await fs.stat(file)).size > 32 * 1024 * 1024) throw new Error('Operation index manifest exceeds allowance.');
     const checksum = await checksumFile(file);
     if (operationPiece.checksum !== checksum.algo + ':' + checksum.value) throw new Error('Operation index checksum mismatch.');
-    operationIndex = assertSemanticOperationIndex(JSON.parse(await fs.readFile(file,'utf8')));
+    const operationManifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    assertCurrentIndexFormat({ operation: 'semantic_find', component: 'semantic operation index',
+      expectedVersion: 2, foundVersion: operationManifest.schemaVersion, repoRoot, indexPath: file });
+    operationIndex = assertSemanticOperationIndex(operationManifest);
     const registered = new Set(pieces.pieces.map(piece => piece.path));
     for (const piece of operationIndex.pieces) if (!registered.has('semantic/' + piece.path) || !registered.has('semantic/' + piece.offsetsPath)) throw new Error('Unregistered operation index part.');
   }

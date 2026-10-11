@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -193,7 +194,7 @@ try {
       cache: { enabled: true, dir: largeCache, maxBytes: 1, maxEntries: 1 }
     }, createToolingProviderFixtureInput(), ['fixture-large-cache']);
     assert.equal(result.byChunkUid.get('chunk-1')?.payload?.returnType, largeType, 'oversized provider output remains usable');
-    assert.deepEqual(fs.readdirSync(largeCache), [], 'unreadable oversized cache entries must not accumulate');
+    assert.deepEqual(fs.readdirSync(path.join(largeCache, `format-${ARTIFACT_SURFACE_VERSION}`)), [], 'unreadable oversized cache entries must not accumulate');
   }
   console.log('tooling cache storage: watched-file invalidation, owned probe pruning, bounded reads and nested link protection passed');
 } finally {

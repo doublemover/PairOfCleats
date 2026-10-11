@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import path from 'node:path';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import { writeTextIfChanged } from '../shared/generated-report.js';
-import { summarizeResults } from './language/report.js';
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { writeTextIfChanged } = await import('../shared/generated-report.js');
+const { summarizeResults } = await import('./language/report.js');
 
 const NON_REPO_RESULTS_FOLDERS = new Set(['logs', 'usr']);
 

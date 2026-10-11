@@ -135,7 +135,7 @@ const runGit = (stage, patch, args) => {
   return result;
 };
 
-export const applyPatches = (cwd = process.cwd()) => {
+export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) => {
   const root = fs.realpathSync(cwd);
   try { fs.lstatSync(path.join(root, 'patches')); } catch (error) {
     if (error.code === 'ENOENT') return 0;
@@ -183,6 +183,9 @@ export const applyPatches = (cwd = process.cwd()) => {
         if (crlf && /(^|[^\r])\n/.test(source)) throw new Error(`Mixed line endings are unsupported: ${patch.relative}`);
         fs.writeFileSync(path.join(stage, 'target'), source.replace(/\r\n/g, '\n'));
         const forward = runGit(stage, patch.patch, ['--check']);
+        if (verifyOnly && forward.status === 0) {
+          throw new Error(`Required patch ${name} has not been applied. Run npm run bootstrap.`);
+        }
         if (forward.status !== 0) {
           const reverse = runGit(stage, patch.patch, ['--reverse', '--check']);
           if (reverse.status !== 0) {

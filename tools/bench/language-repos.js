@@ -1,48 +1,47 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { getBenchMirrorRefreshMs } from '../../src/shared/env/bench.js';
-import { setCacheRootEnv } from '../../src/shared/env/runtime.js';
-import { getBenchTestEnvConfig } from '../../src/shared/env/testing.js';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import { applyToolchainDaemonPolicyEnv } from '../../src/shared/toolchain-env.js';
-import { parseBenchLanguageArgs } from './language/cli.js';
-import { loadBenchConfig } from './language/config.js';
-import {
+const { getBenchMirrorRefreshMs } = await import('../../src/shared/env/bench.js');
+const { setCacheRootEnv } = await import('../../src/shared/env/runtime.js');
+const { getBenchTestEnvConfig } = await import('../../src/shared/env/testing.js');
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { applyToolchainDaemonPolicyEnv } = await import('../../src/shared/toolchain-env.js');
+const { parseBenchLanguageArgs } = await import('./language/cli.js');
+const { loadBenchConfig } = await import('./language/config.js');
+const {
   buildNonInteractiveGitEnv,
   ensureLongPathsSupport,
   resolveCloneTool,
   resolveMirrorCacheRoot,
   resolveMirrorRefreshMs
-} from './language/repos.js';
-import { createProcessRunner } from './language/process.js';
-import { buildBenchEnvironmentMetadata } from './language/logging.js';
-import { validateEncodingFixtures } from './language/metrics.js';
-import {
-  createBenchMethodologyPolicy,
-  filterTasksToControlSlice
-} from './language/policy.js';
-import { buildBenchRunDiagnosticsSummaryLines, buildReportOutput, printSummary } from './language/report.js';
-import { createToolDisplay } from '../shared/cli-display.js';
-import {
+} = await import('./language/repos.js');
+const { createProcessRunner } = await import('./language/process.js');
+const { buildBenchEnvironmentMetadata } = await import('./language/logging.js');
+const { validateEncodingFixtures } = await import('./language/metrics.js');
+const { createBenchMethodologyPolicy, filterTasksToControlSlice } = await import('./language/policy.js');
+const { buildBenchRunDiagnosticsSummaryLines, buildReportOutput, printSummary } = await import('./language/report.js');
+const { createToolDisplay } = await import('../shared/cli-display.js');
+const {
   assignRepoLogMetadata,
   buildExecutionPlans,
   buildTaskCatalog,
   shuffleInPlace
-} from './language-repos/planning.js';
-import { createBenchLogger } from './language-repos/logging.js';
-import { createRepoLifecycle } from './language-repos/lifecycle.js';
-import {
+} = await import('./language-repos/planning.js');
+const { createBenchLogger } = await import('./language-repos/logging.js');
+const { createRepoLifecycle } = await import('./language-repos/lifecycle.js');
+const {
   buildBenchRunSummaryFromLedgerEvents,
   createBenchRunLedger,
   readBenchRunLedger
-} from './language-repos/run-ledger.js';
-import { createBenchProgressRuntime, runBenchExecutionLoop } from './language-repos/run-loop.js';
-import { applyBenchmarkResourceRoots, resolveBenchmarkResourceRoots } from './language/resource-roots.js';
-import { prepareBenchmarkPrerequisites } from './language/prerequisites.js';
-import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } from '../shared/dict-utils.js';
+} = await import('./language-repos/run-ledger.js');
+const { createBenchProgressRuntime, runBenchExecutionLoop } = await import('./language-repos/run-loop.js');
+const { applyBenchmarkResourceRoots, resolveBenchmarkResourceRoots } = await import('./language/resource-roots.js');
+const { prepareBenchmarkPrerequisites } = await import('./language/prerequisites.js');
+const { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv } = await import('../shared/dict-utils.js');
 
 const USR_GUARDRAIL_BENCHMARKS = Object.freeze([
   {

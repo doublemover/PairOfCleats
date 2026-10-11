@@ -190,6 +190,7 @@ export function getToolDefs(defaultModelId) {
             seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
             hops: { type: 'number', description: 'Neighborhood depth.' },
             includeGraph: { type: 'boolean' },
+            includeSemantic: { type: 'boolean' },
             includeTypes: { type: 'boolean' },
             includeRisk: { type: 'boolean' },
             includeRiskPartialFlows: { type: 'boolean' },
