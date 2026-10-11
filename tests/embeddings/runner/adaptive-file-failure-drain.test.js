@@ -64,6 +64,15 @@ for (const failureIndex of [0, 1]) {
   tasks[1].resolve();
   assert.equal(await outcome, expected);
 }
-assert.deepEqual(await runFiles({ items: [], worker: () => {} }),
-  { peakConcurrency: 0, adjustments: 0, finalConcurrency: 1 });
+let completed = false;
+assert.deepEqual(await runFiles({ items: [0], worker: () => { completed = true; },
+  resolveConcurrency: () => {
+    assert.equal(completed, false, 'do not sample admission after final completion');
+    return 1;
+  }
+}), { peakConcurrency: 1, adjustments: 0, finalConcurrency: 1 });
+assert.deepEqual(await runFiles({ items: [], worker: () => {},
+  resolveConcurrency: () => { throw new Error('empty work needs no admission'); }
+}),
+{ peakConcurrency: 0, adjustments: 0, finalConcurrency: 1 });
 console.log('adaptive file pump owns/drains active siblings and stops admissions on every failure path');

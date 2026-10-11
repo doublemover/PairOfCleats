@@ -593,7 +593,7 @@ export const __runWithAdaptiveConcurrencyForTests = async ({
       });
     };
     const pump = () => {
-      if (failed) { settleIfDrained(); return; }
+      if (failed || (nextIndex >= list.length && active === 0)) { settleIfDrained(); return; }
       try {
         const desired = coercePositiveIntMinOne(resolveLimit({
           active,
