@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { fileExt, toPosix } from '../../../../../shared/file-paths.js';
-import { coerceNonNegativeInt, coercePositiveInt } from '../../../../../shared/number-coerce.js';
+import { coerceClampedFraction, coerceNonNegativeInt, coercePositiveInt } from '../../../../../shared/number-coerce.js';
 import { getLanguageForFile } from '../../../../language-registry.js';
 import { shouldSkipTreeSitterPlanningForPath } from '../../../tree-sitter-scheduler/policy.js';
 
@@ -53,24 +53,29 @@ export const resolvePostingsQueueConfig = (runtime) => {
     && highMemoryPostingsScale > 1
     ? highMemoryPostingsScale
     : 1;
-  const basePendingRows = coercePositiveInt(config.maxPendingRows)
-    ?? Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_ROWS_PER_PENDING);
-  const basePendingBytes = coercePositiveInt(config.maxPendingBytes)
-    ?? Math.max(
-      DEFAULT_POSTINGS_BYTES_PER_PENDING,
-      baseMaxPending * DEFAULT_POSTINGS_BYTES_PER_PENDING,
-      projectedWriteBufferBytes
-    );
-  const maxPendingRows = Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, Math.floor(basePendingRows * postingsScale));
-  const maxPendingBytes = Math.max(DEFAULT_POSTINGS_BYTES_PER_PENDING, Math.floor(basePendingBytes * postingsScale));
-  const maxHeapFraction = Number(config.maxHeapFraction);
-  const reserveTimeoutMs = coerceNonNegativeInt(config.reserveTimeoutMs)
-    ?? DEFAULT_POSTINGS_RESERVE_TIMEOUT_MS;
+  const basePendingRows = Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, baseMaxPending * DEFAULT_POSTINGS_ROWS_PER_PENDING);
+  const basePendingBytes = Math.max(
+    DEFAULT_POSTINGS_BYTES_PER_PENDING,
+    baseMaxPending * DEFAULT_POSTINGS_BYTES_PER_PENDING,
+    projectedWriteBufferBytes
+  );
+  // Scale inferred budgets only. Explicit bounds remain authoritative, including
+  // bounds smaller than the default per-pending payload estimate.
+  const maxPendingRows = coercePositiveInt(config.maxPendingRows)
+    ?? Math.max(DEFAULT_POSTINGS_ROWS_PER_PENDING, Math.floor(basePendingRows * postingsScale));
+  const maxPendingBytes = coercePositiveInt(config.maxPendingBytes)
+    ?? Math.max(DEFAULT_POSTINGS_BYTES_PER_PENDING, Math.floor(basePendingBytes * postingsScale));
+  const maxHeapFraction = config.maxHeapFraction == null
+    ? null
+    : coerceClampedFraction(config.maxHeapFraction);
+  const reserveTimeoutMs = (config.reserveTimeoutMs == null
+    ? null
+    : coerceNonNegativeInt(config.reserveTimeoutMs)) ?? DEFAULT_POSTINGS_RESERVE_TIMEOUT_MS;
   return {
     maxPending: baseMaxPending,
     maxPendingRows,
     maxPendingBytes,
-    maxHeapFraction: Number.isFinite(maxHeapFraction) && maxHeapFraction >= 0 ? maxHeapFraction : undefined,
+    maxHeapFraction: maxHeapFraction ?? undefined,
     reserveTimeoutMs
   };
 };
@@ -104,14 +109,14 @@ export const resolveOrderedAppenderConfig = (runtime) => {
   const commitLagHard = coercePositiveInt(config.commitLagHard)
     ?? coercePositiveInt(windowConfig.maxInFlightSeqSpan)
     ?? DEFAULT_WINDOW_MAX_SEQ_SPAN;
-  const resumeHysteresisRatioRaw = Number(config.resumeHysteresisRatio);
+  const resumeHysteresisRatio = config.resumeHysteresisRatio == null
+    ? null
+    : coerceClampedFraction(config.resumeHysteresisRatio, { min: 0.1, max: 0.95, allowZero: false });
   return {
     maxPendingBeforeBackpressure,
     maxPendingBytes,
     commitLagHard,
-    resumeHysteresisRatio: Number.isFinite(resumeHysteresisRatioRaw)
-      ? Math.max(0.1, Math.min(0.95, resumeHysteresisRatioRaw))
-      : 0.7,
+    resumeHysteresisRatio: resumeHysteresisRatio ?? 0.7,
     maxPendingEmergencyFactor: Number.isFinite(maxPendingEmergencyFactor) && maxPendingEmergencyFactor > 1
       ? maxPendingEmergencyFactor
       : undefined

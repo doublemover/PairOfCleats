@@ -192,7 +192,7 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
   );
   const postingsMaxPendingRows = coercePositiveInt(postings.maxPendingRows);
   const postingsMaxPendingBytes = coercePositiveInt(postings.maxPendingBytes);
-  const postingsMaxHeapFraction = coerceClampedFraction(postings.maxHeapFraction, {
+  const postingsMaxHeapFraction = postings.maxHeapFraction == null ? null : coerceClampedFraction(postings.maxHeapFraction, {
     min: 0,
     max: 1,
     allowZero: true
@@ -221,7 +221,7 @@ export const resolveStage1Queues = (indexingConfig = {}) => {
     allowZero: false
   });
   const windowAdaptiveGrowFactor = Number(window.adaptiveGrowFactor);
-  const windowCommitLagSoft = coerceNonNegativeInt(window.commitLagSoft);
+  const windowCommitLagSoft = coerceOptionalNonNegativeInt(window.commitLagSoft);
   const windowBufferedBytesSoft = coercePositiveInt(window.bufferedBytesSoft);
   const windowLeaseTimeoutMs = coercePositiveInt(window.leaseTimeoutMs);
   const watchdogSlowFileMs = coerceOptionalNonNegativeInt(

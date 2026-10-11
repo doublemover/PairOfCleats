@@ -1,3 +1,4 @@
+import { coerceNonNegativeInt } from '../../../../../shared/number-coerce.js';
 import { compareStrings } from '../../../../../shared/sort.js';
 import { normalizeOwnershipSegment } from '../../../../../shared/ownership-segment.js';
 
@@ -66,9 +67,8 @@ const clampPositiveIntOr = (value, fallback) => {
 };
 
 const clampNonNegativeIntOr = (value, fallback) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return Math.max(0, Math.floor(fallback));
-  return Math.max(0, Math.floor(parsed));
+  const parsed = value == null ? null : coerceNonNegativeInt(value);
+  return parsed ?? Math.max(0, Math.floor(fallback));
 };
 
 const clampPositiveNumberOr = (value, fallback) => {
