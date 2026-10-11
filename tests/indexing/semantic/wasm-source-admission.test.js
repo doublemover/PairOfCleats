@@ -58,7 +58,7 @@ try {
   assert.ok(off.semanticFactsRef.coverage.some(row=>row.phase==='localFlow'&&row.state==='disabled'));
   assert.equal(off.semanticFactsRef.counts.semantic_edges,0);
   const deferred = await collectPolicy({...policy,enrichment:{...policy.enrichment,localFlow:'deferred'}});
-  assert.ok(deferred.semanticFactsRef.coverage.some(row=>row.reason==='wasm_deferred_flow_not_scheduled'&&row.state==='unsupported'));
+  assert.ok(deferred.semanticFactsRef.coverage.some(row=>row.reason==='wasm_deferred_flow_requires_task'&&row.state==='deferred'));
   const selectedPolicy={...policy,targets:[{sourceUnitId:cpu.semanticFactsRef.sourceUnitId,sourceHash:cpu.semanticFactsRef.sourceHash,ref:{partitionId:cpu.semanticFactsRef.syntaxPartitionId,localId:0}}]};
   const targeted=await collectPolicy(selectedPolicy);
   assert.ok(targeted.semanticFactsRef.coverage.some(row=>row.reason?.includes('wasm_module_target_widens_to_whole_module')));

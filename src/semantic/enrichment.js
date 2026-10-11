@@ -1,3 +1,4 @@
+import { WASM_DEPENDENCY_KEY, verifyWasmTaskAuthority } from '../index/semantic/wasm/task-authority.js';
 import { verifyCompilerDependencyInventory, COMPILER_DEPENDENCY_KEY } from '../index/semantic/compiler-dependencies.js';
 import { resolveSemanticPartPath } from './artifact-store.js';
 import { getToolingConfig } from '../shared/dict-utils.js';
@@ -80,7 +81,9 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     const filename = await resolveSemanticPartPath(path.join(inventory.indexDir, 'semantic'), task.targetsRef);
     if ((await fs.stat(filename)).size > 32 * 1024 * 1024) throw enrichmentError('Compiler target inventory exceeds its allowance.');
     const target = JSON.parse(await fs.readFile(filename, 'utf8'));
-    if (semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash || !target.compilerInventory) return null;
+    if (semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash) return null;
+    if(target.binaryInventory)return verifyWasmTaskAuthority({task,target,sources:inventory.sources,store:inventory.store,signal});
+    if(!target.compilerInventory)return null;
     const authority = await verifyCompilerDependencyInventory({ inventory: target.compilerInventory, repoRoot,
       toolingConfig: getToolingConfig(repoRoot), signal });
     return { verified: true, complete: true, authorityHash: authority.authorityHash,
@@ -90,7 +93,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   const verifyAuthority = async (task, phase, signal) => {
     // A producer must freeze the complete compiler/config/module-resolution inventory.
     // Generic dependency entries, an empty list, or caller-supplied expected hashes are not proof.
-    const dependency = task.dependencies.find(row => row.dependencyKey === 'semantic.compiler.dependency-inventory.v1');
+    const dependency = task.dependencies.find(row => [COMPILER_DEPENDENCY_KEY,WASM_DEPENDENCY_KEY].includes(row.dependencyKey));
     if (!dependency || typeof dependencyAuthority?.verify !== 'function') return null;
     const authority = await dependencyAuthority.verify({ repoRoot, inventory, task, phase, signal });
     if (authority?.verified !== true || authority.complete !== true || authority.authorityHash !== dependency.expectedHash
