@@ -11,7 +11,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
   const iterations = Math.max(0, ...documents.map(document => (document.policy || policy).enrichment.maxSccIterations));
   const activeDocuments = documents.filter(document => !['off', 'deferred'].includes((document.policy || policy).enrichment.crossFileFlow));
   const summaries = buildCallDependencySummaries(activeDocuments, { maxIterations: iterations, signal });
-  const hashes = documents.map(document => document.partition.canonicalHash).sort();
+  const hashes = [...documents.map(document => document.partition.canonicalHash),...(group.providerInputHashes||[])].sort();
   for (const document of documents) {
     throwIfAborted(signal);
     const effective = document.policy || policy, { item, bytes, calls } = document;
@@ -48,7 +48,9 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       if(summary?.remainder) reasons.add('call_target_summary_remainder_unknown');
       if (call.incompleteTargets || call.targets.length !== 1) reasons.add('call_target_ambiguous_or_unresolved');
       else if (!summary) reasons.add('target_summary_unavailable');
-      if(!summary || !summary.complete || call.hasSpread) {
+      if(call.reason)reasons.add(call.reason);
+      if(['getter','setter'].includes(call.invocationKind))for(const target of call.targets)emit('callTarget',call.occurrence,target,call);
+      if(!call.suppressResult && (!summary || !summary.complete || call.hasSpread)) {
         const unknown=valueFor('unknown',result);
         emit('flowsTo',call.receiver,unknown,call);
         for(let ordinal=0;ordinal<(call.arguments||[]).length;ordinal++)emit('flowsTo',call.arguments[ordinal],unknown,call,ordinal);
@@ -64,7 +66,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
           emit(rest?'packs':'argumentToParameter',call.arguments[ordinal],mapping.parameters[rest?mapping.restIndex:ordinal],call,ordinal);
         }
       }
-      if (summary?.returns.length) {
+      if (!call.suppressResult && summary?.returns.length) {
         // Only the established return channel crosses into the callee context.
         for (const returned of summary.returns) emit('returnToResult', returned, result, call);
         if (!call.hasSpread && effective.enrichment.callContextDepth > 0) {
@@ -77,7 +79,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
           emit('flowsTo', value, result, call);
           for (const returned of summary.returns) emit('evidenceInput', returned, value, call);
         }
-      } else if (summary) reasons.add('implicit_return_channel_unavailable');
+      } else if (summary && !call.suppressResult) reasons.add('implicit_return_channel_unavailable');
       if (call.hasSpread) reasons.add('spread_runtime_parameter_position_unknown');
       if (call.hasImplicitArguments) reasons.add('tagged_template_object_identity_and_cooked_raw_inputs_unmodeled');
       if (effective.enrichment.callContextDepth === 0) reasons.add('context_insensitive_call_channels');
@@ -91,6 +93,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
             const value = valueFor('heap', result, alias.root);
             for (const ordinal of [...effect.dependencies].sort((a,b) => a-b)) if (callInput(call,ordinal)) emit('flowsTo', callInput(call,ordinal), value, call, ordinal < 0 ? null : ordinal);
             for (const ref of effect.refs) emit('evidenceInput', ref, value, call);
+            emit('packs',value,alias.root,call);
             if (!effect.dependencies.size) reasons.add('constant_effect_provenance_only');
             for (const read of route?.reads || []) {
               throwIfAborted(signal);

@@ -154,6 +154,12 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
     if (!complete) reasons.add('reaching_definition_iteration_budget');
     totalBlocks += reachable.size; solvedBlocks += complete ? reachable.size : outgoing.size;
     const returnRefs = [], exceptionRefs = [], effects = [], parameterFields = [];
+    if(ts.isConstructorDeclaration(owner)) for(const parameter of owner.parameters) {
+      if(ts.isIdentifier(parameter.name)&&parameter.modifiers?.some(modifier=>[ts.SyntaxKind.PublicKeyword,ts.SyntaxKind.PrivateKeyword,ts.SyntaxKind.ProtectedKeyword,ts.SyntaxKind.ReadonlyKeyword].includes(modifier.kind))) {
+        const input=declarationFor(parameter);if(input)effects.push({parameter:-1,path:[parameter.name.text],ref:input});
+        reasons.add('constructor_parameter_property_initialization_modeled');
+      }
+    }
     let routingWork = 1000000;
     const exceptionTargets = block => {
       const targets = new Set(), seen = new Set(), pending = block.successors.filter(value => value.kind === 'exceptional' || block.event?.kind === 'throw').map(value => value.to);
@@ -199,9 +205,12 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
         const location = symbols.get(field).location;
         if (location.parameter !== null) effects.push({ parameter: location.parameter, path: location.path, ref: heapWrites.get(block) });
       }
-      if (event?.kind === 'operation' && (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node))) {
+      if ((event?.kind === 'operation' && (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node))) || ['heapRead','heapWrite'].includes(event?.kind)) {
         for(const {argument} of compilerInvocationInputs(ts,block.node).inputs) fields.rootsFor(argument);
-        const callee=block.node.expression||block.node.tag; if(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee)) fields.rootsFor(callee.expression);
+        const callee=['heapRead','heapWrite'].includes(event?.kind)?event.target:block.node.expression||block.node.tag;
+        if(ts.isNewExpression(block.node))fields.rootsFor(block.node);
+        if(callee?.kind===ts.SyntaxKind.SuperKeyword)fields.rootsFor(callee);
+        if(callee&&(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee))) fields.rootsFor(callee.expression);
         const reads = [], seen = new Set(), pending = block.successors.filter(value => value.kind !== 'exceptional').map(value => value.to);
         while (pending.length) {
           throwIfAborted(signal);
@@ -271,7 +280,7 @@ export const collectCompilerFlow = async ({ ts, checker, sourceFile, nodes, expr
       edge('returns',input,result,null,'modeled'); returnRefs.push(result);
     }
     summaries.push({ owner, ownerRef, span: [owner.getStart(sourceFile), owner.end], declaration: owner.parent && ts.isVariableDeclaration(owner.parent) && owner.parent.initializer === owner ? declarationFor(owner.parent) : declarationFor(owner) || (owner !== sourceFile ? ownerRef : null), returns: returnRefs,
-      lexicalReceiver: ts.isArrowFunction(owner), restIndex: (owner.parameters || []).findIndex(parameter=>parameter.dotDotDotToken),
+      constructible:ts.isConstructorDeclaration(owner)||ts.isFunctionDeclaration(owner)||ts.isFunctionExpression(owner), lexicalReceiver: ts.isArrowFunction(owner), restIndex: (owner.parameters || []).findIndex(parameter=>parameter.dotDotDotToken),
       parameters: (owner.parameters || []).map(parameter => declarationFor(parameter)), parameterFields, effects, exceptions: exceptionRefs, complete: complete && reasons.size === 0 });
     for (const reason of reasons) allReasons.add(reason);
   }

@@ -1,5 +1,6 @@
 import { canonicalSemanticJson } from './identity.js';
-import { compilerPropertyKeys } from './compiler-property-paths.js';
+import { compilerClassDefinitions, compilerConstructorCandidates, compilerReturnExpressions } from './compiler-object-model.js';
+import { compilerPropertyKeys, propertyKeySetsOverlap } from './compiler-property-paths.js';
 import { collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 /** Source-backed call candidates augment checker signatures. Property/prototype
  * lookup stays modeled: getters, proxies, escaping receivers and replacement are
@@ -26,14 +27,25 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
       const ref=declarationRef(owner); if(ref)found.push(ref); else incomplete=true;
     };
     const keys = expression => compilerPropertyKeys({ts,checker,node:ts.isPropertyAccessExpression(expression)?expression.name:expression.argumentExpression,computed:ts.isElementAccessExpression(expression),reasons});
-    const matches = (a,b) => a.includes(null)||b.includes(null)||a.some(value=>b.includes(value));
+    const matches = propertyKeySetsOverlap;
     const declarations = input => {
       const symbol=symbolFor(input); return symbol?.declarations || [];
+    };
+    const constructors = definition => {
+      const candidates=compilerConstructorCandidates({ts,checker,definition,reasons});
+      for(const candidate of candidates)add(candidate);
+      modeled=true;incomplete=true;reasons.add('constructor_return_override_and_initialization_conservative');
     };
     const visit = input => {
       input=unwrap(input); if(!input)return;
       if(--budget<0||seen.has(input)) { incomplete=true; reasons.add('dispatch_candidate_budget_or_cycle'); return; }
       seen.add(input);
+      if(ts.isClassDeclaration(input)||ts.isClassExpression(input)){constructors(input);return;}
+      if(input.kind===ts.SyntaxKind.SuperKeyword) {
+        let owner=input.parent;while(owner&&!ts.isClassDeclaration(owner)&&!ts.isClassExpression(owner))owner=owner.parent;
+        for(const clause of owner?.heritageClauses||[])if(clause.token===ts.SyntaxKind.ExtendsKeyword)for(const type of clause.types)for(const definition of compilerClassDefinitions({ts,checker,node:type.expression,reasons}))constructors(definition);
+        modeled=true;incomplete=true;reasons.add('super_constructor_receiver_modeled');return;
+      }
       if(ts.isFunctionLike(input)) { add(input); return; }
       if(ts.isConditionalExpression(input)) { modeled=true; visit(input.whenTrue); visit(input.whenFalse); return; }
       if(ts.isBinaryExpression(input)&&[ts.SyntaxKind.BarBarToken,ts.SyntaxKind.AmpersandAmpersandToken,ts.SyntaxKind.QuestionQuestionToken].includes(input.operatorToken.kind)) { modeled=true; visit(input.left); visit(input.right); return; }
@@ -47,7 +59,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
             if(!(declaration.parent.flags & ts.NodeFlags.Const)) { incomplete=true; modeled=true; reasons.add('mutable_callable_binding_unresolved'); }
             visit(declaration.initializer);
           } else if(ts.isClassDeclaration(declaration)||ts.isClassExpression(declaration)) {
-            const constructor=declaration.members.find(ts.isConstructorDeclaration); add(constructor||declaration);
+            constructors(declaration);
           } else incomplete=true;
         }
         return;
@@ -72,6 +84,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
         if(!matches(memberKeys,names))continue; matched=true;
         if(ts.isMethodDeclaration(member))add(member);
         else if(ts.isPropertyDeclaration(member)&&member.initializer)visit(member.initializer);
+        else if(ts.isGetAccessorDeclaration(member)){for(const value of compilerReturnExpressions({ts,owner:member,reasons}))visit(value);}
         else { incomplete=true; reasons.add('accessor_returned_callable_unresolved'); }
       }
       if(definition.name)patch(definition.name,names,!staticMember);
@@ -92,7 +105,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
           else incomplete=true;
         }
       } else if(ts.isNewExpression(receiver)) {
-        for(const definition of declarations(receiver.expression)) if(ts.isClassDeclaration(definition)||ts.isClassExpression(definition))classMember(definition,names,false);
+        for(const definition of compilerClassDefinitions({ts,checker,node:receiver.expression,reasons}))classMember(definition,names,false);
         patch(receiver.expression,names,true);
       } else if(ts.isObjectLiteralExpression(receiver)) {
         for(const member of receiver.properties) {
@@ -102,7 +115,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
           else if(ts.isPropertyAssignment(member))visit(member.initializer);
           else if(ts.isShorthandPropertyAssignment(member)) {
             const symbol=checker.getShorthandAssignmentValueSymbol(member); for(const declaration of symbol?.declarations||[]) if(ts.isFunctionLike(declaration))add(declaration); else if(declaration.initializer)visit(declaration.initializer);
-          } else reasons.add('accessor_returned_callable_unresolved');
+          } else if(ts.isGetAccessorDeclaration(member)){for(const value of compilerReturnExpressions({ts,owner:member,reasons}))visit(value);} else reasons.add('accessor_returned_callable_unresolved');
         }
       } else if(receiver.kind===ts.SyntaxKind.ThisKeyword||receiver.kind===ts.SyntaxKind.SuperKeyword) {
         let owner=receiver.parent,member=null; while(owner&&!ts.isClassDeclaration(owner)&&!ts.isClassExpression(owner)){member=owner;owner=owner.parent;}

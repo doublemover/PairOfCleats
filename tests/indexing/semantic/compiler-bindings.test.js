@@ -50,7 +50,9 @@ try {
   const returned = edges.filter(row => row.kind === 'returnToResult');
   assert.ok(returned.length >= 3, 'resolved local/imported calls retain return channels: ' + JSON.stringify({ returned, flowCoverage: coverage.filter(row => row.phase === 'crossFileFlow') }));
   assert.ok(returned.every(row => row.callSite && row.certainty === 'modeled'));
-  assert.notDeepEqual(returned[0].callSite, returned[1].callSite, 'return channels retain call occurrences');
+  const importedReturns=calls.slice(0,2).map(call=>returned.filter(row=>row.callSite.partitionId===call.from.partitionId&&row.callSite.localId===call.from.localId));
+  assert.ok(importedReturns.every(rows=>rows.length>0),'each imported invocation has its own return channel');
+  assert.notDeepEqual(importedReturns[0][0].callSite,importedReturns[1][0].callSite,'return channels retain call occurrences independently of partition ordering or multiple candidates');
   assert.ok(edges.some(row => row.kind === 'argumentToParameter'), 'each resolved positional argument has its parameter edge');
   assert.ok(edges.some(row => row.kind === 'captures'), 'closure retains immutable lexical capture');
   assert.ok(edges.some(row => row.kind === 'sharesStorage'), 'typed-array view retains storage relation');
