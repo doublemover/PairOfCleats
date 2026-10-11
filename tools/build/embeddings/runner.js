@@ -549,7 +549,7 @@ export const boundedMapSet = (map, key, value, maxEntries) => {
 };
 
 /**
- * Execute work items with adaptive concurrency for test-contract validation.
+ * Execute file work with adaptive concurrency and drain owned work on failure.
  *
  * @template T
  * @param {{
@@ -578,44 +578,63 @@ export const __runWithAdaptiveConcurrencyForTests = async ({
   let adjustments = 0;
 
   return await new Promise((resolve, reject) => {
+    let failed = false;
+    let firstError;
+    const fail = (error) => {
+      if (!failed) { failed = true; firstError = error; }
+    };
+    const settleIfDrained = () => {
+      if (active !== 0) return;
+      if (failed) reject(firstError);
+      else if (nextIndex >= list.length) resolve({
+        peakConcurrency,
+        adjustments,
+        finalConcurrency: Math.max(1, concurrency)
+      });
+    };
     const pump = () => {
-      const desired = coercePositiveIntMinOne(resolveLimit({
-        active,
-        remaining: list.length - nextIndex,
-        concurrency
-      })) || concurrency;
-      if (desired !== concurrency) {
-        concurrency = desired;
-        adjustments += 1;
+      if (failed) { settleIfDrained(); return; }
+      try {
+        const desired = coercePositiveIntMinOne(resolveLimit({
+          active,
+          remaining: list.length - nextIndex,
+          concurrency
+        })) || concurrency;
+        if (desired !== concurrency) {
+          concurrency = desired;
+          adjustments += 1;
+        }
+      } catch (error) {
+        fail(error);
+        settleIfDrained();
+        return;
       }
-      while (active < concurrency && nextIndex < list.length) {
+      while (!failed && active < concurrency && nextIndex < list.length) {
         const itemIndex = nextIndex;
         const item = list[nextIndex];
         nextIndex += 1;
         active += 1;
         peakConcurrency = Math.max(peakConcurrency, active);
-        Promise.resolve(workerFn(item, itemIndex))
-          .then(() => {
-            active -= 1;
-            if (nextIndex >= list.length && active === 0) {
-              resolve({
-                peakConcurrency,
-                adjustments,
-                finalConcurrency: Math.max(1, concurrency)
-              });
-              return;
-            }
-            pump();
-          })
-          .catch(reject);
-      }
-      if (nextIndex >= list.length && active === 0) {
-        resolve({
-          peakConcurrency,
-          adjustments,
-          finalConcurrency: Math.max(1, concurrency)
+        let result;
+        try {
+          result = workerFn(item, itemIndex);
+        } catch (error) {
+          active -= 1;
+          fail(error);
+          break;
+        }
+        Promise.resolve(result).then(() => {
+          active -= 1;
+          pump();
+        }, (error) => {
+          active -= 1;
+          fail(error);
+          // Retain ownership until every already-started sibling settles. The
+          // caller must not start resource cleanup while siblings still use it.
+          settleIfDrained();
         });
       }
+      settleIfDrained();
     };
     pump();
   });
