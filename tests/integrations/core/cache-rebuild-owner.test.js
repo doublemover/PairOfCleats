@@ -30,6 +30,12 @@ try {
   assert.equal(intent.argv['cache-rebuild'], false);
   assert.deepEqual(intent.rawArgv, ['--threads', '1']);
   assert.equal(consumeBuildCacheRebuild({ argv: intent.argv, env }).requested, false);
+  for (const flag of ['--no-cache-rebuild', '--cache-rebuild=false']) {
+    const disabled = consumeBuildCacheRebuild({ argv: { 'cache-rebuild': false }, rawArgv: [flag],
+      env: { PAIROFCLEATS_CACHE_REBUILD: '1' } });
+    assert.equal(disabled.requested, false);
+    assert.deepEqual(disabled.rawArgv, []);
+  }
   const held = await acquireIndexLock({ repoCacheRoot: cache });
   await assert.rejects(rebuildRepoCache({ root: repo, userConfig: config }), /Index lock unavailable/);
   assert.equal(await fs.readFile(sentinel, 'utf8'), 'old');

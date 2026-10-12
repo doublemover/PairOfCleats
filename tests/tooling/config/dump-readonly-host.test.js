@@ -17,10 +17,11 @@ try {
   const env = applyTestEnv({ syncProcess: false, extraEnv: {
     PAIROFCLEATS_CACHE_ROOT: base, PAIROFCLEATS_CACHE_REBUILD: '1'
   } });
-  for (const args of [
+  const invocations = [
     ['tools/config/dump.js', '--repo', repo, '--json'],
     ['build_index.js', '--repo', repo, '--config-dump', '--json', '--threads', '8', '--quality', 'fast']
-  ]) {
+  ];
+  for (const args of invocations) {
     const result = spawnSync(process.execPath, args, { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000 });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(await fs.readFile(sentinel, 'utf8'), 'preserve');
@@ -34,6 +35,12 @@ try {
       assert.ok(preview.process.execPath);
       if (os.cpus().length > 1) assert.ok(preview.concurrency.cpuCount > 1);
     }
+  }
+  await fs.rm(base, { recursive: true });
+  for (const args of invocations) {
+    const result = spawnSync(process.execPath, args, { cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000 });
+    assert.equal(result.status, 0, result.stderr);
+    await assert.rejects(fs.stat(base), { code: 'ENOENT' });
   }
   console.log('config dump read-only host test passed');
 } finally {
