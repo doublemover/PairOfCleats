@@ -101,6 +101,7 @@ export async function resolvePreCpuFileContent({
   formatCrashErrorMeta,
   warnEncodingFallback,
   documentSourceType,
+  wasmBinary = false,
   documentExtractionPolicy,
   artifacts
 }) {
@@ -126,6 +127,13 @@ export async function resolvePreCpuFileContent({
         }
       };
     }
+  }
+
+  if (wasmBinary) {
+    artifacts.text = '';
+    artifacts.fileHash = sha1(artifacts.fileBuffer); artifacts.fileHashAlgo = 'sha1';
+    artifacts.fileEncoding = 'binary';
+    return { skip: null };
   }
 
   // Reuse the source buffer: renamed owned outputs must not require a second

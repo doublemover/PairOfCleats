@@ -12,6 +12,11 @@ export const validateSemanticEnvelope = (family, value) => {
   if (!result.ok) return result;
   const errors = [];
   if (family === 'source') {
+    if (value.encoding === 'binary') {
+      if (value.decoding !== 'wasm-binary-v1' || value.coordinateUnit !== 'byte' || value.language !== 'wasm'
+        || value.textLength !== 0 || value.lineStarts.length !== 1 || value.mapping !== null
+        || value.textHash !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855') errors.push('invalid binary source manifest');
+    } else if (value.decoding !== 'utf8-fatal-preserve-bom-v1' || value.coordinateUnit !== 'utf16') errors.push('invalid text decoder coordinates');
     if (value.lineStarts[0] !== 0) errors.push('line map must start at UTF-16 offset zero');
     for (let i = 0; i < value.lineStarts.length; i += 1) {
       if (value.lineStarts[i] > value.textLength

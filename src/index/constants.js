@@ -151,7 +151,7 @@ for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
     CODE_EXTENSION_SET.add(ext);
   }
 }
-for (const ext of ['.def', '.vue', '.svelte', '.astro']) {
+for (const ext of ['.def', '.vue', '.svelte', '.astro', '.wasm']) {
   CODE_EXTENSION_SET.add(ext);
 }
 
