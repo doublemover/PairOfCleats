@@ -32,6 +32,13 @@ try {
     semanticContext: { ...context, diskAccount: constrained }, chunkCount: 0,
     lexiconFilterStats: { changed: true } }), { code: 'ERR_SEMANTIC_DISK_LIMIT' });
   assert.deepEqual(JSON.parse(await fs.readFile(completionPath, 'utf8')), envelope, 'replacement credit failure preserves the completed descriptor');
+  const replacement = () => commitFileCompletion({ bundleDir: fixture.bundleDir, relKey: completed.file,
+    manifestEntry: envelope.descriptor.manifestEntry, semanticFactsRef: completed.factsRef,
+    semanticContext: context, chunkCount: 0, lexiconFilterStats: { replacement: true } });
+  const oldDescriptorSize = (await fs.stat(completionPath)).size;
+  await Promise.all([replacement(), replacement()]);
+  assert.equal(fixture.account.used - reservedBefore, (await fs.stat(completionPath)).size - oldDescriptorSize,
+    'concurrent completion replacements charge only the final durable descriptor');
   const firstCopyPiece = Object.values(completed.factsRef.partitions[0].members).flat()[0];
   const copyBudget = createSemanticDiskAccount(firstCopyPiece.bytes + firstCopyPiece.count * 8 + 1);
   let acceptedCopyReservations = 0;
@@ -67,10 +74,14 @@ try {
   const fileStat = { ...(await fs.stat(sourcePath)), mtimeMs: completed.entry.mtimeMs };
   const pendingPath = path.join(fixture.repoRoot, 'pending.js');
   await fs.writeFile(pendingPath, 'unfinished();');
+  const richerPrior = { ...receipt.manifestEntry, completionKey: 'f'.repeat(64) };
+  state.manifest.files[completed.file] = richerPrior;
   const admitted = await preloadFileCompletions({
     entries: [{ rel: 'pending.js', abs: pendingPath }, { rel: completed.file, abs: sourcePath }],
     incrementalState: state, semanticContext: context });
   assert.deepEqual([...admitted], [sourcePath], 'only validated completions bypass global parser scheduling');
+  assert.equal(state.manifest.files[completed.file], richerPrior, 'keep the same-source Stage2 entry');
+  assert.equal(richerPrior.completionKey, completed.entry.completionKey, 'pin the verified fallback before retained-cache cleanup');
   const restored = await loadCachedBundleForFile({ repoRoot: fixture.repoRoot, runIo: fn => fn(),
     incrementalState: state, absPath: sourcePath, relKey: completed.file, fileStat, semanticContext: context });
   assert.ok(restored.semanticFactsRef);
@@ -88,7 +99,8 @@ try {
   await updateBundlesWithChunks({ enabled: true, repoRoot: fixture.repoRoot, manifest: fixture.manifest,
     log: () => {},
     manifestPath: path.join(fixture.root, 'manifest.json'), bundleDir: fixture.bundleDir,
-    chunks: withChunks.chunks.map(chunk => ({ ...chunk, name: 'analysis changed' })), fileRelations: new Map() });
+    chunks: withChunks.chunks.map(chunk => ({ ...chunk, id: 1 })), fileRelations: new Map(), diskAccount: fixture.account });
+  assert.notEqual(fixture.manifest.files[withChunks.file].bundles[0], path.basename(immutablePath));
   assert.equal(createHash('sha256').update(await fs.readFile(immutablePath)).digest('hex'), before,
     'Stage2 rewrite and garbage collection cannot mutate a pinned Stage1 snapshot');
 

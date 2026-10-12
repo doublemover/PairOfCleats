@@ -4998,7 +4998,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 490,
+    "totalFlags": 491,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5210,6 +5210,7 @@
       "git-sha",
       "global",
       "grace-days",
+      "grammarVersion",
       "graph",
       "graphFixture",
       "groups",
@@ -5653,6 +5654,12 @@
           "properties",
           "required",
           "type"
+        ]
+      },
+      {
+        "file": "src/index/semantic/native-syntax.js",
+        "flags": [
+          "grammarVersion"
         ]
       },
       {

@@ -348,7 +348,7 @@ export const processFileCpu = async (context) => {
     updateCrashStage('semantic:collect-file:start');
     semanticFactsRef = await collectFileSemanticFacts({ ...context.semantic,
       bytes: context.sourceBytes, text, ast: languageContext.tsSyntax?.sourceFile || languageContext.jsAst, ts: languageContext.tsSyntax?.ts, language: lang?.id || 'unknown',
-      relPath: relKey, signal, scheduleIo: runIo });
+      relPath: relKey, signal, scheduleIo: runIo, scheduleParse: runTreeSitter, nativeParserEnabled: treeSitterEnabled });
     updateCrashStage('semantic:collect-file:done');
   }
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
