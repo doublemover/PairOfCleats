@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { readRuntimeReceipt, listRuntimeReceipts, formatRuntimeReceiptSummary } from '../../src/shared/runtime-envelope/read-receipt.js';
+import { getRepoCacheRoot, getIndexDir } from '../../src/shared/repo-paths.js';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
@@ -27,9 +29,42 @@ const argv = createCli({
   options: {
     json: { type: 'boolean', default: false },
     all: { type: 'boolean', default: false },
-    repo: { type: 'string' }
+    repo: { type: 'string' },
+    runtime: { type: 'boolean', default: false },
+    'index-root': { type: 'string' },
+    build: { type: 'string' },
+    attempt: { type: 'string' },
+    mode: { type: 'string' },
+    explain: { type: 'string' },
+    'redact-paths': { type: 'boolean', default: false }
   }
 }).parse();
+
+// Explicit roots are forensic reads: do not reload current config first.
+if (argv.runtime || argv['index-root'] || argv.build || argv.attempt || argv.explain) {
+  const options = { attemptId: argv.attempt, mode: argv.mode, explain: argv.explain, redactPaths: argv['redact-paths'] };
+  let runtimeReport;
+  if (argv['index-root']) {
+    runtimeReport = { schemaVersion: 1, receipts: [await readRuntimeReceipt({ ...options, buildRoot: argv['index-root'] })], truncated: false };
+  } else {
+    const { repoRoot, userConfig: config } = resolveRepoConfig(argv.repo);
+    const repoCacheRoot = getRepoCacheRoot(repoRoot, config);
+    if (argv.build) {
+      if (!/^[^\\/]+$/u.test(argv.build) || argv.build === '.' || argv.build === '..') throw new Error('Invalid --build identifier.');
+      runtimeReport = { schemaVersion: 1, receipts: [await readRuntimeReceipt({ ...options, buildRoot: path.join(repoCacheRoot, 'builds', argv.build), selection: 'explicit-build-id' })], truncated: false };
+    } else {
+      const modes = argv.mode ? [argv.mode] : ['code', 'prose', 'extracted-prose', 'records'];
+      const publishedRoots = Array.from(new Set(modes.map((mode) => path.dirname(getIndexDir(repoRoot, mode, config)))));
+      runtimeReport = await listRuntimeReceipts({ ...options, repoCacheRoot, publishedRoots });
+    }
+  }
+  if (argv.json) console.log(JSON.stringify(runtimeReport, null, 2));
+  else {
+    for (const receipt of runtimeReport.receipts) console.error(formatRuntimeReceiptSummary(receipt).join('\n'));
+    if (runtimeReport.truncated) console.error('Candidate list bounded; use --index-root or --build for an explicit selection.');
+  }
+  process.exit(0);
+}
 
 const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const metricsDir = getMetricsDir(root, userConfig);

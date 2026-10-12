@@ -123,6 +123,10 @@ function resolveCommand(primary, rest) {
     if (sub === 'validate') {
       return { script: 'tools/index/validate.js', extraArgs: [], args: rest };
     }
+    if (sub === 'report') {
+      validateArgs(rest, ['repo', 'json', 'all', 'runtime', 'index-root', 'build', 'attempt', 'mode', 'explain', 'redact-paths'], ['repo', 'index-root', 'build', 'attempt', 'mode', 'explain']);
+      return { script: 'tools/index/report-artifacts.js', extraArgs: [], args: rest };
+    }
     if (sub === 'stats') {
       validateArgs(rest, ['repo', 'index-dir', 'mode', 'json', 'verify'], ['repo', 'index-dir', 'mode']);
       return { script: 'tools/index/stats.js', extraArgs: [], args: rest };
