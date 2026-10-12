@@ -24,14 +24,15 @@ try {
   await fs.mkdir(other);
   await fs.writeFile(path.join(other, 'output'), 'keep');
   const env = applyTestEnv({ syncProcess: false, extraEnv: { PAIROFCLEATS_CACHE_REBUILD: '1' } });
-  const intent = consumeBuildCacheRebuild({ argv: {}, rawArgv: ['--cache-rebuild', '--threads', '1'], env });
+  const intent = consumeBuildCacheRebuild({ argv: { 'cache-rebuild': true }, rawArgv: ['--cache-rebuild', '--threads', '1'], env });
   assert.equal(intent.requested, true);
   assert.equal(env.PAIROFCLEATS_CACHE_REBUILD, undefined);
   assert.equal(intent.argv['cache-rebuild'], false);
   assert.deepEqual(intent.rawArgv, ['--threads', '1']);
   assert.equal(consumeBuildCacheRebuild({ argv: intent.argv, env }).requested, false);
-  for (const flag of ['--no-cache-rebuild', '--cache-rebuild=false']) {
-    const disabled = consumeBuildCacheRebuild({ argv: { 'cache-rebuild': false }, rawArgv: [flag],
+  for (const flags of [['--no-cache-rebuild'], ['--cache-rebuild=false'], ['--cache-rebuild', 'false'],
+    ['--cache-rebuild', 'true', '--cache-rebuild', 'false'], ['--cache-rebuild=true', '--no-cache-rebuild']]) {
+    const disabled = consumeBuildCacheRebuild({ argv: { 'cache-rebuild': false }, rawArgv: flags,
       env: { PAIROFCLEATS_CACHE_REBUILD: '1' } });
     assert.equal(disabled.requested, false);
     assert.deepEqual(disabled.rawArgv, []);
