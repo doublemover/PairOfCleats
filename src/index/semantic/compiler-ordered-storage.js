@@ -1,15 +1,44 @@
 import { canonicalSemanticJson } from './identity.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const MAX_FIELDS = 64;
+/** One document pass supplies owner-local work and cross-owner captures. */
+export const indexCompilerOrderedStorage = ({ ts, checker, sourceFile, nodes, signal }) => {
+  const owners = new WeakMap(), declarations = new WeakMap(), buckets = new Map(), captures = new Map();
+  const nearestOwner = node => {
+    if (!node) return sourceFile;
+    if (owners.has(node)) return owners.get(node);
+    const pending = [node]; let current = node.parent;
+    while (current && !ts.isFunctionLike(current) && !owners.has(current)) { pending.push(current); current = current.parent; }
+    const owner = current && ts.isFunctionLike(current) ? current : current ? owners.get(current) : sourceFile;
+    for (const item of pending) owners.set(item, owner);
+    return owner;
+  };
+  for (const node of nodes) {
+    throwIfAborted(signal);
+    const owner = nearestOwner(node);
+    if (!buckets.has(owner)) buckets.set(owner, []);
+    buckets.get(owner).push(node);
+    if (!ts.isIdentifier(node)) continue;
+    const declaration = checker.getSymbolAtLocation(node)?.valueDeclaration;
+    declarations.set(node, declaration);
+    if (!declaration || !ts.isVariableDeclaration(declaration) || !(declaration.parent.flags & ts.NodeFlags.Const)) continue;
+    const declaredOwner = nearestOwner(declaration);
+    if (declaredOwner !== owner) {
+      if (!captures.has(declaredOwner)) captures.set(declaredOwner, []);
+      captures.get(declaredOwner).push(node);
+    }
+  }
+  return { nearestOwner, declarations, buckets, captures };
+};
 /** Small allocation-state subset. Allocation identity is a source site plus call
  * context, never value equality. Unsupported roots continue through may-locations.
  */
-export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor }) => {
+export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor,
+  index = indexCompilerOrderedStorage({ ts, checker, sourceFile, nodes }), signal }) => {
   const descriptors = new Map(), memo = new WeakMap(), resolving = new Set(), operations = new Map(), accesses = new Set();
-  const nearestOwner = node => {
-    for (let current = node?.parent; current; current = current.parent) if (ts.isFunctionLike(current)) return current;
-    return sourceFile;
-  };
+  const { nearestOwner } = index;
+  const localNodes = index.buckets.get(owner) || [];
   const unwrap = input => {
     let node = input;
     while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node)
@@ -46,7 +75,7 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
     resolving.add(node);
     let result = null;
     if (ts.isIdentifier(node)) {
-      const declaration = checker.getSymbolAtLocation(node)?.valueDeclaration;
+      const declaration = index.declarations.get(node);
       if (declaration && ts.isVariableDeclaration(declaration) && ts.isIdentifier(declaration.name)
         && (declaration.parent.flags & ts.NodeFlags.Const) && nearestOwner(declaration) === owner) result = resolve(declaration.initializer);
     } else if (ts.isObjectLiteralExpression(node) && nearestOwner(node) === owner) {
@@ -87,7 +116,7 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
     resolving.delete(node); memo.set(node, result);
     return result;
   };
-  for (const node of nodes) if (nearestOwner(node) === owner) resolve(node);
+  for (const node of localNodes) { throwIfAborted(signal); resolve(node); }
   const location = (descriptor, name, site) => {
     if (!descriptor || name === null) return null;
     if (descriptor.kind === 'uint8') {
@@ -115,9 +144,11 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
     if (canonical) canonical.escapeAt = Math.min(canonical.escapeAt, at);
     descriptor.escapeAt = Math.min(descriptor.escapeAt, at);
   };
-  for (const node of nodes) {
+  for (const node of [...localNodes, ...(index.captures.get(owner) || [])]) {
+    throwIfAborted(signal);
     if (!ts.isIdentifier(node)) continue;
     const descriptor = resolve(node); if (!descriptor) continue;
+    if (nearestOwner(node) !== owner) { escape(descriptor, node); continue; }
     const parent = node.parent;
     if (ts.isVariableDeclaration(parent) && (parent.name === node || parent.initializer === node) && (parent.parent.flags & ts.NodeFlags.Const)) continue;
     if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === node) {
@@ -129,9 +160,9 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
   }
   const canonicalDescriptor = descriptor => descriptors.get(canonicalSemanticJson(descriptor.root)) || descriptor;
   const qualified = descriptor => !descriptor?.snapshotSource || descriptor.node.getStart(sourceFile) < canonicalDescriptor(descriptor.snapshotSource).escapeAt;
-  const unsupportedControl = nodes.some(node => nearestOwner(node) === owner && (ts.isTryStatement(node)
+  const unsupportedControl = localNodes.some(node => ts.isTryStatement(node)
     || ts.isWhileStatement(node) || ts.isDoStatement(node) || ts.isForStatement(node) || ts.isForOfStatement(node)
-    || ts.isForInStatement(node) || ts.isAwaitExpression(node) || ts.isYieldExpression(node)));
+    || ts.isForInStatement(node) || ts.isAwaitExpression(node) || ts.isYieldExpression(node));
   return { descriptors, operations, accesses, resolve, locationsFor,
     allLocations: () => [...descriptors.values()].filter(qualified).flatMap(descriptor => [...descriptor.members.keys()].map(name => location(descriptor, name, descriptor.root)).filter(Boolean)),
     strongAt: (value, node) => Boolean(!unsupportedControl && value?.ordered && qualified(value.ordered)
@@ -140,6 +171,12 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
       const operation = operations.get(node);
       return operation && !unsupportedControl && qualified(operation.descriptor)
         && (!operation.source || node.getStart(sourceFile) < canonicalDescriptor(operation.source).escapeAt) ? operation : null;
+    },
+    aggregateFieldsFor: node => {
+      const descriptor = resolve(node);
+      if (unsupportedControl || descriptor?.kind !== 'uint8' || !qualified(descriptor)
+        || node.getStart(sourceFile) > canonicalDescriptor(descriptor).escapeAt) return [];
+      return Array.from({ length: descriptor.length }, (_, index) => location(descriptor, String(index), expressionFor(node))).filter(Boolean);
     },
     fieldFor: (descriptor, index, site) => location(descriptor, String(index), site) };
 };

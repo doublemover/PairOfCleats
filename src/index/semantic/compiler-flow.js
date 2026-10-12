@@ -5,7 +5,7 @@ import { compilerRuntimeParameters, compilerInvocationInputs } from './compiler-
 import { createCompilerFieldPaths, collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 import { buildCompilerFlowGraph } from './compiler-flow-graph.js';
 import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
-import { createCompilerOrderedStorage } from './compiler-ordered-storage.js';
+import { createCompilerOrderedStorage, indexCompilerOrderedStorage } from './compiler-ordered-storage.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -28,6 +28,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     if (from && to) edges.push({ kind, from, to, callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition, evidence, certainty });
   };
   nodes = [...nodes];
+  const orderedIndex = indexCompilerOrderedStorage({ ts, checker, sourceFile, nodes, signal });
   const assignments = collectCompilerAliasAssignments(ts,checker,nodes);
   const owners = [sourceFile, ...nodes.filter(node => ts.isFunctionLike(node) && node.body)];
   let totalBlocks = 0, solvedBlocks = 0;
@@ -47,7 +48,8 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     const symbols = new Map(), blockRefs = new Map(), writes = new Map(), heapWrites = new Map(), catches = new Map();
     const fields = createCompilerFieldPaths({ ts, checker, owner, sourceFile, assignments, expressionFor, declarationFor,
       depthLimit: policy.enrichment.fieldPathDepth, reasons });
-    const ordered = createCompilerOrderedStorage({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor });
+    const ordered = createCompilerOrderedStorage({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor,
+      index: orderedIndex, signal });
     const registerField = location => {
       const token = 'field:' + location.key;
       if (!symbols.has(token)) symbols.set(token, {key:token,site:location.site,unknown:null,location});
@@ -88,6 +90,13 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       const operation = block.event?.kind === 'operation' ? ordered.operationFor(block.node) : null;
       if (operation) {
         orderedOperations.add(canonicalSemanticJson(block.site));
+        if (operation.kind === 'initialize') {
+          for (const initializer of operation.descriptor.members.values()) edge('packs', expressionFor(initializer), block.site, null, 'modeled');
+        }
+        if (operation.kind === 'view') {
+          block.orderedAggregate = ordered.aggregateFieldsFor(block.node).map(registerField);
+          block.orderedView = true;
+        }
         if (operation.kind === 'copy') {
           block.orderedCopies = [];
           for (let index = 0; index < operation.descriptor.length; index += 1) {
@@ -100,6 +109,10 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
             block.orderedCopies.push({ sourceToken, targetToken, value });
           }
         }
+      }
+      if (block.event?.kind === 'read') {
+        block.orderedAggregate = ordered.aggregateFieldsFor(block.node).map(registerField);
+        if (block.orderedAggregate.length) orderedAccesses.add(canonicalSemanticJson(block.site));
       }
       if (['heapRead', 'heapWrite'].includes(block.event?.kind)) {
         const candidates = fieldsFor(block.event.target);
@@ -210,6 +223,18 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       parameterFields.push({ parameter: entry.location.parameter, path: entry.location.path, ref: entry.unknown });
     for (const block of reachable) {
       const event = block.event;
+      // Aggregate consumers keep current modeled element inputs without using
+      // an unordered shared field to reconnect earlier snapshots.
+      for (const field of block.orderedAggregate || []) {
+        const entry = symbols.get(field), values = new Set(incoming.get(block)?.get(field) || [entry.unknown.local]);
+        if (!complete) values.add(entry.unknown.local);
+        for (const value of values) {
+          edge('packs', local(value), block.site, null, 'modeled');
+          // Storage authority stays on these heap-state records. A whole-root
+          // edge would also carry values outside the admitted view range.
+          if (block.orderedView) edge('sharesStorage', local(value), block.site, null, 'modeled');
+        }
+      }
       for (const copy of block.orderedCopies || []) {
         const values = new Set(incoming.get(block)?.get(copy.sourceToken) || [symbols.get(copy.sourceToken).unknown.local]);
         if (!complete) values.add(symbols.get(copy.sourceToken).unknown.local);
@@ -272,7 +297,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     for (const block of reachable) {
       for (const successor of block.successors) edge(successor.kind, blockRefs.get(block), blockRefs.get(successor.to), block.condition || successor.condition, 'modeled');
       const event = block.event;
-      if (event?.kind === 'read' && block.symbol) {
+      if (event?.kind === 'read' && block.symbol && !block.orderedAggregate?.length) {
         const values = new Set(incoming.get(block)?.get(block.symbol) || [symbols.get(block.symbol).unknown.local]);
         if (!complete) values.add(symbols.get(block.symbol).unknown.local);
         let value;
