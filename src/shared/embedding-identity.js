@@ -2,9 +2,9 @@ import { sha1 } from './hash.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
 
 /** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 3;
+export const EMBEDDING_IDENTITY_VERSION = 4;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v3';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v4';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
@@ -83,7 +83,8 @@ export const buildEmbeddingIdentity = ({
   inputFormatting,
   quantization,
   onnx,
-  modelProfile
+  modelProfile,
+  modelArtifact = null
 } = {}) => {
   const onnxConfig = onnx && typeof onnx === 'object' ? onnx : {};
   const quant = quantization && typeof quantization === 'object' ? quantization : {};
@@ -94,6 +95,11 @@ export const buildEmbeddingIdentity = ({
     provider: normalizeString(provider),
     mode: normalizeString(mode),
     stub: stub === true,
+    modelArtifact: modelArtifact || (stub === true
+      ? { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' }
+      : modelProfile?.revision
+        ? { status: 'immutable-revision', reuse: 'allow', digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' }
+        : { status: 'unknown', reuse: 'refuse', digest: null, revision: null, method: 'artifact-evidence-not-supplied' }),
     dims: normalizeInt(dims),
     scale: normalizeNumber(scale),
     pooling: normalizeString(pooling) || 'mean',
@@ -120,6 +126,9 @@ export const buildEmbeddingIdentity = ({
   const profile = resolveEmbeddingModelProfile(modelId, modelProfile);
   if (profile) {
     identity.modelProfile = profile;
+    if (!modelArtifact && stub !== true) identity.modelArtifact = {
+      status: 'immutable-revision', reuse: 'allow', digest: null, revision: profile.revision, method: 'qualified-model-profile'
+    };
     identity.pooling = profile.output;
     identity.dims = profile.dimensions;
     identity.maxLength = profile.maxLength;

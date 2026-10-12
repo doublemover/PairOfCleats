@@ -35,6 +35,7 @@ const poolEvidence = (pool) => {
   if (!stats) return null;
   const observations = stats.runtimeObservations || [];
   return {
+    backend: stats.backend || 'worker', process: stats.process || null,
     configuredMaxWorkers: stats.configuredMaxWorkers, effectiveMaxWorkers: stats.maxWorkers,
     activeTasks: stats.activeTasks, queuedTasks: stats.queuedTasks, disabled: stats.disabled,
     heapLaunchContract: stats.heapLaunchContract, pressureDownscale: stats.pressureDownscale,
@@ -46,8 +47,8 @@ const poolEvidence = (pool) => {
 export const collectRuntimeResourceEvidence = (runtime) => ({
   workers: {
     observedAt: new Date().toISOString(),
-    tokenizationExecution: runtime.workerPool?.stats?.().disabled === false ? 'worker-pool' : 'inline',
-    quantizationExecution: runtime.quantizePool?.stats?.().disabled === false ? 'worker-pool' : 'inline',
+    tokenizationExecution: runtime.workerPool?.stats?.().disabled === false ? (runtime.workerPool.stats().backend === 'process' ? 'process-pool' : 'worker-pool') : 'inline',
+    quantizationExecution: runtime.quantizePool?.stats?.().disabled === false ? (runtime.quantizePool.stats().backend === 'process' ? 'process-pool' : 'worker-pool') : 'inline',
     embeddingInferenceExecution: 'separate-provider-owner',
     launchDecisions: runtime.workerPools?.runtimeEvidence || {},
     tokenize: poolEvidence(runtime.workerPool), quantize: poolEvidence(runtime.quantizePool)

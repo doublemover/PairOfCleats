@@ -1,4 +1,4 @@
-import { createAbortError } from '../../../../shared/abort.js';
+import { createAbortError, throwIfAborted } from '../../../../shared/abort.js';
 import {
   PRESSURE_STATE_NORMAL,
   clampRatio,
@@ -148,7 +148,7 @@ export const createWorkerPoolQueue = (input = {}) => {
     const usage = process.memoryUsage();
     const heapUsed = Number(usage?.heapUsed) || 0;
     const heapTotal = Number(usage?.heapTotal) || 0;
-    const rss = Number(usage?.rss) || 0;
+    const rss = Number(input.readOwnedRssBytes?.() ?? usage?.rss) || 0;
     const heapUtilization = heapTotal > 0
       ? clampRatio(heapUsed / heapTotal)
       : 0;
@@ -206,12 +206,14 @@ export const createWorkerPoolQueue = (input = {}) => {
    * @param {object} payload
    * @returns {Promise<{languageId:string,limit:number}|null>}
    */
-  const acquireLanguageThrottleSlot = async (payload) => {
+  const acquireLanguageThrottleSlot = async (payload, { signal = null } = {}) => {
+    throwIfAborted(signal);
     if (closed) throw createAbortError('Worker admission is closed');
     const languageId = normalizeLanguageId(payload?.languageId);
     const mode = typeof payload?.mode === 'string' ? payload.mode.toLowerCase() : '';
     if (!languageId || mode !== 'code') return null;
     while (true) {
+      throwIfAborted(signal);
       if (closed) throw createAbortError('Worker admission is closed');
       const sample = readProcessPressureSample();
       updatePressureState({

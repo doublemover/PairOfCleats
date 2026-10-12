@@ -66,17 +66,13 @@ const normalizeBoolean = (value) => {
   return null;
 };
 
-const resolveBooleanOption = (configValue, envName, fallback) => {
-  const envValue = normalizeBoolean(process?.env?.[envName]);
-  if (envValue != null) return envValue;
+const resolveBooleanOption = (configValue, fallback) => {
   const normalizedConfigValue = normalizeBoolean(configValue);
   if (normalizedConfigValue != null) return normalizedConfigValue;
   return fallback;
 };
 
-const resolveBoundedIntOption = (configValue, envName, fallback, bounds) => {
-  const envValue = normalizeBoundedInt(process?.env?.[envName], bounds);
-  if (envValue != null) return envValue;
+const resolveBoundedIntOption = (configValue, fallback, bounds) => {
   const normalizedConfigValue = normalizeBoundedInt(configValue, bounds);
   if (normalizedConfigValue != null) return normalizedConfigValue;
   return fallback;
@@ -121,11 +117,10 @@ export const statSize = (filePath) => {
 export function normalizeOnnxConfig(raw = {}) {
   const config = raw && typeof raw === 'object' ? raw : {};
   const executionProviders = normalizeProviders(config.executionProviders);
-  const prewarmTokenizer = resolveBooleanOption(config.prewarmTokenizer, PREWARM_TOKENIZER_ENV, false);
-  const prewarmModel = resolveBooleanOption(config.prewarmModel, PREWARM_MODEL_ENV, false);
-  const envPrewarmTexts = normalizePrewarmTexts(process?.env?.[PREWARM_TEXTS_ENV]);
+  const prewarmTokenizer = resolveBooleanOption(config.prewarmTokenizer, false);
+  const prewarmModel = resolveBooleanOption(config.prewarmModel, false);
   const configPrewarmTexts = normalizePrewarmTexts(config.prewarmTexts ?? config.prewarmText);
-  const prewarmTexts = envPrewarmTexts || configPrewarmTexts || null;
+  const prewarmTexts = configPrewarmTexts || null;
   return {
     modelPath: typeof config.modelPath === 'string' ? config.modelPath.trim() : '',
     tokenizerId: typeof config.tokenizerId === 'string' ? config.tokenizerId.trim() : '',
@@ -133,11 +128,10 @@ export function normalizeOnnxConfig(raw = {}) {
     intraOpNumThreads: normalizeThread(config.intraOpNumThreads),
     interOpNumThreads: normalizeThread(config.interOpNumThreads),
     graphOptimizationLevel: normalizeGraphLevel(config.graphOptimizationLevel),
-    cpuExecutionProviderTuning: resolveBooleanOption(config.cpuExecutionProviderTuning, CPU_EP_TUNING_ENV, true),
-    tokenizationCacheEnabled: resolveBooleanOption(config.tokenizationCacheEnabled, TOKENIZATION_CACHE_ENABLED_ENV, true),
+    cpuExecutionProviderTuning: resolveBooleanOption(config.cpuExecutionProviderTuning, true),
+    tokenizationCacheEnabled: resolveBooleanOption(config.tokenizationCacheEnabled, true),
     tokenizationCacheMaxEntries: resolveBoundedIntOption(
       config.tokenizationCacheMaxEntries,
-      TOKENIZATION_CACHE_MAX_ENV,
       ONNX_TOKENIZATION_CACHE_DEFAULT_MAX_ENTRIES,
       { min: 1, max: ONNX_TOKENIZATION_CACHE_MAX_ENTRIES_CAP }
     ),
@@ -145,6 +139,23 @@ export function normalizeOnnxConfig(raw = {}) {
     prewarmModel,
     prewarmTexts
   };
+}
+
+/** Resolve environment precedence once at a configuration boundary. */
+export function resolveOnnxConfig(raw = {}, rawEnv = process.env) {
+  const config = raw && typeof raw === 'object' ? raw : {};
+  const env = rawEnv && typeof rawEnv === 'object' ? rawEnv : {};
+  return normalizeOnnxConfig({
+    ...config,
+    cpuExecutionProviderTuning: normalizeBoolean(env[CPU_EP_TUNING_ENV]) ?? config.cpuExecutionProviderTuning,
+    tokenizationCacheEnabled: normalizeBoolean(env[TOKENIZATION_CACHE_ENABLED_ENV]) ?? config.tokenizationCacheEnabled,
+    tokenizationCacheMaxEntries: normalizeBoundedInt(env[TOKENIZATION_CACHE_MAX_ENV], {
+      min: 1, max: ONNX_TOKENIZATION_CACHE_MAX_ENTRIES_CAP
+    }) ?? config.tokenizationCacheMaxEntries,
+    prewarmTokenizer: normalizeBoolean(env[PREWARM_TOKENIZER_ENV]) ?? config.prewarmTokenizer,
+    prewarmModel: normalizeBoolean(env[PREWARM_MODEL_ENV]) ?? config.prewarmModel,
+    prewarmTexts: normalizePrewarmTexts(env[PREWARM_TEXTS_ENV]) ?? config.prewarmTexts ?? config.prewarmText
+  });
 }
 
 export function normalizeEmbeddingProvider(raw, { strict = false } = {}) {

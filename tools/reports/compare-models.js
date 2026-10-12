@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-input-format.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
+import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../src/shared/cache-roots.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
@@ -41,7 +41,7 @@ const scriptRoot = resolveToolRoot();
 const envConfig = getEnvConfig();
 const embeddingsConfig = userConfig.indexing?.embeddings || {};
 const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+const embeddingOnnx = resolveOnnxConfig(embeddingsConfig.onnx || {});
 const configCacheRoot = typeof userConfig.cache?.root === 'string' && userConfig.cache.root.trim()
   ? path.resolve(userConfig.cache.root)
   : null;

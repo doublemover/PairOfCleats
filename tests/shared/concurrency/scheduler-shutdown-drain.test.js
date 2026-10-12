@@ -2,8 +2,6 @@
 import assert from 'node:assert/strict';
 import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 {
   const scheduler = createBuildScheduler({
     cpuTokens: 1,
@@ -13,12 +11,15 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   scheduler.registerQueue('drain', { priority: 10 });
 
   let releaseFirst = null;
-  const first = scheduler.schedule('drain', { cpu: 1 }, async () => (
-    new Promise((resolve) => {
+  let enterFirst;
+  const firstEntered = new Promise(resolve => { enterFirst = resolve; });
+  const first = scheduler.schedule('drain', { cpu: 1 }, async () => {
+    enterFirst();
+    return new Promise((resolve) => {
       releaseFirst = resolve;
-    })
-  ));
-  await sleep(5);
+    });
+  });
+  await firstEntered;
   const second = scheduler.schedule('drain', { cpu: 1 }, async () => 'second');
   const secondOutcome = second.then(
     (value) => ({ ok: true, value }),
@@ -54,19 +55,24 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   scheduler.registerQueue('timeout', { priority: 10 });
 
   let release = null;
-  const running = scheduler.schedule('timeout', { cpu: 1 }, async () => (
-    new Promise((resolve) => {
+  let enter;
+  const entered = new Promise(resolve => { enter = resolve; });
+  const running = scheduler.schedule('timeout', { cpu: 1 }, async () => {
+    enter();
+    return new Promise((resolve) => {
       release = resolve;
-    })
-  ));
-
+    });
+  });
+  await entered;
   const startedAt = Date.now();
-  await scheduler.shutdown({ awaitRunning: true, timeoutMs: 25 });
+  await assert.rejects(scheduler.shutdown({ awaitRunning: true, timeoutMs: 25 }),
+    { code: 'ERR_SCHEDULER_DRAIN_TIMEOUT', runningTasks: 1 });
   const elapsedMs = Date.now() - startedAt;
   assert(elapsedMs >= 10 && elapsedMs < 500, 'expected bounded shutdown wait window');
 
   release?.('ok');
   assert.equal(await running, 'ok', 'expected timed-out shutdown wait to not cancel in-flight work');
+  await scheduler.shutdown({ awaitRunning: true, timeoutMs: 1000 });
 }
 
 console.log('scheduler shutdown drain test passed');

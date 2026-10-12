@@ -25,9 +25,10 @@ export function createSchedulerShutdown({
       : 0;
     if (resolvedTimeoutMs <= 0) return joined;
     let timeoutHandle = null;
-    const timeoutPromise = new Promise((resolve) => {
+    const timeoutPromise = new Promise((resolve, reject) => {
       timeoutHandle = setTimeout(() => {
-        resolve();
+        reject(Object.assign(new Error(`Scheduler drain timed out after ${resolvedTimeoutMs}ms with ${state.runningTasks.size} running task(s).`),
+          { code: 'ERR_SCHEDULER_DRAIN_TIMEOUT', timeoutMs: resolvedTimeoutMs, runningTasks: state.runningTasks.size }));
       }, resolvedTimeoutMs);
     });
     return Promise.race([joined, timeoutPromise])

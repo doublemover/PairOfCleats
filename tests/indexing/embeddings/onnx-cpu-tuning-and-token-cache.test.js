@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   __buildSessionOptionsForTests,
   __tokenizeBatchWithCacheForTests,
-  normalizeOnnxConfig
+  normalizeOnnxConfig,
+  resolveOnnxConfig
 } from '../../../src/shared/onnx-embeddings.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
@@ -46,7 +47,8 @@ await withTemporaryEnv(onnxEnvOverrides, async () => {
     PAIROFCLEATS_ONNX_PREWARM_MODEL: '1',
     PAIROFCLEATS_ONNX_PREWARM_TEXTS: 'alpha,alpha,beta'
   }, async () => {
-    const normalized = normalizeOnnxConfig({});
+    const normalized = resolveOnnxConfig({});
+    assert.equal(normalizeOnnxConfig({}).cpuExecutionProviderTuning, true, 'normalization must not read ambient environment');
     assert.equal(normalized.cpuExecutionProviderTuning, false, 'expected env CPU tuning override');
     assert.equal(normalized.tokenizationCacheEnabled, false, 'expected env tokenization cache override');
     assert.equal(normalized.tokenizationCacheMaxEntries, 8, 'expected env tokenization cache max override');

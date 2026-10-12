@@ -91,21 +91,22 @@ export const createStage3RuntimeReceipts = async ({ config, roots, identity, ide
     async resolved(nextIdentity, nextKey, scheduler) {
       for (const [mode, entry] of entries) await change(mode, { lifecycle: 'running', runtime: { scheduler: projectRuntimeScheduler(scheduler?.stats?.()) }, embeddings: { ...entry.attempt.embeddings, resolvedIdentity: nextIdentity, identityKey: nextKey } });
     },
-    async ready(mode, { cacheHits, totalChunks, scheduler, writer, cacheRoot }) {
+    async ready(mode, { cacheHits, totalChunks, scheduler, writer, cacheRoot, providerMeasurement = null }) {
       const entry = entries.get(mode);
       const observation = entry.attempt.embeddings.observation;
-      await change(mode, { runtime: { scheduler: projectRuntimeScheduler(scheduler?.stats?.()), writer: writer || null },
+      await change(mode, { runtime: { scheduler: projectRuntimeScheduler(scheduler?.stats?.()), writer: writer || null, providerMeasurement },
         paths: { ...entry.attempt.paths, embeddingCache: await observeRuntimePath(cacheRoot) },
         embeddings: { ...entry.attempt.embeddings, inferenceBatches: entry.inferenceBatches, cacheHits, totalChunks,
           observation: !entry.inferenceBatches && cacheHits > 0 && observation.method !== 'provider-probe'
             ? { ...observation, state: 'cache-only', method: 'validated-cache-reuse', observedAt: new Date().toISOString() } : observation } });
     },
     complete: (mode) => change(mode, { lifecycle: 'succeeded' }),
-    fail: async (error, mode = null) => {
+    fail: async (error, mode = null, { writer = null } = {}) => {
       for (const entry of selected(mode)) {
         if (entry.attempt.lifecycle === 'succeeded') continue;
         await change(entry.attempt.mode, { lifecycle: error?.name === 'AbortError' ? 'aborted' : 'failed',
           error: { code: String(error?.code || 'UNKNOWN'), message: redactDiagnosticText(error?.message || error) },
+          runtime: writer ? { writer } : undefined,
           embeddings: { ...entry.attempt.embeddings, observation: { ...entry.attempt.embeddings.observation, state: 'failed', observedAt: new Date().toISOString() } } });
       }
     }

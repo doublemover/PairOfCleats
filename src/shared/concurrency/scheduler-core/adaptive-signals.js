@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../effective-memory.js';
 import os from 'node:os';
 
 export function createAdaptiveSignalReader({ config, state }) {
@@ -140,8 +141,9 @@ export function createAdaptiveSignalReader({ config, state }) {
       heapUsedBytes = Number(usage?.heapUsed) || 0;
       heapTotalBytes = Number(usage?.heapTotal) || 0;
     } catch {}
-    const totalBytes = Number(os.totalmem()) || 0;
-    const freeBytes = Number(os.freemem()) || 0;
+    const memoryBudget = readEffectiveMemory(config.input.memoryBudget || {});
+    const totalBytes = Number(memoryBudget.totalBytes) || 0;
+    const freeBytes = Number(memoryBudget.freeBytes) || 0;
     const rssUtilization = totalBytes > 0 ? Math.max(0, Math.min(1, rssBytes / totalBytes)) : null;
     const heapUtilization = heapTotalBytes > 0 ? Math.max(0, Math.min(1, heapUsedBytes / heapTotalBytes)) : null;
     const freeRatio = totalBytes > 0 ? Math.max(0, Math.min(1, freeBytes / totalBytes)) : null;
@@ -167,6 +169,7 @@ export function createAdaptiveSignalReader({ config, state }) {
         loadRatio
       },
       memory: {
+        budget: memoryBudget,
         rssBytes,
         heapUsedBytes,
         heapTotalBytes,

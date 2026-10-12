@@ -1,3 +1,4 @@
+import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
 import { resolveStubDims, stubEmbedding } from './embedding.js';
 import { createOnnxEmbedder } from './onnx-embeddings.js';
 import {
@@ -10,12 +11,24 @@ import {
   normalizeAdapterPrewarmTexts
 } from './embedding-adapter-helpers.js';
 
-export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null }) => {
+export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null, modelArtifact = null }) => {
   let embedderPromise = null;
   let resolvedEmbedder = null;
+  let observedArtifact = modelArtifact;
+  const measurements = { scope: 'adapter-lifetime', initializationMs: 0, runs: 0,
+    providerBusyMs: 0, active: 0, peakActive: 0, failures: 0 };
   const ensureEmbedder = () => {
     if (!embedderPromise) {
-      embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName).then((embedder) => {
+      const startedAt = performance.now();
+      embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact).then(async (embedder) => {
+        try {
+          observedArtifact = resolveEmbeddingArtifactIdentity({ provider: 'xenova', modelId, modelsDir, modelProfile });
+          if (embeddingArtifactReusable(modelArtifact)) assertEmbeddingArtifactCompatibility(modelArtifact, observedArtifact);
+        } catch (error) {
+          try { await embedder.dispose?.(); } catch { /* Preserve artifact verification failure. */ }
+          throw error;
+        }
+        measurements.initializationMs += performance.now() - startedAt;
         resolvedEmbedder = embedder;
         return embedder;
       }).catch((err) => {
@@ -34,8 +47,13 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
     const list = Array.isArray(texts) ? texts : [];
     if (!list.length) return [];
     const embedder = await ensureEmbedder();
-    const output = await embedder(list, pipelineOptions);
-    return normalizeEmbeddingBatchOutput(output, list.length);
+    const startedAt = performance.now();
+    measurements.runs++; measurements.active++; measurements.peakActive = Math.max(measurements.peakActive, measurements.active);
+    try {
+      const output = await embedder(list, pipelineOptions);
+      return normalizeEmbeddingBatchOutput(output, list.length);
+    } catch (error) { measurements.failures++; throw error; }
+    finally { measurements.active--; measurements.providerBusyMs += performance.now() - startedAt; }
   };
   const embedOne = async (text) => {
     const list = await embed([text]);
@@ -55,9 +73,9 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
       return embedder.embedPrepared(items);
     },
     executionInfo: () => ({
-      provider: 'xenova', requestedProvider: 'xenova', stub: false,
+      provider: 'xenova', requestedProvider: 'xenova', stub: false, measurements: { ...measurements },
       loaded: resolvedEmbedder !== null, loading: embedderPromise !== null && resolvedEmbedder === null,
-      modelArtifact: null, effectiveSessionOptions: null,
+      modelArtifact: observedArtifact, modelRevision: observedArtifact?.revision ?? null, effectiveSessionOptions: null,
       preparedInputs: !!modelProfile, device: null,
       executionProviders: null,
       modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
@@ -97,6 +115,7 @@ export const createEmbeddingProviderAdapter = ({
   provider,
   onnxConfig,
   modelProfile,
+  modelArtifact = null,
   localFilesOnly = false,
   sessionOptions = {},
   modelFileName = null,
@@ -138,6 +157,7 @@ export const createEmbeddingProviderAdapter = ({
       modelId,
       modelsDir,
       onnxConfig,
+      modelArtifact,
       normalize
     });
     let fallbackAdapter = null;
@@ -240,7 +260,7 @@ export const createEmbeddingProviderAdapter = ({
           provider: activeProvider, stub: false, loaded, loading,
           device: null, executionProviders: null,
           effectiveNativeThreads: null, effectiveGraphExecutionMode: null,
-          modelArtifact: null, effectiveSessionOptions: null,
+          ...onnxEmbedder.executionInfo(), effectiveSessionOptions: onnxEmbedder.executionInfo().effectiveSessionOptions,
           requestedSessionOptions: Object.fromEntries([
             'executionProviders', 'intraOpNumThreads', 'interOpNumThreads', 'graphOptimizationLevel'
           ].filter((key) => onnxConfig?.[key] != null)
@@ -250,6 +270,10 @@ export const createEmbeddingProviderAdapter = ({
         requestedOnnxConfig: structuredClone(onnxConfig ?? {}),
         fallback: fallbackReason ? { ...fallbackReason } : null
       }),
+      dispose: async () => {
+        await onnxEmbedder.dispose();
+        await fallbackAdapter?.dispose?.();
+      },
       embedderPromise: onnxEmbedder.embedderPromise,
       get provider() {
         return activeProvider;
@@ -258,5 +282,5 @@ export const createEmbeddingProviderAdapter = ({
     };
   }
 
-  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly, sessionOptions, modelFileName });
+  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly, sessionOptions, modelFileName, modelArtifact });
 };

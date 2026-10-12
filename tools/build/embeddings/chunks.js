@@ -1,11 +1,9 @@
-import fsSync from 'node:fs';
-import path from 'node:path';
+import { readIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
+import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import {
   normalizeBundleFormat,
-  resolveManifestBundleNames,
-  resolveBundleFormatFromName
+  resolveManifestBundleNames
 } from '../../../src/shared/bundle-io-paths.js';
-import { readBundleFile } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { compareStrings } from '../../../src/shared/sort.js';
 
@@ -38,33 +36,13 @@ export const buildChunksFromBundles = async (bundleDir, manifestFiles, bundleFor
   for (const [relPath, entry] of manifestEntries) {
     const bundleNames = resolveManifestBundleNames(entry);
     if (!bundleNames.length) continue;
-    const shardBundles = [];
-    let shardLoadFailed = false;
-    for (const bundleName of bundleNames) {
-      const bundlePath = path.join(bundleDir, bundleName);
-      if (!fsSync.existsSync(bundlePath)) {
-        shardLoadFailed = true;
-        break;
-      }
-      try {
-        const result = await readBundleFile(bundlePath, {
-          format: resolveBundleFormatFromName(bundleName, resolvedBundleFormat)
-        });
-        if (!result.ok) {
-          shardLoadFailed = true;
-          break;
-        }
-        shardBundles.push(result.bundle);
-      } catch {
-        shardLoadFailed = true;
-        break;
-      }
-    }
-    if (shardLoadFailed || !shardBundles.length) {
-      continue;
-    }
+    const snapshot = await readIncrementalBundleSnapshot({
+      bundleDir, relKey: canonicalBundleSourceKey(relPath), entry, fallbackFormat: resolvedBundleFormat
+    });
+    if (!snapshot) continue;
+    const shardBundles = snapshot.shards.map((shard) => shard.bundle);
     const firstBundle = shardBundles[0];
-    const filePath = firstBundle?.file || relPath;
+    const filePath = canonicalBundleSourceKey(firstBundle?.file || relPath);
     const list = chunksByFile.get(filePath) || [];
     for (const bundle of shardBundles) {
       const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : [];

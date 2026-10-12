@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 const script = `
 import { spawnSubprocess } from './src/shared/subprocess/runner.js';
 const startedAt = Date.now();
+let termination;
 try {
   await spawnSubprocess(
     process.execPath,
@@ -18,8 +19,8 @@ try {
       captureStderr: false
     }
   );
-} catch {}
-process.stdout.write(JSON.stringify({ durationMs: Date.now() - startedAt }));
+} catch (error) { termination = error?.result?.termination; }
+process.stdout.write(JSON.stringify({ durationMs: Date.now() - startedAt, termination }));
 `;
 
 const startedAt = Date.now();
@@ -40,7 +41,8 @@ try {
 
 const innerDurationMs = Number(payload.durationMs);
 assert.ok(Number.isFinite(innerDurationMs), `expected numeric inner duration, got: ${String(payload.durationMs)}`);
-assert.ok(innerDurationMs >= 200, `expected timeout path to await bounded reap before reject; got ${innerDurationMs}ms`);
+assert.ok(innerDurationMs >= 75, `expected requested timeout before rejection; got ${innerDurationMs}ms`);
+assert.equal(payload.termination.closeObserved, true, 'rejection follows actual close without a mandatory full-window sleep');
 assert.ok(innerDurationMs < 2000, `expected timeout path to return before grace wait; got ${innerDurationMs}ms`);
 assert.ok(wallClockMs < 3000, `expected process to exit without waiting full grace timer; got ${wallClockMs}ms`);
 
