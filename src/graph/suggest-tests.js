@@ -8,6 +8,7 @@ import { createTruncationRecorder } from '../shared/truncation.js';
 import { toPosix } from '../shared/file-paths.js';
 import { compareStrings } from '../shared/sort.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { sha1 } from '../shared/hash.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -61,8 +62,7 @@ const isTestFileName = (relPath) => {
   if (!TEST_EXTENSIONS.has(ext)) return false;
   if (base.includes('.test.')) return true;
   if (base.includes('_test.')) return true;
-  if (normalized.includes('/__tests__/')) return true;
-  if (normalized.includes('/tests/')) return true;
+  if (normalized.split('/').some((segment) => segment === '__tests__' || segment === 'tests')) return true;
   return false;
 };
 
@@ -94,73 +94,45 @@ const matchesTestPatterns = (relPath, matchers) => {
   return matchers.some((matcher) => matcher(relPath));
 };
 
-const discoverCandidateTests = ({
-  repoRoot,
-  maxCandidates,
-  recordTruncation,
-  testMatchers
-}) => {
+const discoverCandidateTests = ({ repoRoot, testMatchers }) => {
   const results = [];
   const stack = [{ dir: repoRoot, rel: '' }];
   while (stack.length) {
     const entry = stack.pop();
-    let entries = null;
-    try {
-      entries = fs.readdirSync(entry.dir, { withFileTypes: true });
-    } catch (err) {
-      continue;
-    }
+    let entries;
+    try { entries = fs.readdirSync(entry.dir, { withFileTypes: true }); } catch { continue; }
     for (const dirent of entries) {
       const relPath = entry.rel ? `${entry.rel}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {
-        if (DEFAULT_EXCLUDED_DIRS.has(dirent.name)) continue;
-        stack.push({ dir: path.join(entry.dir, dirent.name), rel: relPath });
+        if (!DEFAULT_EXCLUDED_DIRS.has(dirent.name)) stack.push({ dir: path.join(entry.dir, dirent.name), rel: relPath });
         continue;
       }
-      if (!dirent.isFile()) continue;
-      if (!isTestFileName(relPath)) continue;
+      if (!dirent.isFile() || !TEST_EXTENSIONS.has(path.extname(relPath).toLowerCase())) continue;
       const normalized = toPosix(relPath);
-      if (!matchesTestPatterns(normalized, testMatchers)) continue;
+      if (testMatchers?.length ? !matchesTestPatterns(normalized, testMatchers) : !isTestFileName(normalized)) continue;
       results.push(normalized);
-      if (maxCandidates != null && results.length >= maxCandidates) {
-        recordTruncation('maxCandidates', {
-          limit: maxCandidates,
-          observed: results.length,
-          omitted: null
-        });
-        return results;
-      }
     }
   }
-  results.sort(compareStrings);
-  return results;
+  return results.sort(compareStrings);
 };
 
-const resolveCachedTests = ({
-  repoRoot,
-  maxCandidates,
-  recordTruncation,
-  testMatchers,
-  patternKey
-}) => {
+const resolveCachedTests = ({ repoRoot, maxCandidates, recordTruncation, testMatchers, patternKey, indexSignature }) => {
+  // A generation pins graph evidence; a fresh inventory also observes working-tree additions/deletions.
+  const inventory = discoverCandidateTests({ repoRoot, testMatchers });
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'test-discovery',
-    payload: {
-      repoRoot: repoRoot || null,
-      patternKey: patternKey || null,
-      maxCandidates: maxCandidates ?? 'all'
-    }
+    payload: { repoRoot, patternKey, maxCandidates: maxCandidates ?? 'all',
+      indexSignature: indexSignature || null, inventoryIdentity: sha1(inventory.join('\0')) }
   });
-  const cached = getCachedValue(testDiscoveryCache, cacheKeyInfo.key);
-  if (cached) return cached;
-  const tests = discoverCandidateTests({
-    repoRoot,
-    maxCandidates,
-    recordTruncation,
-    testMatchers
-  });
-  setCachedValue(testDiscoveryCache, cacheKeyInfo.key, tests, TEST_DISCOVERY_CACHE_MAX);
-  return tests;
+  let envelope = getCachedValue(testDiscoveryCache, cacheKeyInfo.key);
+  if (!envelope) {
+    const tests = maxCandidates === null ? inventory : inventory.slice(0, maxCandidates);
+    envelope = { tests, truncation: tests.length < inventory.length
+      ? { limit: maxCandidates, observed: inventory.length, omitted: inventory.length - tests.length } : null };
+    setCachedValue(testDiscoveryCache, cacheKeyInfo.key, envelope, TEST_DISCOVERY_CACHE_MAX);
+  }
+  if (envelope.truncation) recordTruncation('maxCandidates', { ...envelope.truncation });
+  return envelope.tests;
 };
 
 const buildImportGraphIndex = (graphRelations, repoRoot) => {
@@ -370,7 +342,8 @@ export const buildSuggestTestsReport = ({
       maxCandidates: capsNormalized.maxCandidates,
       recordTruncation,
       testMatchers,
-      patternKey: testMatcherKey
+      patternKey: testMatcherKey,
+      indexSignature
     });
   const changedEntries = seeds.map((entry) => ({ path: entry }));
 

@@ -82,10 +82,10 @@ jobs:
 
       - name: Gate lane
         run: |
-          node tests/run.js --lane gate --allow-timeouts --junit .testLogs/junit-gate.xml --log-dir .testLogs
+          node tests/run.js --lane gate --jobs 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --junit .testLogs/junit-gate.xml --log-dir .testLogs
 
       - name: Upload gate artifacts
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: ci-artifacts-gate

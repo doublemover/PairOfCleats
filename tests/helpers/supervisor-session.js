@@ -9,7 +9,7 @@ const normalizeLineBreaks = (text) => text.replace(/\r\n/g, '\n').replace(/\r/g,
 /**
  * Spawn TUI supervisor child and expose polling helpers for JSON events.
  *
- * @param {{root?:string,timeoutMs?:number}} [options]
+ * @param {{root?:string,timeoutMs?:number,reassembleEvents?:boolean}} [options]
  * @returns {{
  *  child: import('node:child_process').ChildProcessWithoutNullStreams,
  *  events: any[],
@@ -22,7 +22,8 @@ const normalizeLineBreaks = (text) => text.replace(/\r\n/g, '\n').replace(/\r/g,
  */
 export const createSupervisorSession = ({
   root = process.cwd(),
-  timeoutMs = 8000
+  timeoutMs = 8000,
+  reassembleEvents = false
 } = {}) => {
   const supervisorPath = path.join(root, 'tools', 'tui', 'supervisor.js');
   const child = spawn(process.execPath, [supervisorPath], {
@@ -49,6 +50,7 @@ export const createSupervisorSession = ({
   });
 
   const events = [];
+  const chunks = new Map();
   let carry = '';
   child.stdout.on('data', (chunk) => {
     const text = normalizeLineBreaks(`${carry}${String(chunk)}`);
@@ -58,7 +60,17 @@ export const createSupervisorSession = ({
       const trimmed = line.trim();
       if (!trimmed) continue;
       try {
-        events.push(JSON.parse(trimmed));
+        const entry = JSON.parse(trimmed);
+        events.push(entry);
+        if (reassembleEvents && entry.event === 'event:chunk') {
+          const parts = chunks.get(entry.chunkId) || new Map();
+          parts.set(entry.chunkIndex, entry.chunk);
+          chunks.set(entry.chunkId, parts);
+          if (parts.size === entry.chunkCount) {
+            events.push(JSON.parse(Array.from({ length: entry.chunkCount }, (_, i) => parts.get(i)).join('')));
+            chunks.delete(entry.chunkId);
+          }
+        }
       } catch {
         events.push({
           type: 'malformed-json-line',

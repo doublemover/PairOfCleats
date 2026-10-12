@@ -191,7 +191,7 @@ export const assembleCompositeContextPack = ({
   const peakMemory = buildProcessMemoryPeak(memoryStart, memoryEnd);
   const elapsedMs = Number((process.hrtime.bigint() - timingStart) / 1000000n);
   const evidence = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     policy: {
       strictEvidence: strictEvidence === true
     },
@@ -213,6 +213,7 @@ export const assembleCompositeContextPack = ({
     })
   };
   evidence.complete = evidence.primary.state === 'file-backed'
+    && evidence.primary.sourceIdentity?.drift === 'unchanged'
     && evidence.primary.truncated !== true
     && (includeTypes !== true || evidence.types.state === 'complete');
   if (strictEvidence === true && evidence.complete !== true) {

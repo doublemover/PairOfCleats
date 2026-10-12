@@ -39,7 +39,7 @@ const {
 const { ensureTestingEnv } = await import('./helpers/test-env.js');
 const { applyToolchainDaemonPolicyEnv } = await import('../src/shared/toolchain-env.js');
 const { runTests } = await import('./runner/run-execution.js');
-const { summarizeResults } = await import('./runner/run-results.js');
+const { summarizeResults, resolveAcceptanceExitCode } = await import('./runner/run-results.js');
 const {
   buildJsonReport,
   buildTimingsPayload,
@@ -892,18 +892,7 @@ const main = async () => {
     }
   }
 
-  const timeoutResults = finalResults.filter((result) => result.timedOut);
-  const timeoutCount = timeoutResults.length;
-  const nonBlockingTimeouts = timeoutResults.filter((result) => String(result.timeoutClass || '') === 'timed_out_after_pass');
-  const blockingTimeouts = timeoutCount - nonBlockingTimeouts.length;
-  const failCount = finalResults.filter((result) => result.status === 'failed' && !result.timedOut).length;
-  const baseExitCode = argv['allow-timeouts']
-    ? (failCount > 0 ? 1 : 0)
-    : ((failCount > 0 || blockingTimeouts > 0) ? 1 : 0);
-  const exitCode = perfBudgetViolations.length > 0
-    ? 1
-    : baseExitCode;
-  process.exit(exitCode);
+  process.exit(resolveAcceptanceExitCode(finalResults, { perfBudgetViolations }));
 };
 
 main().catch((error) => {

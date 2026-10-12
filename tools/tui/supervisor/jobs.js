@@ -7,7 +7,7 @@ import { applyProgressContextEnv } from './progress-context.js';
 import { createJobStreamDecoder } from './progress-decoder.js';
 import {
   nowIso,
-  parseResultFromStdout,
+  resolveCapturedResult,
   resolveResultPolicy,
   resolveRetryPolicy,
   resolveRunRequest,
@@ -215,6 +215,9 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           cwd,
           env,
           stdio: ['ignore', 'pipe', 'pipe'],
+          captureStdout: resultPolicy.captureStdout !== 'none',
+          captureStderr: false,
+          maxOutputBytes: resultPolicy.maxBytes,
           rejectOnNonZeroExit: false,
           signal: job.abortController.signal,
           timeoutMs: effectiveTimeoutMs,
@@ -243,7 +246,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           exitCode: cancelled ? 130 : (result.exitCode ?? null),
           signal: result.signal || null,
           durationMs: Math.max(0, Date.now() - startedAt),
-          result: parseResultFromStdout(result.stdout, resultPolicy),
+          ...resolveCapturedResult(result.stdout, resultPolicy, result.outputCapture?.stdout),
           error: status === 'failed'
             ? {
               message: `job failed with exit code ${result.exitCode ?? 'unknown'}`,
@@ -274,6 +277,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           signal: null,
           durationMs: Math.max(0, Date.now() - startedAt),
           result: null,
+          resultState: resultPolicy.captureStdout === 'none' ? 'disabled' : 'incomplete',
+          resultCapture: error?.result?.outputCapture?.stdout || null,
           error: {
             message: error?.message || String(error),
             code: cancelled ? (cancelReason || 'CANCELLED') : 'SPAWN_FAILED'

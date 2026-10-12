@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
 import { formatSpawnFailureReason } from './rebuild-native-exit.js';
 import { probeSqliteNative, rebuildSqliteNativeFromSource } from './rebuild-native-sqlite.js';
-import { listNativeTreeSitterGrammarModuleNames } from '../../src/lang/tree-sitter/native-runtime.js';
+import { listNativeTreeSitterGrammarModuleNames, NATIVE_GRAMMAR_MODULES } from '../../src/lang/tree-sitter/native-runtime.js';
 
 const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
@@ -170,7 +170,29 @@ const runPackageInstallScript = (pkgName, { buildFromSource = false } = {}) => {
   });
 };
 
-const probePackage = pkgName => probeNativePackage(root, pkgName);
+const LANGUAGE_SAMPLES = {
+  javascript: 'function ok() { return 1; }', jsx: 'const view = <div />;',
+  typescript: 'const value: number = 1;', tsx: 'const view = <div />;',
+  python: 'value = 1\n', json: '{}', yaml: 'value: 1\n', toml: 'value = 1\n',
+  xml: '<root/>', markdown: '# ok\n', kotlin: 'val value = 1', csharp: 'class Ok {}',
+  clike: 'int ok(void) { return 1; }', c: 'int ok(void) { return 1; }',
+  cpp: 'int ok() { return 1; }', objc: 'int ok(void) { return 1; }',
+  go: 'package main\nfunc main() {}', rust: 'fn main() {}', java: 'class Ok {}',
+  dart: 'void main() {}', scala: 'object Ok {}', groovy: 'def value = 1',
+  r: 'value <- 1', julia: 'value = 1', ruby: 'value = 1', php: '<?php echo 1;',
+  perl: 'my $value = 1;', shell: 'echo ok', sql: 'SELECT 1;', css: 'a { color: red; }',
+  html: '<p>ok</p>', lua: 'return 1', swift: 'let value = 1'
+};
+const nativeCapabilities = new Map();
+const probePackage = async (pkgName) => {
+  const grammarRoutes = Object.entries(NATIVE_GRAMMAR_MODULES)
+    .filter(([, spec]) => spec.moduleName === pkgName)
+    .map(([languageId, spec]) => ({ ...spec, languageId, source: LANGUAGE_SAMPLES[languageId] }));
+  if (grammarRoutes.some((route) => !route.source)) throw new Error('Missing bounded native language activation sample.');
+  const result = await probeNativePackage(root, pkgName, { grammarRoutes });
+  if (result.ok && result.capabilities) nativeCapabilities.set(pkgName, result.capabilities);
+  return result;
+};
 
 const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
   const failures = [];
@@ -221,7 +243,7 @@ const verifyRequiredPackages = async () => {
     process.exit(1);
   }
 
-  console.error('[verify:native] all required packages are loadable.');
+  console.error('[verify:native] required packages loadable; registered native language routes parser-activated.');
 };
 
 const repairRequiredPackages = async () => {
@@ -296,7 +318,9 @@ const repairRequiredPackages = async () => {
 
 const recordReadiness = () => {
   applyPatches(root, { verifyOnly: true });
-  recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES);
+  recordBootstrapReadiness(root, REQUIRED_NATIVE_PACKAGES, {
+    nativeCapabilities: [...nativeCapabilities.values()].flat().sort((a, b) => a.languageId.localeCompare(b.languageId))
+  });
   console.error('[bootstrap] Verified readiness receipt saved.');
 };
 

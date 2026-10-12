@@ -385,6 +385,13 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
 }
 
 const ciWorkflow = readWorkflow('ci.yml');
+const gateJob = parse(ciWorkflow).jobs.gate;
+const gateCommand = gateJob.steps.find((step) => step.name === 'Gate lane')?.run || '';
+if (/--allow-timeouts/.test(gateCommand) || !/--timeout-ms 30000/.test(gateCommand)
+  || gateJob.steps.find((step) => step.name === 'Upload gate artifacts')?.if !== 'always()') {
+  console.error('The mandatory gate must reject bounded timeouts and always retain acceptance receipts.');
+  process.exit(1);
+}
 assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });

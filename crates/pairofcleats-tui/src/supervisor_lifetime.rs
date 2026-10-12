@@ -1,0 +1,355 @@
+use serde_json::Value;
+use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
+use std::process::Child;
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::{Duration, Instant};
+
+const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);
+
+#[cfg(target_os = "linux")]
+fn process_identity(pid: u32) -> std::io::Result<(u32, u64)> {
+    use std::io::Read;
+    let file = std::fs::File::open(format!("/proc/{pid}/stat"))?;
+    let mut text = String::new();
+    file.take(4097).read_to_string(&mut text)?;
+    if text.len() > 4096 {
+        return Err(std::io::Error::other("Process identity exceeds its bound"));
+    }
+    // comm may contain spaces and parentheses. Fields after its final closing
+    // parenthesis begin with state, ppid, and ultimately starttime (field 22).
+    let fields: Vec<_> = text
+        .rsplit_once(')')
+        .ok_or_else(|| std::io::Error::other("Invalid process identity"))?
+        .1
+        .split_whitespace()
+        .collect();
+    let parent = fields.get(1).and_then(|p| p.parse().ok());
+    let started = fields.get(19).and_then(|p| p.parse().ok());
+    parent
+        .zip(started)
+        .ok_or_else(|| std::io::Error::other("Invalid process identity"))
+}
+
+#[cfg(target_os = "linux")]
+fn owned_processes() -> std::io::Result<HashMap<u32, u64>> {
+    // Some Linux kernels omit task/PID/children. Read bounded parent relations
+    // instead; selection is exclusively ancestry rooted at this application.
+    let mut children: HashMap<u32, Vec<(u32, u64)>> = HashMap::new();
+    let mut examined = 0usize;
+    for entry in std::fs::read_dir("/proc")? {
+        let entry = entry?;
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        examined += 1;
+        if examined > 16384 {
+            return Err(std::io::Error::other(
+                "Process relation inventory exceeds its bound",
+            ));
+        }
+        match process_identity(pid) {
+            Ok((parent, started)) => children.entry(parent).or_default().push((pid, started)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    let mut pending = vec![std::process::id()];
+    let mut owned = HashMap::new();
+    while let Some(parent) = pending.pop() {
+        for &(pid, started) in children.get(&parent).into_iter().flatten() {
+            if pid > 1 && pid != std::process::id() && owned.insert(pid, started).is_none() {
+                pending.push(pid);
+            }
+        }
+    }
+    Ok(owned)
+}
+
+/// Linux retains orphaned owned descendants so supervisor failure cannot abandon them.
+pub fn prepare_containment() -> anyhow::Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        unsafe extern "C" {
+            fn prctl(option: i32, ...) -> i32;
+        }
+        if unsafe { prctl(36, 1_i32, 0_i32, 0_i32, 0_i32) } != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+    }
+    Ok(())
+}
+
+pub struct SupervisorLifetime {
+    child: Child,
+    events: Receiver<Value>,
+    active_groups: HashMap<String, u32>,
+    closed: bool,
+    #[cfg(windows)]
+    job: windows::Job,
+}
+
+impl SupervisorLifetime {
+    pub fn new(mut child: Child, events: Receiver<Value>) -> anyhow::Result<Self> {
+        #[cfg(windows)]
+        let job = match windows::Job::attach(&child) {
+            Ok(job) => job,
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error.into());
+            }
+        };
+        // Mutable is necessary only for the Windows failure path.
+        let _ = &mut child;
+        Ok(Self {
+            child,
+            events,
+            active_groups: HashMap::new(),
+            closed: false,
+            #[cfg(windows)]
+            job,
+        })
+    }
+
+    pub fn poll(&mut self) -> Result<Value, TryRecvError> {
+        let event = self.events.try_recv()?;
+        let job_id = event.get("jobId").and_then(Value::as_str).unwrap_or("");
+        match event.get("event").and_then(Value::as_str) {
+            Some("job:spawn") => {
+                let pid = event.get("pid").and_then(Value::as_u64).or_else(|| {
+                    event
+                        .get("payload")
+                        .and_then(|p| p.get("pid"))
+                        .and_then(Value::as_u64)
+                });
+                if let Some(pid) = pid.and_then(|p| u32::try_from(p).ok()).filter(|p| *p > 1) {
+                    self.active_groups.insert(job_id.to_owned(), pid);
+                }
+            }
+            Some("job:end") => {
+                self.active_groups.remove(job_id);
+            }
+            _ => {}
+        }
+        Ok(event)
+    }
+
+    pub fn shutdown(&mut self, mut observe: impl FnMut(Value)) -> anyhow::Result<()> {
+        if self.closed {
+            return Ok(());
+        }
+        // EOF is the supported graceful shutdown request. Closing cannot block
+        // behind a full input pipe before the shutdown grace even starts.
+        drop(self.child.stdin.take());
+        let deadline = Instant::now() + SHUTDOWN_GRACE;
+        while Instant::now() < deadline {
+            while let Ok(event) = self.poll() {
+                observe(event);
+                if Instant::now() >= deadline {
+                    break;
+                }
+            }
+            if self.child.try_wait()?.is_some() {
+                while let Ok(event) = self.poll() {
+                    observe(event);
+                }
+                let containment = self.contain_remaining();
+                let reaped = self.child.wait().map(|_| ());
+                let drained = self.drain_closed_output(&mut observe);
+                self.closed = true;
+                return containment.and(reaped).and(drained).map_err(Into::into);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let containment = self.contain_remaining();
+        let _ = self.child.kill();
+        let reaped = self.child.wait().map(|_| ());
+        let final_containment = self.contain_remaining();
+        let drained = self.drain_closed_output(&mut observe);
+        self.closed = true;
+        containment
+            .and(reaped)
+            .and(final_containment)
+            .and(drained)
+            .map_err(Into::into)
+    }
+
+    fn drain_closed_output(&mut self, observe: &mut impl FnMut(Value)) -> std::io::Result<()> {
+        let until = Instant::now() + Duration::from_millis(500);
+        loop {
+            if Instant::now() >= until {
+                return Err(std::io::Error::other(
+                    "Supervisor output did not finish draining",
+                ));
+            }
+            match self.poll() {
+                Ok(event) => observe(event),
+                Err(TryRecvError::Disconnected) => return Ok(()),
+                Err(TryRecvError::Empty) => {
+                    if Instant::now() >= until {
+                        return Err(std::io::Error::other(
+                            "Supervisor output did not finish draining",
+                        ));
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+            }
+        }
+    }
+
+    fn contain_remaining(&mut self) -> std::io::Result<()> {
+        #[cfg(target_os = "linux")]
+        {
+            // Select only this application's owned process ancestry.
+            unsafe extern "C" {
+                fn kill(pid: i32, signal: i32) -> i32;
+                fn waitpid(pid: i32, status: *mut i32, options: i32) -> i32;
+            }
+            let until = Instant::now() + Duration::from_millis(500);
+            loop {
+                let owned = owned_processes()?;
+                if owned.is_empty() {
+                    return Ok(());
+                }
+                for (pid, started) in &owned {
+                    // Recheck starttime before signaling: PID reuse does not
+                    // transfer ownership to the replacement process.
+                    if process_identity(*pid).is_ok_and(|(_, current)| current == *started) {
+                        let _ = unsafe { kill(*pid as i32, 9) };
+                    }
+                }
+                // Child::try_wait owns the supervisor PID; waitpid reaps adopted descendants.
+                let _ = self.child.try_wait()?;
+                for pid in owned.keys().filter(|pid| **pid != self.child.id()) {
+                    let _ = unsafe { waitpid(*pid as i32, std::ptr::null_mut(), 1) };
+                }
+                if Instant::now() >= until {
+                    return Err(std::io::Error::other(
+                        "Owned process containment did not reach quiescence",
+                    ));
+                }
+                // Repeat ancestry after killed parents exit: a final concurrent fork
+                // is adopted by this subreaper and cannot escape a one-shot snapshot.
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        #[cfg(all(unix, not(target_os = "linux")))]
+        {
+            unsafe extern "C" {
+                fn kill(pid: i32, signal: i32) -> i32;
+            }
+            for pid in self.active_groups.values() {
+                let _ = unsafe { kill(-(*pid as i32), 9) };
+            }
+            let _ = unsafe { kill(-(self.child.id() as i32), 9) };
+        }
+        #[cfg(windows)]
+        self.job.terminate();
+        #[cfg(not(target_os = "linux"))]
+        Ok(())
+    }
+}
+
+impl Deref for SupervisorLifetime {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        &self.child
+    }
+}
+impl DerefMut for SupervisorLifetime {
+    fn deref_mut(&mut self) -> &mut Child {
+        &mut self.child
+    }
+}
+impl Drop for SupervisorLifetime {
+    fn drop(&mut self) {
+        if self.shutdown(|_| {}).is_err() {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            let _ = self.contain_remaining();
+            self.closed = true;
+        }
+    }
+}
+
+#[cfg(windows)]
+mod windows {
+    use std::ffi::c_void;
+    use std::os::windows::io::AsRawHandle;
+    use std::process::Child;
+    type Handle = *mut c_void;
+    #[repr(C)]
+    #[derive(Default)]
+    struct BasicLimits {
+        process_time: i64,
+        job_time: i64,
+        flags: u32,
+        min_working: usize,
+        max_working: usize,
+        active_limit: u32,
+        affinity: usize,
+        priority: u32,
+        scheduling: u32,
+    }
+    #[repr(C)]
+    #[derive(Default)]
+    struct ExtendedLimits {
+        basic: BasicLimits,
+        counters: [u64; 6],
+        process_memory: usize,
+        job_memory: usize,
+        peak_process_memory: usize,
+        peak_job_memory: usize,
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn CreateJobObjectW(attributes: *mut c_void, name: *const u16) -> Handle;
+        fn SetInformationJobObject(
+            job: Handle,
+            class: u32,
+            info: *const c_void,
+            length: u32,
+        ) -> i32;
+        fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
+        fn TerminateJobObject(job: Handle, exit_code: u32) -> i32;
+        fn CloseHandle(handle: Handle) -> i32;
+    }
+    pub struct Job(Handle);
+    impl Job {
+        pub fn attach(child: &Child) -> std::io::Result<Self> {
+            let handle = unsafe { CreateJobObjectW(std::ptr::null_mut(), std::ptr::null()) };
+            if handle.is_null() {
+                return Err(std::io::Error::last_os_error());
+            }
+            let job = Self(handle);
+            let mut limits = ExtendedLimits::default();
+            limits.basic.flags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if unsafe {
+                SetInformationJobObject(
+                    handle,
+                    9,
+                    &limits as *const _ as *const c_void,
+                    std::mem::size_of::<ExtendedLimits>() as u32,
+                )
+            } == 0
+                || unsafe { AssignProcessToJobObject(handle, child.as_raw_handle()) } == 0
+            {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(job)
+        }
+        pub fn terminate(&self) {
+            let _ = unsafe { TerminateJobObject(self.0, 130) };
+        }
+    }
+    impl Drop for Job {
+        fn drop(&mut self) {
+            let _ = unsafe { CloseHandle(self.0) };
+        }
+    }
+}
