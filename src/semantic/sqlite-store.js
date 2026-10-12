@@ -153,7 +153,14 @@ export const createSqliteSemanticStore = ({
   const findOperations = async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
     validateOperationSelector(selector,offset,limit); throwIfAborted(signal);
     const fields = { astKind: '$.data.astKind', operation: '$.data.operation', invocationKind: '$.data.invocationKind' };
-    const rows = db.prepare("SELECT partition_id,local_id FROM semantic_records WHERE record_kind='expression' AND json_extract(payload,'" + fields[selector.field] + "')=? ORDER BY partition_id,local_id LIMIT ? OFFSET ?").all(selector.value,limit+1,offset);
+    const sql = selector.field === 'chunkUid'
+      ? "SELECT DISTINCT r.partition_id,r.local_id FROM semantic_ownership o JOIN semantic_records r ON r.partition_id=o.record_partition AND r.local_id=o.local_id WHERE o.chunk_uid=? AND r.record_kind='expression' ORDER BY r.partition_id,r.local_id LIMIT ? OFFSET ?"
+      : selector.field === 'sourceUnitId' || selector.field === 'sourcePath'
+        ? "SELECT r.partition_id,r.local_id FROM semantic_analysis a JOIN semantic_records r ON r.partition_id=a.partition_id "
+          + (selector.field === 'sourcePath' ? "JOIN semantic_sources s ON s.source_id=a.source_id WHERE json_extract(s.payload,'$.path')=?" : "WHERE a.source_id=?")
+          + " AND r.record_kind='expression' ORDER BY r.partition_id,r.local_id LIMIT ? OFFSET ?"
+        : "SELECT partition_id,local_id FROM semantic_records WHERE record_kind='expression' AND json_extract(payload,'" + fields[selector.field] + "')=? ORDER BY partition_id,local_id LIMIT ? OFFSET ?";
+    const rows = db.prepare(sql).all(selector.value,limit+1,offset);
     return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),offset:offset+Math.min(limit,rows.length),done:rows.length<=limit };
   };
   return { findOperations, iterateRows, getExplainInventory, backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };

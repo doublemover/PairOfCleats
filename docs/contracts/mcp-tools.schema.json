@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.4.6",
+  "schemaVersion": "1.5.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -275,6 +275,9 @@
             "description": "Neighborhood depth."
           },
           "includeGraph": {
+            "type": "boolean"
+          },
+          "includeSemantic": {
             "type": "boolean"
           },
           "includeTypes": {
@@ -2237,7 +2240,7 @@
     },
     {
       "name": "semantic_detail",
-      "description": "Inspect exact semantic records, ordered operands, interned names and chunk ownership in an explicit immutable generation. Supports bounded paging; analysis coverage may remain unsupported.",
+      "description": "Inspect exact semantic records and finite-string type membership or zero/one/many witnesses in an explicit immutable generation. Record detail supports bounded paging; other analysis coverage may remain unsupported.",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -2345,6 +2348,110 @@
                 "type": "null"
               }
             ]
+          },
+          "typeQueries": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "ref",
+                    "operation",
+                    "value"
+                  ],
+                  "properties": {
+                    "ref": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "schemaVersion",
+                        "domain",
+                        "graphId",
+                        "contextKey",
+                        "nodeId"
+                      ],
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1
+                        },
+                        "domain": {
+                          "const": "finite-string"
+                        },
+                        "graphId": {
+                          "type": "string",
+                          "pattern": "^stg1:[a-f0-9]{64}$"
+                        },
+                        "contextKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "nodeId": {
+                          "type": "string",
+                          "pattern": "^tir1:[a-f0-9]{64}$"
+                        }
+                      }
+                    },
+                    "operation": {
+                      "const": "membership"
+                    },
+                    "value": {
+                      "type": "string",
+                      "maxLength": 16384
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "ref",
+                    "operation"
+                  ],
+                  "properties": {
+                    "ref": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "schemaVersion",
+                        "domain",
+                        "graphId",
+                        "contextKey",
+                        "nodeId"
+                      ],
+                      "properties": {
+                        "schemaVersion": {
+                          "const": 1
+                        },
+                        "domain": {
+                          "const": "finite-string"
+                        },
+                        "graphId": {
+                          "type": "string",
+                          "pattern": "^stg1:[a-f0-9]{64}$"
+                        },
+                        "contextKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "nodeId": {
+                          "type": "string",
+                          "pattern": "^tir1:[a-f0-9]{64}$"
+                        }
+                      }
+                    },
+                    "operation": {
+                      "const": "classify"
+                    }
+                  }
+                }
+              ]
+            }
           }
         },
         "required": [
@@ -2654,13 +2761,34 @@
                     "enum": [
                       "astKind",
                       "operation",
-                      "invocationKind"
+                      "invocationKind",
+                      "sourcePath",
+                      "sourceUnitId",
+                      "chunkUid"
                     ]
                   },
                   "value": {
                     "type": "string",
                     "minLength": 1,
-                    "maxLength": 256
+                    "maxLength": 4096
+                  },
+                  "range": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "start": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "end": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "start",
+                      "end"
+                    ]
                   }
                 },
                 "required": [

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 91,
+    "hero": 108,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -745,6 +745,108 @@
     {
       "id": "indexing/incremental/stage-checkpoint-build",
       "order": 122,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/state/patch-queue-overlapping-flush-lifecycle",
+      "order": 123,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-root-aliases",
+      "order": 124,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-root-preflight",
+      "order": 125,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/symbolic-types-build-publication",
+      "order": 126,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/symbolic-types-roundtrip",
+      "order": 127,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/config/typescript-representation",
+      "order": 128,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/providers/required-computation-fail-closed",
+      "order": 129,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/providers/symbolic-type-payload-roundtrip",
+      "order": 130,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-runtime-protocol",
+      "order": 131,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-runtime-subprocess",
+      "order": 132,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-symbolic-frontend",
+      "order": 133,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-symbolic-provider",
+      "order": 134,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-type-ir-boundaries",
+      "order": 135,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-type-ir-compact",
+      "order": 136,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-type-ir-exact",
+      "order": 137,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/stable-json-null-prototype",
+      "order": 138,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/imports/import-resolution-typescript-runtime-extensions",
+      "order": 139,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

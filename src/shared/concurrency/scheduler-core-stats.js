@@ -1,3 +1,4 @@
+import { summarizeBoundedHistogram } from '../perf/histogram.js';
 import {
   cloneDecisionEntry,
   cloneQueueDepthEntries,
@@ -26,6 +27,7 @@ const cloneAdaptiveSignals = (signals) => (
 
 export const buildSchedulerStatsSnapshot = ({
   captureTelemetryIfDue,
+  snapshotQueueAdmission,
   queueOrder,
   nowMs,
   normalizeByteCount,
@@ -59,18 +61,26 @@ export const buildSchedulerStatsSnapshot = ({
 }) => {
   captureTelemetryIfDue('stats');
   const queueStats = {};
+  const sampledAt = nowMs();
+  const backpressureState = evaluateWriteBackpressure();
+  let totalRunnable = 0;
+  let totalBlocked = 0;
   let totalPending = 0;
   let totalPendingBytes = 0;
   let totalRunning = 0;
   let totalInFlightBytesValue = 0;
   for (const q of queueOrder) {
-    const oldest = q.pending.length ? nowMs() - q.pending[0].enqueuedAt : 0;
+    const oldest = q.pending.length ? Math.max(0, sampledAt - q.pending[0].enqueuedAt) : 0;
+    const admission = snapshotQueueAdmission(q, sampledAt, backpressureState);
+    totalRunnable += admission.runnable;
+    totalBlocked += admission.blocked;
     totalPending += q.pending.length;
     totalPendingBytes += normalizeByteCount(q.pendingBytes);
     totalRunning += q.running;
     totalInFlightBytesValue += normalizeByteCount(q.inFlightBytes);
     queueStats[q.name] = {
       surface: q.surface || null,
+      ...admission,
       pending: q.pending.length,
       pendingBytes: normalizeByteCount(q.pendingBytes),
       running: q.running,
@@ -95,6 +105,8 @@ export const buildSchedulerStatsSnapshot = ({
       rejectedSignalRequired: q.stats.rejectedSignalRequired,
       starvation: q.stats.starvation,
       lastWaitMs: q.stats.lastWaitMs,
+      waitLatencyMs: summarizeBoundedHistogram(q.stats.waitSamples),
+      runLatencyMs: summarizeBoundedHistogram(q.stats.runSamples),
       waitP95Ms: q.stats.waitP95Ms,
       waitSampleCount: Array.isArray(q.stats.waitSamples) ? q.stats.waitSamples.length : 0
     };
@@ -132,6 +144,8 @@ export const buildSchedulerStatsSnapshot = ({
     },
     activity: {
       pending: totalPending,
+      runnable: totalRunnable,
+      blocked: totalBlocked,
       pendingBytes: totalPendingBytes,
       running: totalRunning,
       inFlightBytes: totalInFlightBytesValue

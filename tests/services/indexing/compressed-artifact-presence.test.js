@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -27,10 +28,11 @@ await fs.mkdir(indexDir, { recursive: true });
 await fs.writeFile(path.join(indexDir, 'chunk_meta.jsonl.gz'), 'compressed-chunks', 'utf8');
 await fs.writeFile(path.join(indexDir, 'token_postings.json.zst'), 'compressed-postings', 'utf8');
 await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   compatibilityKey: 'compat-compressed'
 }, null, 2), 'utf8');
 await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
-await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId: 'build-compressed',
   buildRoot
 }, null, 2), 'utf8');

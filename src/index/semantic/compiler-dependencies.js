@@ -1,5 +1,6 @@
 import { preflightTypeScriptSource } from '../tooling/typescript/resolution.js';
 import { createVirtualCompilerHost } from '../tooling/typescript/host.js';
+import { createTypeScriptRootNames } from '../tooling/typescript/roots.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { loadTypeScript, getTypeScriptLoadReceipt } from '../tooling/typescript/load.js';
@@ -106,7 +107,7 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
   const override = resolveTsconfigOverride(repoRoot, toolingConfig, log, system);
   const rootDocs = selectTypeScriptDocuments(documents, config);
   const fallback = files.map(file => ({ virtualPath: file, containerPath: file, text: null, segmentUid: null }));
-  for (const doc of rootDocs.length ? rootDocs : fallback) {
+  for (const doc of (rootDocs.length ? rootDocs : fallback).slice().sort((a,b) => a.virtualPath.localeCompare(b.virtualPath))) {
     const absolute = path.resolve(repoRoot, doc.containerPath || doc.virtualPath);
     const selected = override || (config.useTsconfig === false ? null : findNearestConfig(path.dirname(absolute), repoRoot, cache, ts.sys.useCaseSensitiveFileNames, system));
     const list = configs.get(selected) || []; list.push(doc); configs.set(selected, list);
@@ -130,7 +131,6 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
     const parsed = configPath ? readProject(configPath) : null, defaults = createDefaultCompilerOptions(ts, config);
     const options = { ...defaults, ...parsed?.options, allowJs: defaults.allowJs, checkJs: defaults.checkJs };
     const roots = docs.map(doc => path.resolve(repoRoot, doc.virtualPath));
-    const rootNames = [...new Set([...(parsed?.fileNames || []), ...roots])].sort();
     const key = file => ts.sys.useCaseSensitiveFileNames ? path.resolve(file) : path.resolve(file).toLowerCase();
     const vfs = new Map(), sourcePaths = new Map(), origins = new Map();
     for (const doc of docs) if (typeof doc.text === 'string') {
@@ -138,6 +138,8 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
       const container = path.resolve(repoRoot,doc.containerPath || doc.virtualPath); origins.set(virtual,container);
       if (!doc.segmentUid) sourcePaths.set(virtual,container);
     }
+    const rootNames = createTypeScriptRootNames({ configRootNames: parsed?.fileNames || [],
+      virtualRootNames: roots, sourcePaths, useCaseSensitive: ts.sys.useCaseSensitiveFileNames });
     // Each referenced project's own options control its dependency closure. Parent
     // NodeNext/Bundler conditions must not leak into a referenced compiler project.
     const contexts = [{ configPath, options, rootNames, references: parsed?.projectReferences || [] }];

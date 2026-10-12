@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
@@ -29,11 +31,13 @@ const createDbWithTables = (target) => {
   const db = new Database(target);
   db.exec('CREATE TABLE dense_vectors (mode TEXT, doc_id INTEGER, vector BLOB)');
   db.exec('CREATE TABLE dense_meta (mode TEXT, dims INTEGER, scale REAL, model TEXT)');
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(db);
   db.close();
 };
 
 createDbWithTables(dbPath);
-new Database(dbMissingPath).close();
+{ const db = new Database(dbMissingPath); db.pragma(`user_version = ${SCHEMA_VERSION}`); writeSqliteIndexFormat(db); db.close(); }
 createDbWithTables(dbBinaryPath);
 
 const disabledResult = updateSqliteDense({

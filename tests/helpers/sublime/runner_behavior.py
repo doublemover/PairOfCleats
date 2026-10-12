@@ -106,7 +106,15 @@ class RunnerBehaviorTests(unittest.TestCase):
         self.assertIn('[cancelled] pairofcleats search', panel.appended.lower())
 
     def test_watchdog_marks_silent_long_running_process(self):
-        proc = _FakeLongRunningProcess(wait_seconds=0.08)
+        release = threading.Event()
+        observed = threading.Event()
+        proc = _FakeLongRunningProcess(release=release)
+        original_status = self.sublime.status_message
+        def capture_status(message):
+            original_status(message)
+            if 'still running' in message.lower():
+                observed.set()
+        self.sublime.status_message = capture_status
         done = threading.Event()
         self.runner.run_process(
             'fake-command',
@@ -118,6 +126,11 @@ class RunnerBehaviorTests(unittest.TestCase):
             spawn_process=lambda *args, **kwargs: proc,
             on_done=lambda result: done.set(),
         )
+        try:
+            self.assertTrue(observed.wait(5), 'watchdog did not report the running process')
+        finally:
+            release.set()
+            self.sublime.status_message = original_status
         self.assertTrue(done.wait(5), 'silent runner did not complete in time')
         panel = self.window.panels[self.tasks.TASK_PANEL]
         self.assertIn('watchdog:', panel.appended)
@@ -195,19 +208,23 @@ class RunnerBehaviorTests(unittest.TestCase):
 
 
 class _FakeLongRunningProcess:
-    def __init__(self, wait_seconds=0.1):
+    def __init__(self, wait_seconds=0.1, release=None):
         self.stdout = io.StringIO('')
         self.stderr = io.StringIO('')
         self.returncode = None
         self.terminated = 0
         self.killed = 0
         self._wait_seconds = wait_seconds
+        self._release = release
 
     def poll(self):
         return self.returncode
 
     def wait(self):
-        time.sleep(self._wait_seconds)
+        if self._release is not None:
+            self._release.wait(5)
+        else:
+            time.sleep(self._wait_seconds)
         if self.returncode is None:
             self.returncode = 0
         return self.returncode

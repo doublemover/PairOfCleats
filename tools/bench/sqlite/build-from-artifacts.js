@@ -1,14 +1,19 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesSharded } from '../../../src/shared/json-stream/jsonl-sharded.js';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
-import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { loadIndex } from '../../../src/storage/sqlite/utils.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { writeJsonLinesSharded } = await import('../../../src/shared/json-stream/jsonl-sharded.js');
+const { writeJsonObjectFile } = await import('../../../src/shared/json-stream/json-writers.js');
+const { readJsonFile, readJsonLinesArray } = await import('../../../src/shared/artifact-io/json.js');
+const {
+  buildDatabaseFromArtifacts,
+  loadIndexPieces
+} = await import('../../../src/storage/sqlite/build/from-artifacts.js');
+const { loadIndex } = await import('../../../src/storage/sqlite/utils.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 let Database = null;
 try {

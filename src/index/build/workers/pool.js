@@ -1,3 +1,5 @@
+import { isAbortError } from '../../../shared/abort.js';
+import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import os from 'node:os';
 import util from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -54,14 +56,19 @@ export const destroyWorkerPoolLifecycleWithTimeout = async ({
   poolLabel = 'tokenize',
   timeoutMs = null,
   log = defaultLog
-} = {}) => (
-  runBuildCleanupWithTimeout({
+} = {}) => {
+  const result = await runBuildCleanupWithTimeout({
     label: `worker-pool.${poolLabel}.lifecycle-destroy`,
     cleanup: () => lifecycle?.destroy?.(),
     timeoutMs,
     log
-  })
-);
+  });
+  if (!result.timedOut || typeof lifecycle?.forceDestroy !== 'function') return result;
+  // A timeout only abandons the wait. It does not stop a worker. Escalate via
+  // the same lifecycle owner so existing Piscina termination is actually run.
+  await lifecycle.forceDestroy();
+  return { ...result, pending: false, forced: true };
+};
 
 /**
  * Create a single indexer worker pool with crash logging, restart handling,
@@ -129,6 +136,7 @@ export async function createIndexerWorkerPool(input = {}) {
   const maxRestartAttempts = 3;
   const restartBaseDelayMs = 5000;
   const restartMaxDelayMs = 10000;
+  let lifecycle = null;
   try {
     const configuredMaxWorkers = Number.isFinite(poolConfig?.maxWorkers)
       ? Math.max(1, Math.floor(poolConfig.maxWorkers))
@@ -240,7 +248,6 @@ export async function createIndexerWorkerPool(input = {}) {
       maxGlobalRssBytes
     });
 
-    let lifecycle = null;
     const workerCoordinator = createWorkerProcessCoordinator({
       poolLabel,
       normalizedStage,
@@ -460,6 +467,9 @@ export async function createIndexerWorkerPool(input = {}) {
       } else {
         await lifecycle.scheduleRestart(reason);
       }
+      // Existing pressure waiters also belong to an unrecoverable pool. Let
+      // them release active counters so its idle shutdown can finish.
+      if (lifecycle.isPermanentlyDisabled()) queueController.close();
       logWorkerTaskError({
         payload,
         payloadMetaPool,
@@ -565,6 +575,7 @@ export async function createIndexerWorkerPool(input = {}) {
           }
           queueController.recordPressureCacheEntry(payload);
           throttleSlot = await queueController.acquireLanguageThrottleSlot(payload);
+          if (queueController.isClosed()) return null;
           const result = await lifecycle.getPool().run(
             sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
             { name: 'tokenizeChunk' }
@@ -572,6 +583,7 @@ export async function createIndexerWorkerPool(input = {}) {
           updatePoolMetrics();
           return result;
         } catch (err) {
+          if (queueController.isClosed() && isAbortError(err)) return null;
           return handleWorkerTaskError({
             err,
             payload,
@@ -631,7 +643,7 @@ export async function createIndexerWorkerPool(input = {}) {
         }
       },
       async destroy() {
-        queueController.notifyThrottleWaiters();
+        queueController.close();
         await destroyWorkerPoolLifecycleWithTimeout({
           lifecycle,
           poolLabel,
@@ -641,6 +653,18 @@ export async function createIndexerWorkerPool(input = {}) {
       }
     };
   } catch (err) {
+    // Initialization can fail after Piscina has acquired threads (listener
+    // attachment, diagnostics or initial metrics). Returning a fallback must
+    // not detach those workers from their existing lifecycle owner.
+    if (lifecycle) {
+      try {
+        await destroyWorkerPoolLifecycleWithTimeout({
+          lifecycle, poolLabel, timeoutMs: resolvedCleanupTimeoutMs, log
+        });
+      } catch (cleanupError) {
+        throw new AggregateError([err, cleanupError], 'Worker pool initialization and cleanup failed.');
+      }
+    }
     log(`Worker pool unavailable: ${err?.message || err}`);
     return null;
   }
@@ -697,21 +721,37 @@ export async function createIndexerWorkerPools(input = {}) {
     config: { ...baseConfig, maxWorkers: tokenizeBudget },
     poolName: 'tokenize'
   });
-  const quantizePool = await createIndexerWorkerPool({
-    ...input,
-    config: { ...baseConfig, maxWorkers: quantizeBudget },
-    poolName: 'quantize'
-  });
-
+  // Register ownership as each pool becomes available. The shared lifecycle
+  // owner attempts every cleanup even when another fails, including partial
+  // initialization. Its reverse-order close matches acquisition order.
+  const lifecycle = createLifecycleRegistry({ name: 'indexer-worker-pools' });
+  if (tokenizePool?.destroy) {
+    lifecycle.registerCleanup(() => tokenizePool.destroy(), { label: 'tokenize' });
+  }
+  let quantizePool;
+  try {
+    quantizePool = await createIndexerWorkerPool({
+      ...input,
+      config: { ...baseConfig, maxWorkers: quantizeBudget },
+      poolName: 'quantize'
+    });
+    if (quantizePool?.destroy && quantizePool !== tokenizePool) {
+      lifecycle.registerCleanup(() => quantizePool.destroy(), { label: 'quantize' });
+    }
+  } catch (error) {
+    try {
+      await lifecycle.close();
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], 'Worker pool initialization and cleanup failed.');
+    }
+    throw error;
+  }
   const finalTokenizePool = tokenizePool || quantizePool;
   const finalQuantizePool = quantizePool || tokenizePool;
-  const destroy = async () => {
-    if (finalTokenizePool?.destroy) {
-      await finalTokenizePool.destroy();
-    }
-    if (finalQuantizePool?.destroy && finalQuantizePool !== finalTokenizePool) {
-      await finalQuantizePool.destroy();
-    }
+  let destroyPromise = null;
+  const destroy = () => {
+    if (!destroyPromise) destroyPromise = lifecycle.close();
+    return destroyPromise;
   };
   return {
     tokenizePool: finalTokenizePool,

@@ -1,21 +1,23 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
-import { readJsonlRowAt } from '../../../src/shared/artifact-io/offsets.js';
-import { readJsonFile, readJsonLinesArray } from '../../../src/shared/artifact-io/json.js';
-import { readShardFiles } from '../../../src/shared/artifact-io/fs.js';
-import { toPosix } from '../../../src/shared/file-paths.js';
-import { parseSimpleBenchArgs, percentile } from '../shared.js';
+const { writeJsonLinesFile } = await import('../../../src/shared/json-stream/jsonl-write.js');
+const { readJsonlRowAt, validateOffsetsAgainstFile } = await import('../../../src/shared/artifact-io/offsets.js');
+const { readJsonFile, readJsonLinesArray } = await import('../../../src/shared/artifact-io/json.js');
+const { readShardFiles } = await import('../../../src/shared/artifact-io/fs.js');
+const { toPosix } = await import('../../../src/shared/file-paths.js');
+const { parseSimpleBenchArgs, percentile } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const rows = Number(args.rows) || 100000;
 const lookups = Number(args.lookups) || 200;
 const indexDir = args.index ? path.resolve(String(args.index)) : null;
 const artifact = args.artifact ? String(args.artifact) : 'chunk_meta';
-const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
+const mode = ['baseline', 'current', 'compare', 'validate'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
 
@@ -164,6 +166,65 @@ const printResult = (result, baseline = null) => {
 await ensureDataset();
 if (mode !== 'baseline' && !offsetsPath) {
   throw new Error(`Offsets file missing for ${toPosix(jsonlPath)} (pass --mode baseline or provide offsets).`);
+}
+if (mode === 'validate') {
+  const iterations = Math.max(1, Math.floor(Number(args.iterations) || 5));
+  const samples = [];
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    // New paths exercise uncached validation; copied data stays OS-cache warm.
+    const sampleRoot = await fs.mkdtemp(path.join(benchRoot, 'validation-'));
+    const dataPath = path.join(sampleRoot, 'rows.jsonl');
+    const indexPath = dataPath + '.offsets.bin';
+    await fs.copyFile(jsonlPath, dataPath);
+    await fs.copyFile(offsetsPath, indexPath);
+    global.gc?.();
+    const initial = process.memoryUsage();
+    const metrics = { readCalls: 0, readBytes: 0, maxReadBufferBytes: 0, readFileBytes: 0,
+      peakHeapDeltaBytes: 0, peakRssDeltaBytes: 0 };
+    const sampleMemory = () => {
+      const memory = process.memoryUsage();
+      metrics.peakHeapDeltaBytes = Math.max(metrics.peakHeapDeltaBytes, memory.heapUsed - initial.heapUsed);
+      metrics.peakRssDeltaBytes = Math.max(metrics.peakRssDeltaBytes, memory.rss - initial.rss);
+    };
+    const originalOpen = fs.open;
+    const originalReadFile = fs.readFile;
+    fs.open = async (...params) => {
+      const handle = await originalOpen(...params);
+      const originalRead = handle.read.bind(handle);
+      handle.read = async (...readParams) => {
+        metrics.readCalls += 1;
+        metrics.maxReadBufferBytes = Math.max(metrics.maxReadBufferBytes, readParams[0].byteLength);
+        const result = await originalRead(...readParams);
+        metrics.readBytes += result.bytesRead;
+        return result;
+      };
+      return handle;
+    };
+    fs.readFile = async (...params) => {
+      const data = await originalReadFile(...params);
+      metrics.readFileBytes += data.byteLength;
+      return data;
+    };
+    const timer = setInterval(sampleMemory, 5);
+    try {
+      const start = performance.now();
+      await validateOffsetsAgainstFile(dataPath, indexPath);
+      const uncachedMs = performance.now() - start;
+      sampleMemory();
+      const cachedStart = performance.now();
+      await validateOffsetsAgainstFile(dataPath, indexPath);
+      samples.push({ uncachedMs, cachedMs: performance.now() - cachedStart, ...metrics });
+    } finally {
+      clearInterval(timer);
+      fs.open = originalOpen;
+      fs.readFile = originalReadFile;
+      await fs.rm(sampleRoot, { recursive: true, force: true });
+    }
+  }
+  console.log(JSON.stringify({ benchmark: 'offset-validation', node: process.version,
+    rows: resolvedRows, iterations, osCache: 'warm', gc: typeof global.gc === 'function', samples,
+    medianMs: percentile(samples.map((sample) => sample.uncachedMs), 0.5) }));
+  process.exit(0);
 }
 const indexes = pickLookupIndexes();
 let baseline = null;

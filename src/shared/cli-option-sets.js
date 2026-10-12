@@ -117,6 +117,7 @@ export const CONTEXT_PACK_OPTIONS = {
   maxTokens: { type: 'number' },
   maxBytes: { type: 'number' },
   includeGraph: { type: 'boolean', default: true },
+  includeSemantic: { type: 'boolean' },
   includeTypes: { type: 'boolean', default: false },
   includeRisk: { type: 'boolean', default: false },
   includeRiskPartialFlows: { type: 'boolean', default: false },

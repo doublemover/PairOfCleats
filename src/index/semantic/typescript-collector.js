@@ -5,7 +5,7 @@ import { getTypeScriptSyntaxIdentity } from '../../lang/typescript/syntax-contex
 import { TYPESCRIPT_CHILD_FIELDS, TYPESCRIPT_STRUCTURAL_SLOTS,
   typeScriptKindName } from '../../lang/typescript/syntax-adapter.js';
 
-export const TYPESCRIPT_ADAPTER_VERSION = '2';
+export const TYPESCRIPT_ADAPTER_VERSION = '3';
 const scopeKinds = new Set('SourceFile Block CatchClause ClassDeclaration ClassExpression InterfaceDeclaration ModuleDeclaration FunctionDeclaration FunctionExpression ArrowFunction MethodDeclaration Constructor GetAccessor SetAccessor ClassStaticBlockDeclaration'.split(' '));
 const declarationParents = new Set('VariableDeclaration Parameter BindingElement FunctionDeclaration FunctionExpression ClassDeclaration ClassExpression InterfaceDeclaration TypeAliasDeclaration EnumDeclaration EnumMember ModuleDeclaration TypeParameter ImportClause ImportSpecifier NamespaceImport ImportEqualsDeclaration'.split(' '));
 const slotFor = (kind, field) => {
@@ -23,11 +23,14 @@ const slotFor = (kind, field) => {
 };
 const rolesFor = (frame) => {
   if (frame.binding) return ['definition'];
+  if (frame.targetRoles) return frame.targetRoles;
   const kind = frame.parent?.kind;
   const field = frame.field;
   if (field === 'name' && declarationParents.has(kind)) return kind.startsWith('Import') || kind === 'NamespaceImport'
     ? ['import', 'definition'] : ['definition'];
-  if (kind === 'ExportSpecifier') return field === 'name' ? ['export', 'definition'] : ['export', 'reference'];
+  if (kind === 'ImportSpecifier' && field === 'propertyName') return ['import', 'reference'];
+  if (kind === 'ExportSpecifier') return field === 'name' && frame.parent.node.propertyName
+    ? ['export', 'property'] : ['export', 'reference'];
   if (field === 'name' && /Method|Accessor/.test(kind || '')) return ['definition', 'property'];
   if (field === 'propertyName' || (field === 'name' && /Property|Method|Accessor/.test(kind || ''))) return ['property'];
   if (field === 'tag' && kind === 'TaggedTemplateExpression') return ['call', 'reference'];
@@ -48,6 +51,7 @@ export const createTypeScriptSemanticCollector = ({ ast, ts, source, partitionId
   if (ast && (!ts || !getTypeScriptSyntaxIdentity(ast))) throw new TypeError('An owned TypeScript SourceFile and its compiler module are required.');
   if (ast && (ast.text.length !== source.textLength || createHash('sha256').update(ast.text, 'utf8').digest('hex') !== source.textHash)) throw new TypeError('TypeScript source length mismatch.');
   const summary = { nodes: 0, operands: 0, calls: 0, unsupported: 0, state: 'partial' };
+  const unsupportedKinds = new Set();
   const ref = (localId) => ({ partitionId, localId });
   const names = new Map();
   let nextId = 0;
@@ -72,7 +76,9 @@ export const createTypeScriptSemanticCollector = ({ ast, ts, source, partitionId
           frame.keyIndex = 0; frame.childIndex = 0;
           // Compiler tokens are intentional leaves. Unknown composite syntax is partial coverage.
           if (!Object.hasOwn(TYPESCRIPT_CHILD_FIELDS, kind) && node.kind > ts.SyntaxKind.LastToken
-            && !['OmittedExpression', 'JsxText', 'JsxOpeningFragment', 'JsxClosingFragment'].includes(kind)) summary.unsupported += 1;
+            && !['OmittedExpression', 'JsxText', 'JsxOpeningFragment', 'JsxClosingFragment'].includes(kind)) {
+            summary.unsupported += 1; unsupportedKinds.add(kind);
+          }
           const start = kind === 'SourceFile' ? 0 : node.getStart(ast, false);
           const span = [start, node.end];
           if (!Number.isSafeInteger(start) || start < 0 || node.end < start || node.end > source.textLength) throw new TypeError('Invalid TypeScript source span.');
@@ -106,13 +112,14 @@ export const createTypeScriptSemanticCollector = ({ ast, ts, source, partitionId
           if (node.questionDotToken || ts.isCallChain(node) || ts.isPropertyAccessChain(node) || ts.isElementAccessChain(node)) flags.push('optional');
           if (node.dotDotDotToken) flags.push('rest');
           if (node.asteriskToken) flags.push('generator');
-          if (node.isTypeOnly) flags.push('typeOnly');
+          if (node.isTypeOnly || frame.typeOnly || ts.isTypeNode(node)) flags.push('typeOnly');
+          if (unsupportedKinds.has(kind)) flags.push('unsupportedSyntax');
           if (invocationKind) summary.calls += 1;
           for (const recordKind of kinds) {
             const data = {
               scope: () => ({ scopeKind: kind, parent: parentScope, owner: frame.record }),
-              declaration: () => ({ nameId, declarationKind: frame.parent?.kind || kind, flags: [], initializer: null, typeSyntax: null }),
-              occurrence: () => ({ nameId, roles, expression: frame.record, flags: [] }),
+              declaration: () => ({ nameId, declarationKind: frame.parent?.kind || kind, flags, initializer: null, typeSyntax: null }),
+              occurrence: () => ({ nameId, roles, expression: frame.record, flags }),
               statement: () => ({ astKind: kind, statementKind: kind, flags }),
               expression: () => ({ astKind: kind, operation: frame.operation || null, invocationKind,
                 syntacticArgumentCount: invocationKind ? (node.arguments?.length ?? node.template?.templateSpans?.length ?? 0) : null, flags }),
@@ -161,10 +168,25 @@ export const createTypeScriptSemanticCollector = ({ ast, ts, source, partitionId
         }
         const binding = (field === 'name' && ['VariableDeclaration', 'Parameter', 'BindingElement'].includes(frame.kind))
           || (frame.binding && field === 'elements');
-        stack.push({ node: child, scope: frame.scope, parent: frame, field, ordinal, binding, entered: false });
+        const assignment = frame.kind === 'BinaryExpression' && field === 'left'
+          && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment;
+        const targetRoles = assignment ? (node.operatorToken.kind === ts.SyntaxKind.EqualsToken
+          ? ['write', 'reference'] : ['read', 'write', 'reference'])
+          : frame.targetRoles && ((frame.kind === 'ObjectLiteralExpression' && field === 'properties')
+            || (frame.kind === 'ArrayLiteralExpression' && field === 'elements')
+            || (frame.kind === 'PropertyAssignment' && field === 'initializer')
+            || (frame.kind === 'ShorthandPropertyAssignment' && field === 'name')
+            || (['SpreadElement', 'SpreadAssignment', 'ParenthesizedExpression'].includes(frame.kind) && field === 'expression')) ? frame.targetRoles : null;
+        const typeOnly = frame.typeOnly || node.isTypeOnly || ts.isTypeNode(node)
+          || ['type', 'typeArguments', 'typeParameters'].includes(field)
+          || ['InterfaceDeclaration', 'TypeAliasDeclaration'].includes(frame.kind);
+        stack.push({ node: child, scope: frame.scope, parent: frame, field, ordinal, binding, targetRoles, typeOnly, entered: false });
       }
       summary.state = summary.unsupported || ast.parseDiagnostics?.length ? 'partial' : 'complete';
-      yield coverage('syntax', summary.state, summary.state === 'complete' ? null : 'unsupported_or_recovered_syntax', summary.nodes, summary.nodes);
+      yield coverage('syntax', summary.state, summary.state === 'complete' ? null : [
+        ...(unsupportedKinds.size ? ['unsupported_syntax:' + [...unsupportedKinds].sort().join(',')] : []),
+        ...(ast.parseDiagnostics?.length ? ['recovered_syntax:' + [...new Set(ast.parseDiagnostics.map(error => error.code))].sort().join(',')] : [])
+      ].join(';'), summary.nodes, summary.nodes);
     }
     for (const phase of ['bindings', 'localFlow', 'crossFileFlow', 'boundaryModels']) yield coverage(phase, 'unsupported', 'analysis_implementation_pending');
   }

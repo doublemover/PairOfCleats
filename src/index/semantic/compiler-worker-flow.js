@@ -1,3 +1,6 @@
+import { createBrowserPortFlow } from './compiler-browser-port-flow.js';
+import { collectCompilerNodeWorkerFlow } from './compiler-node-worker-flow.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import path from 'node:path';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { createSemanticFactsRef } from './file-ref.js';
@@ -17,11 +20,11 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     if (container && (!doc.item.source.mapping || doc.item.source.mapping.quality === 'exact')) {
       const key = keyPath(path.resolve(group.repoRoot, container)); if (!entries.has(key)) entries.set(key, []); entries.get(key).push(doc);
     }
-    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-worker-source-flow', version: '1' }, inputPartitionHashes: hashes,
+    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-worker-source-flow', version: SEMANTIC_ANALYSIS_VERSIONS.workerFlow }, inputPartitionHashes: hashes,
       compilerContext: { context: group.context.contextKey, source: doc.item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
       analysisPolicy: { mode: policy.enrichment.crossFileFlow, fieldPathDepth: policy.enrichment.fieldPathDepth } });
     const evidence = { partitionId, localId: 0 }, rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
-      data: { method: 'compiler-platform-worker-source-model', producerId: 'semantic-worker-flow', producerVersion: '1', evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef: null } } }];
+      data: { method: 'compiler-platform-worker-source-model', producerId: 'semantic-worker-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.workerFlow, evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef: null } } }];
     ledgers.set(doc, { partitionId, evidence, rows, edges: [], reasons: new Set(), nextId: 1, observed: 0, completed: 0 });
   }
   const authority = (doc, declaration, names, libraries = ['lib.dom.d.ts','lib.webworker.d.ts']) => declaration && group.isDefaultLibrary(declaration.getSourceFile()) && libraries.includes(library(declaration)) && names.includes(ownerName(declaration));
@@ -46,6 +49,26 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     const declarations = (symbol.declarations || []).filter(value => ts.isVariableDeclaration(value) && value.getSourceFile() === doc.sourceFile && value.initializer && (value.parent.flags & ts.NodeFlags.Const));
     return declarations.length === 1 ? resolveWorker(doc,declarations[0].initializer,seen) : null;
   };
+  const portFlow = createBrowserPortFlow({ documents, ledgers, platformType, signal });
+  const resolvePort = (doc, node, seen = new Set()) => {
+    if (!node) return null;
+    const received = portFlow.read(doc, node); if (received) return received;
+    const { ts, checker } = doc;
+    if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isNonNullExpression(node)) return resolvePort(doc, node.expression, seen);
+    if (ts.isIdentifier(node)) {
+      const symbol = checker.getSymbolAtLocation(node);
+      if (!symbol || seen.has(symbol) || seen.size >= 32) return null;
+      seen.add(symbol);
+      const declarations = (symbol.declarations || []).filter(value => ts.isVariableDeclaration(value)
+        && value.getSourceFile() === doc.sourceFile && value.initializer && (value.parent.flags & ts.NodeFlags.Const));
+      return declarations.length === 1 ? resolvePort(doc, declarations[0].initializer, seen) : null;
+    }
+    if (ts.isNewExpression(node) && authority(doc, signature(doc, node), ['MessageChannel'])) return { channel: node, port: null };
+    if (!ts.isPropertyAccessExpression(node) || !['port1', 'port2'].includes(node.name.text)
+      || !platformType(doc, node.expression, ['MessageChannel'])) return null;
+    const channel = resolvePort(doc, node.expression, seen);
+    return channel?.channel && !channel.port ? { channel: channel.channel, port: node.name.text } : null;
+  };
   const literalEntry = (doc,worker) => {
     const { ts } = doc, argument = worker.arguments?.[0]; if (!argument || !ts.isNewExpression(argument) || !authority(doc,signature(doc,argument),['URL'])) return null;
     const [literal,base] = argument.arguments || []; if (!literal || !(ts.isStringLiteral(literal) || ts.isNoSubstitutionTemplateLiteral(literal)) || !base || !ts.isPropertyAccessExpression(base) || base.name.text !== 'url' || !ts.isMetaProperty(base.expression) || base.expression.keywordToken !== ts.SyntaxKind.ImportKeyword || base.expression.name.text !== 'meta') return null;
@@ -68,30 +91,95 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
     const { ts,checker } = doc, found = [], dataBySymbol = new Map();
     for (const candidate of doc.nodes) if (ts.isPropertyAccessExpression(candidate) && candidate.name.text === 'data' && ts.isIdentifier(candidate.expression)) {
       const symbol = checker.getSymbolAtLocation(candidate.expression), declarations = checker.getSymbolAtLocation(candidate.name)?.declarations || [];
-      if (symbol && declarations.some(declaration => authority(doc,declaration,['data'])) && platformType(doc,candidate.expression,['MessageEvent'])) {
+      if (symbol && (declarations.some(declaration => authority(doc,declaration,['data'])) && platformType(doc,candidate.expression,['MessageEvent']) || !declarations.length)) {
         const ref = doc.expressionFor(candidate); if (ref) { if (!dataBySymbol.has(symbol)) dataBySymbol.set(symbol,[]); dataBySymbol.get(symbol).push({node:candidate,ref}); }
       }
     }
     for (const node of doc.nodes) {
-      throwIfAborted(signal); let callback = null, site = null;
+      throwIfAborted(signal); let callback = null, site = null, receiverWorker = null, receiverPort = null, receiverNode = null;
       if (ts.isCallExpression(node) && node.arguments.length >= 2 && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === 'message') {
         const callee = node.expression, declaration = signature(doc,node);
         const property = ts.isPropertyAccessExpression(callee), name = property ? callee.name.text : ts.isIdentifier(callee) ? callee.text : '';
         if (name === 'addEventListener' && authority(doc,declaration,['addEventListener'],['lib.webworker.d.ts']) && (!property || platformType(doc,callee.expression,['DedicatedWorkerGlobalScope'],['lib.webworker.d.ts']))) { callback = handlerFor(doc,node.arguments[1]); site = node; }
+        else if (name === 'addEventListener' && property && authority(doc, declaration, ['addEventListener'])
+          && platformType(doc, callee.expression, ['Worker'])) {
+          receiverWorker = resolveWorker(doc, callee.expression);
+          if (receiverWorker) { callback = handlerFor(doc, node.arguments[1]); site = node; }
+          else ledgers.get(doc).reasons.add('worker_response_receiver_alias_or_entry_unresolved');
+        } else if (name === 'addEventListener' && property && (authority(doc, declaration, ['addEventListener']) && platformType(doc, callee.expression, ['MessagePort']) || !declaration)) {
+          receiverNode = callee.expression;
+          receiverPort = resolvePort(doc, callee.expression);
+          callback = handlerFor(doc, node.arguments[1]); site = node;
+          if (!receiverPort) ledgers.get(doc).reasons.add('message_port_endpoint_unresolved');
+        }
       } else if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         const target = node.left, property = ts.isPropertyAccessExpression(target), name = property ? target.name.text : ts.isIdentifier(target) ? target.text : '';
         const declarations = checker.getSymbolAtLocation(property ? target.name : target)?.declarations || [];
         if (name === 'onmessage' && declarations.some(declaration => authority(doc,declaration,['onmessage'],['lib.webworker.d.ts'])) && (!property || platformType(doc,target.expression,['DedicatedWorkerGlobalScope'],['lib.webworker.d.ts']))) { callback = handlerFor(doc,node.right); site = node; }
+        else if (name === 'onmessage' && property && declarations.some(declaration => authority(doc, declaration, ['onmessage']))
+          && platformType(doc, target.expression, ['Worker'])) {
+          receiverWorker = resolveWorker(doc, target.expression);
+          if (receiverWorker) { callback = handlerFor(doc, node.right); site = node; }
+          else ledgers.get(doc).reasons.add('worker_response_receiver_alias_or_entry_unresolved');
+        } else if (name === 'onmessage' && property && (declarations.some(declaration => authority(doc, declaration, ['onmessage'])) && platformType(doc, target.expression, ['MessagePort']) || !declarations.length)) {
+          receiverNode = target.expression;
+          receiverPort = resolvePort(doc, target.expression);
+          callback = handlerFor(doc, node.right); site = node;
+          if (!receiverPort) ledgers.get(doc).reasons.add('message_port_endpoint_unresolved');
+        }
       }
       if (!callback || !site) continue;
       const parameter = callback.parameters[0]; if (!parameter || !ts.isIdentifier(parameter.name)) { ledgers.get(doc).reasons.add('message_parameter_binding_pattern_unsupported'); continue; }
       const symbol = checker.getSymbolAtLocation(parameter.name), invocation = doc.expressionFor(site); if (!symbol || !invocation) continue;
       const data = (dataBySymbol.get(symbol) || []).filter(value => value.node.pos >= callback.pos && value.node.end <= callback.end).map(value => value.ref);
-      if (data.length) found.push({ site,invocation,data }); else ledgers.get(doc).reasons.add('message_data_consumer_unavailable');
+      found.push({ doc,site,invocation,data,receiverWorker,receiverPort,receiverNode,parameterSymbol:symbol });
+      if (!data.length) ledgers.get(doc).reasons.add('message_data_consumer_unavailable');
     }
     consumers.set(doc,found);
   }
   const enabledFor = doc => !['off','deferred'].includes((doc.policy || argumentsPolicy).enrichment.crossFileFlow);
+  const globalSend = (doc, call, declaration) => authority(doc, declaration, ['postMessage'], ['lib.webworker.d.ts'])
+    && (doc.ts.isIdentifier(call.expression) || doc.ts.isPropertyAccessExpression(call.expression)
+      && platformType(doc, call.expression.expression, ['DedicatedWorkerGlobalScope'], ['lib.webworker.d.ts']));
+  const peers = (doc, call, declaration, consumer) => {
+    if (globalSend(doc, call, declaration)) return consumer.receiverWorker && literalEntry(consumer.doc, consumer.receiverWorker) === doc;
+    if (!doc.ts.isPropertyAccessExpression(call.expression)) return false;
+    const receiver = call.expression.expression;
+    if (platformType(doc, receiver, ['Worker']) && authority(doc, declaration, ['postMessage'])) {
+      const worker = resolveWorker(doc, receiver);
+      return worker && literalEntry(doc, worker) === consumer.doc && !consumer.receiverWorker && !consumer.receiverNode;
+    }
+    const ports = portFlow.candidates(resolvePort(doc, receiver));
+    return ports.some(port => portFlow.candidates(consumer.receiverPort).some(other => other.channel === port.channel && other.port !== port.port));
+  };
+  const sends = documents.filter(enabledFor).flatMap(doc => doc.observations.filter(observation => observation.node && doc.ts.isCallExpression(observation.node)
+    && (authority(doc, observation.signatureDeclaration, ['postMessage']) || doc.ts.isPropertyAccessExpression(observation.node.expression)
+      && observation.node.expression.name.text === 'postMessage' && !observation.signatureDeclaration)).map(observation => ({doc, ...observation})));
+  const refreshPorts = () => {
+    for (const [doc, registrations] of consumers) for (const consumer of registrations) {
+      if (!portFlow.budget(doc)) return;
+      if (consumer.receiverNode) consumer.receiverPort = resolvePort(doc, consumer.receiverNode);
+    }
+  };
+  let changed = true, round = 0;
+  while (changed && round++ < 8) {
+    changed = false;
+    refreshPorts();
+    for (const send of sends) {
+      if (!portFlow.budget(send.doc)) break;
+      const values = portFlow.transferred(send.doc, send.node, resolvePort);
+      if (!values.length) continue;
+      for (const [host, registrations] of consumers) if (enabledFor(host)) for (const consumer of registrations) {
+        if (!portFlow.budget(send.doc)) break;
+        if (peers(send.doc, send.node, send.signatureDeclaration, consumer)) for (const value of values) {
+          if (!portFlow.budget(send.doc)) break;
+          changed = portFlow.bind(host, consumer.parameterSymbol, value.parts, value.ports) || changed;
+        }
+      }
+    }
+  }
+  if (changed) for (const doc of documents.filter(enabledFor)) ledgers.get(doc).reasons.add('browser_port_fixed_point_budget');
+  refreshPorts();
   for (const doc of documents) if (enabledFor(doc)) for (const observation of doc.observations) {
     throwIfAborted(signal);
     if (!observation.invocation || !observation.node) continue;
@@ -101,8 +189,85 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
       if (!entry) ledger.reasons.add('worker_entry_dynamic_or_not_in_exact_inventory');
       ledger.reasons.add('worker_execution_and_runtime_realm_unobserved'); continue;
     }
-    if (!doc.ts.isCallExpression(observation.node) || !authority(doc,observation.signatureDeclaration,['postMessage'])) continue;
-    const call = observation.node; if (!doc.ts.isPropertyAccessExpression(call.expression) || !platformType(doc,call.expression.expression,['Worker'])) continue;
+    if (!doc.ts.isCallExpression(observation.node)) continue;
+    const sourcePort = doc.ts.isPropertyAccessExpression(observation.node.expression) && observation.node.expression.name.text === 'postMessage'
+      && portFlow.candidates(resolvePort(doc, observation.node.expression.expression)).length;
+    if (!authority(doc,observation.signatureDeclaration,['postMessage']) && !(sourcePort && !observation.signatureDeclaration)) continue;
+    const call = observation.node;
+    const propertyCall = doc.ts.isPropertyAccessExpression(call.expression);
+    const workerGlobal = authority(doc, observation.signatureDeclaration, ['postMessage'], ['lib.webworker.d.ts'])
+      && (!propertyCall && doc.ts.isIdentifier(call.expression)
+        || propertyCall && platformType(doc, call.expression.expression, ['DedicatedWorkerGlobalScope'], ['lib.webworker.d.ts']));
+    if (workerGlobal) {
+      const ledger = ledgers.get(doc), invocation = doc.expressionFor(call);
+      if (!invocation) { ledger.reasons.add('dispatch_syntax_anchor_unavailable'); continue; }
+      ledger.observed++;
+      const dispatch = boundary(doc, call, 'worker-response-dispatch-request', invocation);
+      edge(doc, 'dispatches', invocation, dispatch, invocation);
+      if (call.arguments[0]) {
+        edge(doc, 'consumes', doc.expressionFor(call.arguments[0]), dispatch, invocation, 0);
+        const clone = boundary(doc, call.arguments[0], 'worker-response-clone-request', invocation);
+        edge(doc, 'packs', doc.expressionFor(call.arguments[0]), clone, invocation, 0);
+        edge(doc, 'dispatches', clone, dispatch, invocation);
+      }
+      let matched = 0;
+      for (const [host, registrations] of consumers) if (enabledFor(host)) for (const consumer of registrations) {
+        if (!consumer.receiverWorker || literalEntry(host, consumer.receiverWorker) !== doc) continue;
+        const receive = boundary(host, consumer.site, 'worker-source-response-consumer-candidate', consumer.invocation,
+          'source:' + host.item.source.sourceUnitId, 'source:' + doc.item.source.sourceUnitId);
+        edge(doc, 'dispatches', dispatch, receive, invocation);
+        for (const target of consumer.data) edge(host, 'consumes', receive, target, invocation, 0);
+        matched++;
+        ledgers.get(host).reasons.add('response_registration_order_instance_and_delivery_unobserved');
+      }
+      if (matched) ledger.completed++;
+      else ledger.reasons.add('worker_response_consumer_or_constructor_unresolved');
+      if (call.arguments.length > 1) ledger.reasons.add('worker_response_transfer_effects_unresolved');
+      ledger.reasons.add('response_correlation_instance_and_runtime_delivery_unobserved');
+      continue;
+    }
+    if (propertyCall && (platformType(doc, call.expression.expression, ['MessagePort']) || sourcePort)) {
+      const ledger = ledgers.get(doc), endpoint = resolvePort(doc, call.expression.expression), invocation = doc.expressionFor(call);
+      ledger.observed++;
+      if (!invocation) { ledger.reasons.add('dispatch_syntax_anchor_unavailable'); continue; }
+      const dispatch = boundary(doc, call, 'message-port-dispatch-request', invocation);
+      edge(doc, 'dispatches', invocation, dispatch, invocation);
+      for (let ordinal = 0; ordinal < call.arguments.length; ordinal++) edge(doc, 'consumes', doc.expressionFor(call.arguments[ordinal]), dispatch, invocation, ordinal);
+      if (call.arguments[0]) {
+        const clone = boundary(doc, call.arguments[0], 'message-port-clone-request', invocation);
+        edge(doc, 'packs', doc.expressionFor(call.arguments[0]), clone, invocation, 0);
+        edge(doc, 'dispatches', clone, dispatch, invocation);
+      }
+      const targets = [];
+      portTargets: for (const [host, registrations] of consumers) if (enabledFor(host)) for (const consumer of registrations) {
+        if (!portFlow.budget(doc)) break portTargets;
+        if (portFlow.candidates(endpoint).some(port => portFlow.candidates(consumer.receiverPort)
+          .some(other => other.channel === port.channel && other.port !== port.port))) targets.push(consumer);
+      }
+      if (endpoint?.ports) {
+        const transfer = boundary(doc, call.expression.expression, 'browser-transferred-port-candidate', invocation);
+        for (const port of endpoint.ports) {
+          const owner = documents.find(value => value.sourceFile === port.channel.getSourceFile());
+          edge(doc, 'transfers', owner?.expressionFor(port.channel), transfer, invocation);
+        }
+        edge(doc, 'dispatches', transfer, dispatch, invocation);
+        ledger.reasons.add('browser_port_transfer_detachment_instance_and_delivery_unobserved');
+      }
+      for (const consumer of targets) {
+        const receive = boundary(consumer.doc, consumer.site, 'message-port-consumer-candidate', consumer.invocation,
+          'source:' + consumer.doc.item.source.sourceUnitId, 'source:' + doc.item.source.sourceUnitId);
+        edge(doc, 'dispatches', dispatch, receive, invocation);
+        for (const target of consumer.data) {
+          if (!portFlow.budget(doc)) break;
+          edge(consumer.doc, 'consumes', receive, target, invocation, 0);
+        }
+      }
+      if (targets.length) ledger.completed++;
+      else ledger.reasons.add('message_port_peer_or_consumer_unresolved');
+      ledger.reasons.add('message_port_start_close_transfer_instance_and_delivery_unobserved');
+      continue;
+    }
+    if (!propertyCall || !platformType(doc,call.expression.expression,['Worker'])) continue;
     const ledger = ledgers.get(doc); ledger.observed++;
     const worker = resolveWorker(doc,call.expression.expression), entry = worker && literalEntry(doc,worker), invocation = doc.expressionFor(call);
     if (!invocation) { ledger.reasons.add('dispatch_syntax_anchor_unavailable'); continue; }
@@ -134,20 +299,21 @@ export const collectCompilerWorkerFlow = async ({ group, state, policy, signal =
       }
     }
     if (!worker || !entry) { ledger.reasons.add(worker ? 'worker_entry_dynamic_or_not_in_exact_inventory' : 'worker_receiver_alias_or_mutation_unresolved'); continue; }
-    const targets = consumers.get(entry); if (!targets.length) { ledger.reasons.add('worker_entry_message_consumer_unavailable'); continue; }
+    const targets = enabledFor(entry) ? consumers.get(entry).filter(consumer => !consumer.receiverWorker && !consumer.receiverNode) : []; if (!targets.length) { ledger.reasons.add('worker_entry_message_consumer_unavailable'); continue; }
     for (const consumer of targets) {
       const receive = boundary(entry,consumer.site,'worker-source-message-consumer-candidate',consumer.invocation,'source:' + entry.item.source.sourceUnitId,'source:' + doc.item.source.sourceUnitId);
       edge(doc,'dispatches',dispatch,receive,invocation); for (const target of consumer.data) edge(entry,'consumes',receive,target,invocation,0);
     }
     ledger.completed++; ledger.reasons.add('runtime_delivery_and_handler_activation_unobserved');
   }
+  await collectCompilerNodeWorkerFlow({group,documents,entries,ledgers,boundary,edge,enabledFor,signal});
   for (const doc of documents) {
     const ledger = ledgers.get(doc); if (!ledger.observed && !ledger.rows.some(row => row.row.kind === 'boundary')) continue;
     const sorted = [...new Map(ledger.edges.map(edge => [canonicalSemanticJson(edge),edge])).entries()].sort(([a],[b])=>a<b?-1:a>b?1:0); sorted.forEach(([,edge],id)=>ledger.rows.push({family:'edge',row:{id,...edge}}));
     const coverage = { scope:{sourceUnitId:doc.item.source.sourceUnitId},phase:'boundaryModels',state:'partial',reason:[...new Set([...ledger.reasons,'source_candidates_only_runtime_delivery_and_clone_effects_unobserved'])].sort().join(';'),observedCount:ledger.observed,completedCount:ledger.completed,frontierRef:null };
     ledger.rows.push({family:'coverage',row:coverage});
     const policy = doc.policy || argumentsPolicy;
-    const partition = await writeSemanticAnalysis({rows:ledger.rows,policy,stagingRoot:doc.item.root,source:doc.item.source,sourceBytes:doc.bytes,partitionId:ledger.partitionId,producerHash:semanticHash('semantic.worker-source-producer.v1',{version:1}),policyHash:semanticHash('semantic.worker-source-policy.v1',policy.enrichment),contextHash:group.context.contextKey,diskAccount:state.semanticDiskAccount,signal});
+    const partition = await writeSemanticAnalysis({rows:ledger.rows,policy,stagingRoot:doc.item.root,source:doc.item.source,sourceBytes:doc.bytes,partitionId:ledger.partitionId,producerHash:semanticHash('semantic.worker-source-producer.v1',{version: Number(SEMANTIC_ANALYSIS_VERSIONS.workerFlow)}),policyHash:semanticHash('semantic.worker-source-policy.v1',policy.enrichment),contextHash:group.context.contextKey,diskAccount:state.semanticDiskAccount,signal});
     const current=state.semanticFactsByFile.get(doc.item.file); state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,storage:current.storage,syntaxPartitionId:current.syntaxPartitionId,partitions:[...current.partitions.filter(row=>row.partitionId!==partition.partitionId),partition],coverage:[...current.coverage,coverage]})); output.push(partition);
   }
   return output;

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 
-import { getEnvConfig } from '../../src/shared/env/runtime.js';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
-import { parseTrailingJson } from './output.js';
-import { resolveBenchSuite } from './suites/sweet16.js';
+const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { spawnSubprocessSync } = await import('../../src/shared/subprocess/runner.js');
+const { parseTrailingJson } = await import('./output.js');
+const { resolveBenchSuite } = await import('./suites/sweet16.js');
 
 const MAX_UTILIZATION_SAMPLES = 2048;
 

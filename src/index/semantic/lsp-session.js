@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
 import { planSemanticSource } from './planning.js';
 import fs from 'node:fs/promises';
@@ -16,7 +17,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 const keyPath = file => { const value = path.resolve(file); return process.platform === 'win32' ? value.toLowerCase() : value; };
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
-export const createSemanticLspSession = async ({ state, runtime, signal = null }) => {
+export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
   const inventory = new Map(), byUri = new Map(), texts = new Map(), emitted = [], contexts = new Map(), completed = new Set();
   const policy = runtime.semanticPolicy;
   state.semanticEvidenceArtifacts ||= [];
@@ -27,12 +28,27 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     const syntax = facts.partitions.find(partition => partition.partitionId === facts.syntaxPartitionId);
     let source;
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
-    if (!source) continue;
+    if (!source || languages && !languages.includes(source.language)) continue;
     await store.verifySource(source, { signal });
+    if (source.encoding === 'binary') continue;
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
-    const occurrenceIds = new Set();
+    const occurrenceIds = new Set(), expressionKinds=new Map(), parents=new Map();
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), declarations = [];
-    for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) { if (row.kind === 'declaration' && row.span) declarations.push({ span: row.span, ref: { partitionId: syntax.partitionId, localId: row.id } }); if (row.kind === 'occurrence' && row.span && !row.data.roles.includes('definition')) occurrenceIds.add(refKey({ partitionId: syntax.partitionId, localId: row.id })); }
+    for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) { if(row.kind==='expression')expressionKinds.set(row.id,row.data); if (row.kind === 'declaration' && row.span) declarations.push({ span: row.span, ref: { partitionId: syntax.partitionId, localId: row.id } }); if (row.kind === 'occurrence' && row.span && !row.data.roles.includes('definition')) occurrenceIds.add(refKey({ partitionId: syntax.partitionId, localId: row.id })); }
+    for await(const row of store.iterateRows(syntax.partitionId,'semantic_operands',{signal}))if(row.child?.partitionId===syntax.partitionId&&row.parent.partitionId===syntax.partitionId)parents.set(row.child.localId,{parent:row.parent,slot:row.slot});
+    const invocationFor = expression => {
+      const seen=new Set();let current=expression;
+      while(current?.partitionId===syntax.partitionId&&seen.size<8&&!seen.has(current.localId)) {
+        seen.add(current.localId);const link=parents.get(current.localId);if(!link)return null;
+        const data=expressionKinds.get(link.parent.localId);
+        if(data?.invocationKind)return ['callee','tag','expression'].includes(link.slot)?{ref:link.parent,kind:data.invocationKind}:null;
+        const member=['PropertyAccessExpression','ElementAccessExpression','MemberExpression','OptionalMemberExpression'].includes(data?.astKind);
+        // The receiver occurrence in obj.method() is not the invoked member.
+        if(member?!['name','property','ast:PropertyAccessExpression.name'].includes(link.slot):!['ParenthesizedExpression','NonNullExpression'].includes(data?.astKind)||!['expression','ast:ParenthesizedExpression.expression','ast:NonNullExpression.expression'].includes(link.slot))return null;
+        current=link.parent;
+      }
+      return null;
+    };
     const resolved = new Set();
     for (const partition of facts.partitions) if (partition.partitionId !== syntax.partitionId) for await (const row of store.iterateRows(partition.partitionId, 'semantic_records', { signal })) if (row.kind === 'binding' && row.data.status === 'resolved') resolved.add(refKey(row.data.occurrence));
     const unresolvedCount = [...occurrenceIds].filter(key => !resolved.has(key)).length;
@@ -47,7 +63,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     const sourcePath = source.mapping ? [...state.semanticFactsByFile].find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path;
     const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId });
-    const item = { sourceMap, policy: sourcePolicy, plan, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
+    const item = { sourceMap, policy: sourcePolicy, plan, invocationFor, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
     inventory.set(source.sourceUnitId, item);
     if (!source.mapping) { texts.set(source.path, text); byUri.set(pathToFileURL(path.join(runtime.root, source.path)).href, item); }
   }
@@ -64,7 +80,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     get enabled() { return inventory.size > 0; }, get hasTargetedWork() { return [...inventory.values()].some(item => item.unresolvedCount > 0); }, fileTextByFile: texts,
     setSignal(value) { signal = value; },
     prepareDocuments(documents) {
-      const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
+      const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc, languageId: item.source.language, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
       for (const item of inventory.values()) if (!item.source.mapping && !present.has(item.source.sourceUnitId)) result.push({ virtualPath: item.source.path, containerPath: item.source.path, languageId: item.source.language, effectiveExt: path.extname(item.source.path), text: item.text, docHash: item.source.textHash, lineIndex: item.source.lineStarts, segmentUid: null, segmentRange: { start: 0, end: item.source.textLength }, semanticSourceUnitId: item.source.sourceUnitId });
       return result;
     },
@@ -76,6 +92,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     },
     async targetsForDocument(doc) {
       const item = itemForDoc(doc); if (!item) return [];
+      if (eagerOnly && item.policy.enrichment.bindings !== 'eager') return [];
       if (state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)) return [];
       if (!semanticPhasePolicy(item.policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return [];
       if (doc.text !== item.text) throw Object.assign(new Error('LSP source snapshot mismatch.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
@@ -90,13 +107,15 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
         if (row.kind !== 'occurrence' || !row.span || row.data.roles.includes('definition')) continue;
         if (!semanticTargetMatchesRecord(item.policy, item.syntax.partitionId, row, selectedScopes)) continue;
         const ref = { partitionId: item.syntax.partitionId, localId: row.id };
-        if (!item.resolved.has(refKey(ref))) targets.push({ ref, span: row.span, scope: row.scope, roles: row.data.roles, name: item.text.slice(...row.span) });
+        const invocation=item.invocationFor(row.data.expression);
+        if (!item.resolved.has(refKey(invocation?.ref||ref))) targets.push({ ref, invocation, span: row.span, scope: row.scope, roles: row.data.roles, name: item.text.slice(...row.span) });
       }
       return targets;
     },
     async collectDocument({ doc, uri, requestDefinition, positionEncoding = 'utf-16', providerId = 'lsp', providerVersion = '1', workspaceKey = null, definitionEnabled = true, targets = null }) {
       const item = itemForDoc(doc); if (!item) return;
       const policy = item.policy;
+      if (eagerOnly && policy.enrichment.bindings !== 'eager') return;
       if (state.semanticAdmittedSources && !state.semanticAdmittedSources.has(item.source.sourceUnitId)) return;
       if (!semanticPhasePolicy(policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return;
       api.registerDocument(doc, uri);
@@ -115,7 +134,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
         const response = definitionEnabled ? await requestDefinition({ name: target.name }, position) : { attempted: false, skipReason: 'definition_unsupported' };
         observations.push({ target, position, response: response || { attempted: true, payload: null } });
       }
-      const partitionId = createAnalysisPartitionId({ pass: { name: 'lsp-bindings', version: '2' }, inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey, dependencySummaryHashes: [context.moduleResolutionHash], analysisPolicy: { policy: item.policy.identity.analysis, evidence: semanticHash('semantic.lsp-responses.v1', observations) } });
+      const partitionId = createAnalysisPartitionId({ pass: { name: 'lsp-bindings', version: SEMANTIC_ANALYSIS_VERSIONS.lspBindings }, inputPartitionHashes: [item.syntax.canonicalHash], compilerContext: context.contextKey, dependencySummaryHashes: [context.moduleResolutionHash], analysisPolicy: { policy: item.policy.identity.analysis, evidence: semanticHash('semantic.lsp-responses.v1', observations) } });
       const ref = localId => ({ partitionId, localId }), rows = [], names = new Map(); let nextId = 0, edgeId = 0, completedCount = 0, failed = false, deferred = false;
       const intern = value => { if (!names.has(value)) names.set(value, names.size); return names.get(value); };
       for (const { target, position, response } of observations) {
@@ -141,14 +160,14 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
           }
         }
         const unique = [...new Map(candidates.map(value => [refKey(value), value])).values()];
-        const status = unique.length > 1 ? 'ambiguous' : unique.length === 1 && exact.length === 1 ? 'resolved' : unique.length ? 'heuristic' : 'unresolved';
+        const status = unique.length > 1 ? 'ambiguous' : unique.length === 1 && exact.length > 0 ? 'resolved' : unique.length ? 'heuristic' : 'unresolved';
         if (status === 'resolved') completedCount += 1;
         if (response.error) failed = true; if (response.attempted !== true) deferred = true;
         const binding = ref(nextId++); rows.push({ family: 'node', row: { id: binding.localId, kind: 'binding', span: target.span, scope: target.scope,
           data: { occurrence: target.ref, contextKey: context.contextKey, status, signature: null, symbolGroupId: unique.length ? createSymbolGroupId({ contextKey: context.contextKey, declarations: unique }) : null, candidateCount: unique.length } } });
         for (const candidate of unique) {
           const certainty = exact.some(value => refKey(value) === refKey(candidate)) ? 'exact-static' : 'modeled';
-          for (const [kind, from] of [['bindingCandidate', binding], [target.roles.includes('construct') ? 'constructTarget' : target.roles.includes('call') ? 'callTarget' : 'references', target.ref]]) rows.push({ family: 'edge', row: { id: edgeId++, kind, from, to: candidate, callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition: null, evidence, certainty } });
+          for (const [kind, from] of [['bindingCandidate', binding], [target.invocation?.kind==='construct' || target.roles.includes('construct') ? 'constructTarget' : target.invocation || target.roles.includes('call') ? 'callTarget' : 'references', target.invocation?.ref||target.ref]]) rows.push({ family: 'edge', row: { id: edgeId++, kind, from, to: candidate, callSite: ['callTarget','constructTarget'].includes(kind)?target.invocation?.ref||null:null, operandOrdinal: null, contextKey: context.contextKey, condition: null, evidence, certainty } });
         }
       }
       rows.push(...[...names].map(([value,id]) => ({ family: 'lookup', row: { kind: 'name', id, value } })));

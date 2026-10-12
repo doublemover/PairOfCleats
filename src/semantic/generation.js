@@ -13,9 +13,11 @@ export const resolveSemanticGenerationIndexDir = async ({ repoRoot, generation, 
   const retained = resolveCacheScopedBuildIdRoot(buildId, repoCacheRoot, buildsRoot);
   if (retained) {
     const indexDir = path.join(retained, 'index-code');
-    try {
-      if ((await fs.stat(path.join(indexDir, 'semantic_manifest.json'))).isFile()) return indexDir;
-    } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
+    for (const manifest of ['semantic_manifest.json', 'symbolic_type_manifest.json']) {
+      try {
+        if ((await fs.stat(path.join(indexDir, manifest))).isFile()) return indexDir;
+      } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
+    }
   }
   // The opener must validate explicit generation equality; never substitute current facts.
   return resolveIndexDir(repoRoot, 'code', userConfig);

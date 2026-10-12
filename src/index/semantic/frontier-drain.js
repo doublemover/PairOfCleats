@@ -1,3 +1,4 @@
+import { SCHEDULER_QUEUE_NAMES } from '../build/runtime/scheduler.js';
 import { throwIfAborted } from '../../shared/abort.js';
 /** Explicit bounded drain; callers provide existing scheduler and whole-generation publisher. */
 export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, owner,
@@ -28,7 +29,7 @@ export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, o
       }
       const handler = handlers[task.kind];
       if (typeof handler !== 'function') throw Object.assign(new Error('Semantic task implementation unavailable.'), { code: 'ERR_SEMANTIC_TASK_UNSUPPORTED' });
-      const output = await scheduler.schedule('relations', { ...resources, signal }, async () => {
+      const output = await scheduler.schedule(SCHEDULER_QUEUE_NAMES.stage2Relations, { ...resources, signal }, async () => {
         throwIfAborted(signal);
         return handler({ task, inputHash: lease.inputHash, signal });
       });

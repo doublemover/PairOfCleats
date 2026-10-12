@@ -1,9 +1,16 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
-import { getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveToolRoot } from '../../shared/dict-utils.js';
-import { checkBenchmarkPrerequisites } from './prerequisite-runtime.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { writeJsonFileResolved } = await import('../../../src/shared/json-file.js');
+const {
+  getRuntimeConfig,
+  loadUserConfig,
+  resolveRuntimeEnv,
+  resolveToolRoot
+} = await import('../../shared/dict-utils.js');
+const { checkBenchmarkPrerequisites } = await import('./prerequisite-runtime.js');
 
 const argv = createCli({ scriptName: 'bench-prerequisite-check', options: {
   repo: { type: 'string', required: true }, out: { type: 'string', required: true },

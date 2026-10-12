@@ -2,10 +2,11 @@ import { throwIfAborted } from '../../shared/abort.js';
 import picomatch from 'picomatch';
 import { normalizeSemanticConfig } from './config.js';
 import { semanticHash } from './identity.js';
+import { semanticAnalysisPolicyIdentity } from './analysis-versions.js';
 const compiled = new WeakMap(), resolved = new WeakSet();
 export const semanticPolicyIdentities = policy => ({
   extraction: semanticHash('semantic.extraction-policy.v1', { languages: policy.languages, baseFacts: policy.baseFacts }),
-  analysis: semanticHash('semantic.analysis-policy.v1', { enrichment: policy.enrichment, targets: policy.targets || [] }),
+  analysis: semanticAnalysisPolicyIdentity(policy),
   layout: semanticHash('semantic.layout-policy.v1', { storage: policy.storage })
 });
 /** Match only repository-relative paths; segment policy uses its original container path. */
@@ -57,8 +58,8 @@ export const validateSemanticSourceTargets = async (policy, { source, partitionI
     }
   }
   for (let start = 0; start < refs.length; start += 64) {
-    const records = await store.getRecords(refs.slice(start, start + 64), [], { signal });
-    if (records.some(row => !row || !['declaration', 'occurrence'].includes(row.kind))) throw Object.assign(new TypeError('Semantic target must reference a declaration or occurrence.'), { code: 'ERR_SEMANTIC_TARGET' });
+    const records = await store.getRecords(refs.slice(start, start + 64), source.encoding === 'binary' ? ['data'] : [], { signal });
+    if (records.some(row => !row || !(source.encoding === 'binary' ? row.kind === 'expression' && row.data?.astKind === 'WasmModule' : ['declaration', 'occurrence'].includes(row.kind)))) throw Object.assign(new TypeError('Semantic target must reference a declaration, occurrence, or binary module anchor.'), { code: 'ERR_SEMANTIC_TARGET' });
   }
 };
 

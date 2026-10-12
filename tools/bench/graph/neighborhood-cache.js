@@ -1,14 +1,16 @@
 #!/usr/bin/env node
-import { createCli } from '../../../src/shared/cli.js';
-import { isDirectExecution } from '../../../src/shared/direct-execution.js';
-import { buildGraphNeighborhood } from '../../../src/graph/neighborhood.js';
-import { buildGraphIndex } from '../../../src/graph/store.js';
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { createCli } = await import('../../../src/shared/cli.js');
+const { isDirectExecution } = await import('../../../src/shared/direct-execution.js');
+const { buildGraphNeighborhood } = await import('../../../src/graph/neighborhood.js');
+const { buildGraphIndex } = await import('../../../src/graph/store.js');
+const {
   normalizeCompareMode,
   printBaselineCurrentSummary,
   readNumberArg,
   runPayloadIterations
-} from './shared.js';
+} = await import('./shared.js');
 
 const buildSyntheticGraph = ({ nodes, fanout }) => {
   const graphNodes = [];

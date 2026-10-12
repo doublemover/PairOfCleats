@@ -31,7 +31,24 @@ export const EMBEDDINGS_PERF_METRIC_KEYS = Object.freeze([
   'writer_pending',
   'writer_max_pending',
   'queue_compute_pending',
-  'queue_io_pending'
+  'queue_io_pending',
+  'queue_compute_running',
+  'queue_io_running',
+  'writer_peak_pending',
+  'writer_pending_bytes',
+  'writer_cap_reason',
+  'batch_pending_requests',
+  'batch_pending_texts',
+  'batch_pending_tokens',
+  'provider_active',
+  'provider_peak_active',
+  'inflight_live',
+  'tokens_padded',
+  'work_remaining_tokens_estimate',
+  'work_remaining_groups',
+  'eta_sample_batches',
+  'eta_compute_seconds',
+  'eta_basis'
 ]);
 
 const EMBEDDINGS_PERF_RATE_KEYS = new Set([
@@ -53,6 +70,8 @@ const toFiniteNumber = (value, fallback = 0) => {
 };
 
 const formatMetricValue = (key, value) => {
+  if (key === 'writer_cap_reason' || key === 'eta_basis') return sanitizeMode(value) || 'unknown';
+  if (key === 'eta_compute_seconds' && value == null) return 'unknown';
   if (EMBEDDINGS_PERF_RATE_KEYS.has(key)) {
     const numeric = Math.max(0, toFiniteNumber(value, 0));
     return numeric.toFixed(3);

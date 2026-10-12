@@ -1,5 +1,12 @@
 import path from 'node:path';
 
+const RUNTIME_SOURCE_EXTENSIONS = Object.freeze({
+  '.js': ['.ts', '.tsx', '.d.ts'],
+  '.jsx': ['.tsx', '.ts', '.d.ts'],
+  '.mjs': ['.mts', '.d.mts'],
+  '.cjs': ['.cts', '.d.cts']
+});
+
 const normalizeExtensions = (extensions) => {
   if (!Array.isArray(extensions)) return [];
   const out = [];
@@ -19,7 +26,16 @@ export const resolveRelativeImportCandidates = (normalizedPath, extensions = [])
   const trimmed = rawPath.replace(/\/+$/, '');
   if (!trimmed) return [];
   const ext = path.posix.extname(trimmed);
-  if (ext) return [trimmed];
+  if (ext) {
+    // Preserve literal-file precedence. ESM imports in TypeScript source often
+    // name the emitted runtime extension even when only the source is indexed.
+    // Keep these alternatives bounded and within the caller's extension policy.
+    const sourceExtensions = RUNTIME_SOURCE_EXTENSIONS[ext.toLowerCase()];
+    if (!sourceExtensions || hasTrailingSlash) return [trimmed];
+    const allowed = new Set(normalizeExtensions(extensions));
+    const stem = trimmed.slice(0, -ext.length);
+    return [trimmed, ...sourceExtensions.filter((value) => allowed.has(value)).map((value) => `${stem}${value}`)];
+  }
 
   const resolvedExtensions = normalizeExtensions(extensions);
   const candidates = [];

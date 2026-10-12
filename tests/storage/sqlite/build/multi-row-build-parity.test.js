@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 import { writeSqliteShardFixtureArtifacts } from '../helpers/build-fixture.js';
@@ -18,7 +18,7 @@ const { pieceEntries } = await writeSqliteShardFixtureArtifacts({
   indexDir, chunkCount: 400, fileCount: 5, tokens: ['alpha', 'beta'],
   tokenVocab: ['alpha', 'beta'], chunkMaxBytes: 4096
 });
-await writePiecesManifest(indexDir, pieceEntries);
+await writeSqliteArtifactManifest(indexDir, pieceEntries);
 
 const tables = ['chunks', 'token_vocab', 'token_postings', 'doc_lengths', 'file_manifest', 'token_stats'];
 const results = [];

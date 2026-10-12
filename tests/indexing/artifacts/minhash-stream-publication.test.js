@@ -56,6 +56,7 @@ for (const [caseIndex, scenario] of [
       log: () => {}
     });
     const indexState = {
+      buildId: 'artifact-publication-fixture',
       mode: 'code', counts: { files: scenario.count, chunks: scenario.count }, extensions: {}
     };
     const originalCreateReadStream = fsSync.createReadStream;

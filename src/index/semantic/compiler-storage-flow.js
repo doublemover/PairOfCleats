@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -6,7 +7,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 export const collectCompilerStorageFlow = async ({ ts, checker, sourceFile, nodes, expressionFor,
   source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
   if (['off', 'deferred'].includes(policy.enrichment.localFlow)) return null;
-  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-storage-flow', version: '1' },
+  const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-storage-flow', version: SEMANTIC_ANALYSIS_VERSIONS.storageFlow },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context, dependencySummaryHashes: [],
     analysisPolicy: { fieldPathDepth: policy.enrichment.fieldPathDepth } });
   const ledger = new Map(), edges = [], reasons = new Set(), fields = new Map(), resolved = new WeakMap();
@@ -16,7 +17,7 @@ export const collectCompilerStorageFlow = async ({ ts, checker, sourceFile, node
     return local(key);
   };
   const evidence = add('evidence', 'evidence', null, { method: 'allocation-field-candidates', producerId: 'semantic-storage',
-    producerVersion: '1', evidenceKind: 'static-analysis', sourceRef: source.sourceUnitId, artifactRef: null });
+    producerVersion: SEMANTIC_ANALYSIS_VERSIONS.storageFlow, evidenceKind: 'static-analysis', sourceRef: source.sourceUnitId, artifactRef: null });
   const edge = (kind, from, to) => {
     if (from && to) edges.push({ kind, from, to, callSite: null, operandOrdinal: null, contextKey: context.contextKey,
       condition: null, evidence, certainty: 'modeled' });
@@ -127,7 +128,7 @@ export const collectCompilerStorageFlow = async ({ ts, checker, sourceFile, node
     reason: reasons.size ? [...reasons].sort().join(';') : null, observedCount: accesses, completedCount: fields.size, frontierRef: null };
   rows.push({ family: 'coverage', row: coverage });
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
-    producerHash: semanticHash('semantic.storage-producer.v1', { version: 1 }), contextHash: context.contextKey,
+    producerHash: semanticHash('semantic.storage-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.storageFlow) }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.storage-policy.v1', { fieldPathDepth: policy.enrichment.fieldPathDepth }), diskAccount, signal });
   return { partition, coverage: [coverage] };
 };
