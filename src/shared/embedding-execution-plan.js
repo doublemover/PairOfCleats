@@ -14,14 +14,32 @@ export const EMBEDDING_LAUNCH_OPTION_KEYS = Object.freeze([
   'model', 'dims', 'threads', 'scheduler', 'scheduler-cpu', 'scheduler-io',
   'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource', 'stub-embeddings'
 ]);
-const ENV_KEYS = ['PAIROFCLEATS_EMBEDDINGS', 'PAIROFCLEATS_THREADS', 'PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES', 'PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED', 'PAIROFCLEATS_SCHEDULER',
-  'PAIROFCLEATS_SCHEDULER_CPU', 'PAIROFCLEATS_SCHEDULER_IO', 'PAIROFCLEATS_SCHEDULER_MEM',
-  'PAIROFCLEATS_SCHEDULER_ADAPTIVE', 'PAIROFCLEATS_SCHEDULER_MAX_CPU', 'PAIROFCLEATS_SCHEDULER_MAX_IO',
-  'PAIROFCLEATS_SCHEDULER_MAX_MEM', 'PAIROFCLEATS_SCHEDULER_LOW_RESOURCE',
-  'PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION', 'PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET',
-  'PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS', 'PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP',
-  'PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB', 'PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB',
-  'PAIROFCLEATS_SCHEDULER_STARVATION_MS'];
+const ENV_FIELDS = {
+  PAIROFCLEATS_EMBEDDINGS: 'embeddings', PAIROFCLEATS_THREADS: 'threads',
+  PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES: 'embeddingsSampleFiles', PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED: 'embeddingsSampleSeed',
+  PAIROFCLEATS_SCHEDULER: 'schedulerEnabled', PAIROFCLEATS_SCHEDULER_CPU: 'schedulerCpuTokens',
+  PAIROFCLEATS_SCHEDULER_IO: 'schedulerIoTokens', PAIROFCLEATS_SCHEDULER_MEM: 'schedulerMemoryTokens',
+  PAIROFCLEATS_SCHEDULER_ADAPTIVE: 'schedulerAdaptive', PAIROFCLEATS_SCHEDULER_MAX_CPU: 'schedulerMaxCpuTokens',
+  PAIROFCLEATS_SCHEDULER_MAX_IO: 'schedulerMaxIoTokens', PAIROFCLEATS_SCHEDULER_MAX_MEM: 'schedulerMaxMemoryTokens',
+  PAIROFCLEATS_SCHEDULER_LOW_RESOURCE: 'schedulerLowResource', PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION: 'schedulerTargetUtilization',
+  PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET: 'schedulerUtilizationAlertTarget',
+  PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS: 'schedulerUtilizationAlertWindowMs',
+  PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP: 'schedulerAdaptiveStep', PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB: 'schedulerMemoryReserveMb',
+  PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB: 'schedulerMemoryPerTokenMb', PAIROFCLEATS_SCHEDULER_STARVATION_MS: 'schedulerStarvationMs'
+};
+const ENV_KEYS = Object.keys(ENV_FIELDS);
+const projectEnvironment = rawEnv => {
+  const normalized = getEnvConfig(Object.fromEntries(Object.entries(rawEnv).filter(([, value]) => value != null)));
+  return Object.fromEntries(Object.entries(ENV_FIELDS).map(([key, field]) => {
+    const value = normalized[field];
+    if (field === 'embeddings') {
+      const mode = String(value || '').trim().toLowerCase();
+      return [key, ['off', 'false', '0', 'disabled', 'none', 'stub'].includes(mode) ? mode : null];
+    }
+    if (field === 'embeddingsSampleSeed') return [key, typeof value === 'string' && value ? value : null];
+    return [key, typeof value === 'boolean' ? (value ? '1' : '0') : Number.isFinite(value) ? String(value) : null];
+  }));
+};
 const pick = (value, keys) => Object.fromEntries(keys.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));
 const fail = message => Object.assign(new Error(`Invalid embedding execution plan: ${message}`), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
 const digest = plan => {
@@ -30,7 +48,7 @@ const digest = plan => {
 };
 
 /** Freeze existing resolver outputs; never serialize raw user config or environment. */
-export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId = null, modes, argv = {}, userConfig = {}, rawEnv = process.env, intent = null }) => {
+export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId = null, modes, modelId = null, argv = {}, userConfig = {}, rawEnv = process.env, intent = null }) => {
   userConfig ||= {};
   const configured = userConfig.indexing?.embeddings || {};
   const model = getModelConfig(root, userConfig);
@@ -42,7 +60,7 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
     ...Object.fromEntries(['concurrency', 'fileParallelism', 'maxBatchTokens', 'binaryDenseVectors', 'sampleFiles', 'sampleSeed', 'crossFileChunkDedupe'].map(key => [key, configured[key] ?? null])),
     enabled: selected.embeddingEnabled,
     mode: selected.resolvedEmbeddingMode || (selected.useStubEmbeddings ? 'stub' : 'inline'),
-    model: argv.model || model.id,
+    model: modelId || argv.model || model.id,
     provider: normalizeEmbeddingProvider(configured.provider, { strict: true }),
     normalize: configured.normalize !== false,
     quantization: resolveQuantizationParams(configured.quantization),
@@ -57,14 +75,14 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
     indexRoot: indexRoot ? path.resolve(indexRoot) : null,
     modes: [...new Set(modes || ['code'])].sort(),
     options: { ...pick(argv, EMBEDDING_LAUNCH_OPTION_KEYS), model: embeddings.model,
-      'stub-embeddings': selected.useStubEmbeddings },
+      'stub-embeddings': selected.useStubEmbeddings === true },
     embeddings,
     modelsDir: model.dir || null,
     resourcePolicy: 'pinned-request-host-admission-and-autotune-at-execution',
     resources: { threads: userConfig.threads ?? null,
       indexing: Object.fromEntries(['concurrency', 'importConcurrency', 'ioConcurrencyCap', 'embeddingBatchSize'].map(key => [key, userConfig.indexing?.[key] ?? null])),
       scheduler: projectSchedulerRequestConfig(userConfig.runtime?.scheduler, userConfig.indexing?.scheduler) },
-    environment: Object.fromEntries(ENV_KEYS.map(key => [key, rawEnv[key] ?? null])),
+    environment: projectEnvironment(rawEnv),
     sources: { config: intent?.configSources || null, model: argv.model ? 'cli.model' : configured.model ? 'config.indexing.embeddings.model'
       : userConfig.models?.id ? 'config.models.id' : 'default', intent: selected.reason || 'resolved-parent' }
   };
@@ -72,23 +90,105 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
   if (redactDiagnosticText(planText, planText.length + 1) !== planText) throw fail('contains credential-bearing text');
   if (Buffer.byteLength(planText) > 32768) throw fail('exceeds the 32 KiB handoff budget');
   plan.digest = digest(plan);
-  return plan;
+  return validateEmbeddingExecutionPlan(plan);
 };
 
-export const validateEmbeddingExecutionPlan = (plan, { root, indexRoot = null, modes = null } = {}) => {
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+  && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+const record = (value, allowed, label) => {
+  if (!isRecord(value) || Object.keys(value).some(key => !allowed.includes(key))) throw fail(`unsupported ${label} fields`);
+};
+const equalProjection = (value, projected, label) => {
+  if (stableStringify(value) !== stableStringify(projected)) throw fail(`noncanonical ${label}`);
+};
+const text = value => typeof value === 'string';
+const boolean = value => typeof value === 'boolean';
+const numeric = value => typeof value === 'number' && Number.isFinite(value);
+const nullable = predicate => value => value === null || predicate(value);
+const fields = (value, shape, label) => {
+  record(value, Object.keys(shape), label);
+  for (const [key, check] of Object.entries(shape)) {
+    if (!check(value[key])) throw fail(`invalid ${label}.${key}`);
+  }
+};
+const validateSourceFacts = source => {
+  if (source === null) return;
+  fields(source, { version: value => value === 1, files: Array.isArray, repoTrusted: boolean,
+    discardedAuthorityPaths: value => Array.isArray(value) && value.every(text),
+    trustedMerge: boolean, testOverlay: isRecord }, 'source facts');
+  fields(source.testOverlay, { applied: boolean, source: value => value === 'test-environment' }, 'test origin');
+  for (const file of source.files) {
+    record(file, ['path', 'source', 'exists', 'contentHash', 'errorCode', 'contentHashOmitted'], 'source file');
+    if (!text(file.path) || !['repository', 'trusted-external'].includes(file.source) || !boolean(file.exists)
+      || !(file.contentHash === null || /^[a-f0-9]{64}$/.test(file.contentHash))
+      || (file.errorCode !== undefined && !/^[A-Z0-9_]+$/.test(file.errorCode))
+      || (file.contentHashOmitted !== undefined && file.contentHashOmitted !== 'sensitive-source')) throw fail('invalid source file');
+  }
+};
+const validatePlan = (plan, { root, indexRoot = null, modes = null } = {}) => {
   const allowed = ['version', 'selectedAt', 'buildId', 'repoRoot', 'indexRoot', 'modes', 'options', 'embeddings', 'modelsDir', 'resourcePolicy', 'resources', 'environment', 'sources', 'digest'];
-  if (!plan || Object.keys(plan).some(key => !allowed.includes(key)) || plan.version !== 1 || typeof plan.digest !== 'string'
-    || Buffer.byteLength(JSON.stringify(plan)) > 32768 || plan.digest !== digest(plan)) throw fail('version, size or digest mismatch');
+  record(plan, allowed, 'plan');
+  const serialized = JSON.stringify(plan);
+  if (plan.version !== 1 || typeof plan.digest !== 'string'
+    || Buffer.byteLength(serialized) > 32768 || plan.digest !== digest(plan)) throw fail('version, size or digest mismatch');
+  if (redactDiagnosticText(serialized, serialized.length + 1) !== serialized) throw fail('contains credential-bearing text');
+  if (!text(plan.selectedAt) || !Number.isFinite(Date.parse(plan.selectedAt))) throw fail('invalid selection time');
   if (plan.buildId !== null && (typeof plan.buildId !== 'string' || !plan.buildId || plan.buildId.length > 256)) throw fail('invalid build identity');
   if (typeof plan.repoRoot !== 'string' || !path.isAbsolute(plan.repoRoot) || (plan.indexRoot !== null && (typeof plan.indexRoot !== 'string' || !path.isAbsolute(plan.indexRoot)))) throw fail('roots must be absolute');
   if (root && plan.repoRoot !== path.resolve(root)) throw fail('repository root mismatch');
   if (indexRoot && plan.indexRoot !== path.resolve(indexRoot)) throw fail('pinned index root mismatch');
   if (!Array.isArray(plan.modes) || !plan.modes.length || plan.modes.some(mode => !['code', 'prose', 'extracted-prose', 'records'].includes(mode))) throw fail('invalid modes');
   if (modes?.some(mode => !plan.modes.includes(mode))) throw fail('mode mismatch');
-  if (!plan.embeddings || !plan.options || !plan.resources || !plan.environment
-    || Object.keys(plan.options).some(key => !EMBEDDING_LAUNCH_OPTION_KEYS.includes(key))
-    || Object.keys(plan.environment).some(key => !ENV_KEYS.includes(key))) throw fail('unsupported handoff fields');
+  record(plan.options, EMBEDDING_LAUNCH_OPTION_KEYS, 'options');
+  for (const [key, value] of Object.entries(plan.options)) {
+    const check = key === 'model' ? text : ['scheduler', 'scheduler-low-resource', 'stub-embeddings'].includes(key) ? boolean : numeric;
+    if (!check(value)) throw fail(`invalid option ${key}`);
+  }
+  fields(plan.embeddings, {
+    concurrency: nullable(numeric), fileParallelism: nullable(numeric), maxBatchTokens: nullable(numeric),
+    binaryDenseVectors: nullable(boolean), sampleFiles: nullable(numeric), sampleSeed: nullable(text),
+    crossFileChunkDedupe: nullable(boolean), enabled: boolean, mode: value => ['off', 'inline', 'stub', 'service'].includes(value),
+    model: value => text(value) && value.length > 0, provider: value => ['onnx', 'xenova', 'embeddinggemma2'].includes(value),
+    normalize: boolean, quantization: isRecord, onnx: isRecord, embeddinggemma2: isRecord
+  }, 'embeddings');
+  fields(plan.embeddings.quantization, { minVal: numeric, maxVal: numeric, levels: numeric }, 'quantization');
+  equalProjection(plan.embeddings.quantization, resolveQuantizationParams(plan.embeddings.quantization), 'quantization');
+  // ONNX normalizers include current-process environment overrides. Validate the
+  // frozen output shape without applying those overrides a second time here.
+  fields(plan.embeddings.onnx, {
+    modelPath: text, tokenizerId: text, executionProviders: nullable(value => Array.isArray(value) && value.every(text)),
+    intraOpNumThreads: nullable(numeric), interOpNumThreads: nullable(numeric), graphOptimizationLevel: nullable(text),
+    cpuExecutionProviderTuning: boolean, tokenizationCacheEnabled: boolean, tokenizationCacheMaxEntries: numeric,
+    prewarmTokenizer: boolean, prewarmModel: boolean
+  }, 'onnx');
+  record(plan.embeddings.embeddinggemma2, ['revision', 'dtype', 'dimensions'], 'embeddinggemma2');
+  for (const [key, value] of Object.entries(plan.embeddings.embeddinggemma2)) {
+    if (!(key === 'dimensions' ? numeric(value) : text(value))) throw fail(`invalid embeddinggemma2.${key}`);
+  }
+  if (plan.options.model !== plan.embeddings.model) throw fail('model option mismatch');
+  if (!nullable(text)(plan.modelsDir) || plan.resourcePolicy !== 'pinned-request-host-admission-and-autotune-at-execution') throw fail('invalid resource policy or models directory');
+  fields(plan.resources, { threads: nullable(numeric), indexing: isRecord, scheduler: isRecord }, 'resources');
+  fields(plan.resources.indexing, { concurrency: nullable(numeric), importConcurrency: nullable(numeric),
+    ioConcurrencyCap: nullable(numeric), embeddingBatchSize: nullable(numeric) }, 'indexing resources');
+  equalProjection(plan.resources.scheduler, projectSchedulerRequestConfig(null, plan.resources.scheduler), 'scheduler');
+  record(plan.environment, ENV_KEYS, 'environment');
+  equalProjection(plan.environment, projectEnvironment(plan.environment), 'environment');
+  fields(plan.sources, { config: value => value === null || isRecord(value),
+    model: value => ['cli.model', 'config.indexing.embeddings.model', 'config.models.id', 'default'].includes(value),
+    intent: value => ['default', 'environment-off', 'configuration-off', 'policy-off', 'environment-stub', 'cli-stub',
+      'automatic-inline', 'configuration-mode', 'service-worker-inline', 'resolved-parent', 'resolved-runtime'].includes(value)
+  }, 'sources');
+  validateSourceFacts(plan.sources.config);
   return plan;
+};
+
+/** Reject unknown nested authority even when a caller recomputes the unkeyed digest. */
+export const validateEmbeddingExecutionPlan = (plan, selection) => {
+  try { return validatePlan(plan, selection); }
+  catch (error) {
+    if (error?.code === 'ERR_EMBEDDING_EXECUTION_PLAN') throw error;
+    throw fail('malformed handoff value');
+  }
 };
 
 export const buildEmbeddingLaunchArgs = (options = {}) => {
@@ -125,6 +225,7 @@ export const readEmbeddingExecutionPlan = (env, selection) => {
 };
 
 export const applyEmbeddingExecutionPlan = (plan, userConfig, rawEnv) => {
+  validateEmbeddingExecutionPlan(plan);
   const env = { ...rawEnv };
   for (const [key, value] of Object.entries(plan.environment)) {
     if (value === null) delete env[key];
