@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-11T22:37:03.057Z",
+  "generatedAt": "2026-10-12T03:18:50.205Z",
   "budgets": {
     "configKeys": 3,
     "envVars": 1,
@@ -3186,6 +3186,7 @@
         "tests/retrieval/filters/filter-core-contract-matrix.test.js",
         "tests/security/editor-tui-authority.test.js",
         "tests/services/api/trust-boundary-matrix.test.js",
+        "tests/shared/runtime/embedding-plan-allowlist.test.js",
         "tests/tooling/vscode/search-env-runtime.test.js",
         "tools/api/trust-boundary.js",
         "tools/config/inventory.js"
@@ -3278,9 +3279,15 @@
     {
       "name": "PAIROFCLEATS_CACHE_REBUILD",
       "files": [
+        "src/integrations/core/build-index/cache-rebuild.js",
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/integrations/core/cache-rebuild-api-intent.test.js",
+        "tests/integrations/core/cache-rebuild-owner.test.js",
         "tests/shared/cache/contract-matrix.test.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/tooling/config/dump-readonly-host.test.js",
+        "tests/tooling/config/runtime-diagnostics-readonly.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3304,6 +3311,7 @@
         "tests/indexing/scm/index-build-no.test.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/indexing/shards/shard-merge.test.js",
+        "tests/integrations/core/cache-rebuild-owner.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-resource-roots.test.js",
@@ -3327,6 +3335,8 @@
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
         "tests/storage/vector-extension/contract-matrix.test.js",
+        "tests/tooling/config/dump-readonly-host.test.js",
+        "tests/tooling/config/runtime-diagnostics-readonly.test.js",
         "tests/tooling/dict-utils/repo-current-case-insensitive.test.js",
         "tests/tooling/doctor/command-profile-contract-matrix.test.js",
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
@@ -3524,6 +3534,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "src/shared/error-codes.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",
@@ -3533,6 +3544,7 @@
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
+        "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
@@ -3559,6 +3571,7 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js"
@@ -3567,7 +3580,9 @@
     {
       "name": "PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/shared/runtime/embedding-plan-allowlist.test.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js"
       ]
@@ -3724,6 +3739,7 @@
       "files": [
         "src/shared/runtime-envelope/resolve.js",
         "tests/helpers/sqlite-incremental.js",
+        "tests/indexing/workers/worker-startup-heap-contract.test.js",
         "tests/perf/bench/run.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/shared/runtime/env-envelope-overrides.test.js",
@@ -3812,13 +3828,16 @@
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/shared/runtime/env-envelope-overrides.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tooling/config/runtime-diagnostics-readonly.test.js",
         "tools/config/inventory.js"
       ]
     },
     {
       "name": "PAIROFCLEATS_OBSERVABILITY_CONTEXT",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/observability.js",
+        "tests/integrations/core/embedding-plan-handoff.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3932,6 +3951,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tests/perf/indexing/runtime/scheduler-no-output-regression.test.js",
@@ -3943,6 +3963,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -3950,6 +3971,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -3957,8 +3979,10 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_CPU",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
+        "tests/shared/runtime/embedding-plan-allowlist.test.js",
         "tools/bench/ab-sweep.js",
         "tools/config/inventory.js"
       ]
@@ -3966,6 +3990,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_IO",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/bench/ab-sweep.js",
@@ -3975,6 +4000,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_LOW_RESOURCE",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -3982,6 +4008,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_CPU",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -3989,6 +4016,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_IO",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -3996,6 +4024,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MAX_MEM",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4003,6 +4032,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEM",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/bench/ab-sweep.js",
@@ -4012,6 +4042,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEMORY_PER_TOKEN_MB",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4019,6 +4050,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_MEMORY_RESERVE_MB",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4026,6 +4058,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_STARVATION_MS",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4033,6 +4066,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_TARGET_UTILIZATION",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4040,6 +4074,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_TARGET",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4047,6 +4082,7 @@
     {
       "name": "PAIROFCLEATS_SCHEDULER_UTILIZATION_ALERT_WINDOW_MS",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "tools/config/inventory.js"
       ]
@@ -4326,6 +4362,7 @@
         "tests/indexing/artifacts/chunk-meta-trim-strict.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
         "tests/indexing/contracts/golden-surface-suite.test.js",
+        "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/postings/helpers/vector-only-cleanup-fixture.js",
@@ -4336,6 +4373,7 @@
         "tests/services/mcp/mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tooling/config/source-metadata.test.js",
         "tests/tooling/fixtures/prewarm-languages.test.js",
         "tests/tooling/fixtures/prewarm-shared-indexes.test.js",
         "tests/tooling/fixtures/prewarm-type-filters.test.js",
@@ -4343,7 +4381,8 @@
         "tools/bench/index/scheduler-store-format.js",
         "tools/bench/language/logging.js",
         "tools/config/inventory.js",
-        "tools/release/verify-surface.js"
+        "tools/release/verify-surface.js",
+        "tools/service/indexer-service-helpers.js"
       ]
     },
     {
@@ -4608,6 +4647,7 @@
         "tools/config/inventory.js",
         "tools/release/check.js",
         "tools/release/verify-surface.js",
+        "tools/service/indexer-service-helpers.js",
         "tools/testing/shared-module-performance.js",
         "tools/tooling/utils.js"
       ]
@@ -4615,6 +4655,7 @@
     {
       "name": "PAIROFCLEATS_THREADS",
       "files": [
+        "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
         "src/shared/runtime-envelope/resolve.js",
         "src/shared/threads.js",
@@ -4623,11 +4664,13 @@
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/indexing/scm/no-build-id.test.js",
+        "tests/integrations/core/embedding-plan-handoff.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/run.test.js",
         "tests/run.js",
         "tests/security/repository-authority.test.js",
+        "tests/shared/runtime/embedding-plan-allowlist.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
@@ -4692,7 +4735,10 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
-        "tools/config/inventory.js"
+        "tests/tooling/config/source-metadata.test.js",
+        "tests/tooling/service/runtime-config-revalidation.test.js",
+        "tools/config/inventory.js",
+        "tools/service/indexer-service-helpers.js"
       ]
     },
     {
@@ -4709,8 +4755,10 @@
         "tests/security/zig-workspace-execution-authority.test.js",
         "tests/tooling/config/loader-schema-contract.test.js",
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse.test.js",
+        "tests/tooling/service/runtime-config-revalidation.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
-        "tools/config/inventory.js"
+        "tools/config/inventory.js",
+        "tools/service/indexer-service-helpers.js"
       ]
     },
     {
@@ -4998,7 +5046,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 491,
+    "totalFlags": 495,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5012,6 +5060,7 @@
       "cors-allow-any",
       "cors-allowed-origins",
       "dry-run",
+      "explain",
       "flow-id",
       "format",
       "hops",
@@ -5093,6 +5142,7 @@
       "artifactDir",
       "as-of",
       "astDataflowEnabled",
+      "attempt",
       "attested",
       "avg",
       "avgBytes",
@@ -5112,6 +5162,7 @@
       "bundle-dir",
       "cache-dir",
       "cache-root",
+      "capabilities",
       "caps",
       "capture-out-dir",
       "cargo-manifest-path",
@@ -5368,6 +5419,7 @@
       "recipe",
       "record",
       "recursive",
+      "redact-paths",
       "refresh",
       "refresh-json",
       "refs",
@@ -5753,6 +5805,13 @@
           "focus",
           "include",
           "onlyExported"
+        ]
+      },
+      {
+        "file": "src/shared/embedding-execution-plan.js",
+        "flags": [
+          "model",
+          "stub-embeddings"
         ]
       },
       {
@@ -6796,6 +6855,7 @@
       {
         "file": "tools/config/dump.js",
         "flags": [
+          "capabilities",
           "json",
           "repo"
         ]
@@ -7087,8 +7147,15 @@
         "file": "tools/index/report-artifacts.js",
         "flags": [
           "all",
+          "attempt",
+          "build",
+          "explain",
+          "index-root",
           "json",
-          "repo"
+          "mode",
+          "redact-paths",
+          "repo",
+          "runtime"
         ]
       },
       {
@@ -7771,7 +7838,7 @@
       },
       {
         "flag": "mode",
-        "count": 36,
+        "count": 37,
         "files": [
           "bin/pairofcleats.js",
           "src/lang/typescript/syntax-context.js",
@@ -7805,6 +7872,7 @@
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
           "tools/index/reconcile-identity.js",
+          "tools/index/report-artifacts.js",
           "tools/index/stats.js",
           "tools/index/validate.js",
           "tools/reports/combined-summary.js",
@@ -7978,6 +8046,20 @@
         ]
       },
       {
+        "flag": "index-root",
+        "count": 8,
+        "files": [
+          "tools/bench/query-generator.js",
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/index/reconcile-identity.js",
+          "tools/index/report-artifacts.js",
+          "tools/index/validate.js"
+        ]
+      },
+      {
         "flag": "input",
         "count": 8,
         "files": [
@@ -8033,19 +8115,6 @@
         ]
       },
       {
-        "flag": "index-root",
-        "count": 7,
-        "files": [
-          "tools/bench/query-generator.js",
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/tantivy-index.js",
-          "tools/index/reconcile-identity.js",
-          "tools/index/validate.js"
-        ]
-      },
-      {
         "flag": "request",
         "count": 7,
         "files": [
@@ -8068,6 +8137,19 @@
           "tools/index/reconcile-identity.js",
           "tools/index/validate.js",
           "tools/tooling/doctor.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "stub-embeddings",
+        "count": 7,
+        "files": [
+          "src/shared/embedding-execution-plan.js",
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/language/prerequisite-check.js",
+          "tools/bench/micro/run.js",
+          "tools/build/embeddings/cli.js",
+          "tools/triage/context-pack.js",
           "tools/triage/ingest.js"
         ]
       },
@@ -8132,18 +8214,6 @@
         ]
       },
       {
-        "flag": "stub-embeddings",
-        "count": 6,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/language/prerequisite-check.js",
-          "tools/bench/micro/run.js",
-          "tools/build/embeddings/cli.js",
-          "tools/triage/context-pack.js",
-          "tools/triage/ingest.js"
-        ]
-      },
-      {
         "flag": "ann",
         "count": 5,
         "files": [
@@ -8163,6 +8233,17 @@
           "tools/bench/micro/run.js",
           "tools/eval/run.js",
           "tools/reports/parity-matrix.js"
+        ]
+      },
+      {
+        "flag": "build",
+        "count": 5,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/micro/run.js",
+          "tools/index/report-artifacts.js",
+          "tools/reports/combined-summary.js",
+          "tools/tui/install.js"
         ]
       },
       {
@@ -8218,16 +8299,6 @@
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
-        ]
-      },
-      {
-        "flag": "build",
-        "count": 4,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/micro/run.js",
-          "tools/reports/combined-summary.js",
-          "tools/tui/install.js"
         ]
       },
       {
@@ -8508,6 +8579,15 @@
           "bin/pairofcleats.js",
           "src/integrations/tooling/suggest-tests.js",
           "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js"
+        ]
+      },
+      {
+        "flag": "model",
+        "count": 3,
+        "files": [
+          "src/shared/embedding-execution-plan.js",
+          "tools/build/embeddings/cli.js",
+          "tools/download/models.js"
         ]
       },
       {
@@ -8942,14 +9022,6 @@
         ]
       },
       {
-        "flag": "model",
-        "count": 2,
-        "files": [
-          "tools/build/embeddings/cli.js",
-          "tools/download/models.js"
-        ]
-      },
-      {
         "flag": "models",
         "count": 2,
         "files": [
@@ -9107,6 +9179,14 @@
         "files": [
           "bin/pairofcleats.js",
           "tools/analysis/structural-search.js"
+        ]
+      },
+      {
+        "flag": "runtime",
+        "count": 2,
+        "files": [
+          "src/storage/sqlite/build/runner/build.js",
+          "tools/index/report-artifacts.js"
         ]
       },
       {
