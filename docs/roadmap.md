@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-07
+Last audited: 2026-10-12
 Canonical for: initiative status, execution order, and remaining work
 
 Main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542) passed
@@ -20,8 +20,10 @@ are bounded claims; release-wide acceptance requires its own current evidence.
 
 PR547–555 are consolidated into main at `11f1556c8`.
 [Integration/backlog receipt](archived/runtime-search-consolidation-2026-10-12.md)
-records exact-tree checks. Runtime diagnostics and structured search improvements
-continue separately; corpus/platform acceptance remains open.
+records exact-tree checks. [Runtime/search repairs](archived/runtime-search-repairs-2026-10-12.md)
+add attempt evidence, queryless pagination and safe terminal excerpts. Conflicting
+parent heap flags currently select inline tokenization/quantization; isolated-process
+parallelism and corpus/platform qualification remain open.
 [Detailed implementation and receipts](archived/semantic-campaign-checkpoint-2026-10-10.md)
 preserve earlier checkpoints; [semantic guide](guides/semantic-index.md) describes the surface.
 
