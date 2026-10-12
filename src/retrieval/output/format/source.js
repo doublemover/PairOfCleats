@@ -18,7 +18,8 @@ export function sanitizeTerminalMetadata(value, seen = new WeakMap(), depth = 0)
   if (typeof value === 'string') return sanitizeTerminalText(value, { multiline: false });
   if (!value || typeof value !== 'object' || depth > 32) return value;
   if (seen.has(value)) return seen.get(value);
-  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype) return value;
+  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype
+    && Object.getPrototypeOf(value) !== null) return value;
   const result = Array.isArray(value) ? [] : {};
   seen.set(value, result);
   for (const [key, entry] of Object.entries(value)) {
@@ -54,7 +55,9 @@ export function readSourcePreview(rootDir, chunk, { maxLines = 8, maxChars = 160
     if (!raw.trim()) return null;
     const rawLines = raw.replace(/\r\n?/g, '\n').split('\n');
     const lines = rawLines.slice(0, maxLines).map((line) => sanitizeTerminalText(line));
-    return { lines, startLine: Number.isSafeInteger(chunk.startLine) ? chunk.startLine : 1,
+    const startLine = Number.isSafeInteger(chunk.startLine) && chunk.startLine > 0
+      ? chunk.startLine : text.slice(0, chunk.start).split(/\r\n|\r|\n/).length;
+    return { lines, startLine,
       truncated: rawLines.length > maxLines || chunk.end - chunk.start > maxChars };
   } catch {
     return null;

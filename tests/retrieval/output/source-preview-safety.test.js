@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readSourcePreview, highlightSourceLine, formatSourcePreview, sanitizeTerminalText } from '../../../src/retrieval/output/format/source.js';
+import { readSourcePreview, highlightSourceLine, formatSourcePreview, sanitizeTerminalText, sanitizeTerminalMetadata } from '../../../src/retrieval/output/format/source.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 import { renderSearchOutput } from '../../../src/retrieval/cli/render.js';
 import { createSearchOutputOptions, createSearchOutputHitState, captureSearchOutputStdout } from '../helpers/search-output-fixture.js';
@@ -19,6 +19,8 @@ try {
     kind: 'FunctionDeclaration', docmeta: { returns: 'boolean', signature: 'ready(): boolean' }, score: 0, scoreType: 'filter' };
   const preview = readSourcePreview(repo, hit);
   assert.equal(preview.lines[1], '  return true; // ready');
+  const later = readSourcePreview(repo, { ...hit, start: source.indexOf('  return'), startLine: undefined });
+  assert.equal(later.startLine, 2, 'missing index line numbers are derived from the bounded source');
   assert.match(formatSourcePreview(preview, { styled: true }), /\x1b\[/);
   assert.match(formatSourcePreview(preview, { styled: false }), /1 \| export function ready/);
   assert.match(highlightSourceLine('return true;'), /\x1b\[38;5;129mreturn/);
@@ -33,6 +35,8 @@ try {
   assert.equal(readSourcePreview(repo, { ...hit, end: Infinity }), null);
   const malicious = '\x1b[2J\x1b]52;c;Y29weQ==\x07unsafe\x1b[31m\u202e\x00';
   assert.doesNotMatch(sanitizeTerminalText(malicious), /[\x1b\x00\u202e]/);
+  const dictionary = Object.assign(Object.create(null), { signature: malicious });
+  assert.doesNotMatch(sanitizeTerminalMetadata(dictionary).signature, /[\x1b\x00\u202e]/);
   const ttyDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
   const render = async ({ tty = true, plain = false, noColor = null } = {}) => {
     Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: tty });
