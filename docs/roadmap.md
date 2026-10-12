@@ -24,6 +24,7 @@ records exact-tree checks. [Runtime/search repairs](archived/runtime-search-repa
 add attempt evidence, queryless pagination and safe terminal excerpts. Conflicting
 parent heap flags currently select inline tokenization/quantization; isolated-process
 parallelism and corpus/platform qualification remain open.
+[Windows recovery](archived/runtime-search-local-recovery-2026-10-12.md): one native test fails.
 [Detailed implementation and receipts](archived/semantic-campaign-checkpoint-2026-10-10.md)
 preserve earlier checkpoints; [semantic guide](guides/semantic-index.md) describes the surface.
 

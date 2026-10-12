@@ -61,7 +61,7 @@ try {
   assert.equal(blocked.state, 'inaccessible');
   const notDirectory = await observeRuntimePath(dir, { io: { stat: async () => { throw Object.assign(new Error('bad path'), { code: 'ENOTDIR' }); } } });
   assert.equal(notDirectory.state, 'unknown');
-  await fs.symlink(dir, path.join(dir, 'redirect'));
+  await fs.symlink(dir, path.join(dir, 'redirect'), process.platform === 'win32' ? 'junction' : 'dir');
   const redirected = await observeRuntimePath(path.join(dir, 'redirect', 'missing'));
   assert.equal(redirected.state, 'missing');
   assert.equal(redirected.canonical, path.join(dir, 'missing'));
