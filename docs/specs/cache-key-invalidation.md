@@ -101,8 +101,9 @@ Host-supplied or resolver-supplied caches remain under their original ownership.
 
 ## Cache clear/rebuild behavior
 
-- `PAIROFCLEATS_CACHE_REBUILD=1` forces versioned cache root rebuild.
-- `build-index --cache-rebuild` enables full rebuild.
+- `PAIROFCLEATS_CACHE_REBUILD=1` and `build-index --cache-rebuild` request a rebuild of the selected repository cache. The build owner consumes this intent once under the repository index lock, preserves lock metadata and other repositories, and does not forward it to children.
+- Path getters and diagnostic commands are read-only even when rebuild intent is inherited. Explicit global cache clearing remains the `cache clear` command's responsibility.
+- Rebuild cannot be combined with a pinned `--index-root` or a stage3/stage4-only invocation, which depend on existing artifacts.
 - `pairofcleats cache clear` removes active versioned cache root.
 
 ## Logging and observability

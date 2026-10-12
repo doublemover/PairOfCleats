@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { consumeBuildCacheRebuild, rebuildRepoCache } from './cache-rebuild.js';
 import path from 'node:path';
 import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
@@ -85,13 +86,14 @@ export async function buildIndex(repoRoot, options = {}) {
   const defaults = parseBuildArgs([]).argv;
   const baseArgv = { ...defaults, ...options, repo: root };
   const explicitStage = normalizeStage(baseArgv.stage);
-  const argv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
+  const parsedArgv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
+  const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: options.rawArgv || buildRawArgs(options) });
+  const { argv, rawArgv } = rebuild;
   const mode = argv.mode || 'all';
   const requestedModes = Array.isArray(options.modes) && options.modes.length ? options.modes : null;
   const modes = requestedModes || (mode === 'all'
     ? ['code', 'prose', 'extracted-prose', 'records']
     : [mode]);
-  const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
   const warn = typeof options.warn === 'function'
@@ -120,6 +122,9 @@ export async function buildIndex(repoRoot, options = {}) {
 
   throwIfAborted(abortSignal);
   const userConfig = loadUserConfig(root);
+  if (rebuild.requested) {
+    await rebuildRepoCache({ root, userConfig, argv, log, abortSignal });
+  }
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log });
