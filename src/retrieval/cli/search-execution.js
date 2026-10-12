@@ -11,6 +11,9 @@ import { runSearchSession } from './run-search-session.js';
  */
 export async function executeSearchAndEmit(input) {
   const {
+    filterOnly = false,
+    filterCursor = null,
+    plain = false,
     t0,
     emitOutput,
     jsonOutput,
@@ -125,6 +128,8 @@ export async function executeSearchAndEmit(input) {
 
   const searchStart = stageTracker.mark();
   const searchResult = await runSearchSession({
+    filterOnly,
+    filterCursor,
     rootDir,
     userConfig,
     metricsDir,
@@ -250,6 +255,8 @@ export async function executeSearchAndEmit(input) {
   const elapsedMs = Date.now() - t0;
 
   const payload = renderSearchOutput({
+    filterEnumeration: searchResult.filterEnumeration,
+    plain,
     emitOutput,
     jsonOutput,
     jsonCompact,

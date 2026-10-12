@@ -35,6 +35,12 @@ Filter ordering and top semantics:
 
 Filters are ANDed together unless explicitly documented otherwise.
 
+## Filter-only search
+
+Without query text, at least one structured filter is required. The pipeline enumerates eligible indexed chunks in stable indexed order, independently of sparse/ANN candidates, relevance, and context expansion. Pagination uses per-mode offsets bound to the exact filter and generation signature. Every indexed match is reachable by following `pagination.nextCursor`; the metadata reports total matches and continuation separately. See [Search CLI](search-cli.md#filter-only-enumeration) for coverage and type-expression identity semantics.
+
+Return-type filters are exact and case-sensitive at the recorded type-expression token level. Compiler/tooling return facts take precedence over declared fallbacks; substring matches and heuristic guesses cannot satisfy them. Symbolic display labels are presentation only. This contract does not equate a declared type with a proven runtime value or promise universal alias/structural equivalence.
+
 ## Multi-mode fusion
 
 Search supports code, prose, records, and mixed modes. Mixed-mode results are

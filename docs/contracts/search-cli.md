@@ -10,13 +10,16 @@ This document defines the CLI interface and output contract for **search**.
 ## Inputs
 
 ### Required
-- Query string: last positional argument, e.g.
+- A query string, or at least one nonempty structured filter with no query text, e.g.
   - `search.js "how does risk explain work"`
+  - `search.js --mode code --return-type boolean --top 20 --json`
 
 ### Common flags
 - `--repo <path>`: repo root (defaults to current directory)
 - `--mode code|prose|extracted-prose|records|both|all`: search mode
-- `--top <n>` (alias: `-n`, `--n`): number of results
+- `--top <n>` (alias: `-n`, `--n`): results per mode; page size for filter-only enumeration
+- `--cursor <nextCursor>`: continue filter-only enumeration with the same filters, modes and indexed generation
+- `--plain`: readable output without ANSI styles or hyperlinks
 - `--top-per-repo <n>`: cap hits per repo in federated mode
 - `--json`: emit JSON output
 - `--compact`: compact JSON output
@@ -84,7 +87,7 @@ Tokens without a key are treated as file/path filters. Unknown keys are rejected
 ## Outputs
 
 ### Text mode
-Human readable results (ranked list). Exact formatting may evolve.
+Human readable results (ranked list, or indexed-order filter enumeration). Code entries include bounded, line-numbered working-tree excerpts when the source is available within the repo. Excerpts use lightweight lexical highlighting in a TTY. Non-TTY output, `NO_COLOR` (including an empty value), `TERM=dumb`, and `--plain` disable styles and hyperlinks. Repository-controlled escape sequences and bidi controls are sanitized before terminal display. Exact formatting may evolve.
 
 ### JSON mode
 For a successful single-repository search, the CLI emits:
@@ -92,6 +95,7 @@ For a successful single-repository search, the CLI emits:
 - `code`, `prose`, `extractedProse`, `records`: ranked hit arrays (including empty arrays)
 - `bundles`: deterministic groups of related hits
 - `retrieval`: backend selection, index freshness and cache metadata
+- `pagination`: present for filter-only searches, with exact indexed match `total`, page `returned`, `hasMore`, `nextCursor`, and per-mode counts/offsets
 - `stats`: added with `--stats` or `--explain`; explain data includes per-hit score breakdowns
 
 `--compact` selects a smaller hit projection; without it, JSON output still strips
@@ -166,3 +170,13 @@ Context expansion is config-driven (no CLI flags). When enabled via `retrieval.c
 ## Notes on the `pairofcleats` wrapper
 
 `bin/pairofcleats.js` must not enforce a stale flag allowlist for `search`. The wrapper MUST accept all documented search flags and delegate parsing/validation to `search.js`.
+
+## Filter-only enumeration
+
+Omit positional query text and provide filters to enumerate all matching indexed chunks. No ANN, embeddings, sparse relevance cutoff, graph reranking, or context expansion participates. Results have `scoreType: "filter"`, `score: 0`, and `rankMethod: "indexed-order"`. `--top` bounds each mode's page; it does not truncate the matching set.
+
+Repeat the same command with `--cursor <pagination.nextCursor>` until `hasMore` is false. One cursor carries independent offsets for every selected mode, including already exhausted modes. It binds the normalized filters, modes, backend/index signature, and indexed generation; changed filters or generation are errors. Relative modification dates retain the first page's cutoff. Output-budget truncation advances only over emitted hits; a budget that cannot fit any result fails explicitly. Query text with `--cursor` is rejected. Workspace/federated enumeration is not supported; use `--repo`.
+
+Coverage is explicitly `indexed-metadata`: all matches in the loaded index are reachable, but missing facts do not become matches. This does not assert whole-program compiler completeness. `--return-type` uses exact case-sensitive type-expression tokens (ignoring inter-token whitespace). It excludes containing types such as `Promise<boolean>`, `boolean[]`, `boolean | string`, and nominal lookalikes from a `boolean` query. Recorded tooling facts take precedence over declaration fallbacks; heuristic inferred returns and symbolic display labels are not promoted to compiler facts. `filterEvidence.returnType` preserves the matching fact source. Alias expansion, assignability, union reordering, and structural type equivalence are not performed.
+
+`--type ClassDeclaration` selects indexed chunk kinds. `--extends Base` matches a recorded parent name exactly; `--calls target` matches the recorded callee, not the caller's own name. Relations are available only to the extent recorded by the language/tooling providers, and these name predicates do not resolve overloads or ambiguous cross-file symbol identities.

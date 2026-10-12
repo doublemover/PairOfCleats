@@ -18,6 +18,7 @@ export function compactHit(hit, includeExplain = false) {
     'sourceScore',
     'sourceScoreType',
     'rankMethod',
+    'filterEvidence',
     'reranker',
     'file',
     'start',

@@ -1,7 +1,7 @@
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
-import { getSearchHelp, getSearchUsage, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
+import { getSearchHelp, getSearchUsage, hasSearchFilterArgs, parseSearchArgs, resolveSearchMode, SEARCH_VALUE_FLAGS } from '../cli-args.js';
 import { formatHumanError, inferJsonOutputFromArgs } from './runner.js';
 
 const resolveHelpWidth = (stdout = process.stdout) => {
@@ -30,7 +30,7 @@ const wrapParagraph = (text, width, indent = '') => {
   return lines;
 };
 
-const isColorAllowed = (stream = process.stdout) => Boolean(stream?.isTTY);
+const isColorAllowed = (stream = process.stdout) => Boolean(stream?.isTTY) && !Object.hasOwn(process.env, 'NO_COLOR') && process.env.TERM !== 'dumb';
 const heading = (text, color = true) => color ? `${ANSI.bold}${text}${ANSI.reset}` : text;
 const dim = (text, color = true) => color ? `${ANSI.fgDarkGray}${text}${ANSI.reset}` : text;
 const cyan = (text, color = true) => color ? `${ANSI.fgCyan}${text}${ANSI.reset}` : text;
@@ -97,7 +97,7 @@ export async function runCli({
   const query = Array.isArray(argv?._)
     ? argv._.map((value) => String(value || '').trim()).filter(Boolean).join(' ').trim()
     : '';
-  if (!query) {
+  if (!query && !hasSearchFilterArgs(argv)) {
     emitCliError({
       stdout,
       jsonOutput,
@@ -151,9 +151,9 @@ export function printHelp(stdout = process.stdout, { full = false, json = false 
     dim('Search code, prose, extracted comments, and records from a built PairOfCleats index.', color),
     '',
     heading('Usage', color),
-    '  Usage: search <query> [options]',
-    '  pairofcleats search <query> [options]',
-    '  search <query> [options]',
+    '  Usage: search [query] [options]',
+    '  pairofcleats search [query] [options]',
+    '  search [query] [options]',
     '',
     heading('Modes', color),
     ...formatFlagList([
@@ -172,12 +172,15 @@ export function printHelp(stdout = process.stdout, { full = false, json = false 
     heading('Output', color),
     ...formatFlagList([
       '--json / --compact  Emit machine-readable payloads.',
+      '--cursor <nextCursor>  Continue filter-only enumeration with the same filters.',
+      '--plain  Disable styling and hyperlinks.',
       '--stats / --explain  Show retrieval metadata or summary ranking explanation.',
       '--why  Show full explain detail, including deeper relation and dataflow sections.',
       '--ann / --no-ann / --backend <auto|sqlite|sqlite-fts|fts|lmdb|tantivy|memory>'
     ], width),
     '',
     heading('Starter Recipes', color),
+    '  pairofcleats search --return-type boolean --mode code --json',
     '  pairofcleats search parseSearchArgs --mode code',
     '  pairofcleats search "Search Pipeline" --mode prose',
     '  pairofcleats search withLspSession --calls startProvider',

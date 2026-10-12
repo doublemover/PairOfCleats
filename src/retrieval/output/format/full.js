@@ -1,3 +1,4 @@
+import { sanitizeTerminalMetadata, sanitizeTerminalText, readSourcePreview, formatSourcePreview } from './source.js';
 import { collectDeclaredReturnTypes } from '../../../index/metadata/docmeta.js';
 import { formatScoreBreakdown } from '../explain.js';
 import { getBodySummary } from '../summary.js';
@@ -129,7 +130,9 @@ export function formatFullChunk({
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
-  const canCache = !_skipCache && !explain && (!summaryState || !allowSummary);
+  const sourcePreview = mode === 'code' ? readSourcePreview(rootDir, chunk) : null;
+  chunk = sanitizeTerminalMetadata(chunk);
+  const canCache = !sourcePreview && !_skipCache && !explain && (!summaryState || !allowSummary);
   const { formatCache, cacheKey, cached } = resolveFormatCache({
     canCache,
     getFormatCache: getFormatFullCache,
@@ -314,6 +317,8 @@ export function formatFullChunk({
   } else if (summaryBits.length) {
     out += `${INDENT}${summaryBits.join(' ')}\n`;
   }
+
+  if (sourcePreview) out += formatSourcePreview(sourcePreview, { styled: layout?.styled !== false, columns });
 
   const backgroundSections = [];
   const pushBackgroundSection = (lines, bg) => {
@@ -606,7 +611,7 @@ export function formatFullChunk({
       let maxWords = 10;
       const lessPer = 3;
       maxWords -= (lessPer * index);
-      const bodySummary = getBodySummary(rootDir, chunk, maxWords);
+      const bodySummary = sanitizeTerminalText(getBodySummary(rootDir, chunk, maxWords));
       const summaryWords = bodySummary.split(/\s+/).filter(Boolean).length;
       if (summaryState.lastCount < maxWords) {
         maxWords = summaryWords;

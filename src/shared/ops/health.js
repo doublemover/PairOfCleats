@@ -92,6 +92,7 @@ export const runIndexingHealthChecks = ({
  */
 export const runRetrievalHealthChecks = ({
   query,
+  filterOnly = false,
   runCode,
   runProse,
   runExtractedProse,
@@ -100,11 +101,11 @@ export const runRetrievalHealthChecks = ({
 } = {}) => {
   const checks = [];
   checks.push(makeCheck({
-    ok: Boolean(toText(query)),
+    ok: Boolean(toText(query)) || filterOnly === true,
     code: HEALTH_CHECK_CODES.RETRIEVAL_QUERY_EMPTY,
     component: 'retrieval',
-    reason: 'Search query is empty.',
-    nextAction: 'Provide a non-empty query string.'
+    reason: 'Search query is empty and no filter enumeration was requested.',
+    nextAction: 'Provide a non-empty query string or a structured filter.'
   }));
   checks.push(makeCheck({
     ok: Boolean(runCode || runProse || runExtractedProse || runRecords),

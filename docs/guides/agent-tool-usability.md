@@ -10,7 +10,7 @@ Versioned help and private-reader presentation make discovery, continuation and 
 
 Sparse code search has implicit AND; ANN free text expresses semantic intent. Explicit Boolean operators and filters constrain both. Private history uses Unicode words, required quoted phrases and -word exclusions. Its lexical match knob selects strict AND, relaxed OR, or auto: one relaxed pass only after a complete zero-match strict result under identical filters. An empty later page never broadens the query. OR in private-history text is an ordinary word.
 
-Code search supports top-k, not offset pagination. Keep scope and filters fixed when increasing top. Use `context-pack --repo . --seed file:src/index.js --hops 1` for related code. Code modification dates differ from history message dates.
+Ranked text search supports top-k. To enumerate every indexed structural match, omit query text and use filters such as `--return-type boolean --mode code --json`. Follow `pagination.nextCursor` using `--cursor` with the same filters until `hasMore` is false. The cursor rejects a changed indexed generation. Use `context-pack --repo . --seed file:src/index.js --hops 1` for related code. Code modification dates differ from history message dates.
 
 ## Trusted-host private reader
 

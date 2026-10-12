@@ -1,3 +1,5 @@
+import { sanitizeTerminalText } from '../output/format/source.js';
+import { buildFilterPagination } from '../pipeline/filter-enumeration.js';
 import { compactHit } from './render-output.js';
 import {
   buildResultBundles,
@@ -279,6 +281,8 @@ const sectionModeLabel = (mode) => {
  * @returns {object}
  */
 export function renderSearchOutput({
+  filterEnumeration = null,
+  plain = false,
   emitOutput,
   jsonOutput,
   jsonCompact,
@@ -530,8 +534,15 @@ export function renderSearchOutput({
 
   applyJsonDiagnosticNormalization(payload, profileInfo);
 
+  if (filterEnumeration) payload.pagination = buildFilterPagination(filterEnumeration, payload);
   const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);
   const outputPayload = applyOutputBudgetPolicy(payload, budgetPolicy);
+  if (filterEnumeration) {
+    outputPayload.pagination = buildFilterPagination(filterEnumeration, outputPayload);
+    if (budgetPolicy.totalMaxBytes && Buffer.byteLength(JSON.stringify(outputPayload)) > budgetPolicy.totalMaxBytes) {
+      throw new RangeError('Output budget cannot retain filter pagination metadata. Increase --output-bytes.');
+    }
+  }
 
   if (emitOutput && jsonOutput) {
     const totalHits = outputPayload.prose.length
@@ -573,6 +584,7 @@ export function renderSearchOutput({
         out.write(',\"stats\":');
         out.write(JSON.stringify(outputPayload.stats));
       }
+      if (outputPayload.pagination) { out.write(',"pagination":'); out.write(JSON.stringify(outputPayload.pagination)); }
       if (outputPayload.outputBudget) { out.write(',\"outputBudget\":'); out.write(JSON.stringify(outputPayload.outputBudget)); }
       out.write('}\n');
     } else {
@@ -581,8 +593,14 @@ export function renderSearchOutput({
   }
 
   if (emitOutput && !jsonOutput) {
-    const outputStream = process.stdout;
-    const layout = resolveHumanLayout(outputStream);
+    const visibleCode = filterEnumeration ? outputPayload.code : codeHitsFinal;
+    const visibleProse = filterEnumeration ? outputPayload.prose : proseHitsFinal;
+    const visibleExtracted = filterEnumeration ? outputPayload.extractedProse : extractedProseHitsFinal;
+    const visibleRecords = filterEnumeration ? outputPayload.records : recordHitsFinal;
+    const styled = !plain && process.stdout.isTTY === true && !Object.hasOwn(process.env, 'NO_COLOR') && process.env.TERM !== 'dumb';
+    const outputStream = styled ? process.stdout : { write: (text) => process.stdout.write(stripAnsi(text)) };
+    if (!styled) hyperlinkMode = 'off';
+    const layout = { ...resolveHumanLayout(process.stdout), styled };
     let showProse = runProse ? topN : 0;
     let showExtractedProse = runExtractedProse ? topN : 0;
     let showCode = runCode ? topN : 0;
@@ -610,17 +628,17 @@ export function renderSearchOutput({
       runRecords,
       explain,
       backendLabel,
-      codeHits: codeHitsFinal.slice(0, showCode),
-      extractedProseHits: extractedProseHitsFinal.slice(0, showExtractedProse),
-      proseHits: proseHitsFinal.slice(0, showProse),
-      recordHits: recordHitsFinal.slice(0, showRecords)
+      codeHits: visibleCode.slice(0, showCode),
+      extractedProseHits: visibleExtracted.slice(0, showExtractedProse),
+      proseHits: visibleProse.slice(0, showProse),
+      recordHits: visibleRecords.slice(0, showRecords)
     });
 
     const countSummary = formatCountSummary([
-      { label: 'code', count: codeHitsFinal.length },
-      { label: 'comments', count: extractedProseHitsFinal.length },
-      { label: 'text', count: proseHitsFinal.length },
-      { label: 'records', count: recordHitsFinal.length }
+      { label: 'code', count: visibleCode.length },
+      { label: 'comments', count: visibleExtracted.length },
+      { label: 'text', count: visibleProse.length },
+      { label: 'records', count: visibleRecords.length }
     ], color);
     writeLine(
       outputStream,
@@ -631,8 +649,8 @@ export function renderSearchOutput({
       )
     );
     const queryLabel = typeof rawQuery === 'string' && rawQuery.trim()
-      ? rawQuery.trim()
-      : queryTokens.join(' ');
+      ? sanitizeTerminalText(rawQuery.trim(), { multiline: false })
+      : sanitizeTerminalText(queryTokens.join(' '), { multiline: false });
     if (queryLabel) {
       writeLine(outputStream, `${colorText('query', ANSI.fgDarkGray)} ${color.bold(queryLabel)}`);
     }
@@ -658,6 +676,12 @@ export function renderSearchOutput({
         outputStream,
         `${colorText('as-of', ANSI.fgDarkGray)} ${asOfContext.ref || 'latest'} ${colorText(`(${shortHash})`, ANSI.fgDarkGray)}`
       );
+    }
+    if (outputPayload.pagination) {
+      const page = outputPayload.pagination;
+      writeLine(outputStream, `filter matches ${page.returned} on this page / ${page.total} total indexed matches`);
+      writeLine(outputStream, 'order indexed chunks; missing compiler facts are excluded');
+      if (page.nextCursor) writeLine(outputStream, `next --cursor ${page.nextCursor}`);
     }
     writeLine(outputStream, makeRule(layout.columns));
     writeLine(outputStream);
@@ -735,7 +759,9 @@ export function renderSearchOutput({
       writeLine(outputStream, color.gray(`Stats: ${statsParts.join(', ')}`));
     }
 
-    const diagnostics = normalizeDiagnosticEntries(profileInfo);
+    const diagnostics = normalizeDiagnosticEntries(profileInfo).map((entry) => Object.fromEntries(
+      Object.entries(entry).map(([key, value]) => [key, typeof value === 'string' ? sanitizeTerminalText(value, { multiline: false }) : value])
+    ));
     if (diagnostics.length) {
       writeLine(outputStream, makeSectionHeader({
         label: 'Diagnostics',

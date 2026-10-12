@@ -45,7 +45,7 @@ export const resolveFormatCache = ({
 }) => {
   const formatCache = canCache ? getFormatCache() : null;
   const queryHash = canCache ? buildQueryHash(queryTokens, rx) : '';
-  const layoutSignature = `${layout?.cacheKey || ''}|links:${hyperlinkMode || 'auto'}`;
+  const layoutSignature = `${layout?.cacheKey || ''}|links:${hyperlinkMode || 'auto'}|styled:${layout?.styled !== false}`;
   let cacheKey = null;
   if (canCache && formatCache) {
     cacheKey = buildFormatCacheKey({ chunk, index, mode, queryHash, matched, explain, layoutSignature });

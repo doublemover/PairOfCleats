@@ -1,3 +1,5 @@
+import { compileFilterPredicates } from '../output/filters.js';
+import { createFilterEnumeration } from '../pipeline/filter-enumeration.js';
 import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
@@ -329,6 +331,8 @@ async function persistSessionQueryCache({
  * @returns {Promise<object>}
  */
 export async function runSearchSession({
+  filterOnly = false,
+  filterCursor = null,
   rootDir,
   userConfig,
   metricsDir,
@@ -433,6 +437,21 @@ export async function runSearchSession({
   signal,
   stageTracker
 }) {
+  const filterEnumeration = filterOnly ? createFilterEnumeration({
+    cursor: filterCursor,
+    filters: cacheFilters,
+    modes: [runCode && 'code', runProse && 'prose', runExtractedProse && 'extracted-prose', runRecords && 'records'].filter(Boolean),
+    generation: indexSignaturePayload || { asOfContext, indexDirByMode }
+  }) : null;
+  if (filterEnumeration?.modifiedAfter != null) {
+    filters = { ...filters, modifiedAfter: filterEnumeration.modifiedAfter };
+    filterPredicates = compileFilterPredicates(filters);
+  }
+  if (filterOnly) {
+    queryCacheEnabled = false;
+    annActive = false;
+    contextExpansionEnabled = false;
+  }
   const resolvedDenseMode = normalizeDenseVectorMode(resolvedDenseVectorMode, 'merged');
   enforceSqliteAnnDenseModeCompatibility({
     resolvedDenseMode,
@@ -469,6 +488,7 @@ export async function runSearchSession({
     substringMode: intentInfo?.type === 'path'
   };
   const searchPipeline = createSearchPipeline({
+    filterEnumeration,
     useSqlite,
     sqliteFtsRequested,
     sqliteFtsRoutingByMode: sqliteFtsRouting,
@@ -749,6 +769,7 @@ export async function runSearchSession({
   }));
 
   return {
+    filterEnumeration,
     proseHits,
     extractedProseHits,
     codeHits,
