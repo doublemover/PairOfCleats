@@ -75,9 +75,45 @@ const setCachedValue = (cache, key, value, maxSize) => {
   }
 };
 
-const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1') => (
-  readVerifiedContainedFileSync(repoRoot, filePath, { maxBytes: 64 * 1024 * 1024, hashAlgorithm })
-);
+const SOURCE_SNAPSHOT_BYTE_CAP = 64 * 1024 * 1024;
+const sourceContexts = new WeakMap();
+
+/** One assembly owns a bounded point-in-time source view; later requests reverify. */
+export const createExcerptSourceContext = ({ maxBytes = SOURCE_SNAPSHOT_BYTE_CAP } = {}) => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > SOURCE_SNAPSHOT_BYTE_CAP) {
+    throw new TypeError('Invalid excerpt source snapshot allowance.');
+  }
+  const state = { entries: new Map(), bytes: 0, maxBytes, active: true };
+  const context = Object.freeze({ clear() {
+    state.entries.clear(); state.bytes = 0; state.active = false;
+  } });
+  sourceContexts.set(context, state);
+  return context;
+};
+
+const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceContext = null) => {
+  const state = sourceContexts.get(sourceContext);
+  if (state && !state.active) throw new Error('Excerpt source context has ended.');
+  const key = JSON.stringify([path.resolve(repoRoot), path.resolve(filePath), hashAlgorithm]);
+  const cached = state?.entries.get(key);
+  if (cached) {
+    state.entries.delete(key); state.entries.set(key, cached);
+    return cached;
+  }
+  const snapshot = readVerifiedContainedFileSync(repoRoot, filePath, {
+    maxBytes: SOURCE_SNAPSHOT_BYTE_CAP, hashAlgorithm
+  });
+  if (state && snapshot.buffer.length <= state.maxBytes) {
+    while (state.entries.size && (state.bytes + snapshot.buffer.length > state.maxBytes
+      || state.entries.size >= FILE_RANGE_CACHE_MAX)) {
+      const oldest = state.entries.keys().next().value;
+      state.bytes -= state.entries.get(oldest).buffer.length;
+      state.entries.delete(oldest);
+    }
+    state.entries.set(key, snapshot); state.bytes += snapshot.buffer.length;
+  }
+  return snapshot;
+};
 const rangeKey = (filePath, cacheScope, start, end) => `${filePath}|${cacheScope}|${start}|${end}`;
 const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
   const key = rangeKey(filePath, cacheScope, start, end);
@@ -90,7 +126,7 @@ const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
 };
 
 /** Prefetch and direct reads use identical live content identities, never generation alone. */
-export const prefetchFileRanges = (ranges, indexSignature, repoRoot = null) => {
+export const prefetchFileRanges = (ranges, indexSignature, repoRoot = null, sourceContext = null) => {
   if (!repoRoot || !Array.isArray(ranges)) return;
   const byFile = new Map();
   for (const range of ranges) {
@@ -101,7 +137,7 @@ export const prefetchFileRanges = (ranges, indexSignature, repoRoot = null) => {
   }
   for (const [filePath, group] of byFile) {
     try {
-      const snapshot = readSourceSnapshot(filePath, repoRoot);
+      const snapshot = readSourceSnapshot(filePath, repoRoot, 'sha1', sourceContext);
       const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
       for (const range of group) readSnapshotRange(snapshot, filePath, range.start, range.end, cacheScope);
     } catch {
@@ -151,9 +187,10 @@ export const resolveExcerpt = ({
   maxTokens,
   indexSignature = null,
   indexedHash = null,
-  hashAlgorithm = 'sha1'
+  hashAlgorithm = 'sha1',
+  sourceContext = null
 }) => {
-  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm);
+  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm, sourceContext);
   const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
   const expectedHash = typeof indexedHash === 'string'
     ? indexedHash.replace(new RegExp(`^${hashAlgorithm}:`), '').toLowerCase() : null;

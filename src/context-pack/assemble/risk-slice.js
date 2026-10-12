@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { normalizeRiskSummary, summarizeRiskStats } from '../../shared/risk-explain-summary.js';
 import { observeRiskPackMetrics } from '../../shared/metrics/core.js';
 import { createTruncationRecorder } from '../../shared/truncation.js';
@@ -17,7 +16,7 @@ import {
   resolveArtifactPresence
 } from '../../shared/artifact-io/manifest.js';
 import { resolveChunkCandidatesBySeed } from '../seed-resolution.js';
-import { prefetchFileRanges } from '../excerpt-cache.js';
+import { createExcerptSourceContext } from '../excerpt-cache.js';
 import {
   rankPartialRiskFlows,
   rankRiskFlows,
@@ -554,6 +553,7 @@ export const buildRiskSlice = ({
   let truncatedCallSiteExcerptTokens = 0;
   const callSiteById = new Map();
   if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
+    const sourceContext = createExcerptSourceContext();
     try {
       const callSiteRows = loadJsonArrayArtifactSync(indexDir, 'call_sites', {
         manifest,
@@ -563,15 +563,8 @@ export const buildRiskSlice = ({
       const relevantRows = Array.isArray(callSiteRows)
         ? callSiteRows.filter((row) => row?.callSiteId && referencedCallSiteIds.has(row.callSiteId))
         : [];
-      prefetchFileRanges(relevantRows
-        .filter((row) => row?.file && Number.isFinite(row.start) && Number.isFinite(row.end) && row.end > row.start)
-        .map((row) => ({
-          filePath: path.resolve(repoRoot, row.file),
-          start: row.start,
-          end: row.end
-        })), indexSignature, repoRoot);
       for (const row of relevantRows) {
-        const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot, indexSignature });
+        const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot, indexSignature, sourceContext });
         if (hydrated.details) {
           callSiteById.set(row.callSiteId, hydrated.details);
         }
@@ -591,6 +584,8 @@ export const buildRiskSlice = ({
         data: { error: err?.message || String(err) }
       });
       degraded = true;
+    } finally {
+      sourceContext.clear();
     }
   } else if (referencedCallSiteIds.size > 0 && callSitesMissing) {
     warnings.push({

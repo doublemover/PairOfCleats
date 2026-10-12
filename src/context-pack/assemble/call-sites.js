@@ -22,7 +22,7 @@ export const normalizeRiskCallSiteDetails = (row) => {
   };
 };
 
-export const resolveRiskCallSiteExcerpt = ({ row, repoRoot, indexSignature = null }) => {
+export const resolveRiskCallSiteExcerpt = ({ row, repoRoot, indexSignature = null, sourceContext = null }) => {
   if (!row?.file || !repoRoot) {
     return {
       excerpt: null,
@@ -69,7 +69,8 @@ export const resolveRiskCallSiteExcerpt = ({ row, repoRoot, indexSignature = nul
     maxTokens: CONTEXT_PACK_MAX_RISK_CALL_SITE_EXCERPT_TOKENS,
     indexSignature,
     indexedHash: row.fileHash || null,
-    hashAlgorithm: row.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1'
+    hashAlgorithm: row.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1',
+    sourceContext
   });
   return {
     excerpt: resolvedExcerpt.excerpt || null,
@@ -89,10 +90,10 @@ export const resolveRiskCallSiteExcerpt = ({ row, repoRoot, indexSignature = nul
   };
 };
 
-export const hydrateRiskCallSiteDetails = ({ row, repoRoot, indexSignature = null }) => {
+export const hydrateRiskCallSiteDetails = ({ row, repoRoot, indexSignature = null, sourceContext = null }) => {
   const base = normalizeRiskCallSiteDetails(row);
   if (!base) return { details: null, excerptTruncated: false };
-  const excerpt = resolveRiskCallSiteExcerpt({ row, repoRoot, indexSignature });
+  const excerpt = resolveRiskCallSiteExcerpt({ row, repoRoot, indexSignature, sourceContext });
   return {
     details: {
       ...base,
