@@ -27,8 +27,15 @@ try {
   assert.equal(highlightSourceLine('return true;', { styled: false }), 'return true;');
   await fs.writeFile(path.join(root, 'outside.ts'), source);
   assert.equal(readSourcePreview(repo, { ...hit, file: '../outside.ts' }), null);
-  await fs.symlink(path.join(root, 'outside.ts'), path.join(repo, 'escape.ts'));
-  assert.equal(readSourcePreview(repo, { ...hit, file: 'escape.ts' }), null);
+  const outsideDir = path.join(root, 'outside');
+  await fs.mkdir(outsideDir);
+  await fs.writeFile(path.join(outsideDir, 'source.ts'), source);
+  await fs.symlink(outsideDir, path.join(repo, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(readSourcePreview(repo, { ...hit, file: 'escape/source.ts' }), null);
+  if (process.platform !== 'win32') {
+    await fs.symlink(path.join(root, 'outside.ts'), path.join(repo, 'escape.ts'));
+    assert.equal(readSourcePreview(repo, { ...hit, file: 'escape.ts' }), null);
+  }
   await fs.writeFile(path.join(repo, 'large.ts'), 'x'.repeat(512 * 1024 + 1));
   assert.equal(readSourcePreview(repo, { ...hit, file: 'large.ts' }), null);
   assert.equal(readSourcePreview(repo, { ...hit, start: -1 }), null);
