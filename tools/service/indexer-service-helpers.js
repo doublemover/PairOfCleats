@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { buildEmbeddingLaunchArgs } from '../../src/shared/embedding-execution-plan.js';
 import { resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
 import path from 'node:path';
 import {
@@ -128,10 +129,11 @@ export const resolveEmbeddingBackendStageDir = (job, mode = null) => {
  * @param {{buildPath:string,repoPath:string,mode?:string|null,indexRoot?:string|null}} input
  * @returns {string[]}
  */
-export const buildEmbeddingsArgs = ({ buildPath, repoPath, mode, indexRoot }) => {
+export const buildEmbeddingsArgs = ({ buildPath, repoPath, mode, indexRoot, embeddingPlan = null }) => {
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);
   if (indexRoot) args.push('--index-root', indexRoot);
+  if (embeddingPlan) args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options));
   return args;
 };
 

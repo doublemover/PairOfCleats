@@ -121,7 +121,8 @@ export async function buildIndex(repoRoot, options = {}) {
   };
 
   throwIfAborted(abortSignal);
-  const userConfig = loadUserConfig(root);
+  let configSources = null;
+  const userConfig = loadUserConfig(root, { onSources: value => { configSources = value; } });
   if (rebuild.requested) {
     await rebuildRepoCache({ root, userConfig, argv, log, abortSignal });
   }
@@ -159,7 +160,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
   const twoStageEnabled = twoStageConfig.enabled === true;
-  const embeddingRuntime = resolveEmbeddingRuntime({ argv, userConfig, policy });
+  const embeddingRuntime = { ...resolveEmbeddingRuntime({ argv, userConfig, policy }), configSources };
   const embedModes = modes.filter((modeItem) => (
     modeItem === 'code'
     || modeItem === 'prose'
@@ -253,6 +254,7 @@ export async function buildIndex(repoRoot, options = {}) {
           embeddingRuntime,
           userConfig,
           indexRoot: runtime?.buildRoot || null,
+          buildId: runtime?.buildId || null,
           includeEmbeddings,
           overallProgressRef,
           log,
@@ -287,6 +289,7 @@ export async function buildIndex(repoRoot, options = {}) {
         embeddingRuntime,
         userConfig,
         indexRoot: stage2Result?.buildRoot || null,
+        buildId: stage2Result?.buildId || null,
         includeEmbeddings,
         overallProgressRef,
         log,

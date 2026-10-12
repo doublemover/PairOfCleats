@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import { createEmbeddingExecutionPlan, buildEmbeddingLaunchArgs, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
+import { parseObservabilityContextEnv } from '../../../shared/observability.js';
 import { attachSemanticEnrichmentRuntime } from '../../../index/semantic/enrichment-context.js';
 import path from 'node:path';
 import { preprocessFiles, writePreprocessStats } from '../../../index/build/preprocess.js';
@@ -154,6 +156,7 @@ export const runEmbeddingsStage = async ({
   embeddingRuntime,
   userConfig,
   indexRoot,
+  buildId = null,
   includeEmbeddings,
   overallProgressRef,
   log,
@@ -220,12 +223,6 @@ export const runEmbeddingsStage = async ({
       if (embedTotal) {
         showProgress('Embeddings', embedIndex, embedTotal, { stage: 'embeddings' });
       }
-      const commonEmbeddingArgs = [];
-      if (Number.isFinite(Number(argv.dims))) {
-        commonEmbeddingArgs.push('--dims', String(argv.dims));
-      }
-      if (embeddingRuntime.useStubEmbeddings) commonEmbeddingArgs.push('--stub-embeddings');
-      commonEmbeddingArgs.push('--progress', 'off');
       if (embeddingRuntime.embeddingService) {
         const queueDir = embeddingRuntime.queueDir
           ? path.resolve(embeddingRuntime.queueDir)
@@ -239,6 +236,8 @@ export const runEmbeddingsStage = async ({
             ? getIndexDir(root, modeItem, userConfig, { indexRoot: modeIndexRoot })
             : null;
           const jobId = crypto.randomUUID();
+          const embeddingPlan = createEmbeddingExecutionPlan({ root, buildId, indexRoot: modeIndexRoot, modes: [modeItem],
+            argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime });
           const result = await enqueueJob(
             queueDir,
             {
@@ -249,7 +248,10 @@ export const runEmbeddingsStage = async ({
               buildRoot: modeIndexRoot,
               indexDir: modeIndexDir,
               reason: 'stage3',
-              stage: 'stage3'
+              stage: 'stage3',
+              embeddingPlan,
+              embeddingPayloadFormatVersion: 3,
+              observability: parseObservabilityContextEnv(attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan))
             },
             embeddingRuntime.queueMaxQueued,
             'embeddings'
@@ -277,15 +279,15 @@ export const runEmbeddingsStage = async ({
         });
       }
       const runInlineEmbeddings = async ({ modeArg, indexRootArg, progressModes }) => {
+        const embeddingPlan = createEmbeddingExecutionPlan({ root, buildId, indexRoot: indexRootArg, modes: progressModes,
+          argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime });
         const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeArg];
         if (indexRootArg) {
           args.push('--index-root', indexRootArg);
         }
-        if (commonEmbeddingArgs.length) {
-          args.push(...commonEmbeddingArgs);
-        }
+        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'off');
         const embedResult = await runEmbeddingsTool(args, {
-          baseEnv: runtimeEnv,
+          baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan),
           signal: effectiveAbortSignal,
           onLine: (line) => {
             if (line.includes('lance::dataset::write::insert')

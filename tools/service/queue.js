@@ -897,6 +897,7 @@ const createQueuedJobRecord = (job, {
       })
       : null,
     repoProvenance: job.repoProvenance || null,
+    embeddingPlan: job.embeddingPlan || null,
     embeddingIdentity: job.embeddingIdentity || null,
     embeddingIdentityKey: job.embeddingIdentityKey || null,
     embeddingPayloadFormatVersion: Number.isFinite(Number(job.embeddingPayloadFormatVersion))
