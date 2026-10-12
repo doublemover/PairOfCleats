@@ -65,7 +65,7 @@ export const enqueueEmbeddingJob = async ({
       throw new Error(`Embedding job indexDir must live under buildRoot (${resolvedIndexDir}).`);
     }
     const embeddingPlan = createEmbeddingExecutionPlan({ root: repoRoot, buildId: runtime.buildId || null, indexRoot: buildRoot, modes: [mode],
-      argv: { ...runtime.argv, model: runtime.modelId },
+      argv: runtime.argv, modelId: runtime.modelId,
       userConfig: { ...runtime.userConfig, indexing: runtime.indexingConfig || runtime.userConfig?.indexing },
       intent: { embeddingEnabled: true, resolvedEmbeddingMode: runtime.embeddingMode || 'service',
         useStubEmbeddings: runtime.useStubEmbeddings, reason: 'resolved-runtime' } });

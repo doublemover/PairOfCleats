@@ -29,6 +29,10 @@ thread/scheduler requests, sampling intent, and source labels. It includes the
 original selection time and a resolved-plan digest. Selection time is metadata
 outside the semantic digest. The digest is a consistency check, not a signature
 or permission grant, and is separate from embedding cache identity.
+Nested fields are validated against the existing resolver projections and the
+handoff schema before application, even when a caller recomputes the digest.
+Raw arbitrary config, argv, and environment fields are never copied into a plan;
+selected numeric/boolean environment requests are normalized before storage.
 
 The child rejects a changed/missing required plan, mismatched repo/root/mode, or
 explicit CLI option disagreement before provider work. Model and resource CLI

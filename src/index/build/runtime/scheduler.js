@@ -375,8 +375,14 @@ export const projectSchedulerRequestConfig = (runtimeScheduler, indexingSchedule
     if (source[key] != null && Number.isFinite(Number(source[key]))) result[key] = Number(source[key]);
   }
   if (isObject(source.queues)) result.queues = resolveQueueConfig(source.queues);
-  if (isObject(source.adaptiveSurfaces)) result.adaptiveSurfaces = resolveAdaptiveSurfacesConfig(source.adaptiveSurfaces);
-  if (isObject(source.writeBackpressure)) result.writeBackpressure = resolveWriteBackpressureConfig(source.writeBackpressure);
+  if (isObject(source.adaptiveSurfaces)) {
+    const normalized = resolveAdaptiveSurfacesConfig(source.adaptiveSurfaces);
+    if (normalized) result.adaptiveSurfaces = normalized;
+  }
+  if (isObject(source.writeBackpressure)) {
+    const normalized = resolveWriteBackpressureConfig(source.writeBackpressure);
+    if (normalized) result.writeBackpressure = normalized;
+  }
   if (isObject(source.autoTune)) result.autoTune = { enabled: source.autoTune.enabled !== false };
   return result;
 };
