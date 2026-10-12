@@ -58,3 +58,8 @@ Receipts omit raw arguments, environment, credential-bearing fields and arbitrar
 Node preload options. Provider/device/thread observations stay unknown when the
 backend supplies no acknowledgement. A resolved model identity is not proof of a
 loaded model; cache-only completion does not claim fresh inference.
+
+Inline ONNX fallback after cache/signature selection fails closed with the selected
+and actual providers recorded. Retry with the explicit observed provider. A changed
+getter cannot repair earlier cache reuse; transparent replay of that attempt is a
+separate follow-on. Deferred stage3 still binds actual probe identity before reuse.
