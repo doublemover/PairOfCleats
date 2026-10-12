@@ -4,6 +4,7 @@ import { resolveStubDims } from '../../../shared/embedding.js';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
 
 const EMBEDDING_QUERY_CACHE_MAX_ENTRIES = 64;
+const processCaches = new WeakMap();
 
 export function createEmbeddingResolver({
   throwIfAborted,
@@ -13,10 +14,12 @@ export function createEmbeddingResolver({
   embeddingProvider,
   embeddingOnnx,
   rootDir,
+  generation = null,
   getQueryEmbeddingImpl = getQueryEmbedding,
   maxCacheEntries = EMBEDDING_QUERY_CACHE_MAX_ENTRIES
 }) {
-  const embeddingCache = new Map();
+  let embeddingCache = processCaches.get(getQueryEmbeddingImpl);
+  if (!embeddingCache) { embeddingCache = new Map(); processCaches.set(getQueryEmbeddingImpl, embeddingCache); }
   const parsedCacheEntries = Number(maxCacheEntries);
   const cacheEntryLimit = Number.isFinite(parsedCacheEntries)
     ? Math.max(1, Math.floor(parsedCacheEntries))
@@ -55,6 +58,12 @@ export function createEmbeddingResolver({
     const cacheKeyLocal = buildLocalCacheKey({
       namespace: 'embedding-query',
       payload: {
+        text: String(embeddingQueryText || '').normalize('NFC'),
+        rootDir,
+        modelDir: modelConfig?.dir,
+        provider: embeddingProvider,
+        onnxConfig: embeddingOnnx,
+        generation,
         modelId,
         dims: resolvedDims,
         normalize: normalizeFlag,
@@ -73,7 +82,7 @@ export function createEmbeddingResolver({
 
     incCacheEvent({ cache: 'embedding', result: 'miss' });
     const pending = getQueryEmbeddingImpl({
-      text: embeddingQueryText,
+      text: String(embeddingQueryText || '').normalize('NFC'),
       modelId,
       dims: resolvedDims,
       modelDir: modelConfig.dir,
@@ -84,6 +93,9 @@ export function createEmbeddingResolver({
       normalize: normalizeFlag,
       inputFormatting: formatting,
       modelProfile
+    }).then(value => {
+      if (!value) embeddingCache.delete(cacheKeyLocal);
+      return value;
     }).catch((error) => {
       embeddingCache.delete(cacheKeyLocal);
       throw error;

@@ -38,7 +38,6 @@ const normalizeLanguageAliases = (text, languageId) => {
     next = next.replace(/\bUnion\[(.+)\]$/u, '$1');
   } else if (lang === 'javascript' || lang === 'typescript' || lang === 'tsx' || lang === 'jsx') {
     next = next
-      .replace(/\bboolean\b/gu, 'boolean')
       .replace(/\binteger\b/gu, 'number')
       .replace(/\bfloat\b/gu, 'number')
       .replace(/\bString\b/gu, 'string')

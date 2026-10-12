@@ -62,6 +62,7 @@ export const RUN_CONFIG_KEYS = Object.freeze([
   'relationBoostPerUse',
   'relationBoostMaxBoost',
   'annCandidateCap',
+  'annDiscovery',
   'annCandidateMinDocCount',
   'annCandidateMaxDocCount',
   'minhashMaxDocs',

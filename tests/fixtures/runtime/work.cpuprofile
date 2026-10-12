@@ -1,0 +1,1 @@
+{"nodes":[{"id":1,"callFrame":{"functionName":"(root)","scriptId":"0","url":"","lineNumber":-1,"columnNumber":-1},"children":[2]},{"id":2,"callFrame":{"functionName":"work","scriptId":"42","url":"file:///fixture/work.js","lineNumber":0,"columnNumber":0},"hitCount":2}],"startTime":1000,"endTime":1060,"samples":[2,2,1],"timeDeltas":[10,20,30]}

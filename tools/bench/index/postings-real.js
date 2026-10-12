@@ -1,16 +1,18 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { getRepoId } from '../../shared/dict-utils.js';
-import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
-import { loadChunkMeta } from '../../../src/shared/artifact-io/loaders.js';
-import { resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
-import { sha1 } from '../../../src/shared/hash.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { getRepoId } = await import('../../shared/dict-utils.js');
+const { MAX_JSON_BYTES } = await import('../../../src/shared/artifact-io/constants.js');
+const { loadChunkMeta } = await import('../../../src/shared/artifact-io/loaders.js');
+const { resolveVersionedCacheRoot } = await import('../../../src/shared/cache-roots.js');
+const { stableStringifyForSignature } = await import('../../../src/shared/stable-json.js');
+const { sha1 } = await import('../../../src/shared/hash.js');
+const { spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const readJsonFields = async (filePath) => {
   const raw = await fs.readFile(filePath, 'utf8');

@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import { atomicWriteJson, atomicWriteText } from '../io/atomic-write.js';
 import { stringifyJsonValue } from '../json-stream/encode.js';
@@ -19,6 +20,7 @@ import {
   MAX_BUNDLE_PATCH_ENTRY_BYTES
 } from '../bundle-contract.js';
 import {
+  normalizeBundleWriteIdentity,
   isPlainObject,
   runBundleTransformWorker,
   shouldOffloadBundleTransform,
@@ -148,7 +150,7 @@ const countPatchEntries = (raw) => {
   return count;
 };
 
-export const readBundlePatches = async (bundlePath) => {
+export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() } = {}) => {
   const patchPath = resolveBundlePatchPath(bundlePath);
   let stat = null;
   try {
@@ -180,6 +182,8 @@ export const readBundlePatches = async (bundlePath) => {
     } catch {
       return { ok: false, reason: 'invalid bundle patch' };
     }
+    assertCurrentIndexFormat({ operation: 'import', component: 'bundle patch schema', expectedVersion: BUNDLE_PATCH_VERSION,
+      foundVersion: parsed?.version, repoRoot, indexPath: patchPath });
     const validation = validateBundlePatch(parsed);
     if (!validation.ok) {
       return { ok: false, reason: validation.reason || 'invalid bundle patch' };
@@ -238,6 +242,8 @@ export async function writeBundlePatch({
   if (resolvedFormat !== 'json') {
     return { applied: false, reason: 'unsupported-format' };
   }
+  previousBundle = normalizeBundleWriteIdentity(previousBundle, bundlePath);
+  nextBundle = normalizeBundleWriteIdentity(nextBundle, bundlePath);
   const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });
   if (!patch) return { applied: false, reason: 'no-changes' };
   const serialized = `${stringifyJsonValue(patch)}\n`;

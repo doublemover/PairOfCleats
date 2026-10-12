@@ -21,10 +21,21 @@ export function appendBounded(list, value, maxCount) {
   while (list.length > maxCount) list.shift();
 }
 
+const cloneAdmissionSnapshot = (value) => Number.isFinite(value?.runnable)
+  ? {
+    runnable: value.runnable,
+    blocked: Number(value.blocked) || 0,
+    blockedBy: { ...(value.blockedBy || {}) },
+    oldestRunnableWaitMs: Number(value.oldestRunnableWaitMs) || 0,
+    oldestRunningMs: Number(value.oldestRunningMs) || 0
+  }
+  : {};
+
 const cloneQueueDepthByName = (queuesByName = {}) => {
   const out = {};
   for (const [queueName, value] of Object.entries(queuesByName || {})) {
     out[queueName] = {
+      ...cloneAdmissionSnapshot(value),
       pending: Number(value?.pending) || 0,
       pendingBytes: Number(value?.pendingBytes) || 0,
       running: Number(value?.running) || 0,
@@ -43,6 +54,7 @@ export const cloneQueueDepthEntries = (entries) => entries.map((entry) => {
   const queuesByName = {};
   for (const [queueName, value] of Object.entries(entry?.queues || {})) {
     queuesByName[queueName] = {
+      ...cloneAdmissionSnapshot(value),
       pending: Number(value?.pending) || 0,
       pendingBytes: Number(value?.pendingBytes) || 0,
       running: Number(value?.running) || 0,

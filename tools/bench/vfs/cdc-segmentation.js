@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/cdc-segmentation.js --size 100000 --edits 200 --json
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { writeJsonWithDir } from '../micro/utils.js';
-import { clampInt, createRng, randomAlphaText } from './shared.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { writeJsonWithDir } = await import('../micro/utils.js');
+const { clampInt, createRng, randomAlphaText } = await import('./shared.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

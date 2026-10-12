@@ -33,6 +33,7 @@ export const assertVectorArrays = (vectors, count, label) => {
  *   maxBatchTokens?:number,
  *   estimateTokens?:(text:string)=>number,
  *   tokenEstimates?:number[]|null,
+ *   groups?:Array<{groupId:string,chunkId?:string|number,kind?:string}>|null,
  *   embed:(batch:string[])=>Promise<Array<ArrayLike<number>>>,
  *   onBatch?:(input:{batchIndex:number,batchCount:number,batchSize:number,batchTokens:number,targetBatchTokens:number,batchTokenBudget:number,batchFillRatio:number,underfilledTokens:number,completed:number,total:number,durationMs:number})=>void
  * }} input
@@ -45,7 +46,8 @@ export const runBatched = async ({
   estimateTokens = null,
   tokenEstimates = null,
   embed,
-  onBatch = null
+  onBatch = null,
+  groups = null
 }) => {
   if (!texts.length) return [];
   const observer = typeof onBatch === 'function' ? onBatch : null;
@@ -85,75 +87,63 @@ export const runBatched = async ({
       batchFillRatio
     };
   };
+  // Global admission already bounds the window in bytes and requests. Within
+  // that window keep code/doc siblings from each file together inside coarse
+  // length buckets, avoiding padding a tiny chunk to an unrelated huge chunk.
+  const grouped = Array.isArray(groups) && groups.length === texts.length;
+  const estimates = texts.map((text, index) => resolveTokenEstimate(text, index));
+  const bucket = (index) => Math.ceil(Math.log2(estimates[index]));
+  const groupOrder = new Map();
+  const order = texts.map((_, index) => {
+    const id = groups?.[index]?.groupId;
+    if (!groupOrder.has(id)) groupOrder.set(id, groupOrder.size);
+    return index;
+  });
+  if (grouped) order.sort((a, b) => bucket(a) - bucket(b)
+    || groupOrder.get(groups[a]?.groupId) - groupOrder.get(groups[b]?.groupId) || a - b);
   const batches = [];
-  if (!tokenBudget && maxItems === Number.MAX_SAFE_INTEGER) {
-    batches.push(texts);
-  } else if (!tokenBudget) {
-    for (let i = 0; i < texts.length; i += maxItems) {
-      batches.push(texts.slice(i, i + maxItems));
+  let current = [];
+  let currentTokens = 0;
+  for (const index of order) {
+    const estimated = estimates[index];
+    const exceeds = current.length >= maxItems || (tokenBudget > 0 &&
+      currentTokens + estimated > tokenBudget);
+    if (current.length && exceeds) {
+      batches.push(current);
+      current = [];
+      currentTokens = 0;
     }
-  } else {
-    let current = [];
-    let currentTokens = 0;
-    for (let i = 0; i < texts.length; i += 1) {
-      const text = texts[i];
-      const estimated = resolveTokenEstimate(text, i);
-      const wouldExceedTokens = current.length > 0 && (currentTokens + estimated) > tokenBudget;
-      const wouldExceedItems = current.length >= maxItems;
-      if (wouldExceedTokens || wouldExceedItems) {
-        batches.push(current);
-        current = [];
-        currentTokens = 0;
-      }
-      current.push(text);
-      currentTokens += estimated;
-    }
-    if (current.length) batches.push(current);
+    // Preserve the existing single oversized-item policy; never truncate inputs.
+    current.push(index);
+    currentTokens += estimated;
   }
-  if (batches.length === 1) {
-    const singleBatch = batches[0] || texts;
-    let batchTokens = 0;
-    for (let i = 0; i < singleBatch.length; i += 1) {
-      batchTokens += resolveTokenEstimate(singleBatch[i], i);
-    }
-    const startedAt = Date.now();
-    const vectors = await embed(singleBatch);
-    const targets = resolveBatchTargets(batchTokens);
-    observer?.({
-      batchIndex: 1,
-      batchCount: 1,
-      batchSize: singleBatch.length,
-      batchTokens,
-      ...targets,
-      completed: singleBatch.length,
-      total: texts.length,
-      durationMs: Math.max(0, Date.now() - startedAt)
-    });
-    return vectors;
-  }
-  const out = [];
-  const batchCount = batches.length;
+  if (current.length) batches.push(current);
+  const out = new Array(texts.length);
   let completed = 0;
-  let completedTokenEstimateOffset = 0;
-  for (let batchIndex = 1; batchIndex <= batchCount; batchIndex += 1) {
-    const slice = batches[batchIndex - 1] || [];
-    let batchTokens = 0;
-    for (let i = 0; i < slice.length; i += 1) {
-      batchTokens += resolveTokenEstimate(slice[i], completedTokenEstimateOffset + i);
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+    const indices = batches[batchIndex];
+    const slice = indices.map((index) => texts[index]);
+    const batchTokens = indices.reduce((sum, index) => sum + estimates[index], 0);
+    const groupTokens = new Map();
+    if (grouped) for (const index of indices) {
+      const id = groups[index]?.groupId;
+      groupTokens.set(id, (groupTokens.get(id) || 0) + estimates[index]);
     }
-    completedTokenEstimateOffset += slice.length;
     const startedAt = Date.now();
-    const batch = await embed(slice);
-    out.push(...batch);
-    completed += slice.length;
-    const targets = resolveBatchTargets(batchTokens);
+    const vectors = await embed(slice);
+    assertVectorArrays(vectors, indices.length, 'grouped batch');
+    indices.forEach((index, slot) => { out[index] = vectors[slot]; });
+    completed += indices.length;
     observer?.({
-      batchIndex,
-      batchCount,
-      batchSize: slice.length,
+      batchIndex: batchIndex + 1,
+      batchCount: batches.length,
+      batchSize: indices.length,
       batchTokens,
-      ...targets,
-      completed: Math.min(texts.length, completed),
+      paddedTokens: indices.reduce((max, index) => Math.max(max, estimates[index]), 0) * indices.length,
+      groupTokens: [...groupTokens],
+      groups: groupTokens.size,
+      ...resolveBatchTargets(batchTokens),
+      completed,
       total: texts.length,
       durationMs: Math.max(0, Date.now() - startedAt)
     });
@@ -206,12 +196,9 @@ export const validateCachedDims = ({ vectors, expectedDims, mode }) => {
 };
 
 export const buildQuantizedVectors = ({
-  chunkIndex,
   codeVector,
   docVector,
   zeroVector,
-  addHnswVector,
-  addHnswVectors,
   quantization,
   normalize = true
 }) => {
@@ -227,12 +214,6 @@ export const buildQuantizedVectors = ({
   const docVec = embedDoc.length
     ? (shouldNormalize ? normalizeEmbeddingVector(embedDoc) : embedDoc)
     : [];
-  const mergedHook = addHnswVectors?.merged || addHnswVector;
-  const docHook = addHnswVectors?.doc || null;
-  const codeHook = addHnswVectors?.code || null;
-  if (mergedHook && mergedVec.length) mergedHook(chunkIndex, mergedVec);
-  if (docHook && docVec.length) docHook(chunkIndex, docVec);
-  if (codeHook && codeVec.length) codeHook(chunkIndex, codeVec);
   const quantizedCode = codeVec.length
     ? quantizeVecUint8(codeVec, resolved.minVal, resolved.maxVal, resolved.levels)
     : new Uint8Array(0);

@@ -3,6 +3,7 @@ import {
   normalizeTypeEntry as normalizeSharedTypeEntry,
   toTypeEntryCollection as toSharedTypeEntryCollection
 } from '../../shared/type-entry-utils.js';
+import { normalizeTypeExpressions } from '../../shared/symbolic-types.js';
 
 export const MAX_PARAM_CANDIDATES = 5;
 
@@ -72,6 +73,7 @@ export const normalizeProviderPayload = (payload, options = {}) => {
   }
 
   const out = createProviderPayloadRecord();
+  if (payload.typeExpressions != null) out.typeExpressions = normalizeTypeExpressions(payload.typeExpressions);
   const returnType = normalizePayloadTextField(payload.returnType);
   if (returnType) out.returnType = returnType;
   const signature = normalizePayloadTextField(payload.signature);

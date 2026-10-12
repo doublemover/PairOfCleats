@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { createModeAwareTypeScriptResolver } from './resolution.js';
+import { createTypeScriptVirtualBySource } from './roots.js';
 
 const resolveScriptKind = (ts, fileName) => {
   const ext = path.extname(fileName).toLowerCase();
@@ -13,13 +15,17 @@ const resolveScriptKind = (ts, fileName) => {
   return ts.ScriptKind.Unknown;
 };
 
-export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
+export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths, system = ts.sys) => {
   const baseHost = ts.createCompilerHost(compilerOptions, true);
+  for (const method of ['fileExists', 'readFile', 'directoryExists', 'getDirectories', 'readDirectory', 'realpath']) {
+    if (typeof system[method] === 'function') baseHost[method] = system[method];
+  }
   const useCaseSensitive = ts.sys.useCaseSensitiveFileNames;
   const canonicalize = (fileName) => {
     const resolved = path.resolve(fileName);
     return useCaseSensitive ? resolved : resolved.toLowerCase();
   };
+  const virtualBySource = createTypeScriptVirtualBySource(sourcePaths, canonicalize);
   const getVfs = (fileName) => vfsMap.get(canonicalize(fileName));
 
   const fileExists = (fileName) => {
@@ -34,21 +40,38 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap) => {
   };
 
   const getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
-    const hit = getVfs(fileName);
+    const hit = readFile(fileName);
     if (typeof hit === 'string') {
-      return ts.createSourceFile(
+      const sourceFile = ts.createSourceFile(
         fileName,
         hit,
         languageVersion,
         true,
         resolveScriptKind(ts, fileName)
       );
+      // Triple-slash path references are processed by Program itself, outside
+      // resolveModuleNameLiterals. Keep their physical container origin and
+      // reuse exact whole-file VFS aliases just as module imports do.
+      if (sourceFile.referencedFiles.length) {
+        const origin = moduleOrigins.get(canonicalize(fileName)) || fileName;
+        sourceFile.referencedFiles = sourceFile.referencedFiles.map(reference => {
+          const absolute = path.resolve(path.dirname(origin), reference.fileName);
+          return { ...reference, fileName: virtualBySource.get(canonicalize(absolute)) || absolute };
+        });
+      }
+      return sourceFile;
     }
-    return baseHost.getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+    return undefined;
   };
 
+  const moduleHost = { ...baseHost, fileExists: filename => virtualBySource.has(canonicalize(filename)) || fileExists(filename),
+    readFile: filename => getVfs(virtualBySource.get(canonicalize(filename)) || filename) ?? readFile(filename) };
+  const resolver = createModeAwareTypeScriptResolver(ts, compilerOptions, moduleHost, { canonicalize, moduleOrigins, virtualBySource });
   return {
     ...baseHost,
+    resolveModuleNameLiterals: resolver.resolveModuleNameLiterals,
+    resolveTypeReferenceDirectiveReferences: resolver.resolveTypeReferenceDirectiveReferences,
+    semanticResolution: resolver,
     fileExists,
     readFile,
     getSourceFile,

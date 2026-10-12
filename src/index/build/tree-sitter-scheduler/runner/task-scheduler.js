@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { planWeightedBatches } from '../../../../shared/concurrency/weighted-batches.js';
 import { toArray } from '../../../../shared/iterables.js';
 
 const DEFAULT_WARM_POOL_MIN_KEYS_FOR_SPLIT = 8;
@@ -231,10 +232,24 @@ export const buildWarmPoolTasks = ({
       keyCount: keyed.length,
       execConcurrency
     });
-    const lanes = Array.from({ length: laneCount }, () => []);
-    for (let i = 0; i < keyed.length; i += 1) {
-      lanes[i % laneCount].push(keyed[i]);
-    }
+    // Planner costs already include file size, token density and adaptive
+    // history. Preserve that information at the warm-pool handoff instead of
+    // balancing only wave counts, which can strand one lane with the tail.
+    // Unknown costs retain the old round-robin contract; mixed inventories
+    // also use it rather than treating missing measurements as cheap work.
+    const hasCompleteCosts = keyed.every(({ grammarKey }) => {
+      const cost = Number(groupMetaByGrammarKey?.[grammarKey]?.estimatedParseCost);
+      return Number.isFinite(cost) && cost > 0;
+    });
+    const lanes = planWeightedBatches(keyed, laneCount, {
+      resolveWeight: ({ grammarKey }) => hasCompleteCosts
+        ? Number(groupMetaByGrammarKey[grammarKey].estimatedParseCost)
+        : 0,
+      resolveTieBreaker: ({ orderIndex }) => orderIndex
+    });
+    // Assignment may change, but waves in each parser process keep canonical
+    // plan order. Output merge order remains owned by the existing contract.
+    for (const lane of lanes) lane.sort((left, right) => left.orderIndex - right.orderIndex);
     for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
       const lane = lanes[laneIndex];
       if (!lane.length) continue;
@@ -244,6 +259,10 @@ export const buildWarmPoolTasks = ({
         laneIndex: laneIndex + 1,
         laneCount,
         grammarKeys: lane.map((entry) => entry.grammarKey),
+        estimatedParseCost: hasCompleteCosts
+          ? lane.reduce((sum, entry) => sum + Number(groupMetaByGrammarKey[entry.grammarKey].estimatedParseCost), 0)
+          : null,
+        costBalanced: hasCompleteCosts && laneCount > 1,
         firstOrder: lane.reduce((min, entry) => Math.min(min, entry.orderIndex), Number.POSITIVE_INFINITY)
       });
     }

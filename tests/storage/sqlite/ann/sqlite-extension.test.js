@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { applyTestEnv } from '../../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../../helpers/test-env.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { loadUserConfig, resolveSqlitePaths } from '../../../../tools/shared/dict-utils.js';
@@ -10,6 +10,7 @@ import {
 import { requireSqliteVec } from '../../../helpers/optional-deps.js';
 import { runNode } from '../../../helpers/run-node.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
+import { runBuildEmbeddings } from '../../../../tools/build/embeddings/run.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -82,17 +83,6 @@ function run(args, label) {
   }
 }
 
-const runEmbeddings = (label) => run(
-  [
-    path.join(root, 'tools', 'build', 'embeddings.js'),
-    '--stub-embeddings',
-    '--mode',
-    'code',
-    '--repo',
-    repoRoot
-  ],
-  label
-);
 
 run(
   [
@@ -108,7 +98,7 @@ run(
   ],
   'build index'
 );
-runEmbeddings('build embeddings');
+await withTemporaryEnv(env, () => runBuildEmbeddings(['--stub-embeddings', '--mode', 'code', '--repo', repoRoot]));
 await runSqliteBuild(repoRoot, { mode: 'code' });
 
 const userConfig = loadUserConfig(repoRoot);
@@ -212,7 +202,7 @@ run(
   ],
   'build index (incremental)'
 );
-runEmbeddings('build embeddings (incremental)');
+await withTemporaryEnv(env, () => runBuildEmbeddings(['--stub-embeddings', '--mode', 'code', '--repo', repoRoot]));
 await runSqliteBuild(repoRoot, { mode: 'code', incremental: true });
 
 const sqlitePathsAfter = resolveSqlitePaths(repoRoot, userConfig);

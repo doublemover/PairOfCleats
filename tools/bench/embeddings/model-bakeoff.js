@@ -1,26 +1,28 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { createCli } from '../../../src/shared/cli.js';
-import { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } from '../../../src/shared/cache-roots.js';
-import { getEnvConfig } from '../../../src/shared/env/runtime.js';
-import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
-import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
-import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
-import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
-import { sleep } from '../../../src/shared/sleep.js';
-import { spawnSubprocess, spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
-import {
+const { createCli } = await import('../../../src/shared/cli.js');
+const { normalizeLegacyCacheRootPath, resolveVersionedCacheRoot } = await import('../../../src/shared/cache-roots.js');
+const { getEnvConfig } = await import('../../../src/shared/env/runtime.js');
+const { resolveEmbeddingInputFormatting } = await import('../../../src/shared/embedding-input-format.js');
+const { hasChunkMetaArtifactsSync } = await import('../../../src/shared/artifact-io/chunk-meta-presence.js');
+const { readJsonFileSyncSafe } = await import('../../../src/shared/file-read.js');
+const { writeJsonFileResolved } = await import('../../../src/shared/json-file.js');
+const { sleep } = await import('../../../src/shared/sleep.js');
+const { spawnSubprocess, spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
+const {
   resolveBakeoffFastPathDefaults,
   resolveBakeoffBuildPlan,
   resolveBakeoffCurrentBuildRoot,
   resolveBakeoffScriptPaths,
   resolveBakeoffStage4Modes
-} from './model-bakeoff-lib.js';
-import {
+} = await import('./model-bakeoff-lib.js');
+const {
   bootstrapRuntime,
   getCacheRoot,
   getDictConfig,
@@ -29,8 +31,8 @@ import {
   isWithinRoot,
   resolveToolRoot,
   toRealPathSync
-} from '../../shared/dict-utils.js';
-import { createToolDisplay } from '../../shared/cli-display.js';
+} = await import('../../shared/dict-utils.js');
+const { createToolDisplay } = await import('../../shared/cli-display.js');
 
 const DEFAULT_BAKEOFF_MODELS = ['Xenova/bge-small-en-v1.5', 'Xenova/bge-base-en-v1.5'];
 const DEFAULT_BAKEOFF_BASELINE = 'Xenova/bge-base-en-v1.5';

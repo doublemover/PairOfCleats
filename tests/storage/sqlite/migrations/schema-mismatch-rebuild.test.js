@@ -1,8 +1,9 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 import { setupIncrementalRepo, ensureSqlitePaths } from '../../../helpers/sqlite-incremental.js';
-import { getCombinedOutput } from '../../../helpers/stdio.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
 
 const { root, repoRoot, env, userConfig, run, runCapture } = await setupIncrementalRepo({
@@ -30,28 +31,20 @@ const dbDowngrade = new Database(sqlitePaths.codePath);
 dbDowngrade.pragma(`user_version = ${downgradeVersion}`);
 dbDowngrade.close();
 
-const rebuildLogs = [];
-await runSqliteBuild(repoRoot, {
-  mode: 'code',
-  incremental: true,
-  logger: {
-    log: (message) => rebuildLogs.push(message),
-    warn: (message) => rebuildLogs.push(message),
-    error: (message) => rebuildLogs.push(message)
+// Unsupported formats must fail closed before any database mutation.
+const databaseBefore = await fs.readFile(sqlitePaths.codePath);
+await assert.rejects(
+  runSqliteBuild(repoRoot, { mode: 'code', incremental: true }),
+  (error) => {
+    assert.equal(error.code, 'ERR_INDEX_FORMAT_UNSUPPORTED');
+    assert.match(error.message, /SQLite schema/);
+    assert.match(error.message, /pairofcleats index build/);
+    return true;
   }
-});
-const rebuildOutput = getCombinedOutput({ stdout: rebuildLogs.join('\n'), stderr: '' });
-if (!rebuildOutput.includes('schema mismatch')) {
-  console.error('Expected schema mismatch rebuild warning for incremental sqlite update.');
-  process.exit(1);
-}
+);
+assert.deepEqual(await fs.readFile(sqlitePaths.codePath), databaseBefore);
+const dbPreserved = new Database(sqlitePaths.codePath, { readonly: true });
+assert.equal(dbPreserved.pragma('user_version', { simple: true }), downgradeVersion);
+dbPreserved.close();
 
-const dbRebuilt = new Database(sqlitePaths.codePath, { readonly: true });
-const rebuiltVersion = dbRebuilt.pragma('user_version', { simple: true });
-dbRebuilt.close();
-if (rebuiltVersion !== SCHEMA_VERSION) {
-  console.error(`Expected schema version ${SCHEMA_VERSION}, got ${rebuiltVersion}.`);
-  process.exit(1);
-}
-
-console.log('SQLite schema mismatch rebuild ok.');
+console.log('SQLite schema mismatch fails closed and preserves the database.');

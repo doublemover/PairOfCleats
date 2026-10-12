@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { dictionaryIdentifierTerms, countDictionaryIdentifiers, sortedDictionaryCounts } from '../../src/shared/dictionary-identifiers.js';
+const terms = dictionaryIdentifierTerms('HTTPServer NASA URLSession foo_bar naïve 日本語');
+for (const word of ['httpserver', 'http', 'server', 'nasa', 'urlsession', 'url', 'session', 'foo_bar', 'foo', 'bar', 'naive', '日本語']) assert.ok(terms.includes(word), word);
+assert.ok(!terms.includes('n')); assert.ok(!terms.includes('a')); assert.ok(!terms.includes('s'));
+const counts = countDictionaryIdentifiers('NASA NASA HTTPServer HTTPServer fooFoo');
+assert.equal(counts.get('nasa'), 2); assert.equal(counts.get('httpserver'), 2);
+assert.equal(counts.get('http'), 2); assert.equal(counts.get('server'), 2);
+assert.equal(counts.get('foo'), 1, 'repeated alias within one identifier contributes one occurrence');
+assert.deepEqual(sortedDictionaryCounts(counts, 2).map(([word]) => word), ['http', 'httpserver', 'nasa', 'server']);
+const forward = new Map(), reverse = new Map();
+for (const source of ['NASA HTTPServer naïve', 'foo_bar NASA', '日本語 HTTPServer']) countDictionaryIdentifiers(source, forward);
+for (const source of ['日本語 HTTPServer', 'foo_bar NASA', 'NASA HTTPServer naïve']) countDictionaryIdentifiers(source, reverse);
+assert.deepEqual(sortedDictionaryCounts(forward, 1), sortedDictionaryCounts(reverse, 1));
+assert.ok(!countDictionaryIdentifiers('123456').size, 'numeric literals are not repo dictionary identifiers');
+console.log('dictionary whole identifiers, acronym/camel/Unicode aliases and deterministic occurrence counts passed');

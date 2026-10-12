@@ -1,3 +1,4 @@
+import { getSegmentSemanticContext } from './semantic/embedded-source.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { smartChunk } from './chunking.js';
 import { computeSegmentUid } from './identity/chunk-uid.js';
@@ -36,6 +37,8 @@ const stripFullFileChunkingCaches = (context) => {
     if (key.endsWith('Chunks')) delete next[key];
   }
   delete next.jsAst;
+  delete next.tsSyntax;
+  delete next.typeScriptSyntaxContext;
   delete next.pythonAst;
   delete next.chunkingShared;
   return next;
@@ -210,6 +213,7 @@ export function chunkSegments({
       };
     const segmentContext = {
       ...(isBase ? context : stripFullFileChunkingCaches(context)),
+      ...(!isBase ? getSegmentSemanticContext(context.semanticSyntaxContexts, segment) : {}),
       languageId: segment.languageId || context.languageId || null,
       chunkingShared,
       segment: isBase

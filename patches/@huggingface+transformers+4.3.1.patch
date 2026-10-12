@@ -1,0 +1,113 @@
+diff --git a/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js b/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js
+index 72cdc09..6988e7f 100644
+--- a/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js
++++ b/node_modules/@huggingface/transformers/src/utils/model_registry/get_tokenizer_files.js
+@@ -7,12 +7,12 @@
+  * @param {string} modelId The model id to check for tokenizer files
+  * @returns {Promise<string[]>} An array of file names that will be loaded
+  */
+-export async function get_tokenizer_files(modelId) {
++export async function get_tokenizer_files(modelId, options = {}) {
+     if (!modelId) {
+         throw new Error('modelId is required for get_tokenizer_files');
+     }
+ 
+-    const metadata = await get_file_metadata(modelId, 'tokenizer_config.json', {});
++    const metadata = await get_file_metadata(modelId, 'tokenizer_config.json', options);
+     if (metadata.exists) {
+         return ['tokenizer.json', 'tokenizer_config.json'];
+     }
+diff --git a/node_modules/@huggingface/transformers/src/tokenization_utils.js b/node_modules/@huggingface/transformers/src/tokenization_utils.js
+index 518d478..34a67ba 100644
+--- a/node_modules/@huggingface/transformers/src/tokenization_utils.js
++++ b/node_modules/@huggingface/transformers/src/tokenization_utils.js
+@@ -32,7 +32,7 @@
+  * @returns {Promise<any[]>} A promise that resolves with information about the loaded tokenizer.
+  */
+ export async function loadTokenizer(pretrained_model_name_or_path, options) {
+-    const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++    const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+     return await Promise.all(
+         tokenizerFiles.map((file) => getModelJSON(pretrained_model_name_or_path, file, true, options)),
+     );
+diff --git a/node_modules/@huggingface/transformers/dist/transformers.node.mjs b/node_modules/@huggingface/transformers/dist/transformers.node.mjs
+index 608134b..3b33647 100644
+--- a/node_modules/@huggingface/transformers/dist/transformers.node.mjs
++++ b/node_modules/@huggingface/transformers/dist/transformers.node.mjs
+@@ -15200,11 +15200,11 @@
+ }
+ 
+ // src/utils/model_registry/get_tokenizer_files.js
+-async function get_tokenizer_files(modelId) {
++async function get_tokenizer_files(modelId, options = {}) {
+   if (!modelId) {
+     throw new Error("modelId is required for get_tokenizer_files");
+   }
+-  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", {});
++  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", options);
+   if (metadata.exists) {
+     return ["tokenizer.json", "tokenizer_config.json"];
+   }
+@@ -15213,7 +15213,7 @@
+ 
+ // src/tokenization_utils.js
+ async function loadTokenizer(pretrained_model_name_or_path, options) {
+-  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+   return await Promise.all(
+     tokenizerFiles.map((file) => getModelJSON(pretrained_model_name_or_path, file, true, options))
+   );
+diff --git a/node_modules/@huggingface/transformers/dist/transformers.node.cjs b/node_modules/@huggingface/transformers/dist/transformers.node.cjs
+index c0f0d5d..2a8f412 100644
+--- a/node_modules/@huggingface/transformers/dist/transformers.node.cjs
++++ b/node_modules/@huggingface/transformers/dist/transformers.node.cjs
+@@ -16193,11 +16193,11 @@
+ }
+ 
+ // src/utils/model_registry/get_tokenizer_files.js
+-async function get_tokenizer_files(modelId) {
++async function get_tokenizer_files(modelId, options = {}) {
+   if (!modelId) {
+     throw new Error("modelId is required for get_tokenizer_files");
+   }
+-  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", {});
++  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", options);
+   if (metadata.exists) {
+     return ["tokenizer.json", "tokenizer_config.json"];
+   }
+@@ -16206,7 +16206,7 @@
+ 
+ // src/tokenization_utils.js
+ async function loadTokenizer(pretrained_model_name_or_path, options) {
+-  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+   return await Promise.all(
+     tokenizerFiles.map((file) => getModelJSON(pretrained_model_name_or_path, file, true, options))
+   );
+diff --git a/node_modules/@huggingface/transformers/dist/transformers.web.js b/node_modules/@huggingface/transformers/dist/transformers.web.js
+index 907d520..49f7cc0 100644
+--- a/node_modules/@huggingface/transformers/dist/transformers.web.js
++++ b/node_modules/@huggingface/transformers/dist/transformers.web.js
+@@ -11219,11 +11219,11 @@
+ }
+ 
+ // src/utils/model_registry/get_tokenizer_files.js
+-async function get_tokenizer_files(modelId) {
++async function get_tokenizer_files(modelId, options = {}) {
+   if (!modelId) {
+     throw new Error("modelId is required for get_tokenizer_files");
+   }
+-  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", {});
++  const metadata = await get_file_metadata(modelId, "tokenizer_config.json", options);
+   if (metadata.exists) {
+     return ["tokenizer.json", "tokenizer_config.json"];
+   }
+@@ -11232,7 +11232,7 @@
+ 
+ // src/tokenization_utils.js
+ async function loadTokenizer(pretrained_model_name_or_path, options) {
+-  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path);
++  const tokenizerFiles = await get_tokenizer_files(pretrained_model_name_or_path, options);
+   return await Promise.all(
+     tokenizerFiles.map((file) => getModelJSON(pretrained_model_name_or_path, file, true, options))
+   );

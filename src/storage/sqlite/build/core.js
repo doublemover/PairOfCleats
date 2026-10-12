@@ -1,3 +1,6 @@
+import { writeSqliteIndexFormat } from '../index-format.js';
+import { CREATE_SEMANTIC_TABLES_SQL } from '../semantic/schema.js';
+import { createOptionalFtsTables, listOptionalFtsTables } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -154,7 +157,8 @@ export const openSqliteBuildDatabase = ({
   outPath,
   batchStats,
   inputBytes,
-  useBuildPragmas = true
+  useBuildPragmas = true,
+  ftsVariants = []
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
   const { db, dbPath, promotePath } = openDatabaseWithFallback(Database, outPath);
@@ -198,6 +202,9 @@ export const openSqliteBuildDatabase = ({
       source: plan?.source || null
     });
     db.exec(CREATE_TABLES_BASE_SQL);
+    db.exec(CREATE_SEMANTIC_TABLES_SQL);
+    writeSqliteIndexFormat(db);
+    createOptionalFtsTables(db, ftsVariants);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
     return { db, pragmaState, dbPath, promotePath };
   } catch (error) {
@@ -357,7 +364,7 @@ export const runSqliteBuildPostCommit = ({
   telemetry = null
 }) => {
   if (useOptimize) {
-    optimizeFtsTable(db, 'chunks_fts', { stats: batchStats });
+    for (const table of ['chunks_fts', ...listOptionalFtsTables(db)]) optimizeFtsTable(db, table, { stats: batchStats });
     optimizeBuildDatabase(db, { inputBytes, stats: batchStats });
   }
   const validationStart = performance.now();

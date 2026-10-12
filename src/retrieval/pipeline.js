@@ -19,7 +19,8 @@ import { createCandidatePool } from './pipeline/candidate-pool.js';
 import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
-import { createProviderRuntime } from './pipeline/provider-runtime.js';
+import { rerankEvidence } from './pipeline/evidence-reranker.js';
+import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
 import { runAnnStage } from './pipeline/ann-stage.js';
@@ -224,6 +225,7 @@ export function createSearchPipeline(context) {
     annAdaptiveProviders,
     scoreBlend,
     annCandidateCap,
+    annDiscovery = 'independent',
     annCandidateMinDocCount,
     annCandidateMaxDocCount,
     minhashMaxDocs,
@@ -249,6 +251,7 @@ export function createSearchPipeline(context) {
     rrf,
     graphRankingConfig,
     stageTracker,
+    reranker = null,
     candidatePool: candidatePoolInput,
     scoreBufferPool: scoreBufferPoolInput,
     createAnnProviders: createAnnProvidersInput
@@ -370,7 +373,7 @@ export function createSearchPipeline(context) {
     if (!exportsList || !chunk.name) return false;
     return exportsList.includes(chunk.name);
   };
-  const { matchesQueryAst, getPhraseMatchInfo } = createQueryAstHelpers({
+  const { matchesQueryAst, getPhraseMatchInfo, hasHardSemanticConstraints } = createQueryAstHelpers({
     queryAst,
     phraseNgramSet,
     phraseRange
@@ -414,7 +417,6 @@ export function createSearchPipeline(context) {
     );
   };
 
-  const providerRuntime = createProviderRuntime();
   const sqliteFtsCompilation = compileFtsMatchQuery({
     queryAst,
     queryTokens,
@@ -454,6 +456,7 @@ export function createSearchPipeline(context) {
    */
   return async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
+    const providerRuntime = getGenerationProviderRuntime(idx);
     const meta = idx.chunkMeta;
     const modeProfilePolicy = profilePolicyByMode?.[mode] && typeof profilePolicyByMode[mode] === 'object'
       ? profilePolicyByMode[mode]
@@ -580,7 +583,9 @@ export function createSearchPipeline(context) {
           bm25K1,
           bm25B,
           getTokenIndexForQuery,
-          candidateMetrics
+          candidateMetrics,
+          queryAst,
+          matchesQueryAst: queryAst ? matchesQueryAst : null
         })
       ));
       let { candidates, bmHits, sparseType, sqliteFtsUsed, sqliteFtsDiagnostics } = candidateResult;
@@ -638,6 +643,9 @@ export function createSearchPipeline(context) {
           allowedCount,
           filtersEnabled,
           annCandidatePolicyConfig,
+          annDiscovery,
+          matchesQueryAst,
+          hasHardSemanticConstraints,
           minhashLimit,
           hasAllowedId,
           ensureAllowedSet,
@@ -749,6 +757,8 @@ export function createSearchPipeline(context) {
           sqliteFtsWeights,
           sqliteFtsProfile,
           sqliteFtsCompilation,
+          sqliteFtsExecution: candidateMetrics.fts,
+          sqliteFtsMatchesQueryAst: candidateResult.sqliteFtsMatchesQueryAst,
           sqliteFtsUnavailable,
           profileId,
           fieldWeightsEnabled,
@@ -760,7 +770,7 @@ export function createSearchPipeline(context) {
         })
       ));
 
-      return ranked;
+      return await rerankEvidence({adapter:reranker,query,hits:ranked,signal});
     } finally {
       for (const set of releaseSets) {
         candidatePool.release(set);

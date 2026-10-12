@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -162,6 +163,7 @@ export async function enqueueTokenPostingsArtifacts({
   enqueueJsonObject,
   enqueueWrite,
   addPieceFile,
+  updatePieceMetadata,
   formatArtifactLabel
 }) {
   const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
@@ -191,7 +193,7 @@ export async function enqueueTokenPostingsArtifacts({
         const offsetsBuffer = encodePackedOffsets(packed.offsets);
         await atomicWriteText(packedPath, packed.buffer, { newline: false });
         await atomicWriteText(offsetsPath, offsetsBuffer, { newline: false });
-        await writeJsonObjectFile(metaPath, {
+        const metaWrite = await writeJsonObjectFile(metaPath, {
           fields: {
             avgDocLen: postings.avgDocLen,
             totalDocs: state.docLengths.length,
@@ -207,8 +209,12 @@ export async function enqueueTokenPostingsArtifacts({
             ...(vocabIds ? { vocabIds } : {}),
             docLengths: state.docLengths
           },
-          atomic: true
+          atomic: true,
+          checksumAlgo: 'sha256'
         });
+        updatePieceMetadata(formatArtifactLabel(packedPath), {bytes:packed.buffer.length, checksumHash:'sha256:'+createHash('sha256').update(packed.buffer).digest('hex')});
+        updatePieceMetadata(formatArtifactLabel(offsetsPath), {bytes:offsetsBuffer.length, checksumHash:'sha256:'+createHash('sha256').update(offsetsBuffer).digest('hex')});
+        updatePieceMetadata(formatArtifactLabel(metaPath), metaWrite);
       },
       {
         priority: writePriority,

@@ -7,7 +7,7 @@ export const listSourceFiles = async (scanRoot) => {
   const files = await new fdir().withFullPaths().crawl(scanRoot).withPromise();
   return files.filter((filePath) => {
     if (!filePath.endsWith('.js')) return false;
-    const normalized = toPosix(filePath);
+    const normalized = '/' + toPosix(path.relative(scanRoot, filePath));
     if (normalized.includes('/.testCache/')) return false;
     if (normalized.includes('/.testLogs/')) return false;
     if (normalized.includes('/tests/.cache/')) return false;

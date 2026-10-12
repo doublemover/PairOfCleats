@@ -340,6 +340,7 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
  * @param {number} options.embeddingConcurrency
  * @param {object|null} options.pendingLimits
  * @param {object|null} options.scheduler
+ * @param {object|null} [options.schedulerConfig]
  * @param {object|null} [options.stage1Queues]
  * @param {number|null} [options.procConcurrency]
  * @returns {{queues:object,maxFilePending:number,maxIoPending:number,maxEmbeddingPending:number}}
@@ -352,6 +353,7 @@ export const createRuntimeQueues = ({
   pendingLimits,
   scheduler,
   stage1Queues = null,
+  schedulerConfig = null,
   procConcurrency = null,
   memoryPolicy = null
 }) => {
@@ -462,6 +464,7 @@ export const createRuntimeQueues = ({
     const cpuQueue = createSchedulerQueueAdapter({
       scheduler,
       queueName: SCHEDULER_QUEUE_NAMES.stage1Cpu,
+      queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.stage1Cpu],
       tokens: { cpu: 1 },
       maxPending: maxFilePending,
       maxPendingBytes: maxFilePendingBytes,
@@ -471,6 +474,7 @@ export const createRuntimeQueues = ({
     const ioQueue = createSchedulerQueueAdapter({
       scheduler,
       queueName: SCHEDULER_QUEUE_NAMES.stage1Io,
+      queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.stage1Io],
       backpressure: true,
       tokens: { io: 1 },
       maxPending: maxIoPending,
@@ -482,6 +486,7 @@ export const createRuntimeQueues = ({
       ? createSchedulerQueueAdapter({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.embeddingsCompute,
+        queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute],
         // Embeddings are currently awaited from within Stage1 CPU tasks.
         // Charging nested embedding work against CPU tokens can deadlock when
         // all CPU slots are held by callers blocked on embedding completion.
@@ -497,6 +502,7 @@ export const createRuntimeQueues = ({
       ? createSchedulerQueueAdapter({
         scheduler,
         queueName: SCHEDULER_QUEUE_NAMES.stage1Proc,
+        queueConfig: schedulerConfig?.queues?.[SCHEDULER_QUEUE_NAMES.stage1Proc],
         // Proc queue tasks are awaited from within Stage1 CPU tasks; charging them
         // against the same CPU token pool can deadlock when cpuTokens is small
         // (e.g. --threads 1). Use memory tokens to preserve backpressure without

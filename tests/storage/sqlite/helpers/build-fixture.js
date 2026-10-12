@@ -5,7 +5,7 @@ import { writeJsonLinesSharded } from '../../../../src/shared/json-stream/jsonl-
 import { writeJsonObjectFile } from '../../../../src/shared/json-stream/json-writers.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
-import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -148,6 +148,7 @@ export const writeSqliteShardFixtureArtifacts = async ({
 };
 
 export const setupSqliteBuildFixture = async ({
+  artifactSurfaceVersion = null,
   tempLabel,
   chunkCount,
   fileCount = 3,
@@ -237,7 +238,11 @@ export const setupSqliteBuildFixture = async ({
       { name: 'dense_vectors_uint8', path: 'dense_vectors_uint8.json', format: 'json' }
     );
   }
-  await writePiecesManifest(indexDir, pieceEntries);
+  const manifestPath = await writeSqliteArtifactManifest(indexDir, pieceEntries);
+  if (artifactSurfaceVersion != null) {
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, artifactSurfaceVersion }));
+  }
 
   const indexPieces = await loadIndexPieces(indexDir, null);
   const count = await buildDatabaseFromArtifacts({

@@ -32,7 +32,7 @@ jobs:
     - name: Setup Node
       uses: actions/setup-node@v7
       with:
-        node-version: 24.21.0
+        node-version: 26.8.1
         cache: npm
     - name: Restore PairOfCleats cache
       uses: actions/cache@v6
@@ -50,7 +50,7 @@ jobs:
       uses: actions/cache@v6
       with:
         path: node_modules
-        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-24.21.0-v2-${{ hashFiles('package-lock.json',
+        key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json',
           'patches/**/*.patch') }}
     - name: Install deps and report versions
       shell: bash

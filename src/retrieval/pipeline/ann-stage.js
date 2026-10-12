@@ -47,6 +47,9 @@ export const runAnnStage = async ({
   allowedCount,
   filtersEnabled,
   annCandidatePolicyConfig,
+  annDiscovery = 'independent',
+  matchesQueryAst,
+  hasHardSemanticConstraints = false,
   minhashLimit,
   hasAllowedId,
   ensureAllowedSet,
@@ -98,18 +101,33 @@ export const runAnnStage = async ({
     return set;
   };
 
-  const annCandidateBase = ensureCandidateBase();
+  if (!['independent', 'lexical-rerank'].includes(annDiscovery)) throw new TypeError('Invalid ANN discovery mode');
+  const independentDiscovery = annDiscovery === 'independent';
+  let eligibleIds = allowedIdx;
+  if (hasHardSemanticConstraints) {
+    eligibleIds = new Set();
+    for (let id = 0; id < meta.length; id++) {
+      const chunk = meta[id];
+      if (chunk && (!allowedIdx || hasAllowedId(allowedIdx,id)) && matchesQueryAst(idx,id,chunk,true)) eligibleIds.add(id);
+    }
+  }
+  const eligibilityActive = filtersEnabled || hasHardSemanticConstraints;
+  const annCandidateBase = independentDiscovery ? null : ensureCandidateBase();
   const annCandidatePolicy = resolveAnnCandidateSet({
     candidates: annCandidateBase,
-    allowedIds: allowedIdx,
-    filtersActive: filtersEnabled,
+    allowedIds: eligibleIds,
+    filtersActive: eligibilityActive,
     cap: annCandidatePolicyConfig.cap,
     minDocCount: annCandidatePolicyConfig.minDocCount,
     maxDocCount: annCandidatePolicyConfig.maxDocCount,
     toSet: ensureAllowedSet
   });
   const annCandidates = annCandidatePolicy.set;
-  const shouldTryAnnFallback = filtersEnabled
+  if (independentDiscovery) {
+    annCandidatePolicy.reason = 'independentDiscovery';
+    annCandidatePolicy.explain = {...annCandidatePolicy.explain, reason:'independentDiscovery', discovery:annDiscovery};
+  }
+  const shouldTryAnnFallback = !independentDiscovery && eligibilityActive
     && Boolean(allowedIdx)
     && annCandidatePolicy.reason !== ANN_CANDIDATE_POLICY_REASONS.FILTERS_ACTIVE_ALLOWED_IDX;
   let annFallbackResolved = false;
@@ -117,7 +135,7 @@ export const runAnnStage = async ({
   const resolveAnnFallback = () => {
     if (!shouldTryAnnFallback) return null;
     if (!annFallbackResolved) {
-      annFallback = allowedIdx;
+      annFallback = eligibleIds;
       annFallbackResolved = true;
     }
     return annFallback;
@@ -191,7 +209,7 @@ export const runAnnStage = async ({
     || hnswAnnState?.[mode]?.available
     || lanceAnnState?.[mode]?.available
   );
-  const vectorActive = annEnabledForMode && isEmbeddingReady(queryEmbedding) && hasVectorArtifacts;
+  let vectorActive = annEnabledForMode && (typeof queryEmbedding === 'function' || isEmbeddingReady(queryEmbedding)) && hasVectorArtifacts;
   let providerAvailable = false;
 
   if (annEnabledForMode && vectorActive) {
@@ -206,8 +224,9 @@ export const runAnnStage = async ({
       searchTopN,
       expandedTopN,
       adaptiveProvidersEnabled,
+      independentDiscovery,
       vectorOnlyProfile,
-      filtersActive: filtersEnabled,
+      filtersActive: eligibilityActive,
       providerCount,
       providerOrder: annOrder
     });
@@ -228,7 +247,9 @@ export const runAnnStage = async ({
     const bypassToSparse = sparseRouteRequested;
     effectiveRoute = bypassToSparse ? ANN_ADAPTIVE_ROUTE.SPARSE : ANN_ADAPTIVE_ROUTE.VECTOR;
     if (!bypassToSparse) {
-      for (const backend of orderedBackends) {
+      if (typeof queryEmbedding === 'function') queryEmbedding = await queryEmbedding();
+      vectorActive = isEmbeddingReady(queryEmbedding);
+      for (const backend of vectorActive ? orderedBackends : []) {
         const provider = providers.get(backend);
         if (!provider || typeof provider.query !== 'function') continue;
         if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;
@@ -276,7 +297,7 @@ export const runAnnStage = async ({
     } else {
       providerAvailable = providerCount > 0;
     }
-    if (!providerAvailable && !bypassToSparse && annCandidateBase && annCandidateBase.size > 0) {
+    if (!providerAvailable && !bypassToSparse && (independentDiscovery || annCandidateBase?.size > 0)) {
       warnAnnFallback(`Vector ANN unavailable for ${mode}.`);
       warned = true;
     }

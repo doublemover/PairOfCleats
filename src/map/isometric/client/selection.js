@@ -138,7 +138,7 @@ const formatEdgeTargets = (edgeList, direction, limit = 8) => {
     let label = '';
     let refType = '';
     let refId = '';
-    if (endpoint.member) {
+    if (endpoint.member != null) {
       const memberKey = endpoint.member === 0 || endpoint.member ? String(endpoint.member) : null;
       const member = memberKey ? (state.memberById.get(memberKey) || state.memberById.get(endpoint.member)) : null;
       if (member) {
@@ -628,6 +628,7 @@ export const setSelection = (hit) => {
   const info = resolveHitInfo(hit);
   state.selectedInfo = info || null;
   renderSelectionDetails(info);
+  state.onSelectionChanged?.(info);
   applyHighlights();
 };
 

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import PQueue from 'p-queue';
-import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
-import { parseSimpleBenchArgs, percentile } from '../shared.js';
+const { default: PQueue } = await import('p-queue');
+const { createBuildScheduler } = await import('../../../src/shared/concurrency/scheduler-core.js');
+const { parseSimpleBenchArgs, percentile } = await import('../shared.js');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

@@ -3,6 +3,7 @@ import { ANN_PROVIDER_IDS } from '../ann/types.js';
 export const ANN_CANDIDATE_POLICY_SCHEMA_VERSION = 1;
 
 export const ANN_CANDIDATE_POLICY_REASONS = Object.freeze({
+  INDEPENDENT_DISCOVERY: 'independentDiscovery',
   NO_CANDIDATES: 'noCandidates',
   TOO_LARGE: 'tooLarge',
   TOO_SMALL_NO_FILTERS: 'tooSmallNoFilters',
@@ -17,6 +18,7 @@ export const ANN_ADAPTIVE_ROUTE = Object.freeze({
 
 export const ANN_ADAPTIVE_ROUTE_REASONS = Object.freeze({
   VECTOR_ONLY_REQUIRED: 'vectorOnlyRequired',
+  INDEPENDENT_DISCOVERY: 'independentDiscovery',
   ADAPTIVE_DISABLED: 'adaptiveDisabled',
   FILTERS_ACTIVE: 'filtersActive',
   NO_PROVIDERS: 'noProviders',
@@ -191,6 +193,7 @@ const resolveOrderHeuristic = ({
 };
 
 const resolveAdaptiveRoute = ({
+  independentDiscovery,
   adaptiveProvidersEnabled,
   vectorOnlyProfile,
   filtersActive,
@@ -199,6 +202,7 @@ const resolveAdaptiveRoute = ({
   candidateSize,
   queryClass
 }) => {
+  if (independentDiscovery) return {route:ANN_ADAPTIVE_ROUTE.VECTOR,reason:ANN_ADAPTIVE_ROUTE_REASONS.INDEPENDENT_DISCOVERY};
   if (vectorOnlyProfile) {
     return {
       route: ANN_ADAPTIVE_ROUTE.VECTOR,
@@ -271,6 +275,7 @@ export const resolveAnnAdaptiveStrategy = ({
   searchTopN = 10,
   expandedTopN = 30,
   adaptiveProvidersEnabled = false,
+  independentDiscovery = false,
   vectorOnlyProfile = false,
   filtersActive = false,
   providerCount = 0,
@@ -308,6 +313,7 @@ export const resolveAnnAdaptiveStrategy = ({
   hnswEfSearch = clampInt(hnswEfSearch, 24, 512);
 
   const routeDecision = resolveAdaptiveRoute({
+    independentDiscovery,
     adaptiveProvidersEnabled,
     vectorOnlyProfile,
     filtersActive,

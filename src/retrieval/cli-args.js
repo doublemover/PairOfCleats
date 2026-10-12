@@ -24,6 +24,11 @@ const SEARCH_OPTIONS = {
   'as-of': { type: 'string' },
   snapshot: { type: 'string' },
   mode: { type: 'string' },
+  preset: { type: 'string' },
+  match: { type: 'string' },
+  candidates: { type: 'number' },
+  'deadline-ms': { type: 'number' },
+  'output-bytes': { type: 'number' },
   top: { type: 'number', default: 5 },
   json: { type: 'boolean', default: false, describe: 'emit JSON output (no stats unless --stats/--explain)' },
   compact: { type: 'boolean', default: false, describe: 'compact JSON output' },
@@ -63,6 +68,7 @@ const SEARCH_OPTIONS = {
   'fts-weights': { type: 'string' },
   'fts-trigram': { type: 'boolean', default: false },
   'fts-stemming': { type: 'boolean', default: false },
+  'ann-candidates': { type: 'string' },
   'dense-vector-mode': { type: 'string' },
   calls: { type: 'string' },
   uses: { type: 'string' },
@@ -102,6 +108,36 @@ const SEARCH_OPTIONS = {
   'stub-embeddings': { type: 'boolean' },
   'non-strict': { type: 'boolean', default: false }
 };
+
+export function getSearchHelp({ full = false } = {}) {
+  const help = {
+    version: 'search-help.v1', command: 'pairofcleats search', usage: 'pairofcleats search "query" [options]',
+    defaults: { top: 5, mode: 'default (code, prose and extracted-prose)', output: 'readable; --json for agents' },
+    aliases: { '-n': '--top', '--n': '--top', '-h': '--help' },
+    semantics: {
+      query: 'Sparse search uses implicit AND. ANN free text expresses intent; use explicit AND/OR/parentheses for hard Boolean constraints.',
+      constraints: 'Quoted phrases, NOT/- exclusions and structured filters remain hard constraints with ANN.',
+      filters: 'Filters are ANDed. --filter bare tokens mean file/path filters; unknown keys are rejected.',
+      time: '--modified-after accepts an ISO date; --modified-since accepts a number of days. These are code modification filters, not archive-message dates.',
+      pagination: 'Code search supports top-k, not offset pagination. Increase --top with the same query/filters and compare stable result IDs; do not invent --offset.',
+      context: 'Use context-pack with a returned file/symbol seed for related code. Archive context/role/date fields belong to the separate history reader.',
+      output: '--json emits machine-readable results; --compact reduces whitespace. --stats/--explain add metadata; --why adds deeper explanation.',
+      recovery: 'Missing index: build the explicitly authorized repository first. Empty hits: inspect filters and query constraints; no automatic index build or query broadening.'
+    },
+    examples: [
+      'pairofcleats search "parseSearchArgs" --repo . --mode code --json',
+      'pairofcleats search "cache AND refresh" --repo . --top 5 --json',
+      'pairofcleats search "cache" --repo . --path src/retrieval --lang javascript --no-ann --json',
+      'pairofcleats search "Search Pipeline" --repo . --mode prose --json',
+      'pairofcleats context-pack --repo . --seed file:src/index.js --hops 1'
+    ],
+    more: 'pairofcleats search --help --all --json'
+  };
+  if (full) help.options = Object.fromEntries(Object.entries(SEARCH_OPTIONS).map(([name, field]) => [
+    name, { ...field, ...(field.type === 'boolean' ? { negativeFlag: '--no-' + name } : {}) }
+  ]));
+  return help;
+}
 
 export const SEARCH_OPTION_NAMES = Object.freeze(Object.keys(SEARCH_OPTIONS));
 
@@ -219,6 +255,9 @@ export function getSearchUsage() {
     '  --fts-weights <json|list>',
     '  --fts-trigram',
     '  --fts-stemming',
+    '  --ann-candidates independent|lexical-rerank',
+    '  --preset fast|hybrid|investigate --match all|any|auto',
+    '  --candidates N --top N --deadline-ms N --output-bytes N',
     '  --ann-backend auto|lancedb|sqlite|hnsw|js',
     '  --allow-sparse-fallback',
     '  --non-strict'

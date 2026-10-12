@@ -1,7 +1,7 @@
 # Spec: Tree-sitter Native Scheduler Runtime
 
 Status: Active v2.0  
-Last updated: 2026-02-20T00:00:00Z
+Last updated: 2026-10-11T00:00:00Z
 
 ## Goal
 
@@ -71,3 +71,17 @@ Minimum suite:
 ## Compatibility policy
 
 No legacy scheduler keying or runtime fallback aliases are supported.
+
+## Warm-pool cost handoff
+
+Warm-pool lanes reuse the shard planner's extracted shared `planWeightedBatches`
+helper. When every wave in a base grammar has a finite positive
+`estimatedParseCost`, independent waves are assigned by that existing deterministic
+balancer rather than wave-count round robin. Canonical execution order is restored
+inside each lane; each grammar wave is assigned exactly once. Lane count and
+subprocess concurrency policy are unchanged. Missing/invalid costs retain the
+previous count-based assignment for the entire grammar, so unknown work is not
+silently treated as cheap. Task logs expose planned lane cost and cost/count mode.
+This does not introduce dependency reordering, new prescans, or different parser
+output identities. Cost units predict load; they are not milliseconds or a claim
+of measured corpus speedup.

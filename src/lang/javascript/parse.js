@@ -1,6 +1,13 @@
+import { createRequire } from 'node:module';
 import * as acorn from 'acorn';
 import * as esprima from 'esprima';
 import { parseBabelAst } from '../babel-parser.js';
+
+const require = createRequire(import.meta.url);
+const parserVersions = { babel: require('@babel/parser/package.json').version,
+  acorn: require('acorn/package.json').version, esprima: require('esprima/package.json').version };
+const syntaxOwners = new WeakMap();
+export const getJavaScriptSyntaxIdentity = (ast) => syntaxOwners.get(ast) || null;
 
 const JS_PARSERS = new Set(['auto', 'babel', 'acorn', 'esprima']);
 
@@ -62,7 +69,10 @@ export function parseJavaScriptAst(text, options = {}) {
 
   for (const kind of order) {
     const ast = tryParse(kind);
-    if (ast) return ast;
+    if (ast) {
+      syntaxOwners.set(ast, { family: kind, version: parserVersions[kind], options: { ext, flowMode } });
+      return ast;
+    }
   }
   return null;
 }

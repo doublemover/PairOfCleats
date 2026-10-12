@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { applyCrossFileInference } from '../../../src/index/type-inference-crossfile.js';
 
 const fail = (message) => {
@@ -68,6 +69,29 @@ if (link.to?.resolved?.chunkUid !== 'uid-target') {
 }
 if (link.legacy?.file !== 'src/lib.js' || link.legacy?.target !== 'target') {
   fail('Expected resolved diagnostics fields to include file and target name.');
+}
+
+for (const [sourceExt, runtimeExt] of [['.ts', '.js'], ['.tsx', '.js'], ['.mts', '.mjs'], ['.cts', '.cjs']]) {
+  const tsCaller = { ...caller, file: 'src/app.ts', codeRelations: { calls: [['run', 'Local']] } };
+  const tsCallee = { ...callee, file: `src/lib${sourceExt}` };
+  await applyCrossFileInference({
+    rootDir: process.cwd(),
+    buildRoot: process.cwd(),
+    chunks: [tsCaller, tsCallee],
+    enabled: true,
+    cacheEnabled: false,
+    log: () => {},
+    useTooling: false,
+    enableTypeInference: false,
+    enableRiskCorrelation: false,
+    fileRelations: new Map([
+      [tsCaller.file, { importBindings: { Local: { imported: 'target', module: `./lib${runtimeExt}` } } }]
+    ])
+  });
+  const tsLink = tsCaller.codeRelations.callLinks?.[0];
+  assert.equal(tsLink?.to?.status, 'resolved');
+  assert.equal(tsLink?.to?.importHint?.resolvedFile, tsCallee.file);
+  assert.equal(tsLink?.to?.resolved?.chunkUid, 'uid-target');
 }
 
 console.log('import-resolver-relative integration test passed');

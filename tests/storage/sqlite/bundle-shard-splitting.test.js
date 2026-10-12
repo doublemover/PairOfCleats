@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -59,7 +60,7 @@ const result = await buildBundleDatabase({
   Database,
   dbPath,
   mode: 'code',
-  manifest: { files: { [relKey]: manifestEntry } },
+  manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { [relKey]: manifestEntry } },
   bundleDir
 });
 

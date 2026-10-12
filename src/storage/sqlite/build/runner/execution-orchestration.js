@@ -1,3 +1,4 @@
+import { normalizeFtsVariants } from '../../fts-variants.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -91,6 +92,9 @@ export const executeSqliteModeBuilds = async ({
   envConfig,
   threadLimits
 }) => {
+  const requestedFtsVariants = normalizeFtsVariants(argv['fts-variants'] ?? [
+    ...(userConfig?.search?.sqliteFtsStemming === true ? ['porter'] : [])
+  ]);
   const { log, warn, error } = logger;
   const buildModeTask = taskFactory('SQLite', { total: modeList.length, stage: 'sqlite' });
   let done = 0;
@@ -114,6 +118,7 @@ export const executeSqliteModeBuilds = async ({
       outputExists,
       sqliteRuntime
     } = resolveModeSelectionPlan({
+      repoRoot: root,
       mode,
       modeIndexDirs,
       modeOutputPaths,
@@ -147,6 +152,7 @@ export const executeSqliteModeBuilds = async ({
     if (modeIsZeroState) {
       const existingRows = outputExists
         ? readSqliteModeCount({
+          repoRoot: root,
           Database,
           dbPath: outputPath,
           mode
@@ -171,7 +177,7 @@ export const executeSqliteModeBuilds = async ({
       }
     }
 
-    const incrementalData = loadIncrementalManifest(repoCacheRoot, mode);
+    const incrementalData = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
     const incrementalBundleDir = incrementalData?.bundleDir || null;
     const incrementalFiles = incrementalData?.manifest?.files;
     const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
@@ -384,6 +390,8 @@ export const executeSqliteModeBuilds = async ({
         && recordsIncrementalSupported
       ) {
         const updateResult = await incrementalUpdateDatabase({
+          repoRoot: root,
+          ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           outPath: outputPath,
           mode,
@@ -415,6 +423,7 @@ export const executeSqliteModeBuilds = async ({
         }
         if (updateResult?.used) {
           const counts = readSqliteCounts({
+            repoRoot: root,
             Database,
             dbPath: outputPath
           });
@@ -468,6 +477,8 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite incremental`
         });
         const bundleResult = await buildDatabaseFromBundles({
+          repoRoot: root,
+          ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           outPath: tempOutputPath,
           mode,
@@ -513,6 +524,8 @@ export const executeSqliteModeBuilds = async ({
             repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
           });
           await buildDatabaseFromArtifacts({
+            repoRoot: root,
+            ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
             Database,
             index: pieces,
             indexDir: modeIndexDir,
@@ -541,6 +554,7 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite artifacts`
         });
         await buildDatabaseFromArtifacts({
+          ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           index: pieces,
           indexDir: modeIndexDir,
@@ -556,6 +570,7 @@ export const executeSqliteModeBuilds = async ({
         });
       }
       const postImportValidation = validateSqliteRowLedgerPostImport({
+        repoRoot: root,
         rowLedger: activeRowLedger,
         Database,
         dbPath: tempOutputPath,
@@ -575,6 +590,7 @@ export const executeSqliteModeBuilds = async ({
       }
       const hadVectorTable = resolvedVectorConfig?.enabled === true
         ? hasVectorTableAtPath({
+          repoRoot: root,
           Database,
           dbPath: tempOutputPath,
           tableName: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
@@ -594,6 +610,7 @@ export const executeSqliteModeBuilds = async ({
       tempOutputPath = null;
       await removeSqliteSidecars(outputPath);
       const counts = readSqliteCounts({
+        repoRoot: root,
         Database,
         dbPath: outputPath
       });

@@ -55,7 +55,7 @@
       "profile": "balanced",
       "match": "\"alpha\"",
       "variant": "unicode61",
-      "tokenizer": "unicode61 remove_diacritics 2",
+      "tokenizer": "unicode61",
       "variantReason": "default_unicode61",
       "normalizedQueryChanged": false,
       "availabilityCode": null,

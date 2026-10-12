@@ -16,6 +16,25 @@ This document describes the **public HTTP API server** and the **MCP (Model Cont
 - Invalid input returns HTTP 400 with `{ ok: false, code: "INVALID_REQUEST", message }` plus optional `errors`.
 - Missing indexes return HTTP 409 with `{ ok: false, code: "NO_INDEX", message }`.
 
+### Bounded evidence workspace (implementation checkpoint)
+
+- `GET /map/workspace` and its fixed asset/vendor paths serve static application code only.
+  They run after origin validation and before bearer authentication so the UI can accept a token.
+- `POST /map/catalog` accepts `{ repoRoot? }`; data access requires normal API authentication
+  and repository allowlist resolution. Returns `{ ok: true, result }` with `kind: "artifact-catalog"`,
+  a content-pinned generation, availability, format/inspection mode and explicit unknown bytes.
+- `POST /map/artifact` accepts `{ repoRoot?, name, generation, cursor? }`. Names are logical
+  artifact names, never paths. Returns `kind: "artifact-page"`, bounded rows/object or physical
+  provenance, generation, optional single-use cursor and coverage. Expired cursors return 410;
+  changed generations return 409; absent artifacts return 404. Unsupported or oversize reads
+  return an explicit error. It never starts indexing or enrichment.
+- Row pages admit at most 128 records / 64 KiB. Artifact inputs are capped at 2 MiB where the
+  existing logical loaders support this budget. The published semantic store retains its
+  existing backend bounds. Eight readers maximum, 60-second idle expiration pruned on calls.
+
+See [the coverage and acceptance record](../guides/reladraw-workspace.md). Browser acceptance
+and the separate Three.js replacement remain pending; these endpoints do not imply them.
+
 ### Phase 11 endpoints (graph-powered analysis outputs)
 
 These endpoints are **recommended** for Phase 11 parity. If implemented, they MUST:

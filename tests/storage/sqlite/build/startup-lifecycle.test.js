@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -13,7 +14,7 @@ const piscinaPath = require.resolve('piscina');
 const previousPiscina = require.cache[piscinaPath];
 const pools = [];
 let poolFailure = null;
-const bundle = { chunks: [{ file: 'sample.js', start: 0, end: 1, tokens: ['sample'] }] };
+const bundle = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, chunks: [{ file: 'sample.js', start: 0, end: 1, tokens: ['sample'] }] };
 class FakePiscina {
   constructor() {
     if (poolFailure) throw poolFailure;
@@ -96,7 +97,7 @@ const runCase = async ({ name, direct = false, failureAt = null, closeFailure = 
       outPath,
       mode: 'code',
       incrementalData: {
-        manifest: { files: { 'sample.js': { bundles: ['bundle.json'], hash: 'sample', mtimeMs: 1, size: 1 } } },
+        manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { 'sample.js': { bundles: ['bundle.json'], hash: 'sample', mtimeMs: 1, size: 1 } } },
         bundleDir: tempRoot
       },
       envConfig: { bundleThreads: 2 },

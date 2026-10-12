@@ -8,7 +8,6 @@ import { markBuildPhase, resolveBuildStatePath, startBuildHeartbeat } from '../.
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { SCHEDULER_QUEUE_NAMES } from '../../../src/index/build/runtime/scheduler.js';
 import { loadIncrementalManifest, writeIncrementalManifest } from '../../../src/storage/sqlite/incremental.js';
-import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
 import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import {
@@ -28,8 +27,7 @@ import {
   countNonEmptyVectors,
   clampQuantizedVectorsInPlace,
   isNonEmptyVector,
-  isVectorLike,
-  normalizeEmbeddingVectorInPlace
+  isVectorLike
 } from '../../../src/shared/embedding-utils.js';
 import { resolveEmbeddingInputFormatting } from '../../../src/shared/embedding-input-format.js';
 import { resolveOnnxModelPath } from '../../../src/shared/onnx-embeddings.js';
@@ -38,6 +36,9 @@ import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { createLruCache } from '../../../src/shared/cache/lru.js';
 import { normalizeDenseVectorMode } from '../../../src/shared/dense-vector-mode.js';
+import { createEmbeddingFileAdmission, resolveEmbeddingFdCap } from './file-admission.js';
+import { createEmbeddingWriterAdmission } from './writer-admission.js';
+import { createEmbeddingWorkEstimate } from './work-estimate.js';
 import { formatEmbeddingsPerfLine } from './perf-progress.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
@@ -74,6 +75,10 @@ import {
   readCacheIndex,
   readCacheMeta,
   readCacheEntry,
+  createCacheBatchReader,
+  readCacheEntries,
+  writeCacheEntries,
+  flushCacheIndex,
   resolveCacheDir,
   resolveCacheRoot,
   resolveGlobalChunkCacheDir,
@@ -96,7 +101,6 @@ import {
   validateCachedDims
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
-import { createHnswBuilder } from './hnsw.js';
 import { updatePieceManifest } from './manifest.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
@@ -198,15 +202,13 @@ const resolveEmbeddingsProgressHeartbeatMs = (indexingConfig) => {
 /**
  * Resolve per-file embedding compute concurrency.
  *
- * HNSW writes are forced single-threaded to preserve deterministic builder
- * behavior while non-HNSW runs can fan out by config or token budget.
+ * HNSW is built after vector fill in chunk-ID order; compute uses scheduler caps.
  *
  * @param {{
  *   indexingConfig:object,
  *   computeTokensTotal:number|null,
  *   cpuConcurrency?:number|null,
  *   fdConcurrencyCap?:number|null,
- *   hnswEnabled:boolean
  * }} input
  * @returns {number}
  */
@@ -214,10 +216,8 @@ export const resolveEmbeddingsFileParallelism = ({
   indexingConfig,
   computeTokensTotal,
   cpuConcurrency = null,
-  fdConcurrencyCap = null,
-  hnswEnabled
+  fdConcurrencyCap = null
 }) => {
-  if (hnswEnabled) return 1;
   const cpuCap = coercePositiveIntMinOne(cpuConcurrency);
   const configured = coercePositiveIntMinOne(indexingConfig?.embeddings?.fileParallelism);
   const tokenDriven = coercePositiveIntMinOne(computeTokensTotal);
@@ -549,7 +549,7 @@ export const boundedMapSet = (map, key, value, maxEntries) => {
 };
 
 /**
- * Execute work items with adaptive concurrency for test-contract validation.
+ * Execute file work with adaptive concurrency and drain owned work on failure.
  *
  * @template T
  * @param {{
@@ -578,44 +578,63 @@ export const __runWithAdaptiveConcurrencyForTests = async ({
   let adjustments = 0;
 
   return await new Promise((resolve, reject) => {
+    let failed = false;
+    let firstError;
+    const fail = (error) => {
+      if (!failed) { failed = true; firstError = error; }
+    };
+    const settleIfDrained = () => {
+      if (active !== 0) return;
+      if (failed) reject(firstError);
+      else if (nextIndex >= list.length) resolve({
+        peakConcurrency,
+        adjustments,
+        finalConcurrency: Math.max(1, concurrency)
+      });
+    };
     const pump = () => {
-      const desired = coercePositiveIntMinOne(resolveLimit({
-        active,
-        remaining: list.length - nextIndex,
-        concurrency
-      })) || concurrency;
-      if (desired !== concurrency) {
-        concurrency = desired;
-        adjustments += 1;
+      if (failed || (nextIndex >= list.length && active === 0)) { settleIfDrained(); return; }
+      try {
+        const desired = coercePositiveIntMinOne(resolveLimit({
+          active,
+          remaining: list.length - nextIndex,
+          concurrency
+        })) || concurrency;
+        if (desired !== concurrency) {
+          concurrency = desired;
+          adjustments += 1;
+        }
+      } catch (error) {
+        fail(error);
+        settleIfDrained();
+        return;
       }
-      while (active < concurrency && nextIndex < list.length) {
+      while (!failed && active < concurrency && nextIndex < list.length) {
         const itemIndex = nextIndex;
         const item = list[nextIndex];
         nextIndex += 1;
         active += 1;
         peakConcurrency = Math.max(peakConcurrency, active);
-        Promise.resolve(workerFn(item, itemIndex))
-          .then(() => {
-            active -= 1;
-            if (nextIndex >= list.length && active === 0) {
-              resolve({
-                peakConcurrency,
-                adjustments,
-                finalConcurrency: Math.max(1, concurrency)
-              });
-              return;
-            }
-            pump();
-          })
-          .catch(reject);
-      }
-      if (nextIndex >= list.length && active === 0) {
-        resolve({
-          peakConcurrency,
-          adjustments,
-          finalConcurrency: Math.max(1, concurrency)
+        let result;
+        try {
+          result = workerFn(item, itemIndex);
+        } catch (error) {
+          active -= 1;
+          fail(error);
+          break;
+        }
+        Promise.resolve(result).then(() => {
+          active -= 1;
+          pump();
+        }, (error) => {
+          active -= 1;
+          fail(error);
+          // Retain ownership until every already-started sibling settles. The
+          // caller must not start resource cleanup while siblings still use it.
+          settleIfDrained();
         });
       }
+      settleIfDrained();
     };
     pump();
   });
@@ -939,19 +958,6 @@ const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
   const seed = envSeed || configSeed || 'default';
   return { maxFiles, seed };
 };
-
-/**
- * Inline HNSW builders are fed during per-file embedding compute and therefore
- * only observe processed files. When sampling is active we must defer HNSW
- * construction until after missing vectors are filled so backend counts remain
- * aligned with chunk_meta length for validation.
- *
- * @param {{enabled:boolean,hnswIsolate:boolean,samplingActive:boolean}} input
- * @returns {boolean}
- */
-const shouldUseInlineHnswBuilders = ({ enabled, hnswIsolate, samplingActive }) => (
-  enabled === true && hnswIsolate !== true && samplingActive !== true
-);
 
 /**
  * Rewrite incremental bundle files with updated `embedding_u8` vectors produced
@@ -1938,7 +1944,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let bundleTask = null;
       let backendTask = null;
       try {
-        const incremental = loadIncrementalManifest(repoCacheRoot, mode);
+        const incremental = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
         const manifestFiles = incremental?.manifest?.files || {};
 
         let chunksByFile = new Map();
@@ -2149,75 +2155,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
         const hnswIsolate = hnswConfig.enabled
           ? (hnswIsolateOverride ?? isTestingEnv())
           : false;
-        const hnswEnabled = shouldUseInlineHnswBuilders({
-          enabled: hnswConfig.enabled,
-          hnswIsolate,
-          samplingActive
-        });
-        if (hnswConfig.enabled && !hnswIsolate && samplingActive) {
-          log(
-            `[embeddings] ${mode}: deferring HNSW build until post-fill because sampling is active ` +
-            `(${sampledChunkCount}/${totalChunks} chunks).`
-          );
-        }
-        const hnswBuilders = hnswEnabled ? {
-          merged: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          }),
-          doc: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          }),
-          code: createHnswBuilder({
-            enabled: hnswConfig.enabled,
-            config: hnswConfig,
-            totalChunks,
-            mode,
-            logger
-          })
-        } : null;
-        /**
-         * Append float vector to HNSW builder for one target collection.
-         *
-         * @param {'merged'|'doc'|'code'} target
-         * @param {number} chunkIndex
-         * @param {Float32Array|number[]} floatVec
-         * @returns {void}
-         */
-        const addHnswFloatVector = (target, chunkIndex, floatVec) => {
-          if (!hnswEnabled || !floatVec || !floatVec.length) return;
-          const builder = hnswBuilders?.[target];
-          if (!builder) return;
-          builder.addVector(chunkIndex, floatVec);
-        };
-        /**
-         * Dequantize uint8 vector then append to HNSW builder.
-         *
-         * @param {'merged'|'doc'|'code'} target
-         * @param {number} chunkIndex
-         * @param {Uint8Array|number[]} quantizedVec
-         * @returns {void}
-         */
-        const addHnswFromQuantized = (target, chunkIndex, quantizedVec) => {
-          if (!hnswEnabled || !quantizedVec || !quantizedVec.length) return;
-          const floatVec = dequantizeUint8ToFloat32(
-            quantizedVec,
-            quantization.minVal,
-            quantization.maxVal,
-            quantization.levels
-          );
-          if (floatVec && embeddingNormalize) {
-            normalizeEmbeddingVectorInPlace(floatVec);
-          }
-          if (floatVec) addHnswFloatVector(target, chunkIndex, floatVec);
-        };
         const hnswResults = { merged: null, doc: null, code: null };
 
         const modePersistentCacheEnabled = !stubFastPathEnabled;
@@ -2260,6 +2197,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
         if (globalChunkCacheDir) {
           await scheduleIo(() => fs.mkdir(globalChunkCacheDir, { recursive: true }));
         }
+        const globalChunkCacheIndex = globalChunkCacheDir ? await scheduleIo(() => readCacheIndex(globalChunkCacheDir, cacheIdentityKey)) : null;
+        const cacheBatchReader = createCacheBatchReader({cacheDir,cacheIndex,scheduleIo});
         const globalChunkCacheMemo = new Map();
         const globalChunkCacheExistingKeys = new Set();
         const globalChunkCachePendingWrites = new Set();
@@ -2270,7 +2209,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let globalChunkCacheMisses = 0;
         let globalChunkCacheRejected = 0;
         let globalChunkCacheStores = 0;
-        const resolveGlobalChunkVectors = async (chunkHash) => {
+        const resolveGlobalChunkVectors = async (chunkHash, prefetched = undefined) => {
           if (!modeGlobalChunkCacheEnabled || !globalChunkCacheDir) return null;
           globalChunkCacheAttempts += 1;
           const cacheKey = buildGlobalChunkCacheKey({
@@ -2284,7 +2223,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (!pending) {
             pending = (async () => {
               try {
-                const cachedResult = await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey));
+                const cachedResult = prefetched === undefined
+                  ? await scheduleIo(() => readCacheEntry(globalChunkCacheDir, cacheKey, globalChunkCacheIndex)) : prefetched;
                 const cached = cachedResult?.entry || null;
                 if (!cached) {
                   globalChunkCacheMisses += 1;
@@ -2380,6 +2320,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               scheduleIo
             });
             cacheIndexDirty = flushState.cacheIndexDirty;
+            if (flushState.flushResult?.budgetExceeded) warn(`[embeddings-cache] Physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
           })();
           try {
             await cacheIndexFlushInFlight;
@@ -2447,19 +2388,12 @@ export async function runBuildEmbeddingsWithConfig(config) {
         // Keep a bounded in-process queue so compute does not outrun IO and retain
         // unbounded payloads in memory.
         const schedulerStatsForWriter = scheduler?.stats?.() || null;
-        const schedulerIoQueue = schedulerStatsForWriter?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || null;
-        const schedulerIoMaxPending = Number.isFinite(Number(schedulerIoQueue?.maxPending))
-          ? Math.max(1, Math.floor(Number(schedulerIoQueue.maxPending)))
-          : null;
         const ioTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.io?.total))
           ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.io.total)))
           : 1;
         const computeTokensTotal = Number.isFinite(Number(schedulerStatsForWriter?.tokens?.cpu?.total))
           ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.tokens.cpu.total)))
           : 1;
-        const schedulerFdTokenCap = Number.isFinite(Number(schedulerStatsForWriter?.adaptive?.fd?.tokenCap))
-          ? Math.max(1, Math.floor(Number(schedulerStatsForWriter.adaptive.fd.tokenCap)))
-          : null;
         const staticFdCap = resolveFdConcurrencyCap(
           Math.max(
             1,
@@ -2470,29 +2404,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           ),
           { fdPressure: indexingConfig?.scheduler?.adaptiveSurfaces?.fdPressure }
         );
-        const resolveCurrentFdConcurrencyCap = () => {
-          const schedulerStats = scheduler?.stats?.() || null;
-          const dynamicSchedulerFdTokenCap = Number.isFinite(Number(schedulerStats?.adaptive?.fd?.tokenCap))
-            ? Math.max(1, Math.floor(Number(schedulerStats.adaptive.fd.tokenCap)))
-            : schedulerFdTokenCap;
-          if (Number.isFinite(Number(dynamicSchedulerFdTokenCap))) {
-            return Math.max(
-              1,
-              Math.min(
-                Number(dynamicSchedulerFdTokenCap),
-                Number.isFinite(Number(staticFdCap)) ? Number(staticFdCap) : Number(dynamicSchedulerFdTokenCap)
-              )
-            );
-          }
-          return staticFdCap;
-        };
-        const fdConcurrencyCap = resolveCurrentFdConcurrencyCap();
+        const fdConcurrencyCap = resolveEmbeddingFdCap({
+          schedulerStats: schedulerStatsForWriter, staticFdCap
+        });
         const fileParallelism = resolveEmbeddingsFileParallelism({
           indexingConfig,
           computeTokensTotal,
           cpuConcurrency: envelopeCpuConcurrency,
-          fdConcurrencyCap,
-          hnswEnabled
+          fdConcurrencyCap
         });
         const adaptiveFileParallelismEnabled = fileParallelism > 1
           && indexingConfig?.embeddings?.adaptiveFileParallelism !== false;
@@ -2505,85 +2424,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
             fdConcurrencyCap
           })
           : fileParallelism;
-        const adaptiveFileParallelismStepMs = Number.isFinite(
-          Number(indexingConfig?.embeddings?.adaptiveFileParallelismStepMs)
-        )
-          ? Math.max(100, Math.floor(Number(indexingConfig.embeddings.adaptiveFileParallelismStepMs)))
-          : 500;
-        const adaptiveFileParallelismRssLow = Number.isFinite(
-          Number(indexingConfig?.embeddings?.adaptiveFileParallelismRssLow)
-        )
-          ? Math.max(0, Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismRssLow)))
-          : 0.6;
-        const adaptiveFileParallelismRssHigh = Number.isFinite(
-          Number(indexingConfig?.embeddings?.adaptiveFileParallelismRssHigh)
-        )
-          ? Math.max(
-            adaptiveFileParallelismRssLow,
-            Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismRssHigh))
-          )
-          : 0.88;
-        const adaptiveFileParallelismGcLow = Number.isFinite(
-          Number(indexingConfig?.embeddings?.adaptiveFileParallelismGcLow)
-        )
-          ? Math.max(0, Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismGcLow)))
-          : 0.2;
-        const adaptiveFileParallelismGcHigh = Number.isFinite(
-          Number(indexingConfig?.embeddings?.adaptiveFileParallelismGcHigh)
-        )
-          ? Math.max(
-            adaptiveFileParallelismGcLow,
-            Math.min(1, Number(indexingConfig.embeddings.adaptiveFileParallelismGcHigh))
-          )
-          : 0.45;
+        const fileAdmission = createEmbeddingFileAdmission({ scheduler, staticFdCap,
+          baseConcurrency: fileParallelism, ceiling: adaptiveFileParallelismCeiling,
+          adaptive: adaptiveFileParallelismEnabled, config: indexingConfig?.embeddings });
         let adaptiveFileParallelismCurrent = fileParallelism;
         let adaptiveFileParallelismAdjustments = 0;
-        let adaptiveFileParallelismLastAdjustAt = 0;
         const resolveAdaptiveFileParallelism = () => {
-          if (!adaptiveFileParallelismEnabled) return fileParallelism;
-          const nowMs = Date.now();
-          if ((nowMs - adaptiveFileParallelismLastAdjustAt) < adaptiveFileParallelismStepMs) {
-            return adaptiveFileParallelismCurrent;
-          }
-          const schedulerStats = scheduler?.stats?.() || null;
-          const computeQueuePending = Number(
-            schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsCompute]?.pending || 0
-          );
-          const ioQueuePending = Number(
-            schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo]?.pending || 0
-          );
-          const backlog = Math.max(0, computeQueuePending) + Math.max(0, ioQueuePending);
-          const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
-          const rssUtilization = Number(memorySignals?.rssUtilization);
-          const gcPressure = Number(memorySignals?.gcPressureScore);
-          const dynamicFdCap = resolveCurrentFdConcurrencyCap();
-          const dynamicCeiling = Number.isFinite(Number(dynamicFdCap)) && Number(dynamicFdCap) > 0
-            ? Math.max(
-              fileParallelism,
-              Math.min(adaptiveFileParallelismCeiling, Math.floor(Number(dynamicFdCap)))
-            )
-            : adaptiveFileParallelismCeiling;
-          let next = Math.max(1, Math.min(adaptiveFileParallelismCurrent, dynamicCeiling));
-          const highPressure = (
-            Number.isFinite(rssUtilization) && rssUtilization >= adaptiveFileParallelismRssHigh
-          ) || (
-            Number.isFinite(gcPressure) && gcPressure >= adaptiveFileParallelismGcHigh
-          );
-          const lowPressure = (
-            Number.isFinite(rssUtilization) && rssUtilization <= adaptiveFileParallelismRssLow
-          ) && (
-            Number.isFinite(gcPressure) && gcPressure <= adaptiveFileParallelismGcLow
-          );
-          if (highPressure) {
-            next = Math.max(1, next - 1);
-          } else if (backlog > 0 && lowPressure) {
-            next = Math.min(dynamicCeiling, next + 1);
-          }
-          if (next !== adaptiveFileParallelismCurrent) {
-            adaptiveFileParallelismCurrent = next;
-            adaptiveFileParallelismAdjustments += 1;
-            adaptiveFileParallelismLastAdjustAt = nowMs;
-          }
+          adaptiveFileParallelismCurrent = fileAdmission.resolve();
+          adaptiveFileParallelismAdjustments = fileAdmission.stats().adjustments;
           return adaptiveFileParallelismCurrent;
         };
         const bundleRefreshParallelism = resolveEmbeddingsBundleRefreshParallelism({
@@ -2660,78 +2508,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
               + `(${bundleRefreshParallelism} workers).`
           );
         }
-        const defaultWriterMaxPending = Math.max(1, Math.min(4, ioTokensTotal * 2));
-        const writerMaxPending = schedulerIoMaxPending
-          ? Math.max(1, Math.min(defaultWriterMaxPending, schedulerIoMaxPending))
-          : defaultWriterMaxPending;
-        const writerAdaptiveCeiling = Math.max(writerMaxPending, Math.min(16, writerMaxPending * 2));
-        const writerAdaptiveFloor = Math.max(1, Math.min(writerMaxPending, Math.ceil(writerMaxPending * 0.5)));
-        const writerAdaptiveStepMs = Number.isFinite(Number(indexingConfig?.embeddings?.writerAdaptiveStepMs))
-          ? Math.max(100, Math.floor(Number(indexingConfig.embeddings.writerAdaptiveStepMs)))
-          : 500;
-        const writerAdaptiveRssLow = Number.isFinite(Number(indexingConfig?.embeddings?.writerAdaptiveRssLow))
-          ? Math.max(0, Math.min(1, Number(indexingConfig.embeddings.writerAdaptiveRssLow)))
-          : 0.62;
-        const writerAdaptiveRssHigh = Number.isFinite(Number(indexingConfig?.embeddings?.writerAdaptiveRssHigh))
-          ? Math.max(writerAdaptiveRssLow, Math.min(1, Number(indexingConfig.embeddings.writerAdaptiveRssHigh)))
-          : 0.9;
-        let writerAdaptiveLimit = writerMaxPending;
-        let writerAdaptiveLastAdjustAt = 0;
-        /**
-         * Adapt writer queue limit based on scheduler memory pressure signals.
-         *
-         * @returns {number}
-         */
-        const resolveAdaptiveWriterLimit = () => {
-          const nowMs = Date.now();
-          if ((nowMs - writerAdaptiveLastAdjustAt) < writerAdaptiveStepMs) {
-            return writerAdaptiveLimit;
-          }
-          const schedulerStats = scheduler?.stats?.();
-          const ioQueue = schedulerStats?.queues?.[SCHEDULER_QUEUE_NAMES.embeddingsIo] || null;
-          const dynamicSchedulerIoMaxPending = Number.isFinite(Number(ioQueue?.maxPending))
-            ? Math.max(1, Math.floor(Number(ioQueue.maxPending)))
-            : null;
-          const effectiveAdaptiveCeiling = dynamicSchedulerIoMaxPending
-            ? Math.max(1, Math.min(writerAdaptiveCeiling, dynamicSchedulerIoMaxPending))
-            : writerAdaptiveCeiling;
-          const effectiveAdaptiveFloor = Math.max(1, Math.min(writerAdaptiveFloor, effectiveAdaptiveCeiling));
-          writerAdaptiveLimit = Math.max(
-            effectiveAdaptiveFloor,
-            Math.min(writerAdaptiveLimit, effectiveAdaptiveCeiling)
-          );
-          const memorySignals = schedulerStats?.adaptive?.signals?.memory || null;
-          const rssUtilization = Number(memorySignals?.rssUtilization);
-          const gcPressure = Number(memorySignals?.gcPressureScore);
-          if (!Number.isFinite(rssUtilization) || !Number.isFinite(gcPressure)) {
-            return writerAdaptiveLimit;
-          }
-          if (rssUtilization >= writerAdaptiveRssHigh || gcPressure >= 0.4) {
-            writerAdaptiveLimit = Math.max(effectiveAdaptiveFloor, writerAdaptiveLimit - 1);
-            writerAdaptiveLastAdjustAt = nowMs;
-            return writerAdaptiveLimit;
-          }
-          if (rssUtilization <= writerAdaptiveRssLow && gcPressure <= 0.2) {
-            writerAdaptiveLimit = Math.min(effectiveAdaptiveCeiling, writerAdaptiveLimit + 1);
-            writerAdaptiveLastAdjustAt = nowMs;
-            return writerAdaptiveLimit;
-          }
-          return writerAdaptiveLimit;
-        };
+        const writerAdmission = createEmbeddingWriterAdmission({ scheduler, indexingConfig });
         const writerQueue = createBoundedWriterQueue({
           scheduleIo,
-          maxPending: writerMaxPending,
-          resolveMaxPending: resolveAdaptiveWriterLimit
+          maxPending: writerAdmission.initialLimit,
+          resolveMaxPending: writerAdmission.resolve
         });
         const cacheShardHandlePool = createShardAppendHandlePool();
         const progressHeartbeatMs = resolveEmbeddingsProgressHeartbeatMs(indexingConfig);
         const progressStartedAtMs = Date.now();
+        const workEstimate = createEmbeddingWorkEstimate({ entries: sampledFileEntries,
+          charsPerToken: embeddingCharsPerToken });
         let embeddingTextsScheduled = 0;
         let embeddingTextsResolved = 0;
         let embeddingTextsEmbedded = 0;
         let embeddingBatchesCompleted = 0;
         let embeddingBatchTokensProcessed = 0;
         let embeddingBatchComputeMs = 0;
+        let embeddingBatchPaddedTokens = 0;
         let embeddingBatchTargetTokens = 0;
         let embeddingBatchUnderfilledTokens = 0;
         let embeddingBatchFillRatioSum = 0;
@@ -2746,6 +2540,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         let embeddingFileConcurrencyPeak = 0;
         let lastProgressEmitMs = 0;
         let progressTimer = null;
+        let getBatchingStats = () => ({});
         /**
          * Build combined files/chunks throughput snapshot for current mode.
          *
@@ -2756,8 +2551,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const elapsedSec = Math.max(0.001, (nowMs - progressStartedAtMs) / 1000);
           const filesPerSec = processedFiles / elapsedSec;
           const chunksPerSec = processedChunks / elapsedSec;
-          const remainingChunks = Math.max(0, sampledChunkCount - processedChunks);
-          const etaSeconds = chunksPerSec > 0 ? (remainingChunks / chunksPerSec) : null;
+          const work = workEstimate.snapshot();
+          const etaSeconds = work.etaSeconds;
           const etaText = formatEtaSeconds(etaSeconds, { fallback: 'n/a' });
           const cacheHitRate = cacheAttempts > 0 ? ((cacheHits / cacheAttempts) * 100) : null;
           const writerStats = writerQueue.stats();
@@ -2786,9 +2581,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           const embeddingBatchAvgWaitMs = embeddingBatchesCompleted > 0
             ? (embeddingBatchQueueWaitMs / embeddingBatchesCompleted)
             : 0;
-          const embedEtaSeconds = embeddingTextsPerSec > 0
-            ? Math.max(0, (embeddingTextsScheduled - embeddingTextsResolved) / embeddingTextsPerSec)
-            : null;
+          const embedEtaSeconds = work.etaSeconds;
+          const batchingStats = getBatchingStats();
           const perfMetrics = {
             files_total: sampledFileEntries.length,
             files_done: processedFiles,
@@ -2820,7 +2614,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
             writer_pending: Number(writerStats.pending || 0),
             writer_max_pending: Number(writerStats.currentMaxPending || 0),
             queue_compute_pending: Number(computeQueueStats.pending || 0),
-            queue_io_pending: Number(ioQueueStats.pending || 0)
+            queue_io_pending: Number(ioQueueStats.pending || 0),
+            queue_compute_running: Number(computeQueueStats.running || 0),
+            queue_io_running: Number(ioQueueStats.running || 0),
+            writer_peak_pending: writerStats.peakPending,
+            writer_pending_bytes: writerStats.pendingBytes,
+            writer_cap_reason: writerAdmission.stats().reason,
+            batch_pending_requests: batchingStats.pendingRequests,
+            batch_pending_texts: batchingStats.pendingTexts,
+            batch_pending_tokens: batchingStats.pendingTokens,
+            provider_active: batchingStats.activeProviderCalls,
+            provider_peak_active: batchingStats.peakProviderCalls,
+            inflight_live: inFlightStats.size,
+            tokens_padded: embeddingBatchPaddedTokens,
+            work_remaining_tokens_estimate: work.remainingTokens,
+            work_remaining_groups: work.remainingGroups,
+            eta_sample_batches: work.samples,
+            eta_compute_seconds: work.etaSeconds,
+            eta_basis: work.samples ? 'recent-token-cost' : 'warming-up'
           };
           return {
             elapsedSec,
@@ -2883,7 +2694,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             `${processedChunks}/${sampledChunkCount} chunks`,
             `${filesPerSec.toFixed(1)} files/s`,
             `${chunksPerSec.toFixed(1)} chunks/s`,
-            `eta ${etaText}`,
+            `compute eta ${etaText}`,
             `cache ${cacheHitRate == null ? 'n/a' : `${cacheHitRate.toFixed(1)}%`}`,
             `fp ${adaptiveFileParallelismCurrent}/${Math.max(embeddingFileConcurrencyPeak, adaptiveFileParallelismCurrent)}`,
             `writer ${writerStats.pending}/${writerStats.currentMaxPending}`,
@@ -2918,7 +2729,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             }
           });
           chunkTask.set(Math.min(processedChunks, sampledChunkCount), sampledChunkCount, {
-            message: `${processedChunks}/${sampledChunkCount} chunks | ${chunksPerSec.toFixed(1)} chunks/s | eta ${etaText}`,
+            message: `${processedChunks}/${sampledChunkCount} chunks | ${chunksPerSec.toFixed(1)} chunks/s | compute eta ${etaText}`,
             throughput: {
               chunksPerSec
             },
@@ -3050,11 +2861,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
               codeVectors[chunkIndex] = reusedCode;
               docVectors[chunkIndex] = reusedDoc;
               mergedVectors[chunkIndex] = reusedMerged;
-              if (hnswEnabled) {
-                addHnswFromQuantized('merged', chunkIndex, reusedMerged);
-                addHnswFromQuantized('doc', chunkIndex, reusedDoc);
-                addHnswFromQuantized('code', chunkIndex, reusedCode);
-              }
               cachedCodeVectors.push(reusedCode);
               cachedDocVectors.push(reusedDoc);
               cachedMergedVectors.push(reusedMerged);
@@ -3063,15 +2869,9 @@ export async function runBuildEmbeddingsWithConfig(config) {
             const embedCode = isVectorLike(fileCodeEmbeds[i]) ? fileCodeEmbeds[i] : [];
             const embedDoc = isVectorLike(docVectorsRaw[i]) ? docVectorsRaw[i] : zeroVec;
             const quantized = buildQuantizedVectors({
-              chunkIndex,
               codeVector: embedCode,
               docVector: embedDoc,
               zeroVector: zeroVec,
-              addHnswVectors: hnswEnabled ? {
-                merged: (id, vec) => addHnswFloatVector('merged', id, vec),
-                doc: (id, vec) => addHnswFloatVector('doc', id, vec),
-                code: (id, vec) => addHnswFloatVector('code', id, vec)
-              } : null,
               quantization,
               normalize: embeddingNormalize
             });
@@ -3149,7 +2949,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   }, shardEntry);
                   markCacheIndexDirty();
                 }
-              });
+              }, {bytes: encodedPayload.length});
             } catch {
             // Ignore cache write failures.
             }
@@ -3217,11 +3017,21 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     })
                   );
                   await writerQueue.enqueue(async () => {
+                    let persisted;
+                    try {
+                      persisted = await writeCacheEntries(globalChunkCacheDir, globalChunkCacheIndex,
+                        encodedWrites.map(write => ({ ...write, cacheKey: write.globalCacheKey })),
+                        { shardHandlePool: cacheShardHandlePool });
+                    } catch {
+                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      return;
+                    }
+                    if (!persisted) {
+                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                      return;
+                    }
                     for (const write of encodedWrites) {
                       try {
-                        await writeCacheEntry(globalChunkCacheDir, write.globalCacheKey, write.payload, {
-                          encodedBuffer: write.encodedPayload
-                        });
                         globalChunkCacheExistingKeys.add(write.globalCacheKey);
                         globalChunkCacheMemo.set(
                           write.globalCacheKey,
@@ -3238,7 +3048,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                         globalChunkCachePendingWrites.delete(write.globalCacheKey);
                       }
                     }
-                  });
+                  }, {bytes: encodedWrites.reduce((sum, write) => sum + write.encodedPayload.length, 0)});
                 } catch (err) {
                   for (const write of writes) {
                     globalChunkCachePendingWrites.delete(write.globalCacheKey);
@@ -3275,7 +3085,14 @@ export async function runBuildEmbeddingsWithConfig(config) {
           globalMicroBatchingMaxWaitMs,
           embeddingTextCache,
           embeddingInFlightCoalescer,
+          onEmbeddingScheduled: ({ requested }) => { embeddingTextsScheduled += requested; },
+          onEmbeddingPrepared: ({ groupId, tokens, delta }) => {
+            if (delta) workEstimate.adjust(groupId, tokens);
+            else workEstimate.prepare(groupId, tokens);
+          },
           onEmbeddingBatch: ({
+            groupTokens,
+            paddedTokens,
             durationMs,
             batchTokens,
             targetBatchTokens,
@@ -3285,6 +3102,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
             mergedRequests,
             mergedLabels
           }) => {
+            workEstimate.batch({ groupTokens, batchTokens, durationMs });
+            embeddingBatchPaddedTokens += Math.max(0, Number(paddedTokens) || 0);
             embeddingBatchesCompleted += 1;
             embeddingBatchTokensProcessed += Math.max(0, Math.floor(Number(batchTokens) || 0));
             embeddingBatchComputeMs += Math.max(0, Number(durationMs) || 0);
@@ -3316,6 +3135,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             embeddingInFlightClaims += Math.max(0, Math.floor(Number(inFlightOwned) || 0));
           }
         });
+        getBatchingStats = computeFileEmbeddings.batchingStats;
         try {
           /**
            * Process one file's chunk items with cache lookup and fallback compute.
@@ -3323,7 +3143,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
            * @param {[string, object[]]} input
            * @returns {Promise<void>}
            */
-          const processFileEntry = async ([relPath, items]) => {
+          const processFileEntryInner = async ([relPath, items]) => {
             const normalizedRel = toPosix(relPath);
             const chunkSignature = buildChunkSignature(items);
             const manifestEntry = manifestFiles[normalizedRel] || null;
@@ -3354,7 +3174,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               })) {
                 cacheFastRejects += 1;
               } else {
-                cachedResult = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+                cachedResult = await cacheBatchReader.read(cacheKey);
               }
             }
             const cached = cachedResult?.entry;
@@ -3395,11 +3215,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
                     codeVectors[chunkIndex] = codeVec;
                     docVectors[chunkIndex] = docVec;
                     mergedVectors[chunkIndex] = mergedVec;
-                    if (hnswEnabled) {
-                      addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                      addHnswFromQuantized('doc', chunkIndex, docVec);
-                      addHnswFromQuantized('code', chunkIndex, codeVec);
-                    }
                   }
                   if (hasEmptyCached) {
                     throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
@@ -3515,7 +3330,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 })) {
                   cacheFastRejects += 1;
                 } else {
-                  cachedAfterHash = await scheduleIo(() => readCacheEntry(cacheDir, cacheKey, cacheIndex));
+                  cachedAfterHash = await cacheBatchReader.read(cacheKey);
                 }
               }
               const cached = cachedAfterHash?.entry;
@@ -3556,11 +3371,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
                       codeVectors[chunkIndex] = codeVec;
                       docVectors[chunkIndex] = docVec;
                       mergedVectors[chunkIndex] = mergedVec;
-                      if (hnswEnabled) {
-                        addHnswFromQuantized('merged', chunkIndex, mergedVec);
-                        addHnswFromQuantized('doc', chunkIndex, docVec);
-                        addHnswFromQuantized('code', chunkIndex, codeVec);
-                      }
                     }
                     if (hasEmptyCached) {
                       throw new Error(`[embeddings] ${mode} cached vectors incomplete; recomputing ${normalizedRel}.`);
@@ -3635,7 +3445,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
                   const fingerprintMatches = !canCheckFingerprint
                   || priorIndexEntry.chunkHashesFingerprint === chunkHashesFingerprint;
                   const priorResult = fingerprintMatches
-                    ? await scheduleIo(() => readCacheEntry(cacheDir, priorKey, cacheIndex))
+                    ? await cacheBatchReader.read(priorKey)
                     : null;
                   const priorEntry = priorResult?.entry;
                   if (!priorEntry) {
@@ -3672,6 +3482,16 @@ export async function runBuildEmbeddingsWithConfig(config) {
                 }
               }
             }
+            const globalBatchResults = new Map();
+            if (modeGlobalChunkCacheEnabled && Array.isArray(chunkHashes)) {
+              const missing = [...new Set(chunkHashes.filter((hash, index) =>
+                hash && !reuse.code[index] && !crossFileChunkDedupe?.get(hash)))];
+              const keys = missing.map(chunkHash => buildGlobalChunkCacheKey({
+                identityKey: cacheIdentityKey, chunkHash, pathPolicy: 'posix'
+              }));
+              const results = await scheduleIo(() => readCacheEntries(globalChunkCacheDir, keys, globalChunkCacheIndex));
+              missing.forEach((hash,index)=>globalBatchResults.set(hash,results[index]));
+            }
             for (let i = 0; i < items.length; i += 1) {
               if (
                 !reuse.code[i]
@@ -3704,7 +3524,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               ) {
                 const chunkHash = chunkHashes[i];
                 if (chunkHash) {
-                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash);
+                  const globalChunkCached = await resolveGlobalChunkVectors(chunkHash, globalBatchResults.get(chunkHash));
                   const vectors = globalChunkCached?.vectors || null;
                   if (
                     vectors
@@ -3742,6 +3562,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
               reuse
             });
           };
+          const processFileEntry = async (entry) => {
+            await processFileEntryInner(entry);
+            workEstimate.complete(entry[0]);
+          };
           if (fileParallelism <= 1 || sampledFileEntries.length <= 1) {
             for (const entry of sampledFileEntries) {
               await processFileEntry(entry);
@@ -3759,7 +3583,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
               Number(adaptiveRun?.peakConcurrency || 0)
             );
             adaptiveFileParallelismCurrent = Math.max(
-              fileParallelism,
+              1,
               Math.floor(Number(adaptiveRun?.finalConcurrency || adaptiveFileParallelismCurrent || fileParallelism))
             );
             adaptiveFileParallelismAdjustments = Math.max(
@@ -3772,6 +3596,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           if (typeof computeFileEmbeddings?.drain === 'function') {
             await computeFileEmbeddings.drain();
           }
+          await cacheBatchReader.drain();
           await writerQueue.onIdle();
           await cacheShardHandlePool.close();
           emitProgressSnapshot({ force: true, summary: true });
@@ -3786,6 +3611,10 @@ export async function runBuildEmbeddingsWithConfig(config) {
           writerTask.done({ message: 'writer queue drained' });
         }
         await flushCacheIndexMaybe({ force: true });
+        if (globalChunkCacheIndex) {
+          const globalFlush = await scheduleIo(() => flushCacheIndex(globalChunkCacheDir, globalChunkCacheIndex, {identityKey:cacheIdentityKey, maxBytes:cacheMaxBytes, maxAgeMs:cacheMaxAgeMs}));
+          if (globalFlush.budgetExceeded) warn(`[embeddings-cache] Global physical storage remains above ${cacheMaxBytes} bytes; protected metadata or open cache files remain.`);
+        }
 
         stageCheckpoints.record({
           stage: 'stage3',
@@ -3900,7 +3729,6 @@ export async function runBuildEmbeddingsWithConfig(config) {
             hnswConfig,
             hnswIsolate,
             isolateState: hnswIsolateState,
-            hnswBuilders,
             hnswPaths: stagedHnswPaths,
             vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors },
             vectorsPaths: {

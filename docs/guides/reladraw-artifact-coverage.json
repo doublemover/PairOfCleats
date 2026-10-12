@@ -1,0 +1,1231 @@
+{
+  "base": "91b3c48968d3453d051bd41e23a70d98eca4f697",
+  "schemaDerived": true,
+  "individualProducerValidation": false,
+  "artifacts": [
+    {
+      "name": "api_contracts",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "boilerplate_catalog",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "builds_current",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "call_sites",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "call_sites_meta",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "call_sites_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chargram_postings",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_binary_columnar",
+      "family": "source",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_binary_columnar_lengths",
+      "family": "source",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_binary_columnar_meta",
+      "family": "source",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_binary_columnar_offsets",
+      "family": "source",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_cold",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_cold_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_cold_offsets",
+      "family": "source",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_meta_offsets",
+      "family": "source",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_uid_map",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "chunk_uid_map_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_binary",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_binary_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code_binary",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code_binary_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code_hnsw",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code_hnsw_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code_lancedb",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_code_lancedb_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc_binary",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc_binary_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc_hnsw",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc_hnsw_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc_lancedb",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_doc_lancedb_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_hnsw",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_hnsw_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_lancedb",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_lancedb_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "dense_vectors_sqlite_vec_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "determinism_report",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "diff_inputs",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "diff_summary",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "diffs_manifest",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "extraction_report",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "field_postings",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "field_tokens",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "field_tokens_meta",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "file_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "file_meta_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "file_relations",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "file_relations_meta",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "filelists",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "filter_index",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "graph_relations",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "graph_relations_meta",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "graph_relations_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "import_resolution_graph",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "index_state",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "lexicon_relation_filter_report",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "minhash_signatures",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "minhash_signatures_packed",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "minhash_signatures_packed_meta",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "phrase_ngrams",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "pieces_manifest",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "repo_map",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "repo_map_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_flows",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_flows_meta",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_interprocedural_stats",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_partial_flows",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_partial_flows_meta",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_summaries",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "risk_summaries_meta",
+      "family": "risk",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "scan_profile",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_coverage",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_coverage_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_edges",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_edges_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_evidence",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_frontier",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_frontier_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_frontier_targets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_lookup",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_lookup_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_manifest",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_operands",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_operands_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_operation_index",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_operation_index_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_operation_index_rows",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_ownership",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_ownership_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_query_index",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_query_index_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_query_index_rows",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_records",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_records_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_source_text",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_sources",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "semantic_sources_offsets",
+      "family": "semantic",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "snapshot_frozen",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "snapshot_record",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "snapshots_manifest",
+      "family": "index",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_edges",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_edges_by_file",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_edges_by_file_meta",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_edges_by_file_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_edges_meta",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_edges_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_occurrences",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_occurrences_by_file",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_occurrences_by_file_meta",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_occurrences_by_file_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_occurrences_meta",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbol_occurrences_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbolic_type_graph",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbolic_type_manifest",
+      "family": "semantic",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbols",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbols_meta",
+      "family": "relations",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "symbols_offsets",
+      "family": "relations",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings_binary_columnar",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings_binary_columnar_lengths",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings_binary_columnar_meta",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings_binary_columnar_offsets",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings_meta",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "token_postings_offsets",
+      "family": "retrieval",
+      "logicalSchema": false,
+      "mode": "metadata",
+      "projection": "physical provenance",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vfs_manifest",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vfs_manifest_bloom",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vfs_manifest_index",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vfs_manifest_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vfs_path_map",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "rows",
+      "projection": "bounded logical row page",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vfs_path_map_meta",
+      "family": "source",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    },
+    {
+      "name": "vocab_order",
+      "family": "retrieval",
+      "logicalSchema": true,
+      "mode": "object",
+      "projection": "bounded object inspector",
+      "interaction": "lazy fields; source provenance; explicit unknowns",
+      "validation": "catalog registry completeness; representative loader fixture only"
+    }
+  ]
+}

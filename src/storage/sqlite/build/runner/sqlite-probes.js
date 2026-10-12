@@ -1,3 +1,4 @@
+import { assertSqliteIndexFormat } from '../../index-format.js';
 import { toArray } from '../../../../shared/iterables.js';
 
 /**
@@ -5,21 +6,21 @@ import { toArray } from '../../../../shared/iterables.js';
  * @param {{Database:any,dbPath:string}} input
  * @returns {Record<string,number>}
  */
-export const readSqliteCounts = ({ Database, dbPath }) => {
+export const readSqliteCounts = ({ Database, dbPath, repoRoot = process.cwd() }) => {
   const counts = {};
   let db = null;
   try {
     db = new Database(dbPath, { readonly: true });
+    assertSqliteIndexFormat({ db, repoRoot, indexPath: dbPath, operation: 'probe' });
     const rows = db.prepare('SELECT mode, COUNT(*) AS total FROM chunks GROUP BY mode').all();
     for (const row of toArray(rows)) {
       if (!row?.mode) continue;
       counts[row.mode] = Number.isFinite(row.total) ? row.total : 0;
     }
-  } catch {}
-  if (db) {
-    try {
-      db.close();
-    } catch {}
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
+  } finally {
+    try { db?.close(); } catch {}
   }
   return counts;
 };
@@ -30,14 +31,16 @@ export const readSqliteCounts = ({ Database, dbPath }) => {
  * @param {{Database:any,dbPath:string,mode:string}} input
  * @returns {number|null}
  */
-export const readSqliteModeCount = ({ Database, dbPath, mode }) => {
+export const readSqliteModeCount = ({ Database, dbPath, repoRoot = process.cwd(), mode }) => {
   if (!dbPath || !mode) return null;
   let db = null;
   try {
     db = new Database(dbPath, { readonly: true });
+    assertSqliteIndexFormat({ db, repoRoot, indexPath: dbPath, operation: 'probe' });
     const row = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get(mode);
     return Number.isFinite(row?.total) ? row.total : 0;
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   } finally {
     if (db) {
@@ -55,14 +58,16 @@ export const readSqliteModeCount = ({ Database, dbPath, mode }) => {
  * @param {{Database:any,dbPath:string,mode:string}} input
  * @returns {number|null}
  */
-export const readSqliteDenseModeCount = ({ Database, dbPath, mode }) => {
+export const readSqliteDenseModeCount = ({ Database, dbPath, repoRoot = process.cwd(), mode }) => {
   if (!dbPath || !mode) return null;
   let db = null;
   try {
     db = new Database(dbPath, { readonly: true });
+    assertSqliteIndexFormat({ db, repoRoot, indexPath: dbPath, operation: 'probe' });
     const row = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?').get(mode);
     return Number.isFinite(row?.total) ? row.total : 0;
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   } finally {
     if (db) {
@@ -79,14 +84,16 @@ export const readSqliteDenseModeCount = ({ Database, dbPath, mode }) => {
  * @param {{Database:any,dbPath:string,tableName:string}} input
  * @returns {number|null}
  */
-export const readSqliteTableCount = ({ Database, dbPath, tableName }) => {
+export const readSqliteTableCount = ({ Database, dbPath, repoRoot = process.cwd(), tableName }) => {
   if (!dbPath || !tableName) return null;
   let db = null;
   try {
     db = new Database(dbPath, { readonly: true });
+    assertSqliteIndexFormat({ db, repoRoot, indexPath: dbPath, operation: 'probe' });
     const row = db.prepare(`SELECT COUNT(*) AS total FROM ${tableName}`).get();
     return Number.isFinite(row?.total) ? row.total : 0;
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   } finally {
     if (db) {
@@ -102,13 +109,15 @@ export const readSqliteTableCount = ({ Database, dbPath, tableName }) => {
  * @param {{Database:any,dbPath:string,tableName:string,hasVectorTable:(db:any,tableName:string)=>boolean}} input
  * @returns {boolean}
  */
-export const hasVectorTableAtPath = ({ Database, dbPath, tableName, hasVectorTable }) => {
+export const hasVectorTableAtPath = ({ Database, dbPath, repoRoot = process.cwd(), tableName, hasVectorTable }) => {
   if (!dbPath || !tableName) return false;
   let db = null;
   try {
     db = new Database(dbPath, { readonly: true });
+    assertSqliteIndexFormat({ db, repoRoot, indexPath: dbPath, operation: 'probe' });
     return hasVectorTable(db, tableName);
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return false;
   } finally {
     if (db) {

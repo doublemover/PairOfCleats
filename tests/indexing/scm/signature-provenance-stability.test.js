@@ -54,6 +54,9 @@ const sigA2 = buildIncrementalSignature(runtimeA, 'code', tokenizationKey);
 const sigB = buildIncrementalSignature(runtimeB, 'code', tokenizationKey);
 
 assert.equal(sigA, sigA2, 'signature should be stable for identical inputs');
-assert.notEqual(sigA, sigB, 'signature should vary with scm head');
+assert.equal(sigA, sigB, 'HEAD-only changes must retain bundles when blame is disabled');
+runtimeA.gitBlameEnabled = true;
+runtimeB.gitBlameEnabled = true;
+assert.notEqual(buildIncrementalSignature(runtimeA, 'code', tokenizationKey), buildIncrementalSignature(runtimeB, 'code', tokenizationKey), 'blame enrichment must depend on HEAD');
 
 console.log('signature provenance stability ok');

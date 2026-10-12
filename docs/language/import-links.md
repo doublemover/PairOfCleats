@@ -15,6 +15,25 @@ Phase 3 resolution-rule context.
 - `importLinks` is a lightweight related-files signal for search output and tooling.
 - The links are computed during index build and reflect static resolution rules from the IRG.
 
+## TypeScript runtime extensions
+Source imports may name an emitted JavaScript file, such as `./config.js`
+when the indexed file is `config.ts`. The shared resolver tries the literal
+indexed file first, then these source counterparts in order:
+
+- `.js`: `.ts`, `.tsx`, `.d.ts`
+- `.jsx`: `.tsx`, `.ts`, `.d.ts`
+- `.mjs`: `.mts`, `.d.mts`
+- `.cjs`: `.cts`, `.d.cts`
+
+This also applies to TS path aliases and cross-file call-link resolution.
+Explicit runtime extensions do not expand into `index.*` directory candidates
+or cross module formats (for example, `.mjs` does not fall back to `.ts`).
+Indexed matches do not consume filesystem-probe budgets. If no indexed match
+exists, the existing bounded filesystem fallback uses the same candidates;
+an existing non-indexed target remains an external import rather than an
+internal dependency edge. Incomplete existence indexes retain filesystem
+fallback, and genuinely missing targets retain unresolved diagnostics.
+
 ## Format
 `importLinks` is stored per file (in `file_relations.json`) as an array of repo-relative file paths. When present in search results, it is the same list projected onto the chunk's file.
 

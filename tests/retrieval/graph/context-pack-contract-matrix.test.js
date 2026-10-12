@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -268,7 +269,7 @@ const cases = [
         );
         await writeJsonObjectFile(path.join(indexDir, 'index_state.json'), {
           fields: {
-            artifactSurfaceVersion: 'test',
+            artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
             buildId: 'streaming-assembly',
             mode: 'code',
             compatibilityKey: 'compat-test'
@@ -279,7 +280,7 @@ const cases = [
           fields: {
             fields: {
               version: 2,
-              artifactSurfaceVersion: 'test',
+              artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
               compatibilityKey: 'compat-test',
               generatedAt: new Date().toISOString(),
               mode: 'code',
@@ -369,7 +370,7 @@ const cases = [
         await fsPromises.writeFile(path.join(indexDir, 'chunk_uid_map.jsonl'), `${lines.join('\n')}\n`, 'utf8');
         await writeJsonObjectFile(path.join(indexDir, 'index_state.json'), {
           fields: {
-            artifactSurfaceVersion: 'test',
+            artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
             buildId: 'seed-indexing',
             mode: 'code',
             compatibilityKey: 'compat-seed-indexing'
@@ -380,7 +381,7 @@ const cases = [
           fields: {
             fields: {
               version: 2,
-              artifactSurfaceVersion: 'test',
+              artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
               compatibilityKey: 'compat-seed-indexing',
               generatedAt: new Date().toISOString(),
               mode: 'code',

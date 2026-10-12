@@ -1,17 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import {
-  updateBuildState,
-  flushBuildState
-} from '../../../src/index/build/build-state.js';
-import { parseSimpleBenchArgs } from '../shared.js';
-import { prepareBuildStateBenchRun } from './build-state-shared.js';
-import {
-  printThroughputResult,
-  runComparedThroughputBenchmarks
-} from './throughput-compare.js';
+const { updateBuildState, flushBuildState } = await import('../../../src/index/build/build-state.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
+const { prepareBuildStateBenchRun } = await import('./build-state-shared.js');
+const { printThroughputResult, runComparedThroughputBenchmarks } = await import('./throughput-compare.js');
 
 const args = parseSimpleBenchArgs();
 const updates = Number(args.updates) || 300;

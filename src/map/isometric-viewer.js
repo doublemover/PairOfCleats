@@ -18,7 +18,8 @@ export function renderIsometricHtml({
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Code Map Isometric</title>
+<title>PairOfCleats · Semantic stacks</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #0f1115; color: #f0f0f0; font-family: "Segoe UI", Tahoma, sans-serif; }
   #app { position: relative; width: 100%; height: 100%; overflow: hidden; }
@@ -55,21 +56,51 @@ export function renderIsometricHtml({
   #menu button { width: 100%; margin-top: 6px; background: #1f2a38; color: #f0f0f0; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 6px 8px; cursor: pointer; }
   #menu button:hover { background: #2a3647; }
   canvas { display: block; outline: none; position: absolute; inset: 0; z-index: 1; }
+  :root { color-scheme: dark; }
+  html,body { background:#0c1520; color:#dce7f5; font-family:Inter,"Segoe UI",system-ui,sans-serif; }
+  #stack-bar { position:absolute; inset:0 0 auto; height:56px; z-index:3; display:flex; align-items:center; gap:10px; padding:0 14px; background:#101e2eee; border-bottom:1px solid #31435a; }
+  #stack-bar strong { font-size:15px; letter-spacing:.02em; margin-right:auto; }
+  #stack-bar button,#stack-bar select,#stack-tree button { background:#1c3045; border:1px solid #3d536c; border-radius:6px; padding:7px 9px; color:inherit; cursor:pointer; }
+  button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible { outline:2px solid #64decc; outline-offset:2px; }
+  button:disabled { opacity:.4; cursor:default; }
+  #hud { top:70px; right:14px; width:266px; max-width:266px; max-height:calc(100% - 115px); overflow:auto; background:#101e2eef; border-color:#31435a; box-shadow:0 8px 24px #0005; }
+  #hud h1 { font-size:15px; color:#93e6d9; }
+  #menu { top:70px; left:14px; width:220px; min-width:0; max-height:calc(100% - 115px); background:#101e2eef; border-color:#31435a; box-shadow:0 8px 24px #0005; }
+  #stack-search { box-sizing:border-box; width:100%; padding:9px; color:inherit; border:1px solid #3d536c; border-radius:6px; background:#17293b; }
+  #stack-tree { max-height:34vh; overflow:auto; margin:10px 0; }
+  #stack-tree summary { overflow-wrap:anywhere; line-height:1.5; }
+  #stack-tree button { text-align:left; font-size:11px; margin-top:4px; }
+  #stack-legend { display:grid; gap:5px; font-size:11px; margin:8px 0; }
+  #stack-breadcrumb { color:#a9bfd4; font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+  #stack-status { position:absolute; bottom:0; left:0; right:0; z-index:3; padding:8px 14px; background:#0c1520ee; border-top:1px solid #31435a; font:11px ui-monospace,monospace; }
+  #selection-body button { color:#a9e7e0; border:1px solid #35526b; border-radius:5px; background:#182c40; padding:7px; text-align:left; overflow-wrap:anywhere; }
+  #selection-body details { border-top:1px solid #31435a; padding-top:7px; }
+  #selection-body summary { cursor:pointer; overflow-wrap:anywhere; }
+  #selection-body .evidence { padding-left:8px; overflow-wrap:anywhere; }
+  .stack-help { font-size:11px; line-height:1.55; color:#a9bfd4; }
+  @media(max-width:850px) { #stack-bar strong { font-size:12px; } #stack-bar { gap:5px; padding:0 8px; } #stack-bar button { padding:6px; } #hud { width:205px; right:8px; } #menu { width:176px; left:8px; } }
+  @media(max-width:600px) { #stack-bar { height:auto; min-height:54px; flex-wrap:wrap; padding:8px; } #stack-bar strong { width:100%; } #menu { top:100px; max-height:24vh; width:40%; } #hud { top:auto; bottom:35px; right:8px; left:8px; width:auto; max-width:none; max-height:27vh; } #stack-tree { max-height:16vh; } #stack-status { font-size:10px; } }
 </style>
 </head>
 <body>
 <div id="app" tabindex="0">
+  <div id="stack-bar"><strong>PairOfCleats / semantic stacks</strong><button id="stack-back" disabled aria-label="Previous selection">←</button><button id="stack-forward" disabled aria-label="Next selection">→</button><button id="stack-home">Fit all</button><button id="stack-focus">Focus selection</button><label>Scale <select id="stack-mode"><option value="auto">Auto</option><option value="pipeline">Pipeline</option><option value="stacks">Stacks</option><option value="segments">Segments</option></select></label></div>
+  <div id="stack-status" role="status">Loading bounded source model…</div>
   <div id="hud">
-    <h1>Code Map Isometric</h1>
+    <h1>Evidence inspector</h1><div id="stack-breadcrumb">Select a stack or segment</div>
     <div class="meta" id="summary"></div>
     <div class="detail" id="selection">
       <strong>Selection</strong>
       <div id="selection-body">None</div>
     </div>
     <div id="perf-hud"></div>
-    <div class="controls">Click to focus. WASD to move. Scroll to zoom. Double click to open.</div>
+    <div class="controls">Drag or WASD to pan. Scroll to zoom. F focuses selection; Home fits all; Esc clears. Double click opens source.</div>
   </div>
   <div id="menu">
+    <details open><summary>Source hierarchy</summary><input id="stack-search" aria-label="Find stack or segment" placeholder="Find stack or segment"><div id="stack-tree"></div></details>
+    <div id="stack-legend" aria-label="Segment shape and color legend"></div><button id="stack-plumbing">Inspect current plumbing</button>
+    <p class="stack-help">One source member per segment. Plates group files by directory. Pipes preserve dependency direction; they do not imply runtime execution order.</p>
+    <label><input id="stack-all-edges" type="checkbox">All admitted segment links</label>
     <details open>
       <summary>View</summary>
       <div class="section" id="menu-view"></div>
@@ -115,6 +146,8 @@ export function renderIsometricHtml({
 </div>
 <script type="application/json" id="map-data">${mapJson}</script>
 <script type="application/json" id="viewer-config">${configJson}</script>
+<script type="importmap">${escapeScript(JSON.stringify({imports:{three:config.threeUrl || "/three/three.module.js"}}))}</script>
+<script>window.addEventListener('error',function(event){var status=document.getElementById('stack-status');if(status)status.textContent='Viewer startup error: '+(event.message||'A required asset could not load.');});window.addEventListener('unhandledrejection',function(event){var status=document.getElementById('stack-status');if(status)status.textContent='Viewer error: '+String(event.reason&&event.reason.message||event.reason);});</script>
 <script type="module" src="/isomap/viewer.js"></script>
 </body>
 </html>`;
