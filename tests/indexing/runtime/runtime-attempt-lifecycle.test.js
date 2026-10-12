@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createBuildRuntime } from '../../../src/index/build/runtime/runtime.js';
 import { teardownRuntime } from '../../../src/integrations/core/build-index/runtime.js';
-import { refreshRuntimeReceipt } from '../../../src/index/build/runtime/receipt.js';
+import { initBuildState } from '../../../src/index/build/build-state.js';
+import { initializeRuntimeReceipt, refreshRuntimeReceipt } from '../../../src/index/build/runtime/receipt.js';
 import { __setAdapterFactoryForTests } from '../../../src/shared/embedding-adapter.js';
 import { resolveEmbeddingRuntime } from '../../../src/index/build/runtime/embeddings.js';
 import { withTemporaryEnv, applyTestEnv } from '../../helpers/test-env.js';
@@ -33,6 +34,28 @@ try {
       assert.equal(JSON.parse(await fs.readFile(statePath)).runtime.attempts[0].lifecycle, 'succeeded');
     } finally { await teardownRuntime(runtime); }
   });
+  const pinnedRoot = path.join(dir, 'pinned');
+  await initBuildState({ buildRoot: pinnedRoot, buildId: 'persisted-generation', repoRoot: repo, modes: ['code'], stage: 'stage2' });
+  const pinnedPath = path.join(pinnedRoot, 'build_state.json');
+  const previous = JSON.parse(await fs.readFile(pinnedPath));
+  previous.createdAt = '2020-01-01T00:00:00.000Z';
+  previous.finishedAt = '2020-01-02T00:00:00.000Z';
+  previous.phases = { validation: { status: 'done', startedAt: previous.createdAt, finishedAt: previous.finishedAt } };
+  previous.producerExtension = { checkpoint: 'retained', promotion: 'retained' };
+  await fs.writeFile(pinnedPath, JSON.stringify(previous));
+  const checkpointPath = path.join(pinnedRoot, 'build_state.stage-checkpoints.json');
+  await fs.writeFile(checkpointPath, '{"prior":"checkpoint"}');
+  const initialized = await initializeRuntimeReceipt({ buildRoot: pinnedRoot, buildId: previous.buildId, root: repo, stage: 'stage4' });
+  const preserved = JSON.parse(await fs.readFile(pinnedPath));
+  for (const key of ['createdAt', 'finishedAt', 'phases', 'modes', 'producerExtension']) assert.deepEqual(preserved[key], previous[key]);
+  assert.equal(preserved.runtime.attempts[0].attemptId, initialized.attemptId);
+  assert.equal(await fs.readFile(checkpointPath, 'utf8'), '{"prior":"checkpoint"}');
+  for (const patch of [{ schemaVersion: 999 }, { artifactSurfaceVersion: 'unknown' }, { buildId: 7 }, { runtime: { schemaVersion: 1, attempts: [null] } }]) {
+    const corrupt = JSON.stringify({ ...previous, ...patch });
+    await fs.writeFile(pinnedPath, corrupt);
+    await assert.rejects(initializeRuntimeReceipt({ buildRoot: pinnedRoot, buildId: previous.buildId, root: repo, stage: 'stage4' }), { code: 'ERR_RUNTIME_RECEIPT_CONTRACT' });
+    assert.equal(await fs.readFile(pinnedPath, 'utf8'), corrupt);
+  }
   const transitions = [];
   const embedding = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: {}, indexingConfig: { embeddings: { mode: 'stub' } }, envConfig: {}, argv: { dims: 8 }, cpuConcurrency: 1,
     onEmbeddingObservation: async (record) => transitions.push(structuredClone(record)) });
@@ -48,6 +71,20 @@ try {
     onEmbeddingObservation: async ({ observation }) => { if (observation.state === 'ready') throw Object.assign(new Error('cannot persist ready'), { code: 'ENOSPC' }); } });
   await assert.rejects(failing.getChunkEmbedding('blocked result'), { code: 'ENOSPC' });
   assert.equal(failing.getEmbeddingObservation().state, 'failed');
+  let observedDims = 7;
+  __setAdapterFactoryForTests(() => ({ provider: 'xenova', embedOne: async () => new Float32Array(observedDims), embedderPromise: null }));
+  try {
+    const unknownDims = await resolveEmbeddingRuntime({ rootDir: repo, userConfig: {}, indexingConfig: { embeddings: { provider: 'xenova', mode: 'inline' } }, envConfig: {}, argv: {}, cpuConcurrency: 1 });
+    const selectedKey = unknownDims.embeddingIdentityKey;
+    assert.equal(unknownDims.embeddingIdentity.dims, null);
+    assert.equal((await unknownDims.getChunkEmbedding('undeclared dimensions')).length, 7);
+    assert.equal(unknownDims.getEmbeddingObservation().dims, 7);
+    assert.equal(unknownDims.embeddingIdentity.dims, null);
+    assert.equal(unknownDims.embeddingIdentityKey, selectedKey, 'first inference must not retrofit a preselected inline cache key');
+    observedDims = 6;
+    await assert.rejects(unknownDims.getChunkEmbedding('changed dimensions'), { code: 'ERR_EMBEDDING_DIMS_MISMATCH' });
+    assert.equal(unknownDims.embeddingIdentityKey, selectedKey);
+  } finally { __setAdapterFactoryForTests(null); }
   let provider = 'onnx';
   __setAdapterFactoryForTests(() => ({
     get provider() { return provider; }, embedderPromise: null,

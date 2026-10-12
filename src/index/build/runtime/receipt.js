@@ -1,7 +1,8 @@
 import path from 'node:path';
+import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receipt.js';
 import { initBuildState } from '../build-state.js';
 import { persistRuntimeAttempt } from '../build-state/runtime.js';
-import { createRuntimeAttempt, observeRuntimePath, sanitizeRuntimeReceipt } from '../../../shared/runtime-envelope/receipt.js';
+import { createRuntimeAttempt, observeRuntimePath, projectRuntimeScheduler } from '../../../shared/runtime-envelope/receipt.js';
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
 import { logLine } from '../../../shared/progress-runtime.js';
 
@@ -20,7 +21,10 @@ export const withRuntimeReceiptInitialization = async (create) => {
 };
 
 export const initializeRuntimeReceipt = async ({ buildRoot, buildId, root, stage, configHash, toolVersion, repoProvenance, profile, ...input }) => {
-  await initBuildState({ buildRoot, buildId, repoRoot: root, modes: null, stage, configHash, toolVersion, repoProvenance, profile });
+  const existing = await readRuntimeReceipt({ buildRoot, requireProducerIdentity: true });
+  if ((existing.errorCode && existing.errorCode !== 'ENOENT') || existing.evidence === 'unsupported-runtime-receipt') throw Object.assign(new Error('Cannot initialize runtime receipt over unreadable or unsupported build evidence.'), { code: existing.errorCode || 'ERR_RUNTIME_RECEIPT_CONTRACT' });
+  if (existing.errorCode === 'ENOENT') await initBuildState({ buildRoot, buildId, repoRoot: root, modes: null, stage, configHash, toolVersion, repoProvenance, profile });
+  else if (existing.buildId !== buildId) throw Object.assign(new Error('Runtime generation differs from persisted build state.'), { code: 'ERR_RUNTIME_RECEIPT_GENERATION' });
   const attempt = await createRuntimeAttempt({ ...input, buildId, stage, toolVersion });
   await persistRuntimeAttempt(buildRoot, attempt, { lifecycle: 'initializing' });
   return attempt;
@@ -48,7 +52,7 @@ export const collectRuntimeResourceEvidence = (runtime) => ({
     launchDecisions: runtime.workerPools?.runtimeEvidence || {},
     tokenize: poolEvidence(runtime.workerPool), quantize: poolEvidence(runtime.quantizePool)
   },
-  scheduler: sanitizeRuntimeReceipt(runtime.scheduler?.stats?.() || null)
+  scheduler: projectRuntimeScheduler(runtime.scheduler?.stats?.() || null)
 });
 
 export const refreshRuntimeReceipt = async (runtime, { lifecycle = 'running', ...patch } = {}) => {

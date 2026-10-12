@@ -106,10 +106,12 @@ export const resolveEmbeddingRuntime = async ({
       const candidate = { ...observation, ...next, observedAt: new Date().toISOString() };
       let identity = embeddingIdentity;
       if (candidate.state === 'ready' && Number.isFinite(candidate.dims)) {
-        if (identity?.dims != null && identity.dims !== candidate.dims) {
+        if ((identity?.dims != null && identity.dims !== candidate.dims)
+          || (observation.state === 'ready' && observation.dims !== candidate.dims)) {
           throw Object.assign(new Error(`Embedding dimensions mismatch: expected ${identity.dims}, observed ${candidate.dims}.`), { code: 'ERR_EMBEDDING_DIMS_MISMATCH' });
         }
-        identity = { ...identity, dims: candidate.dims };
+        // Inline signatures/cache keys have already selected their identity.
+        // A previously undeclared dimension is observed evidence only.
       }
       if (candidate.provider && identity?.provider !== candidate.provider) {
         identity = { ...identity, provider: candidate.provider, onnx: candidate.provider === 'onnx' ? identity.onnx : null };
@@ -157,7 +159,7 @@ export const resolveEmbeddingRuntime = async ({
         }
         const vectors = batch ? result : [result];
         const vector = vectors[0];
-        if (!Array.isArray(vectors) || !vector?.length || vectors.some((item) => !item?.length || item.length !== vector.length)) {
+        if (!Array.isArray(vectors) || (batch && vectors.length !== input.length) || !vector?.length || vectors.some((item) => !item?.length || item.length !== vector.length)) {
           throw Object.assign(new Error('Embedding batch did not return consistent nonempty vectors.'), { code: 'ERR_EMBEDDING_DIMS_MISMATCH' });
         }
         {
