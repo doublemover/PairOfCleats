@@ -14,6 +14,9 @@ import {
 } from '../../../shared/code-dictionaries.js';
 
 const runtimeObservation = observeWorkerHeap();
+runtimeObservation.workerAttemptId = runtimeObservation.processInstanceId;
+runtimeObservation.parentAttemptId = workerData?.runtimeAttemptId || null;
+runtimeObservation.buildId = workerData?.buildId || null;
 parentPort?.postMessage({ type: 'worker-runtime', threadId, observation: runtimeObservation });
 if (!runtimeObservation.resourceLimitAcknowledged) {
   throw new Error('Worker V8 heap exceeds its reported resource limits; refusing work.');

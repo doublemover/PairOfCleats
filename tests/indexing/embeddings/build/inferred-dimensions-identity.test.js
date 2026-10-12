@@ -42,6 +42,9 @@ const builds = (await fs.readdir(buildsDir, { withFileTypes: true })).filter((en
 assert.equal(builds.length, 1, 'fixture owns exactly one isolated build');
 const indexRoot = path.join(buildsDir, builds[0].name);
 const indexDir = path.join(indexRoot, 'index-code');
+const stage2Receipt = JSON.parse(await fs.readFile(path.join(indexRoot, 'build_state.json'), 'utf8'));
+assert.equal(stage2Receipt.runtime.attempts.at(-1).lifecycle, 'succeeded');
+assert.equal(stage2Receipt.runtime.attempts.at(-1).embeddings.observation.state, 'not-started');
 let calls = 0;
 const embed = async (texts) => {
   calls += 1;
@@ -58,6 +61,17 @@ try {
     const vectors = JSON.parse(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.meta.json'), 'utf8'));
     assert.equal(state.embeddings.ready, true);
     assert.equal(state.embeddings.pending, false);
+    const receipt = JSON.parse(await fs.readFile(path.join(indexRoot, 'build_state.json'), 'utf8'));
+    const attempt = receipt.runtime.attempts.at(-1);
+    assert.equal(receipt.buildId, stage2Receipt.buildId);
+    assert.equal(attempt.lifecycle, 'succeeded');
+    assert.equal(attempt.stage, 'stage3');
+    assert.equal(attempt.embeddings.observation.provider, 'xenova');
+    assert.equal(attempt.embeddings.observation.dims, 5);
+    assert.equal(attempt.embeddings.observation.method, 'provider-probe');
+    assert.equal(state.extensions.runtimeAttemptId, attempt.attemptId);
+    assert.equal(state.extensions.runtimeEmbeddingObservation.dims, 5);
+    assert.equal(receipt.runtime.attempts.filter((item) => item.stage === 'stage3').length, run + 1);
     assert.equal(state.embeddings.embeddingIdentity.dims, 5);
     assert.equal(vectors.dims, 5);
     assert.equal(state.embeddings.embeddingIdentityKey, buildEmbeddingIdentityKey(state.embeddings.embeddingIdentity));

@@ -26,7 +26,7 @@ const observation = await new Promise((resolve, reject) => {
 });
 if (process.argv.includes('--clear-mutable-env')) delete process.env.NODE_OPTIONS;
 const messages = [];
-const pools = await createIndexerWorkerPools({config:{enabled:true,maxWorkers:1,heapTargetMb:128,heapMinMb:128,heapMaxMb:256,taskTimeoutMs:5000},log:(line)=>messages.push(line)});
+const pools = await createIndexerWorkerPools({runtimeAttemptId:'parent-test-attempt',buildId:'test-generation',config:{enabled:true,maxWorkers:1,heapTargetMb:128,heapMinMb:128,heapMaxMb:256,taskTimeoutMs:5000},log:(line)=>messages.push(line)});
 let workerObservations = [];
 if (pools.tokenizePool) {
  await pools.tokenizePool.runQuantize({vectors:[[0,1]],minVal:-1,maxVal:1,levels:255});
@@ -44,6 +44,9 @@ console.log(JSON.stringify(result));`);
   assert.equal(baseline.enabled, true, 'normal unshaped launch must retain worker execution');
   assert.ok(baseline.workerObservations.length > 0);
   assert.equal(baseline.workerObservations[0].resourceLimitAcknowledged, true);
+  assert.equal(baseline.workerObservations[0].parentAttemptId, 'parent-test-attempt');
+  assert.equal(baseline.workerObservations[0].buildId, 'test-generation');
+  assert.ok(baseline.workerObservations[0].workerAttemptId);
   const shapedEnv = await resolveDispatchRuntimeEnv({ root: dir, scriptPath: 'build_index.js', baseEnv: { ...process.env, NODE_OPTIONS: '', PAIROFCLEATS_MAX_OLD_SPACE_MB: '16384' } });
   assert.equal(shapedEnv.NODE_OPTIONS, '--max-old-space-size=16384');
   const controlledAccepted = run([], '--max-old-space-size=128', ['--clear-mutable-env']);
