@@ -14,7 +14,7 @@ import { exactLspRange } from '../../../src/index/semantic/lsp-locations.js';
 const text = 'function foo() { return 1; }\r\nfoo(); foo(); foo(); foo(); foo(); // é😀';
 const fixture = await createRecoveryFixture(text);
 try {
-  const policy = { languages: ['javascript','typescript'], storage: { batchRows: 17, batchBytes: 8192 }, enrichment: { lsp: true } };
+  const policy = { enabled: true, languages: ['javascript','typescript'], storage: { batchRows: 17, batchBytes: 8192 }, enrichment: { bindings: 'eager' } };
   const facts = await collectFileSemanticFacts({ ...fixture.options, bytes: fixture.bytes, text, ast: parseJavaScriptAst(text), language: 'javascript', relPath: 'original.js', repositoryNamespace: fixture.root, policy });
   const descriptor = createSemanticFactsRef({ source: facts.source, partitions: [facts.partition], syntaxPartitionId: facts.partition.partitionId, storage: { generation: fixture.generation, relativePath: 'semantic' }, coverage: facts.coverage });
   const state = { semanticFactsByFile: new Map([['original.js',descriptor]]), semanticDiskAccount: fixture.account };
@@ -24,7 +24,7 @@ try {
   await assert.rejects(session.targetsForDocument({ ...doc, text: text + ' ' }), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
   const trace = path.join(fixture.root,'lsp-trace.jsonl'); process.env.POC_SEMANTIC_LSP_TRACE = trace;
   const output = await collectLspTypes({ rootDir: fixture.root, vfsRoot: fixture.root, documents: [doc], targets: [{ virtualPath: doc.virtualPath, virtualRange: { start: 0, end: 28 }, chunkRef: { chunkUid: 'foo-chunk', file: 'original.js', range: { start: 0, end: 28 } }, symbolHint: { name: 'foo', kind: 12 } }],
-    cmd: 'C:/nvm4w/nodejs/node.exe', args: [path.resolve('tests/fixtures/lsp/semantic-location-server.js')], providerId: 'semantic-fixture', providerVersion: '1', semanticSession: session,
+    cmd: process.execPath, args: [path.resolve('tests/fixtures/lsp/semantic-location-server.js')], providerId: 'semantic-fixture', providerVersion: '1', semanticSession: session,
     parseSignature: () => ({ returnType: 'number', paramTypes: [], paramNames: [] }), timeoutMs: 5000, retries: 0, sessionPoolingEnabled: false, vfsColdStartCache: false, semanticTokensEnabled: false, signatureHelpEnabled: false, typeDefinitionEnabled: false, referencesEnabled: false, inlayHintsEnabled: false });
   delete process.env.POC_SEMANTIC_LSP_TRACE;
   assert.equal(output.semanticFacts.partitions.length, 1);
