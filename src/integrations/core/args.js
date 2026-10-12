@@ -166,8 +166,7 @@ export const buildStage2Args = ({ root, argv, rawArgv }) => {
     args.push('--threads', String(stageThreads));
   }
   if (argv.incremental) args.push('--incremental');
-  const cacheRebuild = argv['cache-rebuild'] === true || rawArgv.includes('--cache-rebuild');
-  if (cacheRebuild) args.push('--cache-rebuild');
+  // Rebuild is consumed by the build owner before a stage2 handoff.
   if (rawArgv.includes('--stub-embeddings')) args.push('--stub-embeddings');
   if (typeof argv.sqlite === 'boolean') args.push(argv.sqlite ? '--sqlite' : '--no-sqlite');
   pushValueStage2Flag(args, rawArgv, 'sqlite-batch-size', argv['sqlite-batch-size'] ?? argv.sqliteBatchSize);

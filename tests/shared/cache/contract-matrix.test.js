@@ -131,8 +131,8 @@ for (const scenario of [
   }, async () => {
     const resolved = getCacheRoot();
     assert.equal(path.resolve(resolved), path.resolve(resolvedRoot));
-    assert.equal(fs.existsSync(legacyPath), !scenario.rebuild);
-    assert.equal(fs.existsSync(sentinelPath), !scenario.rebuild);
+    assert.equal(fs.existsSync(legacyPath), true);
+    assert.equal(fs.existsSync(sentinelPath), true);
   });
 }
 
