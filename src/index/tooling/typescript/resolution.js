@@ -76,7 +76,9 @@ export const preflightTypeScriptSource = (ts, host, fileName, options, redirecte
   if (typeof host.resolveModuleNameLiterals !== 'function' || typeof host.resolveTypeReferenceDirectiveReferences !== 'function' || !host.semanticResolution)
     throw unavailable('Mode-aware TypeScript host callbacks unavailable.');
   const effective = redirectedReference?.commandLine.options || options;
-  const sourceFile = host.getSourceFile(fileName, { languageVersion: effective.target ?? ts.ScriptTarget.Latest });
+  const sourceFile = host.getSourceFile(fileName, { languageVersion: effective.target ?? ts.ScriptTarget.Latest,
+    impliedNodeFormat: ts.getImpliedNodeFormatForFile(fileName, undefined, host, effective),
+    setExternalModuleIndicator: ts.getSetExternalModuleIndicator(effective), jsDocParsingMode: ts.JSDocParsingMode.ParseAll });
   if (!sourceFile) return { sourceFile: null, modules: [], types: [], referencedFiles: [], libReferenceDirectives: [] };
   const literals = scanTypeScriptResolutionReferences(ts, sourceFile, effective);
   const resolved = host.resolveModuleNameLiterals(literals, fileName, redirectedReference, effective, sourceFile);

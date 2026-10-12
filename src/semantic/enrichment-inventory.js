@@ -79,7 +79,7 @@ export const verifyEnrichmentTask = async ({ inventory, task, budget, deep = fal
   if (!registered || registered.hash !== enrichmentByteHash(bytes) || registered.bytes !== bytes.length
     || !pieces.pieces.some(piece => piece.name === 'semantic_frontier_targets' && piece.path === 'semantic/' + task.targetsRef
       && piece.checksum === checksum.algo + ':' + checksum.value)) throw enrichmentError('Task target inventory is not registered and verified.');
-  if (Object.keys(target).filter(key => !['compilerInventory','binaryInventory'].includes(key)).sort().join(',') !== 'generation,schemaVersion,sourceUnits,syntaxPartitionRefs'
+  if (Object.keys(target).filter(key => !['compilerInventory','binaryInventory','nativeInventory'].includes(key)).sort().join(',') !== 'generation,schemaVersion,sourceUnits,syntaxPartitionRefs'
     || target.schemaVersion !== 1 || !enrichmentSame(target.generation, inventory.manifest.generation)
     || semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash
     || !enrichmentSame(target.sourceUnits, [...task.sourceUnits].sort())

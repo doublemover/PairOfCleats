@@ -1,7 +1,8 @@
 import { SCHEDULER_QUEUE_NAMES } from '../build/runtime/scheduler.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { randomUUID } from 'node:crypto';
 /** Explicit bounded drain; callers provide existing scheduler and whole-generation publisher. */
-export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, owner,
+export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, owner: ownerPrefix,
   handlers, publishGeneration, verifyPublication, findPublished = async () => null,
   dependencyHashes = new Map(), maxTasks = 16, maxMs = 30000, leaseMs = 60000,
   resources = { cpu: 1, io: 1, mem: 1, bytes: 1048576 }, signal = null, now = () => Date.now() }) => {
@@ -14,6 +15,7 @@ export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, o
     throw new TypeError('Existing scheduler and verified whole-generation publisher are required.');
   }
   const started = now();
+  const owner = (ownerPrefix || 'semantic-drain') + ':' + randomUUID();
   const result = { status: 'complete', completed: 0, failed: 0, recovered: 0, taskIds: [] };
   for (let count = 0; count < maxTasks && now() - started < maxMs; count += 1) {
     throwIfAborted(signal);
@@ -24,7 +26,7 @@ export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, o
     try {
       const existing = await findPublished({ task, inputHash: lease.inputHash });
       if (existing) {
-        await control.acknowledgePublished({ taskId: task.taskId, owner, publication: existing, verifyPublication, now });
+        await control.acknowledgePublished({ taskId: task.taskId, owner, attempt: lease.attempt, publication: existing, verifyPublication, now });
         result.completed += 1; result.recovered += 1; continue;
       }
       const handler = handlers[task.kind];
@@ -34,14 +36,14 @@ export const drainSemanticFrontier = async ({ control, scheduler, baseBuildId, o
         return handler({ task, inputHash: lease.inputHash, signal });
       });
       throwIfAborted(signal);
-      control.renew({ taskId: task.taskId, owner, now: now(), leaseMs });
+      control.renew({ taskId: task.taskId, owner, attempt: lease.attempt, now: now(), leaseMs });
       const publication = await publishGeneration({ task, inputHash: lease.inputHash, output, signal });
-      await control.acknowledgePublished({ taskId: task.taskId, owner, publication, verifyPublication, now });
+      await control.acknowledgePublished({ taskId: task.taskId, owner, attempt: lease.attempt, publication, verifyPublication, now });
       result.completed += 1;
     } catch (error) {
       const aborted = signal?.aborted === true;
       try {
-        control.release({ taskId: task.taskId, owner, now: now(), reason: error.code || error.message,
+        control.release({ taskId: task.taskId, owner, attempt: lease.attempt, now: now(), reason: error.code || error.message,
           transient: error.transient === true, cancelled: aborted });
       } catch (leaseError) {
         if (leaseError.code !== 'ERR_SEMANTIC_LEASE_LOST') throw leaseError;

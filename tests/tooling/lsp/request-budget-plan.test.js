@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { __resolveAdaptiveLspRequestBudgetPlanForTests } from '../../../src/integrations/tooling/providers/lsp.js';
+import { createDefinitionBudgetControllers } from '../../../src/integrations/tooling/providers/lsp/request-budget.js';
 
 const baseline = __resolveAdaptiveLspRequestBudgetPlanForTests({
   providerId: 'pyright',
@@ -99,5 +100,35 @@ assert.equal(
   true,
   'expected lifecycle pressure reason'
 );
+
+const semanticSelection = { selectedDocs: 1, selectedTargets: 3, hoverMaxPerFile: 4, semanticDefinitionTargets: 3 };
+const semantic = __resolveAdaptiveLspRequestBudgetPlanForTests({ providerId: 'clangd', selection: semanticSelection });
+assert.equal(semantic.byKind.definition.maxRequests, 3, 'Admitted definitions are funded before optional enrichment.');
+const weights = { documentSymbol: 1, hover: 1, semanticTokens: 0.8, signatureHelp: 1.1,
+  inlayHints: 0.9, definition: 1.4, typeDefinition: 1.5, references: 1.8 };
+const allocatedCost = plan => Object.entries(plan.byKind).reduce((sum, [kind, value]) => sum + weights[kind] * value.maxRequests, 0);
+assert.ok(allocatedCost(semantic) <= semantic.workspaceCostCeiling, 'Reservations never increase the workspace cost cap.');
+const constrained = __resolveAdaptiveLspRequestBudgetPlanForTests({ providerId: 'clangd',
+  selection: { ...semanticSelection, selectedTargets: 0 } });
+assert.ok(constrained.byKind.definition.maxRequests < 3, 'An unfunded definition remains deferred.');
+assert.ok(allocatedCost(constrained) <= constrained.workspaceCostCeiling);
+const semanticPressure = __resolveAdaptiveLspRequestBudgetPlanForTests({ providerId: 'clangd', selection: semanticSelection,
+  clientMetrics: { byMethod: { 'textDocument/definition': { requests: 4, failed: 3, timedOut: 2 } } } });
+assert.ok(semanticPressure.byKind.definition.maxRequests < 3, 'Health pressure can reduce the semantic reservation.');
+const quarantined = __resolveAdaptiveLspRequestBudgetPlanForTests({ providerId: 'clangd', selection: semanticSelection,
+  lifecycleState: { crashLoopQuarantined: true } });
+assert.equal(quarantined.byKind.definition.maxRequests, 0, 'Quarantine refuses admitted definitions.');
+assert.equal(quarantined.byKind.definition.semanticMaxRequests, 0);
+for (const plan of [semantic, constrained, semanticPressure, quarantined]) {
+  const controllers = createDefinitionBudgetControllers(plan.byKind.definition);
+  assert.equal(controllers.definition.maxRequests + controllers.semanticDefinition.maxRequests,
+    plan.byKind.definition.maxRequests, 'Shared document controllers partition the existing health-reduced cap.');
+  while (controllers.definition.tryReserve()) { /* An earlier document exhausts optional requests. */ }
+  for (let index = 0; index < plan.byKind.definition.semanticMaxRequests; index += 1) {
+    assert.equal(controllers.semanticDefinition.tryReserve(), true, 'Other documents cannot spend a semantic reservation.');
+  }
+  assert.equal(controllers.semanticDefinition.tryReserve(), false);
+  assert.ok(controllers.definition.used + controllers.semanticDefinition.used <= plan.byKind.definition.maxRequests);
+}
 
 console.log('LSP request budget plan test passed');

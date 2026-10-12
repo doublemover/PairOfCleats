@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS semantic_records (
   payload TEXT NOT NULL, PRIMARY KEY(partition_id, local_id)
 );
 CREATE INDEX IF NOT EXISTS semantic_records_kind ON semantic_records(record_kind, partition_id, local_id);
+CREATE TABLE IF NOT EXISTS semantic_discovery (
+  partition_id TEXT NOT NULL, local_id INTEGER NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL,
+  PRIMARY KEY(partition_id, local_id, field)
+);
+CREATE INDEX IF NOT EXISTS semantic_discovery_selector ON semantic_discovery(field,value,partition_id,local_id);
 CREATE INDEX IF NOT EXISTS semantic_occurrence_expression ON semantic_records(
   partition_id, json_extract(payload,'$.data.expression.partitionId'),
   json_extract(payload,'$.data.expression.localId')

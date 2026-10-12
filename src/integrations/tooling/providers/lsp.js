@@ -36,6 +36,7 @@ import {
 } from './lsp/hover-types.js';
 import {
   createBudgetController,
+  createDefinitionBudgetControllers,
   createEmptyRequestCacheMetrics,
   resolveAdaptiveLspRequestBudgetPlanForTests as __resolveAdaptiveLspRequestBudgetPlanForTests,
   resolveProviderConfidenceBias,
@@ -815,7 +816,7 @@ export async function collectLspTypes({
         semanticTokens: createBudgetController(requestBudgetPlan.byKind?.semanticTokens?.maxRequests),
         signatureHelp: createBudgetController(requestBudgetPlan.byKind?.signatureHelp?.maxRequests),
         inlayHints: createBudgetController(requestBudgetPlan.byKind?.inlayHints?.maxRequests),
-        definition: createBudgetController(requestBudgetPlan.byKind?.definition?.maxRequests),
+        ...createDefinitionBudgetControllers(requestBudgetPlan.byKind?.definition),
         typeDefinition: createBudgetController(requestBudgetPlan.byKind?.typeDefinition?.maxRequests),
         references: createBudgetController(requestBudgetPlan.byKind?.references?.maxRequests)
       };
@@ -901,23 +902,28 @@ export async function collectLspTypes({
         });
       }
       throwIfAborted(toolingAbortSignal);
+      const nativeUris = new Map();
+      if (semanticSession?.nativeDocumentUri) for (const doc of selectedDocsToOpen) {
+        const uri = await semanticSession.nativeDocumentUri(doc);
+        if (uri) nativeUris.set(doc.virtualPath, uri);
+      }
       const diskPathMap = resolvedScheme === 'file'
         ? await ensureVirtualFilesBatch({
           rootDir: resolvedRoot,
-          docs: selectedDocsToOpen,
+          docs: selectedDocsToOpen.filter(doc => !nativeUris.has(doc.virtualPath)),
           batching: resolvedBatching,
           coldStartCache
         })
         : null;
 
       if (semanticSession) for (const doc of selectedDocsToOpen) {
-        const uri = await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache });
+        const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache });
         semanticSession.registerDocument(doc, uri);
       }
       const processDoc = async (doc) => {
         throwIfAborted(toolingAbortSignal);
         const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
-        const uri = await resolveDocumentUri({
+        const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({
           rootDir: resolvedRoot,
           doc,
           uriScheme: resolvedScheme,

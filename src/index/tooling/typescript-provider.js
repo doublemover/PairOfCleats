@@ -377,7 +377,9 @@ export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
           + `sources=${program ? program.getSourceFiles().length : 'pending'} targets=${processedTargets}/${groupTargetCount} `
           + `elapsedMs=${progressAt - groupStartedAt} heapUsedBytes=${memory.heapUsed} rssBytes=${memory.rss}.` });
         };
-        const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins, compilerSystem);
+        const sourceReuse = ctx.semanticSession?.compilerSourceReuse?.();
+        const host = createVirtualCompilerHost(ts, mergedOptions, vfsMap, sourcePaths, moduleOrigins, compilerSystem,
+          sourceReuse ? { cache: sourceReuse, mode: 'consume' } : null);
         const authorizeSource = ctx.semanticSession?.authorizeCompilerProgram({ configPath: group.configPath, options: mergedOptions, rootNames: finalRootNames });
         if (authorizeSource) {
           const getSourceFile = host.getSourceFile;

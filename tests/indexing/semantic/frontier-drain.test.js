@@ -49,7 +49,7 @@ try {
   assert.equal(expiration.failed,1);assert.equal(publishedExpired,false);assert.equal(control.getOutput(expired.taskId),null);
   const [restarted]=control.leaseReady({baseBuildId:'base',taskId:expired.taskId,owner:'restart',now:clock,leaseMs:5000,limit:1});
   assert.equal(restarted.taskId,expired.taskId);assert.equal(restarted.attempt,2,'restart reclaims an expired original task without retargeting');
-  control.release({taskId:expired.taskId,owner:'restart',now:clock,reason:'fixture complete',cancelled:true});
+  control.release({taskId:expired.taskId,owner:'restart',attempt:restarted.attempt,now:clock,reason:'fixture complete',cancelled:true});
   assert.equal(control.getTask(task.taskId).state,'completed','failure and cancellation preserve earlier publication');
   const unavailable = await drainSemanticFrontier({ control: { available: false } });
   assert.equal(unavailable.status, 'unavailable');

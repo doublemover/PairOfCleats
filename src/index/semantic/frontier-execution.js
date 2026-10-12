@@ -6,6 +6,7 @@ import { createArtifactSemanticStore } from '../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { validateSemanticPartitions } from './reconcile.js';
 import { semanticTaskInputHash } from './frontier.js';
+import { randomUUID } from 'node:crypto';
 
 /** Shared durable leases, scheduler, phase output checks and publication receipts. */
 export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, fn, openControl, prepareExecution = prepareCompilerTaskExecution }) => {
@@ -20,7 +21,7 @@ export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, f
   if(!decision.admitted) {await execution.defer?.(decision,signal);return notRun(decision.reason);}
   const control = await openControl();
   if (!control.available) return notRun('sqlite_control_store_unavailable');
-  const owner = 'compiler-batch:' + selected[0].task.taskId, leased = [], started = Date.now();
+  const owner = 'compiler-batch:' + randomUUID(), leased = [], started = Date.now();
   const child = new AbortController(), abort = () => child.abort(signal?.reason);
   signal?.addEventListener('abort',abort,{once:true}); if (signal?.aborted) abort();
   const leaseMs = Math.max(60000,(maxMs || 0)+30000);
@@ -32,7 +33,7 @@ export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, f
     if (maxMs !== null && Date.now()-started >= maxMs) { deadline=true; child.abort(); }
     throwIfAborted(child.signal);
   };
-  const renew = () => { for (const item of leased) control.renew({taskId:item.task.taskId,owner,leaseMs}); };
+  const renew = () => { for (const { item, lease } of leased) control.renew({taskId:item.task.taskId,owner,attempt:lease.attempt,leaseMs}); };
   try {
     check(); await execution.verify(child.signal);
     for (const item of selected) {
@@ -40,7 +41,7 @@ export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, f
       const [lease] = control.leaseReady({baseBuildId:item.task.baseBuildId,taskId:item.task.taskId,owner,limit:1,leaseMs,
         dependencyHashes:new Map(item.task.dependencies.map(row => [row.dependencyKey,row.expectedHash]))});
       if (!lease) return notRun('compiler_task_not_ready');
-      leased.push(item);
+      leased.push({ item, lease });
     }
     renewal=setInterval(()=>{try {renew();} catch(error){child.abort(error);}},Math.floor(leaseMs/3));renewal.unref?.();
     if(maxMs !== null) {timer=setTimeout(()=>{deadline=true;child.abort();},Math.max(1,maxMs-(Date.now()-started)));timer.unref?.();}
@@ -60,14 +61,19 @@ export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, f
     const {root,generation}=selected[0];
     const store=createArtifactSemanticStore({root,repoRoot:runtime.root,artifactSurfaceVersion:ARTIFACT_SURFACE_VERSION,generation,partitions});
     await validateSemanticPartitions({store,partitions,signal:child.signal});
-    const completedScopes=new Set();
+    const completedScopes=new Set(), phaseCoverage=[];
     for(const partition of output.partitions) {
       if(!partitions.some(row=>row.partitionId===partition.partitionId&&row.canonicalHash===partition.canonicalHash)) throw new Error('Compiler phase output is not durable in this generation: ' + partition.partitionId + ' expected ' + partition.canonicalHash + ' found ' + partitions.find(row => row.partitionId === partition.partitionId)?.canonicalHash);
       for await(const coverage of store.iterateRows(partition.partitionId,'semantic_coverage',{signal:child.signal})) {
+        if (phaseCoverage.length < 32) phaseCoverage.push({ sourceUnitId: partition.sourceUnitId,
+          phase: coverage.phase, state: coverage.state, reason: coverage.reason });
         if(['complete','partial'].includes(coverage.state)) completedScopes.add(partition.sourceUnitId+':'+coverage.phase);
       }
     }
-    if(selected.some(item=>item.task.sourceUnits.some(source=>!completedScopes.has(source+':'+item.phase)))) return notRun('compiler_phase_source_inventory_incomplete');
+    if(selected.some(item=>item.task.sourceUnits.some(source=>!completedScopes.has(source+':'+item.phase)))) {
+      runtime.log?.('[semantic] incomplete admitted phase output: ' + JSON.stringify({ partitions: output.partitions.length, coverage: phaseCoverage }));
+      return notRun('compiler_phase_source_inventory_incomplete');
+    }
     check(); renew();
     const receipts=selected.map(({task})=>({taskId:task.taskId,baseBuildId:task.baseBuildId,inputHash:semanticTaskInputHash(task),policyHash:task.policyHash}));
     state.semanticCompletedTasks ||= [];
@@ -88,12 +94,13 @@ export const runSemanticTaskBatch = async ({ state, runtime, selected, signal, f
     let cleanupFailure = null;
     if(!completed) {
       state.semanticFactsByFile=previous.facts;state.semanticCompilerContexts=previous.contexts;state.semanticCompletedTasks=previous.receipts;
-      for(const item of leased) {
-        try {control.release({taskId:item.task.taskId,owner,reason:deadline?'analysis_budget_exhausted':'compiler_batch_not_completed',transient:true,cancelled:signal?.aborted===true});}
+      for(const { item, lease } of leased) {
+        try {control.release({taskId:item.task.taskId,owner,attempt:lease.attempt,reason:deadline?'analysis_budget_exhausted':'compiler_batch_not_completed',transient:true,cancelled:signal?.aborted===true});}
         catch(error){if(error.code!=='ERR_SEMANTIC_LEASE_LOST')cleanupFailure ||= error;}
       }
     }
     state.semanticAdmittedSources=previous.sources;state.semanticPhaseAdmissions=previous.phases;state.semanticCompilerDependencyInventories=previous.authorities;state.semanticCompilerAdmissionGrant=previous.admission;
+    execution.dispose?.();
     try {control.close();} catch(error) {cleanupFailure ||= error;}
     if (deferredDecision) await execution.defer?.(deferredDecision,signal);
     if(!primaryFailure && cleanupFailure) throw cleanupFailure;

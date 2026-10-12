@@ -42,6 +42,7 @@ export const buildCallDependencySummaries = (documents, { maxIterations = 12, si
     const scopeStack=[],routes=new Map();let nextOwner=0;
     for(const route of document.callEffects||[]){const id=key(route.result);if(!routes.has(id))routes.set(id,{reads:[],exceptionTargets:[],exceptionEscapes:false});const entry=routes.get(id);entry.reads.push(...route.reads);entry.exceptionTargets.push(...route.exceptionTargets);entry.exceptionEscapes ||= route.exceptionEscapes;}
     for(const call of [...document.calls].sort((a,b)=>(a.span?.[0]||0)-(b.span?.[0]||0))){
+      if(document.orderedOperations?.has(key(call.result || call.occurrence)))continue;
       const start=call.span?.[0],end=call.span?.[1];
       while(nextOwner<owners.length&&owners[nextOwner].span?.[0]<=start){const owner=owners[nextOwner++];while(scopeStack.length&&scopeStack.at(-1).span[1]<=owner.span[0])scopeStack.pop();scopeStack.push(owner);}
       while(scopeStack.length&&scopeStack.at(-1).span[1]<end)scopeStack.pop();

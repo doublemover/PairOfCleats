@@ -29,7 +29,7 @@ try {
     assert.equal(lease.taskId, work.task.taskId);
     assert.equal(control.getTask(unrelated.taskId).state, 'pending');
     assert.equal(control.getTask(unrelated.taskId).attempt, 0, 'exact binding lease never consumes unrelated ready CFG work');
-    assert.throws(() => control.renew({ taskId: work.task.taskId, owner: 'exact-test', now: 11, leaseMs: 10 }), { code: 'ERR_SEMANTIC_LEASE_LOST' });
+    assert.throws(() => control.renew({ taskId: work.task.taskId, owner: 'exact-test', attempt: lease.attempt, now: 11, leaseMs: 10 }), { code: 'ERR_SEMANTIC_LEASE_LOST' });
   } finally { control.close(); }
   const targets = fixture.state.semanticFrontierTargets[0];
   const targetSet = JSON.parse(await fs.readFile(path.join(fixture.buildRoot, fixture.storage.relativePath, targets.path), 'utf8'));
