@@ -1,3 +1,4 @@
+import { focusStack } from './stack-navigation.js';
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
@@ -215,7 +216,8 @@ export const initControls = () => {
   });
 
   let focused = false;
-  dom.app.addEventListener('pointerdown', () => {
+  dom.app.addEventListener('pointerdown', (event) => {
+    if(event.target?.closest?.('input,textarea,select,button,summary'))return;
     focused = true;
     dom.app.focus();
   });
@@ -223,7 +225,8 @@ export const initControls = () => {
 
   const keys = {};
   window.addEventListener('keydown', (event) => {
-    if (!focused) return;
+    if (!focused || /INPUT|TEXTAREA|SELECT|BUTTON/.test(event.target?.tagName) || event.target?.isContentEditable) return;
+    if(state.layoutStyle==='stacks' && ['KeyF','Home','Escape'].includes(event.code)){event.preventDefault();if(event.code==='Escape')setSelection(null);else focusStack(event.code==='Home'?null:state.selectedInfo);return;}
     keys[event.code] = true;
   });
   window.addEventListener('keyup', (event) => {
@@ -234,6 +237,15 @@ export const initControls = () => {
   const velocity = new THREE.Vector2(0, 0);
 
   const updateCamera = (dt) => {
+    if(state.layoutStyle==='stacks'){
+      const x=Number(Boolean(keys.KeyD))-Number(Boolean(keys.KeyA)),y=Number(Boolean(keys.KeyS))-Number(Boolean(keys.KeyW));
+      const length=Math.hypot(x,y)||1,blend=1-Math.exp(-12*Math.min(dt,0.1));
+      velocity.x+=(x/length-velocity.x)*blend;velocity.y+=(y/length-velocity.y)*blend;
+      const speed=(camera.top-camera.bottom)/Math.max(0.05,camera.zoom)*0.55;
+      const distance=Math.min(dt,0.1)*speed/Math.sqrt(2);
+      camera.position.x+=(velocity.x+velocity.y)*distance;camera.position.z+=(velocity.y-velocity.x)*distance;lockIsometric();return;
+    }
+
     const wasd = controls.wasd || controlDefaults.wasd;
     const accel = wasd.acceleration || controlDefaults.wasd.acceleration;
     const maxSpeed = wasd.maxSpeed || controlDefaults.wasd.maxSpeed;

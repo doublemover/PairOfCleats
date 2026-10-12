@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { selectDiverseEvidence } from '../../../src/retrieval/pipeline/evidence-selection.js';
+import { rerankEvidence } from '../../../src/retrieval/pipeline/evidence-reranker.js';
+import { buildResultBundles } from '../../../src/retrieval/output/format/bundle.js';
+import { mergeFederatedResults } from '../../../src/retrieval/federation/merge.js';
+const e=(id,file,start,end,score)=>({score,chunk:{id,file,start,end}});
+const entries=[e(0,'a',0,100,1),e(1,'a',5,100,.99),e(2,'b',0,100,.95)];
+assert.deepEqual(selectDiverseEvidence(entries,2).map(x=>x.chunk.id),[0,2]);
+assert.deepEqual(selectDiverseEvidence(entries.slice(0,2),2).map(x=>x.chunk.id),[0,1],'diversity cannot underfill evidence');
+const hits=[{id:'a',score:1,scoreType:'bm25'},{id:'b',score:2,scoreType:'ann'}];
+const ranked=await rerankEvidence({adapter:{id:'supplied-model',rerank:async()=>[{index:0,score:.9},{index:1,score:.1}]},query:'intent',hits});
+assert.deepEqual(ranked.map(x=>x.id),['a','b']);
+assert.equal(ranked[0].reranker,'supplied-model');
+await assert.rejects(rerankEvidence({adapter:{id:'invalid',rerank:async()=>[{index:2,score:9}]},hits}),/each evidence member/);
+await assert.rejects(rerankEvidence({adapter:{id:'slow',rerank:()=>new Promise(()=>{})},hits,maxMs:5}),/deadline/);
+const bundles=buildResultBundles({code:[{file:'a',score:1},{file:'b',score:100000}],prose:[{file:'a',score:.000001}]});
+assert.equal(bundles.groups[0].file,'a','native score scales do not decide cross-mode bundle rank');
+assert.equal(bundles.rankMethod,'reciprocal-rank');
+assert.ok(!('totalScore' in bundles.groups[0]));
+const merged=mergeFederatedResults({perRepoResults:[{repoId:'repo',result:{code:hits}}]});
+assert.equal(merged.code[0].scoreType,'federated_rrf');
+assert.equal(merged.code[0].sourceScore,1);
+console.log('evidence diversity, supplied reranker and honest rank aggregation passed');

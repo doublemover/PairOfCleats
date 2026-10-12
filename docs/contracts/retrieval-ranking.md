@@ -153,3 +153,5 @@ When graph ranking is enabled:
 - `docs/specs/graph-product-surfaces.md`
 
 
+
+Literal quotes preserve order, repeated words and stopwords independently of scoring expansions. Full phrase streams are retained in chunk metadata and SQLite. Sparse Boolean eligibility is applied before provider top-N selection; vector candidates retain implicit-term relaxation while quotes and exclusions stay hard. Truncated literal evidence fails quoted eligibility closed.

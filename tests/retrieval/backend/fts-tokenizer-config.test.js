@@ -4,7 +4,7 @@ import { resolveFtsVariant } from '../../../src/retrieval/fts-query.js';
 
 const unicodeDefault = resolveFtsVariant({ query: 'resume' });
 assert.equal(unicodeDefault.variant, 'unicode61', 'expected default unicode61 variant');
-assert.equal(unicodeDefault.tokenizer, 'unicode61 remove_diacritics 2', 'expected diacritic default tokenizer');
+assert.equal(unicodeDefault.tokenizer, 'unicode61', 'expected schema default tokenizer');
 assert.equal(unicodeDefault.reason, 'default_unicode61', 'expected default reason');
 
 const stemming = resolveFtsVariant({ query: 'running tests', stemmingEnabled: true });

@@ -69,6 +69,19 @@ assert.ok(
   'expected call summaries to avoid stale targetChunkUid values'
 );
 
+// Compiler occurrence evidence takes precedence over a same-name heuristic candidate.
+const target = { chunkUid: 'exact-target', file: 'src/index.js', name: 'util', kind: 'function',
+  metaV2: { symbol: { symbolId: 'sym:util', symbolKey: 'util', chunkUid: 'exact-target' } }, docmeta: {} };
+const unknownRef = { v: 1, targetName: 'util', kindHint: null, importHint: null, candidates: [], status: 'unresolved', resolved: null };
+chunks[0].codeRelations.callDetails = [1, 2].map((arg, index) => ({ caller: 'caller', callee: 'util',
+  args: [String(arg)], start: index * 10, end: index * 10 + 8,
+  compilerBinding: { symbolRef: unknownRef } }));
+await applyCrossFileInference({ rootDir: tempRoot, buildRoot: tempRoot, cacheEnabled: false,
+  chunks: [...chunks, target], enabled: true, enableTypeInference: false, enableRiskCorrelation: false });
+assert.equal(chunks[0].codeRelations.callSummaries.length, 2, 'different occurrences retain different argument maps');
+assert.ok(chunks[0].codeRelations.callDetails.every(row => row.calleeRef.status === 'unresolved'),
+  'an unresolved compiler occurrence cannot become a confident name match');
+
 await fs.rm(tempRoot, { recursive: true, force: true });
 
 console.log('crossfile stale call target cleared test passed');

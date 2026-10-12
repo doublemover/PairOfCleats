@@ -9,13 +9,15 @@ import { runNode } from '../../../helpers/run-node.js';
 import { assertMissingIngestInputFailsCleanly } from '../missing-input-helper.js';
 
 const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, 'scip-ingest');
+const suiteRoot = resolveTestCachePath(root, 'scip-ingest');
+await fsPromises.mkdir(suiteRoot, { recursive: true });
+const tempRoot = await fsPromises.mkdtemp(path.join(suiteRoot, 'roles-'));
 const cliPath = path.join(root, 'bin', 'pairofcleats.js');
 const repoRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const inputPath = path.join(root, 'tests', 'fixtures', 'scip', 'index.json');
 const outPath = path.join(tempRoot, 'scip.jsonl');
 
-await fsPromises.rm(tempRoot, { recursive: true, force: true });
+
 
 
 const result = runNode(
@@ -49,6 +51,40 @@ const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
 assert.equal(meta.stats.occurrences, lines.length);
 assert.equal(meta.stats.definitions, 1);
 assert.equal(meta.stats.references, 1);
+
+const masks = [0, 1, 2, 4, 8, 12, 3, 9, 32, 64, 16, 128];
+const roleInputPath = path.join(tempRoot, 'role-index.json');
+const roleOutPath = path.join(tempRoot, 'roles.jsonl');
+await fsPromises.writeFile(roleInputPath, JSON.stringify({
+  documents: [{
+    relativePath: 'src/roles.js',
+    language: 'JavaScript',
+    occurrences: [
+      ...masks.map((symbolRoles, line) => ({ symbol: 'role-' + symbolRoles, symbolRoles, range: [line, 0, 1] })),
+      { symbol: '', symbolRoles: 0, range: [0, 0, 1] }
+    ]
+  }]
+}));
+const rolesResult = runNode(
+  [cliPath, 'ingest', 'scip', '--repo', repoRoot, '--input', roleInputPath, '--out', roleOutPath, '--json'],
+  'scip role ingest', root, process.env,
+  { timeoutMs: 10000, stdio: 'pipe', allowFailure: true }
+);
+assert.equal(rolesResult.status, 0, rolesResult.stderr || rolesResult.stdout);
+const rows = fs.readFileSync(roleOutPath, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line));
+assert.equal(rows.length, masks.length, 'nonempty symbol occurrences only');
+for (let index = 0; index < masks.length; index++) {
+  const row = rows[index], mask = masks[index];
+  assert.equal(row.symbolRoles, mask, 'retain the raw bit mask, including unknown bits');
+  assert.equal(row.role, (mask & 1) ? 'definition' : 'reference', 'only definition bit controls classification');
+  for (const [name, bit] of Object.entries({ isImport: 2, isWriteAccess: 4, isReadAccess: 8, isGenerated: 16, isTest: 32, isForwardDefinition: 64 })) {
+    assert.equal(row[name], Boolean(mask & bit), name + ' independent flag for mask ' + mask);
+  }
+}
+const rolesMeta = JSON.parse(fs.readFileSync(roleOutPath + '.meta.json', 'utf8'));
+const expectedCounts = { documents: 1, occurrences: 12, definitions: 3, references: 9, imports: 2, writes: 2, reads: 3, generated: 1, tests: 1, forwardDefinitions: 1, errors: 0 };
+for (const [name, expected] of Object.entries(expectedCounts)) assert.equal(rolesMeta.stats[name], expected, name);
+assert.equal(rolesMeta.stats.definitions + rolesMeta.stats.references, rolesMeta.stats.occurrences, 'definition plus import never double counts references');
 
 const escapeInputPath = path.join(tempRoot, 'escape-index.json');
 const escapeOutPath = path.join(tempRoot, 'escape-scip.jsonl');

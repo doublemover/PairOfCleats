@@ -31,11 +31,9 @@ const codeVec = new Float32Array([0.6, 0.2, 0]);
 const zeroVec = new Float32Array(3);
 
 const quantized = buildQuantizedVectors({
-  chunkIndex: 0,
   codeVector: codeVec,
   docVector: new Float32Array(0),
   zeroVector: zeroVec,
-  addHnswVector: null,
   quantization: {},
   normalize: true
 });

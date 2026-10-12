@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { normalizeEol } from '../../src/shared/eol.js';
+import { escapeRegex } from '../../src/shared/text/escape-regex.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const packagePath = path.join(ROOT, 'package.json');
@@ -21,11 +22,11 @@ if (!fs.existsSync(runSuitePath)) {
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const scripts = pkg.scripts || {};
 const pinnedNodeVersion = fs.readFileSync(path.join(ROOT, '.nvmrc'), 'utf8').trim();
-if (!/^24\.\d+\.\d+$/.test(pinnedNodeVersion)) {
-  console.error('.nvmrc must pin an exact Node 24 LTS version.');
+if (!/^26\.\d+\.\d+$/.test(pinnedNodeVersion)) {
+  console.error('.nvmrc must pin an exact Node 26 version.');
   process.exit(1);
 }
-const nodeVersionPattern = `node-version:\\s*['"]?${pinnedNodeVersion.replace(/\./g, '\\.')}['"]?`;
+const nodeVersionPattern = `node-version:\\s*['"]?${escapeRegex(pinnedNodeVersion)}['"]?`;
 const nodeVersionRegex = new RegExp(nodeVersionPattern);
 const rustToolchainPath = path.join(ROOT, 'crates', 'pairofcleats-tui', 'rust-toolchain.toml');
 const rustToolchainText = fs.readFileSync(rustToolchainPath, 'utf8');
@@ -90,7 +91,7 @@ const assertRustValidationPresent = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
-  if (!new RegExp(`toolchain:\\s*${pinnedRustToolchain.replace(/\./g, '\\.')}`).test(workflowText)) {
+  if (!new RegExp(`toolchain:\\s*${escapeRegex(pinnedRustToolchain)}`).test(workflowText)) {
     console.error(`${label} is missing required Rust validation: toolchain ${pinnedRustToolchain}`);
     process.exit(1);
   }

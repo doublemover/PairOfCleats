@@ -1,3 +1,4 @@
+import { selectDiverseEvidence } from './evidence-selection.js';
 import { createTopKReducer } from './topk.js';
 import { applyGraphRanking } from './graph-ranking.js';
 import { createScoreBreakdown } from '../output/score-breakdown.js';
@@ -40,6 +41,8 @@ export const runRankStage = ({
   sqliteFtsWeights,
   sqliteFtsProfile,
   sqliteFtsCompilation,
+  sqliteFtsExecution,
+  sqliteFtsMatchesQueryAst,
   sqliteFtsUnavailable,
   profileId,
   fieldWeightsEnabled,
@@ -96,7 +99,9 @@ export const runRankStage = ({
     const semanticCandidate = annCandidate && entry.annSource !== 'minhash';
     queryGate.evaluated += 1;
     if (annCandidate) queryGate.annEvaluated += 1;
-    if (!matchesQueryAst(idx, idxVal, chunk, semanticCandidate)) {
+    const matcher = sparseTypeValue === 'fts' && !semanticCandidate && sqliteFtsMatchesQueryAst
+      ? sqliteFtsMatchesQueryAst : matchesQueryAst;
+    if (!matcher(idx, idxVal, chunk, semanticCandidate)) {
       queryGate.rejected += 1;
       if (annCandidate) queryGate.annRejected += 1;
       return;
@@ -189,8 +194,8 @@ export const runRankStage = ({
           weights: sparseTypeValue === 'fts' ? sqliteFtsWeights : null,
           profile: sparseTypeValue === 'fts' ? sqliteFtsProfile : null,
           match: sparseTypeValue === 'fts' ? sqliteFtsCompilation.match : null,
-          variant: sparseTypeValue === 'fts' ? sqliteFtsCompilation.variant : null,
-          tokenizer: sparseTypeValue === 'fts' ? sqliteFtsCompilation.tokenizer : null,
+          variant: sparseTypeValue === 'fts' ? sqliteFtsExecution?.variant || null : null,
+          tokenizer: sparseTypeValue === 'fts' ? sqliteFtsExecution?.tokenizer || null : null,
           variantReason: sparseTypeValue === 'fts' ? sqliteFtsCompilation.reasonPath : null,
           normalizedQueryChanged: sparseTypeValue === 'fts' ? sqliteFtsCompilation.normalizedChanged : null,
           availabilityCode: sqliteFtsUnavailable?.code || null,
@@ -248,7 +253,7 @@ export const runRankStage = ({
     }
   }
 
-  let scored = reducer.finish({ limit: searchTopN });
+  let scored = selectDiverseEvidence(reducer.finish({ limit: searchTopN + topkSlack }), searchTopN);
   const poolStatsEnd = poolSnapshot();
   rankMetrics.topk = {
     k: searchTopN,

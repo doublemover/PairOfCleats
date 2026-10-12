@@ -1,3 +1,5 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
@@ -6,9 +8,11 @@ import { stableStringify } from '../../shared/stable-json.js';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
 import { writeJsonValue } from '../../shared/json-stream/encode.js';
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import { mergeSymbolicTypeGraphs, validateTypeExpressionReferences } from '../../shared/symbolic-types.js';
+import { isRequiredToolingComputationError } from '../tooling/required-computation.js';
 
-export const CROSS_FILE_CACHE_SCHEMA_VERSION = 1;
-export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference';
+export const CROSS_FILE_CACHE_SCHEMA_VERSION = 3;
+export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
 export const DEFAULT_CROSS_FILE_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_CROSS_FILE_CACHE_READ_MAX_BYTES = 12 * 1024 * 1024;
 const CROSS_FILE_CACHE_ROW_VALUE_PRIORITY = Object.freeze({
@@ -267,6 +271,10 @@ export const buildCrossFileFingerprint = ({
       callDetails: Array.isArray(relations.callDetails)
         ? relations.callDetails.map((entry) => ({
           callee: entry?.callee || null,
+          start: Number.isSafeInteger(entry?.start) ? entry.start : null,
+          end: Number.isSafeInteger(entry?.end) ? entry.end : null,
+          semanticFactsHash: entry?.semanticFactsHash || null,
+          compilerBinding: entry?.compilerBinding || null,
           args: Array.isArray(entry?.args) ? entry.args : [],
           targetChunkUid: entry?.targetChunkUid || null,
           targetCandidates: Array.isArray(entry?.targetCandidates) ? entry.targetCandidates : []
@@ -286,6 +294,7 @@ export const buildCrossFileFingerprint = ({
     });
   }
   return sha1(stableStringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
@@ -326,8 +335,11 @@ export const readCrossFileInferenceCache = async ({
     const admission = cached?.admission && typeof cached.admission === 'object'
       ? cached.admission
       : null;
+    assertCurrentIndexFormat({ operation: 'resume', component: 'cross-file cache',
+      foundVersion: cached?.artifactSurfaceVersion, repoRoot: process.cwd(), indexPath: cachePath });
     if (
-      Number(cached?.schemaVersion) === CROSS_FILE_CACHE_SCHEMA_VERSION
+      cached?.artifactSurfaceVersion === ARTIFACT_SURFACE_VERSION
+      && Number(cached?.schemaVersion) === CROSS_FILE_CACHE_SCHEMA_VERSION
       && typeof cached?.fingerprint === 'string'
       && cached.fingerprint === crossFileFingerprint
       && Array.isArray(cached?.rows)
@@ -337,6 +349,11 @@ export const readCrossFileInferenceCache = async ({
           log('[perf] cross-file cache reuse skipped: output coverage is incomplete; recomputing inference.');
         }
         return null;
+      }
+      const symbolicTypeGraphs = mergeSymbolicTypeGraphs([], cached.symbolicTypeGraphs || []);
+      const inventory = new Map(symbolicTypeGraphs.map(entry => [entry.graphId, entry]));
+      for (const row of cached.rows) {
+        if (row.docmeta?.typeExpressions != null) validateTypeExpressionReferences(row.docmeta.typeExpressions, inventory);
       }
       const applied = applyCachedCrossFileOutput({
         chunks,
@@ -351,10 +368,12 @@ export const readCrossFileInferenceCache = async ({
               : `[perf] cross-file cache hit: restored ${cached.rows.length} chunk updates.`
           );
         }
-        return normalizeCacheStats(cacheStats);
+        return { ...normalizeCacheStats(cacheStats), symbolicTypeGraphs };
       }
     }
   } catch (err) {
+    if (isRequiredToolingComputationError(err)) throw err;
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (err?.code === 'ENOENT') {
       return null;
     }
@@ -394,12 +413,19 @@ export const writeCrossFileInferenceCache = async ({
   try {
     const generatedAt = new Date().toISOString();
     const normalizedStats = normalizeCacheStats(stats);
+    const symbolicTypeGraphs = mergeSymbolicTypeGraphs([], stats?.symbolicTypeGraphs || []);
+    const inventory = new Map(symbolicTypeGraphs.map(entry => [entry.graphId, entry]));
+    for (const chunk of chunks) {
+      if (chunk.docmeta?.typeExpressions != null) validateTypeExpressionReferences(chunk.docmeta.typeExpressions, inventory);
+    }
     const cacheMaxBytes = normalizeCacheMaxBytes(maxBytes);
     const baseBytes = await measureCrossFileCachePayloadBytes(withGeneratedCacheMetadata({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
+      symbolicTypeGraphs,
       admission: null
     }, 'cross-file-inference'), []);
     const rowEntries = [];
@@ -423,6 +449,10 @@ export const writeCrossFileInferenceCache = async ({
       maxBytes: cacheMaxBytes
     });
     const rows = admissionSelection.retained.map((entry) => entry.row);
+    if (symbolicTypeGraphs.length && admissionSelection.dropped.length) {
+      log('[perf] cross-file symbolic cache write skipped: complete output does not fit the cache allowance.');
+      return;
+    }
     if (!rows.length && rowEntries.length > 0) {
       if (typeof log === 'function') {
         log(
@@ -455,10 +485,12 @@ export const writeCrossFileInferenceCache = async ({
       );
     }
     const fields = withGeneratedCacheMetadata({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       schemaVersion: CROSS_FILE_CACHE_SCHEMA_VERSION,
       generatedAt,
       fingerprint: crossFileFingerprint,
       stats: normalizedStats,
+      symbolicTypeGraphs,
       admission
     }, 'cross-file-inference');
     // Admission diagnostics and provenance also count toward the byte cap.
@@ -478,6 +510,8 @@ export const writeCrossFileInferenceCache = async ({
       atomic: true
     });
   } catch (err) {
+    if (isRequiredToolingComputationError(err)) throw err;
+    if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
     if (typeof log === 'function') {
       log(`[perf] cross-file cache write failed: ${err?.message || err}`);
     }

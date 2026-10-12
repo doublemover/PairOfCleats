@@ -1,3 +1,5 @@
+import { enqueueSemanticArtifacts } from '../artifacts/writers/semantic/family.js';
+import { enqueueSymbolicTypeArtifacts } from '../artifacts/writers/symbolic-types.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -1638,6 +1640,7 @@ export async function writeIndexArtifacts(input) {
       enqueueJsonObject: tokenPostingWrites.enqueueJsonObject,
       enqueueWrite: tokenPostingWrites.enqueueWrite,
       addPieceFile,
+      updatePieceMetadata,
       formatArtifactLabel
     });
   }
@@ -2091,6 +2094,11 @@ export async function writeIndexArtifacts(input) {
       });
     }
   }
+  if (mode === 'code') enqueueSemanticArtifacts({ state, root, outDir, indexState,
+    enabled: indexingConfig.semantic?.enabled === true, enqueueWrite, addPieceFile,
+    declareArtifactFamily, signal: effectiveAbortSignal });
+  if (mode === 'code') enqueueSymbolicTypeArtifacts({ state, outDir, indexState,
+    enqueueWrite, addPieceFile, declareArtifactFamily, signal: effectiveAbortSignal });
   const fileRelationsCompression = resolveShardCompression('file_relations');
   const fileRelationsOrdering = enqueueFileRelationsArtifacts({
     state,

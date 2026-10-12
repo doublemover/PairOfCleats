@@ -1,0 +1,86 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import Database from 'better-sqlite3';
+import { zipSync, strToU8 } from 'fflate';
+import { gzipSync } from 'node:zlib';
+import { extractFileEvidence, enrichFileEvidence, finishFileEvidence, identifyEvidenceFormat, readTarEvidenceEntries, recoverTarFileEvidenceMetadata, enrichFileEvidenceMedia } from '../../../src/integrations/inference-history/file-evidence.js';
+import { makeTempDir } from '../../helpers/temp.js';
+const root=await fs.realpath(await makeTempDir('file-evidence-'));
+const sourceRoot=path.join(root,'source'),outputRoot=path.join(root,'output');
+await fs.mkdir(sourceRoot);
+const task={id:'synthetic-task',turns:[{id:'synthetic-turn',previous_turn_id:null,input_items:[{type:'message',role:'user',content:'synthetic'}],
+  output_items:[{type:'function_call',call_id:'synthetic-call',name:'synthetic-tool'}]}],branch:'synthetic-branch'};
+const attachment='file_'+'a'.repeat(32);
+const payload=JSON.stringify({...task,attachment,backing_conversation_id:'synthetic-conversation'});
+const archive=zipSync({'nested/task.json':strToU8(payload),'asset.png':new Uint8Array([137,80,78,71,13,10,26,10]),
+  'unknown.bin':new Uint8Array([0,1,0,2])});
+await fs.writeFile(path.join(sourceRoot,'archive.dat'),archive);
+await fs.writeFile(path.join(sourceRoot,'same-archive.dat'),archive);
+await fs.writeFile(path.join(sourceRoot,attachment+'.dat'),'synthetic attachment');
+await fs.writeFile(path.join(sourceRoot,'gzip.dat'),gzipSync('synthetic gzip text'));
+await fs.writeFile(path.join(sourceRoot,'records.dat'),'{"session_id":"synthetic-session"}\n{"timestamp":1000}\n');
+await fs.writeFile(path.join(sourceRoot,'broken.dat'),'{broken');
+await fs.writeFile(path.join(sourceRoot,'unsafe.dat'),zipSync({'../escape.txt':strToU8('never extracted')}));
+await fs.writeFile(path.join(sourceRoot,'document.dat'),'%PDF-1.4\nsynthetic PDF bytes');
+const original=await fs.readFile(path.join(sourceRoot,'archive.dat'));
+await assert.rejects(extractFileEvidence({sourceRoot,outputRoot}),/authorization/);
+const result=await extractFileEvidence({sourceRoot,outputRoot,authorizePaths:()=>true});
+assert.equal(result.topFiles,8);
+assert.equal(result.statuses.find(row=>row.status==='duplicate_container').count,1);
+assert.ok(result.statuses.some(row=>row.status==='unsupported_format'));
+assert.ok(result.statuses.some(row=>['corrupt_or_limited_container','unsafe_name'].includes(row.status)));
+assert.ok(result.documents.some(row=>row.format==='jsonl'&&row.status==='supported'));
+assert.ok(result.documents.some(row=>row.status==='invalid_json'));
+assert.equal(result.exactAttachmentLinks.sources,1);
+assert.ok(result.factKinds.some(row=>row.kind==='task_id'));
+assert.ok(result.structuralFeatures.some(row=>row.kind==='output_items'));
+assert.deepEqual(await fs.readFile(path.join(sourceRoot,'archive.dat')),original);
+await assert.rejects(fs.stat(path.join(root,'escape.txt')),{code:'ENOENT'});
+const db=new Database(result.catalogPath,{readonly:true});
+assert.equal(db.prepare("SELECT value FROM facts WHERE kind='task_id'").get().value,'synthetic-task');
+assert.equal(db.prepare("SELECT count(*) AS n FROM blobs").get().n,result.uniqueBlobs.count);
+assert.equal(db.prepare("SELECT text FROM documents WHERE format='json'").get().text,payload);db.close();
+await assert.rejects(extractFileEvidence({sourceRoot,outputRoot,authorizePaths:()=>true}),/Existing catalog preserved/);
+assert.equal(identifyEvidenceFormat(Buffer.from('SQLite format 3\0')),'sqlite');
+const unicode=Buffer.concat([Buffer.alloc(511,97),Buffer.from('é')]);assert.equal(identifyEvidenceFormat(unicode),'text');
+await assert.rejects(enrichFileEvidence({catalogPath:result.catalogPath,extractDocument:()=>{}}),/authorization/);
+const enriched=await enrichFileEvidence({catalogPath:result.catalogPath,authorizeCatalog:()=>true,
+  extractDocument:({kind})=>({status:'supported',text:'synthetic PDF text',pages:1,extractor:'synthetic-'+kind})});
+assert.equal(enriched.candidates,1);
+const finished=await finishFileEvidence({catalogPath:result.catalogPath,authorizeCatalog:()=>true});
+assert.equal(finished.topFiles,8);assert.equal(finished.integrity,'quick_check_ok');
+assert.equal(finished.exactAttachmentLinks.sources,1);assert.equal(enriched.documents[0].status,'supported');
+const selected=await extractFileEvidence({sourceRoot,outputRoot:path.join(root,'selected'),sourceNames:['gzip.dat'],authorizePaths:()=>true});
+assert.equal(selected.topFiles,1);assert.ok(selected.formats.some(row=>row.format==='gzip'));
+
+const tarRecord=(name,type,body)=>{
+  const header=Buffer.alloc(512);header.write(name,0);header.write('0000644\0',100);
+  header.write('0000000\0',108);header.write('0000000\0',116);
+  header.write(body.length.toString(8).padStart(11,'0')+'\0',124);
+  header.write('00000000000\0',136);header.fill(32,148,156);header[156]=type.charCodeAt(0);
+  header.write('ustar\0',257);header.write('00',263);
+  const checksum=header.reduce((sum,value)=>sum+value,0);
+  header.write(checksum.toString(8).padStart(6,'0')+'\0 ',148);
+  return Buffer.concat([header,body,Buffer.alloc((512-body.length%512)%512)]);
+};
+const paxValue='path=nested/synthetic-session.json\n';
+let paxLength=Buffer.byteLength(paxValue)+2;
+while(Buffer.byteLength(String(paxLength)+' '+paxValue)!==paxLength)paxLength=Buffer.byteLength(String(paxLength)+' '+paxValue);
+const tar=Buffer.concat([tarRecord('PaxHeader','x',Buffer.from(String(paxLength)+' '+paxValue)),
+  tarRecord('truncated.json','0',Buffer.from('{"session_id":"synthetic-tar-session"}')),Buffer.alloc(1024)]);
+const tarEntries=[...readTarEvidenceEntries(tar)];
+assert.equal(tarEntries.length,2);assert.equal(tarEntries[1].name,'nested/synthetic-session.json');
+await fs.writeFile(path.join(sourceRoot,'pax.dat'),gzipSync(tar));
+const paxResult=await extractFileEvidence({sourceRoot,outputRoot:path.join(root,'pax'),sourceNames:['pax.dat'],authorizePaths:()=>true});
+assert.equal(paxResult.statuses.find(row=>row.status==='recovered_tar_metadata').count,1);
+assert.equal(paxResult.factKinds.find(row=>row.kind==='session_id').count,1);
+const metadataResult=await recoverTarFileEvidenceMetadata({catalogPath:paxResult.catalogPath,authorizeCatalog:()=>true});
+assert.equal(metadataResult.metadataRecords,1);assert.equal(metadataResult.integrity,'quick_check_ok');
+const badTar=Buffer.from(tar);badTar[0]^=1;assert.throws(()=>[...readTarEvidenceEntries(badTar)],/checksum/);
+const mediaResult=await enrichFileEvidenceMedia({catalogPath:result.catalogPath,authorizeCatalog:()=>true,
+  decodeMetadata:()=>({width:1,height:1,format:'png',exif:Buffer.from('private synthetic metadata')})});
+assert.equal(mediaResult.candidates,1);assert.equal(mediaResult.statuses[0].status,'supported');
+const mediaDb=new Database(result.catalogPath,{readonly:true});
+assert.equal(JSON.parse(mediaDb.prepare('SELECT metadata_json FROM media_metadata').get().metadata_json).exif,undefined);mediaDb.close();
+process.stdout.write('Bounded private file-evidence extraction synthetic contracts passed.\n');

@@ -1,5 +1,5 @@
 export const ISOMETRIC_LAYOUT_DEFAULTS = {
-  style: 'flow',
+  style: 'stacks',
   groupDepth: 1,
   groupSpacing: 3.2,
   fileSpacing: 2,

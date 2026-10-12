@@ -22,3 +22,7 @@
 - `docs/sqlite/incremental-updates.md`
 - `docs/sqlite/ann-extension.md`
 
+
+Schema 14 retains the complete ordered phrase token stream in chunks.phrase_tokens, independently of sampled/stemmed scoring tokens. Older schema stores require rebuilding. Missing literal evidence cannot satisfy quoted requirements or exclusions.
+
+Optional FTS variants are selected at build time through `buildSqliteIndex({ftsVariants: ['trigram', 'porter']})` (or the corresponding lower-level builders). They are absent by default. Existing `search.sqliteFtsStemming` configuration builds the Porter table for prose modes; code mode retains unstemmed identifier retrieval. Porter excludes file/name/signature/kind from its index. Changing the selected variants requires a full SQLite rebuild. Full builds, incremental insert/delete and compaction maintain the selected tables. Searches target the actual selected table and report missing optional tables rather than claiming that unicode61 is Porter/trigram. Native term eligibility precedes top-N; literal phrase evidence remains an exact postcondition. Allowlist sizes above the SQLite parameter threshold use a bound JSON array in `json_each`, preserving hard eligibility in SQL before ranking limits.

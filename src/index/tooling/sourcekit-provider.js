@@ -579,7 +579,7 @@ export const createSourcekitProvider = () => ({
     const excludePathRegexes = resolveSourcekitExcludePathRegexes(sourcekitConfig);
     const docs = docsAll.filter((doc) => !shouldSkipSourcekitPath(doc?.virtualPath, excludePathRegexes));
     const targets = filterTargetsForDocuments(inputs?.targets, docs);
-    if (!docs.length || !targets.length) {
+    if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         state: 'skipped',
         blockSourcekit: false,
@@ -664,8 +664,9 @@ export const createSourcekitProvider = () => ({
     }
     const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const checks = buildDuplicateChunkUidChecks(targets, { label: 'sourcekit' });
-    if (!docs.length || !targets.length) {
+    if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
+        ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
         provider: { id: 'sourcekit', version: '2.1.1', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, checks)
@@ -922,6 +923,7 @@ export const createSourcekitProvider = () => ({
 
     try {
       const result = await collectLspTypes({
+        semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: docs,

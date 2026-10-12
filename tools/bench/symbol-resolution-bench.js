@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-import { createCli } from '../../src/shared/cli.js';
-import { buildSymbolIndex, resolveSymbolRef } from '../../src/index/type-inference-crossfile/resolver.js';
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { createCli } = await import('../../src/shared/cli.js');
+const { buildSymbolIndex, resolveSymbolRef } = await import('../../src/index/type-inference-crossfile/resolver.js');
 
 const nowMs = () => Number(process.hrtime.bigint()) / 1e6;
 

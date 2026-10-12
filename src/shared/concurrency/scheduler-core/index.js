@@ -46,6 +46,7 @@ export function createBuildScheduler(input = {}) {
     startedAtMs: config.startedAtMs,
     queueOrder: config.queueOrder,
     normalizeByteCount: config.normalizeByteCount,
+    snapshotQueueAdmission: (queue, at) => dispatch.snapshotQueueAdmission(queue, at),
     evaluateWriteBackpressure: queueLifecycle.evaluateWriteBackpressure,
     writeBackpressureState: config.writeBackpressureState,
     cloneTokenState,
@@ -93,6 +94,7 @@ export function createBuildScheduler(input = {}) {
   const stats = () => {
     return buildSchedulerStatsSnapshot({
       captureTelemetryIfDue,
+      snapshotQueueAdmission: dispatch.snapshotQueueAdmission,
       queueOrder: config.queueOrder,
       nowMs: config.nowMs,
       normalizeByteCount: config.normalizeByteCount,

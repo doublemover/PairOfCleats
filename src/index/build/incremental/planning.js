@@ -1,3 +1,5 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
+import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { BUNDLE_CHECKSUM_SCHEMA_VERSION } from '../../../shared/bundle-io-constants.js';
@@ -70,29 +72,34 @@ const mapWithConcurrency = async (items, concurrency, worker) => {
  * @returns {Promise<{enabled:boolean,incrementalDir:string,bundleDir:string,manifestPath:string,manifest:object}>}
  */
 export async function loadIncrementalState({
+  repoRoot = process.cwd(),
   repoCacheRoot,
   mode,
   enabled,
   tokenizationKey = null,
   cacheSignature = null,
   cacheSignatureSummary = null,
+  dependencySignatures = null,
   bundleFormat = null,
   log = null
 }) {
-  const incrementalDir = path.join(repoCacheRoot, 'incremental', mode);
+  const incrementalDir = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, mode);
   const bundleDir = path.join(incrementalDir, 'files');
   const manifestPath = path.join(incrementalDir, 'manifest.json');
   const requestedBundleFormat = typeof bundleFormat === 'string'
     ? normalizeBundleFormat(bundleFormat)
     : null;
   const defaultBundleFormat = requestedBundleFormat || 'json';
+  let artifactNeedsRebuild = false;
   let manifest = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     version: 5,
     signatureVersion: SIGNATURE_VERSION,
     mode,
     tokenizationKey: tokenizationKey || null,
     cacheSignature: cacheSignature || null,
     signatureSummary: cacheSignatureSummary || null,
+    dependencySignatures,
     bundleFormat: defaultBundleFormat,
     bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
     files: {},
@@ -104,6 +111,8 @@ export async function loadIncrementalState({
         maxBytes: INCREMENTAL_MANIFEST_JSON_MAX_BYTES,
         label: `${mode} incremental manifest`
       });
+      assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+        foundVersion: loaded?.artifactSurfaceVersion, repoRoot, indexPath: manifestPath });
       if (loaded && typeof loaded === 'object') {
         const loadedKey = typeof loaded.tokenizationKey === 'string'
           ? loaded.tokenizationKey
@@ -125,10 +134,10 @@ export async function loadIncrementalState({
         const signatureVersionMismatch = loadedSignatureVersion !== SIGNATURE_VERSION;
         const bundleChecksumSchemaMismatch = loadedBundleChecksumSchemaVersion !== BUNDLE_CHECKSUM_SCHEMA_VERSION;
         if (
-          signatureMismatch
+          (signatureMismatch && (!dependencySignatures?.parse || dependencySignatures.parse !== loaded.dependencySignatures?.parse))
           || signatureVersionMismatch
           || bundleChecksumSchemaMismatch
-          || (tokenizationKey && loadedKey !== tokenizationKey)
+          || (tokenizationKey && loadedKey !== tokenizationKey && (!dependencySignatures?.parse || dependencySignatures.parse !== loaded.dependencySignatures?.parse))
         ) {
           if (typeof log === 'function') {
             let reason = 'tokenization config changed';
@@ -151,13 +160,19 @@ export async function loadIncrementalState({
             }
           }
         } else {
+          artifactNeedsRebuild = signatureMismatch || (!!dependencySignatures && dependencySignatures.artifacts !== loaded.dependencySignatures?.artifacts);
           manifest = {
+            artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
             version: loaded.version || 1,
             signatureVersion: loadedSignatureVersion ?? SIGNATURE_VERSION,
             mode,
-            tokenizationKey: loadedKey || tokenizationKey || null,
-            cacheSignature: loadedSignature || cacheSignature || null,
-            signatureSummary: loaded.signatureSummary || cacheSignatureSummary || null,
+            tokenizationKey: tokenizationKey || loadedKey || null,
+            cacheSignature: cacheSignature || loadedSignature || null,
+            signatureSummary: cacheSignatureSummary || loaded.signatureSummary || null,
+            dependencySignatures,
+            ...(Object.hasOwn(loaded, 'semanticEnabled') ? { semanticEnabled: loaded.semanticEnabled } : {}),
+            ...(loaded.semanticGeneration ? { semanticGeneration: loaded.semanticGeneration } : {}),
+            ...(loaded.semanticDependencySignatures ? { semanticDependencySignatures: loaded.semanticDependencySignatures } : {}),
             bundleFormat: effectiveBundleFormat,
             bundleChecksumSchemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
             files: loaded.files || {},
@@ -169,6 +184,7 @@ export async function loadIncrementalState({
         }
       }
     } catch (error) {
+      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
       if (typeof log === 'function') {
         log(
           `[incremental] ${mode} cache manifest read failed ` +
@@ -191,6 +207,7 @@ export async function loadIncrementalState({
     manifestPath,
     manifest,
     bundleFormat: manifest.bundleFormat,
+    artifactNeedsRebuild,
     readHashCache: new Map()
   };
 }
@@ -280,6 +297,7 @@ const readJsonFile = async (filePath, { maxBytes = 0, label = 'json' } = {}) => 
  * @returns {Promise<boolean>}
  */
 export async function shouldReuseIncrementalIndex({
+  repoRoot = process.cwd(),
   outDir,
   entries,
   manifest,
@@ -301,10 +319,19 @@ export async function shouldReuseIncrementalIndex({
   if (!outDir || !manifest || !Array.isArray(entries) || entries.length === 0) {
     return fail('missing build outputs or entries');
   }
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest.artifactSurfaceVersion, repoRoot, indexPath: outDir });
   if (manifest.signatureVersion !== SIGNATURE_VERSION) {
     return fail('signatureVersion mismatch');
   }
   const manifestFiles = manifest.files || {};
+  if (manifest.dependencySignatures && entries.some(entry => (
+    ['parse', 'lexical', 'enrichment', 'embeddings'].some(key => (
+      manifestFiles[entry.rel]?.dependencySignatures?.[key] !== manifest.dependencySignatures[key]
+    ))
+  ))) {
+    return fail('per-file dependencies changed');
+  }
   const indexStatePath = path.join(outDir, 'index_state.json');
   const piecesPath = path.join(outDir, 'pieces', 'manifest.json');
   const [indexStateExists, piecesExists] = await Promise.all([
@@ -330,6 +357,10 @@ export async function shouldReuseIncrementalIndex({
   } catch (error) {
     return fail(`failed to read index state/manifest (${error?.code || 'ERR_JSON_READ'})`);
   }
+  for (const [component, data, indexPath] of [
+    ['index state', indexState, indexStatePath], ['pieces manifest', pieceManifest, piecesPath]
+  ]) assertCurrentIndexFormat({ operation: 'resume', component,
+    foundVersion: data?.artifactSurfaceVersion, repoRoot, indexPath });
   if (!stageSatisfied(stage, indexState?.stage || null)) {
     return fail('index stage mismatch');
   }

@@ -219,11 +219,8 @@ export const resolveCandidate = (relPath, lookup) => {
   const normalized = normalizeRelPath(relPath);
   const trimmed = normalized.replace(/\/+$/, '');
   const ext = path.posix.extname(trimmed);
-  if (ext) {
-    return resolveFromLookup(trimmed, lookup);
-  }
   const trieKey = stripImportExtension(trimmed);
-  if (lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
+  if (!ext && lookup?.pathTrie && trieKey && !trieHasPrefix(lookup.pathTrie, trieKey)) {
     return null;
   }
   return resolveRelativeImportCandidate(trimmed, {

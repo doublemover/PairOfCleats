@@ -67,7 +67,7 @@ import { createTsConfigLoader, resolveTsPaths } from './tsconfig-resolution.js';
 
 const ABSOLUTE_SYSTEM_PATH_PREFIX_RX = /^\/(?:etc|usr|opt|var|bin|sbin|lib|lib64|dev|proc|sys|run|tmp|home|root)(?:\/|$)/i;
 const SCHEME_RELATIVE_URL_RX = /^\/\/[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/:]|$)/i;
-const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v5';
+const IMPORT_RESOLVER_VERSION = 'import-resolution-engine-v6';
 
 const normalizeAliasRuleText = (value) => (
   typeof value === 'string'
@@ -506,10 +506,7 @@ export function resolveImportLinks({
     for (const base of baseCandidates) {
       if (!base || seenBases.has(base)) continue;
       seenBases.add(base);
-      const pathExt = path.posix.extname(base);
-      const candidates = pathExt
-        ? [base]
-        : resolveRelativeImportCandidates(base, DEFAULT_IMPORT_EXTS);
+      const candidates = resolveRelativeImportCandidates(base, DEFAULT_IMPORT_EXTS);
       for (const candidate of candidates) {
         if (!candidate) continue;
         if (specBudget && !specBudget.consumeFallbackCandidate()) return null;

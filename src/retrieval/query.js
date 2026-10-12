@@ -1,3 +1,4 @@
+import { analyzeLiteralText } from '../shared/text-analyzer.js';
 import {
   extractNgrams,
   extractPunctuationTokens,
@@ -413,15 +414,7 @@ export function tokenizeQueryTerms(rawTerms, dict, options) {
  * @returns {string[]}
  */
 export function tokenizePhrase(phrase, dict, options) {
-  const caseSensitive = options?.caseSensitive === true;
-  const splitter = caseSensitive ? splitIdPreserveCase : splitId;
-  const parts = splitter(String(phrase || '')).map(normalizeToken).filter(Boolean);
-  const tokens = [];
-  tokens.push(...extractPunctuationTokens(phrase));
-  for (const part of parts) {
-    tokens.push(...expandQueryToken(part, dict, options));
-  }
-  return tokens.filter(Boolean);
+  return analyzeLiteralText(phrase, {caseSensitive: options?.caseSensitive === true});
 }
 
 /**

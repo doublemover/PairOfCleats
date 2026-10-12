@@ -1,5 +1,9 @@
+import { archiveAnalyzerFor } from './lexical-analyzer.js';
+import { historyIndexState } from './generation.js';
+import { historyPrivacy, privacyText, privacyNode } from './privacy.js';
+import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery, matchesHistoryHardConstraints } from './query.js';
 import { hashCanonicalJson, normalizeTimestamp } from './normalize.js';
-import { privateReference, historyError, projectHistoryText, redactHistoryText } from './common.js';
+import { privateReference, digest, historyError, projectHistoryText, redactHistoryText } from './common.js';
 
 export const READ_GUARDS = Symbol('history-read-guards');
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid inference-history read request.');
@@ -27,6 +31,11 @@ const textParts = content => {
 
 /** Default derivatives admit explicit public text types and channels only. */
 export function visibleNode(raw, kind, nodeId) {
+  if(kind==='recovered_artifact'){
+    if(raw.id!==nodeId||raw.visibility!=='visible'||typeof raw.body!=='string')return null;
+    return {nodeId,messageId:null,role:'artifact',channel:null,text:raw.body,
+      createdAt:normalizeTimestamp(raw.created_at),payloadHash:hashCanonicalJson(raw),attachments:[]};
+  }
   if (kind === 'exported_conversation') {
     const node = raw.mapping?.[nodeId], message = node?.message;
     if (!visible(message) || !['text', 'multimodal_text'].includes(message.content?.content_type)) return null;
@@ -108,7 +117,8 @@ const cacheFor = (db, request) => {
     if (!row) return null;
     bytes += Buffer.byteLength(row.raw_json);
     if (bytes > MAX_RAW_BYTES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History read evidence budget exceeded.');
-    const value = { ...row, raw: JSON.parse(row.raw_json) };
+    const policy=historyPrivacy(db,row.record_id);
+    const value = { ...row, raw: JSON.parse(row.raw_json), policy, title:privacyText(row.title,policy) };
     snapshots.set(snapshotRef, value);
     return value;
   };
@@ -117,12 +127,12 @@ const locations = (db, sourceRef, { history = true, snapshot = null, pathState =
   WITH candidates AS MATERIALIZED (SELECT s.id AS snapshotRef, s.record_id AS recordRef, s.title, su.path_state AS pathState,
     (s.id=r.latest_snapshot) AS latest
   FROM snapshot_units su JOIN snapshots s ON s.id=su.snapshot_id JOIN records r ON r.id=s.record_id
-  WHERE su.unit_id=? AND r.deleted=0 AND (?=1 OR s.id=r.latest_snapshot)
+  WHERE su.unit_id=? AND r.deleted=0 AND r.excluded=0 AND (?=1 OR s.id=r.latest_snapshot)
     AND (? IS NULL OR s.id=?) AND (?='all' OR su.path_state=?)
   LIMIT 1001) SELECT snapshotRef, recordRef, title, pathState FROM candidates ORDER BY latest DESC, snapshotRef
 `).all(sourceRef, history ? 1 : 0, snapshot, snapshot, pathState, pathState);
 const occurrences = (db, snapshotRef) => db.prepare(`SELECT import_id AS importRef, member, ordinal
-  FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal LIMIT 1001`).all(snapshotRef);
+  FROM occurrences WHERE snapshot_id=? ORDER BY import_id, member, ordinal LIMIT 1001`).all(snapshotRef).map(row=>({...row,member:privacyText(row.member,historyPrivacy(db,db.prepare('SELECT record_id FROM snapshots WHERE id=?').get(snapshotRef).record_id))}));
 const boundedProvenance = () => {
   let remaining = MAX_CANDIDATES;
   return rows => {
@@ -132,24 +142,32 @@ const boundedProvenance = () => {
   };
 };
 const reference = (db, sourceRef, location, admit) => ({
-  sourceRef, ...location, occurrences: admit(occurrences(db, location.snapshotRef))
+  sourceRef, ...location, title:privacyText(location.title,historyPrivacy(db,location.recordRef)), occurrences: admit(occurrences(db, location.snapshotRef))
 });
 const guard = (result, refs) => Object.defineProperty(result, READ_GUARDS, { value: refs });
 const groupKey = (row, node, namespace) => node.messageId
   ? privateReference(namespace, JSON.stringify([row.evidenceKind, node.messageId, node.payloadHash, row.projectionFingerprint]))
   : privateReference(namespace, JSON.stringify([row.sourceRef]));
 
+const coverageByGeneration = new Map();
 function coverage(db) {
   if (!db) return { imports: 0, records: 0, units: 0, coverage: 'none', complete: false,
     indexedMessageBounds: { first: null, last: null, unknownDates: 0 }, exportCutoff: null, fullCorpusWindow: null };
+  const generation = historyIndexState(db).generationRef;
+  if (coverageByGeneration.has(generation)) return structuredClone(coverageByGeneration.get(generation));
   const stats = db.prepare('SELECT * FROM history_stats WHERE singleton=1').get();
-  return { imports: stats.imports, records: stats.records,
+  Object.assign(stats,db.prepare(`SELECT COUNT(DISTINCT records.id) AS records, COUNT(units.id) AS units, SUM(json_extract(units.metadata,'$.createdAt.utc') IS NULL) AS unknown_dates, MIN(json_extract(units.metadata,'$.createdAt.utc')) AS first_date, MAX(json_extract(units.metadata,'$.createdAt.utc')) AS last_date FROM records LEFT JOIN units ON units.record_id=records.id WHERE records.deleted=0 AND records.excluded=0`).get());
+  stats.unknown_dates ??= 0;
+  const result = { imports: stats.imports, records: stats.records,
     units: stats.units, coverage: stats.imports ? 'selected_input' : 'none',
     complete: stats.imports > 0 && stats.incomplete_imports === 0,
     indexedMessageBounds: { first: stats.first_date, last: stats.last_date, unknownDates: stats.unknown_dates },
     exportCutoff: null, fullCorpusWindow: null,
     caveats: ['Bounds describe stored unit dates, not complete archive coverage or an export cutoff.',
-      'No media decoding, Pages-directory ingestion, embeddings or semantic retrieval are provided.'] };
+      'No media decoding or Pages-directory ingestion is provided. Semantic candidates require configured pinned local EG2 runtime/cache or a trusted host adapter.'] };
+  coverageByGeneration.set(generation, result);
+  if (coverageByGeneration.size > 16) coverageByGeneration.delete(coverageByGeneration.keys().next().value);
+  return structuredClone(result);
 }
 const dateBound = (value, end) => {
   if (value == null) return null;
@@ -161,60 +179,110 @@ const dateBound = (value, end) => {
 
 export function searchHistory(db, request) {
   if (typeof request.query !== 'string' || request.query.length > 4096) throw invalid();
-  const tokens = [...new Set(request.query.match(/[\p{L}\p{N}_]+/gu) ?? [])];
-  if (!tokens.length || tokens.length > 32) throw invalid();
+  const searchField = request.searchField || 'text';
+  const groupBy = request.groupBy || 'evidence';
+  if (!['text','title','path','facets','metadata'].includes(searchField) || !['evidence','original'].includes(groupBy)) throw invalid();
+  const matchMode = request.match ?? 'strict';
+  if (!['strict', 'relaxed', 'auto'].includes(matchMode)) throw invalid();
+  const parsed = parseHistoryQuery(request.query, archiveAnalyzerFor(db)), { tokens } = parsed;
+  if (matchMode === 'auto') {
+    if (request.continuation != null) {
+      if (typeof request.continuation !== 'string' || request.continuation.length > 2048) throw invalid();
+      let cursor;try { cursor = JSON.parse(Buffer.from(request.continuation, 'base64url')); } catch { throw invalid(); }
+      if (!['strict','relaxed'].includes(cursor.match)) throw invalid();
+      const resumed = searchHistory(db, {...request, match: cursor.match});
+      resumed.query.requestedMatch = 'auto';resumed.query.relaxed = cursor.match === 'relaxed';return resumed;
+    }
+    const strict = searchHistory(db, { ...request, match: 'strict' });
+    if (strict.complete === false || strict.totalMatches !== 0) {
+      strict.query.requestedMatch = 'auto'; strict.query.relaxed = false; return strict;
+    }
+    const relaxed = searchHistory(db, { ...request, match: 'relaxed' });
+    relaxed.query.requestedMatch = 'auto'; relaxed.query.relaxed = true;
+    relaxed.query.reason = 'Strict matching found no visible hits under exactly the same filters.';
+    return relaxed;
+  }
   const top = integer(request.top, 10, 1, 100), offset = integer(request.offset, 0, 0, 100000);
   const snippetChars = integer(request.snippetChars, 600, 80, 2000);
   const pathState = request.pathState ?? 'all';
   if (!PATHS.includes(pathState) || (request.snapshotRef != null && !opaque(request.snapshotRef))
     || (request.includeHistory != null && typeof request.includeHistory !== 'boolean')) throw invalid();
   const role = request.role ?? null;
-  if (role !== null && !['user', 'assistant'].includes(role)) throw invalid();
+  if (role !== null && !['user', 'assistant', 'artifact'].includes(role)) throw invalid();
   const from = dateBound(request.dateFrom, false), to = dateBound(request.dateTo, true);
   if (from && to && from > to) throw invalid();
-  const envelope = { query: { tokens, semantics: 'literal_word_AND', semanticMatching: false },
-    filters: { role, dateFrom: from, dateTo: to, pathState, snapshotRef: request.snapshotRef ?? null,
-      includeHistory: request.includeHistory === true }, coverage: coverage(db),
-    limits: { top, offset, snippetChars, candidateUnits: MAX_CANDIDATES, rawEvidenceBytes: MAX_RAW_BYTES },
-    caveat: 'Empty hits mean no matching visible units under these filters and selected-input coverage; never-discussed is not established.' };
+  const envelope = { query: { version: HISTORY_SEARCH_VERSION, original: request.query, tokens,
+    excluded: parsed.excluded, phrases: parsed.phrases, effectiveMatch: matchMode,
+    semantics: matchMode === 'strict' ? 'literal_word_AND' : 'literal_word_OR_with_required_phrases_and_exclusions',
+    semanticMatching: false, searchField, groupBy },
+  filters: { role, dateFrom: from, dateTo: to, pathState, snapshotRef: request.snapshotRef ?? null,
+    includeHistory: request.includeHistory === true }, coverage: coverage(db),
+  limits: { top, offset, snippetChars, candidateUnits: MAX_CANDIDATES, rawEvidenceBytes: MAX_RAW_BYTES },
+  caveat: 'Empty hits mean no matching visible units under these filters and selected-input coverage; never-discussed is not established.' };
   if (!db) return { ...envelope, hits: [], totalMatches: 0, totalMatchedUnits: 0, complete: true, nextOffset: null };
-  const query = tokens.map(token => `"${token}"`).join(' AND ');
-  const sql = `FROM units_fts JOIN units ON units.id=units_fts.id JOIN records ON records.id=units.record_id
-    WHERE units_fts MATCH ? AND records.deleted=0
+  let query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
+  // Exact phrases are enforced on preserved text, not alias-expanded FTS positions.
+  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
+  const generation = historyIndexState(db).generationRef;
+  const queryKey = digest(JSON.stringify([request.query,matchMode,top,snippetChars,role,from,to,pathState,request.snapshotRef ?? null,request.includeHistory === true,searchField,groupBy]));
+  const signature = start => privateReference(namespace, JSON.stringify([start,queryKey,generation,matchMode]));
+  let candidateStart = 0;
+  if (request.continuation != null) {
+    if (typeof request.continuation !== 'string' || request.continuation.length > 2048) throw invalid();
+    let cursor;try { cursor = JSON.parse(Buffer.from(request.continuation, 'base64url')); } catch { throw invalid(); }
+    if (cursor.generation !== generation) throw historyError('ERR_INFERENCE_HISTORY_STALE','Index generation changed.');
+    if (!Number.isSafeInteger(cursor.start) || cursor.start < 0 || cursor.start > 1000000000
+      || cursor.queryKey !== queryKey || cursor.signature !== signature(cursor.start)) throw invalid();
+    candidateStart = cursor.start;
+  }
+  // Synchronous selection applies exact phrases/exclusions to indexed redacted text before LIMIT.
+  db.function('history_query_matches', {deterministic:true}, text => Number(matchesHistoryQuery(text,parsed,matchMode)));
+  const metadataSearch = searchField !== 'text';
+  const table = metadataSearch ? 'units_discovery_fts' : 'units_fts';
+  const discoveryText = metadataSearch ? (searchField === 'metadata' ? "(units_discovery_fts.title || ' ' || units_discovery_fts.path || ' ' || units_discovery_fts.facets)" : table+'.'+searchField) : 'units.text';
+  if (metadataSearch && !db.prepare("SELECT 1 FROM sqlite_schema WHERE name='units_discovery_fts'").get()) throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Archive metadata discovery index requires an explicit rebuild.');
+  if (metadataSearch && db.prepare('SELECT 1 FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0 AND NOT EXISTS (SELECT 1 FROM history_discovery_units d WHERE d.id=u.id) LIMIT 1').get()) throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Archive metadata discovery index requires an explicit rebuild.');
+  const sql = `FROM ${table} JOIN units ON units.id=${table}.id JOIN records ON records.id=units.record_id
+    WHERE ${table} MATCH ? AND records.deleted=0 AND records.excluded=0
+    AND history_query_matches(${discoveryText})=1
+    AND (? IS NULL OR json_extract(units.metadata,'$.role')=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')>=?)
     AND (? IS NULL OR json_extract(units.metadata,'$.createdAt.utc')<=?)
     AND EXISTS (SELECT 1 FROM snapshot_units WHERE snapshot_units.unit_id=units.id
-      AND (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot)
+      AND (${metadataSearch ? 'snapshot_units.snapshot_id=units_discovery_fts.snapshot AND' : ''} (?=1 OR snapshot_units.snapshot_id=records.latest_snapshot))
       AND (? IS NULL OR snapshot_units.snapshot_id=?) AND (?='all' OR snapshot_units.path_state=?))`;
   const history = request.includeHistory === true || request.snapshotRef != null;
-  const parameters = [query, from, from, to, to, history ? 1 : 0,
+  const scopedQuery = metadataSearch && searchField !== 'metadata' ? searchField+'_terms : ('+query+')' : query;
+  const parameters = [scopedQuery, role, role, from, from, to, to, history ? 1 : 0,
     request.snapshotRef ?? null, request.snapshotRef ?? null, pathState, pathState];
-  const candidateCount = db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 ${sql} LIMIT ${MAX_CANDIDATES + 1})`).get(...parameters).n;
-  const rows = db.prepare(`WITH candidates AS MATERIALIZED (SELECT units.id AS sourceRef, units.record_id AS recordRef,
-    units.node_id AS nodeId, units.metadata, bm25(units_fts) AS score ${sql}
-    LIMIT ?) SELECT * FROM candidates ORDER BY score, sourceRef`).all(...parameters, MAX_CANDIDATES);
+  const candidates = db.prepare(`SELECT units.id AS sourceRef, units.record_id AS recordRef,
+    units.node_id AS nodeId, units.metadata, ${discoveryText} AS discoveryText, ${metadataSearch ? table+'.snapshot' : 'NULL'} AS discoverySnapshot, bm25(${table}) AS score ${sql}
+    ORDER BY score, sourceRef, discoverySnapshot LIMIT ? OFFSET ?`).all(...parameters, MAX_CANDIDATES + 1, candidateStart);
+  const hasMoreCandidates = candidates.length > MAX_CANDIDATES;
+  const rows = candidates.slice(0,MAX_CANDIDATES);
+  const candidateCount = candidates.length;
   const load = cacheFor(db, request), groups = new Map(), guards = [];
   const admitLocations = boundedProvenance(), admitOccurrences = boundedProvenance();
-  const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   let matchedUnits = 0;
   for (const row of rows) {
     const metadata = JSON.parse(row.metadata);
     const locs = locations(db, row.sourceRef, { history, snapshot: request.snapshotRef ?? null, pathState });
     if (locs.length > MAX_CANDIDATES) throw historyError('ERR_INFERENCE_HISTORY_LIMIT', 'History provenance budget exceeded.');
-    const first = locs[0];
+    const first = row.discoverySnapshot ? locs.find(location => location.snapshotRef === row.discoverySnapshot) : locs[0];
     if (!first) continue;
-    const snapshot = load(first.snapshotRef), node = visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId);
+    const snapshot = load(first.snapshotRef), node = privacyNode(visibleNode(snapshot.raw, metadata.evidenceKind, row.nodeId),snapshot.policy);
     if (!node || (role !== null && node.role !== role)) continue;
     const projection = projectHistoryText(node.text, metadata.projection.characterBudget);
-    if (!matches(projection.text, tokens)) continue;
+    if (!matchesHistoryQuery(metadataSearch ? row.discoveryText : projection.text, parsed, matchMode)) continue;
     matchedUnits++;
-    const key = groupKey({ ...metadata, ...row }, node, namespace);
+    const originalHash = metadata.sourceDetails?.sourceSha256;
+    const key = groupBy === 'original' && originalHash ? privateReference(namespace,JSON.stringify(['original',originalHash])) : groupKey({ ...metadata, ...row }, node, namespace);
     let group = groups.get(key);
     if (!group) {
-      const snippet = centeredSnippet(projection.text, tokens, snippetChars);
+      const snippet = centeredSnippet(metadataSearch ? row.discoveryText : projection.text, tokens, snippetChars);
       const { nodeRevision: _privateRevision, ...publicMetadata } = metadata;
       group = { ...publicMetadata, sourceRef: row.sourceRef, recordRef: row.recordRef, snapshotRef: first.snapshotRef,
-        title: first.title, pathState: first.pathState, role: node.role,
+        title: snapshot.title, searchField, originalHash: originalHash || null, pathState: first.pathState, role: node.role,
         createdAt: { utc: node.createdAt.utc, state: node.createdAt.state }, text: snippet.text, snippet,
         score: row.score, groupRef: key, groupCount: 0, artifacts: artifactReferences(node),
         instructionAuthority: 'none', references: [] };
@@ -230,20 +298,31 @@ export function searchHistory(db, request) {
   const hits = all.slice(offset, offset + top).map(({ references, ...hit }) => ({ ...hit,
     provenance: { totalReferences: references.length, references: references.slice(0, 3),
       nextOffset: references.length > 3 ? 3 : null, expand: 'readReferences' } }));
-  const complete = candidateCount <= MAX_CANDIDATES;
+  const complete = !hasMoreCandidates;
+  const totalsAvailable = complete && candidateStart === 0;
+  const nextStart = candidateStart + rows.length;
+  const continuation = hasMoreCandidates ? Buffer.from(JSON.stringify({start:nextStart,queryKey,generation,match:matchMode,signature:signature(nextStart)})).toString('base64url') : null;
   return guard({ ...envelope, hits, candidateMatches: candidateCount,
-    totalMatches: complete ? all.length : null, totalMatchedUnits: complete ? matchedUnits : null,
+    totalMatches: totalsAvailable ? all.length : null, totalMatchedUnits: totalsAvailable ? matchedUnits : null,
+    totalsAvailable, candidateStart, continuation, candidateWindowComplete: complete,
     observedGroups: all.length, complete, nextOffset: offset + top < all.length ? offset + top : null }, guards);
 }
 
 export function readVisibleContext(db, request) {
   if (!opaque(request.snapshotRef) || !opaque(request.sourceRef)) throw invalid();
   const before = integer(request.before, 3, 0, 10), after = integer(request.after, 3, 0, 10);
-  const top = integer(request.top, 6, 1, 20), chars = integer(request.messageChars, 1200, 80, 4000);
+  const top = integer(request.top, request.timeline ? 10 : 6, 1, 20), chars = integer(request.messageChars, 1200, 80, 4000);
+  const preset = request.preset || 'adjacent';
+  if (!['adjacent','user-assistant','user','assistant'].includes(preset)) throw invalid();
+  const role = request.role ?? (['user','assistant'].includes(preset) ? preset : null);
+  const from = request.timeline ? dateBound(request.dateFrom, false) : null;
+  const to = request.timeline ? dateBound(request.dateTo, true) : null;
+  if ((role !== null && !['user','assistant','artifact'].includes(role)) || (from && to && from > to)
+    || (request.timeline && !['oldest','newest'].includes(request.order ?? 'oldest'))) throw invalid();
   if (request.offset != null) integer(request.offset, 0, 0, 10000);
   const anchor = db?.prepare(`SELECT units.node_id AS nodeId FROM units JOIN snapshot_units su ON su.unit_id=units.id
     JOIN snapshots s ON s.id=su.snapshot_id JOIN records r ON r.id=s.record_id
-    WHERE units.id=? AND s.id=? AND r.deleted=0`).get(request.sourceRef, request.snapshotRef);
+    WHERE units.id=? AND s.id=? AND r.deleted=0 AND r.excluded=0`).get(request.sourceRef, request.snapshotRef);
   if (!anchor) return null;
   const snapshot = cacheFor(db, request)(request.snapshotRef);
   let ids = [];
@@ -259,15 +338,32 @@ export function readVisibleContext(db, request) {
         seen.add(current); ids.unshift(current); current = snapshot.raw.mapping[current].parent;
       }
     }
-  } else ids = snapshot.raw.turns.map(turn => turn.id);
-  const timeline = ids.map((nodeId, ordinal) => ({ node: visibleNode(snapshot.raw, snapshot.source_kind, nodeId), ordinal }))
+  } else if (snapshot.source_kind==='recovered_artifact') ids=[snapshot.raw.id];
+  else ids = snapshot.raw.turns.map(turn => turn.id);
+  let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(visibleNode(snapshot.raw, snapshot.source_kind, nodeId),snapshot.policy), ordinal }))
     .filter(({ node }) => node !== null).sort((left, right) =>
       (left.node.createdAt.utc ?? '\uffff').localeCompare(right.node.createdAt.utc ?? '\uffff') || left.ordinal - right.ordinal);
-  const anchorIndex = timeline.findIndex(({ node }) => node.nodeId === anchor.nodeId);
-  if (anchorIndex < 0) return { snapshotRef: request.snapshotRef, sourceRef: request.sourceRef,
+  const originalAnchorOrdinal = timeline.find(({node})=>node.nodeId===anchor.nodeId)?.ordinal;
+  if (preset === 'user-assistant') timeline = timeline.filter(({node}) => node.role === 'user' || node.role === 'assistant');
+  if (request.timeline || role) {
+    timeline = timeline.filter(({node}) => (role === null || node.role === role)
+      && (!from || (node.createdAt.utc !== null && node.createdAt.utc >= from))
+      && (!to || (node.createdAt.utc !== null && node.createdAt.utc <= to)));
+    if (request.order === 'newest') timeline.sort((left,right) =>
+      (left.node.createdAt.utc === null) - (right.node.createdAt.utc === null)
+      || (right.node.createdAt.utc ?? '').localeCompare(left.node.createdAt.utc ?? '')
+      || right.ordinal - left.ordinal);
+  }
+  let anchorIndex = timeline.findIndex(({ node }) => node.nodeId === anchor.nodeId);
+  const anchorVisible = anchorIndex >= 0;
+  if(anchorIndex < 0 && !request.timeline && originalAnchorOrdinal != null && (role || preset !== 'adjacent')) {
+    anchorIndex = timeline.findIndex(({ordinal}) => ordinal >= originalAnchorOrdinal);
+    if(anchorIndex < 0) anchorIndex = timeline.length - 1;
+  }
+  if (anchorIndex < 0 && !request.timeline) return { snapshotRef: request.snapshotRef, sourceRef: request.sourceRef,
     messages: [], totalVisibleMessages: timeline.length, anchorVisible: false, instructionAuthority: 'none' };
-  const start = request.offset ?? Math.max(0, anchorIndex - Math.min(before, top - 1));
-  const end = request.offset == null ? Math.min(start + top, anchorIndex + after + 1) : start + top;
+  const start = request.offset ?? (request.timeline ? 0 : Math.max(0, anchorIndex - Math.min(before, top - 1)));
+  const end = !request.timeline && request.offset == null ? Math.min(start + top, anchorIndex + after + 1) : start + top;
   const guards = [{ sourceRef: request.sourceRef, snapshotRef: request.snapshotRef }];
   const messages = timeline.slice(start, end).map(({ node }) => {
     const unit = db.prepare(`SELECT units.id AS sourceRef, units.metadata, su.path_state AS pathState
@@ -275,16 +371,20 @@ export function readVisibleContext(db, request) {
       ORDER BY units.id LIMIT 1`).get(request.snapshotRef, node.nodeId);
     if (unit) guards.push({ sourceRef: unit.sourceRef, snapshotRef: request.snapshotRef });
     const projection = projectHistoryText(node.text, chars);
-    return { sourceRef: unit?.sourceRef ?? null, messageId: node.messageId, role: node.role, channel: node.channel,
+    return { sourceRef: unit?.sourceRef ?? null, messageId: snapshot.policy.redactions.length ? null : node.messageId, role: node.role, channel: node.channel,
       createdAt: { utc: node.createdAt.utc, state: node.createdAt.state }, pathState: unit?.pathState ?? 'unknown',
       text: projection.text, projection: projection.metadata, artifacts: artifactReferences(node),
-      anchor: node.nodeId === anchor.nodeId, instructionAuthority: 'none' };
+      anchor: node.nodeId === anchor.nodeId, signals: {
+        correctionLanguage: /\b(actually|correction|instead|no longer|changed my mind|i meant)\b/i.test(node.text),
+        meaning: 'text_signal_only_acceptance_not_inferred' }, instructionAuthority: 'none' };
   });
   return guard({ snapshotRef: request.snapshotRef, sourceRef: request.sourceRef, recordRef: snapshot.record_id,
-    title: snapshot.title, evidenceKind: snapshot.source_kind, messages, anchorVisible: true,
+    title: snapshot.title, evidenceKind: snapshot.source_kind, messages, anchorVisible,
     totalVisibleMessages: timeline.length, anchorIndex, offset: start, nextOffset: start + messages.length < timeline.length ? start + messages.length : null,
     previousOffset: start > 0 ? Math.max(0, start - top) : null,
-    order: 'timestamp_then_export_order_missing_dates_last', limits: { top, messageChars: chars, before, after },
+    scope: 'visible_selected_path_or_anchor_ancestry',
+    filters: {preset,role,dateFrom:from,dateTo:to},
+    order: request.timeline && request.order === 'newest' ? 'newest_timestamp_then_reverse_export_order_missing_dates_last' : 'timestamp_then_export_order_missing_dates_last', limits: { top, messageChars: chars, before, after },
     provenance: { occurrences: boundedProvenance()(occurrences(db, request.snapshotRef)) }, instructionAuthority: 'none' }, guards);
 }
 
@@ -292,7 +392,7 @@ export function readHistoryReferences(db, request) {
   if (!opaque(request.sourceRef)) throw invalid();
   const top = integer(request.top, 20, 1, 50), offset = integer(request.offset, 0, 0, 100000);
   const seed = db?.prepare(`SELECT units.id AS sourceRef, units.node_id AS nodeId, units.metadata
-    FROM units JOIN records r ON r.id=units.record_id WHERE units.id=? AND r.deleted=0`).get(request.sourceRef);
+    FROM units JOIN records r ON r.id=units.record_id WHERE units.id=? AND r.deleted=0 AND r.excluded=0`).get(request.sourceRef);
   if (!seed) return null;
   const load = cacheFor(db, request), seedMeta = JSON.parse(seed.metadata);
   const seedLocations = locations(db, seed.sourceRef);
@@ -302,8 +402,8 @@ export function readHistoryReferences(db, request) {
   if (!seedNode) return null;
   const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
   const key = groupKey({ ...seedMeta, ...seed }, seedNode, namespace);
-  const rows = seedNode.messageId ? db.prepare(`SELECT u.id AS sourceRef, u.node_id AS nodeId, u.metadata
-    FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND json_extract(u.metadata,'$.messageId')=?
+  const rows = seedMeta.ownerRedacted ? [seed] : seedNode.messageId ? db.prepare(`SELECT u.id AS sourceRef, u.node_id AS nodeId, u.metadata
+    FROM units u JOIN records r ON r.id=u.record_id WHERE r.deleted=0 AND r.excluded=0 AND json_extract(u.metadata,'$.messageId')=?
     ORDER BY u.id LIMIT ?`).all(seedMeta.messageId, MAX_CANDIDATES + 1) : [seed];
   const references = [], guards = [];
   const admitLocations = boundedProvenance(), admitOccurrences = boundedProvenance();
@@ -317,4 +417,49 @@ export function readHistoryReferences(db, request) {
   return guard({ sourceRef: request.sourceRef, groupRef: key, references: references.slice(offset, offset + top),
     totalReferences: rows.length <= MAX_CANDIDATES ? references.length : null, complete: rows.length <= MAX_CANDIDATES,
     offset, top, nextOffset: offset + top < references.length ? offset + top : null, instructionAuthority: 'none' }, guards);
+}
+/** Rehydrate provider references from this authorized partition, never provider text. */
+export function readHistoryCandidates(db, request, candidates) {
+  if (!db || !Array.isArray(candidates) || candidates.length>100) return guard({hits:[]},[]);
+  const parsed=parseHistoryQuery(request.query, archiveAnalyzerFor(db)), history=request.includeHistory===true || request.snapshotRef!=null;
+  const from=dateBound(request.dateFrom,false),to=dateBound(request.dateTo,true), role=request.role ?? null;
+  const load=cacheFor(db,request), hits=[], guards=[], seen=new Set(), admit=boundedProvenance();
+  const namespace=db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
+  for (const candidate of candidates) {
+    if (!opaque(candidate?.sourceRef) || !opaque(candidate?.snapshotRef)) throw invalid();
+    const row=db.prepare('SELECT units.node_id AS nodeId,units.record_id AS recordRef,units.metadata FROM units JOIN records ON records.id=units.record_id WHERE units.id=? AND records.deleted=0 AND records.excluded=0').get(candidate.sourceRef);
+    if (!row) continue;
+    const location=locations(db,candidate.sourceRef,{history,snapshot:request.snapshotRef ?? null,pathState:request.pathState ?? 'all'})
+      .find(value=>value.snapshotRef===candidate.snapshotRef);
+    if (!location) continue;
+    const metadata=JSON.parse(row.metadata),snapshot=load(location.snapshotRef);
+    const node=privacyNode(visibleNode(snapshot.raw,metadata.evidenceKind,row.nodeId),snapshot.policy);
+    if (!node || (role!==null && node.role!==role) || (from && (node.createdAt.utc===null || node.createdAt.utc<from))
+      || (to && (node.createdAt.utc===null || node.createdAt.utc>to))) continue;
+    const projection=projectHistoryText(node.text,metadata.projection.characterBudget);
+    if (!matchesHistoryHardConstraints(projection.text,parsed)) continue;
+    const groupRef=groupKey({...metadata,...row,sourceRef:candidate.sourceRef},node,namespace);
+    if (seen.has(groupRef)) continue;
+    seen.add(groupRef);
+    let snippet=centeredSnippet(projection.text,parsed.tokens,request.snippetChars ?? 600);
+    if(candidate.span!==undefined){
+      const {start,end}=candidate.span??{};
+      if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end<=start||end>projection.text.length)throw invalid();
+      let begin=start,finish=Math.min(end,start+(request.snippetChars??600));
+      if(begin>0 && /[\uDC00-\uDFFF]/.test(projection.text[begin]))begin--;
+      if(finish<projection.text.length && /[\uD800-\uDBFF]/.test(projection.text[finish-1]))finish--;
+      snippet={...snippet,text:projection.text.slice(begin,finish),start:begin,end:finish,totalChars:projection.text.length,
+        truncated:begin>0||finish<projection.text.length,semanticSpan:{start,end}};
+    }
+    const {nodeRevision:_privateRevision,...publicMetadata}=metadata;
+    const references=admit(locations(db,candidate.sourceRef)).map(value=>reference(db,candidate.sourceRef,value,admit));
+    for (const value of references) guards.push({sourceRef:value.sourceRef,snapshotRef:value.snapshotRef});
+    hits.push({...publicMetadata,sourceRef:candidate.sourceRef,recordRef:row.recordRef,snapshotRef:location.snapshotRef,
+      role:node.role,createdAt:{utc:node.createdAt.utc,state:node.createdAt.state},title:snapshot.title,
+      pathState:location.pathState,text:snippet.text,snippet,groupRef,groupCount:1,
+      originalHash:metadata.sourceDetails?.sourceSha256 ?? null,
+      artifacts:artifactReferences(node),instructionAuthority:'none',
+      provenance:{totalReferences:references.length,references:references.slice(0,3),nextOffset:references.length>3?3:null,expand:'readReferences'}});
+  }
+  return guard({hits},guards);
 }

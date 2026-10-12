@@ -1,3 +1,6 @@
+import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest-read.js';
+import { openPublishedSemanticStore } from '../../../../semantic/published-store.js';
+import { ingestPublishedSemanticFamily } from '../../semantic/published.js';
 import { prepareVectorAnnTable } from '../../build-helpers.js';
 import { CREATE_INDEXES_SQL } from '../../schema.js';
 import { createUint8ClampStats } from '../../vector.js';
@@ -45,6 +48,7 @@ const ARTIFACT_BUILD_PRAGMA_MIN_BYTES = 128 * 1024 * 1024;
  * @returns {Promise<number>}
  */
 export async function buildDatabaseFromArtifacts({
+  repoRoot = process.cwd(),
   Database,
   outPath,
   outputPath,
@@ -63,7 +67,8 @@ export async function buildDatabaseFromArtifacts({
   statementStrategy,
   buildPragmas,
   optimize,
-  stats
+  stats,
+  ftsVariants = []
 }) {
   const resolvedOutPath = typeof outputPath === 'string' ? outputPath : outPath;
   if (!resolvedOutPath || typeof resolvedOutPath !== 'string') {
@@ -80,6 +85,8 @@ export async function buildDatabaseFromArtifacts({
     throw new Error('[sqlite] buildDatabaseFromArtifacts: indexDir must be a string.');
   }
   indexDir = resolvedIndexDir;
+  loadPiecesManifest(indexDir, { repoRoot });
+  if (mode === 'code') await openPublishedSemanticStore({ indexDir, repoRoot });
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -155,7 +162,8 @@ export async function buildDatabaseFromArtifacts({
     outPath: resolvedOutPath,
     batchStats,
     inputBytes,
-    useBuildPragmas
+    useBuildPragmas,
+    ftsVariants
   });
 
   let count = 0;
@@ -226,6 +234,7 @@ export async function buildDatabaseFromArtifacts({
         postContext TEXT,
         weight REAL,
         tokens TEXT,
+        phrase_tokens TEXT,
         tokensText TEXT,
         ngrams TEXT,
         codeRelations TEXT,
@@ -303,6 +312,7 @@ export async function buildDatabaseFromArtifacts({
         postContext,
         weight,
         tokens,
+        phrase_tokens,
         tokensText,
         ngrams,
         codeRelations,
@@ -339,6 +349,7 @@ export async function buildDatabaseFromArtifacts({
         @postContext,
         @weight,
         @tokens,
+        @phrase_tokens,
         @tokensText,
         @ngrams,
         @codeRelations,
@@ -497,6 +508,7 @@ export async function buildDatabaseFromArtifacts({
     beginSqliteBuildTransaction(db, batchStats);
     try {
       count = await ingestIndex(index, mode, indexDir);
+      if (mode === 'code') await ingestPublishedSemanticFamily({ db, indexDir, repoRoot });
       validationStats.chunks = count;
       db.exec(CREATE_INDEXES_SQL);
       commitSqliteBuildTransaction(db, batchStats, {

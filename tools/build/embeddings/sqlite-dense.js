@@ -1,3 +1,4 @@
+import { assertSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import {
@@ -148,6 +149,7 @@ export const updateSqliteDense = ({
 
   const db = new Database(resolvedDbPath);
   try {
+    assertSqliteIndexFormat({ db, repoRoot: root, indexPath: resolvedDbPath, operation: 'embedding-update' });
     if (!hasTable(db, 'dense_vectors') || !hasTable(db, 'dense_meta')) {
       if (emitOutput && warnOnMissing) {
         logger.warn(`[embeddings] SQLite ${mode} index missing dense tables; skipping.`);

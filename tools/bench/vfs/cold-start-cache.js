@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/cold-start-cache.js --docs 2000 --doc-bytes 256 --json
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
-import { formatStats, summarizeDurations, writeJsonWithDir } from '../micro/utils.js';
-import { createVfsColdStartCache, ensureVfsDiskDocument } from '../../../src/index/tooling/vfs.js';
-import { checksumString } from '../../../src/shared/hash.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { spawnSubprocessSync } = await import('../../../src/shared/subprocess/runner.js');
+const { formatStats, summarizeDurations, writeJsonWithDir } = await import('../micro/utils.js');
+const { createVfsColdStartCache, ensureVfsDiskDocument } = await import('../../../src/index/tooling/vfs.js');
+const { checksumString } = await import('../../../src/shared/hash.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

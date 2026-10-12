@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 import { applyTestEnv } from '../helpers/test-env.js';
 import { runNode } from '../helpers/run-node.js';
@@ -47,7 +48,7 @@ const writeRepoConfig = async (repoRoot, cacheRoot) => {
 const writeCurrentBuildMetadata = async (repoCacheRoot, payload, { raw = false } = {}) => {
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   await fs.mkdir(buildsRoot, { recursive: true });
-  await fs.writeFile(path.join(buildsRoot, 'current.json'), raw ? payload : JSON.stringify(payload), 'utf8');
+  await fs.writeFile(path.join(buildsRoot, 'current.json'), raw ? payload : JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, ...payload }), 'utf8');
   return buildsRoot;
 };
 

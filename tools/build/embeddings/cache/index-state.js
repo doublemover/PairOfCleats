@@ -208,6 +208,9 @@ const resolveEarliestIso = (a, b) => {
  * @returns {CacheIndexEntry}
  */
 const mergeCacheIndexEntry = (existing = {}, incoming = {}) => {
+  if ((incoming.storageEpoch || 0) < (existing.storageEpoch || 0)) {
+    incoming = {...incoming, ...Object.fromEntries(['shard','path','offset','length','sizeBytes','storageEpoch'].map(key=>[key,existing[key]]))};
+  }
   const merged = { ...existing };
   for (const [key, value] of Object.entries(incoming)) {
     if (value == null) continue;
@@ -272,14 +275,17 @@ export const mergeCacheIndex = (base, incoming) => {
 
   for (const [key, entry] of Object.entries(incoming.entries || {})) {
     const existing = base.entries[key] || null;
+    if (!existing && (entry.storageEpoch || 0) < (base.storageEpoch || 0)) continue;
     base.entries[key] = existing ? mergeCacheIndexEntry(existing, entry) : entry;
   }
 
+  base.storageEpoch = Math.max(base.storageEpoch || 0,incoming.storageEpoch || 0);
   base.files = buildCacheIndexFileMap(base.entries);
 
   for (const [shardName, shardMeta] of Object.entries(incoming.shards || {})) {
     const existing = base.shards[shardName] || null;
     if (!existing) {
+      if ((incoming.storageEpoch || 0) < (base.storageEpoch || 0)) continue;
       base.shards[shardName] = shardMeta;
       continue;
     }
@@ -296,7 +302,7 @@ export const mergeCacheIndex = (base, incoming) => {
   const derivedNext = resolveNextShardIdFromShards(base.shards);
   base.nextShardId = Math.max(baseNext, incomingNext, derivedNext);
 
-  if (incoming.currentShard) {
+  if (incoming.currentShard && base.shards[incoming.currentShard]) {
     base.currentShard = incoming.currentShard;
   }
 

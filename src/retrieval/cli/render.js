@@ -573,6 +573,7 @@ export function renderSearchOutput({
         out.write(',\"stats\":');
         out.write(JSON.stringify(outputPayload.stats));
       }
+      if (outputPayload.outputBudget) { out.write(',\"outputBudget\":'); out.write(JSON.stringify(outputPayload.outputBudget)); }
       out.write('}\n');
     } else {
       console.log(JSON.stringify(outputPayload));

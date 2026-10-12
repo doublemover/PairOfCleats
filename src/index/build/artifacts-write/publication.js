@@ -1,3 +1,5 @@
+import { openPublishedSemanticStore } from '../../../semantic/published-store.js';
+import { validateSemanticPartitions } from '../../semantic/reconcile.js';
 import path from 'node:path';
 
 import { writeFileLists } from '../artifacts/file-lists.js';
@@ -261,6 +263,10 @@ export const runArtifactPublicationFinalizers = async ({
       familyDeclarations
     });
     assertPublicationValidationSucceeded(finalPublicationValidation);
+    if (mode === 'code') {
+      const { store, manifest } = await openPublishedSemanticStore({ indexDir: outDir, repoRoot: root });
+      await validateSemanticPartitions({ store, partitions: manifest.partitions, signal: effectiveAbortSignal });
+    }
   });
   await runTrackedArtifactCloseout('artifact-publication-record-finalize', async () => {
     publicationRecord = await writeArtifactPublicationRecord({

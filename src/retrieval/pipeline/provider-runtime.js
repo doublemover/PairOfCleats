@@ -7,6 +7,13 @@ import {
   PROVIDER_RETRY_MAX_MS
 } from './constants.js';
 
+const generationRuntimes = new WeakMap();
+export const getGenerationProviderRuntime = (index) => {
+  let runtime = generationRuntimes.get(index);
+  if (!runtime) { runtime = createProviderRuntime(); generationRuntimes.set(index, runtime); }
+  return runtime;
+};
+
 /**
  * Create per-provider runtime tracking for adaptive ANN backend selection.
  * @returns {{

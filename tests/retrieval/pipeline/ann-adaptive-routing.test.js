@@ -29,6 +29,7 @@ const buildTokenIndex = (token, docCount) => ({
       ]
     ])
   });
+  context.annDiscovery = 'lexical-rerank';
   context.annBackend = 'auto';
   context.annAdaptiveProviders = true;
   context.queryTokens = ['alpha'];
@@ -44,7 +45,9 @@ const buildTokenIndex = (token, docCount) => ({
     dims: 2
   };
   const pipeline = createSearchPipeline(context);
-  const results = await pipeline(idx, 'code', [0.1, 0.2]);
+  let embeddingCalls = 0;
+  const results = await pipeline(idx, 'code', async () => { embeddingCalls++; return [0.1,0.2]; });
+  assert.equal(embeddingCalls,0,'sparse routing must precede embedding work');
   assert.ok(results.length > 0, 'expected sparse results to remain available under ANN bypass');
   assert.equal(providerCalls, 0, 'expected ANN provider query to be bypassed on very small indexes');
   const annStage = stageTracker.stages.find((entry) => entry.stage === 'ann');
@@ -111,7 +114,9 @@ const buildTokenIndex = (token, docCount) => ({
     dims: 2
   };
   const pipeline = createSearchPipeline(context);
-  const results = await pipeline(idx, 'code', [0.2, 0.1]);
+  let embeddingCalls = 0;
+  const results = await pipeline(idx, 'code', async () => { embeddingCalls++; return [0.2,0.1]; });
+  assert.equal(embeddingCalls,1,'vector routing resolves its lazy query embedding once');
   assert.ok(results.length > 0, 'expected ANN-ranked results');
   assert.equal(providerOrder[0], ANN_PROVIDER_IDS.HNSW, 'expected hnsw to be routed first for symbol-heavy query');
   assert.ok(hnswBudget?.hnswEfSearch >= 24, 'expected adaptive hnsw efSearch budget');

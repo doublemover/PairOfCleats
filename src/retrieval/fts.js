@@ -82,7 +82,8 @@ export function resolveFtsWeights(profile, config) {
  * @param {number[]} weights
  * @returns {string}
  */
-export function buildFtsBm25Expr(weights) {
+export function buildFtsBm25Expr(weights, table = 'chunks_fts') {
+  if (!['chunks_fts', 'chunks_fts_trigram', 'chunks_fts_porter'].includes(table)) throw new TypeError('Invalid FTS table');
   const safe = weights.map((val) => (Number.isFinite(val) ? val : 1));
-  return `bm25(chunks_fts, ${safe.join(', ')})`;
+  return `bm25(${table}, ${safe.join(', ')})`;
 }

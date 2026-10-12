@@ -1,18 +1,20 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { isAbsolutePathNative } from '../src/shared/file-paths.js';
-import { stableStringify } from '../src/shared/stable-json.js';
-import { normalizePathForRepo } from '../src/shared/path-normalize.js';
-import {
+const { isAbsolutePathNative } = await import('../src/shared/file-paths.js');
+const { stableStringify } = await import('../src/shared/stable-json.js');
+const { normalizePathForRepo } = await import('../src/shared/path-normalize.js');
+const {
   validateTestCoverageArtifact,
   validateTestTimingsArtifact,
   validateTestProfileArtifact,
   validateTestStabilityArtifact
-} from '../src/contracts/validators/test-artifacts.js';
+} = await import('../src/contracts/validators/test-artifacts.js');
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadRunConfig, loadRunRules } from './runner/run-config.js';
-import {
+const { loadRunConfig, loadRunRules } = await import('./runner/run-config.js');
+const {
   applyFilters,
   assignLaneWithReason,
   buildTags,
@@ -22,29 +24,23 @@ import {
   listTags,
   resolveLanes,
   splitCsv
-} from './runner/run-discovery.js';
-import {
-  buildSuiteCategorySummary,
-  inferSuiteCategory
-} from './runner/suite-taxonomy.js';
-import {
-  loadLaneManifestConfig,
-  loadOrderedLaneManifest
-} from './runner/lane-manifests.js';
-import { parseArgs } from './runner/run-args.js';
-import {
+} = await import('./runner/run-discovery.js');
+const { buildSuiteCategorySummary, inferSuiteCategory } = await import('./runner/suite-taxonomy.js');
+const { loadLaneManifestConfig, loadOrderedLaneManifest } = await import('./runner/lane-manifests.js');
+const { parseArgs } = await import('./runner/run-args.js');
+const {
   mergeNodeOptions,
   normalizeLaneArgs,
   resolveLogDir,
   resolvePhysicalCores,
   resolveRetries,
   resolveTimeout
-} from './runner/run-helpers.js';
-import { ensureTestingEnv } from './helpers/test-env.js';
-import { applyToolchainDaemonPolicyEnv } from '../src/shared/toolchain-env.js';
-import { runTests } from './runner/run-execution.js';
-import { summarizeResults } from './runner/run-results.js';
-import {
+} = await import('./runner/run-helpers.js');
+const { ensureTestingEnv } = await import('./helpers/test-env.js');
+const { applyToolchainDaemonPolicyEnv } = await import('../src/shared/toolchain-env.js');
+const { runTests } = await import('./runner/run-execution.js');
+const { summarizeResults } = await import('./runner/run-results.js');
+const {
   buildJsonReport,
   buildTimingsPayload,
   createInitReporter,
@@ -56,23 +52,23 @@ import {
   writeLatestLogPointer,
   writeTestRunTimes,
   writeTimings
-} from './runner/run-reporting.js';
-import {
+} = await import('./runner/run-reporting.js');
+const {
   buildStabilityArtifact,
   loadStabilityHistory,
   writeStabilityArtifact
-} from './runner/run-stability.js';
-import { loadDiagnosticsGovernance } from './runner/diagnostics-governance.js';
-import {
+} = await import('./runner/run-stability.js');
+const { loadDiagnosticsGovernance } = await import('./runner/diagnostics-governance.js');
+const {
   buildCoverageArtifact,
   collectV8CoverageEntries,
   filterCoverageEntriesToChanged,
   loadCoverageArtifactsFromPath,
   mergeCoverageEntries,
   writeCoverageArtifact
-} from '../tools/testing/coverage/index.js';
+} = await import('../tools/testing/coverage/index.js');
 
-import { resolveTestCachePath } from './helpers/test-cache.js';
+const { resolveTestCachePath } = await import('./helpers/test-cache.js');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS_DIR = path.join(ROOT, 'tests');
@@ -90,6 +86,11 @@ const INHERITED_PAIROFCLEATS_ENV_ALLOWLIST = new Set([
   'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_TARGET',
   'PAIROFCLEATS_TEST_ALLOW_TIMEOUT_PASS_SIGNAL_TARGET',
   'PAIROFCLEATS_TEST_PID_FILE',
+  // Propagate launch-selected authority and CI resource limits to each test.
+  'PAIROFCLEATS_TRUSTED_CONFIG',
+  'PAIROFCLEATS_WORKER_POOL',
+  'PAIROFCLEATS_THREADS',
+  'PAIROFCLEATS_BUNDLE_THREADS',
   'NODE_V8_COVERAGE'
 ]);
 
@@ -661,7 +662,7 @@ const main = async () => {
     failFast: argv['fail-fast'],
     timeoutGraceMs: DEFAULT_TIMEOUT_GRACE_MS,
     skipExitCode: SKIP_EXIT_CODE,
-    redoExitCodes: REDO_EXIT_CODES,
+    redoExitCodes: argv['native-status-redo'] ? REDO_EXIT_CODES : [],
     maxOutputBytes: MAX_OUTPUT_BYTES,
     borderPattern: BORDER_PATTERN,
     laneLabel,

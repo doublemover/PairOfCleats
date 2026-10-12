@@ -1,3 +1,6 @@
+import { SEMANTIC_ARTIFACT_SCHEMA_DEFS } from './artifacts/semantic.js';
+import { SYMBOLIC_TYPE_MANIFEST_SCHEMA, SYMBOLIC_TYPE_GRAPH_SCHEMA } from './symbolic-types.js';
+import { SEMANTIC_MEMBER_NAMES } from './semantic-envelopes.js';
 import {
   CORE_POST_DENSE_VECTOR_ARTIFACT_SCHEMA_DEFS,
   CORE_POST_RISK_ARTIFACT_SCHEMA_DEFS,
@@ -16,6 +19,7 @@ import { SYMBOL_CALL_SITE_ARTIFACT_SCHEMA_DEFS } from './artifacts/symbols-call-
 import { VFS_ARTIFACT_SCHEMA_DEFS } from './artifacts/vfs.js';
 
 export const MANIFEST_ONLY_ARTIFACT_NAMES = [
+  'semantic_operation_index_rows', 'semantic_operation_index_offsets', 'semantic_source_text', 'semantic_evidence', 'semantic_frontier_targets', 'semantic_query_index_rows', 'semantic_query_index_offsets', ...SEMANTIC_MEMBER_NAMES.map((name) => name + '_offsets'),
   'dense_vectors_hnsw',
   'dense_vectors_doc_hnsw',
   'dense_vectors_code_hnsw',
@@ -52,6 +56,9 @@ export const MANIFEST_ONLY_ARTIFACT_NAMES = [
 ];
 
 export const ARTIFACT_SCHEMA_DEFS = {
+  symbolic_type_manifest: SYMBOLIC_TYPE_MANIFEST_SCHEMA,
+  symbolic_type_graph: SYMBOLIC_TYPE_GRAPH_SCHEMA,
+  ...SEMANTIC_ARTIFACT_SCHEMA_DEFS,
   ...CORE_PRE_VFS_ARTIFACT_SCHEMA_DEFS,
   ...VFS_ARTIFACT_SCHEMA_DEFS,
   ...CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS,

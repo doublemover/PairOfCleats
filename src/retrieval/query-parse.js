@@ -199,6 +199,7 @@ const expandStemTokens = (tokens, profile) => {
  */
 export const applyLanguageTokenHooks = ({ rawTerms, baseTokens, options = {}, kind = 'query' }) => {
   const tokens = Array.isArray(baseTokens) ? baseTokens : [];
+  if (kind === 'phrase') return tokens.slice();
   const profile = resolveLanguageTokenProfile(options, rawTerms);
   const merged = [];
   const seen = new Set();

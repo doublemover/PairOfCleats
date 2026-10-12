@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 import { resolveIndexRef } from '../../../src/index/index-ref.js';
 import { parseFederatedCliRequest } from '../../../src/retrieval/federation/args.js';
@@ -45,7 +46,7 @@ const cases = [
 
         const writeJson = async (targetPath, value) => {
           await fs.mkdir(path.dirname(targetPath), { recursive: true });
-          await fs.writeFile(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+          await fs.writeFile(targetPath, `${JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, ...value }, null, 2)}\n`, 'utf8');
         };
 
         await writeJson(path.join(liveBuildRoot, 'build_state.json'), {

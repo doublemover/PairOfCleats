@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-manifest-max-bytes-'));
 applyTestEnv({ cacheRoot: tempRoot });
@@ -12,7 +13,7 @@ applyTestEnv({ cacheRoot: tempRoot });
 const indexDir = path.join(tempRoot, 'index');
 const piecesDir = path.join(indexDir, 'pieces');
 await fs.mkdir(piecesDir, { recursive: true });
-await fs.writeFile(path.join(piecesDir, 'manifest.json'), JSON.stringify({ pieces: [] }, null, 2));
+await fs.writeFile(path.join(piecesDir, 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [] }, null, 2));
 
 assert.throws(
   () => loadPiecesManifest(indexDir, { maxBytes: '65536', strict: true }),

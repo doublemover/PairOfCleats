@@ -10,12 +10,17 @@ import {
   normalizeAdapterPrewarmTexts
 } from './embedding-adapter-helpers.js';
 
-export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile }) => {
+export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly = false, sessionOptions = {}, modelFileName = null }) => {
   let embedderPromise = null;
+  let resolvedEmbedder = null;
   const ensureEmbedder = () => {
     if (!embedderPromise) {
-      embedderPromise = loadPipeline(modelId, modelsDir, modelProfile).catch((err) => {
+      embedderPromise = loadPipeline(modelId, modelsDir, modelProfile, localFilesOnly, sessionOptions, modelFileName).then((embedder) => {
+        resolvedEmbedder = embedder;
+        return embedder;
+      }).catch((err) => {
         embedderPromise = null;
+        resolvedEmbedder = null;
         throw err;
       });
     }
@@ -39,6 +44,37 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
   return {
     embed,
     embedOne,
+    prepare: async (texts) => {
+      const embedder = await ensureEmbedder();
+      if (!embedder.prepare) throw new Error('Prepared token inputs require the EG2 adapter.');
+      return embedder.prepare(texts);
+    },
+    embedPrepared: async (items) => {
+      const embedder = await ensureEmbedder();
+      if (!embedder.embedPrepared) throw new Error('Prepared token inputs require the EG2 adapter.');
+      return embedder.embedPrepared(items);
+    },
+    executionInfo: () => ({
+      provider: 'xenova', loaded: resolvedEmbedder !== null, loading: embedderPromise !== null && resolvedEmbedder === null,
+      ...(resolvedEmbedder?.executionInfo?.() ?? {
+        preparedInputs: !!modelProfile, device: modelProfile ? 'cpu' : null,
+        executionProviders: modelProfile ? ['cpu'] : null,
+        modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
+        effectiveNativeThreads: null, effectiveGraphExecutionMode: null, sessions: [],
+        maxLength: modelProfile?.maxLength ?? null, maxConcurrentInference: modelProfile ? 1 : null,
+        profilingEnabled: sessionOptions.enableProfiling === true, profilingEnded: false,
+        optimizedModelFilePath: sessionOptions.optimizedModelFilePath ?? null
+      })
+    }),
+    endProfiling: async () => {
+      const embedder = await ensureEmbedder();
+      return embedder.endProfiling?.() ?? { enabled: false, sessions: [] };
+    },
+    dispose: async () => {
+      if (!embedderPromise) return;
+      const embedder = await embedderPromise;
+      await embedder.dispose?.();
+    },
     estimateTokensBatch: async (texts) => {
       const list = Array.isArray(texts) ? texts : [];
       return list.map((text) => estimateTokensHeuristic(text));
@@ -47,7 +83,7 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
       return ensureEmbedder();
     },
     provider: 'xenova',
-    supportsParallelDispatch: true
+    supportsParallelDispatch: !modelProfile
   };
 };
 
@@ -60,6 +96,9 @@ export const createEmbeddingProviderAdapter = ({
   provider,
   onnxConfig,
   modelProfile,
+  localFilesOnly = false,
+  sessionOptions = {},
+  modelFileName = null,
   normalize,
   loadPipeline,
   normalizeEmbeddingProvider
@@ -178,5 +217,5 @@ export const createEmbeddingProviderAdapter = ({
     };
   }
 
-  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline, modelProfile });
+  return createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline, modelProfile, localFilesOnly, sessionOptions, modelFileName });
 };

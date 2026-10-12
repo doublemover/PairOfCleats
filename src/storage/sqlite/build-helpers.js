@@ -118,6 +118,7 @@ export function normalizeChunkForSqlite(
     preContext: chunk?.preContext ? JSON.stringify(chunk.preContext) : null,
     postContext: chunk?.postContext ? JSON.stringify(chunk.postContext) : null,
     weight: typeof chunk?.weight === 'number' ? chunk.weight : 1,
+    phrase_tokens: Array.isArray(chunk?.phraseTokens) ? JSON.stringify(chunk.phraseTokens) : null,
     tokens: tokensArray.length ? JSON.stringify(tokensArray) : null,
     tokensText: tokensArray.length ? tokensArray.join(' ') : emptyTokensText,
     ngrams: chunk?.ngrams ? JSON.stringify(chunk.ngrams) : null,

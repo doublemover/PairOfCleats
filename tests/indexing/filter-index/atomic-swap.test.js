@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -140,8 +141,9 @@ const readFilterIndexPayload = async (relPath) => {
 
 // Run 1: write a valid filter_index.
 const indexState = {
+  buildId: 'artifact-publication-fixture',
   generatedAt: new Date().toISOString(),
-  artifactSurfaceVersion: 'test',
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   compatibilityKey: null,
   mode: 'code',
   stage: 'stage2'

@@ -1,3 +1,4 @@
+import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import { redactAbsolutePaths } from './redact.js';
 import { buildErrorPayload, ERROR_CODES } from '../../src/shared/error-codes.js';
 
@@ -76,6 +77,12 @@ export const sendError = (res, statusCode, code, message, details = {}, headers 
     redactedPayload.errors = rawPayload.errors.map((entry, index) => (
       preserveValidationFieldPath(entry, redactedPayload.errors[index])
     ));
+  }
+  const format = projectIndexFormatError({ code: rest.nativeCode || rest.semanticCode, details: rest });
+  if (format) {
+    // Authorized index diagnostics must retain the concrete full-source remedy.
+    Object.assign(redactedPayload, format, { message, hint: format.rebuildCommand });
+    redactedPayload.details = format;
   }
   sendJson(res, statusCode, redactedPayload, headers);
 };

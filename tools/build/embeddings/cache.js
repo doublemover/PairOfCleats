@@ -25,7 +25,7 @@ import {
 } from './cache/index-state.js';
 
 const CACHE_KEY_SCHEMA_VERSION = 'embeddings-cache-v1';
-const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v1';
+const GLOBAL_CHUNK_CACHE_KEY_SCHEMA_VERSION = 'embeddings-global-chunk-cache-v2';
 const DEFAULT_MAX_SHARD_BYTES = 128 * 1024 * 1024;
 const CACHE_ENTRY_PREFIX_BYTES = 4;
 const CHUNK_HASH_FINGERPRINT_DELIMITER = '\n';
@@ -211,7 +211,7 @@ export const resolveCacheShardDir = (cacheDir) => (
  * @returns {string|null}
  */
 export const resolveCacheShardPath = (cacheDir, shardName) => (
-  cacheDir && shardName ? path.join(resolveCacheShardDir(cacheDir), shardName) : null
+  cacheDir && /^shard-\d{5,}\.bin$/.test(shardName || '') ? path.join(resolveCacheShardDir(cacheDir), shardName) : null
 );
 
 const resolveCacheEntrySuffix = () => getEmbeddingsCacheSuffix();
@@ -224,7 +224,7 @@ const resolveCacheEntrySuffix = () => getEmbeddingsCacheSuffix();
  * @returns {string|null}
  */
 export const resolveCacheEntryPath = (cacheDir, cacheKey, options = {}) => {
-  if (!cacheDir || !cacheKey) return null;
+  if (!cacheDir || !/^[A-Za-z0-9_-]{1,256}$/.test(cacheKey || '')) return null;
   if (options.legacy) {
     return path.join(cacheDir, `${cacheKey}.json`);
   }
@@ -648,12 +648,13 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
      */
     const stat = await pooled.handle.stat();
     const offset = stat.size;
-    await pooled.handle.write(payload, 0, payload.length, offset);
+    await writeCacheBuffer(pooled.handle, payload, offset);
     pooled.size = offset + payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
     shardMeta.sizeBytes = pooled.size;
     cacheIndex.shards[shardName] = shardMeta;
     return {
+      storageEpoch: cacheIndex.storageEpoch || 0,
       shard: shardName,
       offset: offset + CACHE_ENTRY_PREFIX_BYTES,
       length: buffer.length,
@@ -664,7 +665,7 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
   try {
     const stat = await handle.stat();
     const offset = stat.size;
-    await handle.write(payload, 0, payload.length, offset);
+    await writeCacheBuffer(handle, payload, offset);
     const totalBytes = payload.length;
     const shardMeta = cacheIndex.shards?.[shardName] || { createdAt: new Date().toISOString(), sizeBytes: 0 };
     shardMeta.sizeBytes = offset + totalBytes;
@@ -690,7 +691,13 @@ const appendShardEntryUnlocked = async (cacheDir, cacheIndex, buffer, options = 
  * @returns {Promise<CacheShardEntry|null>}
  */
 const appendShardEntry = async (cacheDir, cacheIndex, buffer, options = {}) => (
-  withCacheLock(cacheDir, () => appendShardEntryUnlocked(cacheDir, cacheIndex, buffer, options), options.lock)
+  withCacheLock(cacheDir, async () => {
+    const canonical = await readCacheIndex(cacheDir, cacheIndex.identityKey);
+    mergeCacheIndex(canonical, cacheIndex);
+    for (const key of Object.keys(cacheIndex)) delete cacheIndex[key];
+    Object.assign(cacheIndex, canonical);
+    return appendShardEntryUnlocked(cacheDir, cacheIndex, buffer, options);
+  }, options.lock)
 );
 
 /**
@@ -764,6 +771,7 @@ export const upsertCacheIndexEntry = (cacheIndex, cacheKey, payload, shardEntry 
     );
   const next = {
     key: cacheKey,
+    storageEpoch: shardEntry?.storageEpoch ?? cacheIndex.storageEpoch ?? 0,
     file: payload.file || existing.file || null,
     hash: payload.hash || existing.hash || null,
     chunkSignature: payload.chunkSignature || existing.chunkSignature || null,
@@ -814,13 +822,14 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
   const maxAgeMs = Number.isFinite(Number(options.maxAgeMs)) ? Math.max(0, Number(options.maxAgeMs)) : 0;
   const deleteShards = options.deleteShards !== false;
   if (!maxBytes && !maxAgeMs) return { removedKeys: [], removedShards: [], changed: false };
+  const beforePhysical = await inspectCachePhysicalStorage(cacheDir,cacheIndex);
   const plan = planEmbeddingsCachePrune({
     entries: cacheIndex.entries || {},
     maxBytes,
     maxAgeMs,
     now: Date.now()
   });
-  if (!plan.removeKeys.length) return { removedKeys: [], removedShards: [], changed: false };
+  if (plan.removeKeys.length) cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
   const removeSet = new Set(plan.removeKeys);
   for (const key of plan.removeKeys) {
     if (deleteShards) {
@@ -865,8 +874,37 @@ export const pruneCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
       cacheIndex.currentShard = null;
     }
   }
+  const compaction = deleteShards ? await compactCacheShards(cacheDir,cacheIndex,options.maxCompactionBytes) : {copiedBytes:0,reclaimedBytes:0};
+  let physical = await inspectCachePhysicalStorage(cacheDir,cacheIndex);
+  let physicalBytes=physical.reduce((sum,file)=>sum+file.sizeBytes,0);
+  const physicalRemoved=[];
+  if(deleteShards && maxBytes>0 && physicalBytes>maxBytes){
+    const lru=file=>{
+      const entries=Object.values(cacheIndex.entries||{}).filter(entry=>
+        (entry.shard?resolveCacheShardPath(cacheDir,entry.shard):(entry.path||resolveCacheEntryPath(cacheDir,entry.key)))===file.path);
+      return entries.length?Math.max(...entries.map(entry=>Date.parse(entry.lastAccessAt||entry.createdAt)||0)):file.mtimeMs;
+    };
+    physical.sort((a,b)=>lru(a)-lru(b)||a.path.localeCompare(b.path));
+    for(const file of physical){
+      if(physicalBytes<=maxBytes)break;
+      if(file.protected)continue;
+      try{await fs.rm(file.path);}catch{continue;}
+      physicalBytes-=file.sizeBytes;physicalRemoved.push(file.path);
+      cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
+      for(const [key,entry]of Object.entries(cacheIndex.entries||{})){
+        const entryPath=entry.shard?resolveCacheShardPath(cacheDir,entry.shard):(entry.path||resolveCacheEntryPath(cacheDir,key));
+        if(entryPath===file.path){delete cacheIndex.entries[key];plan.removeKeys.push(key);}
+      }
+      const name=path.basename(file.path);
+      if(cacheIndex.shards[name]){delete cacheIndex.shards[name];removedShards.push(name);}
+      if(cacheIndex.currentShard===name)cacheIndex.currentShard=null;
+    }
+    if(cacheIndex.files)for(const [file,key]of Object.entries(cacheIndex.files))if(!cacheIndex.entries[key])delete cacheIndex.files[file];
+  }
   cacheIndex.updatedAt = new Date().toISOString();
-  return { removedKeys: plan.removeKeys, removedShards, changed: true };
+  const changed=plan.removeKeys.length>0||removedShards.length>0||compaction.copiedBytes>0||physicalRemoved.length>0;
+  return {removedKeys:[...new Set(plan.removeKeys)],removedShards,changed,physicalBytesBefore:beforePhysical.reduce((sum,file)=>sum+file.sizeBytes,0),
+    physicalBytes, budgetExceeded:maxBytes>0&&physicalBytes>maxBytes, compaction, physicalRemoved};
 };
 
 /**
@@ -904,7 +942,9 @@ export const flushCacheIndex = async (cacheDir, cacheIndex, options = {}) => {
       delete cacheIndex[key];
     }
     Object.assign(cacheIndex, onDisk);
-    return pruneResult;
+    const physical=await inspectCachePhysicalStorage(cacheDir,onDisk);
+    const physicalBytes=physical.reduce((sum,file)=>sum+file.sizeBytes,0);
+    return {...pruneResult,physicalBytes,budgetExceeded:Number(options.maxBytes)>0&&physicalBytes>Number(options.maxBytes)};
   }, options.lock);
 
   if (!lockResult) {
@@ -942,7 +982,7 @@ export const buildCacheKey = ({
       signature: signature || null
     }
   });
-  return keyInfo.key;
+  return `file-${keyInfo.version}-${keyInfo.digest}`;
 };
 
 /**
@@ -1072,3 +1112,98 @@ export const shouldFastRejectCacheLookup = ({
 
   return false;
 };
+
+/** Append an already encoded batch under one cross-process lock. */
+export const writeCacheEntries = async (cacheDir, cacheIndex, writes, options = {}) => {
+  if (!cacheDir || !cacheIndex) throw new TypeError('Batch cache writes require an index');
+  return withCacheLock(cacheDir, async () => {
+    const canonical = await readCacheIndex(cacheDir, cacheIndex.identityKey);
+    mergeCacheIndex(canonical,cacheIndex);
+    const pointers=[];
+    for(const write of writes){
+      const buffer=Buffer.isBuffer(write.encodedPayload)?write.encodedPayload:await encodeCacheEntryPayload(write.payload);
+      const pointer=await appendShardEntryUnlocked(cacheDir,canonical,buffer,options);
+      upsertCacheIndexEntry(canonical,write.cacheKey,write.payload,pointer);
+      pointers.push(pointer);
+    }
+    await writeCacheIndex(cacheDir,canonical);
+    for(const key of Object.keys(cacheIndex))delete cacheIndex[key];
+    Object.assign(cacheIndex,canonical);
+    return pointers;
+  },options.lock);
+};
+
+/** Compact only registered cache shards, streaming at most the selected I/O budget. */
+const compactCacheShards = async (cacheDir, cacheIndex, maxIoBytes = 128 * 1024 * 1024) => {
+  let copiedBytes=0, reclaimedBytes=0;
+  for(const oldName of Object.keys(cacheIndex.shards || {}).sort()){
+    const oldPath=resolveCacheShardPath(cacheDir,oldName);
+    if(!oldPath)continue;
+    let stat;try{stat=await fs.lstat(oldPath);}catch{continue;}
+    if(!stat.isFile()||stat.isSymbolicLink()||await fs.realpath(oldPath)!==oldPath)continue;
+    const live=Object.values(cacheIndex.entries || {}).filter(entry=>entry.shard===oldName)
+      .sort((a,b)=>a.offset-b.offset);
+    const liveBytes=live.reduce((sum,entry)=>sum+Number(entry.length||0)+CACHE_ENTRY_PREFIX_BYTES,0);
+    if(!live.length||liveBytes>stat.size*0.75||copiedBytes+liveBytes>maxIoBytes
+      ||live.some(entry=>!Number.isSafeInteger(entry.length)||entry.length<=0||entry.length>16*1024*1024
+        ||!Number.isSafeInteger(entry.offset)||entry.offset<4||entry.offset+entry.length>stat.size))continue;
+    const stagedIndex={...cacheIndex,shards:{...cacheIndex.shards}};
+    const newName=allocateShard(stagedIndex),newPath=resolveCacheShardPath(cacheDir,newName);
+    const input=await fs.open(oldPath,'r');let output;
+    const replacements=[];let offset=0;
+    try{
+      output=await fs.open(newPath,'wx');
+      for(const entry of live){
+        const buffer=Buffer.alloc(entry.length);let read=0;
+        while(read<buffer.length){const part=await input.read(buffer,read,buffer.length-read,entry.offset+read);if(!part.bytesRead)throw Error('Incomplete cache shard');read+=part.bytesRead;}
+        await decodeEmbeddingsCache(buffer);
+        const prefix=Buffer.alloc(4);prefix.writeUInt32LE(buffer.length);
+        await writeCacheBuffer(output,prefix,offset);await writeCacheBuffer(output,buffer,offset+4);
+        replacements.push({...entry,shard:newName,offset:offset+4,length:buffer.length,sizeBytes:buffer.length+4,
+          path:null,storageEpoch:(cacheIndex.storageEpoch||0)+1});
+        offset+=buffer.length+4;
+      }
+      await output.sync();
+    }finally{await input.close();await output?.close();}
+    cacheIndex.storageEpoch=(cacheIndex.storageEpoch||0)+1;
+    cacheIndex.nextShardId=stagedIndex.nextShardId;
+    cacheIndex.currentShard=newName;
+    cacheIndex.shards[newName]={createdAt:new Date().toISOString(),sizeBytes:offset};
+    for(const entry of replacements)cacheIndex.entries[entry.key]=entry;
+    delete cacheIndex.shards[oldName];
+    await writeCacheIndex(cacheDir,cacheIndex);
+    try{await fs.rm(oldPath);reclaimedBytes+=stat.size-offset;}catch{}
+    copiedBytes+=offset;
+  }
+  return {copiedBytes,reclaimedBytes};
+};
+
+const inspectCachePhysicalStorage = async (cacheDir,cacheIndex) => {
+  const files=new Map();
+  const add=async (file, protectedFile=false)=>{
+    if(!file)return;
+    const resolved=path.resolve(file),root=path.resolve(cacheDir)+path.sep;
+    if(!resolved.startsWith(root))return;
+    try{const stat=await fs.lstat(resolved);if(stat.isFile()&&!stat.isSymbolicLink() && await fs.realpath(resolved)===resolved)files.set(resolved,{path:resolved,sizeBytes:stat.size,mtimeMs:stat.mtimeMs,protected:protectedFile});}catch{}
+  };
+  for(const shard of Object.keys(cacheIndex.shards||{}))await add(resolveCacheShardPath(cacheDir,shard));
+  for(const entry of Object.values(cacheIndex.entries||{}))if(!entry.shard)await add(entry.path||resolveCacheEntryPath(cacheDir,entry.key));
+  for(const file of [resolveCacheIndexPath(cacheDir),resolveCacheIndexBinaryPath(cacheDir),path.join(cacheDir,'cache.meta.json')])await add(file,true);
+  // Orphan shard/encoded-key files are owned by this cache; other selected files are untouched.
+  for(const [dir,pattern] of [[cacheDir,/^[a-f0-9]{40,64}\.(?:embcache\.zst|json)$/i],
+    [resolveCacheShardDir(cacheDir),/^shard-\d{5,}\.bin$/]]){
+    try{for(const name of await fs.readdir(dir))if(pattern.test(name))await add(path.join(dir,name));}catch{}
+  }
+  return [...files.values()];
+};
+
+const writeCacheBuffer = async (handle,buffer,offset) => {
+  let written=0;
+  while(written<buffer.length){
+    const result=await handle.write(buffer,written,buffer.length-written,offset+written);
+    if(!result.bytesWritten)throw Error('Incomplete cache write');
+    written+=result.bytesWritten;
+  }
+};
+
+export { readCacheEntries, createCacheBatchReader } from './cache/batch-reader.js';

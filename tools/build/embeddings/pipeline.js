@@ -1,3 +1,5 @@
+import { createBoundedWriterQueue } from './writer-queue.js';
+
 /**
  * Create per-file embeddings processor for code/doc payloads.
  * When `parallelDispatch=true`, code/doc embedding batches execute concurrently
@@ -25,8 +27,12 @@ export const createFileEmbeddingsProcessor = ({
   globalMicroBatching = false,
   globalMicroBatchingFillTarget = 0.85,
   globalMicroBatchingMaxWaitMs = 8,
+  globalMicroBatchingMaxPending = 64,
+  globalMicroBatchingMaxPendingBytes = 64 * 1024 * 1024,
   embeddingTextCache = null,
   embeddingInFlightCoalescer = null,
+  onEmbeddingScheduled = null,
+  onEmbeddingPrepared = null,
   onEmbeddingUsage = null
 }) => {
   const batchObserver = typeof onEmbeddingBatch === 'function' ? onEmbeddingBatch : null;
@@ -76,12 +82,24 @@ export const createFileEmbeddingsProcessor = ({
       : maxBatchItems;
     return Math.max(1, Math.floor(targetItems * globalBatchingFillTarget));
   };
+  const requestAdmission = createBoundedWriterQueue({
+    maxPending: globalMicroBatchingMaxPending,
+    maxPendingBytes: globalMicroBatchingMaxPendingBytes
+  });
   let globalPendingRequests = [];
   let globalPendingTextCount = 0;
   let globalPendingTokenCount = 0;
   let globalFlushTimer = null;
   let globalFlushInFlight = null;
   let globalForceFlushRequested = false;
+  let activeProviderCalls = 0;
+  let peakProviderCalls = 0;
+  const dispatch = (batch) => scheduleCompute(async () => {
+    activeProviderCalls += 1;
+    peakProviderCalls = Math.max(peakProviderCalls, activeProviderCalls);
+    try { return await getChunkEmbeddings(batch); }
+    finally { activeProviderCalls -= 1; }
+  });
 
   const clearGlobalFlushTimer = () => {
     if (!globalFlushTimer) return;
@@ -140,6 +158,7 @@ export const createFileEmbeddingsProcessor = ({
         const requestLabels = new Set();
         const flattenedTexts = [];
         const flattenedTokenEstimates = [];
+        const flattenedGroups = [];
         let oldestEnqueuedAt = Number.POSITIVE_INFINITY;
         for (const request of snapshot) {
           const texts = Array.isArray(request.texts) ? request.texts : [];
@@ -150,6 +169,7 @@ export const createFileEmbeddingsProcessor = ({
           for (let i = 0; i < texts.length; i += 1) {
             const text = texts[i];
             flattenedTexts.push(text);
+            flattenedGroups.push(request.groups[i]);
             flattenedTokenEstimates.push(resolveTokenEstimate(text, estimates?.[i]));
           }
         }
@@ -167,7 +187,8 @@ export const createFileEmbeddingsProcessor = ({
             maxBatchTokens: embeddingBatchTokenBudget,
             estimateTokens: estimateEmbeddingTokens,
             tokenEstimates: flattenedTokenEstimates,
-            embed: (batch) => scheduleCompute(() => getChunkEmbeddings(batch)),
+            groups: flattenedGroups,
+            embed: dispatch,
             onBatch: batchObserver
               ? (batchInfo) => {
                 const budget = Math.max(0, Math.floor(Number(batchInfo?.batchTokenBudget) || 0));
@@ -219,35 +240,44 @@ export const createFileEmbeddingsProcessor = ({
     return globalFlushInFlight;
   };
 
-  const enqueueGlobalBatchRequest = ({ texts, label, tokenEstimates }) => new Promise((resolve, reject) => {
-    if (!globalBatchingEnabled) {
-      resolve([]);
-      return;
-    }
-    const normalizedTexts = Array.isArray(texts) ? texts : [];
-    const normalizedTokenEstimates = Array.isArray(tokenEstimates) && tokenEstimates.length === normalizedTexts.length
-      ? tokenEstimates
-      : null;
-    let requestTokens = 0;
-    for (let i = 0; i < normalizedTexts.length; i += 1) {
-      requestTokens += resolveTokenEstimate(normalizedTexts[i], normalizedTokenEstimates?.[i]);
-    }
-    globalPendingRequests.push({
-      texts: normalizedTexts,
-      tokenEstimates: normalizedTokenEstimates,
-      label,
-      resolve,
-      reject,
-      enqueuedAt: Date.now()
-    });
-    globalPendingTextCount += normalizedTexts.length;
-    globalPendingTokenCount += requestTokens;
-    if (hasGlobalCapacityPressure() || hasGlobalFillTarget()) {
-      void flushGlobalRequests();
-    } else {
-      scheduleGlobalFlushTimer();
-    }
-  });
+  const enqueueGlobalBatchRequest = async ({ texts, label, tokenEstimates, groups }) => {
+    const bytes = Array.isArray(texts) ? texts.reduce((total, text) => total + String(text).length * 2 + 16, 0) : 0;
+    let complete, fail;
+    const result = new Promise((resolve, reject) => { complete = resolve; fail = reject; });
+    await requestAdmission.enqueue(() => {
+      const resolve = complete, reject = fail;
+      if (!globalBatchingEnabled) {
+        resolve([]);
+        return;
+      }
+      const normalizedTexts = Array.isArray(texts) ? texts : [];
+      const normalizedTokenEstimates = Array.isArray(tokenEstimates) && tokenEstimates.length === normalizedTexts.length
+        ? tokenEstimates
+        : null;
+      let requestTokens = 0;
+      for (let i = 0; i < normalizedTexts.length; i += 1) {
+        requestTokens += resolveTokenEstimate(normalizedTexts[i], normalizedTokenEstimates?.[i]);
+      }
+      globalPendingRequests.push({
+        texts: normalizedTexts,
+        tokenEstimates: normalizedTokenEstimates,
+        groups,
+        label,
+        resolve,
+        reject,
+        enqueuedAt: Date.now()
+      });
+      globalPendingTextCount += normalizedTexts.length;
+      globalPendingTokenCount += requestTokens;
+      if (hasGlobalCapacityPressure() || hasGlobalFillTarget()) {
+        void flushGlobalRequests();
+      } else {
+        scheduleGlobalFlushTimer();
+      }
+      return result;
+    }, { bytes });
+    return result;
+  };
 
   const drainGlobalBatching = async () => {
     if (!globalBatchingEnabled) return;
@@ -269,8 +299,9 @@ export const createFileEmbeddingsProcessor = ({
    * @param {string} label
    * @returns {Promise<Array<ArrayLike<number>>>}
    */
-  const runEmbeddingsBatch = async (texts, label) => {
+  const runEmbeddingsBatch = async (texts, label, groups) => {
     if (!texts.length) return [];
+    onEmbeddingScheduled?.({ requested: texts.length });
     const vectors = new Array(texts.length).fill(null);
     const uniqueTexts = [];
     const uniqueIndices = [];
@@ -311,6 +342,7 @@ export const createFileEmbeddingsProcessor = ({
       const pendingClaims = [];
       const computeTexts = [];
       const computeSlots = [];
+      const computeGroups = [];
       for (let i = 0; i < uniqueTexts.length; i += 1) {
         const text = uniqueTexts[i];
         const indices = uniqueIndices[i] || [];
@@ -329,6 +361,7 @@ export const createFileEmbeddingsProcessor = ({
           }
         }
         computeTexts.push(text);
+        computeGroups.push(groups[indices[0]]);
         computeSlots.push(slot);
       }
 
@@ -344,6 +377,9 @@ export const createFileEmbeddingsProcessor = ({
         }
       }
 
+      onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
+        tokens: computeTexts.reduce((sum, text, index) => sum + resolveTokenEstimate(text, tokenEstimates?.[index]), 0)
+          - texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
       let computed = [];
       try {
         if (computeTexts.length > 0) {
@@ -351,7 +387,8 @@ export const createFileEmbeddingsProcessor = ({
             computed = await enqueueGlobalBatchRequest({
               texts: computeTexts,
               label,
-              tokenEstimates
+              tokenEstimates,
+              groups: computeGroups
             });
           } else {
             computed = await runBatched({
@@ -360,7 +397,8 @@ export const createFileEmbeddingsProcessor = ({
               maxBatchTokens: embeddingBatchTokenBudget,
               estimateTokens: estimateEmbeddingTokens,
               tokenEstimates,
-              embed: (batch) => scheduleCompute(() => getChunkEmbeddings(batch)),
+              groups: computeGroups,
+              embed: dispatch,
               onBatch: batchObserver
                 ? (batchInfo) => {
                   batchObserver({
@@ -421,6 +459,8 @@ export const createFileEmbeddingsProcessor = ({
       return vectors;
     }
 
+    onEmbeddingPrepared?.({ groupId: groups[0]?.groupId, delta: true,
+      tokens: -texts.reduce((sum, text) => sum + resolveTokenEstimate(text), 0) });
     assertVectorArrays(vectors, texts.length, label);
     usageObserver?.({
       label,
@@ -449,23 +489,30 @@ export const createFileEmbeddingsProcessor = ({
       docPayloads.push(entry.docTexts[i]);
       docMapping.push(entry.docMapping[i]);
     }
+    const groupId = entry.normalizedRel || entry.items[0]?.chunk?.file || '';
+    const descriptor = (index, kind) => ({ groupId,
+      chunkId: entry.items[index]?.chunk?.chunkId ?? entry.items[index]?.index ?? index, kind });
+    const codeGroups = entry.codeMapping.map((index) => descriptor(index, 'code'));
+    const docGroups = docMapping.map((index) => descriptor(index, 'doc'));
+    onEmbeddingPrepared?.({ groupId, tokens: [...entry.codeTexts, ...docPayloads]
+      .reduce((total, text) => total + resolveTokenEstimate(text), 0) });
     const runCode = async () => {
       if (!entry.codeTexts.length) return;
-      const codeEmbeds = await runEmbeddingsBatch(entry.codeTexts, `${mode} code`);
+      const codeEmbeds = await runEmbeddingsBatch(entry.codeTexts, `${mode} code`, codeGroups);
       for (let i = 0; i < entry.codeMapping.length; i += 1) {
         entry.codeEmbeds[entry.codeMapping[i]] = codeEmbeds[i] || null;
       }
     };
     const runDoc = async () => {
       if (!docPayloads.length) return;
-      const docEmbeds = await runEmbeddingsBatch(docPayloads, `${mode} doc`);
+      const docEmbeds = await runEmbeddingsBatch(docPayloads, `${mode} doc`, docGroups);
       for (let i = 0; i < docMapping.length; i += 1) {
         entry.docVectorsRaw[docMapping[i]] = docEmbeds[i] || null;
       }
     };
     if (mergeCodeDocBatches && entry.codeTexts.length && docPayloads.length) {
       const mergedPayloads = [...entry.codeTexts, ...docPayloads];
-      const mergedEmbeds = await runEmbeddingsBatch(mergedPayloads, `${mode} code+doc`);
+      const mergedEmbeds = await runEmbeddingsBatch(mergedPayloads, `${mode} code+doc`, [...codeGroups, ...docGroups]);
       const codeCount = entry.codeTexts.length;
       for (let i = 0; i < entry.codeMapping.length; i += 1) {
         entry.codeEmbeds[entry.codeMapping[i]] = mergedEmbeds[i] || null;
@@ -484,6 +531,11 @@ export const createFileEmbeddingsProcessor = ({
   };
   processor.drain = async () => {
     await drainGlobalBatching();
+    await requestAdmission.onIdle();
   };
+  processor.batchingStats = () => ({ ...requestAdmission.stats(),
+    pendingRequests: globalPendingRequests.length, pendingTexts: globalPendingTextCount,
+    pendingTokens: globalPendingTokenCount, activeProviderCalls, peakProviderCalls,
+    flushActive: globalFlushInFlight ? 1 : 0 });
   return processor;
 };

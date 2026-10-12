@@ -6,6 +6,7 @@ import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
+import { applyPatches } from '../../../tools/setup/apply-patches.js';
 
 const env = applyTestEnv();
 const helper = path.join(process.cwd(), 'tools', 'setup', 'apply-patches.js');
@@ -26,11 +27,14 @@ const make = async (name, options) => {
 
 try {
   const clean = await make('path with spaces %PATH%!&');
+  assert.throws(() => applyPatches(clean.cwd, { verifyOnly: true }), /has not been applied/);
+  assert.equal(await fs.readFile(clean.target, 'utf8'), originalText, 'verification never applies a missing patch');
   const invalidGitConfig = path.join(tempRoot, 'invalid.gitconfig');
   await fs.writeFile(invalidGitConfig, '[invalid config\n');
   const cleanResult = run(clean.cwd, helper, { GIT_CONFIG_GLOBAL: invalidGitConfig });
   assert.equal(cleanResult.status, 0, `isolated Git configuration must work: ${cleanResult.stderr}`);
   assert.equal(await fs.readFile(clean.target, 'utf8'), patchedText);
+  assert.equal(applyPatches(clean.cwd, { verifyOnly: true }), 1);
   const repeat = run(clean.cwd);
   assert.equal(repeat.status, 0);
   assert.match(repeat.stdout, /already applied/);

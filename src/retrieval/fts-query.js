@@ -73,7 +73,7 @@ export const resolveFtsVariant = ({
   const hasLatin = LATIN_PATTERN.test(normalizedQuery);
 
   let variant = 'unicode61';
-  let tokenizer = 'unicode61 remove_diacritics 2';
+  let tokenizer = 'unicode61';
   let reason = 'default_unicode61';
 
   if (explicitTrigram) {

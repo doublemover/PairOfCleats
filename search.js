@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-import { emitLegacyCliEntrypointWarning } from './src/shared/cli/legacy-entrypoint.js';
-import { isDirectExecution } from './src/shared/direct-execution.js';
-import { runCli } from './src/retrieval/cli/search-entry.js';
+import { guardBootstrapEntry } from './src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
+const { isDirectExecution } = await import('./src/shared/direct-execution.js');
+const { runCli } = await import('./src/retrieval/cli/search-entry.js');
 
 if (isDirectExecution(import.meta.url)) {
   emitLegacyCliEntrypointWarning({

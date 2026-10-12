@@ -1,10 +1,10 @@
-# Public Artifact Surface (0.0.2)
+# Public Artifact Surface (0.1.0)
 
 This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/contracts/artifact-contract.md` for all contract decisions.
 
 ## Contract version
 
-- `artifactSurfaceVersion`: **0.0.2** (SemVer, hard-breaks only).
+- `artifactSurfaceVersion`: **0.1.0** (SemVer, hard-breaks only).
 - **No transition paths**: if `artifactSurfaceVersion` or required schema versions do not match the accepted ranges, readers **must fail closed**.
 
 ## Manifest-first discovery (required)

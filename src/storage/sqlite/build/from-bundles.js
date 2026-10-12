@@ -35,6 +35,7 @@ import {
   runSqliteBuildPostCommit
 } from './core.js';
 import { createBundleLoader } from './bundle-loader.js';
+import { prepareCachedSemanticPlan, applyCachedSemanticPlan } from '../semantic/from-cache.js';
 
 const MAX_VOCAB_LOOKUP_CACHE_ENTRIES = 250000;
 
@@ -81,7 +82,10 @@ export async function buildDatabaseFromBundles({
   buildPragmas,
   optimize,
   vocabLookupCacheMaxEntries,
-  stats
+  stats,
+  ftsVariants = [],
+  signal = null,
+  repoRoot = process.cwd()
 }) {
   const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
@@ -106,6 +110,7 @@ export async function buildDatabaseFromBundles({
   if (!incrementalData?.manifest) {
     return { count: 0, denseCount: 0, reason: 'missing incremental manifest' };
   }
+  const semanticPlan = await prepareCachedSemanticPlan({ incrementalData, repoRoot, signal });
   const {
     resolvedBatchSize,
     batchStats,
@@ -123,7 +128,7 @@ export async function buildDatabaseFromBundles({
   // Preserve manifest insertion order so fallback doc-id assignment for bundles
   // without explicit chunk ids matches chunk_meta row ordering.
   const manifestEntries = [...manifestLookup.entries];
-  if (!manifestEntries.length) {
+  if (!manifestEntries.length && !semanticPlan) {
     return { count: 0, denseCount: 0, reason: 'incremental manifest empty' };
   }
   if (emitOutput && manifestLookup.conflicts.length) {
@@ -167,7 +172,8 @@ export async function buildDatabaseFromBundles({
     outPath,
     batchStats,
     inputBytes,
-    useBuildPragmas
+    useBuildPragmas,
+    ftsVariants
   });
   let succeeded = false;
   try {
@@ -687,7 +693,7 @@ export async function buildDatabaseFromBundles({
     // then own the loader immediately so every later failure closes it.
     let bundleLoader = null;
     try {
-      bundleLoader = createBundleLoader({ bundleThreads, workerPath });
+      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot });
       const useBundleWorkers = bundleLoader.useWorkers;
       if (emitOutput && useBundleWorkers) {
         log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
@@ -822,7 +828,7 @@ export async function buildDatabaseFromBundles({
       };
     }
 
-    if (successfulFiles <= 0) {
+    if (successfulFiles <= 0 && manifestEntries.length > 0) {
       if (emitOutput) {
         warn(`[sqlite] Bundle build failed for ${mode}: no readable bundles.`);
       }
@@ -838,6 +844,7 @@ export async function buildDatabaseFromBundles({
     }
     insertTokenStats.run(mode, totalDocs ? totalLen / totalDocs : 0, totalDocs);
     recordTable('token_stats', 1, 0);
+    await applyCachedSemanticPlan({ db, plan: semanticPlan, signal });
 
     const manifestRows = buildFileManifestRows({
       mode,
@@ -910,4 +917,3 @@ export async function buildDatabaseFromBundles({
     });
   }
 }
-

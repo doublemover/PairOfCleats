@@ -434,10 +434,10 @@ export const buildCrossFileInferenceBudgetPlan = ({
 };
 
 /**
- * Apply cross-file inference budgets to chunk relations and file usages.
+ * Build a budgeted inference view without slicing canonical collected relations.
  *
  * @param {{chunks?:Array<object>,fileRelations?:object|Map<string,object>,plan?:object}} [input]
- * @returns {{fileRelations:object|Map<string,object>,budgetStats:object|null}}
+ * @returns {{chunks:Array<object>,fileRelations:object|Map<string,object>,budgetStats:object|null}}
  */
 export const applyCrossFileInferenceBudgetPlan = ({
   chunks,
@@ -445,9 +445,14 @@ export const applyCrossFileInferenceBudgetPlan = ({
   plan
 } = {}) => {
   if (!plan || typeof plan !== 'object') {
-    return { fileRelations, budgetStats: null };
+    return { chunks: Array.isArray(chunks) ? chunks : [], fileRelations, budgetStats: null };
   }
   const chunkList = Array.isArray(chunks) ? chunks : [];
+  const inferenceChunks = chunkList.map((chunk) => ({
+    ...chunk,
+    codeRelations: chunk?.codeRelations && typeof chunk.codeRelations === 'object'
+      ? { ...chunk.codeRelations } : chunk?.codeRelations
+  }));
   let droppedCallSignals = 0;
   let droppedCallDetailSignals = 0;
   let droppedChunkUsageSignals = 0;
@@ -456,7 +461,7 @@ export const applyCrossFileInferenceBudgetPlan = ({
       ? plan.chunkBudgetsByIndex.get(index)
       : null;
     if (!limits) continue;
-    const relations = chunkList[index]?.codeRelations;
+    const relations = inferenceChunks[index]?.codeRelations;
     if (!relations || typeof relations !== 'object') continue;
     const trimmed = applyRelationInferenceBudget({
       relations,
@@ -517,6 +522,7 @@ export const applyCrossFileInferenceBudgetPlan = ({
     fileUsageSignals: droppedFileUsageSignals
   };
   return {
+    chunks: inferenceChunks,
     fileRelations: tunedFileRelations,
     budgetStats: {
       schemaVersion: plan.schemaVersion || CROSS_FILE_BUDGET_SCHEMA_VERSION,

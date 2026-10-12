@@ -38,7 +38,7 @@ const ensureDir = (targetPath) => {
   fs.mkdirSync(targetPath, { recursive: true });
 };
 
-const ensureCert = (targetDir) => {
+const ensureCert = async (targetDir) => {
   ensureDir(targetDir);
   const keyPath = path.join(targetDir, 'localhost.key');
   const certPath = path.join(targetDir, 'localhost.crt');
@@ -46,7 +46,7 @@ const ensureCert = (targetDir) => {
     return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
   }
   const attrs = [{ name: 'commonName', value: 'localhost' }];
-  const pems = selfsigned.generate(attrs, { days: 30, keySize: 2048 });
+  const pems = await selfsigned.generate(attrs, { days: 30, keySize: 2048 });
   fs.writeFileSync(keyPath, pems.private);
   fs.writeFileSync(certPath, pems.cert);
   return { key: pems.private, cert: pems.cert };
@@ -87,7 +87,7 @@ const openBrowser = (url) => {
 
 runReport();
 
-const { key, cert } = ensureCert(certDir);
+const { key, cert } = await ensureCert(certDir);
 const threeRoot = path.join(toolRoot, 'node_modules', 'three');
 const threeBuildRoot = path.join(threeRoot, 'build');
 const threeExamplesRoot = path.join(threeRoot, 'examples');
@@ -137,6 +137,15 @@ const server = https.createServer({ key, cert }, (req, res) => {
       return;
     }
     serveMapIsoStaticFileOr404(res, targetPath, 'isomap asset not found.');
+    return;
+  }
+  const sharedAssets = {
+    '/shared/config.js': path.join(toolRoot, 'src/shared/config.js'),
+    '/shared/iterables.js': path.join(toolRoot, 'src/shared/iterables.js'),
+    '/workspace/inspect.js': path.join(toolRoot, 'src/map/workspace/inspect.js')
+  };
+  if (Object.hasOwn(sharedAssets, pathname)) {
+    serveMapIsoStaticFileOr404(res, sharedAssets[pathname], 'shared viewer module not found.');
     return;
   }
   if (pathname.startsWith('/isomap/')) {

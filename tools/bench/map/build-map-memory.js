@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
 
-import { buildCodeMap } from '../../../src/map/build-map.js';
-import { createMapBenchCli, resolveMapBenchInputs, resolveRuns } from './shared.js';
+const { buildCodeMap } = await import('../../../src/map/build-map.js');
+const { createMapBenchCli, resolveMapBenchInputs, resolveRuns } = await import('./shared.js');
 
 const argv = createMapBenchCli({
   scriptName: 'bench-map-memory',

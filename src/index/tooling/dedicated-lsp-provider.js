@@ -372,6 +372,7 @@ export const createDedicatedLspProvider = (descriptor) => {
           const partitionAuthority = executionAuthorityFor(ctx, partition.rootDir);
           if (partitionAuthority) return buildBaseResult(providerRef, [...checks, partitionAuthority.check]);
           partitionResults.push(await collectLspTypes({
+            semanticSession: ctx.semanticLspSession || null,
             ...runtimeConfig,
             rootDir: ctx.repoRoot,
             toolingRoot: ctx?.toolingConfig?.dir || null,
