@@ -88,7 +88,7 @@ by helper tests or by a successful pre-publication gate.
 | 18 | Final base/overlay Node and UV precedence; `tooling/service/indexer-runtime-env-helper`. |
 | 19 | Startup-source observation and real child/Worker probes distinguish command-line from environment heap input; no unsupported Worker heap argument is injected. |
 | 20 | Current process reports startup plans as not-applied where appropriate; `shared/runtime/startup-observation`. libuv initialized pool size is unknown. |
-| 21 | Real Node26 Worker probes cover unshaped, environment/CLI-shaped, controlled smaller parent and 16384 MB parent cases; `indexing/workers/worker-startup-heap-contract`. |
+| 21 | Real Node 26 Worker probes cover unshaped, environment/CLI-shaped, controlled smaller parent and 16384 MB parent cases; `indexing/workers/worker-startup-heap-contract`. |
 | 22 | Shared parser exercises duplicate/spaced/equal/underscore/quoted forms and source precedence; unsupported percentage/invalid conflicts cannot claim an enforced Worker cap. |
 | 23 | Actual logical CPU and available parallelism appear in read-only previews; `tooling/config/dump-readonly-host`. |
 | 24 | Worker resource snapshots separate configured/effective/active counts and per-worker acknowledgements; live replacement observations are cleared. Sustained pressure/downscale plus replacement-observation combinations remain partial. |
@@ -110,7 +110,7 @@ by helper tests or by a successful pre-publication gate.
 | 40 | Early path lines are captured once in the requested log; `indexing/runtime/early-path-log`. |
 | 41 | Capability inventory is opt-in; legacy/missing receipts remain unknown producer evidence. |
 | 42 | Nested secret fields, raw argv/environment, preload options, URLs and errors are sanitized before persistence/export; runtime receipt and diagnostic fixtures. |
-| 43 | Attempts are bounded to 48 KiB each, history to16 entries, and lifecycle journal uses existing rotation. Successful per-chunk calls do not cause full-state receipt writes. |
+| 43 | Attempts are bounded to 48 KiB each, history to 16 entries, and lifecycle journal uses existing rotation. Successful per-chunk calls do not cause full-state receipt writes. |
 | 44 | Reader uses a bounded opened-file read; legacy, future, malformed/truncated and stale records stay read-only and explicitly classified. |
 | 45 | New implementation uses isolated cloud worktrees, bounded tests and the repository publication gate. The user's earlier source/index artifacts were not modified. |
 
@@ -118,3 +118,28 @@ The real compiler acceptance fixture runs the TypeScript provider, production
 metadata projection and persisted-index search. It proves precise recorded return
 facts and provenance rather than relying solely on hand-authored metadata. Syntax
 class/parent/callee facts are tested separately from compiler dispatch semantics.
+
+## Final bounded validation
+
+Node 26.8.1 with verified native/patch readiness, one test job, 30-second per-test
+limits, zero retries and native-status redo disabled:
+
+- 36 changed/new fixture IDs passed: 68.0 seconds total, slowest 9.33 seconds.
+- 27 existing backlog fixtures passed again after integration: 24.7 seconds total,
+  slowest 10.2 seconds.
+- The opt-in capability consumer and default read-only diagnostic fixtures passed
+  after command-audit migration: 2/2, slowest 7.45 seconds.
+- Required format, config budget, environment usage, generated freshness, command
+  surface and workflow checks passed. The 39-case gate passed in 25.2 seconds;
+  slowest 1.84 seconds. No test timeout or skip was accepted.
+- Whitespace check passed. Generated inventories were refreshed, not hand edited.
+
+The gate caught two documentation/consumer mismatches: the global roadmap audit
+date must remain aligned with its older repository-wide reconciliation, and the
+capability auditor must explicitly request the newly opt-in manifest. Both were
+fixed without relaxing their assertions. The October 12 scoped repair ledger does
+not claim to replace that broader reconciliation.
+
+Workspace logs are historical author-workspace receipts, not promised artifacts
+in a clean checkout. Hosted CI for the published PR is a separate exact-head
+record; the bounded local checks do not certify every platform or release lane.
