@@ -5,6 +5,7 @@ import {
 } from '../../shared/identity.js';
 import { stableStringify } from '../../shared/stable-json.js';
 import { addIssue } from './issues.js';
+import { normalizeTypeExpressions } from '../../shared/symbolic-types.js';
 
 export const validatePostingsDocIds = (report, mode, label, postings, chunkCount) => {
   const maxErrors = 20;
@@ -141,6 +142,15 @@ export const validateMetaV2Types = (report, mode, chunkMeta) => {
     if (!types || typeof types !== 'object') continue;
     const chunkId = meta.chunkId || entry?.chunkId || entry?.id || 'unknown';
     for (const [bucketKey, bucket] of Object.entries(types)) {
+      if (bucketKey === 'expressions') {
+        try { normalizeTypeExpressions(bucket); }
+        catch (error) {
+          addIssue(report, mode, `metaV2.types invalid expressions (chunkId=${chunkId}): ${error.message}`,
+            'Rebuild index artifacts for this mode.');
+          errors += 1;
+        }
+        continue;
+      }
       if (!bucket || typeof bucket !== 'object') continue;
       for (const [key, value] of Object.entries(bucket)) {
         if (errors >= maxErrors) return;

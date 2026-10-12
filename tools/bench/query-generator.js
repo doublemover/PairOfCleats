@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
-import seedrandom from 'seedrandom';
-import { createCli } from '../../src/shared/cli.js';
-import { loadChunkMeta } from '../../src/shared/artifact-io/loaders.js';
-import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { sha1 } from '../../src/shared/hash.js';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
-import { writeTextIfChanged } from '../shared/generated-report.js';
+const { default: seedrandom } = await import('seedrandom');
+const { createCli } = await import('../../src/shared/cli.js');
+const { loadChunkMeta } = await import('../../src/shared/artifact-io/loaders.js');
+const { isDirectExecution } = await import('../../src/shared/direct-execution.js');
+const { sha1 } = await import('../../src/shared/hash.js');
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { getIndexDir, resolveRepoConfig } = await import('../shared/dict-utils.js');
+const { writeTextIfChanged } = await import('../shared/generated-report.js');
 
 export const QUERY_INTENT_CLASSES = Object.freeze([
   'symbol',

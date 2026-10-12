@@ -12,8 +12,8 @@
   },
   "description": "Hybrid semantic indexer and search utility for codebases",
   "scripts": {
-    "bootstrap": "npm install --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
-    "bootstrap:ci": "npm ci --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
+    "bootstrap": "npm install --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
+    "bootstrap:ci": "npm ci --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js",
     "test": "node tests/run.js --lane ci-lite",
     "test:ci-lite": "node tests/run.js --lane ci-lite",
     "test:ci": "node tests/run.js --lane ci",
@@ -38,8 +38,8 @@
     "@ast-grep/napi": "^0.40.4",
     "@astrojs/compiler": "^2.13.0",
     "@babel/parser": "^7.27.1",
-    "@babel/types": "^7.28.5",
     "@babel/traverse": "^7.28.5",
+    "@babel/types": "^7.28.5",
     "@derekstride/tree-sitter-sql": "0.3.11",
     "@eagleoutice/tree-sitter-r": "1.1.2",
     "@es-joy/jsdoccomment": "^0.84.0",
@@ -107,6 +107,7 @@
     "protobufjs": "^8.8.0",
     "pyright": "^1.1.414",
     "re2js": "^1.2.2",
+    "reladraw": "0.16.0",
     "roaring-wasm": "^1.1.0",
     "seedrandom": "^3.0.5",
     "selfsigned": "^5.5.0",
@@ -160,6 +161,7 @@
   "devDependencies": {
     "c8": "^12.0.0",
     "eslint": "10.0.1",
+    "happy-dom": "20.14.6",
     "jscpd": "5.4.0",
     "node-pty": "^1.1.0"
   },

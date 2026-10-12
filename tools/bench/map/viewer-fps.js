@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
-import { buildCodeMap } from '../../../src/map/build-map.js';
-import { renderIsometricHtml } from '../../../src/map/isometric-viewer.js';
-import { createMapBenchCli, resolveMapBenchInputs, startMapViewerStaticServer } from './shared.js';
+const { buildCodeMap } = await import('../../../src/map/build-map.js');
+const { renderIsometricHtml } = await import('../../../src/map/isometric-viewer.js');
+const { createMapBenchCli, resolveMapBenchInputs, startMapViewerStaticServer } = await import('./shared.js');
 
 const argv = createMapBenchCli({
   scriptName: 'bench-map-viewer-fps',

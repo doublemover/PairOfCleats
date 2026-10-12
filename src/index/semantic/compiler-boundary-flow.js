@@ -1,3 +1,5 @@
+import { createCompilerWasmFlow } from './compiler-wasm-flow.js';
+import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME } from './analysis-versions.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
@@ -20,7 +22,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
   const sourceHashes = new WeakMap();
   const sourceHash = source => { if (!sourceHashes.has(source)) sourceHashes.set(source, digest(source.text)); return sourceHashes.get(source); };
   const authority = createCompilerBoundaryAuthority(group), byFile = new Map(), entries = new Map(), ledgers = new Map();
-  const inputHashes = documents.map(doc => doc.bindingPartition.canonicalHash).sort(order);
+  const inputHashes = [...documents.map(doc => doc.bindingPartition.canonicalHash), ...[...(group.wasmModules?.values() || [])].map(item => item.source.byteHash)].sort(order);
   state.semanticEvidenceArtifacts ||= [];
   for (const doc of documents) {
     byFile.set(keyPath(doc.sourceFile.fileName), doc);
@@ -31,9 +33,9 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       entries.get(key).push(doc);
     }
     const effective = doc.policy || policy;
-    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-execution-boundaries', version: '2' }, inputPartitionHashes: inputHashes,
+    const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-execution-boundaries', version: SEMANTIC_ANALYSIS_VERSIONS.boundaryFlow }, inputPartitionHashes: inputHashes,
       compilerContext: { contextKey: group.context.contextKey, sourceUnitId: doc.item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
-      analysisPolicy: { enrichment: effective.enrichment, authorityVersion: 1 } });
+      analysisPolicy: { enrichment: effective.enrichment, authorityVersion: 1, wasmVersion: SEMANTIC_ANALYSIS_VERSIONS.wasmFlow, wasmValidatorRuntime: WASM_VALIDATOR_RUNTIME } });
     ledgers.set(doc, { partitionId, rows: [], edges: [], reasons: new Set(), nextId: 0, observed: 0, completedSites: new Set(), policy: effective, uses: new Map(), returns: new Map() });
   }
   const enabled = doc => !['off', 'deferred'].includes(ledgers.get(doc).policy.enrichment.localFlow);
@@ -76,7 +78,9 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     if (ts.isParenthesizedExpression(input) || ts.isAsExpression(input) || ts.isNonNullExpression(input)) return handlerFor(doc, input.expression, seen);
     if (ts.isArrowFunction(input) || ts.isFunctionExpression(input) || ts.isFunctionDeclaration(input)) return functionRef(doc, input) ? { doc, node: input, ref: functionRef(doc, input) } : null;
     if (!ts.isIdentifier(input) && !ts.isPropertyAccessExpression(input)) return null;
-    let symbol = doc.checker.getSymbolAtLocation(ts.isPropertyAccessExpression(input) ? input.name : input);
+    let symbol = ts.isIdentifier(input) && ts.isShorthandPropertyAssignment(input.parent)
+      ? doc.checker.getShorthandAssignmentValueSymbol(input.parent)
+      : doc.checker.getSymbolAtLocation(ts.isPropertyAccessExpression(input) ? input.name : input);
     if (!symbol || seen.has(symbol) || seen.size >= 32) { ledgers.get(doc).reasons.add('callback_alias_budget_or_cycle'); return null; }
     seen.add(symbol);
     if (symbol.flags & ts.SymbolFlags.Alias) symbol = doc.checker.getAliasedSymbol(symbol);
@@ -98,7 +102,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     diskAccount: state.semanticDiskAccount, inventory: state.semanticEvidenceArtifacts, signal });
     const ref = { partitionId: ledger.partitionId, localId: ledger.nextId++ };
     ledger.rows.push({ family: 'node', row: { id: ref.localId, kind: 'evidence', span: [node.getStart(doc.sourceFile), node.end], scope: null,
-      data: { method: 'compiler-platform-execution-boundary', producerId: 'semantic-boundary', producerVersion: '2', evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef } } });
+      data: { method: 'compiler-platform-execution-boundary', producerId: 'semantic-boundary', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.boundaryFlow, evidenceKind: 'modeled', sourceRef: doc.item.source.sourceUnitId, artifactRef } } });
     return ref;
   };
   const boundary = (doc, node, model, invocation, toContext = null) => {
@@ -126,6 +130,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     ledger.completedSites.add(node); ledger.reasons.add('callback_activation_order_multiplicity_and_effects_unobserved');
     return handler;
   };
+  const wasmFlow = createCompilerWasmFlow({ group, state, authority, ledgers, handlerFor, crossEnabled, signal });
   const anchoredEntry = async (doc, argument) => {
     if (!argument || !doc.ts.isNewExpression(argument)) return null;
     const verified = await invocationAuthority(doc, argument);
@@ -234,12 +239,26 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       const wasm = defaultLibrary(verified) && names.includes('WebAssembly');
       if (!launch && !ipc && !native && !wasm) continue;
       ledger.observed += 1;
-      const kind = wasmExport ? 'wasm-export-entry-request' : launch ? 'child-process-' + launch + '-launch-request' : ipc ? 'process-ipc-dispatch-request' : native ? 'native-addon-entry-request' : 'wasm-entry-request';
+      const memoryGrowth = wasm && names.includes('Memory') && names.includes('grow');
+      const kind = wasmExport ? 'wasm-export-entry-request' : memoryGrowth ? 'wasm-memory-growth-request' : launch ? 'child-process-' + launch + '-launch-request' : ipc ? 'process-ipc-dispatch-request' : native ? 'native-addon-entry-request' : 'wasm-entry-request';
       const evidence = await evidenceFor(doc, node, kind, verified);
       const entry = launch === 'fork' ? launches.get(node) : null;
       const request = boundary(doc, node, kind, invocation, entry ? 'source:' + entry.item.source.sourceUnitId : null);
       edge(doc, evidence, 'dispatches', invocation, request, invocation);
       for (let index = 0; index < args.length; index += 1) edge(doc, evidence, 'consumes', doc.expressionFor(args[index]), request, invocation, index);
+      if (wasmExport || memoryGrowth) {
+        const result = { partitionId: ledger.partitionId, localId: ledger.nextId++ };
+        ledger.rows.push({ family: 'node', row: { id: result.localId, kind: 'value',
+          span: [node.getStart(doc.sourceFile), node.end], scope: null,
+          data: { origin: 'unknown', site: invocation, storage: null } } });
+        edge(doc, evidence, 'returns', request, result, invocation);
+        edge(doc, evidence, 'returnToResult', result, invocation, invocation);
+        ledger.reasons.add('wasm_result_value_conversion_and_traps_unresolved');
+      }
+      if (memoryGrowth && ts.isPropertyAccessExpression(node.expression)) {
+        edge(doc, evidence, 'mutates', request, doc.expressionFor(node.expression.expression), invocation);
+        ledger.reasons.add('wasm_memory_growth_success_and_old_view_epoch_unobserved');
+      }
       if (launch) {
         if (entry) ledger.reasons.add('process_entry_source_inventory_candidate_only');
         if (!entry) ledger.reasons.add('process_executable_cwd_environment_or_entry_dynamic');
@@ -262,8 +281,9 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       } else if (native) ledger.reasons.add('native_module_body_abi_initialization_and_storage_effects_unavailable');
       else {
         if (names.includes('Memory') || names.includes('MemoryConstructor')) ledger.reasons.add('wasm_memory_shared_descriptor_growth_and_alias_effects_unresolved');
+        const exactModule = await wasmFlow.collect({ doc, node, request, wasmExport });
         const imports = names.includes('instantiate') || names.includes('instantiateStreaming') ? args[1] : names.includes('Instance') || names.includes('InstanceConstructor') ? args[1] : null;
-        if (imports && ts.isObjectLiteralExpression(imports)) for (const namespace of imports.properties) {
+        if (!exactModule && imports && ts.isObjectLiteralExpression(imports)) for (const namespace of imports.properties) {
           if (!ts.isPropertyAssignment(namespace) || !ts.isObjectLiteralExpression(namespace.initializer)) { ledger.reasons.add('wasm_import_namespace_dynamic'); continue; }
           for (const property of namespace.initializer.properties) {
             const value = ts.isPropertyAssignment(property) ? property.initializer : ts.isShorthandPropertyAssignment(property) ? property.name : null;
@@ -271,11 +291,12 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
             else ledger.reasons.add('wasm_import_accessor_or_spread_unresolved');
           }
         }
-        ledger.reasons.add('wasm_binary_exports_import_activation_native_realm_and_memory_effects_unavailable');
+        if (!exactModule) ledger.reasons.add('wasm_binary_exports_import_activation_native_realm_and_memory_effects_unavailable');
       }
     }
     for (const node of doc.nodes) {
       throwIfAborted(signal);
+      await wasmFlow.collectMember(doc,node);
       if (!ts.isPropertyAccessExpression(node)) continue;
       const verified = await authority.declaration(doc.checker.getSymbolAtLocation(node.name)?.declarations?.[0]);
       if (!defaultLibrary(verified) || !has(verified, 'WebAssembly')) continue;
@@ -299,7 +320,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
       reason: [...new Set([...ledger.reasons, 'static_candidates_only_no_runtime_thread_delivery_or_effect_claim'])].sort().join(';'), observedCount: ledger.observed, completedCount: ledger.completedSites.size, frontierRef: null };
     ledger.rows.push({ family: 'coverage', row: coverage });
     const partition = await writeSemanticAnalysis({ rows: ledger.rows, policy: ledger.policy, stagingRoot: doc.item.root, source: doc.item.source, sourceBytes: doc.bytes,
-      partitionId: ledger.partitionId, producerHash: semanticHash('semantic.execution-boundary-producer.v1', { version: 2 }), policyHash: semanticHash('semantic.execution-boundary-policy.v1', ledger.policy.enrichment),
+      partitionId: ledger.partitionId, producerHash: semanticHash('semantic.execution-boundary-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.boundaryFlow) }), policyHash: semanticHash('semantic.execution-boundary-policy.v1', ledger.policy.enrichment),
       contextHash: group.context.contextKey, diskAccount: state.semanticDiskAccount, signal });
     const current = state.semanticFactsByFile.get(doc.item.file);
     state.semanticFactsByFile.set(doc.item.file, createSemanticFactsRef({ source: doc.item.source, storage: current.storage, syntaxPartitionId: current.syntaxPartitionId,

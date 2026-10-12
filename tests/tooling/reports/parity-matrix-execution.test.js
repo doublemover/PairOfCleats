@@ -75,13 +75,13 @@ try {
     for (const mode of ['code', 'prose', 'extracted-prose']) {
       const empty = mode === 'extracted-prose';
       const file = mode === 'code' ? 'cache.js' : 'README.md';
-      const { indexDir } = await createBaseIndex({ rootDir: path.join(buildRoot, mode),
+      const { indexDir } = await createBaseIndex({ semantic: true, rootDir: path.join(buildRoot, mode),
         chunkMeta: empty ? [] : [{ id: 0, file, start: 0, end: 14, startLine: 1, endLine: 1,
           name: 'refreshCache', kind: mode, metaV2: {}, tokens: ['cache', 'refresh', 'refreshcache'] }],
         tokenPostings: { vocab: empty ? [] : ['cache', 'refresh', 'refreshcache'],
           postings: empty ? [] : [[[0,1]], [[0,1]], [[0,1]]],
           docLengths: empty ? [] : [3], avgDocLen: empty ? 0 : 3, totalDocs: empty ? 0 : 1 },
-        indexState: { generatedAt: new Date().toISOString(), mode, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+        indexState: { buildId, generatedAt: new Date().toISOString(), mode, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
           compatibilityKey: 'parity-fixture-v1' },
         manifestOverrides: { mode, compatibilityKey: 'parity-fixture-v1' }
       });
@@ -89,10 +89,10 @@ try {
       await fs.rename(indexDir, path.join(buildRoot, 'index-' + mode));
       roots[mode] = 'builds/' + buildId;
     }
-    await fs.writeFile(path.join(buildRoot, 'build_state.json'), JSON.stringify({ schemaVersion: 1, signatureVersion: 2,
+    await fs.writeFile(path.join(buildRoot, 'build_state.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, schemaVersion: 1, signatureVersion: 2,
       buildId, configHash: 'parity-fixture', tool: { version: '1.0.0' },
       validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] } }));
-    await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ buildId,
+    await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId,
       buildRoot: 'builds/' + buildId, buildRoots: roots }));
     for (const mode of Object.keys(roots)) await runSqliteBuild(repo, { mode });`;
   const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo);

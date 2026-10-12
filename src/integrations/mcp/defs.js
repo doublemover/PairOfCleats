@@ -7,7 +7,7 @@ import { RUNTIME_COMPARE_SERVICE_SCHEMA, RUNTIME_CLAIMS_SERVICE_SCHEMA } from '.
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 import { getToolVersion } from '../../shared/dict-utils.js';
 
-export const MCP_SCHEMA_VERSION = '1.4.6';
+export const MCP_SCHEMA_VERSION = '1.5.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -71,7 +71,7 @@ export function getToolDefs(defaultModelId) {
     { name: 'semantic_trace', description: 'Trace source-pinned value relationships with evidence, boundary requests and explicit incomplete frontiers. Does not execute runtime capture.', inputSchema: SEMANTIC_TRACE_REQUEST_SCHEMA },
     {
       name: 'semantic_detail',
-      description: 'Inspect exact semantic records, ordered operands, interned names and chunk ownership in an explicit immutable generation. Supports bounded paging; analysis coverage may remain unsupported.',
+      description: 'Inspect exact semantic records and finite-string type membership or zero/one/many witnesses in an explicit immutable generation. Record detail supports bounded paging; other analysis coverage may remain unsupported.',
       inputSchema: SEMANTIC_DETAIL_REQUEST_SCHEMA
     },
     {
@@ -190,6 +190,7 @@ export function getToolDefs(defaultModelId) {
             seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
             hops: { type: 'number', description: 'Neighborhood depth.' },
             includeGraph: { type: 'boolean' },
+            includeSemantic: { type: 'boolean' },
             includeTypes: { type: 'boolean' },
             includeRisk: { type: 'boolean' },
             includeRiskPartialFlows: { type: 'boolean' },

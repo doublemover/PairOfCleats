@@ -1,3 +1,4 @@
+import { syncParentDirectory } from '../../../../../shared/io/persistence-helpers.js';
 import { assertSemanticQueryIndex } from '../../../../../contracts/validators/semantic-query-index.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -13,7 +14,7 @@ const members = ['semantic_operands', 'semantic_lookup', 'semantic_ownership', '
 /** Publication-time physical index; canonical partition identities exclude this layout. */
 export const writeSemanticQueryIndex = async ({ root, generation, partitions, store,
   diskAccount, signal = null, scheduleIo = (fn) => fn(), batchRows = 1024, batchBytes = 1048576,
-  maxOpenRuns = 16, entries = null, compareRows = compareQueryIndexRows, keyForRow = queryIndexKey, validateIndex = assertSemanticQueryIndex, directoryPrefix = 'semantic-query-index-' }) => {
+  maxOpenRuns = 16, entries = null, compareRows = compareQueryIndexRows, keyForRow = queryIndexKey, validateIndex = assertSemanticQueryIndex, directoryPrefix = 'semantic-query-index-', schemaVersion = 1 }) => {
   if (!diskAccount?.reserve || !diskAccount?.release) throw new TypeError('Shared semantic disk account required.');
   for (const limit of [batchRows, batchBytes, maxOpenRuns]) if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Positive query index bounds required.');
   if (maxOpenRuns < 2) throw new TypeError('Query index merge fan-in must be at least two.');
@@ -103,6 +104,8 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
         try { await offsetsHandle.writeFile(offsets); await offsetsHandle.sync(); } finally { await offsetsHandle.close(); }
         const dataHandle = await fs.open(file, 'r+');
         try { await dataHandle.sync(); } finally { await dataHandle.close(); }
+        await syncParentDirectory(file);
+        await syncParentDirectory(directory);
       });
       pieces.push({ path: prefix + '/' + filename, offsetsPath: prefix + '/' + filename + '.offsets',
         hash: hash.digest('hex'), offsetsHash: createHash('sha256').update(offsets).digest('hex'),
@@ -123,7 +126,7 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
     await collected.cleanup();
     for (const file of await fs.readdir(directory)) if (file.startsWith('merge-')) await fs.rm(path.join(directory, file));
     diskAccount.release(workingReserved); workingReserved = 0;
-    return validateIndex({ schemaVersion: 1, generation, partitionHashes: inventory.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash })), pieces, rowCount });
+    return validateIndex({ schemaVersion, generation, partitionHashes: inventory.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash })), pieces, rowCount });
   } catch (error) {
     // The directory is a verified child created here, never a live generation root.
     await fs.rm(directory, { recursive: true, force: true });

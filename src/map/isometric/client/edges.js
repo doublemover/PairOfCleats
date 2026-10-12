@@ -1,3 +1,4 @@
+import { buildStackPipes } from './stack-scene.js';
 import { state } from './state.js';
 import { applyHeightFog, updateFlowLights } from './materials.js';
 import { aggregateEdges, aggregateEdgesFromStats, createFlowSegmentAggregator } from './edges/aggregate.js';
@@ -7,6 +8,7 @@ import { createRoutingHelpers } from './edges/routing.js';
 import { createEdgeStyleHelpers, createFlowMaterial, resolveSegmentStyle } from './edges/style.js';
 
 export const buildEdges = () => {
+  if(state.layoutStyle==='stacks')return buildStackPipes();
   const {
     THREE,
     edges,

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-import { createCli } from '../../../src/shared/cli.js';
-import { isDirectExecution } from '../../../src/shared/direct-execution.js';
-import { renderGraphContextPack } from '../../../src/retrieval/output/graph-context-pack.js';
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { createCli } = await import('../../../src/shared/cli.js');
+const { isDirectExecution } = await import('../../../src/shared/direct-execution.js');
+const { renderGraphContextPack } = await import('../../../src/retrieval/output/graph-context-pack.js');
+const {
   normalizeCompareMode,
   printBaselineCurrentSummary,
   readNumberArg,
   runTimedIterations
-} from './shared.js';
+} = await import('./shared.js');
 
 const buildSyntheticPack = (size) => {
   const nodes = [];

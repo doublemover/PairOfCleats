@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -10,6 +11,9 @@ import { syncBuiltinESMExports } from 'node:module';
 const tmp = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-cache-authority-')));
 const repo = path.join(tmp, 'repo');
 const sibling = path.join(tmp, 'unrelated');
+const namespace = `format-${ARTIFACT_SURFACE_VERSION}`;
+const ownedCache = path.join(sibling, namespace);
+const rootEntries = async () => (await fs.readdir(sibling)).filter(name => name !== namespace);
 const savedCommands = new Map();
 let commandAttempts = 0;
 for (const name of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) {
@@ -94,34 +98,38 @@ try {
   const tooling = getToolingConfig(repo, loadUserConfig(repo));
   assert.equal(tooling.cache.dir, sibling);
   await run(tooling, path.join(repo, 'build-a'));
-  const firstCache = (await fs.readdir(sibling)).find((name) => !sentinels.includes(name));
+  const firstCache = (await fs.readdir(ownedCache)).find((name) => name.endsWith('.json'));
   assert.ok(firstCache, 'trusted custom cache writes normally');
-  await fs.utimes(path.join(sibling, firstCache), new Date('2001-01-01'), new Date('2001-01-01'));
+  await fs.utimes(path.join(ownedCache, firstCache), new Date('2001-01-01'), new Date('2001-01-01'));
   // A generated-looking filename with unowned content and a misplaced ownership
   // envelope are both unrelated files and must survive pruning.
-  snapshot['fixture-tooling-provider_lk3_0000000000000000000000000000000000000000.json'] = '{}';
-  snapshot['misnamed.json'] = await fs.readFile(path.join(sibling, firstCache), 'utf8');
+  snapshot[path.join(namespace, 'fixture-tooling-provider_lk3_0000000000000000000000000000000000000000.json')] = '{}';
+  snapshot[path.join(namespace, 'misnamed.json')] = await fs.readFile(path.join(ownedCache, firstCache), 'utf8');
   for (const name of Object.keys(snapshot).filter((name) => !sentinels.includes(name))) {
     await fs.writeFile(path.join(sibling, name), snapshot[name]);
   }
   await run(tooling, path.join(repo, 'build-b'));
   await assertSentinels();
-  assert.equal(await fs.stat(path.join(sibling, firstCache)).then(() => true, () => false), false, 'owned old entry pruned');
-  const filesAfterPrune = await fs.readdir(sibling);
-  assert.equal(filesAfterPrune.filter((name) => !(name in snapshot)).length, 1);
+  assert.equal(await fs.stat(path.join(ownedCache, firstCache)).then(() => true, () => false), false, 'owned old entry pruned');
+  const filesAfterPrune = await fs.readdir(ownedCache);
+  assert.equal(filesAfterPrune.filter((name) => !(path.join(namespace, name) in snapshot)).length, 1);
   const runsBeforeHit = liveRuns;
   await run(tooling, path.join(repo, 'build-b'));
   assert.equal(liveRuns, runsBeforeHit, 'trusted custom cache reused');
   await run({ ...tooling, cache: { ...tooling.cache, maxBytes: 1 } }, path.join(repo, 'build-b'));
   await assertSentinels();
-  assert.deepEqual((await fs.readdir(sibling)).sort(), Object.keys(snapshot).sort(), 'byte pruning removes only owned entries');
+  assert.deepEqual((await rootEntries()).sort(), sentinels.slice().sort(), 'unrelated root files survive pruning');
+  assert.deepEqual((await fs.readdir(ownedCache)).sort(), Object.keys(snapshot).filter(name => name.startsWith(namespace + path.sep)).map(name => path.basename(name)).sort(), 'byte pruning preserves unowned namespace files');
 
   await run(tooling, path.join(repo, 'build-collision'));
-  const collisionName = (await fs.readdir(sibling)).find((name) => !(name in snapshot));
+  const collisionName = path.join(namespace, (await fs.readdir(ownedCache)).find(name => !(path.join(namespace, name) in snapshot)));
   assert.ok(collisionName);
   snapshot[collisionName] = '{"unrelatedReplacement":true}';
   await fs.writeFile(path.join(sibling, collisionName), snapshot[collisionName]);
-  await run(tooling, path.join(repo, 'build-collision'));
+  const runsBeforeCollision = liveRuns;
+  await assert.rejects(run(tooling, path.join(repo, 'build-collision')), error =>
+    error.code === 'ERR_INDEX_FORMAT_UNSUPPORTED' && error.details?.foundVersion === 'missing');
+  assert.equal(liveRuns, runsBeforeCollision, 'an incompatible candidate must fail closed rather than run a fallback');
   await assertSentinels();
 
   delete process.env.PAIROFCLEATS_TRUSTED_CONFIG;
@@ -135,7 +143,7 @@ try {
   await fs.symlink(sibling, path.join(repo, '.build'), process.platform === 'win32' ? 'junction' : 'dir');
   await run(getToolingConfig(repo, loadUserConfig(repo)));
   await assertSentinels();
-  assert.deepEqual((await fs.readdir(sibling)).sort(), Object.keys(snapshot).sort());
+  assert.deepEqual((await rootEntries()).sort(), Object.keys(snapshot).filter(name => !name.startsWith(namespace + path.sep)).sort());
 
   const customLink = path.join(tmp, 'custom-cache-link');
   await fs.symlink(sibling, customLink, process.platform === 'win32' ? 'junction' : 'dir');
@@ -143,13 +151,13 @@ try {
   process.env.PAIROFCLEATS_TRUSTED_CONFIG = policy;
   await run(getToolingConfig(repo, loadUserConfig(repo)));
   await assertSentinels();
-  assert.deepEqual((await fs.readdir(sibling)).sort(), Object.keys(snapshot).sort());
+  assert.deepEqual((await rootEntries()).sort(), Object.keys(snapshot).filter(name => !name.startsWith(namespace + path.sep)).sort());
   const { ensureSourcekitPackageResolutionPreflight } = await import('../../src/index/tooling/preflight/sourcekit-package-resolution.js');
   await fs.mkdir(path.join(repo, 'Package.swift'));
   const sourcekit = await ensureSourcekitPackageResolutionPreflight({ repoRoot: repo, cacheRoot: customLink, log: () => {} });
   assert.equal(sourcekit.state, 'blocked');
   await assertSentinels();
-  assert.deepEqual((await fs.readdir(sibling)).sort(), Object.keys(snapshot).sort(), 'SourceKit marker cannot follow cache-root link');
+  assert.deepEqual((await rootEntries()).sort(), Object.keys(snapshot).filter(name => !name.startsWith(namespace + path.sep)).sort(), 'SourceKit marker cannot follow cache-root link');
   assert.equal(commandAttempts, 0);
   console.log('tooling cache authority: untrusted redirects, trusted ownership, reuse/pruning and link boundaries passed');
 } finally {

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
-import {
+const {
   ensureArray,
   parseBenchArgs,
   readJsonFileWithRaw,
   readJsonFromRoot,
   repoPath,
   writeBenchJson
-} from './shared.js';
+} = await import('./shared.js');
 
 const CONFIG_PATH = repoPath('docs', 'config', 'usr-guardrails', 'item-38-catalog-contract.json');
 const isObjectRecord = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);

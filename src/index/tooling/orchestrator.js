@@ -18,6 +18,10 @@ import {
 } from '../../shared/reuse-diagnostics.js';
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
+import { ToolingRequiredComputationError, isRequiredToolingComputationError } from './required-computation.js';
+import { isAbortError } from '../../shared/abort.js';
+import { mergeSymbolicTypeGraphs, normalizeTypeExpressions, symbolicTypeError,
+  validateTypeExpressionReferences } from '../../shared/symbolic-types.js';
 import {
   getToolingProviderPreflightSchedulerMetrics,
   kickoffToolingProviderPreflights,
@@ -33,7 +37,7 @@ import {
 } from './provider-output-contract.js';
 
 const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk3';
-const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 3;
+const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 4;
 const TOOLING_PROVIDER_CACHE_READ_MAX_BYTES = 8 * 1024 * 1024;
 const TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS = 10_000;
 const TOOLING_PROVIDER_PROGRESS_SLOW_WARN_MS = 45_000;
@@ -190,7 +194,12 @@ const resolveProviderCachedExecution = async ({
     targets: planTargets,
     generation
   });
-  let cachePath = cacheDir
+  // Symbolic meaning depends on the live compiler/resolution closure. The
+  // legacy provider cache key does not seal every tsconfig/package/ambient
+  // dependency, so it cannot authorize replay of this representation yet.
+  const symbolicContextRequiresLiveRun = providerId === 'typescript'
+    && ctx?.toolingConfig?.typescript?.typeRepresentation === 'symbolic';
+  let cachePath = cacheDir && !symbolicContextRequiresLiveRun
     ? path.join(cacheDir, buildCacheFileName({ providerId, cacheKey }))
     : null;
   let output = null;
@@ -418,6 +427,7 @@ const buildDeterministicCachePayload = ({
       buildId: normalizeIdentityString(generation?.buildId)
     },
     semanticFacts: output.semanticFacts == null ? null : assertSemanticEnvelope('provider', output.semanticFacts),
+    symbolicTypeGraphs: mergeSymbolicTypeGraphs([], output.symbolicTypeGraphs || []),
     byChunkUid: output.byChunkUid || {},
     byChunkId: output.byChunkId || {},
     diagnostics: buildCachedDiagnosticsEnvelope(output.diagnostics || null)
@@ -427,8 +437,10 @@ const buildDeterministicCachePayload = ({
 const normalizeCachedProviderOutput = (cached) => {
   if (!cached || typeof cached !== 'object') return null;
   if (cached.semanticFacts != null) assertSemanticEnvelope('provider', cached.semanticFacts);
+  const symbolicTypeGraphs = mergeSymbolicTypeGraphs([], cached.symbolicTypeGraphs || []);
   return {
     ...cached,
+    symbolicTypeGraphs,
     diagnostics: withDiagnosticsSource(
       buildCachedDiagnosticsEnvelope(cached.diagnostics || null),
       { source: 'cache-suppressed', stripRuntime: true }
@@ -499,6 +511,13 @@ const mergePayload = (target, incoming, { observations, chunkUid } = {}) => {
   });
   if (next.returnType && !payload.returnType) payload.returnType = next.returnType;
   if (next.signature && !payload.signature) payload.signature = next.signature;
+  if (next.typeExpressions) {
+    const expressions = normalizeTypeExpressions(next.typeExpressions);
+    if (payload.typeExpressions && JSON.stringify(payload.typeExpressions) !== JSON.stringify(expressions)) {
+      throw symbolicTypeError('symbolic_type_conflict', 'Providers disagree on the required symbolic type result.', { chunkUid });
+    }
+    payload.typeExpressions = expressions;
+  }
   if (next.paramTypes && typeof next.paramTypes === 'object' && !Array.isArray(next.paramTypes)) {
     const targetParamTypes = ensureParamTypeMap(payload.paramTypes);
     payload.paramTypes = targetParamTypes;
@@ -997,6 +1016,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
   const sourcesByChunkUid = new Map();
   const providerDiagnostics = {};
   const semanticFacts = [];
+  let symbolicTypeGraphs = [];
   const observations = [];
   const reuseObservations = [];
   const generation = resolveGenerationIdentity(ctx);
@@ -1165,11 +1185,13 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           try {
             output = await provider.run(ctx, providerInputs);
             if (output) {
-              output.provider = {
+              // An owned process boundary may return an immutable result.
+              // Attach orchestration identity without mutating provider ownership.
+              output = { ...output, provider: {
                 id: providerId,
                 version: provider.version,
                 configHash
-              };
+              } };
             }
             outputFromCache = false;
             providerOutputSource = 'live';
@@ -1215,7 +1237,21 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
               }
             }
           } catch (err) {
+            if (isAbortError(err)) {
+              providerOutcome = 'aborted';
+              throw err;
+            }
+            if (isRequiredToolingComputationError(err)) {
+              providerOutcome = 'incomplete';
+              throw err;
+            }
             if (err?.code === 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw err;
+            if (providerId === 'typescript' && ctx?.toolingConfig?.typescript?.typeRepresentation === 'symbolic') {
+              providerOutcome = 'incomplete';
+              throw new ToolingRequiredComputationError(`Required symbolic provider failed: ${err?.message || err}`, {
+                operation: 'typescript-symbolic-provider', reason: 'provider_execution_failed', cause: err
+              });
+            }
             providerOutcome = 'error';
             const errorMessage = String(err?.message || err || 'unknown provider failure');
             providerDiagnostics[providerId] = {
@@ -1241,6 +1277,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           providerOutcome = 'empty';
         } else {
           providerProgressPhase = 'merge';
+          symbolicTypeGraphs = mergeSymbolicTypeGraphs(symbolicTypeGraphs, output.symbolicTypeGraphs || []);
+          const symbolicGraphById = new Map(symbolicTypeGraphs.map(graph => [graph.graphId, graph]));
           if (output.semanticFacts != null) semanticFacts.push(assertSemanticEnvelope('provider', output.semanticFacts));
           providerDiagnostics[providerId] = withDiagnosticsSource(output.diagnostics || null, {
             source: outputFromCache ? 'cache-suppressed' : 'live',
@@ -1256,6 +1294,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
           });
           providerChunksMerged = normalized.size;
           for (const [chunkUid, entry] of normalized.entries()) {
+            if (entry?.payload?.typeExpressions) validateTypeExpressionReferences(entry.payload.typeExpressions, symbolicGraphById);
             const existing = merged.get(chunkUid) || {
               chunk: entry?.chunk || targetByChunkUid.get(chunkUid)?.chunkRef || null,
               payload: {},
@@ -1278,6 +1317,9 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             sourcesByChunkUid.set(chunkUid, sources);
           }
         }
+      } catch (error) {
+        if (isRequiredToolingComputationError(error)) providerOutcome = 'incomplete';
+        throw error;
       } finally {
         reuseObservations.push({
           kind: providerOutcome === 'error' ? 'provider_cache' : 'provider_result',
@@ -1423,6 +1465,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     return {
       byChunkUid: merged,
       semanticFacts,
+      symbolicTypeGraphs,
       sourcesByChunkUid,
       diagnostics: providerDiagnostics,
       observations,

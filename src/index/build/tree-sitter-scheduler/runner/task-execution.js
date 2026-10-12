@@ -56,7 +56,8 @@ export const executeTreeSitterSchedulerTasks = async ({
       if (log) {
         log(
           `[tree-sitter:schedule] batch ${ctx.index + 1}/${plannedTasks.length}: ${task.taskId} ` +
-          `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount}, timeout=${taskTimeoutMs}ms)`
+          `(waves=${grammarKeysForTask.length}, lane=${task.laneIndex}/${task.laneCount}, `
+          + `plannedCost=${task.estimatedParseCost ?? 'unknown'}, balance=${task.costBalanced ? 'cost' : 'count'}, timeout=${taskTimeoutMs}ms)`
         );
       }
       const linePrefix = `[tree-sitter:schedule:${task.taskId}]`;

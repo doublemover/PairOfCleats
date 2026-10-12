@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
 import {
   loadDatabaseCtor,
   writeSqliteShardFixtureArtifacts
@@ -33,7 +33,7 @@ const { pieceEntries } = await writeSqliteShardFixtureArtifacts({
   avgDocLen: 0,
   tokenShardSize: 1
 });
-await writePiecesManifest(indexDir, pieceEntries);
+await writeSqliteArtifactManifest(indexDir, pieceEntries);
 
 const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect sharded chunk_meta');

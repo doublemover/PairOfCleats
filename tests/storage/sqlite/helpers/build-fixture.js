@@ -1,4 +1,3 @@
-import { checksumFile } from '../../../../src/shared/hash.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -6,7 +5,7 @@ import { writeJsonLinesSharded } from '../../../../src/shared/json-stream/jsonl-
 import { writeJsonObjectFile } from '../../../../src/shared/json-stream/json-writers.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../../src/storage/sqlite/build/from-artifacts.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
-import { writePiecesManifest } from '../../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 
@@ -239,15 +238,10 @@ export const setupSqliteBuildFixture = async ({
       { name: 'dense_vectors_uint8', path: 'dense_vectors_uint8.json', format: 'json' }
     );
   }
-  const manifestPath = await writePiecesManifest(indexDir, pieceEntries);
+  const manifestPath = await writeSqliteArtifactManifest(indexDir, pieceEntries);
   if (artifactSurfaceVersion != null) {
     const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-    const generation = { baseBuildId: 'sqlite-build-fixture', semanticRevision: 0 };
-    await fs.writeFile(path.join(indexDir, 'semantic_manifest.json'), JSON.stringify({ schemaVersion: 1, semanticSchemaVersion: 1,
-      artifactSurfaceVersion, generation, status: 'disabled', partitions: [], contexts: [], warnings: [] }));
-    const semanticChecksum = await checksumFile(path.join(indexDir, 'semantic_manifest.json'));
-    await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, artifactSurfaceVersion, buildId: generation.baseBuildId,
-      pieces: [...manifest.pieces, { name: 'semantic_manifest', path: 'semantic_manifest.json', format: 'json', checksum: semanticChecksum.algo + ':' + semanticChecksum.value }] }));
+    await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, artifactSurfaceVersion }));
   }
 
   const indexPieces = await loadIndexPieces(indexDir, null);

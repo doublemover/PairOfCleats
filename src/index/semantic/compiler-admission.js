@@ -1,3 +1,4 @@
+import { SCHEDULER_QUEUE_NAMES } from '../build/runtime/scheduler.js';
 import { semanticHash } from './identity.js';
 
 export const DEFAULT_COMPILER_ADMISSION_POLICY = Object.freeze({maxFiles:10000,maxBytes:134217728,maxProjects:32,
@@ -34,13 +35,13 @@ const closureIdentity = inventory => {
     compilerReceipt:inventory.compilerReceipt,toolingHash:inventory.toolingHash,closure:{...closure,files:[...closure.files].sort((a,b)=>a.contextKey.localeCompare(b.contextKey)||a.path.localeCompare(b.path))}});
   return {inputHash,files:closure.totalFiles,bytes,projects:closure.projectCount,maxFileBytes};
 };
-const capacityReason = (request,snapshot) => {
+export const schedulerAdmissionReason = (request,snapshot) => {
   const total=snapshot?.tokens?.mem?.total;
   if(!Number.isSafeInteger(total)||total<1)return 'scheduler_memory_capacity_unavailable';
   if(request.mem>total)return 'scheduler_memory_capacity_exceeded';
   for(const [reason,cap] of [['scheduler_global_bytes_exceeded',snapshot.adaptive?.maxInFlightBytes],
-    ['scheduler_relations_bytes_exceeded',snapshot.queues?.relations?.maxInFlightBytes],
-    ['scheduler_relations_pending_bytes_exceeded',snapshot.queues?.relations?.maxPendingBytes]]){
+    ['scheduler_relations_bytes_exceeded',snapshot.queues?.[SCHEDULER_QUEUE_NAMES.stage2Relations]?.maxInFlightBytes],
+    ['scheduler_relations_pending_bytes_exceeded',snapshot.queues?.[SCHEDULER_QUEUE_NAMES.stage2Relations]?.maxPendingBytes]]){
     if(cap!=null&&(!Number.isSafeInteger(cap)||cap<0))return 'scheduler_byte_capacity_invalid';
     if(cap>0&&request.bytes>cap)return reason;
   }
@@ -78,7 +79,7 @@ export const planCompilerAdmission = ({inventory,policy:input,schedulerStats,sch
   const mem=Math.max(1,Math.ceil(reservedBytes/perTokenBytes));
   decision.reservation={bytes:reservedBytes,mem,basis:usable?'observed-process-high-water-with-policy-headroom':'explicit-policy-ceiling',memoryTokenBytes:perTokenBytes};
   decision.request={cpu:1,io:1,mem,bytes:reservedBytes};
-  const reason=capacityReason(decision.request,schedulerStats);if(reason)return reject(reason);
+  const reason=schedulerAdmissionReason(decision.request,schedulerStats);if(reason)return reject(reason);
   decision.admitted=true;decision.reason=usable?'matching_measured_receipt':'explicit_bounded_policy';return decision;
 };
 
@@ -87,7 +88,7 @@ export const assertCompilerAdmissionStart = (decision,schedulerStats,schedulerCo
   const tokenMb=schedulerStats?.adaptive?.memoryPerTokenMb??schedulerConfig.adaptiveMemoryPerTokenMb??schedulerConfig.memoryPerTokenMb;
   const tokenBytes=tokenMb*1024*1024;
   const reason=decision?.admitted&&tokenBytes!==decision.reservation?.memoryTokenBytes?
-    'scheduler_memory_token_unit_changed':!decision?.admitted||!decision.request?'compiler_not_admitted':capacityReason(decision.request,schedulerStats);
+    'scheduler_memory_token_unit_changed':!decision?.admitted||!decision.request?'compiler_not_admitted':schedulerAdmissionReason(decision.request,schedulerStats);
   if(reason)throw Object.assign(new Error('Compiler Program admission blocked: '+reason),{code:'ERR_SEMANTIC_COMPILER_ADMISSION',reason});
 };
 export const makeCompilerAdmissionReceipt = ({decision,runtimeHash,elapsedMs,peakRssBytes,complete,measuredAt=Date.now()}) => {

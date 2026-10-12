@@ -12,7 +12,7 @@ import { defaultRuntimeQuerySelectors } from '../../../src/index/semantic/runtim
 import { runRuntimeEvidenceLookup, runRuntimeFamilyDiscovery } from '../../../src/integrations/tooling/runtime-evidence.js';
 import { getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
 import { handleToolCall } from '../../../tools/mcp/tools.js';
-import { getToolDefs, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
+import { getToolDefs, getToolCatalog, MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { getRuntimeCapabilityManifest } from '../../../src/shared/runtime-capability-manifest.js';
 import { createApiRouter } from '../../../tools/api/router.js';
 
@@ -30,7 +30,7 @@ try {
   const clean = result => ({ ...result, cost: result.cost ? { ...result.cost, elapsedMs: 0, responseBytes: 0 } : undefined });
   const expected = await runRuntimeEvidenceLookup(payload);
   assert.equal(expected.observations.length, 2); assert.ok(expected.nextCursor);
-  assert.equal(MCP_SCHEMA_VERSION, '1.4.5');
+  assert.equal(getToolCatalog().schemaVersion, MCP_SCHEMA_VERSION);
   for (const name of ['runtime_evidence', 'runtime_families']) assert.ok(getToolDefs().some(tool => tool.name === name && tool.inputSchema.additionalProperties === false));
   assert.deepEqual(clean(await handleToolCall('runtime_evidence', payload)), clean(expected));
   const families = await runRuntimeFamilyDiscovery(discovery);

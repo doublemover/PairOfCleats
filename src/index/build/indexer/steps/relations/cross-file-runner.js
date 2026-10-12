@@ -1,4 +1,5 @@
 import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
+import { runNativeSemanticProviders } from '../../../../semantic/native-provider-pass.js';
 import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
 import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
 import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
@@ -9,6 +10,7 @@ import { log } from '../../../../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
 import { applyCrossFileInference } from '../../../../type-inference-crossfile.js';
+import { mergeSymbolicTypeGraphs } from '../../../../../shared/symbolic-types.js';
 import {
   applyCrossFileInferenceBudgetPlan,
   buildCrossFileInferenceBudgetPlan,
@@ -93,7 +95,7 @@ export const runCrossFileInference = async ({
   // Reuse this tooling pass for legacy types instead of constructing a second Program.
   if (mode === 'code' && runtime.semanticPolicy?.enabled) {
     const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
-    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal });
+    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal, languages: ['javascript', 'typescript'] });
     const toolingConfig = getToolingConfig(runtime.root);
     const toolingDocuments = await prepareToolingPassDocuments({ chunks: state.chunks.filter(chunk => semanticSession.fileTextByFile.has(chunk.file?.replace(/\\/g, '/'))), fileTextByFile: semanticSession.fileTextByFile,
       toolingConfig, semanticSession, semanticLspSession, log });
@@ -102,18 +104,21 @@ export const runCrossFileInference = async ({
     await work.run(async ({ signal }) => {
       semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
       if (semanticSession.enabled || semanticLspSession.enabled) {
-        await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
+        const toolingResult = await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
           chunks: state.chunks, entryByUid: new Map(), log,
           toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
           abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
+        state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], toolingResult.symbolicTypeGraphs || []);
         useTooling = false;
       }
       const lspOutput = semanticLspSession.output();
       await mergeSemanticProviderOutput({ output: lspOutput, state, runtime, signal });
+      await semanticSession.joinProviderOutput(lspOutput);
       const compilerOutput = semanticSession.output();
       return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
         partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
     });
+    await runNativeSemanticProviders({ state, runtime, toolingConfig, log, signal: abortSignal });
   }
 
   if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });
@@ -172,9 +177,11 @@ export const runCrossFileInference = async ({
       fileRelations: inferenceFileRelations,
       inferenceLite: inferenceLiteEnabled,
       inferenceLiteHighSignalOnly,
+      symbolicTypeGraphs: state.symbolicTypeGraphs || [],
       abortSignal
     });
     mergeCrossFileInferenceView(state.chunks, inferenceChunks);
+    state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], crossFileStats?.symbolicTypeGraphs || []);
     const crossFileDurationMs = Date.now() - crossFileStart;
     log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
     if (crossFileStats?.toolingReuse) {

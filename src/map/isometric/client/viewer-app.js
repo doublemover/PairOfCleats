@@ -1,3 +1,4 @@
+import { initStackNavigation } from './stack-navigation.js';
 import { state } from './state.js';
 import { loadDomConfig } from './dom.js';
 import { loadThreeModules, loadRgbeLoader } from './three-loader.js';
@@ -29,14 +30,16 @@ const initViewer = async () => {
     throw new Error('threeUrl missing');
   }
 
+  dom.summary.textContent = 'Loading Three.js modules…';
   const { THREE, LineSegments2, LineSegmentsGeometry, LineMaterial } = await loadThreeModules(config.threeUrl);
 
+  dom.summary.textContent = 'Preparing bounded source model…';
   const layout = { ...layoutDefaults, ...(config.layout || {}) };
   const scoring = { ...scoringDefaults, ...(config.scoring || {}) };
   const colors = { ...colorDefaults, ...(config.colors || {}) };
   const visuals = { ...visualDefaults, ...(config.visuals || {}) };
   visuals.glass = { ...visualDefaults.glass, ...(config.visuals?.glass || {}) };
-  const assets = { ...assetDefaults, ...(config.assets || {}) };
+  const assets = { ...assetDefaults, ...(layout.style === 'stacks' ? { hdrEnvUrl: null, normalMapUrl: null } : {}), ...(config.assets || {}) };
   const controls = {
     ...controlDefaults,
     ...(config.controls || {}),
@@ -47,7 +50,7 @@ const initViewer = async () => {
   };
 
   const flowWaveTotal = flowWaveLayers.reduce((acc, layer) => acc + layer.amplitude, 0) || 1;
-  const RGBELoader = await loadRgbeLoader(assets.rgbeLoaderUrl, config.threeUrl);
+  const RGBELoader = assets.hdrEnvUrl ? await loadRgbeLoader(assets.rgbeLoaderUrl, config.threeUrl) : null;
   const performance = {
     ...performanceDefaults,
     ...(config.performance || {}),
@@ -158,14 +161,19 @@ const initViewer = async () => {
     state.map = next.map;
     state.displayLimits = next.limits;
     initMapData();
+    state.refreshStackNavigation?.();
     renderSummary();
     if (options.rebuild !== false) {
       scheduleRebuild(options.delayMs ?? 80);
     }
   };
 
-  await initScene();
   initMapData();
+  initStackNavigation();
+  try { await initScene(); } catch(error) {
+    dom.summary.textContent = `3D unavailable: ${error.message}. Source hierarchy and inspection remain usable.`;
+    return;
+  }
   initMaterials();
   initUi();
   rebuildScene();

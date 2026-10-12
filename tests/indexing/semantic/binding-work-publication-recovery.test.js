@@ -37,6 +37,9 @@ try {
   await fs.cp(fixture.buildRoot, sourceOnlyRoot, { recursive: true });
   fixture.runtime.buildRoot = sourceOnlyRoot;
   await writeBindingFixtureFamily({ state: fixture.state, runtime: fixture.runtime, buildId: fixture.generation.baseBuildId });
+  await assert.rejects(reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
+    buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database }), { code: 'ERR_SEMANTIC_PUBLICATION_REQUIRED' },
+  'unpublished pending descriptors cannot reconstruct control state');
   await promoteBuild({ repoRoot: fixture.repoRoot, userConfig: {}, buildRoot: sourceOnlyRoot,
     buildId: fixture.generation.baseBuildId, modes: ['code'] });
   let control = fixture.openControl();
@@ -49,6 +52,10 @@ try {
   const recoveredPending = await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
     buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database });
   assert.equal(recoveredPending.pending, 1 + analysisTasks.length, 'source-only published inventory rebuilds durable pending control state');
+  await fs.writeFile(controlPath, 'damaged control storage');
+  const repairedPending = await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
+    buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database });
+  assert.equal(repairedPending.pending, 1 + analysisTasks.length, 'corrupt control rebuild uses the same verified current publication');
   control = fixture.openControl();
   try {
     assert.deepEqual(control.getDescriptor(manual.task.taskId), manual.task);
@@ -95,6 +102,18 @@ try {
   } finally { control.close(); }
   assert.equal((await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot, buildRoot: nextRoot,
     buildId: nextGeneration.baseBuildId, Database })).recovered, 1, 'post-pointer receipt recovery is idempotent');
+  await fs.rm(controlPath);
+  const reconstructed = await reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
+    buildRoot: nextRoot, buildId: nextGeneration.baseBuildId, Database });
+  assert.equal(reconstructed.recovered, 1, 'completed output reconstructs after total control-store loss');
+  control = fixture.openControl();
+  try {
+    assert.equal(control.getTask(next.task.taskId).state, 'completed');
+    assert.equal(control.getOutput(next.task.taskId).publishedBuildId, nextGeneration.baseBuildId);
+    assert.equal(control.getTask(manual.task.taskId), null, 'old unpublished-to-current tasks are not invented');
+  } finally { control.close(); }
+  await assert.rejects(reconcilePublishedSemanticBindingWork({ repoRoot: fixture.repoRoot,
+    buildRoot: sourceOnlyRoot, buildId: fixture.generation.baseBuildId, Database }), { code: 'ERR_SEMANTIC_PUBLICATION_REQUIRED' });
   assert.deepEqual(await fs.readFile(path.join(fixture.repoRoot, fixture.files[0].file)), originalSource);
   console.log('source-only pending recovery, immutable generation requests, failed promotion and publication-before-ack passed');
 } finally { await fixture.cleanup(); }

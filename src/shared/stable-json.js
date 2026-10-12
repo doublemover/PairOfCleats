@@ -10,14 +10,19 @@ export function canonicalizeForSignature(value) {
   return normalizeSignature(value);
 }
 
+const isPlainRecord = value => {
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
 function normalize(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => normalize(entry));
   }
-  if (!value || typeof value !== 'object' || value.constructor !== Object) {
+  if (!value || typeof value !== 'object' || !isPlainRecord(value)) {
     return value;
   }
-  const out = {};
+  const out = Object.create(null);
   for (const key of Object.keys(value).sort()) {
     out[key] = normalize(value[key]);
   }
@@ -51,10 +56,10 @@ function normalizeSignature(value) {
   if (Array.isArray(value)) {
     return value.map((entry) => normalizeSignature(entry));
   }
-  if (!value || value.constructor !== Object) {
+  if (!value || !isPlainRecord(value)) {
     return value;
   }
-  const out = {};
+  const out = Object.create(null);
   for (const key of Object.keys(value).sort()) {
     const normalized = normalizeSignature(value[key]);
     if (normalized !== undefined) out[key] = normalized;

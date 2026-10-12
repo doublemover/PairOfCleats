@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import { MAX_JSON_BYTES, loadJsonArrayArtifact } from '../../../../src/shared/artifact-io.js';
 import { writeRelationBenchGraphArtifacts } from '../../../../tools/bench/index/relations-fixture.js';
 
@@ -19,7 +20,7 @@ export const writeAndLoadRelationBenchGraphArtifacts = async ({
     }
   });
 
-  const manifest = {
+  const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     version: 2,
     generatedAt: new Date().toISOString(),
     mode: 'code',

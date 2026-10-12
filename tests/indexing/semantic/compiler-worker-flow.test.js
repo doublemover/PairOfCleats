@@ -13,8 +13,9 @@ import { createArtifactSemanticStore } from '../../../src/semantic/artifact-stor
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 const root = await fs.mkdtemp(path.join(os.tmpdir(),'poc-worker-source-'));
 const texts = {
-  'input.ts': 'export {}; const worker = new Worker(new URL("./worker.ts", import.meta.url), {type:"module"}); const alias = worker; const buffer = new ArrayBuffer(8); const shared = new SharedArrayBuffer(8); const payload = {buffer, shared, label:"hé😀"}; alias.postMessage(payload, [buffer, shared]); worker.postMessage(shared); worker.postMessage(buffer, [buffer]);',
-  'worker.ts': 'export {}; declare const self: DedicatedWorkerGlobalScope; self.addEventListener("message", event => { const data = event.data; console.log(data); });',
+  'input.ts': 'export {}; const worker = new Worker(new URL("./worker.ts", import.meta.url), {type:"module"}); const alias = worker; const buffer = new ArrayBuffer(8); const shared = new SharedArrayBuffer(8); const payload = {buffer, shared, label:"hé😀"}; alias.postMessage(payload, [buffer, shared]); worker.postMessage(shared); worker.postMessage(buffer, [buffer]); worker.onmessage = event => consume(event.data); worker.addEventListener("message", event => consumeAgain(event.data));',
+  'worker.ts': 'export {}; declare const self: DedicatedWorkerGlobalScope; self.addEventListener("message", event => { const data = event.data; console.log(data); self.postMessage(data); });',
+  'ports.ts': 'export {}; const channel = new MessageChannel(); const port = channel.port1; channel.port2.onmessage = event => accept(event.data); channel.port2.addEventListener("message", event => acceptAgain(event.data)); port.onmessage = event => respond(event.data); port.postMessage(1); channel.port2.postMessage(2); const other = new MessageChannel(); other.port1.postMessage(3);',
   'dynamic.ts': 'export {}; declare const entry: string; const worker = new Worker(new URL(entry, import.meta.url)); worker.postMessage({value:1});',
   'fake.ts': 'export {}; class Worker { constructor(url: any) {} postMessage(value:any) {} } const worker = new Worker(new URL("./worker.ts",import.meta.url)); worker.postMessage({value:1});',
   'fake-url.ts': 'export {}; class URL { constructor(path:string,base:string) {} } const worker = new Worker(new URL("./worker.ts",import.meta.url) as any); worker.postMessage(1);',
@@ -54,9 +55,22 @@ try {
   const incoming = edges.find(edge=>edge.kind==='dispatches' && kind(edge.to)==='worker-source-message-consumer-candidate'); assert.ok(incoming); assert.equal(kind(incoming.from),'worker-message-dispatch-request');
   const consume = edges.find(edge=>edge.kind==='consumes' && kind(edge.from)==='worker-source-message-consumer-candidate');assert.ok(consume);const target=records.get(consume.to.partitionId+':'+consume.to.localId).row;assert.equal(texts['worker.ts'].slice(...target.span),'event.data');
   assert.ok(edges.some(edge=>edge.kind==='packs' && kind(edge.to)==='worker-structured-clone-request'));
+  const portDispatches = [...records.values()].filter(value => value.row.data.boundaryKind === 'message-port-dispatch-request');
+  assert.equal(portDispatches.length, 3);
+  const portConsumers = [...records.values()].filter(value => value.row.data.boundaryKind === 'message-port-consumer-candidate');
+  assert.equal(portConsumers.length, 3, 'two peer registrations and one reverse response candidate');
+  const portEdges = edges.filter(edge => edge.kind === 'dispatches' && kind(edge.to) === 'message-port-consumer-candidate');
+  assert.equal(portEdges.length, 3, 'different channel constructor cannot cross into these consumers');
+  assert.ok(portEdges.every(edge => kind(edge.from) === 'message-port-dispatch-request'));
+  assert.ok(coverage.some(row => row.reason.includes('message_port_start_close_transfer_instance_and_delivery_unobserved')));
+
   assert.equal(edges.filter(edge=>edge.kind==='transfers' && kind(edge.to)==='worker-transfer-request').length,2);
   assert.ok(edges.some(edge=>edge.kind==='sharesStorage' && kind(edge.to)==='worker-shared-storage-request'));
   assert.ok(edges.every(edge=>edge.certainty==='modeled')); assert.ok(edges.every(edge=>edge.kind!=='copies'),'serialization request does not prove storage copy, including direct shared/transfer payloads'); assert.ok(coverage.some(row=>row.reason.includes('shared_buffer_not_transferable')));
+  const responses = [...records.values()].filter(value => value.row.data.boundaryKind === 'worker-source-response-consumer-candidate');
+  assert.equal(responses.length, 2, 'both main-thread registrations retain response candidates');
+  assert.ok(edges.some(edge => edge.kind === 'dispatches' && kind(edge.from) === 'worker-response-dispatch-request' && kind(edge.to) === 'worker-source-response-consumer-candidate'));
+  assert.ok(coverage.some(row => row.reason.includes('response_correlation_instance_and_runtime_delivery_unobserved')));
   const fakeSource=documents.find(doc=>doc.item.file==='fake.ts').item.source.sourceUnitId;assert.ok(partitions.every(partition=>partition.sourceUnitId!==fakeSource),'fake Worker methods have no platform authority');
   for(const file of ['dynamic.ts','fake-url.ts','window-input.ts']) { const id=documents.find(doc=>doc.item.file===file).item.source.sourceUnitId; const own=coverage.filter(row=>row.scope.sourceUnitId===id && row.phase==='boundaryModels');assert.equal(own.length,1);assert.equal(own[0].state,'partial');assert.match(own[0].reason,/dynamic_or_not_in_exact_inventory|consumer_unavailable/); }
   assert.ok(coverage.filter(row=>row.phase==='boundaryModels').every(row=>row.state==='partial'));

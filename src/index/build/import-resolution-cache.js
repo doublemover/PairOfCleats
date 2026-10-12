@@ -5,6 +5,7 @@ import path from 'node:path';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { DEFAULT_IMPORT_EXTS } from './import-resolution/constants.js';
+import { resolveRelativeImportCandidates as resolvePathCandidates } from '../shared/import-candidates.js';
 import {
   resolveGeneratedCounterpartCandidatesForPath
 } from './import-resolution/generated-counterpart-suffix.js';
@@ -575,15 +576,7 @@ const resolveRelativeImportCandidates = (importer, specifier) => {
     : path.posix.join(importerDir === '.' ? '' : importerDir, normalizedSpecifier);
   const base = normalizeRelPath(joined);
   if (!base) return [];
-  const candidates = new Set([base]);
-  const hasExt = Boolean(path.posix.extname(base));
-  if (!hasExt) {
-    for (const ext of IMPORT_SPEC_CANDIDATE_EXTENSIONS) {
-      candidates.add(`${base}${ext}`);
-      candidates.add(path.posix.join(base, `index${ext}`));
-    }
-  }
-  return Array.from(candidates.values());
+  return resolvePathCandidates(base, IMPORT_SPEC_CANDIDATE_EXTENSIONS);
 };
 
 const resolveRelativeImportAndGeneratedCounterparts = (importer, specifier) => {

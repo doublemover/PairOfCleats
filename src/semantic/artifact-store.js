@@ -81,7 +81,7 @@ export const createArtifactSemanticStore = ({
       if (dataStat.size !== piece.bytes || offsetsStat.size !== piece.count * 8
         || await hashFile(dataPath, signal) !== piece.hash
         || await hashFile(offsetsPath, signal) !== piece.offsetsHash) throw error('Semantic part hash/size mismatch.');
-      await validateOffsetsAgainstFile(dataPath, offsetsPath);
+      await validateOffsetsAgainstFile(dataPath, offsetsPath, { signal });
       validated.set(key, signature);
       while (validated.size > validationCacheEntries) validated.delete(validated.keys().next().value);
     }
@@ -178,13 +178,14 @@ export const createArtifactSemanticStore = ({
         if (!source) throw error('Missing semantic source manifest.');
         sourceByPartition.set(partitionId, source);
       }
+      if (source.encoding === 'binary') { result.push(null); continue; }
       // Bound source decoding separately from response bytes. Large snapshots
       // require a future indexed decoder; never substitute working-tree text.
-      if (source.byteLength > maxRecordBytes) throw error('Source hydration exceeds decoded-source allowance.');
+      if (source.byteLength > maxRecordBytes) throw Object.assign(new Error('Source hydration exceeds decoded-source allowance.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
       let text = decodedSources.get(source.byteHash);
       if (text === undefined) {
         decodedBytes += source.byteLength;
-        if (decodedBytes > maxRecordBytes) throw error('Source hydration exceeds decoded-source allowance.');
+        if (decodedBytes > maxRecordBytes) throw Object.assign(new Error('Source hydration exceeds decoded-source allowance.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
         const filePath = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
         if ((await fs.stat(filePath)).size !== source.byteLength) throw error('Source size mismatch.');
         const bytes = await fs.readFile(filePath);
@@ -198,7 +199,7 @@ export const createArtifactSemanticStore = ({
       if (record.span[1] > text.length) throw error('Source range mismatch.');
       const excerpt = text.slice(record.span[0], record.span[1]);
       returnedBytes += Buffer.byteLength(excerpt);
-      if (returnedBytes > maxBytes) throw error('Source excerpts exceed response byte limit.');
+      if (returnedBytes > maxBytes) throw Object.assign(new Error('Source excerpts exceed response byte limit.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
       result.push({ ref: refs[index], sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash,
         coordinateUnit: 'utf16', span: record.span, text: excerpt });
     }
@@ -343,10 +344,10 @@ export const createArtifactSemanticStore = ({
       byteLength += bytes.length;
       if (byteLength > source.byteLength) throw error('Retained semantic source size mismatch.');
       byteHash.update(bytes);
-      const text = decoder.decode(bytes, { stream: true });
+      const text = source.encoding === 'binary' ? '' : decoder.decode(bytes, { stream: true });
       textLength += text.length; textHash.update(text, 'utf8');
     }
-    const tail = decoder.decode(); textLength += tail.length; textHash.update(tail, 'utf8');
+    const tail = source.encoding === 'binary' ? '' : decoder.decode(); textLength += tail.length; textHash.update(tail, 'utf8');
     if (byteLength !== source.byteLength || textLength !== source.textLength
       || byteHash.digest('hex') !== source.byteHash || textHash.digest('hex') !== source.textHash) {
       throw error('Retained semantic source hash or length mismatch.');
