@@ -7,12 +7,18 @@ import { acquireIndexLock } from '../../../index/build/lock.js';
 
 /** Consume destructive launch intent once, before any child handoff. */
 export const consumeBuildCacheRebuild = ({ argv, rawArgv = [], env = process.env }) => {
-  const requested = argv?.['cache-rebuild'] === true || getEnvConfig(env).cacheRebuild;
+  let explicit = null;
+  for (const value of rawArgv) {
+    const token = String(value);
+    if (token === '--no-cache-rebuild' || token === '--cache-rebuild=false') explicit = false;
+    else if (token === '--cache-rebuild' || token === '--cache-rebuild=true') explicit = true;
+  }
+  const requested = explicit ?? (argv?.['cache-rebuild'] === true || getEnvConfig(env).cacheRebuild);
   delete env.PAIROFCLEATS_CACHE_REBUILD;
   return {
     requested,
     argv: { ...argv, 'cache-rebuild': false },
-    rawArgv: rawArgv.filter(value => !/^--cache-rebuild(?:=|$)/.test(String(value)))
+    rawArgv: rawArgv.filter(value => !/^--(?:no-)?cache-rebuild(?:=|$)/.test(String(value)))
   };
 };
 
