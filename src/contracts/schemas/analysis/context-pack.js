@@ -124,6 +124,17 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
           properties: {
             state: { type: 'string', enum: ['file-backed', 'fallback', 'missing'] },
             source: { type: 'string' },
+            sourceIdentity: {
+              anyOf: [{ type: 'null' }, {
+                type: 'object', required: ['policy', 'currentHash', 'indexedHash', 'drift'],
+                properties: {
+                  policy: { const: 'working-tree-preview' },
+                  currentHash: { type: 'string' },
+                  indexedHash: { type: ['string', 'null'] },
+                  drift: { enum: ['unchanged', 'changed', 'unknown'] }
+                }, additionalProperties: false
+              }]
+            },
             fileBacked: { type: 'boolean' },
             substituted: { type: 'boolean' },
             missing: { type: 'boolean' },

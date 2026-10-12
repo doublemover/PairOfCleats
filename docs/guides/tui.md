@@ -34,6 +34,19 @@ Runtime controls:
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
 
+Quit and terminal errors request supervisor shutdown, drain final job events, and
+reap the supervisor within its ten-second grace. The native lifetime guard then
+contains any remaining owned descendants. Snapshots save the resulting final job
+statuses; an interrupted supervisor cannot leave a saved job marked running.
+Linux, macOS, and Windows require separate native lifecycle receipts.
+
+Result capture uses the requested byte cap, including Unicode bytes. Job completion
+and result completeness are independent: `resultState` is `disabled`, `complete`,
+`truncated`, or `invalid-json` (and `incomplete` for interrupted collection).
+Truncated or invalid JSON returns no parsed result. `resultCapture` reports observed,
+retained, dropped, and serialized output bytes. Disabled capture retains no result
+bytes; progress and logs continue through the existing bounded protocol.
+
 The live UI now exposes an explicit session header so operators can tell:
 
 - attachment mode (`supervised`, `replay`, `external-observability`)

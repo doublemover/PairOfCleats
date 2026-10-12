@@ -7,6 +7,18 @@
 `src/integrations/tooling/context-pack.js`, `src/shared/context-pack-request.js`,
 `tools/analysis/context-pack.js`, `tools/api/router/analysis.js`, and `tools/mcp/tools/handlers/analysis.js`.
 **Authoritative schema:** `COMPOSITE_CONTEXT_PACK_SCHEMA` in `src/contracts/schemas/analysis/context-pack.js`.
+
+Evidence schema 2 distinguishes working-tree previews from indexed-source identity.
+Both direct and prefetched excerpts read bounded contained bytes and key caches by
+current content hash as well as generation. `sourceIdentity` reports the current
+and indexed hashes and `drift` (`unchanged`, `changed`, or `unknown`). Working-tree
+edits never silently reuse old text. Indexed line/byte coordinates are unverified
+when source identity differs or is unavailable. Complete/strict evidence requires
+matching indexed source identity; retained semantic source excerpts remain a
+separate verified path. Test suggestions observe a fresh working-tree inventory,
+pin graph generations, and replay identical truncation/coverage on warm cache hits.
+Each excerpt, range, and hash cache has an 8 MiB conservative retained-string
+allowance in addition to its entry cap; oversized entries bypass caching.
 **Primary goal:** Deterministic, evidence-rich, bounded "context bundles" assembled using graph neighborhoods (calls/usages/imports/dataflow) and exposed consistently across CLI, MCP, and any API/server surfaces.
 
 ---

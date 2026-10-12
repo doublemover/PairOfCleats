@@ -30,7 +30,6 @@
       "backendKey": "searchBackend",
       "annKey": "searchAnn",
       "maxResultsKey": "maxResults",
-      "contextLinesKey": "searchContextLines",
       "fileKey": "searchFile",
       "pathKey": "searchPath",
       "langKey": "searchLang",
