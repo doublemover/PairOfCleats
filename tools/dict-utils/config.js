@@ -6,9 +6,10 @@ import { buildAutoPolicy } from '../../src/shared/auto-policy/build.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getTestEnvConfig } from '../../src/shared/env/testing.js';
 import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase } from '../../src/shared/cache-roots.js';
-import { readJsoncFile } from '../../src/shared/jsonc.js';
+import { readJsoncFile, parseJsoncText } from '../../src/shared/jsonc.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
-import { applyRepoConfigAuthority, resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
+import { applyRepoConfigAuthority, resolveTrustedConfigPath, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { validateConfig } from '../../src/config/validate.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { assertKnownIndexProfileId } from '../../src/contracts/index-profile.js';
@@ -49,32 +50,66 @@ const sanitizeForStableHash = (value, active = new WeakSet()) => {
  * @param {string} repoRoot
  * @returns {object}
  */
-export function loadUserConfig(repoRoot) {
-  const configPath = path.join(repoRoot, '.pairofcleats.json');
-  const applyTestOverrides = (baseConfig) => {
-    const testEnv = getTestEnvConfig();
-    if (!testEnv.testing || !testEnv.config) return baseConfig;
-    return mergeConfig(baseConfig, testEnv.config);
+const hasSensitiveSource = (value, key = '') => {
+  if (/(?:secret|password|passwd|token|credential|authorization|cookie|api.?key|private.?key|^env$|nodeOptions)/i.test(key)) return true;
+  if (typeof value === 'string') return redactDiagnosticText(value, value.length + 1) !== value;
+  return value && typeof value === 'object'
+    ? Object.entries(value).some(([name, entry]) => hasSensitiveSource(entry, name)) : false;
+};
+const discardedConfigPaths = (before, after, prefix = '') => {
+  if (!before || typeof before !== 'object' || Array.isArray(before)) return [];
+  return Object.keys(before).flatMap(key => {
+    const name = prefix ? `${prefix}.${key}` : key;
+    if (!Object.hasOwn(after || {}, key)) return [name];
+    return discardedConfigPaths(before[key], after[key], name);
+  });
+};
+
+/** Optional source callback reports loader facts without changing the config value contract. */
+export function loadUserConfig(repoRoot, { env = process.env, onSources = null } = {}) {
+  const metadata = { version: 1, files: [], repoTrusted: isRepoTrusted(repoRoot, env),
+    discardedAuthorityPaths: [], trustedMerge: false, testOverlay: { applied: false, source: 'test-environment' } };
+  const readSource = (filename, source, optional = false) => {
+    let raw;
+    const evidence = { path: filename, source, exists: false, contentHash: null };
+    metadata.files.push(evidence);
+    try { raw = fs.readFileSync(filename, 'utf8'); }
+    catch (error) {
+      evidence.errorCode = error.code || 'UNKNOWN';
+      if (optional && error.code === 'ENOENT') return {};
+      throw error;
+    }
+    evidence.exists = true;
+    const value = parseJsoncText(raw, filename);
+    if (hasSensitiveSource(value)) evidence.contentHashOmitted = 'sensitive-source';
+    else evidence.contentHash = crypto.createHash('sha256').update(raw).digest('hex');
+    return value;
   };
-  const base = fs.existsSync(configPath) ? readJsoncFile(configPath) : {};
-  if (!isPlainObject(base)) {
-    throw new Error('Config root must be a JSON object.');
+  try {
+    const configPath = path.join(repoRoot, '.pairofcleats.json');
+    const base = readSource(configPath, 'repository', true);
+    if (!isPlainObject(base)) throw new Error('Config root must be a JSON object.');
+    const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
+    const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+    const result = validateConfig(schema, base);
+    if (!result.ok) {
+      const details = result.errors.map((err) => `- ${err}`).join('\n');
+      throw new Error(`Config errors in ${configPath}:\n${details}`);
+    }
+    const trustedPath = resolveTrustedConfigPath(repoRoot, env);
+    const trusted = trustedPath ? readSource(trustedPath, 'trusted-external') : {};
+    const trustedResult = validateConfig(schema, trusted);
+    if (!trustedResult.ok) throw new Error('Invalid user-owned trusted configuration.');
+    const safe = applyRepoConfigAuthority(base, repoRoot, env);
+    metadata.discardedAuthorityPaths = discardedConfigPaths(base, safe);
+    metadata.trustedMerge = Boolean(trustedPath);
+    const normalized = normalizeUserConfig(mergeConfig(safe, trusted), repoRoot);
+    const testEnv = getTestEnvConfig(env);
+    metadata.testOverlay.applied = Boolean(testEnv.testing && testEnv.config);
+    return metadata.testOverlay.applied ? mergeConfig(normalized, testEnv.config) : normalized;
+  } finally {
+    if (typeof onSources === 'function') onSources(metadata);
   }
-  const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
-  const schemaRaw = fs.readFileSync(schemaPath, 'utf8');
-  const schema = JSON.parse(schemaRaw);
-  const result = validateConfig(schema, base);
-  if (!result.ok) {
-    const details = result.errors.map((err) => `- ${err}`).join('\n');
-    throw new Error(`Config errors in ${configPath}:\n${details}`);
-  }
-  const trustedPath = resolveTrustedConfigPath(repoRoot);
-  const trusted = trustedPath ? readJsoncFile(trustedPath) : {};
-  const trustedResult = validateConfig(schema, trusted);
-  if (!trustedResult.ok) throw new Error('Invalid user-owned trusted configuration.');
-  return applyTestOverrides(normalizeUserConfig(
-    mergeConfig(applyRepoConfigAuthority(base, repoRoot), trusted), repoRoot
-  ));
 }
 
 /**
