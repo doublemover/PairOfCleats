@@ -1,4 +1,5 @@
 import { normalizeIndexBuildStage } from '../../shared/indexing/stages.js';
+import { parseBuildArgs } from '../../index/build/args.js';
 
 /**
  * Append a normalized CLI flag/value pair to an args array.
@@ -83,7 +84,7 @@ export const buildRawArgs = (options = {}) => {
   if (options.threads !== undefined) args.push('--threads', String(options.threads));
   if (options.incremental) args.push('--incremental');
   pushFlag(args, 'cache-rebuild', options['cache-rebuild'] ?? options.cacheRebuild);
-  if (options['stub-embeddings'] || options.stubEmbeddings) args.push('--stub-embeddings');
+  pushFlag(args, 'stub-embeddings', options['stub-embeddings'] ?? options.stubEmbeddings);
   if (options.watch) args.push('--watch');
   if (options['watch-poll'] !== undefined) args.push('--watch-poll', String(options['watch-poll']));
   if (options['watch-debounce'] !== undefined) args.push('--watch-debounce', String(options['watch-debounce']));
@@ -115,6 +116,26 @@ export const buildRawArgs = (options = {}) => {
   }
   if (options.model) args.push('--model', String(options.model));
   return args;
+};
+
+/** Canonicalize supported API aliases using the same argv builder and CLI parser. */
+export const resolveBuildInvocationArgs = (options = {}) => {
+  const suppliedRawArgs = Array.isArray(options.rawArgv);
+  const rawArgv = suppliedRawArgs ? options.rawArgv : buildRawArgs(options);
+  const defaults = parseBuildArgs([]).argv;
+  const argv = { ...defaults, ...options,
+    'cache-rebuild': options['cache-rebuild'] ?? options.cacheRebuild ?? defaults['cache-rebuild'] };
+  if (!suppliedRawArgs) {
+    const parsed = parseBuildArgs(rawArgv).argv;
+    // Only replace flags emitted by buildRawArgs. Caller-only hooks, objects,
+    // and options not serialized by that existing API owner stay untouched.
+    for (const token of rawArgv) {
+      if (!String(token).startsWith('--')) continue;
+      const key = String(token).slice(2).replace(/^no-/, '').split('=')[0];
+      if (Object.hasOwn(parsed, key)) argv[key] = parsed[key];
+    }
+  }
+  return { argv, rawArgv };
 };
 
 /**

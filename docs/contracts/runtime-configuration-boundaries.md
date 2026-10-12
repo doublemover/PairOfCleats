@@ -39,6 +39,9 @@ selected numeric/boolean environment requests are normalized before storage.
 The child rejects a changed/missing required plan, mismatched repo/root/mode, or
 explicit CLI option disagreement before provider work. Model and resource CLI
 options are also forwarded normally, including explicit false scheduler flags.
+Core API calls without raw argv use the existing argument builder and CLI parser
+to canonicalize supported scheduler/stub aliases before selecting this plan.
+Explicit canonical options take precedence, and caller hooks/objects are retained.
 Queued jobs preserve submission-time selections even if model configuration is
 edited before execution. The child also retains the configuration source facts
 it actually examined at execution. Legacy jobs without a plan continue to
