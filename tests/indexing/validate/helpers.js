@@ -1,3 +1,4 @@
+import { writeSemanticFixtureFamily } from '../../helpers/artifact-io-fixture.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
@@ -17,6 +18,7 @@ export const defaultUserConfig = {
 
 export const createBaseIndex = async ({
   rootDir,
+  semantic = false,
   manifestPieces = null,
   manifestOverrides = {},
   chunkMeta = null,
@@ -103,7 +105,9 @@ export const createBaseIndex = async ({
     { type: 'stats', name: 'filelists', format: 'json', path: '.filelists.json' }
   ];
 
+  if (semantic) pieces.push(...await writeSemanticFixtureFamily(indexDir, { buildId: indexStatePayload.buildId || 'base-index-fixture' }));
   const manifest = {
+    ...(semantic ? { buildId: indexStatePayload.buildId || 'base-index-fixture' } : {}),
     version: 2,
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces,

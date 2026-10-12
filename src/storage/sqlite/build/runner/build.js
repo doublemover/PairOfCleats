@@ -1,3 +1,4 @@
+import { assertSqliteIndexFormat } from '../../index-format.js';
 import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,7 +16,7 @@ const readPragmaSimple = (db, name) => {
   }
 };
 
-export const probeSqliteTargetRuntime = ({ Database, dbPath }) => {
+export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.cwd() }) => {
   const runtime = {
     pageSize: SQLITE_DEFAULT_PAGE_SIZE,
     journalMode: null,
@@ -39,6 +40,7 @@ export const probeSqliteTargetRuntime = ({ Database, dbPath }) => {
   let probeDb = null;
   try {
     probeDb = new Database(dbPath, { readonly: true, fileMustExist: true });
+    assertSqliteIndexFormat({ db: probeDb, repoRoot, indexPath: dbPath, operation: 'probe' });
     const pageSize = Number(readPragmaSimple(probeDb, 'page_size'));
     if (Number.isFinite(pageSize) && pageSize > 0) {
       runtime.pageSize = Math.max(512, Math.floor(pageSize));
@@ -49,7 +51,8 @@ export const probeSqliteTargetRuntime = ({ Database, dbPath }) => {
       : null;
     runtime.walEnabled = runtime.journalMode === 'wal' || runtime.walBytes > 0;
     runtime.source = 'pragma';
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     runtime.walEnabled = runtime.walBytes > 0;
     runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
   } finally {

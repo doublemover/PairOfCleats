@@ -4,27 +4,56 @@ Status: Active
 Last audited: 2026-10-07
 Canonical for: initiative status, execution order, and remaining work
 
-PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
-The completion integration, dependency updates, CI repairs and scoped security fixes
-have landed on main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542),
-commit `2529d718db780da22c49f188202b6f1550a1833d`. Its exact source tree passed the
-hosted platform and gate checks before merge. Release-wide acceptance remains open.
-Use this page for current status, the [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
-for revision-specific receipts and limits, the linked contracts for behavior, and
-the archived worklogs for historical evidence. Hosted CI is bounded validation,
-not release-wide readiness.
+Main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542) passed
+its exact-head hosted checks. Release-wide acceptance remains open.
+Use this page for status, [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
+for receipts/limits, contracts for behavior, and archives for history.
+Hosted CI is bounded validation, not release-wide readiness.
 
 ## Source-of-Truth Rules
 
-1. `src/contracts/**`, validators and schemas define the supported data contracts.
-2. Current source and executable tests establish implementation behavior.
-3. Focused specs describe design and acceptance criteria when consistent with those contracts.
-4. This roadmap owns current status. Supporting reviews do not create competing task queues.
-5. Archived checklists describe their original checkpoint; unchecked historical boxes do not reopen work.
+Contracts/schemas and executable tests own behavior; this roadmap owns current status.
+Archived checklists are historical, not reopened tasks. Implemented and focused-tested
+are bounded claims; release-wide acceptance requires its own current evidence.
 
-`implemented` describes code coverage, `checkpoint clean` describes a bounded recorded
-review, and `deferred validation` means acceptance has not been established for the current
-head. None is a blanket release-readiness claim.
+## Semantic indexing implementation (2026-10-10)
+
+Draft [PR548](https://github.com/doublemover/PairOfCleats/pull/548) continues
+`codex/semantic-indexing-20261010` on `codex/semantic-resume-campaign-20261010`.
+[Detailed implementation and receipts](archived/semantic-campaign-checkpoint-2026-10-10.md)
+preserve earlier checkpoints; [semantic guide](guides/semantic-index.md) describes the surface.
+
+Implemented slices: durable per-file Stage1 replay before parser admission; cache
+identity/corruption checks and lease fencing; compact sparse sequence ownership;
+JS/TS occurrence roles and structured CFG; mutable/computed heap paths, callable
+alternatives and modeled class/prototype dispatch; browser/Node worker joins;
+standalone WASM decoding, stack/control/exception flow, indirect targets, storage
+and retained-byte host joins; indexed discovery and context packs; producer-version
+invalidation and bounded disk cleanup. These are partial coverage, not
+completion of the refined semantic specification.
+
+Bootstrap enforces real readiness without implicit installs. Historical setup and
+platform receipts remain revision-specific in the linked archives.
+
+[Watchdog/read admission](archived/stage1-concurrency-2026-10-11.md),
+[cleanup](archived/watchdog-recovery-2026-10-11.md) and
+[architecture repairs](archived/architecture-contract-audit-2026-10-11.md) retain
+bounded checks; full-index throughput remains unmeasured.
+[WASM](archived/wasm-semantic-checkpoint-2026-10-10.md),
+[capabilities](archived/semantic-capabilities-2026-10-11.md) and
+[precision](archived/semantic-precision-2026-10-11.md) include deferred binaries,
+object aliases, adapted calls, transferred ports and escaped-byte rejection.
+[Recovery](archived/semantic-recovery-checkpoint-2026-10-10.md) covers interrupted
+workers, reconstructed control, retained-cache cleanup and transient admission.
+[Native languages](archived/native-language-semantics-2026-10-11.md) adds opt-in
+Python/C/Swift/Rust syntax, partial control, eager provider bindings and retrieval;
+deferred native enrichment, compiler value flow and live non-C acceptance remain open.
+
+Next, in order: remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
+integration; remaining host/module precision; remaining native-language
+analysis. The calibrated estimator remains last priority. Hardware power-loss,
+unrelated build-writer/global disk quotas and full public-surface qualification
+remain open; lost control-only cancellation/retry history is not reconstructible.
 
 ## Current Initiatives
 
@@ -67,7 +96,7 @@ a fixture repair a production cleanup fix.
 
 The [dependency migration](guides/dependency-security.md) and explicit worker
 precedence are integrated. Better-sqlite3 13.0.3 has native runtime and source-recovery
-compatibility coverage; Node24 policy remains. The isolated SQLite/Node26 comparison
+compatibility coverage; Node26 policy is current. The isolated SQLite/Node26 comparison
 `5faa768b` remains excluded. Mac arm64 interactive receipts retain their recorded
 scope; broad final-native and real-project acceptance remains separate.
 
@@ -123,7 +152,7 @@ The [October 6 acceptance](guides/cli-acceptance-2026-10-06.md) and
 [October 9 checkpoint](archived/archive-retrieval-checkpoint-2026-10-09.md) preserve
 completed CLI/setup and generated-artifact receipts. Required trust, chunk identity,
 output provenance, input failure preservation and explicit install authority remain.
-Node24 and better-sqlite3 13.0.3 are current; the historical 887-entry lane is not a
+Node26 and better-sqlite3 13.0.3 are current; the historical 887-entry lane is not a
 current optional-backend or SDK acceptance claim. Keep no-ANN forwarding mandatory.
 Remaining exact-member linkage, runtime state, reports/editor and native/package/TUI
 families require current schema, checksum and searchable-report evidence. Final
@@ -181,14 +210,13 @@ records subsequent fixes, hosted analyses and explicit residual limits.
 
 Dependency evidence includes the recorded JavaScript remediation, native grammar
 activation, q8/ONNX inference and RustSec/toolchain checks. See
-[dependency security](guides/dependency-security.md). An audit snapshot is dated
-proof, and does not certify future advisories or close hosted alerts by itself.
+[dependency security](guides/dependency-security.md). Dated audit evidence does not certify future advisories or close hosted alerts.
 
-The earlier interrupted `ci-lite` run remains an incomplete historical run in
-the [integration checkpoint archive](archived/ordinary-integration-roadmap-2026-10-06.md).
-New exact-head lane receipts do not rewrite that history. Interactive TUI behavior,
-optional native platforms, a fresh full duplicate audit and representative
-end-to-end performance measurements remain separate checks.
+The interrupted `ci-lite` run remains incomplete in the
+[integration archive](archived/ordinary-integration-roadmap-2026-10-06.md).
+New receipts do not rewrite it. Interactive TUI, optional native platforms,
+fresh full duplicate audits and representative end-to-end performance remain
+separate checks.
 
 May 20â€“22 validation and USR Gate A/B/C statements are historical checkpoint
 records. The Gate B1-B7 technical, compatibility, matrix, conformance,
@@ -208,10 +236,8 @@ USR rollout phases Aâ€“H and lifecycle acceptance remain in the
 - [Historical release-evidence record](roadmap-release-validation-evidence-20260521.md)
 - [Earlier task-list reconciliation](archived/task-list-reconciliation-2026-10-02.md)
 
-The archived roadmap preserves the previous authored text byte-for-byte, including
-its completed lanes, abandoned/no-adopt migrations, command outcomes and evidence
-citations. The active page carries their current disposition rather than another
-copy of the transcript.
+The archived roadmap preserves completed lanes, abandoned migrations, command
+outcomes and historical evidence; this page carries their current disposition.
 
 ## Validation Commands
 
@@ -223,47 +249,22 @@ node tools/docs/generated-surfaces.js --check-freshness
 git diff --check
 ```
 
-Choose only affected checks and respect the execution environment's resource
-budget. Do not run a full index build, release campaign or duplicate scan merely
-to update a status page. Reproduce behavioral failures with small fixtures before
-expanding validation.
+Use affected checks within the environment's resource budget. Status edits do not
+justify full indexes, release campaigns or duplicate scans. Reproduce failures
+with small fixtures before expanding validation.
 
-## Archive retrieval and CPU qualification - 2026-10-09
+[Orchestration and cleanup checkpoint](archived/orchestration-checkpoint-2026-10-11.md): bounded fixtures implemented; full-corpus qualification remains open.
 
-Completed work and original receipts: [October 9 checkpoint](archived/archive-retrieval-checkpoint-2026-10-09.md),
-[CPU trial](guides/eg2-representative-cpu-trial-20261009.md) and [current archive policy/gates](guides/archive-pipeline-integration-20261009.md).
-The old corpus job stays stopped; authorized cleanup removed legacy derived vectors,
-preserving original DATs/source units. Old throughput/ETA applies to the old policy.
-Frozen diagnostic v3 plan: 422,794 inputs / 135,924,462 tokens; 24 large-source checks pass.
+## Archive and viewer checkpoint
 
-Remaining ordered gates:
+[Archive receipts](archived/semantic-campaign-checkpoint-2026-10-10.md) and
+[current gates](guides/archive-pipeline-integration-20261009.md) retain measurements.
+Full corpus remains stopped at 100 units / 555 vectors; selective embedding and
+W8 are not promoted. Original DATs/source units remain preserved. Numerical,
+relevance and kernel-dispatch qualification precede promotion; PR547 merge is
+owner-approved as part of the October 12 stack consolidation. Alternative engines and Defuddle remain research; no installs or corpus restart.
 
-1. Bounded source-plan reuse and seven no-model checks passed. SCIP definition/reference
-   classification is corrected with independent role flags and focused mask/count tests.
-2. One current Kingfisher CPU benchmark passed in 8m23s with real dictionaries and valid
-   persisted 384-dimensional vectors. Declared natural-sentence sparse-only queries had
-   zero target recall under documented implicit AND; semantic retrieval remains unmeasured.
-   [Exact verification and limits](guides/kingfisher-cpu-verification-20261009.md).
-3. Fresh archive import/reopen/original guards passed: 87,973 records, zero gaps and
-   1,675,434 effective words. Exact current plan: 422,836 inputs / 135,932,568 tokens.
-   Current-policy native qualification passed admission, finite normalized vectors and durable replay; semantic source recall@10=1, anchor recall@10=0.875 under the unit-citation contract.
-   Measured 270.8 useful tokens/s; approximate full-token extrapolation 139.4h is uncertain.
-   First bounded slice persisted 100 units / 555 vectors; read-only reopen passed after a reporting-heartbeat failure. Ranking/citation selection limits product quality; CPU only.
-4. [Acceleration and selective-embedding experiment](guides/archive-selective-embedding-20261009.md): native inference is 95.4% of wall; source/input/anchor ranking misses are diagnosed. Statement/copy fixes pass. A bounded 297-input /49,997-token held-out slice completed; expanded lexical + selected fusion anchor recall@10 is 0.667 versus lexical 0.583, cheap graph adds no gain. Existing guarded context recovers the secondary wrong-span anchor; primary candidate-ranking miss remains. Full corpus remains stopped at 100 units /555 vectors; selector is not activated.
-5. Qualify numerical/relevance/kernel dispatch before graph promotion. W8 is not promoted.
-   Search scaling, output-copy/statement reuse and parent-death lifetime retain the detailed
-   acceptance gates in the linked checkpoint; alternative engines remain research.
-
-No GPU, arbitrary installs or unrelated measurements are implied. PR547 publication is
-approved; merge remains unapproved. Hosted results apply to exact heads.
-
-## Viewer replacement after embedding qualification - 2026-10-09
-
-The owner requests new visuals, interactions and renderer implementation. Keep this
-behind the current Swift/archive embedding setup. Compare fresh Three.js with custom
-WebGL2 on representative measured cases before backend selection. Address actual
-semantic shapes/stacking, selective directed edges, semantic zoom, scalable graph tiles,
-and the supplied truncation/aggregate/shape and geometry/fog/disposal findings.
-[Deferred viewer queue](guides/viewer-replacement-queue-20261009.md) preserves the source
-plan and acceptance boundary. Defuddle remains optional future offline HTML cleanup;
-no dependency or network fallback is added now.
+Reladraw workspace and Three.js semantic stacks supersede the
+[historical queue](guides/viewer-replacement-queue-20261009.md). Producer, DOM and
+geometry checks passed; browser/GPU qualification remains open. See
+[coverage](guides/reladraw-workspace.md).

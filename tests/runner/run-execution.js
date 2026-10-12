@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs';
+import { writeFailureReceipt } from './failure-receipt.js';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -97,7 +99,9 @@ const writeLogFile = async ({
   if (stderr) {
     lines.push('--- stderr ---', stderr);
   }
-  await fsPromises.writeFile(filePath, lines.join('\n'), 'utf8');
+  const handle = await fsPromises.open(filePath, 'w');
+  try { await handle.writeFile(lines.join('\n'), 'utf8'); if (status === 'failed') await handle.sync(); }
+  finally { await handle.close(); }
   return filePath;
 };
 
@@ -144,6 +148,16 @@ const runTestOnce = async ({
   let timeoutHandle = null;
   let resolved = false;
   let termination = null;
+  const execution = { executable: process.execPath, resolvedExecutable: realpathSync(process.execPath), args, cwd,
+    runtime: { node: process.version, v8: process.versions.v8, modules: process.versions.modules, platform: process.platform, arch: process.arch, basis: 'same executable as parent' },
+    pid: child.pid ?? null, startedAt: new Date(start).toISOString(), captureOutput, lastPhase: null, spawnError: null, statusSource: null };
+  const observed = { stdout: 0, stderr: 0 }, tails = { stdout: '', stderr: '' };
+  const observe = stream => chunk => {
+    observed[stream] += chunk.length;
+    tails[stream] = (tails[stream] + chunk).slice(-4096);
+    const markers = tails[stream].split(/\r?\n/).filter(line => /^\[(?:cleanup|closeout|init|build|tooling)\]/.test(line));
+    if (markers.length) execution.lastPhase = { stream, line: markers.at(-1).slice(0, 1024), observedAt: new Date().toISOString() };
+  };
   const stopTimer = () => {
     if (timeoutHandle) clearTimeout(timeoutHandle);
     timeoutHandle = null;
@@ -155,7 +169,10 @@ const runTestOnce = async ({
     if (typeof onChildStop === 'function' && Number.isFinite(child.pid)) {
       onChildStop(child.pid);
     }
-    resolve(normalizeResult(result));
+    execution.endedAt = new Date().toISOString();
+    for (const stream of ['stdout', 'stderr']) execution[stream] = { observedStringUnits: observed[stream], retainedStringUnits: (result[stream] || '').length,
+      truncated: observed[stream] > (result[stream] || '').length, configuredLimit: maxOutputBytes, limitUnit: 'javascript-string-units' };
+    resolve(normalizeResult({ ...result, execution }));
   };
   if (timeoutMs > 0) {
     timeoutHandle = setTimeout(async () => {
@@ -167,8 +184,8 @@ const runTestOnce = async ({
       }
     }, timeoutMs);
   }
-  const getStdout = collectOutput(child.stdout, maxOutputBytes);
-  const getStderr = collectOutput(child.stderr, maxOutputBytes);
+  const getStdout = collectOutput(child.stdout, maxOutputBytes, observe('stdout'));
+  const getStderr = collectOutput(child.stderr, maxOutputBytes, observe('stderr'));
   if (child.stdout && typeof onActivity === 'function') {
     child.stdout.on('data', onActivity);
   }
@@ -176,6 +193,8 @@ const runTestOnce = async ({
     child.stderr.on('data', onActivity);
   }
   child.on('error', (error) => {
+    execution.statusSource = 'test-process-spawn-error';
+    execution.spawnError = { name: error.name, code: error.code || null, errno: error.errno ?? null, syscall: error.syscall || null, message: error.message };
     const durationMs = Date.now() - start;
     finish({
       status: 'failed',
@@ -189,6 +208,7 @@ const runTestOnce = async ({
     });
   });
   child.on('close', (code, signal) => {
+    if (!execution.statusSource) execution.statusSource = 'test-process-close-event';
     const durationMs = Date.now() - start;
     const stdout = captureOutput ? getStdout() : '';
     const stderr = captureOutput ? getStderr() : '';
@@ -260,6 +280,8 @@ const runTestWithRetries = async ({
       termination: result.termination
     });
     if (logPath) logs.push(logPath);
+    const receiptPath = await writeFailureReceipt({ test, attempt: attemptNumber, result, logPath });
+    if (receiptPath) logs.push(receiptPath);
     if (result.status === 'passed' || result.status === 'skipped') {
       return normalizeResult({ ...result, attempts: attemptNumber, logs });
     }

@@ -5660,7 +5660,7 @@
       "id": "tooling/install/postinstall-multifile-patch",
       "order": 941,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "indexing/embeddings/transformers-tokenizer-options",

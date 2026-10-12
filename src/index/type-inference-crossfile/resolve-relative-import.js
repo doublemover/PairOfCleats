@@ -2,11 +2,11 @@ import path from 'node:path';
 import { toPosix } from '../../shared/file-paths.js';
 import { resolveRelativeImportCandidate } from '../shared/import-candidates.js';
 
-const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts', '.d.ts', '.d.mts', '.d.cts'];
 
 export const resolveRelativeImport = (importerFile, spec, fileSet) => {
   if (!importerFile || !spec) return null;
-  const rawSpec = String(spec);
+  const rawSpec = toPosix(String(spec));
   if (!rawSpec.startsWith('./') && !rawSpec.startsWith('../')) return null;
   const importer = toPosix(importerFile);
   const baseDir = path.posix.dirname(importer);

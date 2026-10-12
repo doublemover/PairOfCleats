@@ -1,3 +1,4 @@
+import { projectIndexFormatError } from '../../../shared/index-format-error.js';
 import path from 'node:path';
 import { getRepoRoot } from '../../../shared/repo-paths.js';
 import {
@@ -1261,7 +1262,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
           : 'Missing pieces manifest.';
       }
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
-      console.log(JSON.stringify({ ok: false, code, message }));
+      const format = projectIndexFormatError(err);
+      console.log(JSON.stringify({ ok: false, code: format?.nativeCode || code, message, ...(format ? { ...format, details: format } : {}) }));
       if (err) err.emitted = true;
     }
     throw err;

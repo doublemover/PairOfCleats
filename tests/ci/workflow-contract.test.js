@@ -22,8 +22,8 @@ if (!fs.existsSync(runSuitePath)) {
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const scripts = pkg.scripts || {};
 const pinnedNodeVersion = fs.readFileSync(path.join(ROOT, '.nvmrc'), 'utf8').trim();
-if (!/^24\.\d+\.\d+$/.test(pinnedNodeVersion)) {
-  console.error('.nvmrc must pin an exact Node 24 LTS version.');
+if (!/^26\.\d+\.\d+$/.test(pinnedNodeVersion)) {
+  console.error('.nvmrc must pin an exact Node 26 version.');
   process.exit(1);
 }
 const nodeVersionPattern = `node-version:\\s*['"]?${escapeRegex(pinnedNodeVersion)}['"]?`;

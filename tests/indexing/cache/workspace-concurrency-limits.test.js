@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -25,7 +26,7 @@ for (let i = 0; i < repoCount; i += 1) {
   const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
   const codeIndexDir = path.join(buildRoot, 'index-code');
   await fs.mkdir(codeIndexDir, { recursive: true });
-  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+  await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'test-build',
     buildRoot,
     modes: ['code']
@@ -33,6 +34,7 @@ for (let i = 0; i < repoCount; i += 1) {
   await fs.writeFile(path.join(codeIndexDir, 'chunk_meta.json'), '[]', 'utf8');
   await fs.writeFile(path.join(codeIndexDir, 'token_postings.json'), '{}', 'utf8');
   await fs.writeFile(path.join(codeIndexDir, 'index_state.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey: 'compat-concurrency'
   }, null, 2), 'utf8');
 }

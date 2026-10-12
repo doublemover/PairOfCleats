@@ -74,8 +74,8 @@ Regression coverage:
 
 ## Existing authority and native-extension inventory
 
-The known-key allowlists in `tools/config/inventory.js` include the following
-implemented surfaces. Recognition by the inventory does not grant execution,
+The schema-derived config inventory and the environment allowlist in
+`tools/config/inventory.js` include the following implemented surfaces. Recognition by the inventory does not grant execution,
 download or storage authority, and does not change the public-surface budgets.
 See [execution authority](../guides/execution-authority.md) and
 [environment overrides](env-overrides.md) for their launch-owned boundaries.
@@ -108,3 +108,31 @@ See [execution authority](../guides/execution-authority.md) and
 - `PAIROFCLEATS_TUI_NODE`, `PAIROFCLEATS_TUI_SUPERVISOR` and
   `PAIROFCLEATS_TUI_WORKSPACE_ROOT` are pinned by `bin/tui-wrapper-env.js` for the
   trusted wrapper handoff, not accepted as repository config keys.
+
+## Editing supported configuration
+
+For an existing runtime setting missing from validation, edit its declaration in
+[the schema](schema.json) once, with its type, bounds and description. Keep the
+owning runtime's defaults and normalization authoritative; schema acceptance
+alone does not implement behavior. Add a focused fixture that validates the
+exact user configuration and exercises its runtime consumer, including invalid
+types/ranges and unknown-key rejection.
+
+The inventory derives supported config names from the schema, including nested
+map and array properties. There is no second manual known-config-key list to
+update. Generated outputs are reports, not extra declarations:
+
+1. Run `node tools/config/contract-doc.js`.
+2. Run `node tools/config/inventory.js`.
+3. Run `npm run config:budget` and
+   `node tools/docs/generated-surfaces.js --check-freshness`.
+4. Validate the intended settings with
+   `node tools/config/validate.js --config <settings.json> --json`.
+
+Use the documented bootstrap/readiness and focused-test workflow before these
+checks. A deliberate public config/CLI/environment expansion still updates its
+public classification and reviewed budget in `tools/config/inventory.js`; an
+advanced schema setting needs no duplicate list entry. Environment discovery
+retains its independent allowlist because those names come from source scans.
+Importing inventory helpers no longer regenerates files, so sync tests detect
+stale checked-in reports instead of repairing them before comparison.

@@ -1,4 +1,5 @@
 import { createRowSpillCollector, compareChunkMetaRows } from '../../helpers.js';
+import { symbolicTypeError } from '../../../../../shared/symbolic-types.js';
 import { addTrimReason, TRIM_REASONS } from '../../trim-policy.js';
 import {
   ORDER_BUCKET_MIN,
@@ -280,6 +281,9 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   }
   recordTrimmedFields(stats, contextFields, TRIM_REASONS.chunkMetaDropContextFields);
   if (fits(trimmed)) return trimmed;
+  if (entry.docmeta?.typeExpressions || entry.metaV2?.types?.expressions) {
+    throw symbolicTypeError('symbolic_type_limit', 'Chunk metadata cannot fit its exact symbolic type references within the row allowance.');
+  }
   const dropFields = [
     'docmeta',
     'metaV2',

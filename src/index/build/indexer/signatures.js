@@ -1,3 +1,4 @@
+import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { SCORING_ANALYZER_VERSION } from '../../../shared/tokenize-identifiers.js';
 import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
 import { ARTIFACT_SCHEMA_HASH } from '../../../contracts/registry.js';
@@ -93,6 +94,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     artifactSchemaHash: ARTIFACT_SCHEMA_HASH,
     features: {
       astDataflowEnabled: runtime.astDataflowEnabled,
@@ -220,6 +222,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   const payload = buildIncrementalSignaturePayload(runtime, mode, tokenizationKey);
   const hash = value => sha1(stableStringifyForSignature(value));
   const parse = {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,

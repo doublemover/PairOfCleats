@@ -1,4 +1,4 @@
-import { displayDefaults } from './defaults.js';
+import { displayDefaults, defaultEdgeWeights } from './defaults.js';
 
 const resolveLimit = (value, fallback) => {
   if (!Number.isFinite(value)) return fallback;
@@ -20,7 +20,7 @@ export const applyDisplayLimits = (map, overrides) => {
   const nodes = Array.isArray(map.nodes) ? map.nodes : [];
   const edges = Array.isArray(map.edges) ? map.edges : [];
   const limitedNodes = [];
-  let droppedMembers = 0;
+  let droppedMembers = nodes.slice(maxFiles).reduce((sum, node) => sum + (Array.isArray(node.members) ? node.members.length : 0), 0);
 
   for (const node of nodes.slice(0, maxFiles)) {
     const members = Array.isArray(node.members) ? node.members : [];
@@ -46,8 +46,8 @@ export const applyDisplayLimits = (map, overrides) => {
     const toMember = edge?.to?.member;
     const fromFile = edge?.from?.file;
     const toFile = edge?.to?.file;
-    if (fromMember && !memberSet.has(String(fromMember))) return false;
-    if (toMember && !memberSet.has(String(toMember))) return false;
+    if (fromMember != null && !memberSet.has(String(fromMember))) return false;
+    if (toMember != null && !memberSet.has(String(toMember))) return false;
     if (fromFile && !fileSet.has(fromFile)) return false;
     if (toFile && !fileSet.has(toFile)) return false;
     return true;
@@ -56,20 +56,41 @@ export const applyDisplayLimits = (map, overrides) => {
   const limitedEdges = filteredEdges.length > maxEdges
     ? filteredEdges.slice(0, maxEdges)
     : filteredEdges;
-  const droppedEdges = Math.max(0, filteredEdges.length - limitedEdges.length);
+  const droppedEdges = Math.max(0, edges.length - limitedEdges.length);
 
   const counts = {
     files: limitedNodes.length,
     members: limitedNodes.reduce((acc, node) => acc + (node.members?.length || 0), 0),
     edges: limitedEdges.length
   };
-  const dropped = { files: droppedFiles, members: droppedMembers, edges: droppedEdges };
-  const truncated = droppedFiles > 0 || droppedMembers > 0 || droppedEdges > 0;
+  const displayDropped = { files: droppedFiles, members: droppedMembers, edges: droppedEdges };
+  const dropped = Object.fromEntries(Object.entries(displayDropped).map(([kind, count]) => [
+    kind, count + (Number.isFinite(map.summary?.dropped?.[kind]) ? map.summary.dropped[kind] : 0)
+  ]));
+  const truncated = Boolean(map.summary?.truncated) || Object.values(dropped).some(count => count > 0);
+  const aggregateMap = new Map();
+  for (const edge of limitedEdges) {
+    const fromFile = edge.from?.file, toFile = edge.to?.file;
+    if (!fromFile || !toFile) continue;
+    const key = JSON.stringify([edge.type, fromFile, toFile]);
+    const aggregate = aggregateMap.get(key) || { type: edge.type, fromFile, toFile, count: 0, weight: 0 };
+    const weight = defaultEdgeWeights[edge.type] || 1;
+    aggregate.count++; aggregate.weight += weight;
+    aggregate.minWeight = weight; aggregate.maxWeight = weight;
+    aggregateMap.set(key, aggregate);
+  }
 
   const nextMap = {
     ...map,
     nodes: limitedNodes,
     edges: limitedEdges,
+    edgeAggregates: [...aggregateMap.values()],
+    coverage: {
+      ...(map.coverage || {}),
+      source: map.coverage?.source || map.summary || null,
+      display: { counts, dropped: displayDropped, limits },
+      aggregateScope: 'display'
+    },
     summary: {
       ...(map.summary || {}),
       counts,

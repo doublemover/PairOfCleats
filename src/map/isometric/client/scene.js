@@ -80,7 +80,7 @@ export const initScene = async () => {
   memberGroup.renderOrder = 4;
   wireGroup.renderOrder = 6;
   labelGroup.renderOrder = 7;
-  labelGroup.visible = false;
+  labelGroup.visible = state.layout.style === 'stacks';
 
   let cameraBase = 40;
   let nearPlane = 0.1;

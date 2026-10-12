@@ -2,6 +2,7 @@ import { buildChunkId } from './chunk-id.js';
 import { buildSymbolIdentity } from './identity/symbol.js';
 import { collectDeclaredReturnTypes, pickDeclaredReturnType } from './metadata/docmeta.js';
 import { META_V2_SCHEMA_VERSION, normalizeMetaV2ForWrite } from './metadata/meta-v2.js';
+import { normalizeTypeExpressions } from '../shared/symbolic-types.js';
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return null;
@@ -189,6 +190,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
   const inferredSplit = splitToolingTypes(docmeta?.inferredTypes);
   const declared = buildDeclaredTypes(docmeta);
   const types = {
+    ...(docmeta?.typeExpressions ? { expressions: normalizeTypeExpressions(docmeta.typeExpressions) } : {}),
     ...(declared ? { declared } : {}),
     ...(inferredSplit.inferred ? { inferred: inferredSplit.inferred } : {}),
     ...(inferredSplit.tooling ? { tooling: inferredSplit.tooling } : {})

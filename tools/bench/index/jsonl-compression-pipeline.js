@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { writeJsonLinesFile } = await import('../../../src/shared/json-stream/jsonl-write.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const rows = Number(args.rows) || 200000;

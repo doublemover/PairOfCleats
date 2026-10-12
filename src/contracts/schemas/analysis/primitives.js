@@ -1,3 +1,5 @@
+import { TYPE_EXPRESSIONS_SCHEMA } from '../symbolic-types.js';
+
 export const nullableString = { type: ['string', 'null'] };
 export const nullableNumber = { type: ['number', 'null'] };
 export const semverString = { type: 'string', pattern: '^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$' };
@@ -44,7 +46,8 @@ export const metaTypes = {
   properties: {
     declared: typeBucket,
     inferred: typeBucket,
-    tooling: typeBucket
+    tooling: typeBucket,
+    expressions: TYPE_EXPRESSIONS_SCHEMA
   },
   additionalProperties: true
 };

@@ -505,7 +505,7 @@ export const createClangdProvider = () => ({
       ? inputs.log
       : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
     const { docs, targets } = resolveClangdDocumentsAndTargets(inputs);
-    if (!docs.length || !targets.length) {
+    if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         state: 'skipped',
         blockProvider: false,
@@ -618,6 +618,7 @@ export const createClangdProvider = () => ({
     }
     if (preflight?.blockProvider === true || preflight?.blockSourcekit === true) {
       return {
+        ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
         diagnostics: appendDiagnosticChecks(null, [...duplicateChecks, ...preflightChecks])
@@ -655,7 +656,7 @@ export const createClangdProvider = () => ({
         );
       }
     }
-    if (!selectedDocs.length || !targets.length) {
+    if (!selectedDocs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         provider: { id: 'clangd', version: '2.0.0', configHash: this.getConfigHash(ctx) },
         byChunkUid: {},
@@ -771,6 +772,7 @@ export const createClangdProvider = () => ({
     let result;
     try {
       result = await collectLspTypes({
+        semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: selectedDocs,

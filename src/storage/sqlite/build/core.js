@@ -1,3 +1,5 @@
+import { writeSqliteIndexFormat } from '../index-format.js';
+import { CREATE_SEMANTIC_TABLES_SQL } from '../semantic/schema.js';
 import { createOptionalFtsTables, listOptionalFtsTables } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -200,6 +202,8 @@ export const openSqliteBuildDatabase = ({
       source: plan?.source || null
     });
     db.exec(CREATE_TABLES_BASE_SQL);
+    db.exec(CREATE_SEMANTIC_TABLES_SQL);
+    writeSqliteIndexFormat(db);
     createOptionalFtsTables(db, ftsVariants);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
     return { db, pragmaState, dbPath, promotePath };

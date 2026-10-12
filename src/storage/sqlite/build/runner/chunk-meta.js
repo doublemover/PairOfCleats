@@ -110,7 +110,7 @@ const probeChunkMetaJsonArrayEmpty = (filePath, maxProbeBytes = CHUNK_META_PROBE
     if (fd != null) {
       try {
         fsSync.closeSync(fd);
-      } catch {}
+      } catch (error) { if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error; }
     }
   }
 };
@@ -153,7 +153,7 @@ const probeChunkMetaJsonlIsEmpty = (filePath, maxProbeBytes = CHUNK_META_PROBE_M
     if (fd != null) {
       try {
         fsSync.closeSync(fd);
-      } catch {}
+      } catch (error) { if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error; }
     }
   }
 };
@@ -231,7 +231,7 @@ export const resolveChunkMetaTotalRecords = (indexDir) => {
         maxBytes: MAX_JSON_BYTES,
         strict: false
       });
-    } catch {}
+    } catch (error) { if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error; }
   }
   let presence = null;
   if (manifest) {
@@ -241,7 +241,7 @@ export const resolveChunkMetaTotalRecords = (indexDir) => {
         maxBytes: MAX_JSON_BYTES,
         strict: false
       });
-    } catch {}
+    } catch (error) { if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error; }
   }
   const metaCount = resolveChunkMetaCountFromMeta(presence?.meta);
   if (metaCount != null) return metaCount;

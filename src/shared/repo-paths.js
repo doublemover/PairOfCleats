@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -206,6 +207,8 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
   if (!fs.existsSync(currentPath)) return null;
   try {
     const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
+    assertCurrentIndexFormat({ operation: 'resolve-index', component: 'build pointer',
+      foundVersion: data.artifactSurfaceVersion, repoRoot, indexPath: currentPath });
     const preferredMode = typeof options.mode === 'string' ? options.mode : null;
     const {
       buildId,
@@ -227,7 +230,8 @@ export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
       data,
       buildRoots
     };
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   }
 }

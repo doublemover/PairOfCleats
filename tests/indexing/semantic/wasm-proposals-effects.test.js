@@ -1,0 +1,47 @@
+import { validateSemanticPartitions } from '../../../src/index/semantic/reconcile.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { createCompilerBoundaryFixture } from '../../helpers/compiler-boundary-fixture.js';
+import assert from 'node:assert/strict';
+import { wasmModule, wasmSection } from '../../helpers/wasm-fixture.js';
+import { decodeWasmModule } from '../../../src/index/semantic/wasm/decode.js';
+import { analyzeWasmModule } from '../../../src/index/semantic/wasm/flow.js';
+const binaries = {};
+const analyze = options => { binaries['case-' + Object.keys(binaries).length + '.wasm'] = wasmModule(options); const result=decodeWasmModule(wasmModule(options)); assert.equal(result.status,'decoded',JSON.stringify(result)); return {module:result.module,graph:analyzeWasmModule(result.module)}; };
+const simd=analyze({types:[{params:[],results:[0x7b]}],functions:[{code:[0xfd,12,...Array(16).fill(1),0xfd,0x4d]}]});
+assert.ok(simd.graph.nodes.some(node=>node.name==='v128.not'));
+const bulk=analyze({types:[{params:[],results:[]}],functions:[{code:[0x41,0,0x41,0,0x41,1,0xfc,8,0,0]}],
+  sections:[wasmSection(5,[1,0,1]),wasmSection(12,[1]),wasmSection(11,[1,1,1,42])]});
+assert.ok(bulk.graph.edges.some(edge=>edge.kind==='copies'&&edge.to===bulk.graph.storages.memory[0]));
+const atomic=analyze({functions:[{code:[0x20,0,0xfe,0x10,2,0]}],sections:[wasmSection(5,[1,3,1,1])]});
+assert.equal(atomic.module.memories[0].shared,true);
+assert.ok(atomic.graph.reasons.includes('wasm_atomic_order_wait_wakeup_and_external_writes_unobserved'));
+const memory64=analyze({types:[{params:[0x7e],results:[0x7f]}],functions:[{code:[0x20,0,0x28,2,0]}],sections:[wasmSection(5,[1,4,1])]});
+assert.equal(memory64.module.memories[0].memory64,true);
+const tail=analyze({functions:[{code:[0x20,0]},{code:[0x20,0,0x12,0]}]});
+assert.ok(tail.graph.edges.some(edge=>edge.kind==='callTarget'&&edge.to===tail.graph.functions[0].ref));
+const gc=analyze({types:[{encoding:[0x5f,1,0x7f,1]},{params:[],results:[0x7f]}],functions:[{typeIndex:1,code:[0x41,7,0xfb,0,0,0xfb,2,0,0]}]});
+assert.ok(gc.graph.nodes.some(node=>node.name==='struct.get'));
+assert.ok(gc.graph.reasons.includes('wasm_gc_field_alias_lifetime_and_traps_conservative'));
+const throwing=analyze({types:[{params:[],results:[]}],functions:[{code:[8,0]}],sections:[wasmSection(13,[1,0,0])]});
+assert.ok(throwing.graph.edges.some(edge=>edge.kind==='throws'));
+const caught=analyze({types:[{params:[],results:[]}],functions:[{code:[2,0x40,0x1f,0x40,1,2,0,8,0,11,11]}],sections:[wasmSection(13,[1,0,0])]});
+assert.ok(caught.graph.reasons.includes('wasm_exception_tags_host_delivery_and_rethrows_modeled'));
+assert.ok(caught.graph.edges.some(edge => edge.kind === 'exceptional' && caught.graph.nodes[edge.from].name === 'throw' && edge.to !== caught.graph.functions[0].exception));
+const storage=analyze({functions:[{code:[0x41,0,0x20,0,0x36,2,0,0x41,0,0x28,2,0]}],sections:[wasmSection(5,[1,0,1])]});
+assert.ok(storage.graph.edges.some(edge=>edge.kind==='writes'&&edge.to===storage.graph.storages.memory[0]));
+assert.ok(storage.graph.edges.some(edge=>edge.kind==='reads'&&edge.from===storage.graph.storages.memory[0]));
+const indirect = extra => analyze({ functions:[{code:[0x20,0,0x41,0,0x11,0,0]}],sections:[wasmSection(4,[1,0x70,0,1]),wasmSection(9,[1,0,0x41,0,11,1,0])], ...extra });
+assert.ok(indirect({}).graph.edges.some(edge=>edge.kind==='callTarget'&&edge.certainty==='exact-static'));
+const exportedTable=indirect({exports:[{kind:1,name:'table',index:0}]});
+assert.ok(exportedTable.graph.reasons.includes('wasm_indirect_call_table_target_unresolved'));
+assert.ok(exportedTable.graph.edges.filter(edge=>edge.kind==='callTarget').every(edge=>edge.certainty==='modeled'));
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-wasm-proposals-'));
+try {
+  const fixture = await createCompilerBoundaryFixture(root, {}, binaries);
+  assert.equal(fixture.syntaxPartitions.length, 2 * Object.keys(binaries).length);
+  await validateSemanticPartitions({store:fixture.storeFor(fixture.syntaxPartitions),partitions:fixture.syntaxPartitions});
+  for (const source of fixture.group.wasmModules.values()) await source.readBytes();
+} finally { await fs.rm(root, {recursive:true, force:true}); }
+console.log('WASM SIMD, bulk memory, atomics, memory64, tail calls, GC and indirect/storage effects passed');

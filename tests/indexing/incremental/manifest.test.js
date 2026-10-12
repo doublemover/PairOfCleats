@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { getRepoCacheRoot, loadUserConfig, toRealPathSync } from '../../../tools/shared/dict-utils.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -63,7 +64,7 @@ try {
 
   const userConfig = loadUserConfig(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
+  const manifestPath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'manifest.json');
   if (!fs.existsSync(manifestPath)) {
     console.error('Missing incremental manifest after initial build.');
     process.exit(1);

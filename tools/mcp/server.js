@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
-import { createCli } from '../../src/shared/cli.js';
-import { getCapabilities } from '../../src/shared/capabilities.js';
-import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capability-manifest.js';
-import { getMcpServerConfig } from './server-config.js';
-import { handleToolCall } from './tools.js';
-import { createMcpTransport } from './transport.js';
+const { createCli } = await import('../../src/shared/cli.js');
+const { getCapabilities } = await import('../../src/shared/capabilities.js');
+const { getRuntimeCapabilityManifest } = await import('../../src/shared/runtime-capability-manifest.js');
+const { getMcpServerConfig } = await import('./server-config.js');
+const { handleToolCall } = await import('./tools.js');
+const { createMcpTransport } = await import('./transport.js');
 
 const argv = createCli({
   scriptName: 'pairofcleats service mcp',

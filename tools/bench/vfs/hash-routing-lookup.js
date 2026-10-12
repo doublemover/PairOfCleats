@@ -1,18 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 // Usage: node tools/bench/vfs/hash-routing-lookup.js --docs 20000 --lookups 50000 --json
 import fs from 'node:fs';
 import path from 'node:path';
-import { createCli } from '../../../src/shared/cli.js';
-import { writeJsonWithDir } from '../micro/utils.js';
-import { buildVfsVirtualPath, resolveVfsVirtualPath } from '../../../src/index/tooling/vfs.js';
-import {
-  buildLookupIndices,
-  clampFloat,
-  clampInt,
-  createRng,
-  printBench,
-  runSampled
-} from './shared.js';
+const { createCli } = await import('../../../src/shared/cli.js');
+const { writeJsonWithDir } = await import('../micro/utils.js');
+const { buildVfsVirtualPath, resolveVfsVirtualPath } = await import('../../../src/index/tooling/vfs.js');
+const { buildLookupIndices, clampFloat, clampInt, createRng, printBench, runSampled } = await import('./shared.js');
 
 const rawArgs = process.argv.slice(2);
 const cli = createCli({

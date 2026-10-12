@@ -2,22 +2,20 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-import { ensureSearchFiltersRepo, runFilterSearch } from '../../../helpers/search-filters-repo.js';
+import { createInProcessFilterSearch, ensureSearchFiltersRepo } from '../../../helpers/search-filters-repo.js';
 
 const context = await ensureSearchFiltersRepo();
 if (!context) process.exit(0);
 
-const { repoRoot, env } = context;
+const runFilterSearch = createInProcessFilterSearch({ repoRoot: context.repoRoot, env: context.env });
 const extractFiles = (payload, key = 'prose') =>
   new Set((payload[key] || []).map((hit) => path.basename(hit.file || '')));
 
 const cases = [
   {
     name: 'punctuation tokens remain searchable in code mode',
-    run() {
-      const payload = runFilterSearch({
-        repoRoot,
-        env,
+    async run() {
+      const payload = await runFilterSearch({
         query: '&&',
         mode: 'code'
       });
@@ -26,17 +24,13 @@ const cases = [
   },
   {
     name: 'token case sensitivity toggles prose matches',
-    run() {
-      const insensitive = runFilterSearch({
-        repoRoot,
-        env,
+    async run() {
+      const insensitive = await runFilterSearch({
         query: 'AlphaCase'
       });
       assert.equal(extractFiles(insensitive).has('CaseFile.TXT'), true);
 
-      const sensitive = runFilterSearch({
-        repoRoot,
-        env,
+      const sensitive = await runFilterSearch({
         query: 'AlphaCase',
         args: ['--case-tokens']
       });
@@ -45,26 +39,20 @@ const cases = [
   },
   {
     name: 'file selectors support case-insensitive, strict, and regex matching',
-    run() {
-      const insensitive = runFilterSearch({
-        repoRoot,
-        env,
+    async run() {
+      const insensitive = await runFilterSearch({
         query: 'alpha',
         args: ['--file', 'casefile.txt']
       });
       assert.equal(extractFiles(insensitive).has('CaseFile.TXT'), true);
 
-      const sensitive = runFilterSearch({
-        repoRoot,
-        env,
+      const sensitive = await runFilterSearch({
         query: 'alpha',
         args: ['--file', 'casefile.txt', '--case-file']
       });
       assert.equal(extractFiles(sensitive).has('CaseFile.TXT'), false);
 
-      const regex = runFilterSearch({
-        repoRoot,
-        env,
+      const regex = await runFilterSearch({
         query: 'alpha',
         args: ['--file', '/casefile\\.txt/']
       });
@@ -74,7 +62,7 @@ const cases = [
 ];
 
 for (const testCase of cases) {
-  testCase.run();
+  await testCase.run();
 }
 
 console.log('file and token selector contract matrix test passed');

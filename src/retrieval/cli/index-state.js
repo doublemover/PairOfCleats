@@ -1,3 +1,4 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { resolveIndexDir } from '../cli-index.js';
@@ -95,10 +96,16 @@ export const loadIndexState = (rootDir, userConfig, mode, options = {}) => {
   try {
     const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
     const statePath = path.join(dir, 'index_state.json');
-    if (!fsSync.existsSync(statePath)) return null;
+    if (!fsSync.existsSync(statePath)) {
+      assertCurrentIndexFormat({ operation: 'read', component: 'index state',
+        foundVersion: null, repoRoot: rootDir, indexPath: statePath });
+    }
     const parsed = JSON.parse(fsSync.readFileSync(statePath, 'utf8'));
+    assertCurrentIndexFormat({ operation: 'read', component: 'index state',
+      foundVersion: parsed?.artifactSurfaceVersion, repoRoot: rootDir, indexPath: statePath });
     return normalizeLoadedIndexState(parsed, options);
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
     return null;
   }
 };
