@@ -58,8 +58,8 @@ export const validateSemanticSourceTargets = async (policy, { source, partitionI
     }
   }
   for (let start = 0; start < refs.length; start += 64) {
-    const records = await store.getRecords(refs.slice(start, start + 64), [], { signal });
-    if (records.some(row => !row || !['declaration', 'occurrence'].includes(row.kind))) throw Object.assign(new TypeError('Semantic target must reference a declaration or occurrence.'), { code: 'ERR_SEMANTIC_TARGET' });
+    const records = await store.getRecords(refs.slice(start, start + 64), source.encoding === 'binary' ? ['data'] : [], { signal });
+    if (records.some(row => !row || !(source.encoding === 'binary' ? row.kind === 'expression' && row.data?.astKind === 'WasmModule' : ['declaration', 'occurrence'].includes(row.kind)))) throw Object.assign(new TypeError('Semantic target must reference a declaration, occurrence, or binary module anchor.'), { code: 'ERR_SEMANTIC_TARGET' });
   }
 };
 

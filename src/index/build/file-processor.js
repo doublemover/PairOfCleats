@@ -500,7 +500,7 @@ export function createFileProcessor(options) {
       languageId: fileLanguageId,
       mode,
       maxFileBytes,
-      bypassBinaryMinifiedSkip: Boolean(documentSourceType),
+      bypassBinaryMinifiedSkip: Boolean(documentSourceType || semantic && mode === 'code' && ext === '.wasm'),
       rel: relKey,
       generatedPolicy,
       extractedProseYieldProfile
@@ -684,6 +684,7 @@ export function createFileProcessor(options) {
         formatCrashErrorMeta,
         warnEncodingFallback,
         documentSourceType,
+        wasmBinary: Boolean(semantic && mode === 'code' && ext === '.wasm'),
         documentExtractionPolicy,
         artifacts
       });
