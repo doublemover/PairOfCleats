@@ -7,6 +7,8 @@ intent once under the selected repository's existing index lock; the normal
 build stages subsequently reacquire their existing locks. This is not a lock
 held for the entire build. An explicit `--no-cache-rebuild` or
 `--cache-rebuild=false` overrides inherited rebuild intent.
+The core API honors explicit `cacheRebuild:false` and `cache-rebuild:false`
+with the same precedence; the canonical kebab-case option wins if both exist.
 
 ## Embedding selection and handoff
 

@@ -84,7 +84,8 @@ export const buildStreamedStage3Result = ({
 export async function buildIndex(repoRoot, options = {}) {
   const root = getRepoRoot(repoRoot);
   const defaults = parseBuildArgs([]).argv;
-  const baseArgv = { ...defaults, ...options, repo: root };
+  const baseArgv = { ...defaults, ...options, repo: root,
+    'cache-rebuild': options['cache-rebuild'] ?? options.cacheRebuild ?? defaults['cache-rebuild'] };
   const explicitStage = normalizeStage(baseArgv.stage);
   const parsedArgv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
   const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: options.rawArgv || buildRawArgs(options) });
