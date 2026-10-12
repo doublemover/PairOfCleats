@@ -52,8 +52,8 @@ const removePath = (config, keys) => {
 };
 
 /** Keep data/analysis settings, but not repo-selected execution or storage authority. */
-export const applyRepoConfigAuthority = (config, repoRoot) => {
-  if (isRepoTrusted(repoRoot)) return config;
+export const applyRepoConfigAuthority = (config, repoRoot, env = process.env) => {
+  if (isRepoTrusted(repoRoot, env)) return config;
   const safe = structuredClone(config);
   for (const keys of [
     ['runtime', 'nodeOptions'], ['cache', 'root'],

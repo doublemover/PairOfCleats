@@ -44,7 +44,8 @@ const overriddenEnv = resolver.resolveRepoRuntimeEnv(repoRoot, {
   NODE_OPTIONS: '--enable-source-maps',
   POC_RUNTIME_MARKER: 'extra'
 });
-assert.equal(overriddenEnv.UV_THREADPOOL_SIZE, '7');
+assert.equal(overriddenEnv.UV_THREADPOOL_SIZE, '3');
+assert.ok(overriddenEnv.NODE_OPTIONS.includes('--enable-source-maps')); 
 assert.equal(overriddenEnv.POC_RUNTIME_MARKER, 'extra');
 
 const errors = [];
