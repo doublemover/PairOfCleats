@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { resolveDispatchRuntimeEnv } from '../../../bin/dispatch-runtime-env.js';
 import { resolveWorkerHeapLaunchContract } from '../../../src/shared/workers/heap-contract.js';
 
 const limits = { maxOldGenerationSizeMb: 128 };
@@ -23,6 +24,7 @@ const observation = await new Promise((resolve, reject) => {
   eval:true, execArgv:[], env:{...process.env,NODE_OPTIONS:''}, resourceLimits:{maxOldGenerationSizeMb:128}
  }); worker.once('message',resolve);worker.once('error',reject);
 });
+if (process.argv.includes('--clear-mutable-env')) delete process.env.NODE_OPTIONS;
 const messages = [];
 const pools = await createIndexerWorkerPools({config:{enabled:true,maxWorkers:1,heapTargetMb:128,heapMinMb:128,heapMaxMb:256,taskTimeoutMs:5000},log:(line)=>messages.push(line)});
 let workerObservations = [];
@@ -33,8 +35,8 @@ if (pools.tokenizePool) {
 const result = {observation,enabled:!!pools.tokenizePool,runtimeEvidence:pools.runtimeEvidence,workerObservations,messages};
 await pools.destroy();
 console.log(JSON.stringify(result));`);
-  const run = (flags, nodeOptions) => {
-    const child = spawnSync(process.execPath, [...flags, probe], { encoding: 'utf8', timeout: 8000, env: { ...process.env, NODE_OPTIONS: nodeOptions } });
+  const run = (flags, nodeOptions, args = []) => {
+    const child = spawnSync(process.execPath, [...flags, probe, ...args], { encoding: 'utf8', timeout: 8000, env: { ...process.env, NODE_OPTIONS: nodeOptions } });
     assert.equal(child.status, 0, child.stderr);
     return JSON.parse(child.stdout.trim().split('\n').at(-1));
   };
@@ -42,7 +44,12 @@ console.log(JSON.stringify(result));`);
   assert.equal(baseline.enabled, true, 'normal unshaped launch must retain worker execution');
   assert.ok(baseline.workerObservations.length > 0);
   assert.equal(baseline.workerObservations[0].resourceLimitAcknowledged, true);
-  for (const result of [run([], '--max-old-space-size=512'), run(['--max-old-space-size=512'], '')]) {
+  const shapedEnv = await resolveDispatchRuntimeEnv({ root: dir, scriptPath: 'build_index.js', baseEnv: { ...process.env, NODE_OPTIONS: '', PAIROFCLEATS_MAX_OLD_SPACE_MB: '16384' } });
+  assert.equal(shapedEnv.NODE_OPTIONS, '--max-old-space-size=16384');
+  const controlledAccepted = run([], '--max-old-space-size=128', ['--clear-mutable-env']);
+  assert.equal(controlledAccepted.enabled, true, 'controlled mutable-env boundary: captured parent cap fits the later worker budget');
+  assert.equal(controlledAccepted.runtimeEvidence.tokenize.heapLaunchContract.enforcement, 'parent-startup-cap');
+  for (const result of [run([], '--max-old-space-size=512'), run(['--max-old-space-size=512'], ''), run([], shapedEnv.NODE_OPTIONS)]) {
     assert.equal(result.enabled, false);
     assert.equal(result.runtimeEvidence.tokenize.heapLaunchContract.fallback, 'inline');
     assert.ok(result.observation.heapSizeLimitBytes > baseline.observation.heapSizeLimitBytes);
