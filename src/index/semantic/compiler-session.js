@@ -3,7 +3,8 @@ import { collectCompilerImplicitCalls } from './compiler-implicit-calls.js';
 import { createCompilerDispatchResolver } from './compiler-dispatch.js';
 import { retainedWasmSource } from './wasm/retained-source.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
-import { compilerInvocationInputs, compilerInvocationTargets } from './compiler-invocation.js';
+import { compilerCallAdapter } from './compiler-call-adapter.js';
+import { compilerRuntimeParameters, compilerInvocationInputs, compilerInvocationTargets } from './compiler-invocation.js';
 import { collectCompilerBoundaryFlow } from './compiler-boundary-flow.js';
 import { createCompilerDependencySystem, compilerInventoryHash } from './compiler-dependencies.js';
 import { collectSemanticTargetScopes, resolveSemanticSourcePolicy, semanticTargetMatchesRecord, semanticPhasePolicy } from './policy.js';
@@ -263,20 +264,21 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
             targets = nextTargets; symbol = next;
           }
         }
-        let signature = null, incompleteTargets = false, parameterMappingAllowed = false, targetCertainty = 'exact-static';
+        let signature = null, adapter = null, incompleteTargets = false, parameterMappingAllowed = false, targetCertainty = 'exact-static';
         if (node && invocation) {
           signature = checker.getResolvedSignature(node);
-          const resolved = compilerInvocationTargets({ ts, checker, node, signature, declarationRef, targets, dispatch:dispatchTargets });
+          adapter = compilerCallAdapter({ts,checker,node,isDefaultLibrary:group.isDefaultLibrary});
+          const resolved = compilerInvocationTargets({ ts, checker, node, signature, declarationRef, targets, dispatch:dispatchTargets, adapter });
           targets = resolved.targets; incompleteTargets = resolved.incomplete; parameterMappingAllowed = resolved.parameterMappingAllowed;
           targetCertainty = resolved.certainty;
           for(const reason of resolved.reasons)dispatchReasons.add(reason);
         }
         const unique = [...new Map(targets.map(target => [canonicalSemanticJson(target), target])).values()];
-        observations.push({ node, occurrence, span: row.span, scope: row.scope, targets: unique, invocation,
+        observations.push({ node, adapter, occurrence, span: row.span, scope: row.scope, targets: unique, invocation,
           invocationKind: row.data.invocationKind || null, unresolved: !node || !unique.length || incompleteTargets,
           incompleteTargets, parameterMappingAllowed, targetCertainty,
           aliasTargets, signatureDeclaration: signature?.declaration || null,
-          parameterTargets: (signature?.declaration?.parameters || []).map(parameter => parameter.dotDotDotToken ? null : declarationRef(parameter)) });
+          parameterTargets: compilerRuntimeParameters(ts,signature?.declaration).map(parameter => parameter.dotDotDotToken ? null : declarationRef(parameter)) });
       }
       const rows = [], externalRefs = new Map(), names = new Map();
       const intern = name => { if (!names.has(name)) names.set(name, names.size); return names.get(name); };
@@ -365,7 +367,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         observations, source: item.source, bytes, bindingPartition: partition, context,
         isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (storageFlow) emitted.push(storageFlow.partition);
-      const flow = await collectCompilerFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
+      const flow = await collectCompilerFlow({ ts, checker, isDefaultLibrary:group.isDefaultLibrary, sourceFile, nodes: nodeIndex.nodes(),
         expressionFor,
         declarationFor: declaration => {
           const node = declaration?.name || declaration;
@@ -374,17 +376,18 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (flow) {
         emitted.push(flow.partition);
-        group.flowDocuments.push({ item, bytes, policy, flowEdges: flow.edges, partition: flow.partition,
+        group.flowDocuments.push({ item, bytes, policy, bindingPartition:partition, flowEdges: flow.edges, partition: flow.partition,
           fieldAccesses: flow.fieldAccesses || [], aliases: flow.aliases || [], callEffects: flow.callEffects || [],
           summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),
           calls: [...collectCompilerImplicitCalls({ts,checker,nodes:nodeIndex.nodes(),expressionFor,declarationRef:node=>{const ref=declarationRef(node);return ref?.externalKey?null:ref;}}).map(({node,...call})=>({...call,targets:call.targets.map(expand)})),...observations.filter(observation => observation.invocation).map(observation => ({ occurrence: observation.occurrence, span: observation.span,
             targets: observation.targets.map(expand), incompleteTargets: observation.incompleteTargets, invocationKind: observation.invocationKind,
             suppressResult:observation.invocationKind==='construct'||observation.node?.expression?.kind===ts.SyntaxKind.SuperKeyword,
-            receiver: observation.invocationKind==='construct'?expressionFor(observation.node):observation.node?.expression?.kind===ts.SyntaxKind.SuperKeyword?expressionFor(observation.node.expression):observation.node && (ts.isPropertyAccessExpression(observation.node.expression || observation.node.tag) || ts.isElementAccessExpression(observation.node.expression || observation.node.tag)) ? expressionFor((observation.node.expression || observation.node.tag).expression) : null,
-            arguments: compilerInvocationInputs(ts, observation.node).runtimeArguments.map(expressionFor), result: expressionFor(observation.node),
+            receiver: observation.adapter?expressionFor(observation.adapter.receiver):observation.invocationKind==='construct'?expressionFor(observation.node):observation.node?.expression?.kind===ts.SyntaxKind.SuperKeyword?expressionFor(observation.node.expression):observation.node && (ts.isPropertyAccessExpression(observation.node.expression || observation.node.tag) || ts.isElementAccessExpression(observation.node.expression || observation.node.tag)) ? expressionFor((observation.node.expression || observation.node.tag).expression) : null,
+            unknownInputs:observation.adapter?.unknownInputs.map(expressionFor)||[],
+            arguments: (observation.adapter?.runtimeArguments||compilerInvocationInputs(ts, observation.node).runtimeArguments).map(expressionFor), result: expressionFor(observation.node),
             hasImplicitArguments: compilerInvocationInputs(ts, observation.node).implicitTemplateObject,
-            hasSpread: observation.node?.arguments?.some(ts.isSpreadElement) || false }))] });
+            hasSpread: observation.adapter?.hasSpread||observation.node?.arguments?.some(ts.isSpreadElement) || false, reason:observation.adapter?.reasons.join(';') }))] });
       }
 
       group.workerDocuments.push({ ts, checker, item, bytes, policy, sourceFile, nodes: nodeIndex.nodes(), observations, bindingPartition: partition,

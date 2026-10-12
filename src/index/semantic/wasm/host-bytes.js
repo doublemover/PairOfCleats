@@ -7,14 +7,14 @@ const keyPath = file => process.platform === 'win32' ? path.resolve(file).toLowe
 export const createWasmHostBytes = ({ group, authority, ledgers, signal }) => {
   const signature = (doc, node) => authority.declaration(doc.checker.getResolvedSignature(node)?.declaration);
   const literal = (ts, node) => node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) ? node.text : null;
-  const safeUses = async (doc, symbol, declaration, seen) => {
+  const safeUses = async (doc, symbol, declaration, seen, kind) => {
     const ts = doc.ts;
     for (const use of ledgers.get(doc).uses.get(symbol) || []) {
       if (use.node === declaration.name) continue;
       let parent = use.node.parent;
       if (ts.isVariableDeclaration(parent) && parent.initializer === use.node && parent.parent.flags & ts.NodeFlags.Const) {
         const alias = doc.checker.getSymbolAtLocation(parent.name);
-        if (!alias || seen.has(alias) || seen.size > 32 || !await safeUses(doc, alias, parent, new Set(seen).add(alias))) return false;
+        if (!alias || seen.has(alias) || seen.size > 32 || !await safeUses(doc, alias, parent, new Set(seen).add(alias), kind)) return false;
         continue;
       }
       if (ts.isSpreadElement(parent) && ts.isArrayLiteralExpression(parent.parent)) continue;
@@ -33,6 +33,15 @@ export const createWasmHostBytes = ({ group, authority, ledgers, signal }) => {
       }
       if (!ts.isCallExpression(parent) && !ts.isNewExpression(parent)) return false;
       const verified = await signature(doc, parent);
+      // A typed-array constructor copies a typed array, but aliases an ArrayBuffer.
+      // Follow the resulting view before treating any use of that buffer as immutable.
+      if (kind === 'buffer' && ts.isNewExpression(parent) && library(verified, 'Uint8ArrayConstructor')) {
+        const consumer = parent.parent;
+        if (ts.isVariableDeclaration(consumer) && consumer.initializer === parent && consumer.parent.flags & ts.NodeFlags.Const) {
+          const alias = doc.checker.getSymbolAtLocation(consumer.name);
+          if (!alias || seen.has(alias) || seen.size >= 32 || !await safeUses(doc, alias, consumer, new Set(seen).add(alias), 'bytes')) return false;
+        } else if ((!ts.isCallExpression(consumer) && !ts.isNewExpression(consumer)) || !library(await signature(doc, consumer), 'WebAssembly')) return false;
+      }
       if (!library(verified, 'WebAssembly') && !library(verified, 'Uint8ArrayConstructor') && !library(verified, 'Uint8Array') && !library(verified, 'Response') && !library(verified, 'Body')) return false;
     }
     return true;
@@ -51,8 +60,9 @@ export const createWasmHostBytes = ({ group, authority, ledgers, signal }) => {
       if (declarations.length !== 1) return null;
       const declaration = declarations[0];
       if (!ts.isVariableDeclaration(declaration) || declaration.getSourceFile() !== doc.sourceFile || !(declaration.parent.flags & ts.NodeFlags.Const)) return null;
-      if (!await safeUses(doc, symbol, declaration, new Set([symbol]))) { ledgers.get(doc).reasons.add('wasm_byte_source_mutation_or_escape'); return null; }
-      return read(doc, declaration.initializer, seen);
+      const result = await read(doc, declaration.initializer, seen);
+      if (!await safeUses(doc, symbol, declaration, new Set([symbol]), result?.kind)) { ledgers.get(doc).reasons.add('wasm_byte_source_mutation_or_escape'); return null; }
+      return result;
     }
     const number = node => ts.isNumericLiteral(node) ? Number(node.text) : null;
     if (ts.isArrayLiteralExpression(input)) {
@@ -71,7 +81,7 @@ export const createWasmHostBytes = ({ group, authority, ledgers, signal }) => {
     if (library(verified, 'Uint8ArrayConstructor')) {
       if (ts.isNewExpression(input) && args.length === 1) {
         const result = await read(doc, args[0], seen);
-        return ['array', 'bytes'].includes(result?.kind) ? { ...result, kind: 'bytes' } : null;
+        return ['array', 'bytes', 'buffer'].includes(result?.kind) ? { ...result, kind: 'bytes' } : null;
       }
       if (verified.names.includes('of') && args.length <= WASM_LIMITS.bytes && args.every(arg => number(arg) != null && Number.isInteger(number(arg)) && number(arg) >= 0 && number(arg) <= 255)) return {
         kind: 'bytes', bytes: Buffer.from(args.map(number)), byteExpression: doc.expressionFor(input), certainty: 'exact-static'
@@ -83,10 +93,10 @@ export const createWasmHostBytes = ({ group, authority, ledgers, signal }) => {
       return { ...source, bytes: Buffer.from(source.bytes.subarray(args[0] ? number(args[0]) : 0, args[1] ? number(args[1]) : undefined)) };
     }
     if (library(verified, 'Response') && ts.isNewExpression(input)) {
-      const result = await read(doc, args[0], seen); return result?.kind === 'bytes' ? { ...result, kind: 'response' } : null;
+      const result = await read(doc, args[0], seen); return ['bytes', 'buffer'].includes(result?.kind) ? { ...result, kind: 'response' } : null;
     }
     if (library(verified, 'Body') && verified.names.includes('arrayBuffer') && ts.isPropertyAccessExpression(input.expression)) {
-      const result = await read(doc, input.expression.expression, seen); return result?.kind === 'response' ? { ...result, kind: 'promise-bytes' } : null;
+      const result = await read(doc, input.expression.expression, seen); return result?.kind === 'response' ? { ...result, kind: 'promise-buffer' } : null;
     }
     const fetch = library(verified, 'fetch') || verified?.family === 'node-type-package' && verified.library === 'web-globals/fetch.d.ts' && verified.names.includes('fetch');
     const fileRead = verified?.family === 'node-type-package' && ['fs', 'node:fs', 'fs/promises', 'node:fs/promises'].includes(verified.moduleName)

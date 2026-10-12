@@ -89,7 +89,7 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
       }
       if(definition.name)patch(definition.name,names,!staticMember);
       if(!matched || names.includes(null)) for(const clause of definition.heritageClauses||[]) if(clause.token===ts.SyntaxKind.ExtendsKeyword) for(const type of clause.types) {
-        for(const parent of declarations(type.expression)) if(ts.isClassDeclaration(parent)||ts.isClassExpression(parent))classMember(parent,names,staticMember,visited);
+        for(const parent of compilerClassDefinitions({ts,checker,node:type.expression,reasons}))classMember(parent,names,staticMember,visited);
       }
     };
     const property = (receiver,names,visited=new Set()) => {
@@ -97,8 +97,17 @@ export const createCompilerDispatchResolver = ({ts,checker,nodes,declarationRef}
       if(visited.has(receiver)||visited.size>=32||--budget<0) { incomplete=true; reasons.add('receiver_alias_candidate_budget'); return; }
       visited=new Set(visited).add(receiver);
       if(ts.isConditionalExpression(receiver)) { property(receiver.whenTrue,names,visited); property(receiver.whenFalse,names,visited); return; }
+      if(ts.isBinaryExpression(receiver)&&[ts.SyntaxKind.BarBarToken,ts.SyntaxKind.AmpersandAmpersandToken,ts.SyntaxKind.QuestionQuestionToken].includes(receiver.operatorToken.kind)) {
+        property(receiver.left,names,visited); property(receiver.right,names,visited); return;
+      }
       if(ts.isIdentifier(receiver)) {
         patch(receiver,names,false);
+        const assigned=assignments.get(symbolFor(receiver));
+        if(assigned?.length) {
+          reasons.add('receiver_assignment_order_and_escape_conservative');
+          for(const value of assigned)property(value,names,visited);
+          if(assigned.truncated)reasons.add('dispatch_receiver_assignment_budget');
+        }
         for(const declaration of declarations(receiver)) {
           if(ts.isVariableDeclaration(declaration)&&declaration.initializer)property(declaration.initializer,names,visited);
           else if(ts.isClassDeclaration(declaration)||ts.isClassExpression(declaration))classMember(declaration,names,true);
