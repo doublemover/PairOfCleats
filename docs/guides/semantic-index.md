@@ -28,6 +28,33 @@ coverage. Selected checker-matched typed-array and message-dispatch models remai
 conservative. A dispatch request is not
 proof of delivery, detachment, execution thread or actual runtime values.
 
+Python, C (`.c`/`.h`), Swift and Rust are additional opt-in syntax languages:
+
+```json
+{"indexing":{"semantic":{"enabled":true,"languages":["python","c","swift","rust"],"enrichment":{"bindings":"eager","localFlow":"eager"}}}}
+```
+
+The default language list stays JavaScript/TypeScript. Native tree-sitter must be
+enabled and ready through bootstrap; parser policy/availability failures retain
+explicit coverage. C++ and Objective-C are not admitted as C. Grammar facts retain
+declarations, occurrences, ordered call operands and UTF-16 source spans. Eager
+structured control models branches, loops and explicit transfers; it always reports
+partial coverage because syntax does not prove value flow, aliasing, dispatch,
+exception behavior, Rust drops/tail values or unsupported control constructs.
+
+Eager native bindings reuse configured pyright, clangd, sourcekit and rust-analyzer
+providers and the relations scheduler, independently of TypeScript compiler tasks
+and legacy type targets. Existing provider configuration, readiness, workspace
+authority and request limits still apply. Only definition locations mapped to
+retained declaration spans receive exact-static target edges; external/unmapped
+locations stay modeled and ambiguity is preserved. Exact-static describes the
+recorded source-location join, not runtime execution or a sealed compiler closure.
+Native deferred/auto enrichment is unsupported pending durable provider authority;
+it is not silently admitted under a TypeScript lease. Cross-file value propagation
+and runtime/native-library effects remain unknown. The same published artifact and
+SQLite readers, bounded find/detail/trace and retained-source context APIs apply.
+
+
 Allocation/field candidates retain conditional and mutable receiver aliases, explicit
 weak writes, bounded literal-key unions and widened unknown keys. Overlapping paths
 share may dependencies. Private property paths use source/class identity and cannot
@@ -310,6 +337,54 @@ The [watchdog recovery procedure](../archived/watchdog-recovery-2026-10-11.md)
 describes the campaign-compatible diagnostic fix and exact application boundaries.
 
 ## Deferred analysis and compiler admission
+
+### Interrupted builds and retained storage
+
+Durable per-file Stage1 completions are validated before parser scheduling and
+replayed through the existing ordered result path. Worker IDs, shard layout and
+sequence numbers are not cache identities. Files without a verified completion
+are processed normally; a file completion alone never acknowledges deferred
+analysis or generation publication. Expired frontier leases are reclaimed by the
+existing attempt policy. Concurrent control-store creation is serialized, and
+equivalent immutable cache writers validate and reuse the winning layout.
+
+Under the existing build ownership, cleanup runs before worker admission (after
+restoring completion pins) and after workers drain. It first commits the current
+incremental manifest, then keeps the union of its Stage2 references and its pinned
+Stage1 descriptors, including embedded-source objects. Unreferenced completion
+snapshots, cache objects and interrupted cache-copy directories can be removed.
+Missing or malformed pinned descriptors defer cleanup rather than guess what is
+safe to remove. Source files and published generations are outside this sweep.
+
+The shared disk account includes retained files on reopen, temporary Stage1/Stage2
+bundle encodings, semantic family metadata, evidence/target/source blobs, manual
+drain journals and control repair files. Replacements keep old bytes charged until
+the write succeeds; duplicate copies return credits only after physical removal.
+Immutable blobs are fsynced under a temporary name before linking the final name.
+Partition/index directories are synced before returning their durable references.
+Failed writes retain conservative reservations until reopen.
+
+Control transactions admit main-file growth and rollback-journal space under the
+SQLite writer lock before changing pages. DELETE journals, disabled cache spilling,
+in-memory temporary tables and a SQLite page ceiling bound admitted file writes;
+capacity failures roll back. Runtime lookup staging also avoids unaccounted SQLite
+temporary files. Accounting is shared within the owning operation, not an OS quota
+across independent processes or a bound on unrelated build artifacts.
+
+Verified current published manifests can reconstruct pending descriptors and
+completed receipts after the control database is lost. Enqueue/drain reconcile
+that inventory before leasing work. Unpublished or superseded generation roots
+cannot reconstruct current work. Corrupt control stores are rebuilt in a private
+replacement using that same verification. A short open/repair lock and live-client
+markers fence replacement; uncertain or active owners block repair. Damaged main
+and journal files are retained in a checksum-pinned quarantine. A durable repair
+intent resumes interrupted renames before admitting another control client.
+Scope/schema, permission, busy and capacity errors do not trigger replacement.
+Absent verified published tasks, corruption remains an explicit failure. Quarantine
+and abandoned replacement bytes remain charged; they are preserved for diagnosis.
+A reconstructed store cannot recover cancellation/retry history that existed only
+in the lost database. Controlled child-process tests cover hot-journal rollback and
+repair rename cuts; they do not establish hardware power-loss durability.
 
 Set `enrichment.bindings` to `deferred` and `execution.deferredDrain` to `manual`
 to retain a durable pending descriptor. `after-index` permits bounded work through

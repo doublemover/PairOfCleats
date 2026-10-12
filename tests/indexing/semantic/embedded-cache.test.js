@@ -12,11 +12,12 @@ import { prepareCachedSemanticPlan } from '../../../src/storage/sqlite/semantic/
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { createSemanticLspSession } from '../../../src/index/semantic/lsp-session.js';
 import { createSemanticCompilerSession } from '../../../src/index/semantic/compiler-session.js';
+import { reopenSemanticDiskAccount } from '../../../src/index/build/incremental/working-set.js';
 const local = 'export const greeting: string = "hé😀";\r\nf(1,2,3,4,5,{items:[1,,3]});';
 const text = '<script>' + local + '</script>';
 const fixture = await createRecoveryFixture(text);
 try {
-  const policy = { languages: ['javascript','typescript'], storage: { batchRows: 11, batchBytes: 8192 }, enrichment: {} };
+  const policy = { languages: ['javascript','typescript'], storage: { batchRows: 11, batchBytes: 8192 }, enrichment: { bindings: 'eager' } };
   const parent = await collectFileSemanticFacts({ ...fixture.options, bytes: fixture.bytes, text, language: 'vue', relPath: 'original.js', repositoryNamespace: fixture.root, policy });
   const storage = { generation: fixture.generation, relativePath: 'semantic' };
   const parentRef = createSemanticFactsRef({ source: parent.source, partitions: [parent.partition], syntaxPartitionId: parent.partition.partitionId, storage, coverage: parent.coverage });
@@ -38,6 +39,14 @@ try {
   const targetBuildRoot = path.join(fixture.root, 'warm'); await fs.mkdir(targetBuildRoot);
   const relocated = await relocateEmbeddedSemanticCacheEntries({ entries, parentFacts: parentRef, parentBytes: fixture.bytes, repoRoot: fixture.root, bundleDir, dependencySignatures: { semantic: 'a'.repeat(64) }, targetBuildRoot, storage: { ...storage, generation: { baseBuildId: 'warm-build', semanticRevision: 0 } }, diskAccount: fixture.account });
   assert.deepEqual(relocated.semanticSegmentFactsRefs[0].factsRef.partitions.map(p => p.canonicalHash), owned[0].factsRef.partitions.map(p => p.canonicalHash)); assert.equal(relocated.semanticEvidenceArtifacts.length, 1);
+  const beforeBytes = fixture.account.used;
+  const beforeDisk = await reopenSemanticDiskAccount({ roots: [targetBuildRoot], limit: Number.MAX_SAFE_INTEGER });
+  await relocateEmbeddedSemanticCacheEntries({ entries, parentFacts: parentRef, parentBytes: fixture.bytes,
+    repoRoot: fixture.root, bundleDir, dependencySignatures: { semantic: 'a'.repeat(64) }, targetBuildRoot,
+    storage: { ...storage, generation: { baseBuildId: 'warm-build', semanticRevision: 0 } }, diskAccount: fixture.account });
+  const afterDisk = await reopenSemanticDiskAccount({ roots: [targetBuildRoot], limit: Number.MAX_SAFE_INTEGER });
+  assert.equal(fixture.account.used - beforeBytes, afterDisk.retainedBytes - beforeDisk.retainedBytes,
+    'repeated embedded relocation removes duplicate map bytes before returning their credit');
   await assert.rejects(relocateEmbeddedSemanticCacheEntries({ entries, parentFacts: { ...parentRef, sourceHash: 'f'.repeat(64) }, parentBytes: fixture.bytes, repoRoot: fixture.root, bundleDir, dependencySignatures: { semantic: 'a'.repeat(64) }, targetBuildRoot, storage, diskAccount: fixture.account }), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
   const state = { semanticDiskAccount: fixture.account, chunks: [], semanticFactsByFile: new Map([['original.js',parentRef], ['original.js#semantic-segment:' + owned[0].factsRef.sourceUnitId, owned[0].factsRef]]) };
   const compiler = await createSemanticCompilerSession({ state, runtime: { root: fixture.root, buildRoot: fixture.root, semanticPolicy: policy } });

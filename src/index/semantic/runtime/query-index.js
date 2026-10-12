@@ -35,7 +35,7 @@ export const writeRuntimeQueryIndex = async ({ root, evidence, capture, reserve,
     throwIfAborted(signal);
     db = new Database(filename);
     db.pragma('page_size = 4096'); db.pragma('journal_mode = OFF'); db.pragma('synchronous = FULL');
-    db.pragma('cache_size = -512'); db.pragma('temp_store = FILE');
+    db.pragma('cache_size = -512'); db.pragma('temp_store = MEMORY');
     db.pragma('max_page_count = ' + Math.floor(allowance / 4096));
     db.exec(`CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
       CREATE TABLE evidence(ordinal INTEGER PRIMARY KEY,byte_length INTEGER NOT NULL,row_hash TEXT NOT NULL,

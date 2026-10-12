@@ -293,7 +293,7 @@ export const createPyrightProvider = () => ({
     const targets = filterTargetsForDocuments(inputs?.targets, docs);
     const duplicateChecks = buildDuplicateChunkUidChecks(targets, { label: 'pyright' });
     const checks = [...duplicateChecks];
-    if (!docs.length || !targets.length) {
+    if (!docs.length || (!targets.length && !ctx.semanticLspSession?.hasTargetedWork)) {
       return {
         ...(ctx.semanticLspSession ? { semanticFacts: ctx.semanticLspSession.output() } : {}),
         provider: { id: 'pyright', version: '2.0.1', configHash: this.getConfigHash(ctx) },

@@ -340,7 +340,11 @@
                 "enum": [
                   "javascript",
                   "typescript",
-                  "wasm"
+                  "wasm",
+                  "python",
+                  "c",
+                  "swift",
+                  "rust"
                 ]
               }
             },
