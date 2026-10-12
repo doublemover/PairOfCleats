@@ -1,6 +1,5 @@
 import { persistEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {
@@ -9,8 +8,7 @@ import {
   resolveManifestBundleNames
 } from '../../../shared/bundle-io-paths.js';
 import {
-  removeBundleWriteArtifacts,
-  writeBundleFile
+  removeBundleWriteArtifacts
 } from '../../../shared/bundle-io.js';
 import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import {
@@ -21,6 +19,8 @@ import {
 import { shouldReuseExistingBundle } from './bundle-compare.js';
 import { normalizeIncrementalRelPath, resolvePrefetchedVfsRows } from './paths.js';
 import { persistSemanticCacheEntry } from './semantic-cache.js';
+import { pruneSemanticCache } from './semantic-cache-gc.js';
+import { writeAccountedBundle } from './accounted-bundle.js';
 import { commitFileCompletion, completionBundleName, isCompletionBundle } from './file-completion.js';
 import {
   pathExists,
@@ -316,23 +316,12 @@ export async function writeIncrementalBundle({
     for (let i = 0; i < bundleNames.length; i += 1) {
       const bundleName = bundleNames[i];
       const bundlePath = path.join(bundleDir, bundleName);
-      // Reserve a conservative encoding allowance before ordinary snapshots
-      // enter the same working set as semantic parts. Keep the reservation on
-      // failed writes; incomplete bytes still occupy disk until owned cleanup.
-      const snapshotReservation = semanticFactsRef
-        ? Buffer.byteLength(JSON.stringify(bundles[i])) * 2 + 65536 : 0;
-      if (snapshotReservation) semanticContext.diskAccount.reserve(snapshotReservation);
-      const writeResult = await writeBundleFile({
+      const writeResult = await writeAccountedBundle({
+        diskAccount: semanticFactsRef ? semanticContext.diskAccount : null,
         bundlePath,
         bundle: bundles[i],
         format: resolvedBundleFormat
       });
-      if (snapshotReservation) {
-        const actualBytes = (await fs.stat(bundlePath)).size
-          + (resolvedBundleFormat === 'json' ? (await fs.stat(bundlePath + '.checksum.json')).size : 0);
-        if (actualBytes > snapshotReservation) semanticContext.diskAccount.reserve(actualBytes - snapshotReservation);
-        else semanticContext.diskAccount.release(snapshotReservation - actualBytes);
-      }
       writtenBundleNames.push(bundleName);
       if (i === 0) {
         checksum = writeResult?.checksum || null;
@@ -393,7 +382,7 @@ export async function writeIncrementalBundle({
  *
  * @param {{enabled:boolean,manifest:object,manifestPath:string,bundleDir:string,seenFiles:Set<string>}} input
  */
-export async function pruneIncrementalManifest({ enabled, manifest, manifestPath, bundleDir, seenFiles }) {
+export async function pruneIncrementalManifest({ enabled, manifest, manifestPath, bundleDir, seenFiles, diskAccount = null, signal = null }) {
   if (!enabled) return;
   const seenNormalized = new Set(
     Array.from(seenFiles || [])
@@ -407,7 +396,9 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
     queueManifestBundleGc({ manifest, entry });
     delete manifest.files[relKey];
   }
-  await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir });
+  if (await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir })) {
+    await pruneSemanticCache({ bundleDir, manifest, diskAccount, signal });
+  }
 }
 
 /**
@@ -504,6 +495,7 @@ export async function updateBundlesWithChunks({
   fileRelations,
   bundleFormat = null,
   existingVfsManifestRowsByFile = null,
+  diskAccount = null,
   log
 }) {
   if (!enabled) return;
@@ -651,7 +643,8 @@ export async function updateBundlesWithChunks({
         for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
           const shardName = bundleNames[shardIndex];
           const shardPath = path.join(bundleDir, shardName);
-          const writeResult = await writeBundleFile({
+          const writeResult = await writeAccountedBundle({
+            diskAccount,
             bundlePath: shardPath,
             bundle: bundles[shardIndex],
             format: bundleFormatLocal
@@ -684,12 +677,13 @@ export async function updateBundlesWithChunks({
         }
         entry.bundleFormat = bundleFormatLocal;
         bundleUpdates += 1;
-      } catch {
+      } catch (error) {
         await cleanupWrittenBundleArtifacts({
           bundleDir,
           bundleNames: typeof writtenBundleNames !== 'undefined' ? writtenBundleNames : []
         });
         bundleFailures += 1;
+        if (error.code === 'ERR_SEMANTIC_DISK_LIMIT') throw error;
       }
       const completed = bundleUpdates + bundleFailures;
       if (typeof log === 'function' && completed >= nextProgressUpdate && completed < updateTotal) {
