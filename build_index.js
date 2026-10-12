@@ -10,6 +10,7 @@ const { createDisplay } = await import('./src/shared/cli/display.js');
 const { setProgressHandlers } = await import('./src/shared/progress-runtime.js');
 const { buildAutoPolicy } = await import('./src/shared/auto-policy/build.js');
 const { parseObservabilityContextEnv } = await import('./src/shared/observability.js');
+const { createRuntimePreview } = await import('./src/shared/runtime-envelope/preview.js');
 const { resolveCurrentProcessRuntimeEnvelope } = await import('./src/shared/runtime-envelope/resolve-current-process-envelope.js');
 const { createAbortControllerWithHandlers, isAbortError } = await import('./src/shared/abort.js');
 const { isDirectExecution } = await import('./src/shared/direct-execution.js');
@@ -53,7 +54,8 @@ export const main = async ({
   const rootArg = argv.repo ? path.resolve(argv.repo) : null;
   if (argv['config-dump'] === true) {
     const resolvedRoot = rootArg || resolveRepoRoot(cwd);
-    const userConfig = loadUserConfig(resolvedRoot);
+    let configSources = null;
+    const userConfig = loadUserConfig(resolvedRoot, { onSources: (sources) => { configSources = sources; } });
     const quality = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
     const policy = await buildAutoPolicy({
       repoRoot: resolvedRoot,
@@ -67,8 +69,8 @@ export const main = async ({
       env,
       toolVersion: getToolVersion()
     });
-    envelope.diagnostic = { kind: 'configuration-preview', liveRunReceipt: false };
-    const output = argv.json === true ? JSON.stringify(envelope) : JSON.stringify(envelope, null, 2);
+    const preview = await createRuntimePreview({ repoRoot: resolvedRoot, userConfig, policy, envelope, argv, configSources });
+    const output = argv.json === true ? JSON.stringify(preview) : JSON.stringify(preview, null, 2);
     stdout.write(`${output}\n`);
     return 0;
   }

@@ -40,17 +40,32 @@ export const readRuntimeReceipt = async ({ buildRoot, attemptId = null, mode = n
   if (!receiptPath) return result;
   let state;
   try {
-    const stat = await fs.stat(receiptPath);
-    if (stat.size > 8 * 1024 * 1024) throw Object.assign(new Error('oversized build state'), { code: 'ERR_RUNTIME_RECEIPT_SIZE' });
-    state = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
+    const handle = await fs.open(receiptPath, 'r');
+    try {
+      const maxBytes = 8 * 1024 * 1024;
+      const stat = await handle.stat();
+      if (!stat.isFile() || stat.size > maxBytes) throw Object.assign(new Error('oversized or non-file build state'), { code: 'ERR_RUNTIME_RECEIPT_SIZE' });
+      const buffer = Buffer.alloc(Math.min(stat.size + 1, maxBytes + 1));
+      let total = 0;
+      while (total < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, total, buffer.length - total, total);
+        if (!bytesRead) break;
+        total += bytesRead;
+      }
+      if (total > stat.size || (await handle.stat()).size !== stat.size) throw Object.assign(new Error('build state changed during read'), { code: 'ERR_RUNTIME_RECEIPT_CHANGED' });
+      state = JSON.parse(buffer.subarray(0, total).toString('utf8'));
+    } finally { await handle.close(); }
   } catch (error) {
     result.errorCode = String(error.code || 'ERR_RUNTIME_RECEIPT_JSON');
     return redactPaths ? redactRuntimePaths(result) : result;
   }
+  if (!state || typeof state !== 'object') return { ...result, errorCode: 'ERR_RUNTIME_RECEIPT_JSON' };
   if (!state.runtime || state.runtime.schemaVersion !== 1 || !Array.isArray(state.runtime.attempts)) {
     result.evidence = state.runtime ? 'unsupported-runtime-receipt' : 'legacy-artifact-inference';
     result.legacy = { buildId: state.buildId || null, tool: state.tool || null, stage: state.stage || null };
   } else {
+    const invalid = state.runtime.attempts.some((attempt) => !attempt || typeof attempt !== 'object' || typeof attempt.attemptId !== 'string' || typeof attempt.lifecycle !== 'string');
+    if (invalid) return { ...result, evidence: 'corrupt-runtime-receipt', errorCode: 'ERR_RUNTIME_RECEIPT_CONTRACT' };
     result.evidence = 'persisted-runtime-receipt';
     result.prunedAttemptCount = state.runtime.prunedAttemptCount || 0;
     result.attempts = state.runtime.attempts.slice(-16)
@@ -73,6 +88,13 @@ export const formatRuntimeReceiptSummary = (report) => {
     lines.push(`- attempt ${attempt.attemptId}: ${attempt.stage || 'unknown'}/${attempt.mode || 'all'}, ${attempt.lifecycle}, ${attempt.freshness}`);
     const heap = attempt.runtime?.observed?.heapSizeLimitBytes;
     if (heap != null) lines.push(`  V8 total heap limit: ${heap} bytes observed; launch old-space request: ${attempt.runtime?.plan?.settings?.maxOldSpaceMb?.requested?.value ?? 'unknown'} MB`);
+    const workers = attempt.runtime?.workers;
+    if (workers) {
+      lines.push(`  Tokenization: ${workers.tokenizationExecution || 'unknown'}; quantization: ${workers.quantizationExecution || 'unknown'}; embedding inference: separate provider owner`);
+      for (const decision of Object.values(workers.launchDecisions || {})) {
+        if (decision.heapLaunchContract?.fallback) lines.push(`  Worker fallback: ${decision.heapLaunchContract.reason}; requested=${decision.heapLaunchContract.requestedOldGenerationSizeMb} MB, parent startup=${decision.heapLaunchContract.parentStartupOldSpaceMb ?? 'unknown'} MB`);
+      }
+    }
     const model = attempt.embeddings?.resolvedIdentity?.modelId || attempt.embeddings?.requested?.modelId;
     lines.push(`  Embeddings: selected=${model || 'unknown'}, observed=${attempt.embeddings?.observation?.state || 'unknown'}`);
     if (attempt.explanation) lines.push(`  ${attempt.explanation.field}: ${JSON.stringify(attempt.explanation.evidence)}`);
