@@ -246,7 +246,7 @@ function resolveCommand(primary, rest) {
       });
     }
     if (sub === 'dump') {
-      validateArgs(rest, ['repo', 'json'], ['repo']);
+      validateArgs(rest, ['repo', 'json', 'capabilities'], ['repo']);
       return { script: 'tools/config/dump.js', extraArgs: [], args: rest };
     }
     if (sub === 'validate') {

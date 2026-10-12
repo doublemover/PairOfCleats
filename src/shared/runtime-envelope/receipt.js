@@ -54,7 +54,11 @@ export const observeRuntimePath = async (selected, { source = 'runtime-selection
   try {
     await io.stat(absolute);
     result.state = 'exists';
-    try { result.canonical = await io.realpath(absolute); }
+    try {
+      result.canonical = await io.realpath(absolute);
+      result.canonicalMethod = platform === 'win32' ? 'node-fs-realpath-handle-final-path' : 'node-fs-realpath';
+      result.writerHandleObserved = false;
+    }
     catch (error) { result.errorCode = String(error.code || 'UNKNOWN'); }
   } catch (error) {
     result.errorCode = String(error.code || 'UNKNOWN');
