@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-10T12:20:19.935Z",
+  "generatedAt": "2026-10-12T02:44:48.221Z",
   "scripts": [
     {
       "name": "audit:duplicates",
@@ -242,6 +242,11 @@
     {
       "command": "pairofcleats index diff",
       "summary": "Compute and inspect index diffs.",
+      "supportTier": "operator"
+    },
+    {
+      "command": "pairofcleats index report",
+      "summary": "Inspect artifact health and persisted runtime attempts.",
       "supportTier": "operator"
     },
     {

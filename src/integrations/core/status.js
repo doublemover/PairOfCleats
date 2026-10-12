@@ -1,3 +1,4 @@
+import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -191,6 +192,11 @@ export async function getStatus(input = {}) {
       }
     },
     health,
+    runtime: await Promise.all(Array.from(new Set([
+      indexCodeDir, indexProseDir, indexExtractedProseDir, indexRecordsDir
+    ].map((directory) => path.dirname(directory)))).map((buildRoot) => readRuntimeReceipt({
+      buildRoot, selection: 'published-mode-root'
+    }))),
     durability,
     overall: {
       cacheRoot: path.resolve(cacheRoot),
