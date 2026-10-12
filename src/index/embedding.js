@@ -55,7 +55,8 @@ export function createEmbedder({
   provider,
   onnx,
   normalize,
-  modelProfile
+  modelProfile,
+  modelArtifact = null
 }) {
   const adapter = getEmbeddingAdapter({
     rootDir,
@@ -66,7 +67,8 @@ export function createEmbedder({
     provider,
     onnxConfig: onnx,
     normalize,
-    modelProfile
+    modelProfile,
+    modelArtifact
   });
   const inputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelAwareCharsPerToken = resolveModelAwareCharsPerToken(modelId);
@@ -165,6 +167,7 @@ export function createEmbedder({
       return adapter.embedderPromise;
     },
     getActiveProvider,
-    executionInfo
+    executionInfo,
+    dispose: () => adapter.dispose?.()
   };
 }

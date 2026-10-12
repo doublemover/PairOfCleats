@@ -3,6 +3,7 @@ import { createAbortError } from '../../../src/shared/abort.js';
 import { runBatched, assertVectorArrays } from '../../../tools/build/embeddings/embed.js';
 import { createFileEmbeddingsProcessor } from '../../../tools/build/embeddings/pipeline.js';
 import { createEmbeddingWorkEstimate } from '../../../tools/build/embeddings/work-estimate.js';
+import { createEmbeddingInFlightCoalescer } from '../../../tools/build/embeddings/runner.js';
 
 // Bind the production processor observers to the actual remaining-work ledger.
 // A failed or cancelled file must retain its unfinished cost, even after one
@@ -16,6 +17,8 @@ for (const globalMicroBatching of [false, true]) {
       const work = createEmbeddingWorkEstimate({ entries: [[id, items]], now: () => 100 });
       const error = failure === 'cancelled' ? createAbortError() : new Error('provider stopped');
       let calls = 0, scheduled = 0, completed = 0, successfulTokens = 0;
+      const coalescer = createEmbeddingInFlightCoalescer();
+      const textCache = new Map();
       const processor = createFileEmbeddingsProcessor({
         embeddingBatchSize: 1, mode: 'code', globalMicroBatching,
         globalMicroBatchingMaxWaitMs: 0, runBatched, assertVectorArrays,
@@ -29,6 +32,8 @@ for (const globalMicroBatching of [false, true]) {
           return batch.map((text) => [text.length]);
         },
         processFileEmbeddings: async () => { completed++; },
+        embeddingTextCache: textCache,
+        embeddingInFlightCoalescer: coalescer,
         onEmbeddingScheduled: ({ requested }) => { scheduled += requested; },
         onEmbeddingPrepared: ({ groupId, tokens, delta }) => {
           if (delta) work.adjust(groupId, tokens); else work.prepare(groupId, tokens);
@@ -42,6 +47,7 @@ for (const globalMicroBatching of [false, true]) {
       };
       await assert.rejects(processEntry(), (actual) => actual === error);
       await processor.drain();
+      assert.equal(coalescer.stats().size, 0, 'owner-only failed claims release without orphaned rejected promises');
       assert.equal(scheduled, 3);
       assert.equal(completed, 0, 'failed file cannot reach publication');
       assert.equal(calls, successes);

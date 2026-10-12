@@ -1,3 +1,4 @@
+import { resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
 import fs from 'node:fs/promises';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
@@ -7,7 +8,7 @@ import { buildEmbeddingIdentity, buildEmbeddingIdentityKey } from '../../../shar
 import { resolveEmbeddingInputFormatting } from '../../../shared/embedding-input-format.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../shared/embedding-model-profile.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
+import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../../shared/onnx-embeddings.js';
 import { resolveQuantizationParams } from '../../../storage/sqlite/quantization.js';
 
 /**
@@ -34,6 +35,8 @@ export const resolveEmbeddingRuntime = async ({
   envConfig,
   argv,
   cpuConcurrency,
+  rawEnv = process.env,
+  memorySnapshot = null,
   onEmbeddingObservation = async () => {}
 }) => {
   const embeddingsConfig = indexingConfig.embeddings || {};
@@ -42,10 +45,10 @@ export const resolveEmbeddingRuntime = async ({
     ? Math.max(0, Math.floor(embeddingBatchRaw))
     : 0;
   if (!embeddingBatchSize) {
-    embeddingBatchSize = resolveAutoEmbeddingBatchSize();
+    embeddingBatchSize = resolveAutoEmbeddingBatchSize(memorySnapshot?.totalBytes);
   }
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const embeddingOnnx = resolveOnnxConfig(embeddingsConfig.onnx || {}, rawEnv);
   const quantization = resolveQuantizationParams(embeddingsConfig.quantization);
   const embeddingNormalize = embeddingsConfig.normalize !== false;
   const embeddingQueueConfig = embeddingsConfig.queue || {};
@@ -96,6 +99,9 @@ export const resolveEmbeddingRuntime = async ({
     } catch {}
   }
 
+  const modelArtifact = embeddingEnabled ? resolveEmbeddingArtifactIdentity({
+    provider: embeddingProvider, modelId, modelsDir, rootDir, onnx: embeddingOnnx, modelProfile, stub: useStubEmbeddings
+  }) : null;
   let observation = { state: 'not-started', provider: null, dims: null, device: null, dtype: null, observedAt: null, method: null };
   let embeddingIdentity = null;
   let embeddingIdentityKey = null;
@@ -140,7 +146,8 @@ export const resolveEmbeddingRuntime = async ({
           provider: embeddingProvider,
           onnx: embeddingOnnx,
           normalize: embeddingNormalize,
-          modelProfile
+          modelProfile,
+          modelArtifact
         });
       }
       return embedder;
@@ -199,6 +206,7 @@ export const resolveEmbeddingRuntime = async ({
     : 2 / 255;
   embeddingIdentity = buildEmbeddingIdentity({
     modelProfile,
+    modelArtifact,
     modelId,
     provider: embeddingProvider,
     mode: resolvedEmbeddingMode,

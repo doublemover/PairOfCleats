@@ -1,5 +1,7 @@
+import { IndexerProcessPool, getProcessMemoryAccount } from './process-pool.js';
+import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
-import { isAbortError } from '../../../shared/abort.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import os from 'node:os';
 import util from 'node:util';
@@ -112,7 +114,7 @@ export async function createIndexerWorkerPool(input = {}) {
   const poolLabel = typeof poolName === 'string' && poolName.trim()
     ? poolName.trim().toLowerCase()
     : 'tokenize';
-  const memoryCappedMax = resolveMemoryWorkerCap(config?.maxWorkers);
+  const memoryCappedMax = resolveMemoryWorkerCap(config?.maxWorkers, { memorySnapshot: memoryPolicy?.effectiveMemory, heapTargetMb: config?.heapTargetMb });
   const poolConfig = Number.isFinite(memoryCappedMax) && memoryCappedMax > 0
     ? { ...config, maxWorkers: memoryCappedMax }
     : config;
@@ -212,7 +214,8 @@ export async function createIndexerWorkerPool(input = {}) {
     const resolveResourceLimitsForWorkers = (maxWorkers) => resolveWorkerResourceLimits(maxWorkers, {
       targetPerWorkerMb: heapPolicy.targetPerWorkerMb,
       minPerWorkerMb: heapPolicy.minPerWorkerMb,
-      maxPerWorkerMb: heapPolicy.maxPerWorkerMb
+      maxPerWorkerMb: heapPolicy.maxPerWorkerMb,
+      memorySnapshot: memoryPolicy?.effectiveMemory
     });
     let currentResourceLimits = resolveResourceLimitsForWorkers(configuredMaxWorkers);
     let heapLaunchContract = resolveWorkerHeapLaunchContract(currentResourceLimits);
@@ -220,13 +223,14 @@ export async function createIndexerWorkerPool(input = {}) {
       pool: poolLabel, configuredMaxWorkers, heapLaunchContract,
       observedAt: new Date().toISOString()
     });
+    const processBackend = !heapLaunchContract.supported && poolConfig.processFallback === true;
     reportHeapContract();
-    if (!heapLaunchContract.supported) {
+    if (!heapLaunchContract.supported && !processBackend) {
       log(`Worker pool ${poolLabel} disabled: ${heapLaunchContract.reason}; requested old-generation=${heapLaunchContract.requestedOldGenerationSizeMb}MB, parent startup=${heapLaunchContract.parentStartupOldSpaceMb ?? 'unknown'}MB. Using inline fallback; worker heap enforcement is unavailable.`);
       return null;
     }
     const serializedDictWords = dictSharedForPool?.bytes && dictSharedForPool?.offsets
-      ? null
+      ? []
       : normalizeStringArray(dictWordsForPool);
     const serializedCodeDictWords = normalizeStringArray(codeDictWordsForPool);
     const serializedCodeDictByLanguage = serializeCodeDictWordsByLanguage(codeDictWordsByLanguageForPool);
@@ -238,7 +242,7 @@ export async function createIndexerWorkerPool(input = {}) {
       : 'unknown';
     const maxGlobalRssBytes = Number.isFinite(Number(memoryPolicy?.maxGlobalRssMb))
       ? Math.max(1, Math.floor(Number(memoryPolicy.maxGlobalRssMb) * 1024 * 1024))
-      : Math.max(1, Math.floor(Number(os.totalmem() || 0) * 0.9));
+      : Math.max(1, Math.floor(Number(readEffectiveMemory().totalBytes || 0) * 0.9));
 
     const {
       workerTaskMetricPool,
@@ -256,7 +260,8 @@ export async function createIndexerWorkerPool(input = {}) {
       pressureWatermarkHard,
       pressureCacheMaxEntries,
       languageThrottleConfig,
-      maxGlobalRssBytes
+      maxGlobalRssBytes,
+      readOwnedRssBytes: () => process.memoryUsage().rss + (lifecycle?.getPool()?.stats?.().sampledChildRssBytes || 0)
     });
 
     const workerCoordinator = createWorkerProcessCoordinator({
@@ -288,8 +293,9 @@ export async function createIndexerWorkerPool(input = {}) {
       currentResourceLimits = resolveResourceLimitsForWorkers(maxWorkers);
       heapLaunchContract = resolveWorkerHeapLaunchContract(currentResourceLimits);
       reportHeapContract();
-      if (!heapLaunchContract.supported) throw new Error(`Worker heap bound is not enforceable: ${heapLaunchContract.reason}`);
-      const numaPinningPlan = resolveNumaPinningPlan({
+      if (!heapLaunchContract.supported && !processBackend) throw new Error(`Worker heap bound is not enforceable: ${heapLaunchContract.reason}`);
+      const numaPinningPlan = processBackend ? { active: false, reason: 'process-backend-no-thread-NUMA-claim',
+        strategy: 'interleave', nodeCount: 1, assignments: [] } : resolveNumaPinningPlan({
         config: poolConfig,
         maxWorkers
       });
@@ -329,6 +335,13 @@ export async function createIndexerWorkerPool(input = {}) {
       }
       if (serializedTreeSitterPayload) {
         workerData.treeSitter = serializedTreeSitterPayload;
+      }
+      if (processBackend) {
+        return new IndexerProcessPool({ maxThreads: maxWorkers,
+          oldSpaceMb: currentResourceLimits.maxOldGenerationSizeMb, workerData,
+          taskTimeout: poolConfig.taskTimeoutMs, maxRestartAttempts,
+          budgetAccount: getProcessMemoryAccount(memoryPolicy),
+          maxMessageBytes: Math.max(4096, Math.min(32 * 1024 * 1024, Math.floor(maxGlobalRssBytes * 0.025))) });
       }
       return new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
@@ -523,6 +536,8 @@ export async function createIndexerWorkerPool(input = {}) {
         const workerNumaNodeByThreadId = workerCoordinator.getNumaAssignmentMap();
         return {
           pool: poolLabel,
+          backend: processBackend ? 'process' : 'worker',
+          process: pool?.stats?.() || null,
           activeTasks,
           queuedTasks: queued,
           maxWorkers,
@@ -582,7 +597,8 @@ export async function createIndexerWorkerPool(input = {}) {
         }
         return false;
       },
-      async tokenizeChunk(payload) {
+      async tokenizeChunk(payload, { signal = null } = {}) {
+        throwIfAborted(signal);
         activeTasks += 1;
         updatePoolMetrics();
         let throttleSlot = null;
@@ -598,15 +614,17 @@ export async function createIndexerWorkerPool(input = {}) {
             return null;
           }
           queueController.recordPressureCacheEntry(payload);
-          throttleSlot = await queueController.acquireLanguageThrottleSlot(payload);
+          throttleSlot = await queueController.acquireLanguageThrottleSlot(payload, { signal });
           if (queueController.isClosed()) return null;
           const result = await lifecycle.getPool().run(
             sanitizePoolPayload(payload, sanitizeDictConfig(payload?.dictConfig)),
-            { name: 'tokenizeChunk' }
+            { name: 'tokenizeChunk', signal }
           );
           updatePoolMetrics();
           return result;
         } catch (err) {
+          if (isAbortError(err) && signal?.aborted) throw err;
+          if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
           if (queueController.isClosed() && isAbortError(err)) return null;
           return handleWorkerTaskError({
             err,
@@ -624,7 +642,8 @@ export async function createIndexerWorkerPool(input = {}) {
           await lifecycle.handleTaskDrained();
         }
       },
-      async runQuantize(payload) {
+      async runQuantize(payload, { signal = null } = {}) {
+        throwIfAborted(signal);
         activeTasks += 1;
         updatePoolMetrics();
         try {
@@ -646,12 +665,14 @@ export async function createIndexerWorkerPool(input = {}) {
           } = buildQuantizeRunPayload(sanitizedPayload);
           quantizeTypedTempBuffers += typedTempCount;
           const runOptions = transferList.length
-            ? { name: 'quantizeVectors', transferList }
-            : { name: 'quantizeVectors' };
+            ? { name: 'quantizeVectors', ...(processBackend ? {} : { transferList }), signal }
+            : { name: 'quantizeVectors', signal };
           const result = await lifecycle.getPool().run(runPayload, runOptions);
           updatePoolMetrics();
           return result;
         } catch (err) {
+          if (isAbortError(err) && signal?.aborted) throw err;
+          if (err?.code === 'ERR_PROCESS_TASK_BUDGET') throw err;
           return handleWorkerTaskError({
             err,
             payload,
@@ -702,6 +723,10 @@ export async function createIndexerWorkerPool(input = {}) {
  * @returns {Promise<{tokenizePool:object|null,quantizePool:object|null,destroy:()=>Promise<void>}>}
  */
 export async function createIndexerWorkerPools(input = {}) {
+  if (!input.memoryPolicy) {
+    const effectiveMemory = readEffectiveMemory();
+    input = { ...input, memoryPolicy: { effectiveMemory, maxGlobalRssMb: effectiveMemory.totalBytes * 0.9 / (1024 * 1024) } };
+  }
   const runtimeEvidence = {};
   const outerReport = input.onRuntimeEvidence;
   input = { ...input, onRuntimeEvidence: (evidence) => {

@@ -22,7 +22,8 @@ try {
 } catch (error) {
   process.stdout.write(JSON.stringify({
     ok: error?.name === 'SubprocessTimeoutError' || error?.code === 'SUBPROCESS_TIMEOUT',
-    durationMs: Date.now() - startedAt
+    durationMs: Date.now() - startedAt,
+    termination: error?.result?.termination
   }));
 }
 `;
@@ -47,8 +48,10 @@ try {
 
 assert.equal(payload?.ok, true, `expected timeout path to reject deterministically: ${run.stdout || ''}`);
 assert.ok(
-  Number.isFinite(Number(payload?.durationMs)) && Number(payload.durationMs) >= 200,
-  `expected bounded reap wait to remain effective, got: ${String(payload?.durationMs)}`
+  Number.isFinite(Number(payload?.durationMs)) && Number(payload.durationMs) >= 25,
+  `expected timeout to elapse before close observation, got: ${String(payload?.durationMs)}`
 );
+assert.equal(payload.termination.closeObserved, true, 'referenced close waiter records an actual terminal event rather than elapsed timer acknowledgement');
+assert.equal(payload.termination.closeTimedOut, false);
 
 console.log('subprocess timeout bounded reap referenced test passed');

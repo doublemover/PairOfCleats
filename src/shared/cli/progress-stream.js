@@ -1,16 +1,19 @@
 import { parseProgressEventLine } from './progress-events.js';
+import { StringDecoder } from 'node:string_decoder';
 
 const DEFAULT_MAX_LINE_BYTES = 1024 * 1024;
 
 const byteLength = (text) => Buffer.byteLength(String(text || ''), 'utf8');
 
-const normalizeChunk = (chunk) => {
-  if (chunk == null) return '';
-  if (Buffer.isBuffer(chunk)) return chunk.toString('utf8');
-  return String(chunk);
-};
-
 const normalizeEol = (text) => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+const boundedUtf8Tail = (text, maxBytes) => {
+  const buffer = Buffer.from(text, 'utf8');
+  let start = Math.max(0, buffer.length - maxBytes);
+  // A tail starts at a complete code point, never a decoded replacement fragment.
+  while (start < buffer.length && (buffer[start] & 0xc0) === 0x80) start++;
+  return buffer.subarray(start).toString('utf8');
+};
 
 export const createProgressLineDecoder = ({
   maxLineBytes = DEFAULT_MAX_LINE_BYTES,
@@ -19,42 +22,54 @@ export const createProgressLineDecoder = ({
   onOverflow = null
 } = {}) => {
   let carry = '';
+  let carryTruncated = false, pendingCR = false;
+  const decoder = new StringDecoder('utf8');
   const maxBytes = Number.isFinite(Number(maxLineBytes)) && Number(maxLineBytes) > 0
     ? Math.floor(Number(maxLineBytes))
     : DEFAULT_MAX_LINE_BYTES;
 
-  const emitLine = (line) => {
+  const trimLine = (line) => {
+    const size = byteLength(line);
+    if (size <= maxBytes) return { line, truncated: false };
+    const retained = boundedUtf8Tail(line, maxBytes);
+    if (typeof onOverflow === 'function') onOverflow({ overflowBytes: size - byteLength(retained) });
+    return { line: retained, truncated: true };
+  };
+  const emitLine = (line, previouslyTruncated = false) => {
+    const bounded = trimLine(line);
     if (!onLine) return;
-    const event = parseProgressEventLine(line, { strict });
-    onLine({ line, event });
+    const truncated = previouslyTruncated || bounded.truncated;
+    const event = truncated ? null : parseProgressEventLine(bounded.line, { strict });
+    onLine({ line: bounded.line, event, ...(truncated ? { truncated: true } : {}) });
   };
 
-  const enforceBoundedCarry = () => {
-    const size = byteLength(carry);
-    if (size <= maxBytes) return;
-    const overflow = size - maxBytes;
-    const truncated = Buffer.from(carry, 'utf8').subarray(overflow).toString('utf8');
-    carry = truncated;
-    if (typeof onOverflow === 'function') {
-      onOverflow({ overflowBytes: overflow });
-    }
-  };
-
-  const push = (chunk) => {
-    const text = normalizeEol(carry + normalizeChunk(chunk));
+  const acceptText = (incoming, final = false) => {
+    let chunk = (pendingCR ? '\r' : '') + incoming;
+    pendingCR = !final && chunk.endsWith('\r');
+    if (pendingCR) chunk = chunk.slice(0, -1);
+    const text = normalizeEol(carry + chunk);
     const parts = text.split('\n');
-    carry = parts.pop() || '';
-    enforceBoundedCarry();
-    for (const line of parts) {
-      emitLine(line);
+    const priorTruncated = carryTruncated;
+    const trailing = trimLine(parts.pop() || '');
+    carry = trailing.line;
+    carryTruncated = trailing.truncated || (parts.length === 0 && priorTruncated);
+    for (let i = 0; i < parts.length; i++) {
+      emitLine(parts[i], i === 0 && priorTruncated);
     }
+  };
+  const push = (chunk) => {
+    if (chunk == null) return;
+    acceptText(decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8')));
   };
 
   const flush = () => {
-    if (!carry) return;
+    acceptText(decoder.end(), true);
+    if (!carry) { carryTruncated = false; return; }
     const line = carry;
     carry = '';
-    emitLine(line);
+    const truncated = carryTruncated;
+    carryTruncated = false;
+    emitLine(line, truncated);
   };
 
   return {

@@ -1,8 +1,10 @@
 export const createRunQueue = () => {
   let runQueue = Promise.resolve();
-  return (runStep) => {
+  const enqueue = (runStep) => {
     const next = runQueue.then(runStep, runStep);
     runQueue = next.catch(() => {});
     return next;
   };
+  enqueue.onIdle = () => runQueue;
+  return enqueue;
 };

@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from './effective-memory.js';
 import os from 'node:os';
 
 /**
@@ -60,7 +61,7 @@ export function resolveThreadLimits(input = {}) {
   const cpuCount = Number.isFinite(cpuCountInput) && cpuCountInput > 0 ? Math.floor(cpuCountInput) : os.cpus().length;
   const totalMemBytes = Number.isFinite(totalMemBytesInput) && totalMemBytesInput > 0
     ? totalMemBytesInput
-    : os.totalmem();
+    : readEffectiveMemory().totalBytes;
   const totalMemGiB = Number.isFinite(totalMemBytes) && totalMemBytes > 0
     ? totalMemBytes / (1024 ** 3)
     : null;

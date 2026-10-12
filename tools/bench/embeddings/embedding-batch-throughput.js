@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { observeProcessThreads } from '../../../src/shared/provider-thread-observation.js';
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
@@ -6,8 +7,13 @@ const { createEmbedder } = await import('../../../src/index/embedding.js');
 const { createToolDisplay } = await import('../../shared/cli-display.js');
 const { runBatched } = await import('../../build/embeddings/embed.js');
 const { parseSimpleBenchArgs } = await import('../shared.js');
+const { getModelConfig, loadUserConfig } = await import('../../shared/dict-utils.js');
+const { resolveOnnxConfig } = await import('../../../src/shared/onnx-embeddings/config.js');
 
 const args = parseSimpleBenchArgs();
+const userConfig = loadUserConfig(process.cwd());
+const modelConfig = getModelConfig(process.cwd(), userConfig);
+const onnxConfig = resolveOnnxConfig(userConfig.indexing?.embeddings?.onnx || userConfig.models?.onnx || {});
 const display = createToolDisplay({ argv: args, stream: process.stderr });
 const providerList = String(args.providers || 'stub')
   .split(',')
@@ -94,17 +100,15 @@ const runProvider = async (provider) => {
   const normalized = providerModel.label.toLowerCase();
   const useStubEmbeddings = providerModel.useStubEmbeddings === true;
 
+  const baselineThreads = observeProcessThreads();
   const embedder = createEmbedder({
     rootDir: process.cwd(),
     useStubEmbeddings,
     modelId: providerModel.modelId,
+    modelsDir: modelConfig.dir,
     dims,
     provider: providerModel.provider,
-    // Provider-specific config is intentionally omitted for benches:
-    // - openai requires API token
-    // - onnx requires local model files
-    // If unavailable, createEmbedder may throw; we surface a skip message.
-    onnx: null,
+    onnx: onnxConfig,
     normalize: true
   });
 
@@ -118,17 +122,25 @@ const runProvider = async (provider) => {
   });
   let completedBatches = 0;
 
-  const warmupStartAtMs = Date.now();
-  batchTask.set(completedBatches, batchList.length, {
-    message: `warmup (${formatElapsed(warmupStartAtMs)})`
-  });
-  await embed([texts[0] || 'warmup']);
-  display.log(
-    `[bench] provider=${normalized} model=${providerModel.modelId} warmup completed in ${formatElapsed(warmupStartAtMs)}`,
-    { kind: 'status', stage: 'bench' }
-  );
-
   try {
+    const warmupStartAtMs = Date.now();
+    batchTask.set(completedBatches, batchList.length, {
+      message: `warmup (${formatElapsed(warmupStartAtMs)})`
+    });
+    await embedder.embedderPromise;
+    const initializedThreads = observeProcessThreads();
+    await embed([texts[0] || 'warmup']);
+    const afterWarmupThreads = observeProcessThreads();
+    const warmedExecution = embedder.executionInfo();
+    if (warmedExecution.observedDims !== dims) throw new Error(`Requested dims=${dims}, observed=${warmedExecution.observedDims}.`);
+    const tokenEstimates = await embed.estimateTokensBatch?.(texts);
+    const paddedWorkMethod = warmedExecution.provider === 'onnx'
+      ? 'tokenizer-attention-mask-counts' : 'model-aware-character-estimates';
+    display.log(
+      `[bench] provider=${normalized} model=${providerModel.modelId} warmup completed in ${formatElapsed(warmupStartAtMs)}`,
+      { kind: 'status', stage: 'bench' }
+    );
+
     for (const batchSize of batchList) {
       const phaseStartAtMs = Date.now();
       batchTask.set(completedBatches, batchList.length, {
@@ -136,15 +148,19 @@ const runProvider = async (provider) => {
       });
       const start = performance.now();
       let lastInnerUpdate = 0;
-      let embedCalls = 0;
+      let embedCalls = 0, paddedTokens = 0;
+      const executionBefore = embedder.executionInfo();
+      const threadsBeforeInference = observeProcessThreads();
       await runBatched({
         texts,
         batchSize,
+        tokenEstimates,
         embed: async (batch) => {
           embedCalls += 1;
           return embed(batch);
         },
-        onBatch: ({ completed, total, batchIndex, batchCount }) => {
+        onBatch: ({ completed, total, batchIndex, batchCount, paddedTokens: batchPadding }) => {
+          paddedTokens += Number(batchPadding) || 0;
           const now = Date.now();
           if ((now - lastInnerUpdate) < 150) return;
           lastInnerUpdate = now;
@@ -154,6 +170,15 @@ const runProvider = async (provider) => {
         }
       });
       const measuredDurationMs = performance.now() - start;
+      console.log(JSON.stringify({ kind: 'embedding-provider-measurement', modelId: providerModel.modelId,
+        qualification: useStubEmbeddings ? 'synthetic-stub-only' : 'bounded-real-provider',
+        workload: 'fixed-small-strings', textCount, batchSize, paddedTokens, paddedWorkMethod,
+        executionBefore, executionAfter: embedder.executionInfo(),
+        threadObservations: { baseline: baselineThreads, initialized: initializedThreads,
+          afterWarmup: afterWarmupThreads,
+          beforeInference: threadsBeforeInference, afterInference: observeProcessThreads() },
+        measuredDurationMs, nativeThreadAttribution: 'unavailable-unless-provider-observed',
+        writerCriticalSection: 'not-exercised-by-this-provider-only-benchmark' }));
       // Deterministic stub timing keeps CI KPI checks stable while still using
       // the benchmark's existing throughput output format.
       const durationMs = (
@@ -174,6 +199,7 @@ const runProvider = async (provider) => {
       );
     }
   } finally {
+    await embedder.dispose?.();
     batchTask.done({ message: 'batch sweep complete' });
   }
 };
@@ -188,10 +214,11 @@ for (const provider of providerList) {
   } catch (err) {
     const label = String(provider).trim().toLowerCase() || 'unknown';
     const message = err?.message || String(err);
-    console.warn(`[bench] provider=${label} skipped: ${message}`);
+    process.exitCode = 1;
+    console.error(`[bench] provider=${label} failed: ${message}`);
     providersCompleted += 1;
     providerTask.set(providersCompleted, providerList.length, {
-      message: `${label} skipped`
+      message: `${label} failed`
     });
   }
 }

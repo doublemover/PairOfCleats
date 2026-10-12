@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receipt.js';
 import { persistRuntimeAttempt } from '../build-state/runtime.js';
 import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
@@ -387,8 +388,10 @@ async function createBuildRuntimeImpl({
     }
   }
   const telemetry = createRuntimeTelemetry();
+  const memorySnapshot = readEffectiveMemory();
   const preRuntimeMemoryPolicy = resolveRuntimeMemoryPolicy({
     indexingConfig,
+    memorySnapshot,
     cpuConcurrency: envelope?.concurrency?.cpuConcurrency?.value
   });
   const preHashWorkerPoolConfig = indexingConfig.workerPool && typeof indexingConfig.workerPool === 'object'
@@ -427,6 +430,8 @@ async function createBuildRuntimeImpl({
     autoTuneProfile: schedulerAutoTuneProfile
   });
   const scheduler = createBuildScheduler({
+    memoryBudget: { configuredLimitBytes: memorySnapshot.totalBytes },
+    maxInFlightBytes: Math.max(1, Math.floor(memorySnapshot.freeBytes * 0.25)),
     enabled: schedulerConfig.enabled,
     requireSignals: true,
     requiredSignalQueues: Object.keys(schedulerConfig.queues || {}),
@@ -437,9 +442,9 @@ async function createBuildRuntimeImpl({
     adaptive: schedulerConfig.adaptive,
     adaptiveTargetUtilization: schedulerConfig.adaptiveTargetUtilization,
     adaptiveStep: schedulerConfig.adaptiveStep,
-    adaptiveMemoryReserveMb: Math.max(
-      schedulerConfig.adaptiveMemoryReserveMb,
-      preRuntimeMemoryPolicy?.reserveRssMb || 0
+    adaptiveMemoryReserveMb: Math.min(
+      Math.max(schedulerConfig.adaptiveMemoryReserveMb, preRuntimeMemoryPolicy?.reserveRssMb || 0),
+      Math.max(0, Math.floor(memorySnapshot.totalBytes / (1024 * 1024) * 0.15))
     ),
     adaptiveMemoryPerTokenMb: schedulerConfig.adaptiveMemoryPerTokenMb,
     maxCpuTokens: schedulerConfig.maxCpuTokens,
@@ -750,11 +755,13 @@ async function createBuildRuntimeImpl({
   });
   const runtimeMemoryPolicy = resolveRuntimeMemoryPolicy({
     indexingConfig,
+    memorySnapshot,
     cpuConcurrency
   });
 
   const embeddingRuntime = await timeInit('embedding runtime', () => resolveEmbeddingRuntime({
     rootDir: root,
+    memorySnapshot,
     userConfig,
     recordsDir: triageConfig.recordsDir,
     recordsConfig,

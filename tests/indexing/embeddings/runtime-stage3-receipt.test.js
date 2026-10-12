@@ -12,6 +12,7 @@ import { createObservabilityEnvelope, applyObservabilityContextEnv } from '../..
 import { validateBuildState } from '../../../src/contracts/validators/build-state.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createBoundedWriterQueue } from '../../../tools/build/embeddings/writer-queue.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('runtime-stage3-receipt');
 const rootsToFlush = new Set();
@@ -237,6 +238,22 @@ try {
   assert.equal((await stateAt(mixedCode)).runtime.attempts.length, 1);
   assert.equal((await stateAt(mixedProse)).runtime.attempts.length, 1);
   await mixed.complete('prose');
+
+  const writerRoot = await initialize('failed-writer-snapshot');
+  const writerController = await create([['code', writerRoot]]);
+  await writerController.resolved(identity, identityKey, scheduler);
+  const writer = createBoundedWriterQueue({ maxPending: 1, maxPendingBytes: 1024 });
+  await writer.enqueuePrepared({ estimateBytes: 512, prepare: () => Buffer.alloc(128),
+    write() { throw Object.assign(new Error('controlled cache disk full'), { code: 'ENOSPC' }); } });
+  await writer.onIdle();
+  const snapshot = writer.stats();
+  await writerController.fail(Object.assign(new Error('cancelled after cache write'), { name: 'AbortError', code: 'ABORT_ERR' }), 'code', { writer: snapshot });
+  const failedWriter = await attemptAt(writerRoot, writerController.reference('code'));
+  assert.equal(failedWriter.lifecycle, 'aborted');
+  assert.deepEqual(failedWriter.runtime.writer, snapshot, 'durable failure records the actual drained queue snapshot');
+  assert.equal(failedWriter.runtime.writer.failed, 1);
+  assert.equal(failedWriter.runtime.writer.scheduled, 1);
+  for (const key of ['pending', 'pendingBytes', 'producers', 'waitingProducerBytes', 'preparing']) assert.equal(snapshot[key], 0);
 
   const legacyRoot = await initialize('legacy', 'legacy-generation');
   assert.equal((await readRuntimeReceipt({ buildRoot: legacyRoot })).evidence, 'legacy-artifact-inference');
