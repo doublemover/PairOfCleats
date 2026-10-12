@@ -3,8 +3,8 @@ import { semanticHash, canonicalSemanticJson } from './identity.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../contracts/schemas/semantic-envelopes.js';
 
 /** Streaming reconciliation: counts/ranges and every qualified endpoint before publication. */
-export const validateSemanticPartitions = async ({ store, partitions, signal = null }) => {
-  const sizes = new Map(partitions.map((p) => [p.partitionId,
+export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null }) => {
+  const sizes = new Map(referencePartitions.map((p) => [p.partitionId,
     p.members.semantic_records.reduce((sum, piece) => sum + piece.count, 0)]));
   const verifiedSources = new Set();
   for (const partition of partitions) {

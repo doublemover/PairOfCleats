@@ -12,10 +12,23 @@ const result=buildCallDependencySummaries(documents);
 assert.equal(result.converged,true);
 assert.deepEqual([...result.functions.get(canonicalSemanticJson(ref(3))).dependencies],[0]);
 const spread=buildCallDependencySummaries([{...documents[0],calls:[{...call,hasSpread:true}]}]);
-assert.equal(spread.functions.get(canonicalSemanticJson(ref(3))).dependencies.size,0,'spread arity cannot fabricate positional input flow');
+assert.deepEqual([...spread.functions.get(canonicalSemanticJson(ref(3))).dependencies],[0],'spread keeps conservative dependencies without claiming positional parameter mapping');
 assert.equal(buildCallDependencySummaries(documents,{maxIterations:0}).converged,false);
 const incomplete=buildCallDependencySummaries([{...documents[0],calls:[{...call,incompleteTargets:true}]}]);
-assert.equal(incomplete.functions.get(canonicalSemanticJson(ref(3))).dependencies.size,0,'unmapped callable alternatives cannot reuse a falsely unique callee summary');
+assert.deepEqual([...incomplete.functions.get(canonicalSemanticJson(ref(3))).dependencies],[0],'known alternatives survive an unknown remainder with conservative argument dependencies');
+assert.equal(incomplete.functions.get(canonicalSemanticJson(ref(3))).complete,false);
+const missing=buildCallDependencySummaries([{...documents[0],calls:[{...call,targets:[ref(99)]}]}]);
+assert.deepEqual([...missing.functions.get(canonicalSemanticJson(ref(3))).dependencies],[0],'missing source summary preserves an unknown result dependency');
+const restDeclarations=[{...declarations[0],restIndex:0},{...declarations[1],parameters:[ref(4),ref(10)]}];
+const rest=buildCallDependencySummaries([{...documents[0],summaries:restDeclarations,calls:[{...call,arguments:[ref(7),ref(11)]}],flowEdges:[...documents[0].flowEdges,channel(10,11)]}]);
+assert.deepEqual([...rest.functions.get(canonicalSemanticJson(ref(3))).dependencies].sort(),[0,1],'a rest dependency retains all argument alternatives');
+const zeroInputCycle=buildCallDependencySummaries([{summaries:declarations.map(summary=>({...summary,parameters:[],returns:[]})),flowEdges:[],calls:[
+  {...call,targets:[ref(3)],arguments:[],span:[2,3]},
+  {...call,targets:[ref(0)],arguments:[],span:[14,15]},
+  {...call,targets:[ref(99)],arguments:[],span:[16,17]}
+]}]);
+assert.equal(zeroInputCycle.converged,true);
+assert.ok([...zeroInputCycle.functions.values()].every(summary=>!summary.complete),'unknown completeness propagates around an SCC even without new value dependencies');
 // Call-owned field and exception summaries propagate through recursive contexts without new trace stack channels.
 const effectDeclarations=[
   {declaration:ref(20),parameters:[ref(21),ref(22)],returns:[],effects:[{parameter:0,path:['value'],ref:ref(23)}],exceptions:[ref(24)],span:[40,50],complete:false},
