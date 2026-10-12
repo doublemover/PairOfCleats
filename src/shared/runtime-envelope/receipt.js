@@ -44,6 +44,26 @@ export const sanitizeRuntimeReceipt = (value, depth = 0, seen = new Set()) => {
   return result;
 };
 
+/** Compact admission-owner facts; scheduler trace rings stay in their existing owner. */
+export const projectRuntimeScheduler = (stats) => {
+  if (!stats) return null;
+  const select = (value, keys) => Object.fromEntries(keys.filter((key) => value?.[key] !== undefined).map((key) => [key, value[key]]));
+  const queues = Object.entries(stats.queues || {});
+  const surfaces = Object.entries(stats.adaptive?.surfaces || {});
+  return sanitizeRuntimeReceipt({
+    observedAt: new Date().toISOString(), tokens: stats.tokens, activity: stats.activity,
+    counters: stats.counters, utilization: stats.utilization,
+    queues: Object.fromEntries(queues.slice(0, 16).map(([name, queue]) => [name, select(queue, [
+      'surface', 'running', 'pending', 'runnable', 'blocked', 'pendingBytes', 'inFlightBytes',
+      'maxPending', 'maxPendingBytes', 'maxInFlightBytes', 'completed', 'failed', 'rejected'
+    ])])), queuesTruncated: queues.length > 16,
+    adaptive: { ...select(stats.adaptive, ['enabled', 'baseline', 'max', 'mode', 'memoryReserveMb', 'memoryPerTokenMb', 'maxInFlightBytes']),
+      surfaces: Object.fromEntries(surfaces.slice(0, 8).map(([name, surface]) => [name, select(surface, ['minConcurrency', 'maxConcurrency', 'currentConcurrency', 'lastAction'])])),
+      surfacesTruncated: surfaces.length > 8 },
+    traceIncluded: false
+  });
+};
+
 /** Preserve selected lexical paths separately from filesystem observations. */
 export const observeRuntimePath = async (selected, { source = 'runtime-selection', io = fs, platform = process.platform } = {}) => {
   if (typeof selected !== 'string' || !selected.trim()) return null;
