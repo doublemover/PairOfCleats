@@ -37,8 +37,12 @@ Raw arbitrary config, argv, and environment fields are never copied into a plan;
 selected numeric/boolean environment requests are normalized before storage.
 
 The child rejects a changed/missing required plan, mismatched repo/root/mode, or
-explicit CLI option disagreement before provider work. Model and resource CLI
-options are also forwarded normally, including explicit false scheduler flags.
+explicit CLI option disagreement before provider work.
+Root selection and comparison reuse the canonical workspace identity owner,
+including Windows case normalization and symlink/junction aliases. Different
+canonical repository or index roots still reject.
+Model and resource CLI options are also forwarded normally, including explicit
+false scheduler flags.
 Core API calls without raw argv use the existing argument builder and CLI parser
 to canonicalize supported scheduler/stub aliases before selecting this plan.
 Explicit canonical options take precedence, and caller hooks/objects are retained.

@@ -9,6 +9,7 @@ import { resolveQuantizationParams } from '../storage/sqlite/quantization.js';
 import { getEnvConfig } from './env/runtime.js';
 import { resolveEmbeddingIntent } from './embedding-intent.js';
 import { applyObservabilityContextEnv, buildChildObservability, parseObservabilityContextEnv } from './observability.js';
+import { toRealPathSync } from '../workspace/identity.js';
 
 export const EMBEDDING_LAUNCH_OPTION_KEYS = Object.freeze([
   'model', 'dims', 'threads', 'scheduler', 'scheduler-cpu', 'scheduler-io',
@@ -71,8 +72,8 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
     version: 1,
     selectedAt: new Date().toISOString(),
     buildId,
-    repoRoot: path.resolve(root),
-    indexRoot: indexRoot ? path.resolve(indexRoot) : null,
+    repoRoot: toRealPathSync(root),
+    indexRoot: indexRoot ? toRealPathSync(indexRoot) : null,
     modes: [...new Set(modes || ['code'])].sort(),
     options: { ...pick(argv, EMBEDDING_LAUNCH_OPTION_KEYS), model: embeddings.model,
       'stub-embeddings': selected.useStubEmbeddings === true },
@@ -135,8 +136,8 @@ const validatePlan = (plan, { root, indexRoot = null, modes = null } = {}) => {
   if (!text(plan.selectedAt) || !Number.isFinite(Date.parse(plan.selectedAt))) throw fail('invalid selection time');
   if (plan.buildId !== null && (typeof plan.buildId !== 'string' || !plan.buildId || plan.buildId.length > 256)) throw fail('invalid build identity');
   if (typeof plan.repoRoot !== 'string' || !path.isAbsolute(plan.repoRoot) || (plan.indexRoot !== null && (typeof plan.indexRoot !== 'string' || !path.isAbsolute(plan.indexRoot)))) throw fail('roots must be absolute');
-  if (root && plan.repoRoot !== path.resolve(root)) throw fail('repository root mismatch');
-  if (indexRoot && plan.indexRoot !== path.resolve(indexRoot)) throw fail('pinned index root mismatch');
+  if (root && toRealPathSync(plan.repoRoot) !== toRealPathSync(root)) throw fail('repository root mismatch');
+  if (indexRoot && toRealPathSync(plan.indexRoot) !== toRealPathSync(indexRoot)) throw fail('pinned index root mismatch');
   if (!Array.isArray(plan.modes) || !plan.modes.length || plan.modes.some(mode => !['code', 'prose', 'extracted-prose', 'records'].includes(mode))) throw fail('invalid modes');
   if (modes?.some(mode => !plan.modes.includes(mode))) throw fail('mode mismatch');
   record(plan.options, EMBEDDING_LAUNCH_OPTION_KEYS, 'options');
