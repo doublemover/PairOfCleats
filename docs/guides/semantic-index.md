@@ -28,6 +28,32 @@ coverage. Selected checker-matched typed-array and message-dispatch models remai
 conservative. A dispatch request is not
 proof of delivery, detachment, execution thread or actual runtime values.
 
+Python, C (`.c`/`.h`), Swift and Rust are additional opt-in syntax languages:
+
+```json
+{"indexing":{"semantic":{"enabled":true,"languages":["python","c","swift","rust"],"enrichment":{"bindings":"eager","localFlow":"eager"}}}}
+```
+
+The default language list stays JavaScript/TypeScript. Native tree-sitter must be
+enabled and ready through bootstrap; parser policy/availability failures retain
+explicit coverage. C++ and Objective-C are not admitted as C. Grammar facts retain
+declarations, occurrences, ordered call operands and UTF-16 source spans. Eager
+structured control models branches, loops and explicit transfers; it always reports
+partial coverage because syntax does not prove value flow, aliasing, dispatch,
+exception behavior, Rust drops/tail values or unsupported control constructs.
+
+Eager native bindings reuse configured pyright, clangd, sourcekit and rust-analyzer
+providers and the relations scheduler, independently of TypeScript compiler tasks
+and legacy type targets. Existing provider configuration, readiness, workspace
+authority and request limits still apply. Only definition locations mapped to
+retained declaration spans receive exact-static target edges; external/unmapped
+locations stay modeled and ambiguity is preserved. Exact-static describes the
+recorded source-location join, not runtime execution or a sealed compiler closure.
+Native deferred/auto enrichment is unsupported pending durable provider authority;
+it is not silently admitted under a TypeScript lease. Cross-file value propagation
+and runtime/native-library effects remain unknown. The same published artifact and
+SQLite readers, bounded find/detail/trace and retained-source context APIs apply.
+
 Allocation/field candidates retain const receiver alias identity and explicit writes.
 They are modeled dependencies, with unknown alias escape, getter, dynamic-key and
 write-order effects in coverage. Local return summaries respect explicit finally

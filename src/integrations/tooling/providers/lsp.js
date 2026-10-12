@@ -422,7 +422,7 @@ export async function collectLspTypes({
   const preInitializeAdaptiveScopePlan = __resolveAdaptiveLspScopePlanForTests({
     providerId: resolvedProviderId,
     docs: docsToOpen,
-    targetsByPath,
+    targetsByPath: scopeTargetsByPath,
     clientMetrics: null,
     documentSymbolConcurrency: resolvedDocumentSymbolConcurrency,
     hoverMaxPerFile: resolvedHoverMaxPerFile,
