@@ -488,7 +488,7 @@ const matchChunkFilters = (c, state) => {
   if (calls) {
     const callsList = c.codeRelations?.calls;
     if (!Array.isArray(callsList)) return false;
-    const found = callsList.find(([fn, callName]) => fn === calls || callName === calls);
+    const found = callsList.some((entry) => Array.isArray(entry) && entry[1] === calls);
     if (!found) return false;
   }
   if (uses) {
@@ -538,7 +538,7 @@ const matchChunkFilters = (c, state) => {
     }
   }
   if (extendsFilter) {
-    if (!matchList(docmetaParents, extendsFilter, normalize)) return false;
+    if (!Array.isArray(docmetaParents) || !docmetaParents.some((parent) => parent === extendsFilter)) return false;
   }
   if (truthy(asyncOnly)) {
     if (!docmetaHasAsync) return false;
