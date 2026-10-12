@@ -86,6 +86,10 @@ export const sanitizeNodeStartupOptions = ({ execArgv = [], nodeOptions = '' } =
     for (let i = 0; i < args.length; i += 1) {
       const arg = normalizeFlag(args[i]);
       const name = arg.split('=', 1)[0];
+      if (['--trace-warnings', '--trace-deprecation', '--no-warnings'].includes(arg)) {
+        output.push(arg);
+        continue;
+      }
       if (!HEAP_FLAG_NAMES.has(name)) continue;
       const value = parsePositiveIntegerMb(arg.includes('=') ? arg.slice(arg.indexOf('=') + 1) : args[++i]);
       if (value != null) output.push(`${name}=${value}`);

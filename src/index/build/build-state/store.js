@@ -1,3 +1,4 @@
+import { mergeRuntimeAttempts } from '../../../shared/runtime-envelope/receipt.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import fs from 'node:fs/promises';
@@ -424,6 +425,7 @@ export const hydrateStateDefaults = async (state, buildRoot) => {
  */
 export const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
+  if (patch.runtime) merged.runtime = mergeRuntimeAttempts(base?.runtime, patch.runtime);
   if (patch.phases) {
     merged.phases = { ...(base?.phases || {}), ...patch.phases };
   }
