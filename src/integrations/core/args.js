@@ -82,7 +82,7 @@ export const buildRawArgs = (options = {}) => {
   if (options.dims !== undefined) args.push('--dims', String(options.dims));
   if (options.threads !== undefined) args.push('--threads', String(options.threads));
   if (options.incremental) args.push('--incremental');
-  if (options['cache-rebuild'] === true || options.cacheRebuild === true) args.push('--cache-rebuild');
+  pushFlag(args, 'cache-rebuild', options['cache-rebuild'] ?? options.cacheRebuild);
   if (options['stub-embeddings'] || options.stubEmbeddings) args.push('--stub-embeddings');
   if (options.watch) args.push('--watch');
   if (options['watch-poll'] !== undefined) args.push('--watch-poll', String(options['watch-poll']));
