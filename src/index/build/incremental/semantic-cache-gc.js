@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../../semantic/identity.js';
 import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
-import { resolveManifestBundleNames } from '../../../shared/bundle-io-paths.js';
+import { resolveManifestBundleNamesResult } from '../../../shared/bundle-io-paths.js';
 import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { throwIfAborted } from '../../../shared/abort.js';
@@ -23,13 +23,18 @@ const list = async directory => {
  */
 export const pruneSemanticCache = async ({ bundleDir, manifest, diskAccount = null, signal = null }) => {
   throwIfAborted(signal);
-  if (manifest?.semanticEnabled !== true) return { removedFiles: 0, removedBytes: 0 };
+  const semanticEnabled = manifest?.semanticEnabled === true;
   const completions = new Set(), bundles = new Set(), objects = new Set();
-  const mark = entry => {
-    for (const name of resolveManifestBundleNames(entry)) {
+  const markBundles = entry => {
+    const result = resolveManifestBundleNamesResult(entry);
+    if (!result.ok) throw invalid();
+    for (const name of result.names) {
       if (path.basename(name) !== name) throw invalid();
       bundles.add(name); bundles.add(name + '.checksum.json');
     }
+  };
+  const mark = entry => {
+    markBundles(entry);
     for (const locator of [entry.semanticCache, ...(entry.semanticSegmentCaches || []).map(row => row.locator)]) {
       if (!HASH.test(locator?.cacheKey)) throw invalid();
       objects.add(locator.cacheKey);
@@ -40,6 +45,7 @@ export const pruneSemanticCache = async ({ bundleDir, manifest, diskAccount = nu
   try {
     for (const entry of Object.values(manifest.files || {})) {
       throwIfAborted(signal);
+      if (!semanticEnabled) { markBundles(entry); continue; }
       if (!HASH.test(entry.completionKey)) throw invalid();
       mark(entry);
       const name = entry.completionKey + '.json';
@@ -61,18 +67,19 @@ export const pruneSemanticCache = async ({ bundleDir, manifest, diskAccount = nu
     throw error;
   }
   const candidates = [];
-  for (const entry of await list(path.join(bundleDir, 'completions'))) {
+  if (semanticEnabled) for (const entry of await list(path.join(bundleDir, 'completions'))) {
     if (/^[a-f0-9]{64}\.json$/.test(entry.name) && !completions.has(entry.name)) candidates.push('completions/' + entry.name);
   }
   for (const entry of await list(bundleDir)) {
-    if ((isCompletionBundle(entry.name) || /^snapshot-[a-f0-9]{64}\.(json|mpk)(\.checksum\.json)?$/.test(entry.name))
+    if (((semanticEnabled && isCompletionBundle(entry.name)) || /^snapshot-[a-f0-9]{64}\.(json|mpk)(\.checksum\.json)?$/.test(entry.name))
       && !bundles.has(entry.name)) candidates.push(entry.name);
   }
-  for (const entry of await list(path.join(bundleDir, 'semantic'))) {
+  if (semanticEnabled) for (const entry of await list(path.join(bundleDir, 'semantic'))) {
     if ((HASH.test(entry.name) && !objects.has(entry.name))
       || /^\.(pending|corrupt|incomplete)-[a-zA-Z0-9-]+$/.test(entry.name)) candidates.push('semantic/' + entry.name);
   }
   const files = [], directories = [];
+  if (!candidates.length) return { removedFiles: 0, removedBytes: 0 };
   const absoluteRoot = await fs.realpath(bundleDir);
   const scan = async relative => {
     throwIfAborted(signal);
