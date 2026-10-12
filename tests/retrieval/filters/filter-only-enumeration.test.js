@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { createFilterEnumeration, buildFilterPagination } from '../../../src/retrieval/pipeline/filter-enumeration.js';
 import { createSearchPipelineFixture, createAlphaSearchIndex } from '../helpers/search-pipeline-fixture.js';
+import { createSearchOutputHitState, renderSearchOutputForTest } from '../helpers/search-output-fixture.js';
 import { buildFilterIndex } from '../../../src/retrieval/filter-index.js';
 import { hasSearchFilterArgs, parseSearchArgs } from '../../../src/retrieval/cli-args.js';
 
@@ -59,14 +60,17 @@ const filters = { type: 'FunctionDeclaration' };
 let multiCursor = null;
 const multiIds = { code: [], prose: [] };
 do {
-  const enumeration = createFilterEnumeration({ cursor: multiCursor, filters, generation, modes: ['code', 'prose'] });
+  const enumeration = createFilterEnumeration({ cursor: multiCursor, filters, generation, modes: ['code', 'prose', 'records'] });
   const pipeline = createSearchPipelineFixture({ query: '', queryTokens: [], filters, filtersActive: true, filterEnumeration: enumeration, topN: 3 });
   const code = await pipeline(idx, 'code', null);
   const prose = await pipeline(createAlphaSearchIndex({ chunks: chunks.slice(0, 2), tokenIndex: null }), 'prose', null);
+  const records = await pipeline(createAlphaSearchIndex({ chunks: [], tokenIndex: null }), 'records', null);
+  assert.deepEqual(records, []);
   multiIds.code.push(...code.map(hit => hit.id));
   multiIds.prose.push(...prose.map(hit => hit.id));
-  const page = buildFilterPagination(enumeration, { code, prose });
+  const page = buildFilterPagination(enumeration, { code, prose, records });
   assert.equal(page.total, 21);
+  assert.deepEqual(page.byMode.records, { offset: 0, total: 0, returned: 0, hasMore: false });
   multiCursor = page.nextCursor;
 } while (multiCursor);
 assert.deepEqual(multiIds.code, chunks.filter(chunk => chunk.id % 3).map(chunk => chunk.id));
@@ -77,4 +81,29 @@ timed.byMode.code = { offset: 0, total: 2 };
 const timeCursor = buildFilterPagination(timed, { code: [{ id: 1 }] }).nextCursor;
 const continued = createFilterEnumeration({ cursor: timeCursor, filters: { ...timeFilters, modifiedAfter: 150 }, generation, modes: ['code'] });
 assert.equal(continued.modifiedAfter, 100, 'relative modification cutoff is pinned to the first page');
+// Exercise the real renderer's byte-budget path. Every returned mode must be a
+// prefix of its page so cursor offsets can advance by the actual emitted count.
+let budgetCursor = null;
+const budgetIds = { code: [], prose: [] };
+let budgetTruncated = false;
+do {
+  const enumeration = createFilterEnumeration({ cursor: budgetCursor, filters, generation, modes: ['code', 'prose'] });
+  const pipeline = createSearchPipelineFixture({ query: '', queryTokens: [], filters, filtersActive: true,
+    filterEnumeration: enumeration, topN: 20 });
+  const code = await pipeline(idx, 'code', null);
+  const prose = await pipeline(idx, 'prose', null);
+  const page = renderSearchOutputForTest({
+    ...createSearchOutputHitState({ codeHits: code, proseHits: prose }),
+    topN: 20, runProse: true, queryTokens: [], filterEnumeration: enumeration,
+    outputBudget: { totalMaxBytes: 12000 }
+  });
+  for (const [mode, offered] of Object.entries({ code, prose })) {
+    assert.deepEqual(page[mode].map(hit => hit.id), offered.slice(0, page[mode].length).map(hit => hit.id));
+    budgetIds[mode].push(...page[mode].map(hit => hit.id));
+  }
+  budgetTruncated ||= page.outputBudget?.truncated === true;
+  budgetCursor = page.pagination.nextCursor;
+} while (budgetCursor);
+assert.equal(budgetTruncated, true, 'fixture must exercise actual output trimming');
+for (const mode of ['code', 'prose']) assert.deepEqual(budgetIds[mode], multiIds.code);
 console.log('complete filter-only enumeration test passed');
