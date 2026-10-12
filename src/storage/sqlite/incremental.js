@@ -2,10 +2,10 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import { atomicWriteJson } from '../../shared/io/atomic-write.js';
+import { readVerifiedContainedFileSync } from '../../shared/contained-file.js';
+import { INCREMENTAL_MANIFEST_MAX_BYTES, decodeIncrementalManifest, persistIncrementalManifest } from '../../index/build/incremental/manifest-codec.js';
 import { logLine } from '../../shared/progress-runtime.js';
 
-const INCREMENTAL_MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
 
 /**
  * Resolve incremental cache paths for a repo/mode.
@@ -40,7 +40,9 @@ export function loadIncrementalManifest(repoCacheRoot, mode, { repoRoot = proces
       );
       return null;
     }
-    const manifest = JSON.parse(fs.readFileSync(paths.manifestPath, 'utf8'));
+    const { buffer } = readVerifiedContainedFileSync(paths.incrementalDir, paths.manifestPath,
+      { maxBytes: INCREMENTAL_MANIFEST_MAX_BYTES });
+    const manifest = decodeIncrementalManifest(JSON.parse(buffer.toString('utf8')), { repoRoot, indexPath: paths.manifestPath });
     assertCurrentIndexFormat({ operation: 'import', component: 'incremental manifest',
       foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: paths.manifestPath });
     if (!manifest || typeof manifest !== 'object') return null;
@@ -60,9 +62,10 @@ export function loadIncrementalManifest(repoCacheRoot, mode, { repoRoot = proces
 export async function writeIncrementalManifest(manifestPath, manifest) {
   if (!manifestPath || !manifest || typeof manifest !== 'object') return false;
   try {
-    await atomicWriteJson(manifestPath, manifest, { spaces: 2 });
+    await persistIncrementalManifest(manifestPath, manifest);
     return true;
-  } catch {
+  } catch (error) {
+    if (['ERR_INCREMENTAL_MANIFEST_CAPACITY', 'ERR_INDEX_FORMAT_UNSUPPORTED'].includes(error.code)) throw error;
     return false;
   }
 }

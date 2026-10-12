@@ -10,6 +10,7 @@ import {
   writeIncrementalBundle
 } from '../../../src/index/build/incremental.js';
 import { sha1 } from '../../../src/shared/hash.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -50,6 +51,7 @@ const manifestEntry = await writeIncrementalBundle({
 });
 assert.ok(manifestEntry, 'expected incremental bundle write');
 const manifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     [relKey]: manifestEntry

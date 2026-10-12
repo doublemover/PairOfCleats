@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -10,7 +11,6 @@ import {
 } from '../../../src/index/build/incremental.js';
 import { resolveBundleFormatFromName } from '../../../src/shared/bundle-io-paths.js';
 import { readBundleFile } from '../../../src/shared/bundle-io.js';
-import { sleep } from '../../../src/shared/sleep.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -57,6 +57,7 @@ const entry = await writeIncrementalBundle({
 assert.ok(entry, 'expected seeded incremental bundle entry');
 
 const manifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     [relKey]: entry
@@ -67,7 +68,7 @@ const bundleName = entry.bundles?.[0];
 assert.ok(bundleName, 'expected bundle shard name');
 const bundlePath = path.join(bundleDir, bundleName);
 const before = await fs.stat(bundlePath);
-await sleep(25);
+const originalBytes = await fs.readFile(bundlePath);
 
 await updateBundlesWithChunks({
   enabled: true,
@@ -84,10 +85,14 @@ await updateBundlesWithChunks({
 });
 
 const after = await fs.stat(bundlePath);
-assert.ok(after.mtimeMs > before.mtimeMs, 'expected bundle rewrite to update mtime');
+assert.equal(after.mtimeMs, before.mtimeMs, 'published prior snapshot remains immutable');
+assert.deepEqual(await fs.readFile(bundlePath), originalBytes, 'replacement cannot overwrite prior snapshot bytes');
+const replacementName = manifest.files[relKey].bundles[0];
+assert.notEqual(replacementName, bundleName, 'changed chunks select a new immutable snapshot');
+const replacementPath = path.join(bundleDir, replacementName);
 
-const loaded = await readBundleFile(bundlePath, {
-  format: resolveBundleFormatFromName(bundleName, 'json')
+const loaded = await readBundleFile(replacementPath, {
+  format: resolveBundleFormatFromName(replacementName, 'json')
 });
 assert.equal(loaded?.ok, true, 'expected patched bundle to load');
 assert.equal(loaded.bundle?.chunks?.[0]?.text, 'updated-a', 'expected patched first chunk text');
@@ -102,6 +107,7 @@ assert.equal(
   false,
   'expected shard rewrite path to avoid json patch sidecars'
 );
+assert.equal(await pathExists(`${replacementPath}.patch.jsonl`), false);
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

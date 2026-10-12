@@ -6,6 +6,7 @@ import { importRuntimeEvidence, verifyRuntimeFamily } from '../../../src/index/s
 import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
 import { assertRuntimeFamily } from '../../../src/contracts/validators/runtime-evidence-family.js';
+import { wrapRuntimeDiskAccount } from '../../../src/index/semantic/runtime/ownership.js';
 
 const fixture = await createRuntimeImportFixture();
 try {
@@ -30,12 +31,12 @@ try {
   assert.deepEqual(await fs.readFile(fixture.inputs[0].path), original, 'import failure preserves original saved input');
   const midImport = new AbortController();
   let reservations = 0;
-  const abortingAccount = { reserve: bytes => {
+  const abortingAccount = wrapRuntimeDiskAccount(account, { reserve: bytes => {
     account.reserve(bytes); reservations += 1; midImport.abort();
-  }, release: bytes => account.release(bytes) };
+  }, release: bytes => account.release(bytes) });
   await assert.rejects(importRuntimeEvidence({ ...options, inputs: rawInputs, signal: midImport.signal, diskAccount: abortingAccount }),
     { name: 'AbortError' });
-  assert.equal(reservations, 1, 'cancellation happens after the first projection append reservation');
+  assert.equal(reservations, 1, 'cancellation happens after the first owned destination reservation');
   assert.equal(account.used, charged, 'cancelled append releases every owned staging byte');
   assert.deepEqual(await fs.readFile(currentPath), previous);
   assert.ok((await fs.readdir(path.join(options.destination, 'generations'))).every(name => !name.startsWith('.pending-')));

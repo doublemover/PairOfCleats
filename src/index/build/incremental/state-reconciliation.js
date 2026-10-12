@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { relocateSemanticCacheEntry } from './semantic-cache.js';
 import { sha1 } from '../../../shared/hash.js';
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
+import { requiresSourceHashVerification } from './source-freshness.js';
 import {
   entryStatsMatch,
   pathExists,
@@ -19,9 +20,6 @@ import {
  * @param {number} mtimeMs
  * @returns {boolean}
  */
-const isCoarseMtime = (mtimeMs) => (
-  Number.isFinite(mtimeMs) && Math.trunc(mtimeMs) % 1000 === 0
-);
 
 /**
  * Decide whether incremental reuse should verify file hash despite stat match.
@@ -30,9 +28,7 @@ const isCoarseMtime = (mtimeMs) => (
  * @param {{hash?:string}|null} cachedEntry
  * @returns {boolean}
  */
-const shouldVerifyHash = (fileStat, cachedEntry) => (
-  isCoarseMtime(fileStat?.mtimeMs) && !!cachedEntry?.hash
-);
+const shouldVerifyHash = fileStat => requiresSourceHashVerification(fileStat);
 
 const MAX_SHARED_HASH_READ_ENTRIES = 256;
 
@@ -165,15 +161,21 @@ export async function readCachedBundle({
     if (!cachedEntry.semanticCache) return { cachedBundle: null, fileHash, buffer };
     // Exact source hash is mandatory even when a fine-grained stat timestamp matches.
     const currentBytes = await fs.readFile(absPath);
+    semanticContext.replayVerification?.recordSourceRead(currentBytes.length);
     const sourceHash = createHash('sha256').update(currentBytes).digest('hex');
     try {
+      const verification = await semanticContext.replayVerification?.verify({ repoRoot: semanticContext.repoRoot || repoRoot,
+        locator: cachedEntry.semanticCache, dependencySignatures: semanticContext.dependencySignatures,
+        sourceHash, sourcePath: relKey.split('\\').join('/'), repositoryNamespace: semanticContext.repositoryNamespace,
+        signal: semanticContext.signal });
       const semanticFactsRef = await relocateSemanticCacheEntry({
         repoRoot: semanticContext.repoRoot || repoRoot,
         bundleDir, locator: cachedEntry.semanticCache,
         dependencySignatures: semanticContext.dependencySignatures,
         sourceHash, sourcePath: relKey.split('\\').join('/'), repositoryNamespace: semanticContext.repositoryNamespace,
         targetBuildRoot: semanticContext.buildRoot, storage: semanticContext.storage,
-        diskAccount: semanticContext.diskAccount, signal: semanticContext.signal
+        diskAccount: semanticContext.diskAccount, signal: semanticContext.signal, verificationToken: verification?.token,
+        replayMetrics: semanticContext.replayVerification?.metrics
       });
       manifest.semanticEnabled = true;
       manifest.semanticGeneration = semanticFactsRef.storage.generation;
@@ -181,7 +183,8 @@ export async function readCachedBundle({
       const embedded = await relocateEmbeddedSemanticCacheEntries({ entries: cachedEntry.semanticSegmentCaches || [], parentFacts: semanticFactsRef, parentBytes: currentBytes,
         repoRoot: semanticContext.repoRoot || repoRoot, bundleDir, dependencySignatures: semanticContext.dependencySignatures, targetBuildRoot: semanticContext.buildRoot,
         storage: semanticContext.storage, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal });
-      return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, ...embedded };
+      return { cachedBundle, fileHash, buffer: currentBytes, semanticFactsRef, semanticReplayToken: verification?.token,
+        semanticReplayVerificationReceipt: verification?.verificationReceipt, ...embedded };
     } catch (error) {
       if (!['ERR_SEMANTIC_CACHE_MISMATCH', 'ERR_SEMANTIC_CACHE_INTEGRITY',
         'ERR_SEMANTIC_INTEGRITY', 'ENOENT', 'ENOTDIR'].includes(error.code)) throw error;

@@ -7,10 +7,13 @@ import { compareRuntimeCaptures } from '../../../src/index/semantic/runtime/comp
 import { queryRuntimeDerivedClaims, persistRuntimeDerivedClaims } from '../../../src/index/semantic/runtime/claims.js';
 import { runtimeCaptureCompatibility } from '../../../src/index/semantic/runtime/compatibility.js';
 import { runtimeByteHash } from '../../../src/index/semantic/runtime/raw-store.js';
-import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
+import { createVerifiedRuntimeImportFixture } from '../../helpers/verified-runtime-import-fixture.js';
 
-const fixture = await createRuntimeImportFixture();
+const fixture = await createVerifiedRuntimeImportFixture();
 try {
+  const syntheticWarning = 'saved synthetic fixture; sample values are not live performance evidence';
+  fixture.capture.warnings = [syntheticWarning, 'capture-a caution'];
+  fixture.capture.workload.description = 'Saved synthetic comparison fixture; no live capture';
   const options = fixture.options(), first = await importRuntimeEvidence(options);
   const original = await fs.readFile(fixture.inputs[0].path);
   const profile = JSON.parse(original); profile.samples = [2, 2, 2, 2]; profile.timeDeltas = [10, 10, 10, 10];
@@ -18,6 +21,7 @@ try {
   await fs.writeFile(filename, bytes);
   const secondOptions = fixture.options(); secondOptions.capture = structuredClone(fixture.capture);
   secondOptions.capture.captureId = 'capture-b';
+  secondOptions.capture.warnings = [syntheticWarning, 'capture-b caution'];
   secondOptions.capture.rawArtifacts = secondOptions.capture.rawArtifacts.map(raw => ({ ...raw, captureId: 'capture-b' }));
   Object.assign(secondOptions.capture.rawArtifacts[0], { hash: runtimeByteHash(bytes), byteLength: bytes.length });
   secondOptions.inputs = [{ ...fixture.inputs[0], path: filename }, fixture.inputs[1]];
@@ -32,11 +36,14 @@ try {
   assert.equal(result.claims[0].data.supportingEvidenceIds.length, 2);
   assert.deepEqual(result.claims[0].data.contradictingEvidenceIds, []);
   assert.ok(result.claims[0].unavailable.includes('causal-inference'));
+  assert.deepEqual(result.claims[0].warnings, [syntheticWarning, 'capture-a caution', 'capture-b caution'],
+    'derived claims preserve and deduplicate supporting observation provenance');
   assert.match(result.claims[0].data.nextObservation.permissionRequirements[0], /authorization/);
   const lookup = { schemaVersion: 1, repositoryNamespace: request.repositoryNamespace, generation: request.generation,
     claimGeneration: result.claimGeneration, limits: request.limits, cursor: null };
   const saved = await queryRuntimeDerivedClaims({ destination: options.destination, request: lookup });
   assert.deepEqual(saved.claims, result.claims); assert.equal(saved.nextCursor, null);
+  assert.ok(saved.claims[0].warnings.includes(syntheticWarning), 'standalone persisted claim export retains synthetic provenance');
   assert.equal(saved.integrity, 'claims-and-cited-observations-verified');
   const again = await compareRuntimeCaptures({ destination: options.destination, request });
   assert.equal(again.claimGeneration, result.claimGeneration, 'reingestion is deterministic and does not replace observations');

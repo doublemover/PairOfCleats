@@ -1,5 +1,6 @@
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { normalizeBundleSourceKeys } from '../bundle-source-key.js';
 import fs from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import { atomicWriteJson } from '../io/atomic-write.js';
@@ -166,5 +167,5 @@ export const normalizeBundleWriteIdentity = (bundle, bundlePath) => {
     operation: 'write', component: 'bundle payload', foundVersion: bundle.artifactSurfaceVersion,
     repoRoot: process.cwd(), indexPath: bundlePath
   });
-  return { ...bundle, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION };
+  return normalizeBundleSourceKeys({ ...bundle, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION });
 };

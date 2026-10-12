@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { closeRuntimeResources } from './close-resources.js';
+import { openContainedFile } from '../../../shared/contained-file.js';
 
 export const runtimeImportError = (message, code = 'ERR_RUNTIME_IMPORT_INTEGRITY') => Object.assign(new Error(message), { code });
 export const runtimeByteHash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -58,6 +60,7 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
     diskAccount.reserve(artifact.byteLength); reserved = true;
     const source = await fs.open(inputPath, 'r');
     let target = null;
+    let copyError = null;
     const buffer = Buffer.alloc(64 * 1024);
     try {
       target = await fs.open(temporary, 'wx');
@@ -71,7 +74,8 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
         await target.writeFile(buffer.subarray(0, read.bytesRead));
       }
       await target.sync();
-    } finally { await source.close(); if (target) await target.close(); }
+    } catch (error) { copyError = error; throw error; }
+    finally { await closeRuntimeResources([source, target], copyError); }
     await hashRuntimeFile({ filename: temporary, expectedHash: artifact.hash, expectedBytes: artifact.byteLength, maxBytes, signal });
     await assertRuntimeDiskReserve({ destination, diskReserveBytes });
     throwIfAborted(signal);
@@ -85,15 +89,21 @@ export const retainRuntimeRaw = async ({ destination, inputPath, artifact, maxBy
 };
 
 /** UTF-8 byte ranges remain exact even for CRLF and non-ASCII. Oversize lines are discarded, not accumulated. */
-export async function* readRuntimeLines({ filename, maxLineBytes, signal = null }) {
-  const handle = await fs.open(filename, 'r');
+export async function* readRuntimeLines({ filename, handle: suppliedHandle = null, maxLineBytes, signal = null,
+  expectedHash = null, expectedBytes = null, maxFileBytes = Number.MAX_SAFE_INTEGER }) {
+  const handle = suppliedHandle || await openContainedFile(path.dirname(filename), filename);
   const buffer = Buffer.alloc(64 * 1024);
   let fragments = [], length = 0, start = 0, position = 0, oversized = false;
   try {
+    const initial = await handle.stat();
+    if (!initial.isFile() || initial.size > maxFileBytes || (expectedBytes != null && initial.size !== expectedBytes)) throw runtimeImportError('Runtime line input exceeds its byte authority.');
+    const digest = expectedHash ? createHash('sha256') : null;
     for (;;) {
       throwIfAborted(signal);
-      const read = await handle.read(buffer, 0, buffer.length, null);
+      const read = await handle.read(buffer, 0, buffer.length, position);
       if (!read.bytesRead) break;
+      if (position + read.bytesRead > maxFileBytes || (expectedBytes != null && position + read.bytesRead > expectedBytes)) throw runtimeImportError('Runtime line input grew beyond its authority.');
+      digest?.update(buffer.subarray(0, read.bytesRead));
       let cursor = 0;
       for (let i = 0; i < read.bytesRead; i += 1) if (buffer[i] === 10) {
         length += i - cursor;
@@ -109,5 +119,8 @@ export async function* readRuntimeLines({ filename, maxLineBytes, signal = null 
       position += read.bytesRead;
     }
     if (length) yield { bytes: oversized ? null : Buffer.concat(fragments, length), start, end: position, terminated: false, oversized };
-  } finally { await handle.close(); }
+    const after = await handle.stat();
+    if ((expectedBytes != null && position !== expectedBytes) || (digest && digest.digest('hex') !== expectedHash)
+      || initial.size !== after.size || initial.mtimeMs !== after.mtimeMs || initial.ctimeMs !== after.ctimeMs) throw runtimeImportError('Runtime line input changed while projecting evidence.');
+  } finally { if (!suppliedHandle) await handle.close(); }
 }

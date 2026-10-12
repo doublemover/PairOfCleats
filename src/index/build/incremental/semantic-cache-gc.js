@@ -65,7 +65,8 @@ export const pruneSemanticCache = async ({ bundleDir, manifest, diskAccount = nu
     if (/^[a-f0-9]{64}\.json$/.test(entry.name) && !completions.has(entry.name)) candidates.push('completions/' + entry.name);
   }
   for (const entry of await list(bundleDir)) {
-    if (isCompletionBundle(entry.name) && !bundles.has(entry.name)) candidates.push(entry.name);
+    if ((isCompletionBundle(entry.name) || /^snapshot-[a-f0-9]{64}\.(json|mpk)(\.checksum\.json)?$/.test(entry.name))
+      && !bundles.has(entry.name)) candidates.push(entry.name);
   }
   for (const entry of await list(path.join(bundleDir, 'semantic'))) {
     if ((HASH.test(entry.name) && !objects.has(entry.name))

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { encodeIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,13 +13,13 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `bundle-checksum-schema-cutover-${process.pid}-${Date.now()}`);
 const repoCacheRoot = path.join(tempRoot, 'repo-cache');
-const incrementalDir = path.join(repoCacheRoot, 'incremental', 'code');
+const incrementalDir = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code');
 const manifestPath = path.join(incrementalDir, 'manifest.json');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(incrementalDir, { recursive: true });
-await fs.writeFile(manifestPath, JSON.stringify({
-  version: 5,
+await fs.writeFile(manifestPath, encodeIncrementalManifest({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   signatureVersion: SIGNATURE_VERSION,
   mode: 'code',
   tokenizationKey: null,
@@ -33,7 +35,7 @@ await fs.writeFile(manifestPath, JSON.stringify({
     }
   },
   shards: null
-}, null, 2));
+}));
 
 const logs = [];
 try {

@@ -1,4 +1,5 @@
-import fs from 'node:fs/promises';
+import path from 'node:path';
+import { readVerifiedContainedFile } from '../../../../shared/contained-file.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { createRuntimeObservation, markRuntimeCoverage, unknownFields, runtimeEventLimit } from './shared.js';
 
@@ -8,7 +9,11 @@ export async function* adaptCpuProfile({ filename, artifact, capture, sourceCand
   if (artifact.byteLength > allowance) { markRuntimeCoverage(coverage, 'profile_resident_allowance_exceeded', 0, 'unsupported'); return; }
   throwIfAborted(signal);
   let profile;
-  try { profile = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await fs.readFile(filename))); }
+  try {
+    const { buffer } = await readVerifiedContainedFile(path.dirname(filename), filename, { maxBytes: allowance,
+      expectedBytes: artifact.byteLength, expectedHash: artifact.hash, signal });
+    profile = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer));
+  }
   catch { markRuntimeCoverage(coverage, 'malformed_or_truncated_profile', 0, 'malformed'); return; }
   if (!profile || !Array.isArray(profile.nodes) || !Number.isFinite(profile.startTime)
     || !Number.isFinite(profile.endTime) || profile.startTime < 0 || profile.endTime < profile.startTime

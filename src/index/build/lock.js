@@ -21,6 +21,7 @@ export async function acquireIndexLock({
   pollMs = 1000,
   staleMs = DEFAULT_STALE_MS,
   metadata = null,
+  signal = null,
   log = () => {}
 }) {
   const lockPath = path.join(repoCacheRoot, 'locks', 'index.lock');
@@ -29,6 +30,7 @@ export async function acquireIndexLock({
     waitMs,
     pollMs,
     staleMs,
+    signal,
     metadata: {
       scope: 'index',
       ...(metadata && typeof metadata === 'object' ? metadata : {})

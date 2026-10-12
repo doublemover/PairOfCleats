@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -66,6 +67,7 @@ const entry = await writeIncrementalBundle({
 assert.ok(entry, 'expected initial bundle write');
 
 const manifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     [relKey]: entry
