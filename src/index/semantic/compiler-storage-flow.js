@@ -5,7 +5,7 @@ import { throwIfAborted } from '../../shared/abort.js';
 
 /** Allocation/field candidates remain separate from ordered local reaching definitions. */
 export const collectCompilerStorageFlow = async ({ ts, checker, sourceFile, nodes, expressionFor,
-  source, bytes, bindingPartition, context, root, policy, diskAccount, signal }) => {
+  source, bytes, bindingPartition, context, root, policy, diskAccount, signal, orderedAccesses = new Set() }) => {
   if (['off', 'deferred'].includes(policy.enrichment.localFlow)) return null;
   const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-storage-flow', version: SEMANTIC_ANALYSIS_VERSIONS.storageFlow },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context, dependencySummaryHashes: [],
@@ -82,6 +82,9 @@ export const collectCompilerStorageFlow = async ({ ts, checker, sourceFile, node
   for (const node of nodes) {
     throwIfAborted(signal);
     if (!(ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node))) continue;
+    // The CFG owns the ordered subset. Reintroducing a shared unordered field
+    // here would reconnect overwritten and post-snapshot values to old reads.
+    if (orderedAccesses.has(canonicalSemanticJson(expressionFor(node)))) continue;
     accesses += 1;
     const access = locate(node);
     if (!access) continue;

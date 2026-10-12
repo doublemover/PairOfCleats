@@ -49,6 +49,7 @@ const recursive=buildCallDependencySummaries([{...effectDocuments[0],calls:[effe
 assert.equal(recursive.converged,true,'bounded recursive may summaries reach a monotone fixed point');
 const enter={kind:'argumentToParameter',callSite:ref(6),contextKey:'project-a'};
 const stack=advanceTraceContext([],enter,'downstream').stack;
+assert.deepEqual(advanceTraceContext([],{...enter,kind:'packs'},'downstream').stack,[],'worker and WASM packing never implies invocation entry');
 assert.equal(advanceTraceContext(stack,{...enter,kind:'returnToResult',callSite:ref(9)},'downstream').skip,true);
 assert.equal(advanceTraceContext(stack,{...enter,kind:'returnToResult',contextKey:'project-b'},'downstream').skip,true);
 assert.deepEqual(advanceTraceContext(stack,{...enter,kind:'returnToResult'},'downstream').stack,[]);

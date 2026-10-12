@@ -4,8 +4,9 @@ import { createHash } from 'node:crypto';
 import { getNativeTreeSitterParser, NATIVE_GRAMMAR_MODULES } from '../../lang/tree-sitter/native-runtime.js';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { semanticLiteralScalar } from './semantic-literal.js';
 
-export const NATIVE_SYNTAX_VERSION = '1';
+export const NATIVE_SYNTAX_VERSION = '2';
 export const NATIVE_SEMANTIC_LANGUAGES = Object.freeze(['python', 'c', 'swift', 'rust']);
 const require = createRequire(import.meta.url);
 const version = name => { try { return require(name + '/package.json').version; } catch { return null; } };
@@ -128,7 +129,8 @@ export const createNativeSemanticCollector = ({ syntax, source, partitionId, una
             occurrence: () => ({ nameId, roles, expression: frame.record, flags }),
             statement: () => ({ astKind: kind, statementKind: nativeTransfer(node) || kind, flags }),
             expression: () => ({ astKind: kind, operation: operator, invocationKind, syntacticArgumentCount: invocationKind ? argumentsNode?.namedChildCount ?? 0 : null, flags }),
-            literal: () => ({ literalKind: kind, textRef: { span }, scalar: null })
+            literal: () => ({ literalKind: kind, textRef: { span },
+              scalar: semanticLiteralScalar({ kind, text: node.text, language: source.language }) })
           }[recordKind]();
           summary.nodes += 1;
           yield { family: 'node', row: { id: ids[recordKind], kind: recordKind, span, scope: recordKind === 'scope' ? parentScope : frame.scope, data } };

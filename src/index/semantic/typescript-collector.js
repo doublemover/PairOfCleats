@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { semanticLiteralScalar } from './semantic-literal.js';
 import { getTypeScriptSyntaxIdentity } from '../../lang/typescript/syntax-context.js';
 import { TYPESCRIPT_CHILD_FIELDS, TYPESCRIPT_STRUCTURAL_SLOTS,
   typeScriptKindName } from '../../lang/typescript/syntax-adapter.js';
 
-export const TYPESCRIPT_ADAPTER_VERSION = '3';
+export const TYPESCRIPT_ADAPTER_VERSION = '4';
 const scopeKinds = new Set('SourceFile Block CatchClause ClassDeclaration ClassExpression InterfaceDeclaration ModuleDeclaration FunctionDeclaration FunctionExpression ArrowFunction MethodDeclaration Constructor GetAccessor SetAccessor ClassStaticBlockDeclaration'.split(' '));
 const declarationParents = new Set('VariableDeclaration Parameter BindingElement FunctionDeclaration FunctionExpression ClassDeclaration ClassExpression InterfaceDeclaration TypeAliasDeclaration EnumDeclaration EnumMember ModuleDeclaration TypeParameter ImportClause ImportSpecifier NamespaceImport ImportEqualsDeclaration'.split(' '));
 const slotFor = (kind, field) => {
@@ -123,7 +124,9 @@ export const createTypeScriptSemanticCollector = ({ ast, ts, source, partitionId
               statement: () => ({ astKind: kind, statementKind: kind, flags }),
               expression: () => ({ astKind: kind, operation: frame.operation || null, invocationKind,
                 syntacticArgumentCount: invocationKind ? (node.arguments?.length ?? node.template?.templateSpans?.length ?? 0) : null, flags }),
-              literal: () => ({ literalKind: kind, textRef: { span }, scalar: null })
+              literal: () => ({ literalKind: kind, textRef: { span },
+                scalar: semanticLiteralScalar({ kind, value: node.text, text: /^(TrueKeyword|FalseKeyword)$/.test(kind)
+                  ? kind === 'TrueKeyword' ? 'true' : 'false' : kind === 'NullKeyword' ? 'null' : '' }) })
             }[recordKind]();
             summary.nodes += 1;
             yield { family: 'node', row: { id: ids[recordKind], kind: recordKind, span,

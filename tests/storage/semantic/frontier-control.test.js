@@ -27,27 +27,27 @@ try {
   const [lease] = store.leaseReady({ baseBuildId: 'base-1', owner: 'first', now: 20, leaseMs: 30, dependencyHashes });
   assert.equal(lease.attempt, 1);
   assert.deepEqual(store.leaseReady({ baseBuildId: 'base-1', owner: 'second', now: 21, dependencyHashes }), []);
-  assert.throws(() => store.release({ taskId: task.taskId, owner: 'second', now: 22, reason: 'wrong' }), { code: 'ERR_SEMANTIC_LEASE_LOST' });
-  await assert.rejects(store.acknowledgePublished({ taskId: task.taskId, owner: 'first', now: () => 23,
+  assert.throws(() => store.release({ taskId: task.taskId, owner: 'second', attempt: lease.attempt, now: 22, reason: 'wrong' }), { code: 'ERR_SEMANTIC_LEASE_LOST' });
+  await assert.rejects(store.acknowledgePublished({ taskId: task.taskId, owner: 'first', attempt: lease.attempt, now: () => 23,
     publication: { manifestHash: 'f'.repeat(64), publishedBuildId: 'next', baseBuildId: 'wrong', inputHash: lease.inputHash }, verifyPublication: async () => true }), { code: 'ERR_SEMANTIC_PUBLICATION_REQUIRED' });
   store.close();
   store = openSemanticFrontier({ Database, filename, maxAttempts: 2 });
   const [recovered] = store.leaseReady({ baseBuildId: 'base-1', owner: 'second', now: 51, leaseMs: 100, dependencyHashes });
   assert.equal(recovered.attempt, 2, 'expired leases survive close and reopen');
   const publication = { taskId: task.taskId, policyHash, manifestHash: 'f'.repeat(64), publishedBuildId: 'next', baseBuildId: 'base-1', inputHash: recovered.inputHash };
-  await assert.rejects(store.acknowledgePublished({ taskId: task.taskId, owner: 'second', now: () => 52, publication, verifyPublication: async () => false }), { code: 'ERR_SEMANTIC_PUBLICATION_REQUIRED' });
+  await assert.rejects(store.acknowledgePublished({ taskId: task.taskId, owner: 'second', attempt: recovered.attempt, now: () => 52, publication, verifyPublication: async () => false }), { code: 'ERR_SEMANTIC_PUBLICATION_REQUIRED' });
   assert.equal(store.getOutput(task.taskId), null);
-  await store.acknowledgePublished({ taskId: task.taskId, owner: 'second', now: () => 52, publication, verifyPublication: async () => true });
+  await store.acknowledgePublished({ taskId: task.taskId, owner: 'second', attempt: recovered.attempt, now: () => 52, publication, verifyPublication: async () => true });
   assert.equal(store.getTask(task.taskId).state, 'completed');
   assert.equal(store.getOutput(task.taskId).publishedBuildId, 'next');
   const target2 = '1'.repeat(64), retry = { ...task, dependencies: [], targetSetHash: target2,
     taskId: createSemanticTaskId({ kind: 'bind', inputHashes, policyHash, targetSetHash: target2 }) };
   store.enqueue({ task: retry, durableInputHashes: new Set(inputHashes) });
-  store.leaseReady({ baseBuildId: 'base-1', owner: 'retry', now: 100 });
-  store.release({ taskId: retry.taskId, owner: 'retry', now: 101, reason: 'io', transient: true });
+  const [firstRetry] = store.leaseReady({ baseBuildId: 'base-1', owner: 'retry', now: 100 });
+  store.release({ taskId: retry.taskId, owner: 'retry', attempt: firstRetry.attempt, now: 101, reason: 'io', transient: true });
   assert.deepEqual(store.leaseReady({ baseBuildId: 'base-1', owner: 'retry', now: 102 }), [], 'backoff prevents immediate retry');
-  store.leaseReady({ baseBuildId: 'base-1', owner: 'retry', now: 1200 });
-  assert.equal(store.release({ taskId: retry.taskId, owner: 'retry', now: 1201, reason: 'io', transient: true }).state, 'failed');
+  const [secondRetry] = store.leaseReady({ baseBuildId: 'base-1', owner: 'retry', now: 1200 });
+  assert.equal(store.release({ taskId: retry.taskId, owner: 'retry', attempt: secondRetry.attempt, now: 1201, reason: 'io', transient: true }).state, 'failed');
   const failed = store.getTask(retry.taskId);
   const recoveredReceipt = { taskId: retry.taskId, policyHash, baseBuildId: retry.baseBuildId,
     inputHash: failed.inputHash, manifestHash: '2'.repeat(64), publishedBuildId: 'committed-before-crash' };

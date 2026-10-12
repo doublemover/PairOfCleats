@@ -37,6 +37,14 @@ export const prepareCompilerTaskExecution = async ({state,runtime,selected}) => 
       state.semanticCompilerAdmissionGrant={authorityHash:compilerInventoryHash(inventory),decision};
     },
     defer: (decision,signal) => persistCompilerAdmissionDeferral({state,runtime,selected,decision,signal}),
-    complete: (elapsedMs,signal) => persistCompilerAdmission({state,selected,decision,signal,receipt:makeCompilerAdmissionReceipt({decision,runtimeHash,elapsedMs,peakRssBytes:process.resourceUsage().maxRSS*1024,complete:true})})
+    async complete(elapsedMs,signal) {
+      const reuse = state.semanticCompilerSourceReuse?.snapshot();
+      if (reuse) {
+        state.semanticCompilerReuseReceipt = reuse;
+        await runtime.semanticEnrichmentDrain?.recordReuse?.(reuse);
+      }
+      return persistCompilerAdmission({state,selected,decision,signal,receipt:makeCompilerAdmissionReceipt({decision,runtimeHash,elapsedMs,peakRssBytes:process.resourceUsage().maxRSS*1024,complete:true})});
+    },
+    dispose() { state.semanticCompilerSourceReuse?.clear(); }
   };
 };

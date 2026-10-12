@@ -41,6 +41,9 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
     if (mode === 'off' || mode === 'deferred') reasons.add(mode === 'off' ? 'cross_file_flow_disabled' : 'cross_file_flow_deferred');
     else for (const call of [...calls].sort((a,b) => canonicalSemanticJson(a.occurrence).localeCompare(canonicalSemanticJson(b.occurrence)))) {
       throwIfAborted(signal);
+      if (document.orderedOperations?.has(canonicalSemanticJson(call.result || call.occurrence))) {
+        completed += 1; continue;
+      }
       const result = call.result || call.occurrence, route = routes.get(canonicalSemanticJson(result));
       const summary = joinCallDependencySummaries(call,summaries.functions);
       if(summary?.restEffectsUnsupported) reasons.add('rest_parameter_array_effect_mapping_unresolved');
@@ -62,10 +65,12 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       if (summary?.widened) reasons.add('recursive_field_path_depth_widened');
       if (summary && !summary.converged) reasons.add('callee_recursive_summary_incomplete');
       if(summary && !call.hasSpread) for(const mapping of summary.parameterMappings) {
+        const restAggregate = mapping.restIndex >= 0 ? valueFor('parameter', call.occurrence) : null;
         for(let ordinal=0;ordinal<(call.arguments||[]).length;ordinal++) {
           const rest=mapping.restIndex>=0&&ordinal>=mapping.restIndex;
-          emit(rest?'packs':'argumentToParameter',call.arguments[ordinal],mapping.parameters[rest?mapping.restIndex:ordinal],call,ordinal);
+          emit(rest?'packs':'argumentToParameter',call.arguments[ordinal],rest?restAggregate:mapping.parameters[ordinal],call,ordinal);
         }
+        if (restAggregate) emit('argumentToParameter',restAggregate,mapping.parameters[mapping.restIndex],call,mapping.restIndex);
       }
       if (!call.suppressResult && summary?.returns.length) {
         // Only the established return channel crosses into the callee context.

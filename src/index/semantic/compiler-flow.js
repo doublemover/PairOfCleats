@@ -4,6 +4,8 @@ import { compilerCallAdapter } from './compiler-call-adapter.js';
 import { compilerRuntimeParameters, compilerInvocationInputs } from './compiler-invocation.js';
 import { createCompilerFieldPaths, collectCompilerAliasAssignments } from './compiler-flow-fields.js';
 import { buildCompilerFlowGraph } from './compiler-flow-graph.js';
+import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
+import { createCompilerOrderedStorage } from './compiler-ordered-storage.js';
 import { createAnalysisPartitionId, semanticHash, canonicalSemanticJson } from './identity.js';
 import { writeSemanticAnalysis } from './analysis-write.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -15,6 +17,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context, dependencySummaryHashes: [],
     analysisPolicy: { maxSccIterations: policy.enrichment.maxSccIterations, version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow), fieldPathDepth: policy.enrichment.fieldPathDepth } });
   const local = key => ({ local: key }), ledger = new Map(), edges = [], operands = [], allReasons = new Set(), summaries = [], fieldAccesses = [], aliases = [], callEffects = [];
+  const orderedAccesses = new Set(), orderedOperations = new Set();
   const add = (key, kind, node, data) => {
     if (!ledger.has(key)) ledger.set(key, { kind, span: node ? [node.getStart(sourceFile), node.end] : null, scope: null, data });
     return local(key);
@@ -44,11 +47,21 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     const symbols = new Map(), blockRefs = new Map(), writes = new Map(), heapWrites = new Map(), catches = new Map();
     const fields = createCompilerFieldPaths({ ts, checker, owner, sourceFile, assignments, expressionFor, declarationFor,
       depthLimit: policy.enrichment.fieldPathDepth, reasons });
-    const fieldsFor = node => fields.locationsFor(node).map(location => {
+    const ordered = createCompilerOrderedStorage({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor });
+    const registerField = location => {
       const token = 'field:' + location.key;
       if (!symbols.has(token)) symbols.set(token, {key:token,site:location.site,unknown:null,location});
       return token;
-    });
+    };
+    for (const location of ordered.allLocations()) registerField(location);
+    const fieldsFor = node => {
+      const precise = ordered.locationsFor(node);
+      if (precise.length && precise.every(location => ordered.strongAt(location, node))) {
+        orderedAccesses.add(canonicalSemanticJson(expressionFor(node)));
+        return precise.map(registerField);
+      }
+      return fields.locationsFor(node).map(registerField);
+    };
     const symbolFor = node => {
       if (!node || !ts.isIdentifier(node)) return null;
       const symbol = ts.isShorthandPropertyAssignment(node.parent) ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
@@ -71,6 +84,22 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
           const child = expressionFor(input);
           if (child) operands.push({ parent: block.condition, slot: ordinal === 0 ? 'left' : 'right', ordinal: 0, child, flags: [] });
         });
+      }
+      const operation = block.event?.kind === 'operation' ? ordered.operationFor(block.node) : null;
+      if (operation) {
+        orderedOperations.add(canonicalSemanticJson(block.site));
+        if (operation.kind === 'copy') {
+          block.orderedCopies = [];
+          for (let index = 0; index < operation.descriptor.length; index += 1) {
+            const sourceLocation = ordered.fieldFor(operation.source, operation.start + index, block.site);
+            const targetLocation = ordered.fieldFor(operation.descriptor, index, block.site);
+            if (!sourceLocation || !targetLocation) continue;
+            const sourceToken = registerField(sourceLocation), targetToken = registerField(targetLocation);
+            const value = add('snapshot:' + prefix + ':' + block.key + ':' + index, 'value', block.node,
+              { origin: 'heap', site: block.site, storage: operation.descriptor.root });
+            block.orderedCopies.push({ sourceToken, targetToken, value });
+          }
+        }
       }
       if (['heapRead', 'heapWrite'].includes(block.event?.kind)) {
         const candidates = fieldsFor(block.event.target);
@@ -134,8 +163,10 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       if (writes.has(block)) output.set(block.symbol, new Set([writes.get(block).local]));
       // A field path is a may-location: retain older candidates rather than claiming an alias-safe kill.
       if (heapWrites.has(block)) for (const field of block.fields) {
-        for (const token of overlaps.get(field) || [field]) output.set(token,new Set([...(output.get(token)||[]),heapWrites.get(block).local]));
+        const strong = block.fields.length === 1 && ordered.strongAt(symbols.get(field).location, block.node);
+        for (const token of overlaps.get(field) || [field]) output.set(token,new Set([...(strong ? [] : output.get(token)||[]),heapWrites.get(block).local]));
       }
+      for (const copy of block.orderedCopies || []) output.set(copy.targetToken, new Set([copy.value.local]));
       if (!equal(outgoing.get(block), output)) {
         outgoing.set(block, output);
         for (const successor of block.successors) if (!queued.has(successor.to)) { queue.push(successor.to); queued.add(successor.to); }
@@ -179,6 +210,15 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       parameterFields.push({ parameter: entry.location.parameter, path: entry.location.path, ref: entry.unknown });
     for (const block of reachable) {
       const event = block.event;
+      for (const copy of block.orderedCopies || []) {
+        const values = new Set(incoming.get(block)?.get(copy.sourceToken) || [symbols.get(copy.sourceToken).unknown.local]);
+        if (!complete) values.add(symbols.get(copy.sourceToken).unknown.local);
+        for (const candidate of values) {
+          edge('copies',local(candidate),copy.value,null,'modeled');
+          edge('flowsTo',local(candidate),copy.value,null,'modeled');
+        }
+        edge('packs',copy.value,block.site,null,'modeled');
+      }
       if (event?.kind === 'throw' || event?.mayThrow) {
         const payload = add('exception:' + prefix + ':' + block.key, 'value', block.node,
           { origin: 'unknown', site: expressionFor(event.value) || block.site, storage: null });
@@ -186,6 +226,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
         else {
           reasons.add('implicit_exception_payload_unresolved');
           if (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node)) for (const { argument } of compilerInvocationInputs(ts, block.node).inputs) edge('flowsTo', expressionFor(argument), payload, null, 'modeled');
+          else for (const input of compilerOperationDependencies(ts, block.node)?.inputs || []) edge('flowsTo', expressionFor(input.node), payload, null, 'modeled');
         }
         for (const target of exceptionTargets(block)) {
           if (catches.has(target)) edge('flowsTo', payload, catches.get(target), null, 'modeled');
@@ -208,12 +249,12 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       }
       if ((event?.kind === 'operation' && (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node))) || ['heapRead','heapWrite'].includes(event?.kind)) {
         const adapter=compilerCallAdapter({ts,checker,node:block.node,isDefaultLibrary});
-        for(const argument of adapter?.runtimeArguments||compilerInvocationInputs(ts,block.node).runtimeArguments) fields.rootsFor(argument);
+        if (!orderedOperations.has(canonicalSemanticJson(block.site))) for(const argument of adapter?.runtimeArguments||compilerInvocationInputs(ts,block.node).runtimeArguments) fields.rootsFor(argument);
         if(adapter) {fields.rootsFor(adapter.receiver);for(const reason of adapter.reasons)reasons.add(reason);}
         const callee=['heapRead','heapWrite'].includes(event?.kind)?event.target:block.node.expression||block.node.tag;
-        if(ts.isNewExpression(block.node))fields.rootsFor(block.node);
+        if(ts.isNewExpression(block.node) && !orderedOperations.has(canonicalSemanticJson(block.site)))fields.rootsFor(block.node);
         if(callee?.kind===ts.SyntaxKind.SuperKeyword)fields.rootsFor(callee);
-        if(callee&&(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee))) fields.rootsFor(callee.expression);
+        if(callee&&(ts.isPropertyAccessExpression(callee)||ts.isElementAccessExpression(callee)) && !orderedOperations.has(canonicalSemanticJson(block.site))) fields.rootsFor(callee.expression);
         const reads = [], seen = new Set(), pending = block.successors.filter(value => value.kind !== 'exceptional').map(value => value.to);
         while (pending.length) {
           throwIfAborted(signal);
@@ -254,16 +295,13 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       }
       if (event?.kind === 'operation') {
         const node = block.node;
-        if (ts.isObjectLiteralExpression(node)) {
-          for (const member of node.properties) edge('packs', expressionFor(ts.isPropertyAssignment(member) ? member.initializer : ts.isShorthandPropertyAssignment(member) ? member.name : member), block.site, null, 'modeled');
-        } else if (ts.isArrayLiteralExpression(node)) {
-          for (const element of node.elements) if (!ts.isOmittedExpression(element)) edge('packs', expressionFor(element), block.site, null, 'modeled');
-        } else if (ts.isBinaryExpression(node)) {
-          edge('flowsTo', expressionFor(node.left), block.site); edge('flowsTo', expressionFor(node.right), block.site);
-        } else if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) edge('flowsTo', expressionFor(node.operand), block.site);
-        else if (ts.isConditionalExpression(node)) {
-          edge('flowsTo', expressionFor(node.whenTrue), block.site, expressionFor(node.condition), 'modeled');
-          edge('flowsTo', expressionFor(node.whenFalse), block.site, expressionFor(node.condition), 'modeled');
+        const dependencies = compilerOperationDependencies(ts, node);
+        for (const input of dependencies?.inputs || []) edge(input.kind, expressionFor(input.node), block.site, expressionFor(input.condition), input.certainty);
+        if (dependencies?.reason) {
+          reasons.add(dependencies.reason);
+          const unknown = add('unknown-operation:' + prefix + ':' + block.key, 'value', node,
+            { origin: 'unknown', site: block.site, storage: null });
+          edge('flowsTo', unknown, block.site, null, 'modeled');
         }
       }
     }
@@ -309,5 +347,6 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
   const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: root, source, sourceBytes: bytes, partitionId,
     producerHash: semanticHash('semantic.cfg-producer.v1', { version: Number(SEMANTIC_ANALYSIS_VERSIONS.cfgFlow) }), contextHash: context.contextKey,
     policyHash: semanticHash('semantic.cfg-policy.v1', { maxSccIterations: policy.enrichment.maxSccIterations, fieldPathDepth: policy.enrichment.fieldPathDepth }), diskAccount, signal });
-  return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), fieldAccesses, aliases, callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
+  return { partition, coverage: [coverage], edges: unique.map(([, row]) => row), fieldAccesses, aliases, orderedAccesses, orderedOperations,
+    callEffects: expand(callEffects), summaries: summaries.map(summary => ({ ...summary, returns: expand(summary.returns), exceptions: expand(summary.exceptions), effects: expand(summary.effects), parameterFields: expand(summary.parameterFields) })) };
 };

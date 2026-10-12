@@ -2,8 +2,9 @@ import { createRequire } from 'node:module';
 import { VISITOR_KEYS } from '@babel/types';
 import { canonicalSemanticJson } from './identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { semanticLiteralScalar } from './semantic-literal.js';
 
-export const JAVASCRIPT_ADAPTER_VERSION = '2:' + createRequire(import.meta.url)('@babel/types/package.json').version;
+export const JAVASCRIPT_ADAPTER_VERSION = '3:' + createRequire(import.meta.url)('@babel/types/package.json').version;
 const KEYS = Object.freeze({ ...VISITOR_KEYS,
   Literal: [], Property: ['key', 'value'], ChainExpression: ['expression'],
   ImportExpression: ['source', 'options'], MethodDefinition: ['key', 'value'], PrivateName: []
@@ -117,7 +118,9 @@ export const createSemanticCollector = ({ ast, source, partitionId, unavailable 
             expression: () => ({ astKind: node.type, operation: node.operator || null,
               invocationKind: kind, syntacticArgumentCount: kind ? (node.arguments?.length
                 ?? node.quasi?.expressions?.length ?? (kind === 'import' ? 1 + Number(Boolean(node.options)) : 0)) : null, flags }),
-            literal: () => ({ literalKind: node.type, textRef: { span }, scalar: null })
+            literal: () => ({ literalKind: node.type, textRef: { span },
+              scalar: semanticLiteralScalar({ kind: node.type, value: Object.hasOwn(node, 'value') ? node.value
+                : node.type === 'NullLiteral' ? null : undefined }) })
           }[recordKind]();
           summary.nodes += 1;
           yield { family: 'node', row: { id: ids[recordKind], kind: recordKind, span,

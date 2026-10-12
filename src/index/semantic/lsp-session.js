@@ -14,12 +14,15 @@ import { writeSemanticAnalysis } from './analysis-write.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
 import { exactLspRange, normalizeLspLocations, offsetToLspPosition } from './lsp-locations.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { nativeExecutionAuthority } from './native-execution-context.js';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 const keyPath = file => { const value = path.resolve(file); return process.platform === 'win32' ? value.toLowerCase() : value; };
 const refKey = ref => canonicalSemanticJson(ref);
 /** One build-owned LSP lane; this owns no server, Program, or request scheduler. */
 export const createSemanticLspSession = async ({ state, runtime, signal = null, languages = null, eagerOnly = false }) => {
   const inventory = new Map(), byUri = new Map(), texts = new Map(), emitted = [], contexts = new Map(), completed = new Set();
   const policy = runtime.semanticPolicy;
+  const nativeAuthority = nativeExecutionAuthority(state);
   state.semanticEvidenceArtifacts ||= [];
   for (const [file, facts] of state.semanticFactsByFile || []) {
     throwIfAborted(signal);
@@ -29,6 +32,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     let source;
     for await (const row of store.iterateRows(syntax.partitionId, 'semantic_sources', { signal })) source = row;
     if (!source || languages && !languages.includes(source.language)) continue;
+    if (nativeAuthority && !nativeAuthority.sourceUnits.has(source.sourceUnitId)) continue;
     await store.verifySource(source, { signal });
     if (source.encoding === 'binary') continue;
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
@@ -79,6 +83,18 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
   const api = {
     get enabled() { return inventory.size > 0; }, get hasTargetedWork() { return [...inventory.values()].some(item => item.unresolvedCount > 0); }, fileTextByFile: texts,
     setSignal(value) { signal = value; },
+    async nativeDocumentUri(doc) {
+      if (!nativeAuthority) return null;
+      const item = itemForDoc(doc);
+      if (!item || item.source.mapping || item.source.language !== 'c' || doc.text !== item.text
+        || !nativeAuthority.sourceUnits.has(item.source.sourceUnitId) || nativeExecutionAuthority(state) !== nativeAuthority) {
+        throw Object.assign(new Error('Native document differs from its admitted source authority.'), { code: 'ERR_SEMANTIC_NATIVE_UNSEALED' });
+      }
+      const filename = path.resolve(runtime.root, item.source.path);
+      await readVerifiedContainedFile(runtime.root, filename, { maxBytes: 1024 * 1024, expectedHash: item.source.byteHash, signal });
+      if (nativeExecutionAuthority(state) !== nativeAuthority) throw Object.assign(new Error('Native document grant expired.'), { code: 'ERR_SEMANTIC_NATIVE_UNSEALED' });
+      return pathToFileURL(filename).href;
+    },
     prepareDocuments(documents) {
       const result = documents.map(doc => { const item = itemForDoc(doc); return item ? { ...doc, languageId: item.source.language, semanticSourceUnitId: item.source.sourceUnitId } : doc; }), present = new Set(result.map(doc => itemForDoc(doc)?.source.sourceUnitId));
       for (const item of inventory.values()) if (!item.source.mapping && !present.has(item.source.sourceUnitId)) result.push({ virtualPath: item.source.path, containerPath: item.source.path, languageId: item.source.language, effectiveExt: path.extname(item.source.path), text: item.text, docHash: item.source.textHash, lineIndex: item.source.lineStarts, segmentUid: null, segmentRange: { start: 0, end: item.source.textLength }, semanticSourceUnitId: item.source.sourceUnitId });
@@ -120,7 +136,8 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       if (!semanticPhasePolicy(policy, item.plan, 'bindings', runtime, item.source.sourceUnitId).admitted && !state.semanticAdmittedSources?.has(item.source.sourceUnitId)) return;
       api.registerDocument(doc, uri);
       const context = { providerId, providerVersion, compilerVersion: null,
-        configHash: semanticHash('semantic.lsp-config.v1', { providerId, providerVersion, workspaceKey, positionEncoding }),
+        configHash: semanticHash('semantic.lsp-config.v1', { providerId, providerVersion, workspaceKey, positionEncoding,
+          ...(nativeAuthority ? { nativeAuthorityHash: nativeAuthority.authorityHash } : {}) }),
         moduleResolutionHash: semanticHash('semantic.lsp-sources.v1', [...inventory.values()].map(value => ({ sourceUnitId: value.source.sourceUnitId, byteHash: value.source.byteHash })).sort((a,b) => a.sourceUnitId.localeCompare(b.sourceUnitId))),
         vfsMappingHash: semanticHash('semantic.lsp-mapping.v1', { uri, mapping: item.source.mapping }) };
       context.contextKey = semanticHash('semantic.lsp-context.v1', context);

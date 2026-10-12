@@ -54,9 +54,10 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
       const row = db.prepare('SELECT payload FROM task_descriptors WHERE taskId=?').get(id);
       return row ? assertSemanticTask(JSON.parse(row.payload)) : null;
     };
-    const requireLease = ({ taskId, owner, now }) => {
+    const requireLease = ({ taskId, owner, attempt, now }) => {
       const row = read(taskId);
-      if (!row || row.state !== 'leased' || row.leaseOwner !== owner || row.leaseUntil <= now) {
+      if (!Number.isSafeInteger(attempt) || attempt < 1 || !row || row.state !== 'leased'
+        || row.leaseOwner !== owner || row.attempt !== attempt || row.leaseUntil <= now) {
         throw fail('Semantic task lease is missing, expired or owned elsewhere.', 'ERR_SEMANTIC_LEASE_LOST');
       }
       return row;
@@ -106,23 +107,23 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
       }
       return result;
     }).immediate();
-    const release = ({ taskId, owner, now = Date.now(), reason, transient = false, cancelled = false }) => transaction(() => {
+    const release = ({ taskId, owner, attempt, now = Date.now(), reason, transient = false, cancelled = false }) => transaction(() => {
       integer(now, 'clock'); text(reason, 'reason');
-      const row = requireLease({ taskId, owner, now });
+      const row = requireLease({ taskId, owner, attempt, now });
       const state = cancelled ? 'cancelled' : transient && row.attempt < maxAttempts ? 'pending' : 'failed';
       const retryAt = state === 'pending' ? now + retryDelayMs * (2 ** Math.min(row.attempt - 1, 20)) : null;
       db.prepare('UPDATE tasks SET state=?,leaseOwner=NULL,leaseUntil=NULL,lastError=? WHERE taskId=?')
         .run(state, JSON.stringify({ reason, transient, retryAt }), taskId);
       return read(taskId);
     }).immediate();
-    const renew = ({ taskId, owner, now = Date.now(), leaseMs = 30000 }) => transaction(() => {
-      integer(now, 'clock'); integer(leaseMs, 'lease duration', 1); requireLease({ taskId, owner, now });
+    const renew = ({ taskId, owner, attempt, now = Date.now(), leaseMs = 30000 }) => transaction(() => {
+      integer(now, 'clock'); integer(leaseMs, 'lease duration', 1); requireLease({ taskId, owner, attempt, now });
       if (!Number.isSafeInteger(now + leaseMs)) throw new TypeError('Unsafe lease expiry.');
       db.prepare('UPDATE tasks SET leaseUntil=? WHERE taskId=?').run(now + leaseMs, taskId);
       return read(taskId);
     }).immediate();
-    const acknowledgePublished = async ({ taskId, owner, publication, verifyPublication, now = () => Date.now() }) => {
-      const before = requireLease({ taskId, owner, now: now() });
+    const acknowledgePublished = async ({ taskId, owner, attempt, publication, verifyPublication, now = () => Date.now() }) => {
+      const before = requireLease({ taskId, owner, attempt, now: now() });
       if (!publication || !/^[a-f0-9]{64}$/.test(publication.manifestHash) || !publication.publishedBuildId
         || publication.taskId !== taskId || publication.policyHash !== before.policyHash
         || publication.baseBuildId !== before.baseBuildId || publication.inputHash !== before.inputHash
@@ -130,8 +131,8 @@ export const openSemanticFrontier = ({ Database, filename, maxAttempts = 3, retr
         throw fail('Completion requires verified generation publication for the exact task inputs.', 'ERR_SEMANTIC_PUBLICATION_REQUIRED');
       }
       return transaction(() => {
-        const current = requireLease({ taskId, owner, now: now() });
-        if (current.inputHash !== before.inputHash || current.attempt !== before.attempt) throw fail('Task changed during publication verification.');
+        const current = requireLease({ taskId, owner, attempt, now: now() });
+        if (current.inputHash !== before.inputHash || current.attempt !== before.attempt) throw fail('Task changed during publication verification.', 'ERR_SEMANTIC_LEASE_LOST');
         db.prepare('INSERT INTO outputs VALUES(?,?,?)').run(taskId, publication.manifestHash, publication.publishedBuildId);
         db.prepare("UPDATE tasks SET state='completed',leaseOwner=NULL,leaseUntil=NULL,lastError=NULL WHERE taskId=?").run(taskId);
         return read(taskId);

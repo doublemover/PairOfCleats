@@ -333,6 +333,7 @@ export const processDocumentTypes = async ({
     const signatureHelpBudget = budgetControllers.signatureHelp || createRequestBudgetController(null);
     const inlayHintsBudget = budgetControllers.inlayHints || createRequestBudgetController(null);
     const definitionBudget = budgetControllers.definition || createRequestBudgetController(null);
+    const semanticDefinitionBudget = budgetControllers.semanticDefinition || definitionBudget;
     const typeDefinitionBudget = budgetControllers.typeDefinition || createRequestBudgetController(null);
     const referencesBudget = budgetControllers.references || createRequestBudgetController(null);
     const requestCacheProviderId = requestCacheContext?.providerId || cmd;
@@ -684,7 +685,7 @@ export const processDocumentTypes = async ({
       requestedMetric,
       succeededMetric,
       buildParams
-    }) => (symbol, position) => {
+    }) => (symbol, position, requestBudget = budget) => {
       throwIfAborted(abortSignal);
       const key = buildSymbolPositionCacheKey({
         position
@@ -696,7 +697,7 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(budget)) return Promise.resolve({ attempted: false, info: null });
+      if (!reserveRequestBudget(requestBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedInfo = semanticSession ? null : tryReadRequestCache(cacheKey, position);
       const runRequest = typeof limiter === 'function'
         ? limiter
@@ -1077,6 +1078,10 @@ export const processDocumentTypes = async ({
         }
       }
     }
+    if (semanticSession) await semanticSession.collectDocument({ doc, uri, targets: semanticTargets,
+      requestDefinition: (symbol, position) => requestDefinition(symbol, position, semanticDefinitionBudget),
+      positionEncoding, providerId: requestCacheProviderId, providerVersion: requestCacheProviderVersion,
+      workspaceKey: requestCacheWorkspaceKey, definitionEnabled: definitionEnabled !== false && interactiveAllowed });
     await runStagePass({
       enabled: definitionEnabled !== false,
       eligibleFlag: 'definitionEligible',
@@ -1099,7 +1104,6 @@ export const processDocumentTypes = async ({
       succeededFlag: 'referencesSucceeded'
     });
 
-    if (semanticSession) await semanticSession.collectDocument({ doc, uri, targets: semanticTargets, requestDefinition, positionEncoding, providerId: requestCacheProviderId, providerVersion: requestCacheProviderVersion, workspaceKey: requestCacheWorkspaceKey, definitionEnabled: definitionEnabled !== false && interactiveAllowed });
     const candidateRows = [];
     const unresolvedRate = symbolRecords.length > 0
       ? (unresolvedRecords.length / symbolRecords.length)

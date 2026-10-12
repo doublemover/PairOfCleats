@@ -3,6 +3,7 @@ import { semanticHash, canonicalSemanticJson } from '../index/semantic/identity.
 import { assertSemanticFind } from '../contracts/validators/semantic-find.js';
 import { fingerprintSemanticOperation } from './operation-fingerprint.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { discoverySelector, inspectDiscoveryFact } from './discovery-facts.js';
 const fail=(code,message)=>Object.assign(new Error(message),{code});
 export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWorkMs=250,maxContinuations=64,ttlMs=300000}={}) => {
   const maxima={records:maxRecords,bytes:maxBytes,workMs:maxWorkMs},continuations=new Map();
@@ -25,7 +26,8 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     const seenCoverage=new Set();
     while(result.records.length<limits.records && (!progressed||performance.now()<deadline)){
       const targetPage=request.selector.target?await store.getNeighbors(request.selector.target,'upstream',['callTarget','constructTarget'],{offset,limit:1,signal}):null;
-      const page=targetPage?{...targetPage,refs:targetPage.edges.map(edge=>edge.from)}:await store.findOperations({field:request.selector.field,value:request.selector.value},{offset,limit:1,signal});
+      const selected=discoverySelector(request.selector);
+      const page=targetPage?{...targetPage,refs:targetPage.edges.map(edge=>edge.from)}:await store.findOperations({field:selected.field,value:selected.value},{offset,limit:1,signal});
       if(!page.refs.length){offset=page.offset;done=page.done;progressed=true;if(done)break;continue;}
       const ref=page.refs[0],[record]=await store.getRecords([ref],['span','scope','data'],{signal});
       if(!record)throw fail('ERR_SEMANTIC_INTEGRITY','Operation index refers to an absent node.');
@@ -36,8 +38,12 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
         offset=page.offset;done=page.done;progressed=true;if(done)break;continue;
       }
 
-      const category=request.selector.target?'target-candidate':request.selector.field==='chunkUid'?'ownership-candidate':['sourcePath','sourceUnitId'].includes(request.selector.field)?'source-candidate':'structural-candidate';
+      const strict=request.selector.typeExpression||request.selector.literal;
+      const fact=strict?await inspectDiscoveryFact({store,record,selector:request.selector,signal,maxBytes:limits.bytes}):null;
+      if(strict&&!fact){offset=page.offset;done=page.done;progressed=true;if(done)break;continue;}
+      const category=request.selector.typeExpression?'type-fact':request.selector.literal?'literal-value':request.selector.target?'target-candidate':request.selector.field==='chunkUid'?'ownership-candidate':['sourcePath','sourceUnitId'].includes(request.selector.field)?'source-candidate':'structural-candidate';
       const match={ref,category,scoreMeaning:category==='target-candidate'?'Recorded compiler target candidate; inspect binding ambiguity and context.':category==='ownership-candidate'?'Recorded primary or overlapping chunk ownership; no runtime or equivalence claim.':category==='source-candidate'?'Exact retained source identity/path match; no runtime or equivalence claim.':'Exact syntax selector match; no similarity probability.',differences:[]};
+      if(fact){match.fact=fact;match.scoreMeaning=category==='type-fact'?'Exact recorded type expression, selected fact source and role. No assignability or alias expansion.':'Exact parser-established scalar literal occurrence in retained source. No runtime-value completeness claim.';}
       if(seed){match.fingerprint=await fingerprintSemanticOperation({store,ref,signal,deadline});match.differences.push(!seed.hash||!match.fingerprint.hash?'comparison_unavailable':seed.hash===match.fingerprint.hash?'ordered_structure_hash_matches':'ordered_structure_hash_differs');if(!seed.complete||!match.fingerprint.complete)match.differences.push('comparison_incomplete');}
       const coverage=seenCoverage.has(ref.partitionId)?[]:await store.getCoverage([ref.partitionId],{signal});
       const previousExtraction=result.coverage.extraction.length,previousAnalysis=result.coverage.analysis.length;
