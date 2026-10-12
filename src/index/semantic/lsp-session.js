@@ -32,9 +32,23 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     await store.verifySource(source, { signal });
     if (source.encoding === 'binary') continue;
     const bytes = await fs.readFile(path.join(root, 'semantic-sources', source.byteHash + '.utf8'));
-    const occurrenceIds = new Set();
+    const occurrenceIds = new Set(), expressionKinds=new Map(), parents=new Map();
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), declarations = [];
-    for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) { if (row.kind === 'declaration' && row.span) declarations.push({ span: row.span, ref: { partitionId: syntax.partitionId, localId: row.id } }); if (row.kind === 'occurrence' && row.span && !row.data.roles.includes('definition')) occurrenceIds.add(refKey({ partitionId: syntax.partitionId, localId: row.id })); }
+    for await (const row of store.iterateRows(syntax.partitionId, 'semantic_records', { signal })) { if(row.kind==='expression')expressionKinds.set(row.id,row.data); if (row.kind === 'declaration' && row.span) declarations.push({ span: row.span, ref: { partitionId: syntax.partitionId, localId: row.id } }); if (row.kind === 'occurrence' && row.span && !row.data.roles.includes('definition')) occurrenceIds.add(refKey({ partitionId: syntax.partitionId, localId: row.id })); }
+    for await(const row of store.iterateRows(syntax.partitionId,'semantic_operands',{signal}))if(row.child?.partitionId===syntax.partitionId&&row.parent.partitionId===syntax.partitionId)parents.set(row.child.localId,{parent:row.parent,slot:row.slot});
+    const invocationFor = expression => {
+      const seen=new Set();let current=expression;
+      while(current?.partitionId===syntax.partitionId&&seen.size<8&&!seen.has(current.localId)) {
+        seen.add(current.localId);const link=parents.get(current.localId);if(!link)return null;
+        const data=expressionKinds.get(link.parent.localId);
+        if(data?.invocationKind)return ['callee','tag','expression'].includes(link.slot)?{ref:link.parent,kind:data.invocationKind}:null;
+        const member=['PropertyAccessExpression','ElementAccessExpression','MemberExpression','OptionalMemberExpression'].includes(data?.astKind);
+        // The receiver occurrence in obj.method() is not the invoked member.
+        if(member?!['name','property','ast:PropertyAccessExpression.name'].includes(link.slot):!['ParenthesizedExpression','NonNullExpression'].includes(data?.astKind)||!['expression','ast:ParenthesizedExpression.expression','ast:NonNullExpression.expression'].includes(link.slot))return null;
+        current=link.parent;
+      }
+      return null;
+    };
     const resolved = new Set();
     for (const partition of facts.partitions) if (partition.partitionId !== syntax.partitionId) for await (const row of store.iterateRows(partition.partitionId, 'semantic_records', { signal })) if (row.kind === 'binding' && row.data.status === 'resolved') resolved.add(refKey(row.data.occurrence));
     const unresolvedCount = [...occurrenceIds].filter(key => !resolved.has(key)).length;
@@ -49,7 +63,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
     const sourcePath = source.mapping ? [...state.semanticFactsByFile].find(([, parent]) => parent.sourceUnitId === source.mapping.parentSourceUnitId)?.[0] || source.path : source.path;
     const sourcePolicy = resolveSemanticSourcePolicy(policy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, language: source.language, path: sourcePath });
     const plan = state.semanticPlanningBySource?.get(source.sourceUnitId) || planSemanticSource(sourcePolicy, { sourceUnitId: source.sourceUnitId, sourceHash: source.byteHash, syntaxPartitionId: syntax.partitionId });
-    const item = { sourceMap, policy: sourcePolicy, plan, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
+    const item = { sourceMap, policy: sourcePolicy, plan, invocationFor, unresolvedCount, file, facts, root, store, syntax, source, text, bytes, declarations, resolved };
     inventory.set(source.sourceUnitId, item);
     if (!source.mapping) { texts.set(source.path, text); byUri.set(pathToFileURL(path.join(runtime.root, source.path)).href, item); }
   }
@@ -92,7 +106,8 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
         if (row.kind !== 'occurrence' || !row.span || row.data.roles.includes('definition')) continue;
         if (!semanticTargetMatchesRecord(item.policy, item.syntax.partitionId, row, selectedScopes)) continue;
         const ref = { partitionId: item.syntax.partitionId, localId: row.id };
-        if (!item.resolved.has(refKey(ref))) targets.push({ ref, span: row.span, scope: row.scope, roles: row.data.roles, name: item.text.slice(...row.span) });
+        const invocation=item.invocationFor(row.data.expression);
+        if (!item.resolved.has(refKey(invocation?.ref||ref))) targets.push({ ref, invocation, span: row.span, scope: row.scope, roles: row.data.roles, name: item.text.slice(...row.span) });
       }
       return targets;
     },
@@ -150,7 +165,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null }
           data: { occurrence: target.ref, contextKey: context.contextKey, status, signature: null, symbolGroupId: unique.length ? createSymbolGroupId({ contextKey: context.contextKey, declarations: unique }) : null, candidateCount: unique.length } } });
         for (const candidate of unique) {
           const certainty = exact.some(value => refKey(value) === refKey(candidate)) ? 'exact-static' : 'modeled';
-          for (const [kind, from] of [['bindingCandidate', binding], [target.roles.includes('construct') ? 'constructTarget' : target.roles.includes('call') ? 'callTarget' : 'references', target.ref]]) rows.push({ family: 'edge', row: { id: edgeId++, kind, from, to: candidate, callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition: null, evidence, certainty } });
+          for (const [kind, from] of [['bindingCandidate', binding], [target.invocation?.kind==='construct' || target.roles.includes('construct') ? 'constructTarget' : target.invocation || target.roles.includes('call') ? 'callTarget' : 'references', target.invocation?.ref||target.ref]]) rows.push({ family: 'edge', row: { id: edgeId++, kind, from, to: candidate, callSite: ['callTarget','constructTarget'].includes(kind)?target.invocation?.ref||null:null, operandOrdinal: null, contextKey: context.contextKey, condition: null, evidence, certainty } });
         }
       }
       rows.push(...[...names].map(([value,id]) => ({ family: 'lookup', row: { kind: 'name', id, value } })));

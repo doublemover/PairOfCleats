@@ -100,6 +100,7 @@ export async function preprocessFiles({
   root,
   modes,
   documentExtractionConfig = null,
+  semanticPolicy = null,
   recordsDir = null,
   recordsConfig = null,
   scmProvider = null,
@@ -155,9 +156,9 @@ export async function preprocessFiles({
         readSample: readFileSample
       });
       const bypassBinarySkip = Boolean(
-        documentExtractionEnabled
-        && isDocumentExt(entry.ext)
-        && scanResult?.skip?.reason === 'binary'
+        scanResult?.skip?.reason === 'binary'
+        && (documentExtractionEnabled && isDocumentExt(entry.ext)
+          || semanticPolicy?.enabled && semanticPolicy.languages.includes('wasm') && modes.includes('code') && entry.ext === '.wasm')
       );
       let sampleText = null;
       let sampleBuffer = scanResult?.sampleBuffer || null;

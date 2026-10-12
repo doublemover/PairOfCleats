@@ -13,7 +13,11 @@ try {
   const fixture=await createCompilerBoundaryFixture(root,{'host.ts':`export {};
     const chosen=(x:number)=>{try{return x+1;}finally{return x+2;}};
     const suppressed=(x:number)=>{try{return x;}finally{throw 9;}};
+    function withThis(this:void, shifted:number){return shifted;}
+    function withThisRest(this:void, ...packed:number[]){return packed[0];}
     const module=new WebAssembly.Module(${sourceBytes(wasmHostFixture())});
+    new WebAssembly.Instance(module,{env:{chosen:withThis}}).exports.run(4);
+    new WebAssembly.Instance(module,{env:{chosen:withThisRest}}).exports.run(5);
     const instance=new WebAssembly.Instance(module,{env:{chosen}}); instance.exports.run(1);
     new WebAssembly.Instance(module,{env:{chosen:suppressed}}).exports.run(2);
     new WebAssembly.Instance(new WebAssembly.Module(${sourceBytes(multi)}),{env:{chosen:(x:number)=>[x,x+1]}}).exports.run(3);
@@ -26,6 +30,11 @@ try {
     for await(const row of store.iterateRows(p.partitionId,'semantic_records'))records.set(p.partitionId+':'+row.id,row);
     for await(const edge of store.iterateRows(p.partitionId,'semantic_edges'))edges.push(edge);
   }
+  const hostParameter = (edge, kind, name) => edge.kind === kind && edge.operandOrdinal === 0
+    && records.get(key(edge.from))?.data.origin === 'parameter'
+    && fixture.documents[0].sourceFile.text.slice(...(records.get(key(edge.to))?.span || [0, 0])) === name;
+  assert.ok(edges.some(edge => hostParameter(edge, 'argumentToParameter', 'shifted')), 'type-only this must not shift the first runtime argument');
+  assert.ok(edges.some(edge => hostParameter(edge, 'packs', 'packed')), 'rest position excludes type-only this');
   const hostReturns=edges.filter(edge=>edge.kind==='returnToResult'&&records.get(key(edge.from))?.span&&records.get(key(edge.to))?.data.origin==='return');
   assert.ok(hostReturns.some(edge=>fixture.documents[0].sourceFile.text.slice(...records.get(key(edge.from)).span).includes('return x+2')),'finally override uses existing compiler completion summary');
   assert.ok(!hostReturns.some(edge=>fixture.documents[0].sourceFile.text.slice(...records.get(key(edge.from)).span).includes('return x+1')));
