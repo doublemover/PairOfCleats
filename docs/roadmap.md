@@ -4,26 +4,17 @@ Status: Active
 Last audited: 2026-10-07
 Canonical for: initiative status, execution order, and remaining work
 
-PairOfCleats' indexing, retrieval, tooling and integration surfaces are implemented.
-The completion integration, dependency updates, CI repairs and scoped security fixes
-have landed on main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542),
-commit `2529d718db780da22c49f188202b6f1550a1833d`. Its exact source tree passed the
-hosted platform and gate checks before merge. Release-wide acceptance remains open.
+Main through [PR542](https://github.com/doublemover/PairOfCleats/pull/542) passed
+its exact-head hosted checks. Release-wide acceptance remains open.
 Use this page for status, [October 7 evidence](guides/closeout-evidence-2026-10-07.md)
 for receipts/limits, contracts for behavior, and archives for history.
 Hosted CI is bounded validation, not release-wide readiness.
 
 ## Source-of-Truth Rules
 
-1. `src/contracts/**`, validators and schemas define the supported data contracts.
-2. Current source and executable tests establish implementation behavior.
-3. Focused specs describe design and acceptance criteria when consistent with those contracts.
-4. This roadmap owns current status. Supporting reviews do not create competing task queues.
-5. Archived checklists describe their original checkpoint; unchecked historical boxes do not reopen work.
-
-`implemented` describes code coverage, `checkpoint clean` describes a bounded recorded
-review, and `deferred validation` means acceptance has not been established for the current
-head. None is a blanket release-readiness claim.
+Contracts/schemas and executable tests own behavior; this roadmap owns current status.
+Archived checklists are historical, not reopened tasks. Implemented and focused-tested
+are bounded claims; release-wide acceptance requires its own current evidence.
 
 ## Semantic indexing implementation (2026-10-10)
 
@@ -41,33 +32,28 @@ and retained-byte host joins; indexed discovery and context packs; producer-vers
 invalidation and bounded disk cleanup. These are partial coverage, not
 completion of the refined semantic specification.
 
-Required bootstrap now fails early with actionable commands across normal, test
-and benchmark entry paths, checks actual readiness/native behavior, and never
-silently installs. Cloud `npm run bootstrap:ci` completed under Node 26.11.1.
-Ten focused continuation checks passed (79 ms–1.07 s); no broad benchmark campaign.
-The reviewed config surface has a 72-flag cap. Artifact docs and generated reports
-are aligned; author-workspace receipts remain historical. The 74-case cross-platform failure
-union now passes targeted cloud checks after grouped format, checksum and lifecycle
-repairs; hosted CI remains exact-head evidence.
+Bootstrap enforces real readiness without implicit installs. Historical setup and
+platform receipts remain revision-specific in the linked archives.
 
-[Watchdog repair](archived/watchdog-recovery-2026-10-11.md) and
-[read/admission/config](archived/stage1-concurrency-2026-10-11.md):
-bounded validation/diagnostics; 59% less completion-validation time in a local
-4,000-node fixture. Full-index impact is unmeasured.
+[Watchdog/read admission](archived/stage1-concurrency-2026-10-11.md),
+[cleanup](archived/watchdog-recovery-2026-10-11.md) and
+[architecture repairs](archived/architecture-contract-audit-2026-10-11.md) retain
+bounded checks; full-index throughput remains unmeasured.
+[WASM](archived/wasm-semantic-checkpoint-2026-10-10.md),
+[capabilities](archived/semantic-capabilities-2026-10-11.md) and
+[precision](archived/semantic-precision-2026-10-11.md) include deferred binaries,
+object aliases, adapted calls, transferred ports and escaped-byte rejection.
+[Recovery](archived/semantic-recovery-checkpoint-2026-10-10.md) covers interrupted
+workers, reconstructed control, retained-cache cleanup and transient admission.
+[Native languages](archived/native-language-semantics-2026-10-11.md) adds opt-in
+Python/C/Swift/Rust syntax, partial control, eager provider bindings and retrieval;
+deferred native enrichment, compiler value flow and live non-C acceptance remain open.
 
-[Architecture repairs and checks](archived/architecture-contract-audit-2026-10-11.md).
-
-[Earlier WASM work](archived/wasm-semantic-checkpoint-2026-10-10.md);
-[Capabilities](archived/semantic-capabilities-2026-10-11.md)
-add deferred binary tasks and source/provider joins. The isolated
-[precision follow-on](archived/semantic-precision-2026-10-11.md) adds object aliases,
-call/apply/bind channels, browser transferred ports, explicit provider alias chains
-and rejects mutated/escaped WASM provenance. Runtime certainty and recovery remain open.
-
-Next: interrupted multi-worker recovery/transient accounting (separate owner);
-object/escape and completion precision; dynamic endpoints and runtime/RPC joins;
-Python/C/Swift/Rust adapters. Estimator calibration stays last. Cache cleanup,
-control-store reconstruction and full public-surface qualification remain open.
+Next, in order: remaining JS/TS class/heap/call/completion frontiers; Worker/WASM and retrieval/provider
+integration; remaining host/module precision; remaining native-language
+analysis. The calibrated estimator remains last priority. Hardware power-loss,
+unrelated build-writer/global disk quotas and full public-surface qualification
+remain open; lost control-only cancellation/retry history is not reconstructible.
 
 ## Current Initiatives
 
@@ -250,8 +236,8 @@ USR rollout phases Aâ€“H and lifecycle acceptance remain in the
 - [Historical release-evidence record](roadmap-release-validation-evidence-20260521.md)
 - [Earlier task-list reconciliation](archived/task-list-reconciliation-2026-10-02.md)
 
-The archive preserves prior text byte-for-byte: completed lanes, abandoned/no-adopt
-migrations, command outcomes and citations. This page carries current disposition.
+The archived roadmap preserves completed lanes, abandoned migrations, command
+outcomes and historical evidence; this page carries their current disposition.
 
 ## Validation Commands
 
@@ -276,7 +262,7 @@ with small fixtures before expanding validation.
 Full corpus remains stopped at 100 units / 555 vectors; selective embedding and
 W8 are not promoted. Original DATs/source units remain preserved. Numerical,
 relevance and kernel-dispatch qualification precede promotion; PR547 merge is
-unapproved. Alternative engines and Defuddle remain research; no installs or corpus restart.
+owner-approved as part of the October 12 stack consolidation. Alternative engines and Defuddle remain research; no installs or corpus restart.
 
 Reladraw workspace and Three.js semantic stacks supersede the
 [historical queue](guides/viewer-replacement-queue-20261009.md). Producer, DOM and
