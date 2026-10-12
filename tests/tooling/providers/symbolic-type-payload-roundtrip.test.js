@@ -9,6 +9,7 @@ import { normalizeProviderPayload } from '../../../src/index/tooling/provider-ou
 import { TOOLING_PROVIDERS, registerToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { runToolingPass } from '../../../src/index/type-inference-crossfile/tooling.js';
+import { compactHit } from '../../../src/retrieval/cli/render-output.js';
 import { buildMetaV2 } from '../../../src/index/metadata-v2.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-symbolic-payload-'));
@@ -51,6 +52,15 @@ try {
   const metadata = buildMetaV2({ chunk, docmeta: chunk.docmeta, analysisPolicy: {} });
   assert.deepEqual(metadata.types.expressions, typeExpressions);
   assert.equal(metadata.returns, null);
+  for (const hit of [chunk, { ...chunk, docmeta: null, metaV2: metadata }]) {
+    const compact = compactHit(hit);
+    assert.deepEqual(compact.typeExpressions, typeExpressions,
+      'compact search preserves exact refs, declaration provenance, and interpretation for detail navigation');
+    assert.deepEqual(compactHit(compact).typeExpressions, typeExpressions,
+      'the output budget may compact an already compact hit without dropping refs');
+    assert.equal(compact.docmeta, undefined);
+    assert.equal(compact.returnType, undefined, 'display aliases do not become return-type facts');
+  }
 
   TOOLING_PROVIDERS.clear();
   registerToolingProvider({ id: 'missing-graph', version: '1.0.0',
