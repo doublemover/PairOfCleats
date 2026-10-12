@@ -63,3 +63,15 @@ Inline ONNX fallback after cache/signature selection fails closed with the selec
 and actual providers recorded. Retry with the explicit observed provider. A changed
 getter cannot repair earlier cache reuse; transparent replay of that attempt is a
 separate follow-on. Deferred stage3 still binds actual probe identity before reuse.
+
+Stage2/stage4 and deferred stage3 persist initialization, execution and terminal
+attempts. Stage3 uses a distinct attempt per mode and records the parent attempt
+through the existing launch context. Pinned runs preserve prior build phases,
+progress and checkpoint evidence; admission checks understood producer identity
+and the runtime contract, not every historical build-state metadata field.
+
+Scheduler receipts contain compact admission counters/caps, not scheduler trace
+rings. Inline first-inference dimensions remain observations when dimensions were
+not declared: they do not silently change an already-selected cache/signature key.
+Abrupt process death can leave a running receipt; diagnostics show unverified or
+stale evidence, never synthesize a terminal success.

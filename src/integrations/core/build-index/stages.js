@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import { refreshRuntimeReceipt } from '../../../index/build/runtime/receipt.js';
+import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
 import { createEmbeddingExecutionPlan, buildEmbeddingLaunchArgs, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
 import { parseObservabilityContextEnv } from '../../../shared/observability.js';
 import { attachSemanticEnrichmentRuntime } from '../../../index/semantic/enrichment-context.js';
@@ -9,7 +11,6 @@ import { SIGNATURE_VERSION } from '../../../index/build/indexer/signatures.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import {
   flushBuildState,
-  initBuildState,
   markBuildPhase,
   startBuildHeartbeat,
   updateBuildState
@@ -157,6 +158,7 @@ export const runEmbeddingsStage = async ({
   userConfig,
   indexRoot,
   buildId = null,
+  parentAttemptId = null,
   includeEmbeddings,
   overallProgressRef,
   log,
@@ -166,6 +168,8 @@ export const runEmbeddingsStage = async ({
   recordIndexMetric,
   buildEmbeddingsPath
 }) => {
+  const launchObservability = parseObservabilityContextEnv(runtimeEnv) || {};
+  if (parentAttemptId) launchObservability.context = { ...launchObservability.context, runtimeAttemptId: parentAttemptId };
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const started = process.hrtime.bigint();
   const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
@@ -251,7 +255,7 @@ export const runEmbeddingsStage = async ({
               stage: 'stage3',
               embeddingPlan,
               embeddingPayloadFormatVersion: 3,
-              observability: parseObservabilityContextEnv(attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan))
+              observability: parseObservabilityContextEnv(attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan, launchObservability))
             },
             embeddingRuntime.queueMaxQueued,
             'embeddings'
@@ -287,7 +291,7 @@ export const runEmbeddingsStage = async ({
         }
         args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'off');
         const embedResult = await runEmbeddingsTool(args, {
-          baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan),
+          baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan, launchObservability),
           signal: effectiveAbortSignal,
           onLine: (line) => {
             if (line.includes('lance::dataset::write::insert')
@@ -572,6 +576,7 @@ export const runSqliteStage = async ({
         detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
+        await refreshRuntimeReceipt(runtime);
         await promoteBuild({
           repoRoot: runtime.root,
           userConfig: runtime.userConfig,
@@ -599,7 +604,8 @@ export const runSqliteStage = async ({
           overallProgressRef.current.advance({ message: `${modeItem} sqlite` });
         }
       }
-      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4' });
+      await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
+      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4', buildId: runtime.buildId, runtimeAttemptId: runtime.runtimeAttempt?.attemptId });
     } catch (err) {
       const phaseFailureDetail = toPhaseFailureDetail(err);
       await markFailedPhases({
@@ -624,6 +630,7 @@ export const runSqliteStage = async ({
       }
     }
   } catch (err) {
+    await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
     if (isAbortError(err)) {
       recordIndexMetric('stage4', 'aborted', started);
       throw err;
@@ -736,15 +743,14 @@ export const runStage = async (
       : () => {};
     try {
       throwIfAborted(effectiveAbortSignal);
-      await initBuildState({
-        buildRoot: runtime.buildRoot,
+      await updateBuildState(runtime.buildRoot, {
         buildId: runtime.buildId,
         repoRoot: runtime.root,
         modes,
         stage: phaseStage,
         configHash: runtime.configHash,
-        toolVersion: getToolVersion(),
-        repoProvenance: runtime.repoProvenance,
+        tool: { version: getToolVersion(), node: process.version },
+        repo: runtime.repoProvenance,
         signatureVersion: SIGNATURE_VERSION,
         profile: runtime.profile || null
       });
@@ -855,12 +861,15 @@ export const runStage = async (
           `cancelled after mode ${phaseCancelledMode || 'unknown'}; validation/promote skipped`
         );
         phaseDone = true;
+        await refreshRuntimeReceipt(runtime, { lifecycle: 'aborted', error: { code: 'ERR_STAGE_CANCELLED', message: 'Stage cancelled before validation/publication.' } });
         result = {
           modes,
           sqlite: null,
           repo: runtime.root,
           stage,
           buildRoot: runtime.buildRoot,
+          buildId: runtime.buildId,
+          runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
           repoCacheRoot: runtime.repoCacheRoot,
           profile: runtime.profile || null,
           cancelled: true,
@@ -968,6 +977,7 @@ export const runStage = async (
       promoteRunning = true;
       throwIfAborted(effectiveAbortSignal);
       await runtime.semanticEnrichmentDrain?.beforePublish();
+      await refreshRuntimeReceipt(runtime);
       await promoteBuild({
         repoRoot: runtime.root,
         userConfig: runtime.userConfig,
@@ -981,12 +991,15 @@ export const runStage = async (
       });
       await markBuildPhase(runtime.buildRoot, 'promote', 'done');
       promoteDone = true;
+      await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
       result = {
         modes,
         sqlite: sqliteResult,
         repo: runtime.root,
         stage,
         buildRoot: runtime.buildRoot,
+        buildId: runtime.buildId,
+        runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
         repoCacheRoot: runtime.repoCacheRoot,
         profile: runtime.profile || null
       };
@@ -1052,6 +1065,7 @@ export const runStage = async (
       if (closeoutResult.error) throw closeoutResult.error;
     }
   } catch (err) {
+    await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
     if (isAbortError(err)) {
       recordIndexMetric(phaseStage, 'aborted', started);
       throw err;

@@ -1,3 +1,4 @@
+import { createStage3RuntimeReceipts } from './runtime-receipt.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1252,6 +1253,12 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
  * @returns {Promise<void>}
  */
 export async function runBuildEmbeddingsWithConfig(config) {
+  let receipts = null;
+  try { return await runBuildEmbeddingsImpl(config, (value) => { receipts = value; }); }
+  catch (error) { await receipts?.fail(error); throw error; }
+}
+
+async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
   const {
     argv,
     root,
@@ -1652,6 +1659,11 @@ export async function runBuildEmbeddingsWithConfig(config) {
       }
     }
   }
+  const receiptRoots = [];
+  for (const mode of modes) receiptRoots.push([mode, await resolveModeIndexRoot(mode)]);
+  const runtimeReceipts = await createStage3RuntimeReceipts({ config: { ...config, repoCacheRoot }, roots: receiptRoots, identity: cacheIdentity, identityKey: cacheIdentityKey, log });
+  onRuntimeReceipts(runtimeReceipts);
+  let activeReceiptMode = null;
   const metricsDir = getMetricsDir(root, userConfig);
   const envConfig = configEnv || getEnvConfig();
   const crashLogger = await createCrashLogger({
@@ -1680,9 +1692,24 @@ export async function runBuildEmbeddingsWithConfig(config) {
       message: err?.message || String(err),
       stack: err?.stack || null
     });
+    await runtimeReceipts.fail(err);
     throw err;
   }
-  const getChunkEmbeddings = embedder.getChunkEmbeddings;
+  const getChunkEmbeddings = async (texts) => {
+    if (!Array.isArray(texts) || !texts.length) return [];
+    await runtimeReceipts.loading(activeReceiptMode);
+    try {
+      const vectors = await embedder.getChunkEmbeddings(texts);
+      assertVectorArrays(vectors, texts.length, 'runtime-observed-batch');
+      await runtimeReceipts.observed(activeReceiptMode, embedder, vectors, activeReceiptMode ? 'successful-inference' : 'provider-probe');
+      return vectors;
+    } catch (failure) {
+      await runtimeReceipts.fail(failure, activeReceiptMode);
+      throw failure;
+    }
+  };
+  getChunkEmbeddings.supportsParallelDispatch = embedder.getChunkEmbeddings.supportsParallelDispatch;
+  getChunkEmbeddings.estimateTokensBatch = embedder.getChunkEmbeddings.estimateTokensBatch;
   if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims)) {
     try {
       const probeVectors = await getChunkEmbeddings(['pairofcleats-provider-probe']);
@@ -1699,6 +1726,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         message: err?.message || String(err),
         stack: err?.stack || null
       });
+      await runtimeReceipts.fail(err);
       throw err;
     }
     const detectedProvider = typeof embedder.getActiveProvider === 'function'
@@ -1730,6 +1758,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     envConfig,
     indexingConfig
   });
+  await runtimeReceipts.resolved(cacheIdentity, cacheIdentityKey, scheduler);
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
   const buildStateTrackers = new Map();
@@ -1874,6 +1903,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
 
   try {
     for (const mode of modes) {
+      activeReceiptMode = mode;
       if (!validModes.has(mode)) {
         fail(`Invalid mode: ${mode}`);
       }
@@ -1885,7 +1915,13 @@ export async function runBuildEmbeddingsWithConfig(config) {
        * @param {string} message
        * @returns {void}
        */
-      const finishMode = (message) => {
+      const finishMode = async (message) => {
+        if (message.startsWith('skipped ')) {
+          indexState.embeddings = { ...indexState.embeddings, ready: false, pending: false };
+          indexState.extensions = { ...indexState.extensions, runtimeEmbeddingObservation: runtimeReceipts.observation(mode), runtimeOutcome: 'skipped-no-embedding-inputs' };
+          await scheduleIo(() => writeIndexState(statePath, indexState));
+        }
+        await runtimeReceipts.complete(mode);
         completedModes += 1;
         modeTask.set(completedModes, modes.length, { message });
       };
@@ -1895,7 +1931,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       let cacheRejected = 0;
       let cacheFastRejects = 0;
       const chunkMetaMaxBytes = resolveEmbeddingsChunkMetaMaxBytes(indexingConfig);
-      const modeIndexRoot = await resolveModeIndexRoot(mode);
+      const modeIndexRoot = receiptRoots.find(([selectedMode]) => selectedMode === mode)?.[1];
       const modeTracker = await ensureBuildStateTracker(modeIndexRoot);
       if (modeTracker?.hasBuildState && !modeTracker.runningMarked) {
         await markBuildPhase(modeIndexRoot, 'stage3', 'running');
@@ -1915,6 +1951,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
       logExpectedArtifacts(mode, indexDir, 'pre-stage3');
       const stateNow = new Date().toISOString();
       let indexState = loadIndexState(statePath);
+      indexState.extensions = { ...indexState.extensions, runtimeAttemptId: runtimeReceipts.reference(mode) };
       indexState.generatedAt = indexState.generatedAt || stateNow;
       indexState.updatedAt = stateNow;
       indexState.mode = indexState.mode || mode;
@@ -1931,11 +1968,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         updatedAt: stateNow
       };
       const cacheRepoId = indexState?.repoId || null;
-      try {
-        await scheduleIo(() => writeIndexState(statePath, indexState));
-      } catch {
-        // Ignore index state write failures.
-      }
+      await scheduleIo(() => writeIndexState(statePath, indexState));
 
       let fileTask = null;
       let chunkTask = null;
@@ -2063,7 +2096,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
         if (!loadedChunkMetaFromArtifacts) {
           if (!manifestFiles || !Object.keys(manifestFiles).length) {
             warn(`[embeddings] Missing chunk_meta and no incremental bundles for ${mode}; skipping.`);
-            finishMode(`skipped ${mode}`);
+            await finishMode(`skipped ${mode}`);
             continue;
           }
           const bundleResult = await scheduleIo(() => buildChunksFromBundles(
@@ -2075,7 +2108,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           totalChunks = bundleResult.totalChunks;
           if (!chunksByFile.size || !totalChunks) {
             warn(`[embeddings] Incremental bundles empty for ${mode}; skipping.`);
-            finishMode(`skipped ${mode}`);
+            await finishMode(`skipped ${mode}`);
             continue;
           }
           log(`[embeddings] ${mode}: using incremental bundles (${chunksByFile.size} files).`);
@@ -3939,6 +3972,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
           rewriteFailures: refreshedBundles.rewriteFailures || 0,
           manifestWritten: refreshedBundles.manifestWritten === true
         };
+        await runtimeReceipts.ready(mode, { cacheHits, totalChunks, scheduler, writer: writerStatsByMode[mode], cacheRoot });
+        indexState.extensions = { ...indexState.extensions, runtimeAttemptId: runtimeReceipts.reference(mode), runtimeEmbeddingObservation: runtimeReceipts.observation(mode) };
         indexState.embeddings = {
           ...(indexState.embeddings || {}),
           enabled: true,
@@ -3971,11 +4006,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
             stage: indexState.enrichment.stage || indexState.stage || 'stage2'
           };
         }
-        try {
-          await scheduleIo(() => writeIndexState(statePath, indexState));
-        } catch {
-        // Ignore index state write failures.
-        }
+        await scheduleIo(() => writeIndexState(statePath, indexState));
 
         try {
           await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims }));
@@ -4144,7 +4175,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           }
         }
         backendTask.done({ message: 'backend outputs ready' });
-        finishMode(`built ${mode}`);
+        await finishMode(`built ${mode}`);
       } catch (err) {
         cacheTask?.fail?.(err);
         embedTask?.fail?.(err);
@@ -4176,11 +4207,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
             stage: failureState.enrichment.stage || failureState.stage || 'stage2'
           };
         }
-        try {
-          await scheduleIo(() => writeIndexState(statePath, failureState));
-        } catch {
-          // Ignore index state write failures.
-        }
+        await runtimeReceipts.fail(err, mode);
+        await scheduleIo(() => writeIndexState(statePath, failureState));
         throw err;
       } finally {
         if (stageCheckpoints) {
@@ -4195,6 +4223,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } catch (err) {
+    await runtimeReceipts.fail(err);
     crashLogger.logError({
       phase: 'stage3',
       stage: 'embeddings',

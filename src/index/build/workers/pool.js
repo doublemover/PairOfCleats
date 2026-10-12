@@ -295,6 +295,8 @@ export async function createIndexerWorkerPool(input = {}) {
       });
       workerCoordinator.setNumaPinningPlan(numaPinningPlan);
       const workerData = {
+        runtimeAttemptId: typeof input.runtimeAttemptId === 'string' ? input.runtimeAttemptId.slice(0, 128) : null,
+        buildId: typeof input.buildId === 'string' ? input.buildId.slice(0, 2048) : null,
         dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {},
         numaPinning: numaPinningPlan.active

@@ -1,3 +1,4 @@
+import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receipt.js';
 import { persistRuntimeAttempt } from '../build-state/runtime.js';
 import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
@@ -514,13 +515,20 @@ async function createBuildRuntimeImpl({
     || null;
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
   const buildsRoot = getBuildsRoot(root, userConfig);
-  const { buildId, buildRoot } = resolveRuntimeBuildRoot({
+  let { buildId, buildRoot } = resolveRuntimeBuildRoot({
     resolvedIndexRoot,
     buildsRoot,
     scmHeadId,
     configHash,
     existsSync: fsSync.existsSync
   });
+  if (resolvedIndexRoot) {
+    const existing = await readRuntimeReceipt({ buildRoot, requireProducerIdentity: true });
+    if ((existing.errorCode && existing.errorCode !== 'ENOENT') || existing.evidence === 'unsupported-runtime-receipt') {
+      throw Object.assign(new Error('Cannot preserve runtime evidence in the selected build root.'), { code: existing.errorCode || 'ERR_RUNTIME_RECEIPT_CONTRACT' });
+    }
+    buildId = existing.buildId || 'unknown';
+  }
   const runtimeAttempt = await initializeRuntimeReceipt({
     buildRoot, buildId, root, stage, configHash, toolVersion, repoProvenance, profile,
     observability, envelope, executionClass: daemonSession ? 'daemon' : 'in-process',
@@ -529,6 +537,7 @@ async function createBuildRuntimeImpl({
     embeddings: { observation: { state: 'not-started', provider: null, dims: null, observedAt: null } }
   });
   onRuntimeAttempt(runtimeAttempt, buildRoot);
+  observability = { ...observability, context: { ...observability?.context, runtimeAttemptId: runtimeAttempt.attemptId } };
   logRuntimeReceiptLocation(buildRoot, runtimeAttempt, log);
   const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
   const daemonJobContext = createRuntimeDaemonJobContext(daemonSession, {
@@ -984,6 +993,8 @@ async function createBuildRuntimeImpl({
 
   const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,
+    runtimeAttemptId: runtimeAttempt.attemptId,
+    buildId,
     repoCacheRoot,
     dictWords,
     dictSharedPayload,
