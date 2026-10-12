@@ -5,7 +5,7 @@ import {
   extractTypeScriptReturns,
   mergeParamTypes
 } from './signature.js';
-import { isLikelyTsx, loadTypeScriptModule, resolveTypeScriptFilename } from './parser.js';
+import { prepareTypeScriptSyntax } from './syntax-context.js';
 import {
   createTypeScriptChunkDeclarationSink,
   qualifyTypeScriptChunkName
@@ -72,24 +72,10 @@ function collectParamDetails(ts, node, sourceFile, signature) {
 }
 
 export function buildTypeScriptChunksFromAst(text, options = {}) {
-  const ts = loadTypeScriptModule(options.rootDir);
-  if (!ts) return null;
-  const ext = options.ext || '';
-  const tsx = isLikelyTsx(text, ext);
-  const fileName = resolveTypeScriptFilename(ext, tsx);
-  let sourceFile;
-  try {
-    sourceFile = ts.createSourceFile(
-      fileName,
-      text,
-      ts.ScriptTarget.Latest,
-      true,
-      tsx ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-    );
-  } catch {
-    return null;
-  }
-  if (!sourceFile) return null;
+  let syntax;
+  try { syntax = prepareTypeScriptSyntax(text, options); } catch { return null; }
+  if (!syntax) return null;
+  const { ts, sourceFile } = syntax;
 
   const { buildSignature, buildMetaBase, addDeclaration, finish } = createTypeScriptChunkDeclarationSink(text);
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { parseEmbeddingsPerfLine } from '../../../tools/build/embeddings/perf-progress.js';
 import { setupIncrementalRepo } from '../../helpers/sqlite-incremental.js';
 
 const { root, repoRoot, env, run, runCapture } = await setupIncrementalRepo({
@@ -57,4 +58,16 @@ assert.match(
   'expected stage3 perf_summary line with stable metrics'
 );
 
+const summaries = output.split('\n').map(parseEmbeddingsPerfLine)
+  .filter((line) => line?.kind === 'perf_summary');
+assert.ok(summaries.length > 0);
+for (const { metrics } of summaries) {
+  assert.ok(metrics.texts_scheduled >= metrics.texts_resolved,
+    'scheduled must account for all resolved work');
+  assert.equal(metrics.work_remaining_tokens_estimate, 0);
+  assert.equal(metrics.work_remaining_groups, 0);
+  assert.equal(metrics.provider_active, 0);
+  assert.equal(metrics.batch_pending_requests, 0);
+  assert.ok(['default', 'scheduler', 'memory-pressure', 'low-pressure'].includes(metrics.writer_cap_reason));
+}
 console.log('stage3 embeddings perf observability test passed');

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { writeJsonLinesFile } from '../../../src/shared/json-stream/jsonl-write.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -81,7 +81,7 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.meta.json'), {
   arrays: { docLengths },
   atomic: true
 });
-await writePiecesManifest(indexDir, [
+await writeSqliteArtifactManifest(indexDir, [
   { name: 'chunk_meta', path: 'chunk_meta.jsonl', format: 'jsonl' },
   {
     name: 'token_postings',

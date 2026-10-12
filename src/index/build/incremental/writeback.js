@@ -1,4 +1,5 @@
-import fs from 'node:fs/promises';
+import { persistEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
+import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import {
@@ -7,8 +8,7 @@ import {
   resolveManifestBundleNames
 } from '../../../shared/bundle-io-paths.js';
 import {
-  removeBundleWriteArtifacts,
-  writeBundleFile
+  removeBundleWriteArtifacts
 } from '../../../shared/bundle-io.js';
 import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import {
@@ -18,6 +18,10 @@ import {
 } from './autotune.js';
 import { shouldReuseExistingBundle } from './bundle-compare.js';
 import { normalizeIncrementalRelPath, resolvePrefetchedVfsRows } from './paths.js';
+import { persistSemanticCacheEntry } from './semantic-cache.js';
+import { pruneSemanticCache } from './semantic-cache-gc.js';
+import { writeAccountedBundle } from './accounted-bundle.js';
+import { commitFileCompletion, completionBundleName, isCompletionBundle } from './file-completion.js';
 import {
   pathExists,
   readBundleOrNull,
@@ -91,7 +95,7 @@ const splitBundleChunksBySize = (bundle) => {
   return shardChunks.length ? shardChunks : [[]];
 };
 
-const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
+const buildBundleShards = ({ relKey, bundleFormat, bundle, immutable = false }) => {
   const shardChunks = splitBundleChunksBySize(bundle);
   const shardCount = shardChunks.length;
   const bundles = shardChunks.map((chunks, index) => ({
@@ -101,7 +105,9 @@ const buildBundleShards = ({ relKey, bundleFormat, bundle }) => {
     bundleShardIndex: index,
     bundleShardCount: shardCount
   }));
-  const names = bundles.map((_, index) => resolveBundleShardFilename(relKey, bundleFormat, index));
+  const names = bundles.map((part, index) => immutable
+    ? completionBundleName(part, bundleFormat)
+    : resolveBundleShardFilename(relKey, bundleFormat, index));
   return { names, bundles };
 };
 
@@ -121,6 +127,8 @@ const removeManifestBundleFiles = async ({ bundleDir, entry, keep = null }) => {
   if (!names.length) return;
   const keepSet = keep instanceof Set ? keep : null;
   for (const name of names) {
+    // Durable Stage1 descriptors pin their snapshots independently of Stage2.
+    if (isCompletionBundle(name)) continue;
     if (keepSet && keepSet.has(name)) continue;
     try {
       await removeBundleWriteArtifacts(path.join(bundleDir, name));
@@ -149,6 +157,7 @@ const queueManifestBundleGc = ({ manifest, entry, keep = null }) => {
   const keepSet = keep instanceof Set ? keep : null;
   const names = resolveManifestBundleNames(entry);
   for (const name of names) {
+    if (isCompletionBundle(name)) continue;
     if (keepSet && keepSet.has(name)) continue;
     pending.add(name);
   }
@@ -235,9 +244,14 @@ export async function writeIncrementalBundle({
   fileStat,
   fileHash,
   fileChunks,
+  semanticFactsRef = null,
+  semanticSegmentFactsRefs = [],
+  semanticEvidenceArtifacts = [],
+  semanticContext = null,
   parseCheckpoint = null,
   dependencySignatures = null,
   fileRelations,
+  lexiconFilterStats = null,
   vfsManifestRows,
   bundleFormat = null,
   previousManifestEntry = null,
@@ -248,6 +262,24 @@ export async function writeIncrementalBundle({
   fileEncodingConfidence = null
 }) {
   if (!enabled) return null;
+  let semanticCache = null;
+  if (semanticFactsRef) {
+    if (!semanticContext) throw new TypeError('Semantic bundle persistence requires its owning build context.');
+    semanticCache = await persistSemanticCacheEntry({
+      repoRoot: semanticContext.repoRoot || process.cwd(),
+      bundleDir, factsRef: semanticFactsRef, buildRoot: semanticContext.buildRoot,
+      dependencySignatures: semanticContext.dependencySignatures, diskAccount: semanticContext.diskAccount,
+      signal: semanticContext.signal
+    });
+    if (manifest) {
+      manifest.semanticEnabled = true;
+      manifest.semanticGeneration = semanticFactsRef.storage.generation;
+      manifest.semanticDependencySignatures = semanticContext.dependencySignatures;
+    }
+  } else if (semanticContext) {
+    throw new Error('Semantic-enabled file cannot persist a bundle without complete source facts.');
+  }
+  const semanticSegmentCaches = semanticFactsRef ? await persistEmbeddedSemanticCacheEntries({ entries: semanticSegmentFactsRefs, repoRoot: semanticContext.repoRoot || process.cwd(), bundleDir, buildRoot: semanticContext.buildRoot, dependencySignatures: semanticContext.dependencySignatures, diskAccount: semanticContext.diskAccount, signal: semanticContext.signal }) : [];
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat);
   const bundle = {
     file: relKey,
@@ -258,7 +290,9 @@ export async function writeIncrementalBundle({
     parseCheckpoint,
     dependencySignatures,
     fileRelations,
-    vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows : null,
+    lexiconFilterStats,
+    vfsManifestRows: Array.isArray(vfsManifestRows) ? vfsManifestRows
+      : (semanticFactsRef && fileChunks.length === 0 ? [] : null),
     encoding: fileEncoding,
     encodingFallback: typeof fileEncodingFallback === 'boolean' ? fileEncodingFallback : null,
     encodingFallbackClass: typeof fileEncodingFallbackClass === 'string' ? fileEncodingFallbackClass : null,
@@ -270,7 +304,8 @@ export async function writeIncrementalBundle({
     const { names: bundleNames, bundles } = buildBundleShards({
       relKey,
       bundleFormat: resolvedBundleFormat,
-      bundle
+      bundle,
+      immutable: Boolean(semanticFactsRef)
     });
     if (!bundleNames.length || !bundles.length || bundleNames.length !== bundles.length) {
       return null;
@@ -281,7 +316,8 @@ export async function writeIncrementalBundle({
     for (let i = 0; i < bundleNames.length; i += 1) {
       const bundleName = bundleNames[i];
       const bundlePath = path.join(bundleDir, bundleName);
-      const writeResult = await writeBundleFile({
+      const writeResult = await writeAccountedBundle({
+        diskAccount: semanticFactsRef ? semanticContext.diskAccount : null,
         bundlePath,
         bundle: bundles[i],
         format: resolvedBundleFormat
@@ -309,7 +345,8 @@ export async function writeIncrementalBundle({
     const bundleChecksum = checksum && checksumAlgo
       ? `${checksumAlgo}:${checksum}`
       : (checksum || null);
-    return {
+    const entry = {
+      ...(semanticCache ? { semanticCache, semanticSegmentCaches, semanticEvidenceArtifacts } : {}),
       dependencySignatures,
       hash: fileHash,
       mtimeMs: fileStat.mtimeMs,
@@ -323,11 +360,19 @@ export async function writeIncrementalBundle({
       encodingFallbackRisk: typeof fileEncodingFallbackRisk === 'string' ? fileEncodingFallbackRisk : null,
       encodingConfidence: Number.isFinite(fileEncodingConfidence) ? fileEncodingConfidence : null
     };
-  } catch {
+    if (semanticFactsRef) {
+      entry.completionKey = await commitFileCompletion({ bundleDir, relKey, manifestEntry: entry,
+        semanticFactsRef, semanticContext, chunkCount: fileChunks.length, lexiconFilterStats });
+    }
+    return entry;
+  } catch (error) {
+    // A failed completion must never delete immutable bytes referenced by an
+    // earlier successful attempt (including a concurrent equivalent worker).
     await cleanupWrittenBundleArtifacts({
       bundleDir,
-      bundleNames: typeof writtenBundleNames !== 'undefined' ? writtenBundleNames : []
+      bundleNames: writtenBundleNames.filter(name => !isCompletionBundle(name))
     });
+    if (semanticFactsRef) throw error;
     return null;
   }
 }
@@ -337,7 +382,7 @@ export async function writeIncrementalBundle({
  *
  * @param {{enabled:boolean,manifest:object,manifestPath:string,bundleDir:string,seenFiles:Set<string>}} input
  */
-export async function pruneIncrementalManifest({ enabled, manifest, manifestPath, bundleDir, seenFiles }) {
+export async function pruneIncrementalManifest({ enabled, manifest, manifestPath, bundleDir, seenFiles, diskAccount = null, signal = null }) {
   if (!enabled) return;
   const seenNormalized = new Set(
     Array.from(seenFiles || [])
@@ -351,7 +396,9 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
     queueManifestBundleGc({ manifest, entry });
     delete manifest.files[relKey];
   }
-  await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir });
+  if (await persistManifestAndDrainGc({ manifest, manifestPath, bundleDir })) {
+    await pruneSemanticCache({ bundleDir, manifest, diskAccount, signal });
+  }
 }
 
 /**
@@ -368,6 +415,7 @@ export async function pruneIncrementalManifest({ enabled, manifest, manifestPath
  * @returns {Promise<Map<string,Array<object>|null>|null>}
  */
 export async function preloadIncrementalBundleVfsRows({
+  repoRoot = process.cwd(),
   enabled,
   manifest,
   bundleDir,
@@ -375,6 +423,8 @@ export async function preloadIncrementalBundleVfsRows({
   concurrency = 8
 }) {
   if (!enabled) return null;
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: bundleDir });
   const entries = Object.entries(manifest?.files || {});
   if (!entries.length) return new Map();
   const resolvedBundleFormat = normalizeBundleFormat(bundleFormat || manifest?.bundleFormat);
@@ -412,7 +462,7 @@ export async function preloadIncrementalBundleVfsRows({
         rowsByFile.set(normalizedFile, null);
         continue;
       }
-      const existingBundle = await readBundleOrNull({ bundleRecords });
+      const existingBundle = await readBundleOrNull({ bundleRecords, repoRoot });
       rowsByFile.set(normalizedFile, resolveBundleVfsManifestRows(existingBundle));
     }
   });
@@ -436,6 +486,7 @@ export async function preloadIncrementalBundleVfsRows({
  * }} input
  */
 export async function updateBundlesWithChunks({
+  repoRoot = process.cwd(),
   enabled,
   manifest,
   manifestPath = null,
@@ -444,9 +495,12 @@ export async function updateBundlesWithChunks({
   fileRelations,
   bundleFormat = null,
   existingVfsManifestRowsByFile = null,
+  diskAccount = null,
   log
 }) {
   if (!enabled) return;
+  assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
+    foundVersion: manifest?.artifactSurfaceVersion, repoRoot, indexPath: manifestPath || bundleDir });
   const startedAt = Date.now();
   const chunkMap = new Map();
   for (const chunk of chunks) {
@@ -546,7 +600,7 @@ export async function updateBundlesWithChunks({
       let writtenBundleNames = [];
       const relations = resolveFileRelations(normalizedFile, file);
       let vfsManifestRows = null;
-      let existingBundle = await readBundleOrNull({ bundleRecords });
+      let existingBundle = await readBundleOrNull({ bundleRecords, repoRoot });
       if (prefetchedHit) {
         vfsManifestRows = prefetchedRows;
       }
@@ -589,7 +643,8 @@ export async function updateBundlesWithChunks({
         for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
           const shardName = bundleNames[shardIndex];
           const shardPath = path.join(bundleDir, shardName);
-          const writeResult = await writeBundleFile({
+          const writeResult = await writeAccountedBundle({
+            diskAccount,
             bundlePath: shardPath,
             bundle: bundles[shardIndex],
             format: bundleFormatLocal
@@ -622,12 +677,13 @@ export async function updateBundlesWithChunks({
         }
         entry.bundleFormat = bundleFormatLocal;
         bundleUpdates += 1;
-      } catch {
+      } catch (error) {
         await cleanupWrittenBundleArtifacts({
           bundleDir,
           bundleNames: typeof writtenBundleNames !== 'undefined' ? writtenBundleNames : []
         });
         bundleFailures += 1;
+        if (error.code === 'ERR_SEMANTIC_DISK_LIMIT') throw error;
       }
       const completed = bundleUpdates + bundleFailures;
       if (typeof log === 'function' && completed >= nextProgressUpdate && completed < updateTotal) {

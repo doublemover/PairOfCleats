@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
 import { setupIncrementalRepo } from '../../../helpers/sqlite-incremental.js';
 import { runSqliteBuild } from '../../../helpers/sqlite-builder.js';
@@ -32,7 +33,7 @@ run(
 );
 
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
+const manifestPath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'manifest.json');
 if (!fs.existsSync(manifestPath)) {
   console.error('Expected incremental manifest after stage2 build.');
   process.exit(1);

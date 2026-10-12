@@ -1,14 +1,15 @@
 {
-  "generatedAt": "2026-10-09T19:59:24.196Z",
+  "generatedAt": "2026-10-11T22:37:03.057Z",
   "budgets": {
-    "configKeys": 2,
+    "configKeys": 3,
     "envVars": 1,
-    "cliFlags": 71
+    "cliFlags": 72
   },
   "allowlists": {
     "configKeys": [
       "cache.root",
-      "quality"
+      "quality",
+      "tooling.typescript.typeRepresentation"
     ],
     "envVars": [
       "PAIROFCLEATS_API_TOKEN"
@@ -39,6 +40,7 @@
       "includePaths",
       "includeRisk",
       "includeRiskPartialFlows",
+      "includeSemantic",
       "includeTypes",
       "includeUsages",
       "interval",
@@ -286,6 +288,8 @@
       "dictionary.dir",
       "dictionary.dpMaxTokenLength",
       "dictionary.dpMaxTokenLengthByFileCount",
+      "dictionary.dpMaxTokenLengthByFileCount[].dpMaxTokenLength",
+      "dictionary.dpMaxTokenLengthByFileCount[].maxFiles",
       "dictionary.enableRepoDictionary",
       "dictionary.files",
       "dictionary.includeSlang",
@@ -330,10 +334,8 @@
       "indexing.embeddings.onnx.interOpNumThreads",
       "indexing.embeddings.onnx.intraOpNumThreads",
       "indexing.embeddings.provider",
-      "indexing.fileCaps.byExt",
       "indexing.fileCaps.byExt.*.maxBytes",
       "indexing.fileCaps.byExt.*.maxLines",
-      "indexing.fileCaps.byLanguage",
       "indexing.fileCaps.byLanguage.*.maxBytes",
       "indexing.fileCaps.byLanguage.*.maxLines",
       "indexing.fileCaps.byMode.code.maxBytes",
@@ -351,7 +353,6 @@
       "indexing.importConcurrency",
       "indexing.ioConcurrencyCap",
       "indexing.lexicon.enabled",
-      "indexing.lexicon.languageOverrides",
       "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
       "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
       "indexing.lexicon.languageOverrides.*.relations.drop.literals",
@@ -405,12 +406,15 @@
       "indexing.riskInterprocedural.semantics[].toParams",
       "indexing.riskInterprocedural.strictness",
       "indexing.riskInterprocedural.summaryOnly",
+      "indexing.scheduler.adaptive",
+      "indexing.scheduler.adaptiveSurfaces.surfaces.parse.initialConcurrency",
+      "indexing.scheduler.adaptiveSurfaces.surfaces.parse.maxConcurrency",
+      "indexing.scheduler.adaptiveSurfaces.surfaces.parse.minConcurrency",
       "indexing.scheduler.cpuTokens",
       "indexing.scheduler.enabled",
       "indexing.scheduler.ioTokens",
       "indexing.scheduler.lowResourceMode",
       "indexing.scheduler.memoryTokens",
-      "indexing.scheduler.queues",
       "indexing.scheduler.queues.*.maxPending",
       "indexing.scheduler.queues.*.priority",
       "indexing.scheduler.starvationMs",
@@ -422,6 +426,64 @@
       "indexing.scm.maxConcurrentProcesses",
       "indexing.scm.provider",
       "indexing.scm.timeoutMs",
+      "indexing.semantic.baseFacts.sourceRetention",
+      "indexing.semantic.baseFacts.structure",
+      "indexing.semantic.enabled",
+      "indexing.semantic.enrichment.bindings",
+      "indexing.semantic.enrichment.callContextDepth",
+      "indexing.semantic.enrichment.crossFileFlow",
+      "indexing.semantic.enrichment.fieldPathDepth",
+      "indexing.semantic.enrichment.localFlow",
+      "indexing.semantic.enrichment.maxSccIterations",
+      "indexing.semantic.enrichment.unknownEffects",
+      "indexing.semantic.execution.afterIndexMaxMs",
+      "indexing.semantic.execution.compilerAdmission.maxBytes",
+      "indexing.semantic.execution.compilerAdmission.maxFiles",
+      "indexing.semantic.execution.compilerAdmission.maxProjects",
+      "indexing.semantic.execution.compilerAdmission.maxReceiptAgeMs",
+      "indexing.semantic.execution.compilerAdmission.maxResidentBytes",
+      "indexing.semantic.execution.compilerAdmission.measurementHeadroom",
+      "indexing.semantic.execution.deferredDrain",
+      "indexing.semantic.execution.maxAttempts",
+      "indexing.semantic.languages",
+      "indexing.semantic.overrides",
+      "indexing.semantic.overrides[].id",
+      "indexing.semantic.overrides[].match.language",
+      "indexing.semantic.overrides[].match.path",
+      "indexing.semantic.overrides[].set.enrichment.bindings",
+      "indexing.semantic.overrides[].set.enrichment.callContextDepth",
+      "indexing.semantic.overrides[].set.enrichment.crossFileFlow",
+      "indexing.semantic.overrides[].set.enrichment.fieldPathDepth",
+      "indexing.semantic.overrides[].set.enrichment.localFlow",
+      "indexing.semantic.overrides[].set.enrichment.maxSccIterations",
+      "indexing.semantic.overrides[].set.enrichment.unknownEffects",
+      "indexing.semantic.overrides[].set.execution.afterIndexMaxMs",
+      "indexing.semantic.overrides[].set.execution.deferredDrain",
+      "indexing.semantic.overrides[].set.execution.maxAttempts",
+      "indexing.semantic.overrides[].set.planning.costModel",
+      "indexing.semantic.overrides[].set.planning.inlineBudgetMs",
+      "indexing.semantic.overrides[].set.planning.prepass",
+      "indexing.semantic.planning.costModel",
+      "indexing.semantic.planning.inlineBudgetMs",
+      "indexing.semantic.planning.prepass",
+      "indexing.semantic.profile",
+      "indexing.semantic.publication.base",
+      "indexing.semantic.publication.semantic",
+      "indexing.semantic.query.cursorTtlMs",
+      "indexing.semantic.query.maxBytes",
+      "indexing.semantic.query.maxContinuations",
+      "indexing.semantic.query.maxDepth",
+      "indexing.semantic.query.maxRecords",
+      "indexing.semantic.query.maxRows",
+      "indexing.semantic.query.maxWorkMs",
+      "indexing.semantic.schemaVersion",
+      "indexing.semantic.storage.batchBytes",
+      "indexing.semantic.storage.batchRows",
+      "indexing.semantic.storage.decodedCacheBytes",
+      "indexing.semantic.storage.maxDiskWorkingSetBytes",
+      "indexing.semantic.storage.maxQueuedBytes",
+      "indexing.semantic.storage.targetPartBytes",
+      "indexing.semantic.targets",
       "indexing.snapshots.keepFrozen",
       "indexing.snapshots.keepPointer",
       "indexing.snapshots.keepTags",
@@ -576,6 +638,7 @@
       "tooling.typescript.maxProgramFiles",
       "tooling.typescript.resolveOrder",
       "tooling.typescript.tsconfigPath",
+      "tooling.typescript.typeRepresentation",
       "tooling.typescript.useTsconfig",
       "tooling.vfs.coalesceSegments",
       "tooling.vfs.coldStartCache.cacheRoot",
@@ -596,8 +659,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 334,
-    "leafKeys": 279,
+    "totalKeys": 457,
+    "leafKeys": 371,
     "topLevel": [
       {
         "key": "cache",
@@ -605,11 +668,11 @@
       },
       {
         "key": "dictionary",
-        "count": 11
+        "count": 14
       },
       {
         "key": "indexing",
-        "count": 145
+        "count": 253
       },
       {
         "key": "mcp",
@@ -649,7 +712,7 @@
       },
       {
         "key": "tooling",
-        "count": 69
+        "count": 81
       }
     ]
   },
@@ -682,6 +745,21 @@
     {
       "path": "dictionary.dpMaxTokenLengthByFileCount",
       "type": "array",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[].dpMaxTokenLength",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "dictionary.dpMaxTokenLengthByFileCount[].maxFiles",
+      "type": "number",
       "enum": null
     },
     {
@@ -983,8 +1061,38 @@
       "enum": null
     },
     {
+      "path": "indexing.fileCaps.byExt.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byExt.*.maxLines",
+      "type": "number",
+      "enum": null
+    },
+    {
       "path": "indexing.fileCaps.byLanguage",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxBytes",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.fileCaps.byLanguage.*.maxLines",
+      "type": "number",
       "enum": null
     },
     {
@@ -1110,6 +1218,51 @@
     {
       "path": "indexing.lexicon.languageOverrides",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.builtins",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.keywords",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.literals",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.drop.types",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.lexicon.languageOverrides.*.relations.stableDedupe",
+      "type": "boolean",
       "enum": null
     },
     {
@@ -1328,6 +1481,62 @@
       "enum": null
     },
     {
+      "path": "indexing.riskInterprocedural.semantics[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].frameworks",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].fromArgs",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].kind",
+      "type": "string",
+      "enum": [
+        "wrapper",
+        "propagator",
+        "builder",
+        "callback",
+        "asyncHandoff"
+      ]
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].languages",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].name",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].patterns",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].taintHints",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.riskInterprocedural.semantics[].toParams",
+      "type": "array",
+      "enum": null
+    },
+    {
       "path": "indexing.riskInterprocedural.strictness",
       "type": "string",
       "enum": [
@@ -1343,6 +1552,41 @@
     {
       "path": "indexing.scheduler",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptive",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse.initialConcurrency",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse.maxConcurrency",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.adaptiveSurfaces.surfaces.parse.minConcurrency",
+      "type": "integer",
       "enum": null
     },
     {
@@ -1373,6 +1617,21 @@
     {
       "path": "indexing.scheduler.queues",
       "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*.maxPending",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.scheduler.queues.*.priority",
+      "type": "number",
       "enum": null
     },
     {
@@ -1438,6 +1697,432 @@
     {
       "path": "indexing.scm.timeoutMs",
       "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.baseFacts",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.baseFacts.sourceRetention",
+      "type": "enum",
+      "enum": [
+        "content-addressed"
+      ]
+    },
+    {
+      "path": "indexing.semantic.baseFacts.structure",
+      "type": "enum",
+      "enum": [
+        "complete"
+      ]
+    },
+    {
+      "path": "indexing.semantic.enabled",
+      "type": "boolean",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.enrichment",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.enrichment.bindings",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.enrichment.callContextDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.enrichment.crossFileFlow",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.enrichment.fieldPathDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.enrichment.localFlow",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.enrichment.maxSccIterations",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.enrichment.unknownEffects",
+      "type": "enum",
+      "enum": [
+        "conservative"
+      ]
+    },
+    {
+      "path": "indexing.semantic.execution",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.afterIndexMaxMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission.maxBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission.maxFiles",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission.maxProjects",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission.maxReceiptAgeMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission.maxResidentBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.compilerAdmission.measurementHeadroom",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.execution.deferredDrain",
+      "type": "enum",
+      "enum": [
+        "manual",
+        "after-index"
+      ]
+    },
+    {
+      "path": "indexing.semantic.execution.maxAttempts",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.languages",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides",
+      "type": "array",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].match",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].match.language",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].match.path",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.bindings",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.callContextDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.crossFileFlow",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.fieldPathDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.localFlow",
+      "type": "enum",
+      "enum": [
+        "off",
+        "auto",
+        "eager",
+        "deferred"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.maxSccIterations",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.enrichment.unknownEffects",
+      "type": "enum",
+      "enum": [
+        "conservative"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution.afterIndexMaxMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution.deferredDrain",
+      "type": "enum",
+      "enum": [
+        "manual",
+        "after-index"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.execution.maxAttempts",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning.costModel",
+      "type": "enum",
+      "enum": [
+        "measured"
+      ]
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning.inlineBudgetMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.overrides[].set.planning.prepass",
+      "type": "enum",
+      "enum": [
+        "reuse-existing-walk"
+      ]
+    },
+    {
+      "path": "indexing.semantic.planning",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.planning.costModel",
+      "type": "enum",
+      "enum": [
+        "measured"
+      ]
+    },
+    {
+      "path": "indexing.semantic.planning.inlineBudgetMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.planning.prepass",
+      "type": "enum",
+      "enum": [
+        "reuse-existing-walk"
+      ]
+    },
+    {
+      "path": "indexing.semantic.profile",
+      "type": "enum",
+      "enum": [
+        "balanced",
+        "rich",
+        "targeted"
+      ]
+    },
+    {
+      "path": "indexing.semantic.publication",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.publication.base",
+      "type": "enum",
+      "enum": [
+        "publish-with-coverage",
+        "complete-required"
+      ]
+    },
+    {
+      "path": "indexing.semantic.publication.semantic",
+      "type": "enum",
+      "enum": [
+        "whole-generation"
+      ]
+    },
+    {
+      "path": "indexing.semantic.query",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.cursorTtlMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.maxBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.maxContinuations",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.maxDepth",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.maxRecords",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.maxRows",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.query.maxWorkMs",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.schemaVersion",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage.batchBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage.batchRows",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage.decodedCacheBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage.maxDiskWorkingSetBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage.maxQueuedBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.storage.targetPartBytes",
+      "type": "integer",
+      "enum": null
+    },
+    {
+      "path": "indexing.semantic.targets",
+      "type": "array",
       "enum": null
     },
     {
@@ -2208,6 +2893,64 @@
       "enum": null
     },
     {
+      "path": "tooling.lsp.servers[]",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].args",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].cmd",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].id",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].label",
+      "type": "string",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].languages",
+      "type": null,
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].priority",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].retries",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].timeoutMs",
+      "type": "number",
+      "enum": null
+    },
+    {
+      "path": "tooling.lsp.servers[].uriScheme",
+      "type": "string",
+      "enum": [
+        "file",
+        "poc-vfs"
+      ]
+    },
+    {
+      "path": "tooling.lsp.servers[].version",
+      "type": "string",
+      "enum": null
+    },
+    {
       "path": "tooling.lsp.timeoutMs",
       "type": "number",
       "enum": null
@@ -2301,6 +3044,14 @@
       "path": "tooling.typescript.tsconfigPath",
       "type": "string",
       "enum": null
+    },
+    {
+      "path": "tooling.typescript.typeRepresentation",
+      "type": "string",
+      "enum": [
+        "legacy",
+        "symbolic"
+      ]
     },
     {
       "path": "tooling.typescript.useTsconfig",
@@ -2403,7 +3154,8 @@
   ],
   "configKeysPublic": [
     "cache.root",
-    "quality"
+    "quality",
+    "tooling.typescript.typeRepresentation"
   ],
   "configKeysUnknown": [],
   "envVars": [
@@ -2498,7 +3250,10 @@
       "name": "PAIROFCLEATS_BUNDLE_THREADS",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/perf/baseline-artifacts.test.js",
+        "tests/run.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/bench/ab-sweep.js",
@@ -3865,6 +4620,8 @@
         "src/shared/threads.js",
         "tests/embeddings/runner/scheduler-env-config-envelope.test.js",
         "tests/helpers/search-filters-repo.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
@@ -3930,6 +4687,9 @@
       "name": "PAIROFCLEATS_TRUSTED_CONFIG",
       "files": [
         "src/shared/config-authority.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
+        "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
         "tools/config/inventory.js"
@@ -3949,6 +4709,7 @@
         "tests/security/zig-workspace-execution-authority.test.js",
         "tests/tooling/config/loader-schema-contract.test.js",
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse.test.js",
+        "tests/tooling/typescript-runtime-subprocess.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4128,6 +4889,8 @@
         "tests/helpers/search-contract-cases.js",
         "tests/helpers/search-filters-repo.js",
         "tests/helpers/sqlite-incremental.js",
+        "tests/helpers/test-env-clear.test.js",
+        "tests/helpers/test-env.js",
         "tests/indexer/call-sites/contract-matrix.test.js",
         "tests/indexing/artifacts/artifact-size-guardrails.test.js",
         "tests/indexing/artifacts/packed-artifact-fastpath.test.js",
@@ -4171,6 +4934,7 @@
         "tests/retrieval/cache/query-cache-contract-matrix.test.js",
         "tests/retrieval/cache/query-retrieval-knobs-invalidation.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
+        "tests/run.js",
         "tests/services/api-search-asof.test.js",
         "tests/services/snapshot-ref-contract-matrix.test.js",
         "tests/services/soak/operational-recovery.test.js",
@@ -4234,7 +4998,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 476,
+    "totalFlags": 491,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -4259,6 +5023,7 @@
       "includePaths",
       "includeRisk",
       "includeRiskPartialFlows",
+      "includeSemantic",
       "includeTypes",
       "includeUsages",
       "interval",
@@ -4315,6 +5080,8 @@
       "additionalProperties",
       "adversarial-ratio",
       "allow-unmarked-cache",
+      "allowAwaitOutsideFunction",
+      "allowReturnOutsideFunction",
       "ann",
       "ann-backends",
       "ann-mode",
@@ -4378,6 +5145,7 @@
       "crash-bundle",
       "csv",
       "ctags",
+      "customConditions",
       "dataset",
       "deep-analysis",
       "default-timeout-ms",
@@ -4409,6 +5177,7 @@
       "enforce-fts",
       "enforce-gates",
       "engine",
+      "errorRecovery",
       "event-log-dir",
       "evidence",
       "expected-sha256",
@@ -4441,6 +5210,7 @@
       "git-sha",
       "global",
       "grace-days",
+      "grammarVersion",
       "graph",
       "graphFixture",
       "groups",
@@ -4450,6 +5220,7 @@
       "heap-mb",
       "help",
       "identity",
+      "impliedNodeFormat",
       "import-rate",
       "in",
       "include",
@@ -4471,6 +5242,7 @@
       "intent-weights",
       "interactive",
       "iterations",
+      "jsDocParsingMode",
       "junit",
       "justification",
       "keep",
@@ -4480,6 +5252,7 @@
       "lang",
       "language",
       "language-family",
+      "languageVersion",
       "latest",
       "limit",
       "list-groups",
@@ -4558,6 +5331,7 @@
       "onnx-path",
       "open",
       "open-uri-template",
+      "operation",
       "options",
       "out",
       "out-dir",
@@ -4572,6 +5346,7 @@
       "phase-spec-dir",
       "plan",
       "platform",
+      "plugins",
       "policy",
       "pooling",
       "prepare-report",
@@ -4587,6 +5362,7 @@
       "queries-dir",
       "query",
       "queue-dir",
+      "ranges",
       "rebuild-discovery",
       "receipt",
       "recipe",
@@ -4639,6 +5415,7 @@
       "search",
       "segmentBytes",
       "segments",
+      "setParentNodes",
       "sha256",
       "shard-count",
       "shard-index",
@@ -4664,6 +5441,8 @@
       "smoke",
       "snapshot",
       "sort",
+      "sourceType",
+      "specification",
       "sqlite",
       "sqlite-backend",
       "status",
@@ -4738,6 +5517,7 @@
       "includePaths",
       "includeRisk",
       "includeRiskPartialFlows",
+      "includeSemantic",
       "includeTypes",
       "includeUsages",
       "interval",
@@ -4815,6 +5595,7 @@
           "includePaths",
           "includeRisk",
           "includeRiskPartialFlows",
+          "includeSemantic",
           "includeTypes",
           "includeUsages",
           "interval",
@@ -4873,6 +5654,12 @@
           "properties",
           "required",
           "type"
+        ]
+      },
+      {
+        "file": "src/index/semantic/native-syntax.js",
+        "flags": [
+          "grammarVersion"
         ]
       },
       {
@@ -4941,6 +5728,23 @@
         "flags": [
           "log",
           "treeSitter"
+        ]
+      },
+      {
+        "file": "src/lang/typescript/syntax-context.js",
+        "flags": [
+          "allowAwaitOutsideFunction",
+          "allowReturnOutsideFunction",
+          "errorRecovery",
+          "impliedNodeFormat",
+          "jsDocParsingMode",
+          "languageVersion",
+          "mode",
+          "plugins",
+          "ranges",
+          "setParentNodes",
+          "sourceType",
+          "tokens"
         ]
       },
       {
@@ -5040,6 +5844,12 @@
         "flags": [
           "include",
           "strict"
+        ]
+      },
+      {
+        "file": "tests/indexing/semantic/typescript-resolution-modes.test.js",
+        "flags": [
+          "customConditions"
         ]
       },
       {
@@ -5156,6 +5966,12 @@
         "file": "tests/map/build-map/cleanup-contract-matrix.test.js",
         "flags": [
           "maxNodeBytes"
+        ]
+      },
+      {
+        "file": "tests/map/workspace/published-fixture.test.js",
+        "flags": [
+          "mode"
         ]
       },
       {
@@ -5298,6 +6114,48 @@
           "port",
           "repo",
           "three-url"
+        ]
+      },
+      {
+        "file": "tools/analysis/runtime-evidence.js",
+        "flags": [
+          "all",
+          "operation",
+          "request"
+        ]
+      },
+      {
+        "file": "tools/analysis/semantic-detail.js",
+        "flags": [
+          "all",
+          "request"
+        ]
+      },
+      {
+        "file": "tools/analysis/semantic-enrichment.js",
+        "flags": [
+          "request"
+        ]
+      },
+      {
+        "file": "tools/analysis/semantic-explain.js",
+        "flags": [
+          "all",
+          "request"
+        ]
+      },
+      {
+        "file": "tools/analysis/semantic-find.js",
+        "flags": [
+          "all",
+          "request"
+        ]
+      },
+      {
+        "file": "tools/analysis/semantic-trace.js",
+        "flags": [
+          "all",
+          "request"
         ]
       },
       {
@@ -6299,6 +7157,13 @@
         ]
       },
       {
+        "file": "tools/ingest/runtime-evidence.js",
+        "flags": [
+          "out",
+          "specification"
+        ]
+      },
+      {
         "file": "tools/ingest/scip.js",
         "flags": [
           "args",
@@ -6850,7 +7715,7 @@
       },
       {
         "flag": "out",
-        "count": 49,
+        "count": 50,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -6891,6 +7756,7 @@
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
+          "tools/ingest/runtime-evidence.js",
           "tools/ingest/scip.js",
           "tools/release/assemble-bundle.js",
           "tools/release/export-surface-guide.js",
@@ -6905,10 +7771,12 @@
       },
       {
         "flag": "mode",
-        "count": 34,
+        "count": 36,
         "files": [
           "bin/pairofcleats.js",
+          "src/lang/typescript/syntax-context.js",
           "tests/map/build-contract-matrix.test.js",
+          "tests/map/workspace/published-fixture.test.js",
           "tests/perf/indexing/validate/stage-usage-checklist.test.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/bench/graph/neighborhood-cache.js",
@@ -7015,6 +7883,23 @@
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js",
           "tools/history/eg2-qualify.js"
+        ]
+      },
+      {
+        "flag": "all",
+        "count": 11,
+        "files": [
+          "bin/pairofcleats.js",
+          "tests/tooling/fixtures/fixture-parity.test.js",
+          "tools/analysis/runtime-evidence.js",
+          "tools/analysis/semantic-detail.js",
+          "tools/analysis/semantic-explain.js",
+          "tools/analysis/semantic-find.js",
+          "tools/analysis/semantic-trace.js",
+          "tools/cache/clear-cache.js",
+          "tools/docs/script-inventory.js",
+          "tools/index/clean-artifacts.js",
+          "tools/index/report-artifacts.js"
         ]
       },
       {
@@ -7161,6 +8046,19 @@
         ]
       },
       {
+        "flag": "request",
+        "count": 7,
+        "files": [
+          "tools/analysis/runtime-evidence.js",
+          "tools/analysis/semantic-detail.js",
+          "tools/analysis/semantic-enrichment.js",
+          "tools/analysis/semantic-explain.js",
+          "tools/analysis/semantic-find.js",
+          "tools/analysis/semantic-trace.js",
+          "tools/history/local.js"
+        ]
+      },
+      {
         "flag": "strict",
         "count": 7,
         "files": [
@@ -7171,18 +8069,6 @@
           "tools/index/validate.js",
           "tools/tooling/doctor.js",
           "tools/triage/ingest.js"
-        ]
-      },
-      {
-        "flag": "all",
-        "count": 6,
-        "files": [
-          "bin/pairofcleats.js",
-          "tests/tooling/fixtures/fixture-parity.test.js",
-          "tools/cache/clear-cache.js",
-          "tools/docs/script-inventory.js",
-          "tools/index/clean-artifacts.js",
-          "tools/index/report-artifacts.js"
         ]
       },
       {
@@ -8336,6 +9222,14 @@
         ]
       },
       {
+        "flag": "tokens",
+        "count": 2,
+        "files": [
+          "src/lang/typescript/syntax-context.js",
+          "tools/bench/dict-seg.js"
+        ]
+      },
+      {
         "flag": "trial-root",
         "count": 2,
         "files": [
@@ -8407,11 +9301,17 @@
       "src/index/diffs/compute.js",
       "src/index/language-registry/registry.js",
       "src/index/segments.js",
+      "src/index/semantic/collect-file.js",
+      "src/index/semantic/compiler-dependencies.js",
+      "src/index/semantic/compiler-session.js",
+      "src/index/semantic/embedded-source.js",
       "src/index/tooling/typescript-provider.js",
+      "src/index/tooling/typescript/symbolic.js",
       "src/integrations/tooling/context-pack.js",
       "src/integrations/tooling/graph-context.js",
       "src/integrations/tooling/impact.js",
       "src/integrations/tooling/lsp/client.js",
+      "src/lang/javascript/parse.js",
       "src/lang/tree-sitter/chunking.js",
       "src/lang/workers/tree-sitter-worker.js",
       "src/map/isometric/client/ui.js",
@@ -8424,8 +9324,19 @@
       "src/shared/cli.js",
       "src/shared/concurrency/scheduler-core/index.js",
       "src/shared/embedding-adapter.js",
+      "tests/helpers/semantic-cache-fixture.js",
+      "tests/helpers/semantic-recovery.js",
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
+      "tests/indexing/contracts/semantic-foundations.test.js",
+      "tests/indexing/contracts/semantic-handoff-contracts.test.js",
       "tests/indexing/lifecycle/build-entry-failure-no-unsettled-warning.test.js",
+      "tests/indexing/semantic/embedded-cache.test.js",
+      "tests/indexing/semantic/runtime-claims-comparison.test.js",
+      "tests/indexing/semantic/runtime-offline-adapters.test.js",
+      "tests/indexing/semantic/runtime-offline-adversity.test.js",
+      "tests/indexing/semantic/runtime-offline-cli.test.js",
+      "tests/indexing/semantic/runtime-query-pagination.test.js",
+      "tests/indexing/semantic/runtime-query-selection.test.js",
       "tests/indexing/tree-sitter/chunk-cache-reuse.test.js",
       "tests/indexing/tree-sitter/memory-plateau.test.js",
       "tests/lang/contracts/dockerfile-ast-boundaries.test.js",
@@ -8436,10 +9347,21 @@
       "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js",
       "tests/lang/contracts/xml-lexical-boundaries.test.js",
       "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
+      "tests/map/workspace/dom-interaction.test.js",
+      "tests/map/workspace/projection.test.js",
+      "tests/map/workspace/runtime-producer.test.js",
       "tests/perf/bench/run.test.js",
+      "tests/services/api/runtime-claims.test.js",
+      "tests/services/api/runtime-evidence.test.js",
       "tests/shared/cli-option-validators-contract.test.js",
+      "tests/storage/semantic/partitions.test.js",
+      "tests/storage/semantic/runtime-claims-recovery.test.js",
+      "tests/storage/semantic/runtime-import-publication.test.js",
+      "tests/storage/semantic/runtime-query-integrity.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
       "tests/tooling/signature-parse/signature-contract-matrix.test.js",
+      "tests/tooling/typescript-root-preflight.test.js",
+      "tests/tooling/typescript-symbolic-frontend.test.js",
       "tools/analysis/delta-risk.js",
       "tools/analysis/explain-risk.js",
       "tools/api/server.js",

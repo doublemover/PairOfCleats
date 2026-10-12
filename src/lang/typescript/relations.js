@@ -1,4 +1,4 @@
-import { parseBabelAst } from '../babel-parser.js';
+import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
 import { collectImportsFromAst } from '../javascript.js';
 import { findCLikeBodyBounds } from '../clike.js';
 import {
@@ -78,7 +78,7 @@ export function collectTypeScriptImports(text, options = {}) {
   const importsOnly = options?.importsOnly === true || options?.typescript?.importsOnly === true;
   const parser = resolveTypeScriptParser(options);
   if (!importsOnly && (parser === 'babel' || parser === 'auto')) {
-    const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
+    const ast = prepareTypeScriptBabelSyntax(text, options);
     if (ast) return collectImportsFromAst(ast);
   }
   const normalized = typeof options?.normalizedText === 'string'
@@ -154,7 +154,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const callDetails = [];
   const usages = new Set();
 
-  const ast = parseBabelAst(text, { ext: options.ext || '', mode: 'typescript' });
+  const ast = prepareTypeScriptBabelSyntax(text, options);
   const chunkRanges = Array.isArray(tsChunks)
     ? tsChunks
       .filter((chunk) => chunk && chunk.name && Number.isFinite(chunk.start) && Number.isFinite(chunk.end))

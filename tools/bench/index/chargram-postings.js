@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import {
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const {
   formatHeapDeltaMb,
   parseBenchArgs,
   prepareBenchRoot,
   resolveCompareMode,
   runPostingsBenchOnce
-} from './shared-postings-bench.js';
+} = await import('./shared-postings-bench.js');
 
 const args = parseBenchArgs();
 const vocabSize = Number(args.vocab) || 250000;

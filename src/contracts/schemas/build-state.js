@@ -344,6 +344,7 @@ export const BUILD_STATE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: [
+    'artifactSurfaceVersion',
     'schemaVersion',
     'buildId',
     'buildRoot',
@@ -363,6 +364,7 @@ export const BUILD_STATE_SCHEMA = {
     'progress'
   ],
   properties: {
+    artifactSurfaceVersion: { type: 'string' },
     schemaVersion: { type: 'number', const: BUILD_STATE_SCHEMA_VERSION },
     buildId: { type: 'string' },
     buildRoot: { type: 'string' },

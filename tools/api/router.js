@@ -1,7 +1,18 @@
+const handleMapArtifactsRoute = async (...args) => (await import('./router/map-artifacts.js')).handleMapArtifactsRoute(...args);
+const handleMapWorkspaceRoute = async (...args) => (await import('./router/map-workspace.js')).handleMapWorkspaceRoute(...args);
+// Keep health/startup independent of request-only search and semantic graphs.
+const handleSemanticTraceRoute = async (...args) => (await import('./router/semantic-trace.js')).handleSemanticTraceRoute(...args);
+const handleSemanticFindRoute = async (...args) => (await import('./router/semantic-find.js')).handleSemanticFindRoute(...args);
+const handleSemanticExplainRoute = async (...args) => (await import('./router/semantic-explain.js')).handleSemanticExplainRoute(...args);
+const handleSemanticEnrichmentRoute = async (...args) => (await import('./router/semantic-enrichment.js')).handleSemanticEnrichmentRoute(...args);
+const handleRuntimeEvidenceRoute = async (...args) => (await import('./router/runtime-evidence.js')).handleRuntimeEvidenceRoute(...args);
+const handleSemanticDetailRoute = async (...args) => (await import('./router/semantic.js')).handleSemanticDetailRoute(...args);
+import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import path from 'node:path';
-import { search, status } from '../../src/integrations/core/index.js';
+const search = async (...args) => (await import('../../src/integrations/core/search.js')).search(...args);
+const status = async (...args) => (await import('../../src/integrations/core/status.js')).status(...args);
 import { MCP_SCHEMA_VERSION } from '../../src/integrations/mcp/defs.js';
-import { runFederatedSearch } from '../../src/retrieval/federation/coordinator.js';
+const runFederatedSearch = async (...args) => (await import('../../src/retrieval/federation/coordinator.js')).runFederatedSearch(...args);
 import {
   createContextPackValidator,
   createFederatedSearchValidator,
@@ -265,6 +276,11 @@ export const createApiRouter = ({
       sendJson(res, 200, attachObservability({ ok: true, result: publicBody }, requestObservability), responseHeaders);
     } catch (err) {
       if (req.aborted || res.writableEnded || (!ignoreControllerAbort && controller.signal.aborted)) return;
+      const format = projectIndexFormatError(err);
+      if (format) {
+        sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, responseHeaders);
+        return;
+      }
       if (isNoIndexError(err)) {
         sendError(res, 409, ERROR_CODES.NO_INDEX, err?.message || 'Index not found.', {
           error: err?.message || String(err)
@@ -301,8 +317,15 @@ export const createApiRouter = ({
         res.end();
         return;
       }
+      if (await handleMapWorkspaceRoute(req, res, requestUrl, corsHeaders || {})) return;
+
       if (!isAuthorized(req)) {
         sendError(res, 401, ERROR_CODES.UNAUTHORIZED, 'Missing or invalid API token.', {}, corsHeaders || {});
+        return;
+      }
+
+      if (req.method === 'POST' && ['/map/catalog', '/map/artifact'].includes(requestUrl.pathname)) {
+        await handleMapArtifactsRoute({ req, res, requestUrl, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 
@@ -342,6 +365,29 @@ export const createApiRouter = ({
             error: err?.message || String(err)
           }, corsHeaders || {});
         }
+        return;
+      }
+
+      if (['/analysis/runtime-evidence', '/analysis/runtime-families', '/analysis/runtime-compare', '/analysis/runtime-claims'].includes(requestUrl.pathname) && req.method === 'POST') {
+        await handleRuntimeEvidenceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo,
+          operation: requestUrl.pathname.endsWith('runtime-compare') ? 'compare' : requestUrl.pathname.endsWith('runtime-claims') ? 'claims'
+            : requestUrl.pathname.endsWith('runtime-families') ? 'families' : 'lookup' });
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/semantic-trace' && req.method === 'POST') {
+        await handleSemanticTraceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
+        return;
+      }
+      if (req.method === 'POST' && ['/analysis/semantic-find','/analysis/semantic-explain','/analysis/semantic-enrichment'].includes(requestUrl.pathname)) {
+        const handler = requestUrl.pathname.endsWith('semantic-find') ? handleSemanticFindRoute
+          : requestUrl.pathname.endsWith('semantic-explain') ? handleSemanticExplainRoute : handleSemanticEnrichmentRoute;
+        await handler({req,res,corsHeaders,parseJsonBody,resolveRepo});
+        return;
+      }
+
+      if (requestUrl.pathname === '/analysis/semantic-detail' && req.method === 'POST') {
+        await handleSemanticDetailRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 
@@ -522,6 +568,7 @@ export const createApiRouter = ({
           sendJson(res, 200, result, corsHeaders || {});
         } catch (err) {
           if (req.aborted || res.writableEnded) return;
+          const format = projectIndexFormatError(err);
           const isNoIndex = isNoIndexError(err);
           const isClientError = isFederatedClientError(err);
           sendError(
@@ -608,7 +655,8 @@ export const createApiRouter = ({
           await sse.sendEvent('error', attachObservability({
             ok: false,
             code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
-            message: err?.message || 'Search failed.'
+            message: err?.message || 'Search failed.',
+            ...(format ? { ...format, details: format } : {})
           }, requestObservability));
           await sse.sendEvent('done', attachObservability({ ok: false }, requestObservability));
         }
@@ -635,6 +683,11 @@ export const createApiRouter = ({
       sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
     } catch (err) {
       if (res.writableEnded) return;
+      const format = projectIndexFormatError(err);
+      if (format) {
+        sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, corsHeaders || {});
+        return;
+      }
       sendError(
         res,
         500,

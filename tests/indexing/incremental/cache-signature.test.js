@@ -3,6 +3,8 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { mergeConfig } from '../../../src/shared/config.js';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { runNode } from '../../helpers/run-node.js';
 
@@ -22,7 +24,10 @@ await fsPromises.writeFile(filePath, 'function alpha() { return 1; }\n');
 const buildTestEnv = (testConfig) => applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
-  testConfig: testConfig ?? null,
+  testConfig: mergeConfig({
+    indexing: { typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
+    tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
+  }, testConfig || {}),
   extraEnv: {
     PAIROFCLEATS_WORKER_POOL: 'off'
   }
@@ -56,7 +61,7 @@ const runBuild = (label, testConfig) => {
 
 runBuild('initial build', { indexing: { lint: false } });
 const repoId = getRepoId(repoRoot);
-const manifestPath = path.join(cacheRoot, 'repos', repoId, 'incremental', 'code', 'manifest.json');
+const manifestPath = path.join(cacheRoot, 'repos', repoId, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'manifest.json');
 if (!fs.existsSync(manifestPath)) {
   console.error('Missing incremental manifest after initial build');
   process.exit(1);

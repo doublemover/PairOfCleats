@@ -390,6 +390,7 @@ export const initUi = () => {
     value: getNested(state.panelState, 'layout.style'),
     defaultValue: layoutDefaults.style,
     options: [
+      { label: 'Semantic stacks', value: 'stacks' },
       { label: 'Clustered', value: 'clustered' },
       { label: 'Flow', value: 'flow' },
       { label: 'Dependency lanes', value: 'lanes' },

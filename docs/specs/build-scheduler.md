@@ -1,7 +1,7 @@
 # Build Scheduler Spec
 
 Status: Active v2.0  
-Last updated: 2026-02-20T00:00:00Z
+Last updated: 2026-10-11T00:00:00Z
 
 ## Goals
 
@@ -29,10 +29,11 @@ Scheduler owns admission control, concurrency caps, fairness, and backpressure b
 
 ## Queue and fairness policy
 
-- Weighted round-robin across queue classes.
+- Admission filters token, byte, adaptive-surface and write-backpressure limits.
+- Among admissible queue candidates, score wait age plus queue weight and wait-p95 aging, less priority penalty.
 - Starvation boost after `starvationMs` wait threshold.
-- Short-job bias: scheduler may prefer ready short units to reduce tail latency.
-- Work-stealing: idle workers may steal from overloaded queues under deterministic tie-break rules.
+- Scan past a blocked head entry for admissible work; deterministic queue order breaks equal scores.
+- Cost-aware independent batch assignment is owned by the existing planners, not a CPU preemption or work-stealing mechanism.
 
 ## Memory-pressure policy
 
@@ -116,3 +117,38 @@ Required counters:
 ## Compatibility policy
 
 No legacy scheduler behavior is retained.
+
+## Admission and active-work observations
+
+Each queue snapshot and sampled scheduling trace includes `runnable`, `blocked`,
+`blockedBy`, `oldestRunnableWaitMs`, and `oldestRunningMs`. Runnable means each
+pending task fits the **same current capacity individually**, not that all fit
+simultaneously. Blocked reasons partition pending tasks by their first binding
+constraint: write backpressure, surface concurrency, CPU, IO, memory, queue bytes,
+or global bytes. This is scheduler admission only; dependency-blocked work that
+has not been submitted belongs to its planner/frontier owner.
+
+`waitLatencyMs` and `runLatencyMs` reuse bounded histogram summaries (last 64
+samples per queue). Missing samples are null. Run latency is admitted task wall
+occupancy, including nested queue waits; it is not CPU service time. Current
+running age is separate from completed-task latency. Counts are copied into
+snapshots, and nested reason maps in traces are isolated from caller mutation.
+Pending scans occur on stats and sampled telemetry captures; ordinary unsampled
+enqueue paths do not add an observational scan.
+
+The existing Stage1 watchdog and file progress renderer expose scheduler state,
+oldest file substage/age, terminal input bytes/throughput, produced chunks, cached
+files, skips and failures. Terminal input bytes include skips/failures; this is
+input coverage rather than a predicted analysis-cost percentage. Chunk counts
+include cache reuse. File ETA remains count-based. Existing crash-stage hooks
+feed the live observer even when crash logging is disabled; observations cannot
+throw into file processing. Outer scheduler queue wait remains separate from
+file processing duration, which includes nested IO/embedding waits.
+
+Worker-pool shutdown retains graceful draining. Expired drain waits explicitly
+reach the existing Piscina destructor and bounded hard-thread termination owner.
+The timeout result marks escalation and no longer reports pending cleanup after
+successful force completion; failed termination propagates. Independent split
+pool resources use the shared lifecycle registry so a sibling cleanup failure
+cannot skip another owner. These controls do not guarantee cleanup after abrupt
+OS termination or an uncatchable process crash.

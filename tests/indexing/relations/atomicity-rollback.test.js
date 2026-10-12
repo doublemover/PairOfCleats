@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MAX_JSON_BYTES, loadJsonArrayArtifact, readJsonFile } from '../../../src/shared/artifact-io.js';
@@ -72,7 +73,7 @@ if (!parts.length) {
   fail('relations atomicity rollback test failed: missing graph_relations parts after failure.');
 }
 
-const manifestAfter = {
+const manifestAfter = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   version: 2,
   generatedAt: new Date().toISOString(),
   mode: 'code',

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { getCombinedOutput } from '../../helpers/stdio.js';
 import { runNode } from '../../helpers/run-node.js';
 import { getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
@@ -60,8 +61,8 @@ await withTemporaryEnv({
 
   const userConfig = loadUserConfig(repoRoot);
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
-  const bundleDir = path.join(repoCacheRoot, 'incremental', 'code', 'files');
+  const manifestPath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'manifest.json');
+  const bundleDir = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'files');
   if (!fs.existsSync(manifestPath)) {
     console.error('Missing incremental manifest for sqlite bundle test.');
     process.exit(1);

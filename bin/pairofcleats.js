@@ -1,12 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
+const { projectIndexFormatError } = await import('../src/shared/index-format-error.js');
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  getToolVersion,
-  resolveRepoRoot,
-  resolveToolRoot
-} from '../tools/shared/dict-utils.js';
-import {
+const { getToolVersion, resolveRepoRoot, resolveToolRoot } = await import('../tools/shared/dict-utils.js');
+const {
   CONTEXT_PACK_OPTIONS,
   INDEX_BUILD_OPTIONS,
   SERVICE_API_OPTIONS,
@@ -14,30 +13,30 @@ import {
   TOOLING_DETECT_OPTIONS,
   TOOLING_INSTALL_OPTIONS,
   resolveCliOptionFlagSets
-} from '../src/shared/cli-options.js';
-import {
+} = await import('../src/shared/cli-options.js');
+const {
   COMMAND_SUPPORT_TIER_LABELS,
   DEFAULT_HELP_SUPPORT_TIERS
-} from '../src/shared/command-registry-data.js';
-import {
+} = await import('../src/shared/command-registry-data.js');
+const {
   describeCommandRegistryEntry,
   listCommandRegistry,
   listCommonWorkflowExamples,
   listHelpSections
-} from '../src/shared/command-registry-query.js';
-import { spawnSubprocess } from '../src/shared/subprocess/runner.js';
-import { exitLikeChild } from '../src/tui/wrapper-exit.js';
-import { buildErrorPayload, ERROR_CODES, isErrorCode } from '../src/shared/error-codes.js';
-import {
+} = await import('../src/shared/command-registry-query.js');
+const { spawnSubprocess } = await import('../src/shared/subprocess/runner.js');
+const { exitLikeChild } = await import('../src/tui/wrapper-exit.js');
+const { buildErrorPayload, ERROR_CODES, isErrorCode } = await import('../src/shared/error-codes.js');
+const {
   getSearchHelp,
   SEARCH_OPTION_NAMES,
   SEARCH_SHORT_VALUE_FLAG_NAMES,
   SEARCH_VALUE_FLAG_NAMES
-} from '../src/retrieval/cli-args.js';
-import { resolveDispatchRuntimeEnv } from './dispatch-runtime-env.js';
-import { isDirectExecution } from '../src/shared/direct-execution.js';
-import { readFlagValue } from '../src/shared/cli/argv.js';
-import { isStrictDispatchEnvEnabled } from '../src/shared/env/runtime.js';
+} = await import('../src/retrieval/cli-args.js');
+const { resolveDispatchRuntimeEnv } = await import('./dispatch-runtime-env.js');
+const { isDirectExecution } = await import('../src/shared/direct-execution.js');
+const { readFlagValue } = await import('../src/shared/cli/argv.js');
+const { isStrictDispatchEnvEnabled } = await import('../src/shared/env/runtime.js');
 
 const ROOT = resolveToolRoot();
 const WORKSPACE_BUILD_FLAGS = Object.keys(INDEX_BUILD_OPTIONS).filter((flag) => flag !== 'repo');
@@ -562,7 +561,7 @@ function resolveCommand(primary, rest) {
   if (primary === 'ingest') {
     const sub = rest.shift();
     if (!sub || isHelpCommand(sub)) {
-      failCli('ingest requires a subcommand: ctags, gtags, lsif, scip', {
+      failCli('ingest requires a subcommand: ctags, gtags, lsif, scip, runtime-evidence', {
         code: ERROR_CODES.INVALID_REQUEST,
         showHelp: true
       });
@@ -575,6 +574,9 @@ function resolveCommand(primary, rest) {
     }
     if (sub === 'lsif') {
       return { script: 'tools/ingest/lsif.js', extraArgs: [], args: rest };
+    }
+    if (sub === 'runtime-evidence') {
+      return { script: 'tools/ingest/runtime-evidence.js', extraArgs: [], args: rest };
     }
     if (sub === 'scip') {
       return { script: 'tools/ingest/scip.js', extraArgs: [], args: rest };
@@ -732,6 +734,18 @@ function resolveCommand(primary, rest) {
       ]
     );
     return { script: 'tools/analysis/suggest-tests.js', extraArgs: [], args: rest };
+  }
+  if (primary === 'runtime') {
+    const sub = rest.shift();
+    if (!['lookup', 'families', 'compare', 'claims'].includes(sub)) failCli('Use pairofcleats runtime lookup|families|compare|claims --request request.json [--all].');
+    validateArgs(rest, ['request', 'all'], ['request']);
+    return { script: 'tools/analysis/runtime-evidence.js', extraArgs: ['--operation', sub], args: rest };
+  }
+  if (primary === 'semantic') {
+    const sub = rest.shift();
+    if (!['detail', 'trace','find','explain','enrichment'].includes(sub)) failCli('Use pairofcleats semantic detail|trace|find|explain|enrichment --request request.json.');
+    validateArgs(rest, ['request', 'all'], ['request']);
+    return { script: 'tools/analysis/semantic-' + sub + '.js', extraArgs: [], args: rest };
   }
   if (primary === 'context-pack') {
     const { optionNames, valueOptionNames } = resolveCliOptionFlagSets(CONTEXT_PACK_OPTIONS);
@@ -1168,6 +1182,12 @@ function isHelpAllCommand(value) {
 
 if (isDirectExecution(import.meta.url)) {
   main().catch((err) => {
+    const format = projectIndexFormatError(err);
+    if (format) {
+      process.stderr.write(JSON.stringify({ ok: false, code: format.nativeCode, message: err.message, ...format, details: format }) + '\n');
+      process.exitCode = 1;
+      return;
+    }
     const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
     failCli(err?.message || String(err), {
       code,

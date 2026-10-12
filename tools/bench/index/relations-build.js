@@ -1,16 +1,18 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { buildRelationGraphs } from '../../../src/index/build/graphs.js';
-import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
-import { parseSimpleBenchArgs } from '../shared.js';
-import {
+const { writeJsonObjectFile } = await import('../../../src/shared/json-stream/json-writers.js');
+const { buildRelationGraphs } = await import('../../../src/index/build/graphs.js');
+const { readJsonFile } = await import('../../../src/shared/artifact-io/json.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
+const {
   buildRelationBenchChunks,
   buildRelationBenchFileRelations,
   writeRelationBenchGraphArtifacts
-} from './relations-fixture.js';
+} = await import('./relations-fixture.js');
 
 const args = parseSimpleBenchArgs();
 const chunkCount = Math.max(10, Number(args.chunks) || 10000);

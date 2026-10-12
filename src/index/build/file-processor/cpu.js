@@ -1,3 +1,7 @@
+import { collectStandaloneWasm } from '../../semantic/wasm/standalone.js';
+import { collectEmbeddedSemanticSources, collectEmbeddedSemanticOwnership } from '../../semantic/embedded-source.js';
+import { collectSemanticOwnership } from '../../semantic/ownership.js';
+import { collectFileSemanticFacts } from '../../semantic/collect-file.js';
 import { captureChunkingCheckpoint, resolveChunkingCheckpoint } from '../incremental/stage-reuse.js';
 import { assignSegmentUids, discoverSegments } from '../../segments.js';
 import { toRepoPosixPath } from '../../scm/paths.js';
@@ -217,6 +221,10 @@ export const processFileCpu = async (context) => {
     }
   });
 
+  if (context.semantic && mode === 'code' && ext === '.wasm') return collectStandaloneWasm({
+    ...context.semantic, bytes: context.sourceBytes, relPath: relKey, signal
+  });
+
   let fileLanguageId = languageHint?.id || null;
   let fileLineCount = 0;
   updateCrashStage('start', { size: fileStat?.size || null, ext });
@@ -257,7 +265,7 @@ export const processFileCpu = async (context) => {
       relKey,
       mode,
       text,
-      languageContextOptions,
+      languageContextOptions: { ...languageContextOptions, semanticEnabled: Boolean(context.semantic) },
       treeSitterEnabled,
       treeSitterLanguagePasses,
       treeSitterConfigForMode,
@@ -335,6 +343,14 @@ export const processFileCpu = async (context) => {
     fileBytes,
     fileLines: totalLines
   });
+  let semanticFactsRef = null;
+  if (context.semantic && mode === 'code') {
+    updateCrashStage('semantic:collect-file:start');
+    semanticFactsRef = await collectFileSemanticFacts({ ...context.semantic,
+      bytes: context.sourceBytes, text, ast: languageContext.tsSyntax?.sourceFile || languageContext.jsAst, ts: languageContext.tsSyntax?.ts, language: lang?.id || 'unknown',
+      relPath: relKey, signal, scheduleIo: runIo, scheduleParse: runTreeSitter, nativeParserEnabled: treeSitterEnabled });
+    updateCrashStage('semantic:collect-file:done');
+  }
   const effectiveRelationsEnabled = relationsEnabled && !skipHeavyRelations;
   let rawRelations = null;
   if (mode === 'code' && effectiveRelationsEnabled && lang && typeof lang.buildRelations === 'function') {
@@ -804,7 +820,11 @@ export const processFileCpu = async (context) => {
   } catch (err) {
     return failFile('parse-error', 'segment-uid', err);
   }
+  if (semanticFactsRef) updateCrashStage('semantic:embedded-sources:start');
+  const embeddedSemantic = semanticFactsRef ? await collectEmbeddedSemanticSources({ ...context.semantic, parentFacts: semanticFactsRef, segments, text, signal, scheduleIo: runIo, javascript: languageOptions?.javascript, typescript: languageOptions?.typescript }) : null;
+  if (semanticFactsRef) updateCrashStage('semantic:embedded-sources:done');
   const segmentContext = {
+    semanticSyntaxContexts: embeddedSemantic?.syntaxContexts,
     ...languageContext,
     relPath: relKey,
     ext,
@@ -998,14 +1018,24 @@ export const processFileCpu = async (context) => {
     chunkingDiagnostics,
     failFile,
     buildStage,
-    fileIndex
+    fileIndex,
+    onStage: context.onStage
   });
 
   if (chunkResult?.skip) {
     return chunkResult;
   }
 
+  if (semanticFactsRef) updateCrashStage('semantic:ownership:start');
+  if (semanticFactsRef) semanticFactsRef = await collectSemanticOwnership({ ...context.semantic,
+    facts: semanticFactsRef, chunks: chunkResult.chunks, bytes: context.sourceBytes,
+    language: lang?.id || 'unknown', relPath: relKey, signal, scheduleIo: runIo });
+  const semanticSegmentFactsRefs = await collectEmbeddedSemanticOwnership({ ...context.semantic, embedded: embeddedSemantic, chunks: chunkResult.chunks, signal, scheduleIo: runIo });
+  if (semanticFactsRef) updateCrashStage('semantic:ownership:done');
   return {
+    semanticFactsRef,
+    semanticSegmentFactsRefs,
+    semanticEvidenceArtifacts: embeddedSemantic?.evidenceArtifacts || [],
     chunks: chunkResult.chunks,
     parseCheckpoint,
     fileRelations,

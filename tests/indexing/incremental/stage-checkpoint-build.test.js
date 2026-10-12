@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -17,7 +18,7 @@ const build=phrases=>{
   const result=runNode([path.resolve('build_index.js'),'--stub-embeddings','--scm-provider','none','--incremental','--stage','stage2','--mode','code','--repo',repo],'stage refresh integration',repo,env,{stdio:'inherit',allowFailure:true});
   assert.equal(result.status,0);
 };
-const dir=path.join(cache,'repos',getRepoId(repo),'incremental','code');
+const dir=path.join(cache,'repos',getRepoId(repo),'incremental','format-' + ARTIFACT_SURFACE_VERSION,'code');
 const read=async()=>{
   const manifest=JSON.parse(await fs.readFile(path.join(dir,'manifest.json'),'utf8'));
   const entry=manifest.files['source.js'];

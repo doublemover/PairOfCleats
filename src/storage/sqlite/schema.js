@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 // Metadata for sampled signatures.
 export const CREATE_MINHASH_META_SQL = `

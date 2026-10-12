@@ -190,11 +190,11 @@ export const createPatchQueue = ({
     return statePendingLifecycles.get(key);
   };
 
-  const releasePendingLifecycle = (buildRoot) => {
+  const releasePendingLifecycle = (buildRoot, expectedLifecycle) => {
     const key = path.resolve(buildRoot);
     const lifecycle = statePendingLifecycles.get(key);
+    if (!lifecycle || lifecycle !== expectedLifecycle) return;
     lockRetryLogAtMsByBuildRoot.delete(key);
-    if (!lifecycle) return;
     statePendingLifecycles.delete(key);
     void runBuildCleanupWithTimeout({
       label: 'build-state.patch-queue.lifecycle.close',
@@ -237,6 +237,7 @@ export const createPatchQueue = ({
         lifecycle: getPendingLifecycle(buildRoot),
         durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
         waiters: [],
+        activeFlushes: 0,
         pendingSinceMs: null,
         lastLogicalUpdateAtMs: null,
         coalescedPatchCount: 0,
@@ -246,6 +247,17 @@ export const createPatchQueue = ({
       });
     }
     return statePending.get(key);
+  };
+
+  // Detached batches still own this lifecycle, including their waiter timers.
+  // An older flush must neither retire a sibling's owner nor delete a newer
+  // pending entry that happens to use the same build-root key.
+  const releaseIdlePendingEntry = (buildRoot, pending) => {
+    const key = path.resolve(buildRoot);
+    if (!pending || statePending.get(key) !== pending || pending.activeFlushes > 0
+      || pending.patch || pending.timer || pending.waiters.length > 0) return;
+    statePending.delete(key);
+    releasePendingLifecycle(buildRoot, pending.lifecycle);
   };
 
   const buildPendingTelemetry = (pending) => {
@@ -292,6 +304,7 @@ export const createPatchQueue = ({
     pending.events = [];
     pending.durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT;
     pending.waiters = [];
+    pending.activeFlushes += 1;
     pending.lastFlushStartedAtMs = Date.now();
     try {
       const result = await enqueueStateUpdate(
@@ -307,10 +320,6 @@ export const createPatchQueue = ({
         throw result;
       }
       waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', createFlushedOutcome(result)));
-      if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
-        statePending.delete(key);
-        releasePendingLifecycle(buildRoot);
-      }
       return result;
     } catch (err) {
       pending.lastFlushCompletedAtMs = Date.now();
@@ -383,11 +392,10 @@ export const createPatchQueue = ({
       } else {
         recordStateError(buildRoot, err);
       }
-      if (!pending.patch && !pending.timer && pending.waiters.length === 0) {
-        statePending.delete(key);
-        releasePendingLifecycle(buildRoot);
-      }
       return null;
+    } finally {
+      pending.activeFlushes -= 1;
+      releaseIdlePendingEntry(buildRoot, pending);
     }
   };
 
@@ -469,10 +477,7 @@ export const createPatchQueue = ({
     if (nextPending?.patch) {
       return createTimedOutOutcome(key, Math.max(0, Date.now() - startedAtMs));
     }
-    if (pending && !pending.patch && !pending.timer && pending.waiters.length === 0) {
-      statePending.delete(key);
-      releasePendingLifecycle(buildRoot);
-    }
+    releaseIdlePendingEntry(buildRoot, pending);
     return createFlushedOutcome(result);
   };
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 
 import { getCombinedOutput } from '../../../helpers/stdio.js';
 import { getRepoCacheRoot } from '../../../../tools/shared/dict-utils.js';
@@ -66,7 +67,7 @@ export async function setupBundlePartialFallbackFixture({ name, beforeBuild } = 
   runIncrementalStage({ root, repoRoot, env, run, stage: 'stage3' });
 
   const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
-  const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
+  const manifestPath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'manifest.json');
   assert.equal(fs.existsSync(manifestPath), true, 'expected incremental manifest after stage3 build');
 
   const manifest = readManifest(manifestPath);
@@ -97,7 +98,7 @@ export function findFirstBundleEntry(manifest, predicate = () => true) {
 
 export async function readFirstBundleShard(repoCacheRoot, targetEntry) {
   const bundleName = targetEntry.bundles[0];
-  const bundlePath = path.join(repoCacheRoot, 'incremental', 'code', 'files', bundleName);
+  const bundlePath = path.join(repoCacheRoot, 'incremental', 'format-' + ARTIFACT_SURFACE_VERSION, 'code', 'files', bundleName);
   const readResult = await readBundleFile(bundlePath, { format: targetEntry.bundleFormat || null });
   assert.equal(readResult.ok, true, `expected readable bundle before mutation: ${readResult.reason || 'unknown error'}`);
   return { bundleName, bundlePath, readResult };

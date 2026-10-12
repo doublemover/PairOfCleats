@@ -1,18 +1,16 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
-import { createCli } from '../../src/shared/cli.js';
-import { SERVICE_INDEXER_OPTIONS } from '../../src/shared/cli-options.js';
-import { getEnvConfig } from '../../src/shared/env/runtime.js';
-import { normalizeObservability } from '../../src/shared/observability.js';
-import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
-import {
-  resolveRepoRootArg,
-  getCacheRoot,
-  resolveToolRoot
-} from '../shared/dict-utils.js';
-import { exitLikeCommandResult } from '../shared/cli-utils.js';
-import { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } from './config.js';
-import {
+const { createCli } = await import('../../src/shared/cli.js');
+const { SERVICE_INDEXER_OPTIONS } = await import('../../src/shared/cli-options.js');
+const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
+const { normalizeObservability } = await import('../../src/shared/observability.js');
+const { spawnSubprocess } = await import('../../src/shared/subprocess/runner.js');
+const { resolveRepoRootArg, getCacheRoot, resolveToolRoot } = await import('../shared/dict-utils.js');
+const { exitLikeCommandResult } = await import('../shared/cli-utils.js');
+const { getServiceConfigPath, loadServiceConfig, resolveRepoRegistry } = await import('./config.js');
+const {
   compactQueueState,
   describeQueueBackpressure,
   describeQueueMetrics,
@@ -28,23 +26,23 @@ import {
   retryQuarantinedJob,
   requeueStaleJobs,
   touchJobHeartbeat
-} from './queue.js';
-import { ensureRepo, resolveRepoEntry, resolveRepoPath } from './repos.js';
-import {
+} = await import('./queue.js');
+const { ensureRepo, resolveRepoEntry, resolveRepoPath } = await import('./repos.js');
+const {
   isEmbeddingsQueueName,
   isMonitoredIndexQueueName,
   resolveServiceQueueName
-} from './indexer-service/queue-identity.js';
-import { startBuildProgressMonitor } from './indexer-service/progress-monitor.js';
-import { createJobCompletion } from './indexer-service/job-completion.js';
-import { createJobExecutor } from './indexer-service/job-executor.js';
-import { createQueueWorker } from './indexer-service/queue-worker.js';
-import { resolveQueueLeasePolicy } from './lease-policy.js';
-import { resolveQueueAdmissionPolicy } from './admission-policy.js';
-import { resolveQueueRetentionPolicy } from './retention-policy.js';
-import { resolveQueueOperationalEnvelope } from './operational-envelope.js';
-import { collectEmbeddingReplayState } from './embedding-replay.js';
-import {
+} = await import('./indexer-service/queue-identity.js');
+const { startBuildProgressMonitor } = await import('./indexer-service/progress-monitor.js');
+const { createJobCompletion } = await import('./indexer-service/job-completion.js');
+const { createJobExecutor } = await import('./indexer-service/job-executor.js');
+const { createQueueWorker } = await import('./indexer-service/queue-worker.js');
+const { resolveQueueLeasePolicy } = await import('./lease-policy.js');
+const { resolveQueueAdmissionPolicy } = await import('./admission-policy.js');
+const { resolveQueueRetentionPolicy } = await import('./retention-policy.js');
+const { resolveQueueOperationalEnvelope } = await import('./operational-envelope.js');
+const { collectEmbeddingReplayState } = await import('./embedding-replay.js');
+const {
   cleanupOrphanArtifacts,
   heartbeatStatusRepairState,
   inspectRepairState,
@@ -52,18 +50,15 @@ import {
   quarantineRepairJob,
   retryRepairJob,
   unlockRepairState
-} from './repair.js';
-import {
+} = await import('./repair.js');
+const {
   completeServiceShutdown,
   loadServiceShutdownState,
   requestServiceShutdown,
   resumeServiceShutdown,
   updateServiceShutdownWorker
-} from './shutdown-state.js';
-import {
-  createServiceRuntimeEnvResolver,
-  logThreadpoolInfo
-} from './indexer-service-helpers.js';
+} = await import('./shutdown-state.js');
+const { createServiceRuntimeEnvResolver, logThreadpoolInfo } = await import('./indexer-service-helpers.js');
 
 const argv = createCli({
   scriptName: 'indexer-service',

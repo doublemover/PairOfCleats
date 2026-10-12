@@ -1,11 +1,13 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import yargs from 'yargs/yargs';
-import { hideBin } from 'yargs/helpers';
-import { tryRequire } from '../../../src/shared/optional-deps.js';
-import { formatStats, runSampledBench } from './utils.js';
+const { default: yargs } = await import('yargs/yargs');
+const { hideBin } = await import('yargs/helpers');
+const { tryRequire } = await import('../../../src/shared/optional-deps.js');
+const { formatStats, runSampledBench } = await import('./utils.js');
 
 const argv = yargs(hideBin(process.argv))
   .option('sizes', {

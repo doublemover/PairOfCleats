@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storage/sqlite/build/from-artifacts.js';
-import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
 import {
   loadDatabaseCtor,
   writeSqliteShardFixtureArtifacts
@@ -38,7 +38,7 @@ if (shardResult.parts.length < 2) {
   console.error('Expected chunk_meta to be sharded for streaming test.');
   process.exit(1);
 }
-await writePiecesManifest(indexDir, pieceEntries);
+await writeSqliteArtifactManifest(indexDir, pieceEntries);
 
 const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta parts');

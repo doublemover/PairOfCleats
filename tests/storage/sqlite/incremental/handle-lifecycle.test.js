@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
+import { writeSqliteIndexFormat } from '../../../../src/storage/sqlite/index-format.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -17,6 +19,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
   try {
     writer.exec(CREATE_TABLES_BASE_SQL);
     writer.pragma(`user_version = ${schemaVersion}`);
+    writeSqliteIndexFormat(writer);
     writer.prepare(
       'INSERT INTO file_manifest (mode, file, hash, mtimeMs, size, chunk_count) VALUES (?, ?, ?, ?, ?, ?)'
     ).run('code', 'sample.js', baselineHash, 123, 10, 0);
@@ -55,7 +58,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
       return pragma(sql, ...args);
     };
     db.prepare = (sql, ...args) => {
-      if (sql.includes('FROM sqlite_master')) inject('schema');
+      if (sql === "SELECT name FROM sqlite_master WHERE type='table'") inject('schema');
       if (sql.startsWith('SELECT file, hash, mtimeMs, size FROM file_manifest')) inject('planner');
       const statement = prepare(sql, ...args);
       if (sql.startsWith('UPDATE file_manifest SET hash')) {
@@ -96,7 +99,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
       Database: TrackingDatabase,
       outPath,
       mode: 'code',
-      incrementalData: { manifest: { files: { 'sample.js': manifestEntry } }, bundleDir: tempRoot },
+      incrementalData: { manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { 'sample.js': manifestEntry } }, bundleDir: tempRoot },
       modelConfig: { id: null },
       vectorConfig: {},
       emitOutput: false,
@@ -107,13 +110,16 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     if (failureAt) {
       await assert.rejects(update, (error) => error === failure, `${name}: preserve the original failure`);
       assert.equal(failureInjected, true, `${name}: failure injection must be reached`);
+    } else if (schemaVersion !== SCHEMA_VERSION) {
+      await assert.rejects(update, { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
     } else {
       result = await update;
     }
     assert.equal(handles.length, 1, `${name}: exactly one owned database`);
     assert.equal(closeCounts.get(handles[0]), 1, `${name}: close owned handle exactly once`);
     assert.equal(handles[0].open, false, `${name}: no retained open database`);
-    assert.ok(checkpointAttempts >= 1, `${name}: finalization attempts a checkpoint`);
+    assert.equal(checkpointAttempts >= 1, schemaVersion === SCHEMA_VERSION,
+      `${name}: only admitted databases reach checkpoint finalization`);
     if (buildPragmas) {
       const applied = pragmaCalls.indexOf('locking_mode = EXCLUSIVE');
       const restored = pragmaCalls.indexOf('locking_mode = normal');
@@ -153,9 +159,7 @@ try {
   const unchanged = await runCase({ name: 'unchanged', baselineHash: 'current' });
   assert.equal(unchanged.used, true);
   assert.equal(unchanged.manifestUpdates, 0);
-  const schemaMismatch = await runCase({ name: 'schema-mismatch', schemaVersion: SCHEMA_VERSION - 1 });
-  assert.equal(schemaMismatch.used, false);
-  assert.match(schemaMismatch.reason, /schema mismatch/);
+  await runCase({ name: 'schema-mismatch', schemaVersion: SCHEMA_VERSION - 1 });
   const schemaMissing = await runCase({ name: 'schema-missing', missingTable: true });
   assert.equal(schemaMissing.used, false);
   assert.equal(schemaMissing.reason, 'schema missing');

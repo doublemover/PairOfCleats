@@ -1,3 +1,5 @@
+import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import fs from 'node:fs/promises';
 import { Worker } from 'node:worker_threads';
 import { atomicWriteJson } from '../io/atomic-write.js';
@@ -156,4 +158,13 @@ export const writeBundleJsonChecksum = async (bundlePath, bundle) => {
     checksum: checksum.value,
     checksumAlgo: checksum.algo
   };
+};
+
+/** Stamp new payloads consistently before serialization, patching and checksumming. */
+export const normalizeBundleWriteIdentity = (bundle, bundlePath) => {
+  if (Object.hasOwn(bundle, 'artifactSurfaceVersion')) assertCurrentIndexFormat({
+    operation: 'write', component: 'bundle payload', foundVersion: bundle.artifactSurfaceVersion,
+    repoRoot: process.cwd(), indexPath: bundlePath
+  });
+  return { ...bundle, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION };
 };

@@ -1,4 +1,5 @@
 import { createAbortError, isAbortSignal } from '../../abort.js';
+import { appendBounded } from '../scheduler-telemetry.js';
 
 export function createSchedulerDispatch({
   config,
@@ -7,7 +8,7 @@ export function createSchedulerDispatch({
   adaptiveController,
   captureTelemetryIfDue
 }) {
-  const canStart = (queue, req, backpressureState = null) => {
+  const admissionBlockReason = (queue, req, backpressureState = null) => {
     const normalized = config.normalizeRequest(req);
     const resolvedBackpressure = backpressureState || queueLifecycle.evaluateWriteBackpressure();
     const producerBlocked = resolvedBackpressure.active
@@ -15,7 +16,7 @@ export function createSchedulerDispatch({
       && queue.name !== config.writeBackpressure.writeQueue
       && config.writeBackpressure.producerQueues.has(queue.name);
     if (producerBlocked) {
-      return false;
+      return 'write-backpressure';
     }
     if (config.adaptiveSurfaceControllersEnabled && queue?.surface) {
       const surfaceState = config.adaptiveSurfaceStates.get(queue.surface);
@@ -24,7 +25,7 @@ export function createSchedulerDispatch({
           && (normalized.io > 0 || normalized.mem > 0);
         const running = queueLifecycle.countSurfaceRunning(queue.surface);
         if (!bypassSurfaceCap && running >= surfaceState.currentConcurrency) {
-          return false;
+          return 'surface-concurrency';
         }
       }
     }
@@ -34,29 +35,54 @@ export function createSchedulerDispatch({
       if (pool.used + requested <= pool.total) return false;
       return !(pool.used === 0 && requested > pool.total);
     };
-    if (
-      tokenBlocked('cpu', normalized.cpu)
-      || tokenBlocked('io', normalized.io)
-      || tokenBlocked('mem', normalized.mem)
-    ) {
-      return false;
-    }
+    if (tokenBlocked('cpu', normalized.cpu)) return 'cpu-tokens';
+    if (tokenBlocked('io', normalized.io)) return 'io-tokens';
+    if (tokenBlocked('mem', normalized.mem)) return 'memory-tokens';
     const queueCap = queue?.maxInFlightBytes;
     if (queueCap && normalized.bytes > 0) {
       const queueBytes = config.normalizeByteCount(queue.inFlightBytes);
       const oversizeSingle = queueBytes === 0;
       if (!oversizeSingle && queueBytes + normalized.bytes > queueCap) {
-        return false;
+        return 'queue-bytes';
       }
     }
     if (config.globalMaxInFlightBytes && normalized.bytes > 0) {
       const runningBytes = config.normalizeByteCount(state.globalInFlightBytes);
       const oversizeSingle = runningBytes === 0;
       if (!oversizeSingle && runningBytes + normalized.bytes > config.globalMaxInFlightBytes) {
-        return false;
+        return 'global-bytes';
       }
     }
-    return true;
+    return null;
+  };
+
+  const canStart = (queue, req, backpressureState = null) => (
+    admissionBlockReason(queue, req, backpressureState) === null
+  );
+
+  // Sample only on explicit stats/telemetry requests, never on every enqueue.
+  // Each task is evaluated against the SAME current capacity; runnable is not
+  // a promise that all runnable tasks fit simultaneously. Reasons partition
+  // blocked tasks by their first binding admission constraint.
+  const snapshotQueueAdmission = (queue, at = config.nowMs(), backpressureState = null) => {
+    const pressure = backpressureState || queueLifecycle.evaluateWriteBackpressure();
+    let runnable = 0;
+    let oldestRunnableWaitMs = 0;
+    const blockedBy = {};
+    for (const entry of queue.pending) {
+      const reason = admissionBlockReason(queue, entry.tokens, pressure);
+      if (reason) blockedBy[reason] = (blockedBy[reason] || 0) + 1;
+      else {
+        runnable += 1;
+        oldestRunnableWaitMs = Math.max(oldestRunnableWaitMs, at - entry.enqueuedAt);
+      }
+    }
+    let oldestRunningMs = 0;
+    for (const startedAt of queue.runningSince.values()) {
+      oldestRunningMs = Math.max(oldestRunningMs, at - startedAt);
+    }
+    return { runnable, blocked: queue.pending.length - runnable, blockedBy,
+      oldestRunnableWaitMs: Math.max(0, oldestRunnableWaitMs), oldestRunningMs: Math.max(0, oldestRunningMs) };
   };
 
   const reserve = (queue, req) => {
@@ -147,6 +173,8 @@ export function createSchedulerDispatch({
       }
       queueLifecycle.recordQueueWaitTime(queue, config.nowMs() - next.enqueuedAt);
       const used = reserve(queue, next.tokens);
+      const startedAt = config.nowMs();
+      queue.runningSince.set(next, startedAt);
       const done = Promise.resolve()
         .then(next.fn)
         .then(
@@ -162,6 +190,8 @@ export function createSchedulerDispatch({
           }
         )
         .finally(() => {
+          appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
+          queue.runningSince.delete(next);
           queue.running -= 1;
           queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
           release(queue, used);
@@ -285,6 +315,7 @@ export function createSchedulerDispatch({
 
   return {
     canStart,
+    snapshotQueueAdmission,
     reserve,
     release,
     findStartableIndex,

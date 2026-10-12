@@ -1,3 +1,5 @@
+import { buildSemanticContextSection } from '../../context-pack/semantic.js';
+import { attachSemanticContextSection } from '../../context-pack/assemble/finalize.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { CONTEXT_PACK_OPTIONS } from '../../shared/cli-options.js';
@@ -374,7 +376,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     includeGraphIndex: input.includeGraph !== false
   });
 
-  const payload = assembleCompositeContextPack({
+  let payload = assembleCompositeContextPack({
     seed,
     chunkMeta,
     chunkIndex,
@@ -401,6 +403,9 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
     indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
   });
+
+  if (input.includeSemantic === true) payload = attachSemanticContextSection(payload,
+    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig }));
 
   const validation = validateCompositeContextPack(payload);
   if (!validation.ok) {
@@ -472,6 +477,11 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
 
   const baseResult = repoResults.find((entry) => entry.repo.repoId === baseRepo.repoId) || repoResults[0];
   const basePayload = cloneJson(baseResult.payload);
+  if (input.includeSemantic === true) basePayload.semanticFederation = {
+    scope: 'per-repository', repositories: repoResults.map(entry => ({
+      repoId: entry.repo.repoId, section: entry.payload.semantic
+    }))
+  };
   if (!basePayload.risk || input.includeRisk !== true) {
     return basePayload;
   }

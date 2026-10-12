@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
-import { createEmbedder } from '../../../src/index/embedding.js';
-import { createToolDisplay } from '../../shared/cli-display.js';
-import { runBatched } from '../../build/embeddings/embed.js';
-import { parseSimpleBenchArgs } from '../shared.js';
+const { createEmbedder } = await import('../../../src/index/embedding.js');
+const { createToolDisplay } = await import('../../shared/cli-display.js');
+const { runBatched } = await import('../../build/embeddings/embed.js');
+const { parseSimpleBenchArgs } = await import('../shared.js');
 
 const args = parseSimpleBenchArgs();
 const display = createToolDisplay({ argv: args, stream: process.stderr });

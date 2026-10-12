@@ -1,5 +1,13 @@
 const FAMILY_CAPABILITIES = Object.freeze([
   {
+    family: 'symbolic-types',
+    owner: 'tooling',
+    laneHint: 'light',
+    streamability: 'streamable',
+    shardability: 'shardable',
+    progressUnit: 'nodes'
+  },
+  {
     family: 'artifact-stats',
     owner: 'artifacts-write',
     laneHint: 'ultraLight',

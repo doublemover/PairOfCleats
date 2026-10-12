@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 
@@ -80,17 +80,24 @@ const env = applyTestEnv({
   syncProcess: false
 });
 
-const result = spawnSync(python, [script], {
-  encoding: 'utf8',
-  env,
-  stdio: 'inherit'
-});
-
-if (result.status !== 0) {
+// Each scenario owns an independent Python/Sublime state and temporary repository.
+// Run the three bounded scenarios concurrently rather than eleven CLIs serially.
+const scenarios = [
+  'test_package_harness_exercises_real_search_index_map_and_advanced_workflows',
+  'test_package_harness_analysis_workflows',
+  'test_package_harness_workspace_workflows'
+];
+const results = await Promise.all(scenarios.map((scenario) => new Promise((resolve, reject) => {
+  const child = spawn(python, [script, 'PackageHarnessTests.' + scenario], {
+    env,
+    stdio: 'inherit'
+  });
+  child.once('error', reject);
+  child.once('exit', (code) => resolve(code ?? 1));
+})));
+if (results.some((code) => code !== 0)) {
   console.error('sublime-package-harness: python harness failed');
-  if (result.stdout) console.error(result.stdout);
-  if (result.stderr) console.error(result.stderr);
-  process.exit(result.status || 1);
+  process.exit(results.find((code) => code !== 0) || 1);
 }
 
 console.log('sublime package harness test passed');

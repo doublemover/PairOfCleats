@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
+import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixture.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Database from 'better-sqlite3';
@@ -117,7 +119,7 @@ try {
   }
   try {
     const chunk = { id: 0, file: 'sample.js', start: 0, end: 1, tokens: [] };
-    await fs.writeFile(path.join(dir, 'bundle.json'), JSON.stringify({ chunks: [chunk] }));
+    await fs.writeFile(path.join(dir, 'bundle.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, chunks: [chunk] }));
     failCheckpoint = true;
     let nativeWarnings = 0;
     const bundlePath = path.join(dir, 'bundle.db');
@@ -126,7 +128,7 @@ try {
       outPath: bundlePath,
       mode: 'code',
       incrementalData: {
-        manifest: { files: { 'sample.js': { bundles: ['bundle.json'], hash: 'sample' } } },
+        manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { 'sample.js': { bundles: ['bundle.json'], hash: 'sample' } } },
         bundleDir: dir
       },
       envConfig: { bundleThreads: 1 },
@@ -156,6 +158,7 @@ try {
     failCheckpoint = false;
     const indexDir = path.join(dir, 'artifacts');
     await fs.mkdir(indexDir);
+    await writeSqliteArtifactManifest(indexDir, []);
     for (const primaryFailure of [false, true]) {
       failIndexes = primaryFailure;
       let clampWarnings = 0;

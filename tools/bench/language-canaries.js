@@ -1,17 +1,19 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
 
-import { createCli } from '../../src/shared/cli.js';
-import { writeJsonFileResolved } from '../../src/shared/json-file.js';
-import { resolveRepoRootArg } from '../shared/dict-utils.js';
-import { writeTextIfChanged } from '../shared/generated-report.js';
-import {
+const { createCli } = await import('../../src/shared/cli.js');
+const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
+const { resolveRepoRootArg } = await import('../shared/dict-utils.js');
+const { writeTextIfChanged } = await import('../shared/generated-report.js');
+const {
   buildBenchRuntimeLiveCanarySummary,
   formatBenchRuntimeLiveCanarySummaryMarkdown,
   loadBenchRuntimeCanaryManifest,
   runBenchRuntimeLiveCanary,
   validateBenchRuntimeCanaryManifest
-} from './language/canaries.js';
+} = await import('./language/canaries.js');
 
 const argv = createCli({
   scriptName: 'pairofcleats bench language canaries',
