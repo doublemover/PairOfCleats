@@ -314,6 +314,7 @@ export function createQueryPlanDiskCache({
 export function buildQueryPlanConfigSignature({
   dictConfig = null,
   queryMatch = 'auto',
+  structuredFilters = null,
   postingsConfig = null,
   caseTokens = false,
   fileFilter = null,
@@ -344,6 +345,7 @@ export function buildQueryPlanConfigSignature({
 } = {}) {
   return hashSignature({
     queryMatch,
+    structuredFilters,
     dictConfig,
     dictSize,
     postingsConfig,

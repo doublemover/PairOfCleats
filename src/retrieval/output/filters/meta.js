@@ -1,4 +1,4 @@
-import { collectDeclaredReturnTypes, collectMetaV2ReturnTypes } from '../../../index/metadata/docmeta.js';
+import { matchReturnTypeExpression, resolveReturnTypeFacts } from './type-expression.js';
 import { defaultNormalize, matchList } from './predicates.js';
 
 export const asObject = (value) => (value && typeof value === 'object' ? value : null);
@@ -57,12 +57,7 @@ const normalizeObjectForMatch = (value, normalize) => {
   }
 };
 
-export const resolveReturnTypes = (chunk) => {
-  const declared = collectDeclaredReturnTypes(chunk?.docmeta);
-  const metaDeclared = collectMetaV2ReturnTypes(chunk?.metaV2);
-  if (!declared.length && !metaDeclared.length) return [];
-  return Array.from(new Set([...declared, ...metaDeclared]));
-};
+export const resolveReturnTypes = (chunk) => resolveReturnTypeFacts(chunk).map((fact) => fact.type);
 
 const matchInferredType = (inferred, value, normalize = defaultNormalize) => {
   if (!value) return true;
@@ -178,12 +173,7 @@ export const matchMetaFilters = ({
     if (!Array.isArray(params) || !params.includes(param)) return false;
   }
 
-  if (returnType) {
-    const returnTypes = resolveReturnTypes(chunk);
-    if (!returnTypes.length || !returnTypes.some((entry) => normalize(entry).includes(normalize(returnType)))) {
-      return false;
-    }
-  }
+  if (returnType && !matchReturnTypeExpression(chunk, returnType)) return false;
 
   if (inferredType && !matchInferredType(resolveChunkInferredTypes(chunk, docmeta), inferredType, normalize)) {
     return false;
