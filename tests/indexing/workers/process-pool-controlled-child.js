@@ -16,7 +16,12 @@ process.on('message', async message => {
   }
   const payload = deserialize(message.payload);
   if (payload.crash) { process.exit(3); return; }
+  if (payload.retainUntilExit) {
+    process.on('SIGTERM', () => {});
+    setInterval(() => { if (!payload.bytes?.length) throw new Error('Lost retained input.'); }, 1000);
+  }
   process.send({ type: 'worker-task', generation, taskId: message.taskId, status: 'start', task: message.name, durationMs: 0 });
+  if (payload.retainUntilExit) return;
   if (payload.stale) process.send({ type: 'result', generation, taskId: 'stale-attempt', payload: serialize('must not publish') });
   await new Promise(resolve => setTimeout(resolve, payload.waitMs || 0));
   process.send({ type: 'result', generation, taskId: message.taskId, rssBytes: process.memoryUsage().rss,

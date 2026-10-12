@@ -262,9 +262,12 @@ export async function startMcpSdkServer({
         let transportError;
         try { await server.close(); } catch (error) { transportError = error; }
         try { await queue.onIdle(); }
-        finally { if (!suppliedTransport) {
-          process.stdin.off('end', onInputEnd); process.stdin.off('close', onInputEnd);
-        } }
+        finally {
+          if (!suppliedTransport) {
+            process.stdin.off('end', onInputEnd); process.stdin.off('close', onInputEnd);
+          }
+          await (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches();
+        }
         if (transportError) throw transportError;
       })();
       return closing;
