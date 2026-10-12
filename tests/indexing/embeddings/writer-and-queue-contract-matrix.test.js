@@ -152,7 +152,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   assert.equal(job.indexDir, path.resolve(indexDir2));
   assert.equal(job.mode, 'prose');
   assert.equal(job.repoRoot, path.resolve(repoRoot));
-  assert.equal(job.embeddingPayloadFormatVersion, 2);
+  assert.equal(job.embeddingPayloadFormatVersion, 3);
 
   const buildRoot3 = path.join(repoRoot, 'builds', 'b3');
   const indexDir3 = path.join(buildRoot3, '..index', 'code');

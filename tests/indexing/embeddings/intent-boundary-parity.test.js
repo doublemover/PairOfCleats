@@ -13,6 +13,7 @@ import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-embedding-intent-'));
 applyTestEnv({ cacheRoot: path.join(temp, 'cache') });
 try {
+  let scenarioIndex = 0;
   for (const scenario of [
     { env: 'off', config: { mode: 'service' }, cli: true, enabled: false, mode: 'off' },
     { env: 'stub', config: { mode: 'auto' }, enabled: true, mode: 'stub' },
@@ -21,7 +22,7 @@ try {
     { env: '', config: { mode: 'auto' }, cli: true, enabled: true, mode: 'stub' },
     { env: '', config: { mode: 'service' }, enabled: true, mode: 'service' }
   ]) {
-    const models = path.join(temp, 'models');
+    const models = path.join(temp, `models-${scenarioIndex++}`);
     const userConfig = { models: { dir: models }, indexing: { embeddings: scenario.config } };
     const argv = { 'stub-embeddings': scenario.cli === true };
     await withTemporaryEnv({ PAIROFCLEATS_EMBEDDINGS: scenario.env,
@@ -36,6 +37,7 @@ try {
       assert.equal(parsed.embeddingIntent.embeddingEnabled, scenario.enabled);
       assert.equal(parsed.resolvedEmbeddingMode, scenario.mode === 'service' ? 'inline' : scenario.mode);
       if (!scenario.enabled) {
+        await assert.rejects(fs.stat(models), { code: 'ENOENT' });
         assert.deepEqual(await runtime.getChunkEmbeddings(['never infer']), []);
         assert.equal((await runBuildEmbeddingsWithConfig(parsed)).skipped, true);
         const result = await runEmbeddingsStage({ root: temp, argv, embedModes: ['code'],

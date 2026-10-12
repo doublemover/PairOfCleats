@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { readEmbeddingExecutionPlan, applyEmbeddingExecutionPlan, EMBEDDING_LAUNCH_OPTION_KEYS } from '../../../src/shared/embedding-execution-plan.js';
 import { resolveEmbeddingIntent } from '../../../src/shared/embedding-intent.js';
 import { INDEX_BUILD_OPTIONS } from '../../../src/shared/cli-option-sets.js';
 import path from 'node:path';
@@ -31,14 +32,29 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   }).parse();
 
   const root = resolveRepoRootArg(argv.repo);
-  const userConfig = loadUserConfig(root);
-  const envConfig = getEnvConfig();
+  let configSources = null;
+  let rawEnv = process.env;
+  const requestedMode = (argv.mode || 'all').toLowerCase();
+  const requestedModes = ['all', 'both'].includes(requestedMode) ? ['code', 'prose', 'extracted-prose', 'records'] : [requestedMode];
+  const executionPlan = readEmbeddingExecutionPlan(rawEnv, { root, indexRoot: argv['index-root'], modes: requestedModes });
+  let userConfig = loadUserConfig(root, { env: rawEnv, onSources: value => { configSources = value; } });
+  if (executionPlan) {
+    if (executionPlan.indexRoot && !argv['index-root']) throw new Error('Embedding execution plan requires its pinned --index-root.');
+    for (const key of EMBEDDING_LAUNCH_OPTION_KEYS) {
+      const provided = resolvedRawArgs.some(value => value === `--${key}` || value === `--no-${key}` || value.startsWith(`--${key}=`));
+      if (provided && argv[key] !== executionPlan.options[key]) throw new Error(`Embedding execution plan disagrees with --${key}.`);
+    }
+    ({ userConfig, rawEnv } = applyEmbeddingExecutionPlan(executionPlan, userConfig, rawEnv));
+    Object.assign(argv, executionPlan.options);
+  }
+  const envConfig = getEnvConfig(rawEnv);
   const indexingConfig = userConfig.indexing || {};
   const embeddingsConfig = indexingConfig.embeddings || {};
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const embeddingOnnx = executionPlan?.embeddings.onnx || normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const modelConfig = getModelConfig(root, userConfig);
+  if (executionPlan?.modelsDir) modelConfig.dir = executionPlan.modelsDir;
   const modelId = argv.model || embeddingsConfig.model || modelConfig.id;
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const autoTune = loadEmbeddingsAutoTuneRecommendation({
@@ -99,7 +115,9 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
 
   return {
     rawArgv: resolvedRawArgs,
-    rawEnv: process.env,
+    rawEnv,
+    executionPlan,
+    configSources,
     embeddingIntent: intent,
     argv,
     root,
