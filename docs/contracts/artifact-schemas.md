@@ -110,6 +110,29 @@ The legacy `.utf8` source-blob suffix does not override manifest encoding.
 - `semantic_query_index` (object): schema version 1 requires `schemaVersion`, `generation`, `partitionHashes`, `pieces`, `rowCount`; indexed rows locate owner/member/partition/row ordinals.
 - `semantic_operation_index` (object): schema version 2 uses the same required envelope fields; indexed rows map selector `field` and `value` to a record `ref`. This derived physical index can be rebuilt without changing canonical fact identities.
 
+### Compiler symbolic type family
+
+- `symbolic_type_manifest` (object): schema version 1 requires `schemaVersion`,
+  `artifactSurfaceVersion`, the pinned semantic `generation`, `status=complete`,
+  and `graphs`. Each descriptor includes content-derived `graphId`, compiler
+  `contextKey`, `path`, SHA-256 `hash`, `bytes`, and `nodeCount`.
+- `symbolic_type_graph` (object): schema version 1 requires `schemaVersion`,
+  `domain=finite-string`, `contextKey`, canonical `rootIds`, and `nodes`.
+  Nodes are content-addressed `Literal`, `Union`, or `Concat` records. This domain
+  describes supported declared finite-string types, not arbitrary runtime values
+  or general type equivalence.
+
+The authoritative schemas live in `src/contracts/schemas/symbolic-types.js`.
+Graph files are registered pieces at `symbolic-types/<sha256>.json`; readers verify
+registration, checksums, declared sizes, graph/context identities, and the exact
+build generation before answering. The family admits at most 256 graphs, 16 MiB
+per graph and 64 MiB total; the published reader hydrates one context at a time.
+Missing, corrupt, mismatched or unsupported evidence fails explicitly rather than
+being inferred from type display strings. Declaration references retain source
+hash/range and optional virtual-source mapping provenance. Existing symbolic
+membership/classification operations and display-type search are separate
+contracts; ordinary return-type filtering does not imply symbolic equivalence.
+
 ### Phase 11 optional: `api_contracts` (JSONL)
 If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MAY be produced.
 

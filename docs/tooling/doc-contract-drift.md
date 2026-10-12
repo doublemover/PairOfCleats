@@ -1,6 +1,6 @@
 # Doc Contract Drift
 
-Status: DRIFT
+Status: OK
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
@@ -18,7 +18,7 @@ Status: DRIFT
 ## artifactSchemas
 - doc: docs/contracts/artifact-schemas.md
 - source: src/contracts/schemas/artifacts.js
-- missing in docs (2): symbolic_type_graph, symbolic_type_manifest
+- missing in docs: none
 - extra in docs: none
 
 ## scoreBreakdown
