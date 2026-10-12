@@ -35,11 +35,14 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     setWorkerGcPressure,
     readProcessPressureSample,
     updatePressureState,
-    maybeReduceWorkersOnPressure
+    maybeReduceWorkersOnPressure,
+    onRuntimeObservation = () => {}
   } = input;
 
   const gcSampleIntervalMs = 25;
   const gcByWorker = new Map();
+  const runtimeByWorker = new Map();
+  let currentPool = null;
   let lastGcSampleAt = 0;
   let gcSampleCount = 0;
   let gcGlobalPressure = 0;
@@ -131,8 +134,17 @@ export const createWorkerProcessCoordinator = (input = {}) => {
 
   const attachPoolListeners = (poolInstance) => {
     if (!poolInstance?.on) return;
+    currentPool = poolInstance;
+    runtimeByWorker.clear();
     poolInstance.on('message', (message) => {
-      if (!message || typeof message !== 'object') return;
+      if (poolInstance !== currentPool || !message || typeof message !== 'object') return;
+      if (message.type === 'worker-runtime') {
+        if (Number.isInteger(message.threadId) && message.observation && runtimeByWorker.size < 256) {
+          runtimeByWorker.set(message.threadId, message.observation);
+          onRuntimeObservation(message.observation);
+        }
+        return;
+      }
       if (message.type === 'worker-task') {
         withPooledPayloadMeta(workerTaskMetricPool, (labels) => {
           labels.pool = poolLabel;
@@ -257,6 +269,12 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     setNumaPinningPlan,
     attachPoolListeners,
     gcPressureStats,
+    runtimeObservationStats: (pool) => {
+      if (!pool || pool !== currentPool) return [];
+      const threads = Array.isArray(pool.threads) ? new Set(pool.threads.map((worker) => worker.threadId)) : null;
+      return Array.from(runtimeByWorker.entries())
+        .filter(([id]) => !threads || threads.has(id)).map(([, observation]) => observation);
+    },
     getNumaPlan: () => numaPinningPlan,
     getNumaAssignmentMap: () => workerNumaNodeByThreadId
   };

@@ -1,7 +1,7 @@
+import { resolveNodeHeapSource } from '../workers/node-argv.js';
 import { resolveThreadLimits } from '../threads.js';
 import {
   coercePositiveInt,
-  parseEffectiveMaxOldSpaceMb,
   parseNodeOptions,
   parseUvThreadpoolSize
 } from './parse.js';
@@ -51,7 +51,7 @@ const buildNodeOptionsPatch = ({ base, requestedOptions, requestedMaxOldSpace })
   }
   if (Number.isFinite(requestedMaxOldSpace) && requestedMaxOldSpace > 0) {
     const combined = [baseText, ...extras].join(' ');
-    if (!combined.includes('--max-old-space-size')) {
+    if (resolveNodeHeapSource({ nodeOptions: combined }).value == null) {
       extras.push(`--max-old-space-size=${Math.floor(requestedMaxOldSpace)}`);
     }
   }
@@ -193,7 +193,8 @@ export function resolveRuntimeEnvelope(input = {}) {
   const warnings = [];
   const baseUvThreadpool = parseUvThreadpoolSize(resolvedEnv);
   const baseNodeOptions = parseNodeOptions(resolvedEnv) || '';
-  const baseMaxOldSpace = parseEffectiveMaxOldSpaceMb({ env: resolvedEnv, execArgv: resolvedExecArgv });
+  const baseHeapSource = resolveNodeHeapSource({ nodeOptions: resolvedEnv.NODE_OPTIONS, execArgv: resolvedExecArgv });
+  const baseMaxOldSpace = baseHeapSource.value;
   const canPatchNodeOptions = !baseNodeOptions;
   const requestedUvValue = clampUvThreadpool(requestedUvThreadpool.value);
   const effectiveUv = baseUvThreadpool
@@ -231,7 +232,7 @@ export function resolveRuntimeEnvelope(input = {}) {
   ) {
     pushWarning(warnings, {
       code: 'runtime.envOverride',
-      message: `NODE_OPTIONS max-old-space-size=${baseMaxOldSpace} overrides requested ${requestedMaxOldSpace.value}.`,
+      message: `${baseHeapSource.detail} max-old-space-size=${baseMaxOldSpace} overrides requested ${requestedMaxOldSpace.value}.`,
       fields: ['runtime.maxOldSpaceMb']
     });
   }
@@ -250,11 +251,21 @@ export function resolveRuntimeEnvelope(input = {}) {
     });
   }
 
-  const effectiveMaxOldSpace = Number.isFinite(baseMaxOldSpace)
-    ? makeSourcedValue(baseMaxOldSpace, 'external-env', 'NODE_OPTIONS')
-    : (canPatchNodeOptions && Number.isFinite(requestedMaxOldSpace.value)
-      ? makeSourcedValue(requestedMaxOldSpace.value, requestedMaxOldSpace.source, requestedMaxOldSpace.detail)
-      : makeSourcedValue(null, 'default'));
+  const plannedHeap = resolveNodeHeapSource({
+    nodeOptions: nodeOptionsPatch || baseNodeOptions,
+    execArgv: resolvedExecArgv
+  });
+  const plannedHeapRequest = requestedNodeOptions.value
+    && resolveNodeHeapSource({ nodeOptions: requestedNodeOptions.value }).value != null
+    ? requestedNodeOptions
+    : requestedMaxOldSpace;
+  const effectiveMaxOldSpace = Number.isFinite(plannedHeap.value)
+    ? makeSourcedValue(
+      plannedHeap.value,
+      baseMaxOldSpace != null ? plannedHeap.source : plannedHeapRequest.source,
+      baseMaxOldSpace != null ? plannedHeap.detail : plannedHeapRequest.detail
+    )
+    : makeSourcedValue(null, 'unknown');
 
   const threadLimits = resolveThreadLimits({
     argv: { threads: requestedThreads.value },
@@ -314,6 +325,7 @@ export function resolveRuntimeEnvelope(input = {}) {
 
   return {
     schemaVersion: 1,
+    evidenceScope: 'launch-plan',
     generatedAt: new Date().toISOString(),
     process: {
       pid: Number.isFinite(resolvedProcessInfo.pid) ? resolvedProcessInfo.pid : null,
@@ -329,15 +341,18 @@ export function resolveRuntimeEnvelope(input = {}) {
     runtime: {
       uvThreadpoolSize: {
         requested: requestedUvThreadpool,
-        effective: effectiveUv
+        planned: effectiveUv,
+        effective: { ...effectiveUv, evidenceScope: 'launch-plan' }
       },
       maxOldSpaceMb: {
         requested: requestedMaxOldSpace,
-        effective: effectiveMaxOldSpace
+        planned: effectiveMaxOldSpace,
+        effective: { ...effectiveMaxOldSpace, evidenceScope: 'launch-plan' }
       },
       nodeOptions: {
         requested: requestedNodeOptions,
-        effective: effectiveNodeOptions
+        planned: effectiveNodeOptions,
+        effective: { ...effectiveNodeOptions, evidenceScope: 'launch-plan' }
       },
       ioOversubscribe: makeSourcedValue(
         !!requestedIoOversubscribe.value,
