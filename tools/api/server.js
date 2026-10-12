@@ -43,6 +43,7 @@ const authToken = String(argv['auth-token'] || envSecrets.apiToken || '').trim()
 const corsAllowedOrigins = parseCommaList(argv['cors-allowed-origins']);
 const corsAllowAny = argv['cors-allow-any'] === true;
 const allowedRepoRoots = parseCommaList(argv['allowed-repo-roots']);
+const allowedHosts = parseCommaList(argv['allowed-hosts']);
 const trustBoundary = evaluateApiTrustBoundary({
   host,
   defaultRepo,
@@ -81,6 +82,7 @@ const router = createApiRouter({
     required: trustBoundary.auth.required
   },
   allowedRepoRoots,
+  allowedHosts,
   maxBodyBytes: maxBodyBytes ?? undefined,
   trustBoundary
 });
@@ -104,13 +106,24 @@ server.listen({ port, host }, () => {
   }
 });
 
+let shutdownStarted = false;
 const shutdown = (signal) => {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
   log(`[api] ${signal} received; shutting down...`);
-  server.close(() => {
-    router.close();
-    log('[api] shutdown complete.');
-    process.exit(0);
+  // Abort active artifact reads before waiting for their HTTP connections.
+  const cleanup = router.close();
+  server.close(async () => {
+    try {
+      await cleanup;
+      log('[api] shutdown complete.');
+      process.exit(0);
+    } catch (error) {
+      console.error('[api] shutdown failed: ' + error.message);
+      process.exit(1);
+    }
   });
+  cleanup.catch(() => {});
 };
 
 process.on('SIGINT', () => shutdown('SIGINT'));

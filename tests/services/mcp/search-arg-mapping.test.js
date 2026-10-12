@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { buildMcpSearchArgs } from '../../../tools/mcp/tools/search-args.js';
+import { parseSearchArgs } from '../../../src/retrieval/cli-args.js';
 import { DEFAULT_MODEL_ID } from '../../../tools/shared/dict-utils.js';
 import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
 
@@ -23,7 +24,9 @@ const cases = [
   { label: 'allowSparseFallback', args: { allowSparseFallback: true }, expect: ['--allow-sparse-fallback'] },
   { label: 'allowUnsafeMix', args: { allowUnsafeMix: true }, expect: ['--allow-unsafe-mix'] },
   { label: 'top', args: { top: 5 }, expect: ['-n', '5'] },
-  { label: 'context', args: { context: 3 }, expect: ['--context', '3'] },
+  { label: 'cursor', args: { query: '', type: 'Function', cursor: 'fixture-token' }, expect: ['--cursor', 'fixture-token'] },
+  { label: 'asOf', args: { asOf: 'build:fixture' }, expect: ['--as-of', 'build:fixture'] },
+  { label: 'snapshot', args: { snapshot: 'fixture' }, expect: ['--snapshot', 'fixture'] },
   { label: 'type', args: { type: 'function' }, expect: ['--type', 'function'] },
   { label: 'author', args: { author: 'alice' }, expect: ['--author', 'alice'] },
   { label: 'import', args: { import: 'react' }, expect: ['--import', 'react'] },
@@ -77,6 +80,7 @@ for (const entry of cases) {
   if (entry.expect && !containsSequence(args, entry.expect)) {
     throw new Error(`Expected ${entry.label} mapping: ${entry.expect.join(' ')}`);
   }
+  assert.doesNotThrow(() => parseSearchArgs(args), `${entry.label} passes the actual canonical CLI parser`);
 }
 
 const outputFull = buildMcpSearchArgs({ ...base, output: 'full' });

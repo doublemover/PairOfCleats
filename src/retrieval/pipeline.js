@@ -1,5 +1,6 @@
 import { enumerateFilterMatches } from './pipeline/filter-enumeration.js';
 import { filterChunkIds } from './output.js';
+import { createChunkFilterPredicate } from './output/filters.js';
 import { bitmapHas, bitmapToSet, getBitmapSize } from './bitmap.js';
 import { hasActiveFilters } from './filters.js';
 import { rankBM25, rankBM25Fields, rankMinhash } from './rankers.js';
@@ -519,6 +520,11 @@ export function createSearchPipeline(context) {
     };
 
     try {
+      if (filterEnumeration) {
+        return await enumerateFilterMatches({ meta, mode, topN: searchTopN, enumeration: filterEnumeration,
+          match: createChunkFilterPredicate(filters, idx.fileRelations, { compiled: filterPredicates }), throwIfAborted,
+          loadCost: idx.filterLoadCost, preparedPage: idx.preparedFilterPage, ensureMetadata: idx.loadFilterMetadata });
+      }
       // Filtering
       const filterMetrics = {};
       const filterResult = runStage('filter', filterMetrics, () => {
@@ -545,10 +551,6 @@ export function createSearchPipeline(context) {
       throwIfAborted();
       const allowedIdx = filterResult.allowed;
       const allowedCount = allowedIdx ? getAllowedSize(allowedIdx) : 0;
-      if (filterEnumeration) {
-        return enumerateFilterMatches({ meta, allowed: allowedIdx, mode, topN: searchTopN,
-          enumeration: filterEnumeration, throwIfAborted });
-      }
       if (filtersEnabled && allowedIdx && allowedCount === 0) {
         return [];
       }

@@ -12,10 +12,18 @@ import {
 import { createIndexBackendLoader } from './load-indexes/backend.js';
 import { applyFallbackIndexStates, hydrateLoadedIndexes } from './load-indexes/filter-loader.js';
 import { resolveSearchIndexMetadata } from './load-indexes/metadata.js';
+import { createFilterEnumeration } from '../pipeline/filter-enumeration.js';
 
 export { __testScmChunkAuthorHydration };
 
 export async function loadSearchIndexes({
+  filterOnly = false,
+  filterCursor = null,
+  filterCacheFilters = null,
+  filterGeneration = null,
+  filterCacheDir = null,
+  filterTopN = null,
+  signal = null,
   rootDir,
   userConfig,
   searchMode,
@@ -88,6 +96,12 @@ export async function loadSearchIndexes({
   } = metadata;
 
   const backendLoader = createIndexBackendLoader({
+    filterOnly,
+    filterEnumeration: filterOnly ? createFilterEnumeration({ cursor: filterCursor, filters: filterCacheFilters,
+      generation: filterGeneration, cacheDir: filterCacheDir,
+      modes: [runCode && 'code', runProse && 'prose', resolvedRunExtractedProse && 'extracted-prose', runRecords && 'records'].filter(Boolean) }) : null,
+    filterTopN,
+    signal,
     rootDir,
     userConfig,
     useSqlite,

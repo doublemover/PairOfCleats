@@ -17,8 +17,6 @@ export async function runSearch(args = {}, context = {}) {
     throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
   }
   const query = String(args.query || '').trim();
-  if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
-
   const searchArgs = buildMcpSearchArgs({ ...args, repoPath });
   const caches = getRepoCaches(repoPath);
   await refreshRepoCaches(repoPath);

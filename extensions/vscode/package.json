@@ -518,12 +518,6 @@
           "minimum": 1,
           "description": "Maximum results to fetch."
         },
-        "pairofcleats.searchContextLines": {
-          "type": "number",
-          "default": 0,
-          "minimum": 0,
-          "description": "Optional context lines (`--context`). Set to 0 to omit."
-        },
         "pairofcleats.searchFile": {
           "type": "string",
           "default": "",

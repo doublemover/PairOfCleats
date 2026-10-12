@@ -26,6 +26,7 @@ import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { getToolVersion, toRealPathSync } from '../shared/dict-utils.js';
 import { createSseResponder } from './sse.js';
 import { createAuthGuard } from './router/auth.js';
+import { createAuthorityGuard, isSameOriginRequest } from './router/authority.js';
 import { createBodyParser } from './router/body.js';
 import { createRepoCacheManager } from './router/cache.js';
 import { createCorsResolver } from './router/cors.js';
@@ -62,6 +63,7 @@ import {
  *  cors?:{allowedOrigins?:string[],allowAnyOrigin?:boolean},
  *  auth?:{token?:string|null,required?:boolean},
  *  allowedRepoRoots?:string[],
+ *  allowedHosts?:string[],
  *  maxBodyBytes?:number,
  *  trustBoundary?:object|null,
  *  repoCache?:{maxEntries?:number,ttlMs?:number},
@@ -77,6 +79,7 @@ export const createApiRouter = ({
   cors = {},
   auth = {},
   allowedRepoRoots = [],
+  allowedHosts = [],
   maxBodyBytes = 1_000_000,
   trustBoundary = null,
   repoCache = {},
@@ -91,6 +94,15 @@ export const createApiRouter = ({
   const validateContextPackPayload = createContextPackValidator();
   const { resolveCorsHeaders } = createCorsResolver(cors);
   const { isAuthorized } = createAuthGuard(auth);
+  const checkAuthority = createAuthorityGuard({ host, allowedHosts });
+  let artifactBrowser = null, closing = null;
+  const getArtifactBrowser = async () => {
+    if (closing) throw Object.assign(new Error('API service is closing.'), { status: 503 });
+    const { createArtifactBrowser } = await import('../../src/map/workspace/catalog.js');
+    if (closing) throw Object.assign(new Error('API service is closing.'), { status: 503 });
+    artifactBrowser ||= createArtifactBrowser();
+    return artifactBrowser;
+  };
   const { parseJsonBody } = createBodyParser({ maxBodyBytes });
   const { resolveRepo } = createRepoResolver({ defaultRepo, allowedRepoRoots });
   const { getRepoCaches, closeRepoCaches, refreshBuildPointer } = createRepoCacheManager({
@@ -276,6 +288,10 @@ export const createApiRouter = ({
       sendJson(res, 200, attachObservability({ ok: true, result: publicBody }, requestObservability), responseHeaders);
     } catch (err) {
       if (req.aborted || res.writableEnded || (!ignoreControllerAbort && controller.signal.aborted)) return;
+      if (err?.code === ERROR_CODES.INVALID_REQUEST) {
+        sendError(res, 400, ERROR_CODES.INVALID_REQUEST, err.message || 'Invalid search request.', {}, responseHeaders);
+        return;
+      }
       const format = projectIndexFormatError(err);
       if (format) {
         sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, responseHeaders);
@@ -305,10 +321,20 @@ export const createApiRouter = ({
   const handleRequest = async (req, res) => {
     let corsHeaders = null;
     try {
+      const authority = checkAuthority(req);
+      if (!authority.ok) {
+        sendError(res, authority.status, authority.status === 400 ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.FORBIDDEN,
+          authority.message, {}, {});
+        return;
+      }
+      if (closing) {
+        sendError(res, 503, ERROR_CODES.INTERNAL, 'API service is closing.', {}, {});
+        return;
+      }
       const requestUrl = new URL(req.url || '/', 'http://localhost');
       corsHeaders = resolveCorsHeaders(req);
       const origin = req?.headers?.origin ? String(req.headers.origin) : '';
-      if (origin && !corsHeaders) {
+      if (origin && !corsHeaders && !isSameOriginRequest(req, origin)) {
         sendError(res, 403, ERROR_CODES.FORBIDDEN, 'Origin not allowed.', {}, {});
         return;
       }
@@ -325,7 +351,8 @@ export const createApiRouter = ({
       }
 
       if (req.method === 'POST' && ['/map/catalog', '/map/artifact'].includes(requestUrl.pathname)) {
-        await handleMapArtifactsRoute({ req, res, requestUrl, corsHeaders, parseJsonBody, resolveRepo });
+        await handleMapArtifactsRoute({ req, res, requestUrl, corsHeaders, parseJsonBody, resolveRepo,
+          browser: await getArtifactBrowser() });
         return;
       }
 
@@ -701,6 +728,12 @@ export const createApiRouter = ({
 
   return {
     handleRequest,
-    close: closeRepoCaches
+    close() {
+      if (!closing) closing = (async () => {
+        try { await artifactBrowser?.close(); }
+        finally { await closeRepoCaches(); }
+      })();
+      return closing;
+    }
   };
 };
