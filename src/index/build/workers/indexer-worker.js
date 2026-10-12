@@ -1,4 +1,5 @@
 import { parentPort, threadId, workerData } from 'node:worker_threads';
+import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
 import {
@@ -11,6 +12,12 @@ import {
   normalizeCodeDictLanguage,
   normalizeCodeDictLanguages
 } from '../../../shared/code-dictionaries.js';
+
+const runtimeObservation = observeWorkerHeap();
+parentPort?.postMessage({ type: 'worker-runtime', threadId, observation: runtimeObservation });
+if (!runtimeObservation.resourceLimitAcknowledged) {
+  throw new Error('Worker V8 heap exceeds its reported resource limits; refusing work.');
+}
 
 const dictShared = createSharedDictionaryView(workerData?.dictShared);
 const dictWords = dictShared || new Set(Array.isArray(workerData?.dictWords) ? workerData.dictWords : []);
