@@ -1726,6 +1726,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
     argv,
     rawArgv: resolvedRawArgv,
     userConfig,
+    rawEnv: config.rawEnv || process.env,
     envConfig,
     indexingConfig
   });
@@ -4083,7 +4084,7 @@ export async function runBuildEmbeddingsWithConfig(config) {
           log(
             `[embeddings] ${mode}: global micro-batching ` +
             `(fill=${fillPercent.toFixed(1)}% avgFill=${(avgFillRatio * 100).toFixed(1)}% ` +
-            `underfilled=${embeddingBatchUnderfilledTokens} wait=${avgQueueWaitMs.toFixed(1)}ms ` +
+            `underfilled_tokens=${embeddingBatchUnderfilledTokens} wait=${avgQueueWaitMs.toFixed(1)}ms ` +
             `mergedRequests=${avgMergedRequests.toFixed(2)} mergedLabels=${avgMergedLabels.toFixed(2)}).`
           );
         }

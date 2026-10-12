@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createEmbedder } from '../../embedding.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
@@ -48,9 +49,6 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingNormalize = embeddingsConfig.normalize !== false;
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
-  const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
-    ? embeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
   const embeddingQueueDir = typeof embeddingQueueConfig.dir === 'string'
     ? embeddingQueueConfig.dir.trim()
     : '';
@@ -81,39 +79,17 @@ export const resolveEmbeddingRuntime = async ({
       embeddingConcurrency = maxConcurrency;
     }
   }
-  const baseStubEmbeddings = argv['stub-embeddings'] === true
-    || envConfig.embeddings === 'stub';
-  const envEmbeddingMode = typeof envConfig.embeddings === 'string'
-    ? envConfig.embeddings.trim().toLowerCase()
-    : '';
-  const envForcesOff = ['off', 'false', '0', 'disabled', 'none'].includes(envEmbeddingMode);
-  const envForcesStub = envEmbeddingMode === 'stub';
-  const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
-    ? embeddingModeRaw
-    : 'auto';
-  const resolvedEmbeddingMode = envForcesOff
-    ? 'off'
-    : (envForcesStub
-      ? 'stub'
-      : (normalizedEmbeddingMode === 'auto'
-        ? (baseStubEmbeddings ? 'stub' : 'inline')
-        : normalizedEmbeddingMode));
-  const embeddingService = embeddingsConfig.enabled !== false
-    && resolvedEmbeddingMode === 'service';
-  const embeddingEnabled = embeddingsConfig.enabled !== false
-    && resolvedEmbeddingMode !== 'off'
-    && !embeddingService;
-  if (!embeddingEnabled) {
-    embeddingConcurrency = 0;
-  }
-  const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
+  const intent = resolveEmbeddingIntent({ argv, embeddingsConfig, envConfig });
+  const { resolvedEmbeddingMode, embeddingService, useStubEmbeddings } = intent;
+  const embeddingEnabled = intent.embeddingEnabled && !embeddingService;
+  if (!embeddingEnabled) embeddingConcurrency = 0;
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
   const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
   validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelsDir = modelConfig.dir;
-  if (modelsDir) {
+  if (modelsDir && embeddingEnabled) {
     try {
       await fs.mkdir(modelsDir, { recursive: true });
     } catch {}
