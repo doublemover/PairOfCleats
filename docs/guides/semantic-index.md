@@ -28,10 +28,38 @@ coverage. Selected checker-matched typed-array and message-dispatch models remai
 conservative. A dispatch request is not
 proof of delivery, detachment, execution thread or actual runtime values.
 
-Allocation/field candidates retain const receiver alias identity and explicit writes.
-They are modeled dependencies, with unknown alias escape, getter, dynamic-key and
-write-order effects in coverage. Local return summaries respect explicit finally
-return/throw overrides; more complex completion alternatives remain conservative.
+Allocation/field candidates retain conditional and mutable receiver aliases, explicit
+weak writes, bounded literal-key unions and widened unknown keys. Overlapping paths
+share may dependencies. Private property paths use source/class identity and cannot
+alias dynamic public keys. This models lexical brands, not runtime brand checks;
+alias order, escape and prototype effects remain unknown. Nested object/array
+destructuring, defaults and mutable receiver alternatives retain bounded candidate
+paths. Nested shorthand/spread initializers resolve the selected field rather than
+using the whole spread object; snapshot and overwrite order remain conservative. Local summaries retain bare/implicit undefined returns and respect explicit
+finally return/throw overrides; more complex completion alternatives remain conservative.
+
+Call-site summaries join bounded source-backed callable alternatives, retain positional
+and rest-argument channels, and keep an unknown result/effect remainder when targets
+or summaries are incomplete. Visible object/class methods, inherited members, callable
+fields and source prototype replacements contribute modeled dispatch candidates.
+Receiver field effects can reach following caller reads. These candidates do not prove
+runtime dispatch. Visible constructors, parameter properties and instance field
+initializers supply receiver effects; default derived constructors and explicit super
+calls retain bounded base candidates. Getter/setter invocations use the shared call
+summary contract, and getter return expressions can supply callable candidates.
+Constructor object-return overrides, initialization order, proxies, runtime private
+brands, lexical arrow receivers, rest-array mutation and escaping aliases remain partial. Limits include 32 alias/target candidates, 16 key candidates and bounded work;
+coverage records truncation rather than silently declaring complete analysis.
+
+Checker-authorized Function.call/apply and same-source const bound functions can
+reuse source summaries with normalized receiver and argument positions. Literal
+apply arrays retain positions; dynamic array-like inputs do not. Bind prefixes and
+the first bound receiver survive subsequent binding. TypeScript's type-only `this`
+parameter consumes no runtime argument. Unknown method-replacement effects retain
+original operands separately, including receivers ignored by native bind semantics.
+Callable adaptation is bounded to 16 alias steps, 32 positional arguments and
+64 unknown-only inputs; bound construction, cross-source bound captures, runtime
+receiver coercion and arbitrary method replacement remain unproved.
 
 With `enrichment.crossFileFlow: "eager"`, the existing compiler group can link a
 checker-authorized `new Worker(new URL("./worker.ts", import.meta.url))` to an exact
@@ -39,6 +67,122 @@ retained entry source and modeled message consumers. Dynamic entry URLs remain
 unresolved. Generic serialization is a packing request; transfer and shared-storage
 requests remain separate, and none asserts delivery, detachment or a copied backing
 buffer. User-defined APIs with matching names do not receive platform models.
+
+Browser ports can retain source endpoint candidates through worker requests/replies
+and port relays. A literal transfer list establishes MessageEvent.ports candidates
+in port-relative order; uncertain intervening entries prevent unsupported index
+claims. Literal object/array payload paths can retain transferred port identity.
+Missing, dynamic, duplicate or oversized transfers do not establish unsupported
+identity. Limits are 8 propagation rounds, 32 candidates/list entries, depth 8 and
+100,000 join operations. Typed declarations or established source provenance are
+required; speculative listener names alone never establish a worker-global endpoint.
+
+Verified Node `worker_threads` declarations use the same retained-source inventory
+and boundary writer. Anchored Worker entries join `workerData` uses, direct message
+payload callbacks, replies through `parentPort`, and opposite ports of a visible
+MessageChannel allocation. Const/destructured and source-backed imported port aliases
+are supported. A port present in both a literal payload and its literal transfer list
+can retain endpoint identity through workerData or a message callback. Nested literal
+paths are bounded to depth 8, 32 endpoint candidates and 8 join rounds; dynamic keys,
+missing transfer lists and unresolved payloads do not establish identity. Dynamic or
+eval entries, registration order, instance multiplicity and actual delivery remain unknown. Node EventTarget listeners,
+BroadcastChannel and provider-specific RPC protocols are not modeled by this pass.
+
+## WASM module evidence
+
+Semantic code discovery admits standalone `.wasm` files alongside JavaScript and
+TypeScript. Binary source manifests retain the original SHA-256 bytes with
+`encoding: "binary"`, `decoding: "wasm-binary-v1"`, `coordinateUnit: "byte"`, an empty
+text hash, `textLength: 0`, and `lineStarts: [0]`. The existing content-addressed
+source store keeps its legacy `.utf8` blob suffix; the manifest, not the suffix,
+determines encoding. Binary records have null text spans. Instruction byte ranges
+and original bytes live in registered evidence; text/LSP consumers skip binaries.
+The normal per-file completion and publication owners retain these module-only
+files without manufacturing searchable text chunks or a second recovery store.
+
+The checker-authorized host pass accepts bounded literal arrays, checked immutable
+const aliases, spreads, `Uint8Array.of`, copying constructors, slice/subarray views,
+and analyzable Response/arrayBuffer chains. Module/Instance constructors, awaited
+compile/instantiate overloads, and compileStreaming/instantiateStreaming preserve
+module provenance. An anchored `new URL("./module.wasm", import.meta.url)` passed to
+verified fetch or Node fs reads can join an admitted binary source from the same
+retained generation. These are modeled candidates: response MIME, delivery and
+runtime filesystem bytes are unobserved. No network request, working-tree module
+read, compilation, instantiation or execution occurs during analysis. Mutable or
+escaped byte buffers and instantiation-result wrappers do not authorize exact joins.
+ArrayBuffer-backed typed-array views retain shared mutation checks; typed-array
+copy constructors remain distinct. Escaped or shadowed Instance aliases cannot
+establish native exports provenance; escaped instantiation promises also fail the
+join, while safe awaited const aliases remain usable. Type-only `this` parameters in imported host
+callbacks do not shift WASM runtime argument or rest-parameter positions.
+
+The bounded decoder retains recursive/function/struct/array types, imports/exports,
+functions, tables, memories, globals, tags, start entries, active/passive/declarative
+segments, custom-section locations and instruction immediates. It supports numeric
+core, multi-value, reference/GC, tail-call, bulk-memory, SIMD/relaxed-SIMD, atomic,
+shared-memory, memory64/multi-memory, and current/legacy exception instructions.
+The runtime's static `WebAssembly.validate` remains the typing/format authority;
+validator rejection is reported explicitly, including proposals unavailable in that
+runtime. V8 and shared producer versions participate in replay identities.
+Opcode metadata carries the pinned WABT provenance and Apache license in
+`src/index/semantic/wasm/`.
+
+Structured stack/local merge values retain branches, loops and direct/reference
+calls. Immutable internal table slots can establish exact indirect targets;
+exported, imported, mutated or dynamically initialized tables produce bounded
+may-target sets with an unresolved remainder. Exception payloads and handler branches
+remain separate from uncatchable traps; tail calls discard the caller's handlers.
+Unreachable instructions retain syntax without fabricated value flow. Memory/table/
+global/data/element records retain conservative reads, writes, copies, initialization
+and mutation dependencies. GC field aliases, shared writes, atomics ordering/wakeups,
+relaxed SIMD choices, memory growth/view epochs and storage order remain unknown.
+
+Host exports join decoded names/function indices per resolved instance. Static own
+import properties join module/name pairs to resolved callbacks. Shared compiler CFG
+summaries supply return and exceptional completions, including finally overrides;
+rest/default parameters and literal multi-value arrays preserve positional channels
+where analyzable. Host Memory/Table/Global candidates share module storage, while
+Tag identity uses aliases when declaration authority is available. Async/generator
+callbacks are not implicitly awaited. Numeric conversions, arbitrary iterables,
+call-context effects, imported tag aliases and actual activation remain partial.
+
+Limits per module are 64 KiB, 4096 vector entries/instructions, 256 locals including
+parameters, 128 control frames, 32768 graph nodes and 131072 edges. Unknown opcodes,
+component/experimental formats, unavailable bytes, cross-source instance aliases,
+unsupported syntax, validation failures and budgets retain explicit coverage reasons.
+Standalone eager/eligible-auto flow accepts a source-hash-pinned ref to its syntax
+module anchor (local ID 0); coverage explicitly widens that selection to the entire
+module. Text/declaration targets remain unsupported. Deferred binary local-flow tasks
+use the shared frontier, leases, scheduler and normal generation publication. Each
+task pins one retained module, decoder version and validator runtime. Manual drain
+and after-index execution use a binary capability without creating a TypeScript
+Program or compiler admission receipt. The scheduler reserves 64 MiB per module;
+this is a capacity estimate, not a hard heap bound. Source verification surrounds
+execution and rejects changed bytes. The targeted profile can select a pinned
+module anchor and defer its local flow. Binary module anchors and derived analysis
+use the existing syntax/analysis
+partition split, so the shared replay fence invalidates changed analysis policy. Existing
+host-boundary candidates remain available when module provenance is unresolved.
+
+Format references: [core instructions](https://webassembly.github.io/spec/core/binary/instructions.html),
+[core modules](https://webassembly.github.io/spec/core/binary/modules.html), and
+[execution semantics](https://webassembly.github.io/spec/core/exec/instructions.html).
+
+## Provider joins
+
+Provider selection validates the complete source/context/reference inventory before
+changing file facts. Conflicting immutable partition identities fail atomically;
+identical duplicates are selected once. LSP call targets name actual invocation
+records, excluding receiver/key-variable occurrences. Validated provider candidates
+can join existing source function summaries within the same compiler group and
+generation, using the shared argument/return/effect channels. Directional,
+context-qualified exact declaration aliases may connect an external/provider target
+to a retained source body; value/heap aliases and names alone do not authorize that
+join. Call and construct targets stay distinct. The join scans at most 4096 edges,
+8 alias levels, 256 queued aliases and 32768 traversal steps, retaining at most
+32 targets per call; missing summaries and truncated
+candidates preserve an unknown remainder. It does not infer external implementations
+or provider-specific RPC protocols.
 
 ## Detail and traces
 

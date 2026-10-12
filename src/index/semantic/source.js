@@ -36,3 +36,14 @@ export const createSemanticSourceSnapshot = ({
     }
   };
 };
+
+/** Binary snapshots have no decoded text or text spans. Physical source storage
+ * retains its legacy .utf8 suffix; the manifest encoding is authoritative. */
+export const createWasmSourceSnapshot = ({ bytes, repositoryNamespace, path }) => {
+  if (!(bytes instanceof Uint8Array)) throw new TypeError('Original WASM bytes are required.');
+  const byteHash = createHash('sha256').update(bytes).digest('hex'), decoding = 'wasm-binary-v1';
+  return { schemaVersion: 1, sourceUnitId: createSourceUnitId({ repositoryNamespace, path, byteHash, decoding, language: 'wasm', dialect: null, mapping: null }),
+    repositoryNamespace, path, byteHash, textHash: createHash('sha256').update('').digest('hex'),
+    encoding: 'binary', decoding, language: 'wasm', dialect: null, mapping: null,
+    coordinateUnit: 'byte', textLength: 0, byteLength: bytes.byteLength, lineStarts: [0] };
+};

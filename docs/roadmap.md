@@ -34,19 +34,19 @@ preserve earlier checkpoints; [semantic guide](guides/semantic-index.md) describ
 
 Implemented slices: durable per-file Stage1 replay before parser admission; cache
 identity/corruption checks and lease fencing; compact sparse sequence ownership;
-JS/TS occurrence roles, optional/default/catch/finally/class-static CFG; callable
-alternatives; Worker/MessageChannel and WASM host-boundary links; indexed discovery,
-source-range/literal fingerprints and semantic context packs; shared producer-version
-invalidation; bounded disk reservation cleanup. These are partial coverage, not
+JS/TS occurrence roles and structured CFG; mutable/computed heap paths, callable
+alternatives and modeled class/prototype dispatch; browser/Node worker joins;
+standalone WASM decoding, stack/control/exception flow, indirect targets, storage
+and retained-byte host joins; indexed discovery and context packs; producer-version
+invalidation and bounded disk cleanup. These are partial coverage, not
 completion of the refined semantic specification.
 
 Required bootstrap now fails early with actionable commands across normal, test
 and benchmark entry paths, checks actual readiness/native behavior, and never
 silently installs. Cloud `npm run bootstrap:ci` completed under Node 26.11.1.
 Ten focused continuation checks passed (79 ms–1.07 s); no broad benchmark campaign.
-The config allowlist registers the intentional `includeSemantic` surface with a
-reviewed 72-flag cap. Semantic artifact docs/index and generated reports are aligned;
-old author-workspace receipts remain historical. The 74-case cross-platform failure
+The reviewed config surface has a 72-flag cap. Artifact docs and generated reports
+are aligned; author-workspace receipts remain historical. The 74-case cross-platform failure
 union now passes targeted cloud checks after grouped format, checksum and lifecycle
 repairs; hosted CI remains exact-head evidence.
 
@@ -54,11 +54,20 @@ repairs; hosted CI remains exact-head evidence.
 [read/admission/config](archived/stage1-concurrency-2026-10-11.md):
 bounded validation/diagnostics; 59% less completion-validation time in a local
 4,000-node fixture. Full-index impact is unmeasured.
-Next: multi-worker recovery, transient accounting, retained-cache cleanup/control-store
-reconstruction; JS/TS frontiers, WASM host/module joins, retrieval/provider integration
-and native adapters. Estimator and public-surface qualification remain open.
 
 [Architecture repairs and checks](archived/architecture-contract-audit-2026-10-11.md).
+
+[Earlier WASM work](archived/wasm-semantic-checkpoint-2026-10-10.md);
+[Capabilities](archived/semantic-capabilities-2026-10-11.md)
+add deferred binary tasks and source/provider joins. The isolated
+[precision follow-on](archived/semantic-precision-2026-10-11.md) adds object aliases,
+call/apply/bind channels, browser transferred ports, explicit provider alias chains
+and rejects mutated/escaped WASM provenance. Runtime certainty and recovery remain open.
+
+Next: interrupted multi-worker recovery/transient accounting (separate owner);
+object/escape and completion precision; dynamic endpoints and runtime/RPC joins;
+Python/C/Swift/Rust adapters. Estimator calibration stays last. Cache cleanup,
+control-store reconstruction and full public-surface qualification remain open.
 
 ## Current Initiatives
 
