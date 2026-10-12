@@ -34,6 +34,19 @@ can have a redirected existing ancestor. `EACCES`, `ENOTDIR`, missing, and unkno
 remain distinct. Windows paths inspected on a non-Windows host remain unobserved;
 Linux tests do not certify Windows junction behavior.
 
+On native Windows, existing-root canonical observations use Node26's
+`fs.promises.realpath` path, which delegates to libuv's opened-handle
+`GetFinalPathNameByHandleW` resolution. The receipt records that method separately
+from lexical selection. This can expose a packaged/MSIX process's redirected
+location, such as a Codex package `LocalCache`, instead of presenting its logical
+AppData path as observed storage. An existing-ancestor result for an absent root
+is only a resolution hint. It is not proof that the root exists or that a later
+writer used that same handle. Actual packaged Windows behavior still needs native
+qualification; no redirect location is guessed or substituted.
+
+Implementation references: [Node26 realpath binding](https://github.com/nodejs/node/blob/v26.8.1/lib/internal/fs/promises.js)
+and [bundled Windows libuv resolution](https://github.com/nodejs/node/blob/v26.8.1/deps/uv/src/win/fs.c).
+
 ## Worker heap limitation and performance
 
 Node26 treats parent V8 heap flags as process-global: both `NODE_OPTIONS` and
