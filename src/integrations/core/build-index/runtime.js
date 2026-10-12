@@ -79,10 +79,11 @@ export const teardownRuntime = async (runtime) => {
   );
   await runTeardownStepWithTimeout(
     'runtime.scheduler.shutdown',
-    () => Promise.resolve(runtime.scheduler?.shutdown?.({
-      awaitRunning: true,
-      timeoutMs: cleanupTimeoutMs
-    }))
+    async () => {
+      const result = await runtime.scheduler?.shutdown?.({ awaitRunning: true, timeoutMs: cleanupTimeoutMs });
+      if (result?.timedOut) throw Object.assign(new Error('Runtime scheduler did not drain.'), { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' });
+    },
+    cleanupTimeoutMs > 0 ? cleanupTimeoutMs + 25 : 0
   );
   if (runtime.workerPools?.destroy) {
     await runTeardownStepWithTimeout(
@@ -129,6 +130,8 @@ export const teardownRuntime = async (runtime) => {
     'runtime.python-ast-pool.shutdown',
     () => Promise.resolve(shutdownPythonAstPool())
   );
+  await runTeardownStepWithTimeout('runtime.cache-writers.drain', () => runtime.cacheWriterDrain?.());
+  runtime.semanticReplayVerification?.clear();
   if (teardownErrors.length === 1) {
     throw teardownErrors[0];
   }

@@ -11,6 +11,8 @@ import { createArtifactSemanticStore, resolveSemanticPartPath } from '../../../s
 import { throwIfAborted } from '../../../shared/abort.js';
 import { syncParentDirectory } from '../../../shared/io/persistence-helpers.js';
 import { SEMANTIC_OWNERSHIP_PRODUCER_HASH } from '../../semantic/analysis-versions.js';
+import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
+import { consumeVerifiedReplayToken } from './replay-authority.js';
 
 const fail = (message, code = 'ERR_SEMANTIC_CACHE_INTEGRITY') => Object.assign(new Error(message), { code });
 const MAX_DESCRIPTOR_BYTES = 32 * 1024 * 1024;
@@ -50,9 +52,14 @@ export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleD
   throwIfAborted(signal);
   const relative = 'semantic/' + locator.cacheKey;
   const descriptorPath = await resolveSemanticPartPath(bundleDir, relative + '/descriptor.json');
-  if ((await fs.stat(descriptorPath)).size > MAX_DESCRIPTOR_BYTES) throw fail('Semantic cache descriptor exceeds allowance.');
-  const bytes = await fs.readFile(descriptorPath);
-  if (hashBytes(bytes) !== locator.descriptorHash) throw fail('Semantic cache descriptor checksum mismatch.');
+  let bytes;
+  try { ({ buffer: bytes } = await readVerifiedContainedFile(bundleDir, descriptorPath,
+    { maxBytes: MAX_DESCRIPTOR_BYTES, expectedHash: locator.descriptorHash, signal })); }
+  catch (error) {
+    throwIfAborted(signal);
+    if (['ERR_FILE_TOO_LARGE', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) throw fail('Semantic cache descriptor checksum/size mismatch.');
+    throw error;
+  }
   const envelope = JSON.parse(bytes.toString('utf8'));
   assertCurrentIndexFormat({ operation: 'resume', component: 'semantic cache object',
     foundVersion: envelope.artifactSurfaceVersion, repoRoot, indexPath: descriptorPath });
@@ -229,19 +236,22 @@ export const persistSemanticCacheEntry = async ({ repoRoot = process.cwd(), bund
 
 /** Return a verified descriptor rebased to the new immutable whole-build generation. */
 export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleDir, locator, dependencySignatures,
-  sourceHash, sourcePath, repositoryNamespace, targetBuildRoot, storage, diskAccount, evidenceArtifacts = [], signal = null }) => {
+  sourceHash, sourcePath, repositoryNamespace, targetBuildRoot, storage, diskAccount,
+  evidenceArtifacts = [], verificationToken = null, replayMetrics = null, signal = null }) => {
   if (!HASH.test(sourceHash) || typeof sourcePath !== 'string' || !sourcePath
     || typeof repositoryNamespace !== 'string' || !repositoryNamespace) {
     throw new TypeError('Current semantic source hash and repository namespace are required.');
   }
-  const opened = await openSemanticCacheEntry({ repoRoot, bundleDir, locator,
+  const verified = await consumeVerifiedReplayToken({ token: verificationToken, bundleDir: path.resolve(bundleDir),
+    locator, dependencySignatures, sourceHash, sourcePath, repositoryNamespace, signal });
+  const opened = verified || await openSemanticCacheEntry({ repoRoot, bundleDir, locator,
     expectedDependencySignatures: dependencySignatures, expectedSourceHash: sourceHash,
     expectedSourcePath: sourcePath, expectedRepositoryNamespace: repositoryNamespace, signal });
   assertSemanticEnvelope('fileFactsRef', { ...opened.factsRef, storage });
   if (opened.factsRef.partitions.some(partition => partition.members.semantic_frontier.some(piece => piece.count > 0))) {
     throw fail('Generation-pinned deferred work cannot be relocated through the per-file syntax cache; rebuild its task from current source facts.', 'ERR_SEMANTIC_CACHE_MISMATCH');
   }
-  await validateSemanticPartitions({ store: opened.store, partitions: opened.factsRef.partitions, signal });
+  if (!verified) await validateSemanticPartitions({ store: opened.store, partitions: opened.factsRef.partitions, signal });
   await fs.mkdir(targetBuildRoot, { recursive: true });
   // Validate the destination directory through the same containment boundary as parts.
   await fs.mkdir(path.join(targetBuildRoot, storage.relativePath), { recursive: true });
@@ -250,8 +260,12 @@ export const relocateSemanticCacheEntry = async ({ repoRoot = process.cwd(), bun
   let reserved = 0;
   let retainedSourceBytes = 0, retainedEvidenceBytes = 0;
   try {
+    const copyStarted = performance.now();
     await copyFactsFiles({ factsRef: opened.factsRef, store: opened.store,
-      sourceRoot: opened.root, targetRoot: temporary, diskAccount, signal, onReserve: bytes => { reserved += bytes; } });
+      sourceRoot: opened.root, targetRoot: temporary, diskAccount, signal, onReserve: bytes => {
+        reserved += bytes; if (replayMetrics) replayMetrics.copiedBytes += bytes;
+      } });
+    if (replayMetrics) replayMetrics.copyWallMs += performance.now() - copyStarted;
     const partitions = structuredClone(opened.factsRef.partitions);
     const prefix = path.basename(temporary);
     for (const partition of partitions) for (const pieces of Object.values(partition.members)) for (const piece of pieces) {

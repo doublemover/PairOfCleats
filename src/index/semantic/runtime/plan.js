@@ -1,5 +1,6 @@
 import { assertRuntimeEvidence } from '../../../contracts/validators/runtime-evidence.js';
 import { semanticHash } from '../identity.js';
+import { runtimeObservationTargets } from './source-authority.js';
 /** Pure planning only. Capability input is already-collected evidence for one exact binary. */
 export const planRuntimeEvidence = ({ request, capabilities }) => {
   assertRuntimeEvidence('request', request);
@@ -37,11 +38,16 @@ export const assertRuntimeImportAuthority = ({ authority, capture, artifacts }) 
   return { action: 'import-existing', executionAuthorized: false, artifactCount: artifacts.length };
 };
 /** Hashes dominate source joins; names or addresses never establish source identity. */
-export const joinRuntimeSource = ({ sourceHash, sourceMapHash = null, candidates }) => {
+export const joinRuntimeSource = ({ sourceHash, sourceMapHash = null, candidates, kind = null, data = null }) => {
   const exact = candidates.filter(row => sourceHash && row.sourceHash === sourceHash);
   const sourceUnits = new Set(exact.map(row => row.sourceUnitId));
-  if (sourceUnits.size === 1) return { quality: 'exact-source', sourceUnitId: exact[0].sourceUnitId,
-    sourceHash, targets: exact.flatMap(row => row.targets), reasons: [], sourceMapHash };
+  if (sourceUnits.size === 1) {
+    const association = runtimeObservationTargets({ candidates: exact, kind, data });
+    return { quality: 'exact-source', sourceUnitId: exact[0].sourceUnitId, sourceHash,
+      targets: association.targets, targetQuality: association.targetQuality,
+      reasons: association.reason ? [association.reason] : [], sourceMapHash };
+  }
   return { quality: exact.length ? 'ambiguous' : 'unresolved', sourceUnitId: null, sourceHash: sourceHash || null,
-    targets: exact.flatMap(row => row.targets), reasons: [exact.length ? 'multiple_source_snapshots_match' : 'exact_source_hash_unavailable_or_mismatched'], sourceMapHash };
+    targets: [], targetQuality: exact.length ? 'ambiguous' : 'unavailable',
+    reasons: [exact.length ? 'multiple_source_snapshots_match' : 'exact_source_hash_unavailable_or_mismatched'], sourceMapHash };
 };

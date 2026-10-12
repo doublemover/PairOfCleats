@@ -253,6 +253,7 @@ export async function buildIndex(repoRoot, options = {}) {
           embeddingRuntime,
           userConfig,
           indexRoot: runtime?.buildRoot || null,
+          cacheWriterLease: runtime?.cacheWriterLease || null,
           buildId: runtime?.buildId || null,
           parentAttemptId: runtime?.runtimeAttempt?.attemptId || null,
           includeEmbeddings,

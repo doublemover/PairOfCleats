@@ -2,6 +2,7 @@ import { assertSemanticEnvelope } from '../../../../contracts/validators/semanti
 import path from 'node:path';
 import { reopenSemanticDiskAccount } from '../../incremental/working-set.js';
 import { preloadFileCompletions } from '../../incremental/file-completion.js';
+import { createSemanticReplayVerificationContext } from '../../incremental/verified-replay.js';
 import { pruneIncrementalManifest } from '../../incremental/writeback.js';
 import { createSemanticCacheDependencySignatures } from '../../incremental/semantic-cache-dependencies.js';
 import { getRepoId } from '../../../../shared/repo-paths.js';
@@ -642,8 +643,15 @@ export const processFiles = async ({
   let treeSitterScheduler = null;
   let completedSemanticFiles = new Set();
   if (runtime.semanticPolicy?.enabled && mode === 'code') {
+    if (incrementalState?.enabled && runtime.cacheWriterLease && runtime.semanticPolicy.storage.decodedCacheBytes > 0) {
+      runtime.semanticReplayVerification = createSemanticReplayVerificationContext({
+        bundleDir: incrementalState.bundleDir, lease: runtime.cacheWriterLease,
+        maxBytes: Math.min(8 * 1024 * 1024, runtime.semanticPolicy.storage.decodedCacheBytes) });
+      incrementalState.semanticReplayVerification = runtime.semanticReplayVerification;
+    }
     completedSemanticFiles = await preloadFileCompletions({ entries, incrementalState, log,
       semanticContext: { repoRoot: runtime.root, repositoryNamespace: runtime.repoId || getRepoId(runtime.root),
+        replayVerification: runtime.semanticReplayVerification,
         signal: effectiveAbortSignal, dependencySignatures: createSemanticCacheDependencySignatures({
           dependencySignatures: incrementalState.manifest.dependencySignatures,
           policy: runtime.semanticPolicy, root: runtime.root, languageOptions: runtime.languageOptions }) } });
@@ -754,6 +762,8 @@ export const processFiles = async ({
   const inFlightProcessFileTasks = createTrackedProcessFileTaskRegistry({
     name: `stage1:${String(runtime?.buildId || 'unknown-build')}:${mode || 'unknown-mode'}`
   });
+  runtime.cacheWriterDrain = () => inFlightProcessFileTasks.drain();
+  runtime.cacheWriterPending = () => inFlightProcessFileTasks.pendingCount();
   let stage1ShuttingDown = false;
 
   try {
@@ -3354,5 +3364,6 @@ export const processFiles = async ({
         }
       })
     });
+    runtime.semanticReplayVerification?.clear();
   }
 };

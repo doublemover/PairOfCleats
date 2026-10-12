@@ -50,6 +50,7 @@ if (!reuse) {
 }
 
 const extraManifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+  signatureVersion: SIGNATURE_VERSION,
   files: {
     ...manifest.files,
     'src/c.js': { size: 30, mtimeMs: 789 }

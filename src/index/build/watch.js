@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { discoverFilesForModes } from './discover.js';
 import { buildIndexForMode } from './indexer.js';
+import { createIndexCacheLease } from './cache-lease.js';
+import { cacheWritersAreIdle, drainCacheWriters, combineCacheWriterErrors, releaseCacheWriterOwnership } from './cache-writer-drain.js';
 import { promoteBuild } from './promotion.js';
 import { validateIndexArtifacts } from '../validate.js';
 import {
@@ -128,6 +130,7 @@ export async function watchIndex({
   let shutdownSignal = null;
   let resolveExit = null;
   let activeBuildAbort = null;
+  let terminalError = null;
   const exitPromise = new Promise((resolve) => {
     resolveExit = resolve;
   });
@@ -643,6 +646,7 @@ export async function watchIndex({
     let lock = null;
     let attempt = null;
     let attemptRuntime = null;
+    let operationError = null;
     const queuedPathsAtStart = pendingPaths.size;
     let validationRunning = false;
     let validationDone = false;
@@ -666,6 +670,7 @@ export async function watchIndex({
       attempt = await attemptManager.createAttempt();
       attemptRuntime = {
         ...runtimeRef,
+        cacheWriterLease: createIndexCacheLease(lock, runtimeRef.repoCacheRoot),
         buildId: attempt.buildId,
         buildRoot: attempt.buildRoot
       };
@@ -772,10 +777,10 @@ export async function watchIndex({
         log('[watch] Index update complete.');
       }
     } catch (err) {
+      operationError = err;
       status = 'error';
       log(`[watch] Index update failed: ${err?.message || err}`);
     } finally {
-      activeBuildAbort = null;
       if (attemptRuntime) {
         if (promoteRunning && !promoteDone) {
           try { await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'failed'); } catch {}
@@ -797,18 +802,33 @@ export async function watchIndex({
       let releaseError = null;
       if (lock?.release) {
         try {
+          if (attemptRuntime) {
+            const shutdown = Boolean(operationError?.cacheOwnershipPending) || !cacheWritersAreIdle(attemptRuntime);
+            if (shutdown) {
+              activeBuildAbort?.abort();
+              // The watch runtime shares these controls across attempts. A
+              // forced teardown ends this watcher; closed controls cannot replay.
+              requestShutdown('cache-writer-teardown');
+            }
+            await drainCacheWriters(attemptRuntime, { shutdown, log });
+            if (shutdown && operationError) terminalError = operationError;
+          }
           await runBuildCleanupWithTimeout({
             label: 'watch.lock.release',
-            cleanup: () => releaseFileLockOrThrow(lock),
+            cleanup: () => releaseCacheWriterOwnership({ lease: attemptRuntime?.cacheWriterLease,
+              release: () => releaseFileLockOrThrow(lock), operationError }),
             log,
             swallowTimeout: false
           });
         } catch (err) {
           status = 'error';
           releaseError = err;
+          terminalError = combineCacheWriterErrors(operationError, err);
+          requestShutdown('cache-writer-drain-incomplete');
           log(`[watch] Index lock release failed: ${err?.message || err}`);
         }
       }
+      activeBuildAbort = null;
       let outcomeError = null;
       if (attempt) {
         try {
@@ -1089,6 +1109,7 @@ export async function watchIndex({
     await watchStatePersistChain.catch(() => {});
     log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
   }
+  if (terminalError) throw terminalError;
   return runtimeRef.watchState || emitWatchState();
 }
 

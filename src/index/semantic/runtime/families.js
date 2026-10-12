@@ -1,3 +1,4 @@
+import { readRuntimeMemberJson } from './verified-reads.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertRuntimeFamily } from '../../../contracts/validators/runtime-evidence-family.js';
@@ -6,10 +7,10 @@ import { assertRuntimeQuery } from '../../../contracts/validators/runtime-query.
 import { resolveSemanticPartPath } from '../../../semantic/artifact-store.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { semanticHash, canonicalSemanticJson } from '../identity.js';
-import { hashRuntimeFile, runtimeByteHash, runtimeImportError } from './raw-store.js';
+import { runtimeByteHash, runtimeImportError } from './raw-store.js';
 
 /** Bounded discovery keeps only one page of identities; queries must explicitly pin returned generations. */
-export const listRuntimeFamilies = async ({ destination, limit = 32, maxScan = 4096, maxMs = 1000, maxBytes = 65536, cursor = null, signal = null }) => {
+export const listRuntimeFamilies = async ({ destination, limit = 32, maxScan = 4096, maxMs = 1000, maxBytes = 65536, cursor = null, signal = null, metrics = null }) => {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32 || !Number.isSafeInteger(maxScan) || maxScan < 1 || maxScan > 100000
     || !Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > 1000
     || !Number.isSafeInteger(maxBytes) || maxBytes < 4096 || maxBytes > 1048576) throw new TypeError('Invalid runtime discovery allowance.');
@@ -42,18 +43,15 @@ export const listRuntimeFamilies = async ({ destination, limit = 32, maxScan = 4
   for (const generationId of candidates.slice(0, limit)) {
     check();
     const familyRoot = await resolveSemanticPartPath(root, generationId);
-    const filename = await resolveSemanticPartPath(familyRoot, 'manifest.json');
-    if ((await fs.stat(filename)).size > maxBytes) throw runtimeImportError('Runtime discovery manifest exceeds metadata byte allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
-    const bytes = await fs.readFile(filename);
+    const manifestRead = await readRuntimeMemberJson({ root: familyRoot, relativePath: 'manifest.json', maxBytes, signal, metrics });
+    const bytes = manifestRead.buffer;
     // Discovery may describe an accepted same-format family without a lookup index;
     // lookup itself still rejects it and never substitutes a scan or legacy reader.
-    const manifest = assertRuntimeFamily('inventoryManifest', JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
+    const manifest = assertRuntimeFamily('inventoryManifest', manifestRead.value);
     if (manifest.generationId !== generationId || semanticHash('pairofcleats.runtime.family.v1', { ...manifest, generationId: null }) !== generationId) throw runtimeImportError('Runtime discovery identity mismatch.');
-    const captureFilename = await resolveSemanticPartPath(familyRoot, manifest.capture.path);
-    if (manifest.capture.byteLength > maxBytes) throw runtimeImportError('Runtime discovery capture exceeds metadata byte allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
-    await hashRuntimeFile({ filename: captureFilename, expectedHash: manifest.capture.hash, expectedBytes: manifest.capture.byteLength,
-      maxBytes: 16 * 1024 * 1024, signal });
-    const capture = assertRuntimeEvidence('capture', JSON.parse(await fs.readFile(captureFilename, 'utf8')));
+    const capture = assertRuntimeEvidence('capture', (await readRuntimeMemberJson({ root: familyRoot,
+      relativePath: manifest.capture.path, expectedHash: manifest.capture.hash, expectedBytes: manifest.capture.byteLength,
+      maxBytes, signal, metrics })).value);
     families.push({ generationId, captureId: capture.captureId, manifestHash: runtimeByteHash(bytes),
       queryIndexState: manifest.queryIndex ? 'available' : 'unavailable-reingest',
       repositoryNamespace: capture.repositoryNamespace, generation: capture.generation,

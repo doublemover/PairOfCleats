@@ -12,7 +12,8 @@ export async function* adaptCodeLog({ filename, artifact, capture, sourceCandida
   let header = false, ordinal = 0;
   const lifetimes = new Map();
   const maps = new Map();
-  for await (const line of readRuntimeLines({ filename, maxLineBytes, signal })) {
+  for await (const line of readRuntimeLines({ filename, maxLineBytes, signal, expectedHash: artifact.hash,
+    expectedBytes: artifact.byteLength, maxFileBytes: capture.limits.maxBytes })) {
     if (!line.terminated) { markRuntimeCoverage(coverage, 'truncated_log_line', 1); continue; }
     if (line.oversized) { markRuntimeCoverage(coverage, 'log_line_allowance_exceeded', 1); continue; }
     let record;
