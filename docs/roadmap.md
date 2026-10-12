@@ -51,17 +51,17 @@ are aligned; author-workspace receipts remain historical. The 74-case cross-plat
 union now passes targeted cloud checks after grouped format, checksum and lifecycle
 repairs; hosted CI remains exact-head evidence.
 
-The [WASM receipt](archived/wasm-semantic-checkpoint-2026-10-10.md) records PR550;
-the [JS/Node follow-up](archived/js-semantic-frontiers-2026-10-10.md) records its separate
-branch, validation and remaining limits. Module-targeted eager WASM flow is supported;
-binary deferred execution remains unsupported. An inherited cache-reader assertion
-still conflicts with the syntax/analysis policy split.
+[Earlier WASM work](archived/wasm-semantic-checkpoint-2026-10-10.md);
+[Capabilities](archived/semantic-capabilities-2026-10-11.md)
+add deferred binary tasks and source/provider joins. The isolated
+[precision follow-on](archived/semantic-precision-2026-10-11.md) adds object aliases,
+call/apply/bind channels, browser transferred ports, explicit provider alias chains
+and rejects mutated/escaped WASM provenance. Runtime certainty and recovery remain open.
 
 Next: interrupted multi-worker recovery/transient accounting (separate owner);
-remaining constructor/accessor/private/escape and call/completion precision; transferred
-worker ports and provider/retrieval joins; deferred binary tasks; Python/C/Swift/Rust
-adapters. Estimator calibration stays last. Cache cleanup, control-store reconstruction
-and full public-surface qualification remain open.
+object/escape and completion precision; dynamic endpoints and runtime/RPC joins;
+Python/C/Swift/Rust adapters. Estimator calibration stays last. Cache cleanup,
+control-store reconstruction and full public-surface qualification remain open.
 
 ## Current Initiatives
 
