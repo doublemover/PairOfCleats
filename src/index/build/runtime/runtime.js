@@ -1,3 +1,5 @@
+import { persistRuntimeAttempt } from '../build-state/runtime.js';
+import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import fsSync from 'node:fs';
@@ -112,13 +114,18 @@ const isObject = (value) => Boolean(value) && typeof value === 'object' && !Arra
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export async function createBuildRuntime({
+export const createBuildRuntime = (input = {}) => withRuntimeReceiptInitialization((onRuntimeAttempt) => (
+  createBuildRuntimeImpl({ ...input, onRuntimeAttempt })
+));
+
+async function createBuildRuntimeImpl({
   root,
   argv,
   rawArgv,
   policy,
   indexRoot: indexRootOverride = null,
-  observability = null
+  observability = null,
+  onRuntimeAttempt
 } = {}) {
   const initStartedAt = Date.now();
   /**
@@ -147,7 +154,8 @@ export async function createBuildRuntime({
     return result;
   };
 
-  const userConfig = await timeInit('load config', () => loadUserConfig(root));
+  let configSources = null;
+  const userConfig = await timeInit('load config', () => loadUserConfig(root, { onSources: (sources) => { configSources = sources; } }));
   const envConfig = getEnvConfig();
   const stage = normalizeStage(argv.stage || envConfig.stage);
   const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
@@ -513,6 +521,15 @@ export async function createBuildRuntime({
     configHash,
     existsSync: fsSync.existsSync
   });
+  const runtimeAttempt = await initializeRuntimeReceipt({
+    buildRoot, buildId, root, stage, configHash, toolVersion, repoProvenance, profile,
+    observability, envelope, executionClass: daemonSession ? 'daemon' : 'in-process',
+    paths: { repo: root, cache: { selected: cacheRoot, source: cacheRootSource }, repoCache: repoCacheRoot, build: buildRoot, logs: logDestination },
+    inputs: { configSources, quality: autoPolicy.quality, platformPreset: platformRuntimePreset, learnedAutoProfile, schedulerAutoTuneProfile },
+    embeddings: { observation: { state: 'not-started', provider: null, dims: null, observedAt: null } }
+  });
+  onRuntimeAttempt(runtimeAttempt, buildRoot);
+  logRuntimeReceiptLocation(buildRoot, runtimeAttempt, log);
   const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
   const daemonJobContext = createRuntimeDaemonJobContext(daemonSession, {
     root,
@@ -735,7 +752,8 @@ export async function createBuildRuntime({
     indexingConfig,
     envConfig,
     argv,
-    cpuConcurrency
+    cpuConcurrency,
+    onEmbeddingObservation: (embeddings) => persistRuntimeAttempt(buildRoot, runtimeAttempt, { embeddings })
   }));
   const {
     embeddingBatchSize,
@@ -748,14 +766,14 @@ export async function createBuildRuntime({
     embeddingNormalize,
     embeddingQueue,
     embeddingIdentity,
-    embeddingIdentityKey,
     embeddingCache,
     useStubEmbeddings,
     modelConfig,
     modelId,
     modelsDir,
     getChunkEmbedding,
-    getChunkEmbeddings
+    getChunkEmbeddings,
+    getEmbeddingObservation
   } = embeddingRuntime;
   const daemonPrewarmEmbeddings = daemonConfig.prewarmEmbeddings !== false;
   const embeddingPrewarmTokenizer = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmTokenizer === true;
@@ -1070,7 +1088,8 @@ export async function createBuildRuntime({
   } catch {}
   logInit('runtime ready', initStartedAt);
 
-  return {
+  const runtime = {
+    runtimeAttempt,
     envelope,
     root,
     log,
@@ -1159,8 +1178,8 @@ export async function createBuildRuntime({
     embeddingOnnx,
     embeddingNormalize,
     embeddingQueue,
-    embeddingIdentity,
-    embeddingIdentityKey,
+    get embeddingIdentity() { return embeddingRuntime.embeddingIdentity; },
+    get embeddingIdentityKey() { return embeddingRuntime.embeddingIdentityKey; },
     embeddingCache,
     fileCaps,
     guardrails,
@@ -1215,6 +1234,7 @@ export async function createBuildRuntime({
     codeDictionaryPaths: codeDictPaths,
     getChunkEmbedding,
     getChunkEmbeddings,
+    getEmbeddingObservation,
     languageOptions,
     generatedPolicy,
     ignoreMatcher,
@@ -1226,4 +1246,6 @@ export async function createBuildRuntime({
     verboseCache,
     importGraphEnabled
   };
+  await refreshRuntimeReceipt(runtime);
+  return runtime;
 }

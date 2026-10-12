@@ -1,0 +1,74 @@
+import path from 'node:path';
+import { initBuildState } from '../build-state.js';
+import { persistRuntimeAttempt } from '../build-state/runtime.js';
+import { createRuntimeAttempt, observeRuntimePath, sanitizeRuntimeReceipt } from '../../../shared/runtime-envelope/receipt.js';
+import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
+import { logLine } from '../../../shared/progress-runtime.js';
+
+export const withRuntimeReceiptInitialization = async (create) => {
+  let active = null;
+  try { return await create((attempt, buildRoot) => { active = { attempt, buildRoot }; }); }
+  catch (error) {
+    if (active) {
+      await persistRuntimeAttempt(active.buildRoot, active.attempt, {
+        lifecycle: error?.name === 'AbortError' ? 'aborted' : 'failed',
+        error: { code: String(error?.code || 'UNKNOWN'), message: redactDiagnosticText(error?.message || error) }
+      });
+    } else logLine(`[runtime] initialization failed before a durable receipt root: ${redactDiagnosticText(error?.message || error)}`, { kind: 'warning' });
+    throw error;
+  }
+};
+
+export const initializeRuntimeReceipt = async ({ buildRoot, buildId, root, stage, configHash, toolVersion, repoProvenance, profile, ...input }) => {
+  await initBuildState({ buildRoot, buildId, repoRoot: root, modes: null, stage, configHash, toolVersion, repoProvenance, profile });
+  const attempt = await createRuntimeAttempt({ ...input, buildId, stage, toolVersion });
+  await persistRuntimeAttempt(buildRoot, attempt, { lifecycle: 'initializing' });
+  return attempt;
+};
+
+const poolEvidence = (pool) => {
+  const stats = pool?.stats?.();
+  if (!stats) return null;
+  const observations = stats.runtimeObservations || [];
+  return {
+    configuredMaxWorkers: stats.configuredMaxWorkers, effectiveMaxWorkers: stats.maxWorkers,
+    activeTasks: stats.activeTasks, queuedTasks: stats.queuedTasks, disabled: stats.disabled,
+    heapLaunchContract: stats.heapLaunchContract, pressureDownscale: stats.pressureDownscale,
+    observedWorkerCount: observations.length, runtimeObservations: observations.slice(0, 8),
+    observationsTruncated: observations.length > 8
+  };
+};
+
+export const collectRuntimeResourceEvidence = (runtime) => ({
+  workers: {
+    observedAt: new Date().toISOString(),
+    tokenizationExecution: runtime.workerPool?.stats?.().disabled === false ? 'worker-pool' : 'inline',
+    quantizationExecution: runtime.quantizePool?.stats?.().disabled === false ? 'worker-pool' : 'inline',
+    embeddingInferenceExecution: 'separate-provider-owner',
+    launchDecisions: runtime.workerPools?.runtimeEvidence || {},
+    tokenize: poolEvidence(runtime.workerPool), quantize: poolEvidence(runtime.quantizePool)
+  },
+  scheduler: sanitizeRuntimeReceipt(runtime.scheduler?.stats?.() || null)
+});
+
+export const refreshRuntimeReceipt = async (runtime, { lifecycle = 'running', ...patch } = {}) => {
+  if (!runtime?.runtimeAttempt || !runtime?.buildRoot) return null;
+  const paths = {};
+  if (runtime.modelsDir) paths.models = await observeRuntimePath(runtime.modelsDir);
+  if (runtime.embeddingCache?.dir) paths.embeddingCache = await observeRuntimePath(runtime.embeddingCache.dir);
+  const record = await persistRuntimeAttempt(runtime.buildRoot, runtime.runtimeAttempt, {
+    lifecycle, ...patch, paths: { ...paths, ...patch.paths },
+    runtime: { ...collectRuntimeResourceEvidence(runtime), ...patch.runtime },
+    embeddings: {
+      requested: { modelId: runtime.modelId, provider: runtime.embeddingProvider, mode: runtime.embeddingMode, stub: runtime.useStubEmbeddings },
+      resolvedIdentity: runtime.embeddingIdentity || null, identityKey: runtime.embeddingIdentityKey || null,
+      observation: runtime.getEmbeddingObservation?.() || runtime.runtimeAttempt.embeddings?.observation,
+      ...patch.embeddings
+    }
+  });
+  return record;
+};
+
+export const logRuntimeReceiptLocation = (buildRoot, attempt, log) => {
+  log(`[runtime] attempt ${attempt.attemptId}; receipt: ${path.join(buildRoot, 'build_state.json')} (durable).`);
+};
