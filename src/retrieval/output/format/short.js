@@ -1,3 +1,4 @@
+import { sanitizeTerminalMetadata } from './source.js';
 import { formatScoreBreakdown } from '../explain.js';
 import { getFormatShortCache } from '../cache.js';
 import {
@@ -40,6 +41,7 @@ export function formatShortChunk({
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
+  chunk = sanitizeTerminalMetadata(chunk);
   const canCache = !_skipCache && !explain;
   const { formatCache, cacheKey, cached } = resolveFormatCache({
     canCache,

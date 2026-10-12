@@ -16,7 +16,7 @@ import {
 } from '../../../shared/dict-utils.js';
 import { queryVectorAnn } from '../../../../tools/sqlite/vector-extension.js';
 import { createError, ERROR_CODES, isErrorCode } from '../../../shared/error-codes.js';
-import { getSearchUsage } from '../../cli-args.js';
+import { getSearchUsage, hasSearchFilterArgs, SEARCH_FILTER_OPTION_NAMES } from '../../cli-args.js';
 import { loadDictionary } from '../../cli-dictionary.js';
 import { getIndexSignature, resolveIndexDir } from '../../cli-index.js';
 import { isLmdbReady, isSqliteReady, loadIndexState } from '../index-state.js';
@@ -52,6 +52,7 @@ import { createRetrievalStageTracker } from '../../pipeline/stage-checkpoints.js
 import { createRunSearchTelemetry } from './telemetry.js';
 import {
   emitMissingQueryAndThrow,
+  emitInvalidRequestAndThrow,
   extractPositionalQuery,
   extractWorkspacePath,
   parseCliArgsOrThrow,
@@ -123,7 +124,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const jsonOutput = argv.json === true;
   const jsonCompact = argv.compact === true;
   const positionalQuery = extractPositionalQuery(argv);
-  if (!positionalQuery) {
+  const filterOnly = !positionalQuery && hasSearchFilterArgs(argv);
+  if (!positionalQuery && !filterOnly) {
     emitMissingQueryAndThrow({
       jsonOutput,
       emitOutput,
@@ -132,6 +134,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     });
   }
   const workspacePath = extractWorkspacePath(argv);
+  const enumerationError = argv.cursor && !filterOnly
+    ? '--cursor requires a filter-only search without query text.'
+    : workspacePath && filterOnly ? 'Filter enumeration currently requires --repo, not --workspace.' : null;
+  if (enumerationError) emitInvalidRequestAndThrow({
+    message: enumerationError, jsonOutput, emitOutput, exitOnError, recordSearchMetrics
+  });
   const federatedPayload = await runFederatedIfRequested({
     rawArgs,
     workspacePath,
@@ -304,7 +312,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       scoreMode
     } = runConfig;
 
-    if (!query) {
+    if (!query && !filterOnly) {
       return bail(getSearchUsage(), 1, ERROR_CODES.INVALID_REQUEST);
     }
 
@@ -532,7 +540,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       );
     }
     const sparseOnlyRequested = scoreMode === 'sparse' || (annFlagPresent && annEnabled === false);
-    if (vectorOnlyModes.length && sparseOnlyRequested) {
+    if (!filterOnly && vectorOnlyModes.length && sparseOnlyRequested) {
       if (allowSparseFallback !== true) {
         const details = vectorOnlyModes.join(', ');
         return bail(
@@ -547,7 +555,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       );
       annEnabledEffective = true;
     }
-    if (vectorOnlyModes.length && annEnabledEffective !== true) {
+    if (!filterOnly && vectorOnlyModes.length && annEnabledEffective !== true) {
       addProfileWarning(
         `Forcing ANN on for vector_only mode(s): ${vectorOnlyModes.join(', ')}. Sparse providers are unavailable.`
       );
@@ -763,6 +771,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     telemetry.setBackend(backendLabel);
     ensureRetrievalHealth({
       query,
+      filterOnly,
       runCode,
       runProse,
       runExtractedProse: runExtractedProseRaw,
@@ -826,6 +835,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const planConfigSignature = queryPlanCache?.enabled !== false
       ? buildQueryPlanConfigSignature({
         queryMatch: argv.match || 'auto',
+        structuredFilters: Object.fromEntries(SEARCH_FILTER_OPTION_NAMES.map((key) => [key, argv[key] ?? null])),
         dictConfig,
         dictSize: dict?.size ?? null,
         postingsConfig,
@@ -859,7 +869,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     if (planConfigSignature) {
       queryPlanCache.resetIfConfigChanged(planConfigSignature);
     }
-    const planIndexSignaturePayload = planConfigSignature
+    const planIndexSignaturePayload = (planConfigSignature || filterOnly)
       ? await getIndexSignature({
         useSqlite,
         backendLabel,
@@ -927,6 +937,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       denseVectorMode,
       branchFilter
     });
+    if (filterOnly && !queryPlan.filtersActive) return bail('Filter-only search requires at least one nonempty filter.', 1, ERROR_CODES.INVALID_REQUEST);
     if (!queryPlan.filterPredicates) {
       queryPlan.filterPredicates = compileFilterPredicates(queryPlan.filters, { fileChargramN });
     }
@@ -945,7 +956,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     stageTracker.record('startup.query-plan', planStart, { mode: 'all' });
 
     let sparseMissingByMode = {};
-    if (!annEnabledEffective && useSqlite) {
+    if (!filterOnly && !annEnabledEffective && useSqlite) {
       const sqliteFtsRouting = resolveSqliteFtsRoutingByMode({
         useSqlite,
         sqliteFtsRequested: sqliteFtsEnabled,
@@ -1030,12 +1041,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       }
     }
 
-    const annActive = resolveAnnActive({
+    const annActive = !filterOnly && resolveAnnActive({
       annEnabled: annEnabledEffective,
       queryTokens: queryPlan.queryTokens,
       vectorOnlyModes
     });
-    const graphRankingEnabled = graphRankingConfig?.enabled === true;
+    const graphRankingEnabled = !filterOnly && graphRankingConfig?.enabled === true;
     const requiredArtifacts = resolveRequiredArtifacts({
       queryPlan,
       contextExpansionEnabled,
@@ -1141,6 +1152,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const payload = await executeSearchAndEmit({
+      filterOnly,
+      filterCursor: argv.cursor || null,
+      plain: argv.plain === true,
       outputMaxBytes: argv['output-bytes'] ?? null,
       t0,
       emitOutput,

@@ -1,19 +1,19 @@
 {
-  "generatedAt": "2026-10-12T02:46:40.671Z",
+  "generatedAt": "2026-10-12T02:49:54.522Z",
   "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
       "source": "src/retrieval/cli-args.js",
-      "sourceCount": 101,
-      "docCount": 101,
+      "sourceCount": 103,
+      "docCount": 103,
       "missingInDocs": [],
       "extraInDocs": []
     },
     "searchContractFlags": {
       "doc": "docs/contracts/search-contract.md",
       "source": "src/retrieval/cli-args.js",
-      "sourceCount": 101,
+      "sourceCount": 103,
       "docCount": 24,
       "nonBlocking": true,
       "missingInDocs": [
@@ -43,6 +43,7 @@
         "--compact",
         "--concurrency",
         "--continues",
+        "--cursor",
         "--debug-include-paths",
         "--decorator",
         "--dense-vector-mode",
@@ -74,6 +75,7 @@
         "--mutates",
         "--n",
         "--non-strict",
+        "--plain",
         "--reads",
         "--repo",
         "--repo-filter",

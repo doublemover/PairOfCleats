@@ -231,7 +231,7 @@ export function normalizeSearchOptions({
   const annDefault = typeof searchConfig.annDefault === 'boolean'
     ? searchConfig.annDefault
     : null;
-  const annEnabled = controls.preset === 'fast' ? false : (annFlagPresent ? argv.ann : (controls.preset ? true : (annDefault ?? policyAnn ?? true)));
+  const annEnabled = !query || controls.preset === 'fast' ? false : (annFlagPresent ? argv.ann : (controls.preset ? true : (annDefault ?? policyAnn ?? true)));
   const allowSparseFallback = argv['allow-sparse-fallback'] === true
     || argv.allowSparseFallback === true;
   const allowUnsafeMix = argv['allow-unsafe-mix'] === true
@@ -413,7 +413,7 @@ export function normalizeSearchOptions({
   };
 
   const contextExpansionConfig = userConfig?.retrieval?.contextExpansion || {};
-  const contextExpansionEnabled = controls.preset === 'investigate' || (!controls.preset && contextExpansionConfig.enabled === true);
+  const contextExpansionEnabled = Boolean(query) && (controls.preset === 'investigate' || (!controls.preset && contextExpansionConfig.enabled === true));
   const contextExpansionOptions = {
     maxPerHit: normalizeOptionalNumber(contextExpansionConfig.maxPerHit) ?? (controls.preset === 'investigate' ? 2 : null),
     maxTotal: normalizeOptionalNumber(contextExpansionConfig.maxTotal) ?? (controls.preset === 'investigate' ? 10 : null),

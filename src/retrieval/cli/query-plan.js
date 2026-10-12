@@ -184,6 +184,7 @@ export function buildQueryPlan({
     reads: argv.reads || null,
     writes: argv.writes || null,
     mutates: argv.mutates || null,
+    alias: argv.alias || null,
     risk: argv.risk || null,
     riskTag: argv['risk-tag'] || null,
     riskSource: argv['risk-source'] || null,
