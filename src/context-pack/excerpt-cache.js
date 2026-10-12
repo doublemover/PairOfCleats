@@ -5,8 +5,7 @@ import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { normalizeOptionalNumber } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape } from '../shared/file-paths.js';
-import { readFileRangeSync } from '../shared/file-read.js';
-import { assertNoSymlinkPath, openContainedFileSync } from '../shared/contained-file.js';
+import { readVerifiedContainedFileSync } from '../shared/contained-file.js';
 
 const trimUtf8Buffer = (buffer) => {
   let end = buffer.length;
@@ -30,14 +29,18 @@ const EXCERPT_CACHE_MAX = 128;
 const FILE_RANGE_CACHE_MAX = 64;
 const EXCERPT_HASH_CACHE_MAX = 256;
 const UTF8_TRUNCATION_DETECTION_SLACK_BYTES = 4;
+const CACHE_BYTE_CAP = 8 * 1024 * 1024;
 const excerptCache = new Map();
 const fileRangeCache = new Map();
 const excerptHashCache = new Map();
+const cacheAccounting = new WeakMap();
+const retainedStringBytes = text => Math.max(Buffer.byteLength(text), text.length * 2);
 
 export const clearContextPackCaches = () => {
   excerptCache.clear();
   fileRangeCache.clear();
   excerptHashCache.clear();
+  for (const cache of [excerptCache, fileRangeCache, excerptHashCache]) cacheAccounting.delete(cache);
 };
 
 const getCachedValue = (cache, key) => {
@@ -51,59 +54,58 @@ const getCachedValue = (cache, key) => {
 
 const setCachedValue = (cache, key, value, maxSize) => {
   if (!key) return;
-  if (cache.has(key)) cache.delete(key);
+  const accounting = cacheAccounting.get(cache) || { bytes: 0, weights: new Map() };
+  cacheAccounting.set(cache, accounting);
+  const remove = key => {
+    accounting.bytes -= accounting.weights.get(key) || 0;
+    accounting.weights.delete(key);
+    cache.delete(key);
+  };
+  if (cache.has(key)) remove(key);
+  const payloadBytes = typeof value === 'string' ? retainedStringBytes(value)
+    : retainedStringBytes(value.excerpt || '') + retainedStringBytes(JSON.stringify(value.sourceIdentity || {})) + 256;
+  const weight = retainedStringBytes(String(key)) + payloadBytes + 128;
+  if (weight > CACHE_BYTE_CAP) return;
   cache.set(key, value);
-  while (cache.size > maxSize) {
+  accounting.weights.set(key, weight);
+  accounting.bytes += weight;
+  while (cache.size > maxSize || accounting.bytes > CACHE_BYTE_CAP) {
     const oldest = cache.keys().next().value;
-    cache.delete(oldest);
+    remove(oldest);
   }
 };
 
-const getFileCacheFingerprint = (filePath) => {
-  try {
-    const stats = fs.statSync(filePath);
-    return `${stats.size}:${Number.isFinite(stats.mtimeMs) ? Math.trunc(stats.mtimeMs) : 0}`;
-  } catch {
-    return 'missing';
-  }
-};
-
-const readFilePrefix = (filePath, maxBytes, repoRoot) => {
-  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return '';
-  let fd = null;
-  try {
-    fd = openContainedFileSync(repoRoot, filePath);
-    const buffer = Buffer.allocUnsafe(maxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES);
-    const bytesRead = fs.readSync(fd, buffer, 0, buffer.length, 0);
-    const slice = trimUtf8Buffer(buffer.subarray(0, bytesRead));
-    return slice.toString('utf8');
-  } finally {
-    if (fd !== null) fs.closeSync(fd);
-  }
-};
-
-const readFileRangeCached = (filePath, start, end, cacheScope, repoRoot) => {
-  const key = `${filePath}|${cacheScope}|${start}|${end}`;
+const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1') => (
+  readVerifiedContainedFileSync(repoRoot, filePath, { maxBytes: 64 * 1024 * 1024, hashAlgorithm })
+);
+const rangeKey = (filePath, cacheScope, start, end) => `${filePath}|${cacheScope}|${start}|${end}`;
+const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
+  const key = rangeKey(filePath, cacheScope, start, end);
   const cached = getCachedValue(fileRangeCache, key);
-  if (cached != null) return cached;
-  const buffer = readFileRangeSync(filePath, start, end, repoRoot);
-  const text = trimUtf8Buffer(buffer).toString('utf8');
+  if (cached !== null) return cached;
+  const text = trimUtf8Buffer(snapshot.buffer.subarray(Math.max(0, Math.floor(start)),
+    Math.max(0, Math.floor(end)))).toString('utf8');
   setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
   return text;
 };
 
-export const prefetchFileRanges = (ranges, cacheScope, repoRoot = null) => {
-  if (!Array.isArray(ranges) || !ranges.length) return;
+/** Prefetch and direct reads use identical live content identities, never generation alone. */
+export const prefetchFileRanges = (ranges, indexSignature, repoRoot = null) => {
+  if (!repoRoot || !Array.isArray(ranges)) return;
+  const byFile = new Map();
   for (const range of ranges) {
-    if (!range?.filePath || !repoRoot) continue;
-    const key = `${range.filePath}|${cacheScope}|${range.start}|${range.end}`;
-    if (fileRangeCache.has(key)) continue;
+    if (!range?.filePath || !Number.isFinite(range.start) || !Number.isFinite(range.end)) continue;
+    const group = byFile.get(range.filePath) || [];
+    group.push(range);
+    byFile.set(range.filePath, group);
+  }
+  for (const [filePath, group] of byFile) {
     try {
-      const buffer = readFileRangeSync(range.filePath, range.start, range.end, repoRoot);
-      const text = trimUtf8Buffer(buffer).toString('utf8');
-      setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+      const snapshot = readSourceSnapshot(filePath, repoRoot);
+      const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
+      for (const range of group) readSnapshotRange(snapshot, filePath, range.start, range.end, cacheScope);
     } catch {
-      // Best-effort prefetch.
+      // Direct reads still enforce containment, bounds and current source identity.
     }
   }
 };
@@ -147,15 +149,26 @@ export const resolveExcerpt = ({
   end,
   maxBytes,
   maxTokens,
-  indexSignature = null
+  indexSignature = null,
+  indexedHash = null,
+  hashAlgorithm = 'sha1'
 }) => {
-  assertNoSymlinkPath(repoRoot, filePath);
-  const cacheScope = indexSignature || getFileCacheFingerprint(filePath);
+  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm);
+  const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
+  const expectedHash = typeof indexedHash === 'string'
+    ? indexedHash.replace(new RegExp(`^${hashAlgorithm}:`), '').toLowerCase() : null;
+  const sourceIdentity = {
+    policy: 'working-tree-preview',
+    currentHash: `${hashAlgorithm}:${snapshot.hash}`,
+    indexedHash: expectedHash ? `${hashAlgorithm}:${expectedHash}` : null,
+    drift: expectedHash ? (expectedHash === snapshot.hash ? 'unchanged' : 'changed') : 'unknown'
+  };
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
     payload: {
       filePath,
       cacheScope,
+      indexedHash: expectedHash,
       start: start ?? null,
       end: end ?? null,
       maxBytes: maxBytes ?? null,
@@ -170,10 +183,10 @@ export const resolveExcerpt = ({
     const readEnd = safeMaxBytes
       ? Math.min(end, start + safeMaxBytes + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)
       : end;
-    prefetchFileRanges([{ filePath, start, end: readEnd }], cacheScope, repoRoot);
-    text = readFileRangeCached(filePath, start, readEnd, cacheScope, repoRoot);
+    text = readSnapshotRange(snapshot, filePath, start, readEnd, cacheScope);
   } else {
-    text = readFilePrefix(filePath, normalizeOptionalNumber(maxBytes), repoRoot);
+    const limit = normalizeOptionalNumber(maxBytes) || snapshot.buffer.length;
+    text = trimUtf8Buffer(snapshot.buffer.subarray(0, limit + UTF8_TRUNCATION_DETECTION_SLACK_BYTES)).toString('utf8');
   }
   const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
   const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
@@ -186,7 +199,7 @@ export const resolveExcerpt = ({
       setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
     }
   }
-  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens };
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity };
   setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
   return payload;
 };
@@ -226,6 +239,7 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
   let truncatedBytes = false;
   let truncatedTokens = false;
   let fileBacked = false;
+  let sourceIdentity = null;
   let fallbackSource = null;
   if (filePath) {
     if (!isPathInsideRepo(repoRoot, filePath)) {
@@ -242,11 +256,18 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
           end: Number.isFinite(chunk.end) ? chunk.end : null,
           maxBytes: maxBytesNum,
           maxTokens: maxTokensNum,
-          indexSignature
+          indexSignature,
+          indexedHash: chunk.fileHash || null,
+          hashAlgorithm: chunk.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1'
         });
       } catch {
         pushWarning('PRIMARY_PATH_UNAVAILABLE', 'Primary path failed current file identity or containment checks.');
         resolvedExcerpt = { excerpt: '', excerptHash: null, truncated: false, truncatedBytes: false, truncatedTokens: false };
+      }
+      sourceIdentity = resolvedExcerpt.sourceIdentity || null;
+      if (sourceIdentity && sourceIdentity.drift !== 'unchanged') {
+        pushWarning(sourceIdentity.drift === 'changed' ? 'PRIMARY_SOURCE_DRIFT' : 'PRIMARY_SOURCE_UNVERIFIED',
+          'Working-tree preview is not verified against the indexed source; indexed line and byte coordinates may have drifted.');
       }
       excerpt = resolvedExcerpt.excerpt || '';
       truncated = resolvedExcerpt.truncated;
@@ -305,11 +326,12 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
     evidence: {
       state: evidenceState,
       source: fileBacked
-        ? 'file-range'
+        ? (sourceIdentity?.drift === 'unchanged' ? 'indexed-source-verified' : 'working-tree-preview')
         : fallbackSource
           ? `${fallbackSource}-fallback`
           : 'missing',
       fileBacked,
+      sourceIdentity,
       substituted: Boolean(!fileBacked && excerpt),
       missing: !excerpt,
       truncated,

@@ -62,7 +62,10 @@ export const resolveResultPolicy = (request) => {
   const captureStdout = ['none', 'text', 'json'].includes(rawCaptureStdout)
     ? rawCaptureStdout
     : (rawCaptureStdout === true ? 'text' : 'none');
-  const maxBytes = clampInt(policy.maxBytes, 1024, 64 * 1024 * 1024, 1_000_000);
+  if (policy.maxBytes !== undefined && (!Number.isSafeInteger(policy.maxBytes) || policy.maxBytes <= 0)) {
+    throw new Error('resultPolicy.maxBytes must be a positive integer.');
+  }
+  const maxBytes = clampInt(policy.maxBytes, 1, 64 * 1024 * 1024, 1_000_000);
   return { captureStdout, maxBytes };
 };
 
@@ -83,7 +86,7 @@ export const resolveRetryPolicy = (request) => {
 /**
  * Parse subprocess stdout according to configured capture policy.
  *
- * `json` mode falls back to raw text when payload parsing fails.
+ * Invalid JSON never becomes a successful text result.
  *
  * @param {string} stdoutText
  * @param {{captureStdout:'none'|'text'|'json'}} policy
@@ -99,6 +102,19 @@ export const parseResultFromStdout = (stdoutText, policy) => {
   try {
     return JSON.parse(text);
   } catch {
-    return text;
+    return null;
   }
+};
+
+export const resolveCapturedResult = (stdoutText, policy, capture = null) => {
+  if (policy.captureStdout === 'none') return { result: null, resultState: 'disabled', resultCapture: capture };
+  if (capture?.truncated || (capture?.encodingLoss && policy.captureStdout === 'json')) {
+    return { result: policy.captureStdout === 'text' ? String(stdoutText || '').trim() : null,
+      resultState: capture.truncated ? 'truncated' : 'invalid-json', resultCapture: capture };
+  }
+  if (policy.captureStdout === 'text') {
+    return { result: String(stdoutText || '').trim(), resultState: 'complete', resultCapture: capture };
+  }
+  try { return { result: JSON.parse(String(stdoutText || '')), resultState: 'complete', resultCapture: capture }; }
+  catch { return { result: null, resultState: 'invalid-json', resultCapture: capture }; }
 };

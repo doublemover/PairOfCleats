@@ -1,3 +1,6 @@
+mod supervisor_lifetime;
+use supervisor_lifetime::SupervisorLifetime;
+
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -95,6 +98,8 @@ struct SessionSnapshot {
     job_scroll: usize,
     task_scroll: usize,
     log_scroll: usize,
+    #[serde(default)]
+    final_job_statuses: BTreeMap<String, String>,
 }
 
 #[derive(Default)]
@@ -911,6 +916,7 @@ fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
         log_scroll: model.log_scroll,
+        final_job_statuses: model.job_status.clone(),
     };
     if let Some(parent) = snapshot_path.parent() {
         let _ = fs::create_dir_all(parent);
@@ -933,7 +939,14 @@ fn spawn_supervisor(
     if !node.is_absolute() || !supervisor.is_absolute() || !supervisor.is_file() {
         anyhow::bail!("TUI implementation paths must be absolute verified files");
     }
-    let mut child = Command::new(&node)
+    supervisor_lifetime::prepare_containment()?;
+    let mut command = Command::new(&node);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command
         .arg(&supervisor)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -2534,10 +2547,6 @@ fn apply_palette_action(
             model.dirty = true;
         }
         PaletteAction::Quit => {
-            let _ = send_request(
-                supervisor,
-                json!({"proto": "poc.tui@1", "op": "shutdown", "reason": "user_exit"}),
-            );
             return Ok(true);
         }
     }
@@ -2840,7 +2849,15 @@ fn summarize_protocol_event(event_name: &str, event: &Value) -> String {
                 .get("status")
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
-            format!("job finished | {job_id} | {status}")
+            let result_state = event
+                .get("resultState")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            if result_state.is_empty() {
+                format!("job finished | {job_id} | {status}")
+            } else {
+                format!("job finished | {job_id} | {status} | result {result_state}")
+            }
         }
         "task:start" | "task:progress" | "task:end" => {
             let job_id = event
@@ -2929,6 +2946,11 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
             model.update_job_status(job_id, status, None);
+            if let Some(result_state) = event.get("resultState").and_then(Value::as_str) {
+                if matches!(result_state, "truncated" | "invalid-json" | "incomplete") {
+                    model.push_alert("warn", &format!("job {job_id} result {result_state}"));
+                }
+            }
             if status == "failed" || status == "cancelled" {
                 model.push_alert(status, &format!("job {job_id} {status}"));
             }
@@ -3020,10 +3042,6 @@ fn dispatch_input(
     model.last_input_at = Instant::now();
     match cmd {
         InputCommand::Quit => {
-            let _ = send_request(
-                supervisor,
-                json!({"proto": "poc.tui@1", "op": "shutdown", "reason": "user_exit"}),
-            );
             return Ok(true);
         }
         InputCommand::FocusNext => {
@@ -3207,7 +3225,8 @@ fn main() -> anyhow::Result<()> {
         model.log_scroll = snapshot.log_scroll;
     }
 
-    let (mut supervisor, events_rx) = spawn_supervisor(&run_id, &observability_dir)?;
+    let (supervisor, events_rx) = spawn_supervisor(&run_id, &observability_dir)?;
+    let mut supervisor = SupervisorLifetime::new(supervisor, events_rx)?;
 
     let _ = send_request(
         &mut supervisor,
@@ -3221,149 +3240,185 @@ fn main() -> anyhow::Result<()> {
     let mut next_job_idx: u64 = 1;
     let mut last_frame = Instant::now();
 
-    loop {
-        let mut processed = 0u64;
-        while let Ok(event) = events_rx.try_recv() {
-            apply_protocol_event(&mut model, event, 0);
-            processed += 1;
-        }
-        if processed > 0 {
-            model.flow_credit_pending = model.flow_credit_pending.saturating_add(processed);
-            flush_flow_credits(&mut model, &mut supervisor);
-        }
-
-        append_runtime_metrics(&mut model);
-
-        if model.dirty && last_frame.elapsed() >= FRAME_INTERVAL {
-            let signature = frame_signature(&model);
-            if signature != model.last_render_signature {
-                let render_ms = draw_ui(&mut terminal, &model)?;
-                model.telemetry.render_ms_ewma =
-                    RuntimeTelemetry::update_ewma(model.telemetry.render_ms_ewma, render_ms as f64);
-                if render_ms > FRAME_BUDGET_MS {
-                    model.push_log(format!(
-                        "frame budget warning: render={render_ms}ms budget={FRAME_BUDGET_MS}ms"
-                    ));
-                }
-                model.last_render_signature = signature;
+    let execution = (|| -> anyhow::Result<()> {
+        loop {
+            let mut processed = 0u64;
+            while let Ok(event) = supervisor.poll() {
+                apply_protocol_event(&mut model, event, 0);
+                processed += 1;
             }
-            model.dirty = false;
-            last_frame = Instant::now();
-        }
+            if processed > 0 {
+                model.flow_credit_pending = model.flow_credit_pending.saturating_add(processed);
+                flush_flow_credits(&mut model, &mut supervisor);
+            }
 
-        if event::poll(Duration::from_millis(20))? {
-            let terminal_event = event::read()?;
-            if matches!(terminal_event, CEvent::Resize(_, _)) {
-                // Terminal::draw performs autoresize through the normal backend.
-                // An unchanged model still needs a new layout after SIGWINCH.
-                invalidate_frame(&mut model);
-            } else if let CEvent::Key(key) = terminal_event {
-                if key.kind == KeyEventKind::Release {
-                    continue;
+            append_runtime_metrics(&mut model);
+            if supervisor.try_wait()?.is_some() {
+                model.push_log("supervisor exited; draining owned process family".to_string());
+                break;
+            }
+
+            if model.dirty && last_frame.elapsed() >= FRAME_INTERVAL {
+                let signature = frame_signature(&model);
+                if signature != model.last_render_signature {
+                    let render_ms = draw_ui(&mut terminal, &model)?;
+                    model.telemetry.render_ms_ewma = RuntimeTelemetry::update_ewma(
+                        model.telemetry.render_ms_ewma,
+                        render_ms as f64,
+                    );
+                    if render_ms > FRAME_BUDGET_MS {
+                        model.push_log(format!(
+                            "frame budget warning: render={render_ms}ms budget={FRAME_BUDGET_MS}ms"
+                        ));
+                    }
+                    model.last_render_signature = signature;
                 }
-                match model.overlay {
-                    OverlayMode::Help => match key.code {
-                        KeyCode::Esc | KeyCode::Char('?') => {
-                            enqueue_input(&mut model, InputCommand::ToggleHelp, "help-close")
-                        }
-                        _ => {}
-                    },
-                    OverlayMode::Palette => match key.code {
-                        KeyCode::Esc | KeyCode::Char(':') => {
-                            enqueue_input(&mut model, InputCommand::TogglePalette, "palette-close")
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => {
-                            enqueue_input(&mut model, InputCommand::PaletteDown, "palette-down")
-                        }
-                        KeyCode::Char('k') | KeyCode::Up => {
-                            enqueue_input(&mut model, InputCommand::PaletteUp, "palette-up")
-                        }
-                        KeyCode::Enter => {
-                            enqueue_input(&mut model, InputCommand::PaletteSelect, "palette-select")
-                        }
-                        _ => {}
-                    },
-                    OverlayMode::Search => match key.code {
-                        KeyCode::Esc => {
-                            enqueue_input(&mut model, InputCommand::SearchCancel, "search-cancel")
-                        }
-                        KeyCode::Enter => {
-                            enqueue_input(&mut model, InputCommand::SearchAccept, "search-accept")
-                        }
-                        KeyCode::Backspace => enqueue_input(
-                            &mut model,
-                            InputCommand::SearchBackspace,
-                            "search-backspace",
-                        ),
-                        KeyCode::Char(ch) if !ch.is_control() => enqueue_input(
-                            &mut model,
-                            InputCommand::SearchChar(ch),
-                            &format!("search-char-{ch}"),
-                        ),
-                        _ => {}
-                    },
-                    OverlayMode::None => match key.code {
-                        KeyCode::Char('q') => enqueue_input(&mut model, InputCommand::Quit, "q"),
-                        KeyCode::Char('r') => enqueue_input(&mut model, InputCommand::RunJob, "r"),
-                        KeyCode::Char('c') => {
-                            enqueue_input(&mut model, InputCommand::CancelSelected, "c")
-                        }
-                        KeyCode::Char('j') => enqueue_input(&mut model, InputCommand::LogsUp, "j"),
-                        KeyCode::Char('k') => {
-                            enqueue_input(&mut model, InputCommand::LogsDown, "k")
-                        }
-                        KeyCode::Char('n') => enqueue_input(&mut model, InputCommand::JobsUp, "n"),
-                        KeyCode::Char('m') => {
-                            enqueue_input(&mut model, InputCommand::JobsDown, "m")
-                        }
-                        KeyCode::Char('u') => enqueue_input(&mut model, InputCommand::TasksUp, "u"),
-                        KeyCode::Char('i') => {
-                            enqueue_input(&mut model, InputCommand::TasksDown, "i")
-                        }
-                        KeyCode::Tab => {
-                            enqueue_input(&mut model, InputCommand::FocusNext, "focus-next")
-                        }
-                        KeyCode::Char('1') => {
-                            enqueue_input(&mut model, InputCommand::FocusJobs, "focus-jobs")
-                        }
-                        KeyCode::Char('2') => {
-                            enqueue_input(&mut model, InputCommand::FocusTasks, "focus-tasks")
-                        }
-                        KeyCode::Char('3') => {
-                            enqueue_input(&mut model, InputCommand::FocusLogs, "focus-logs")
-                        }
-                        KeyCode::Char('f') => {
-                            enqueue_input(&mut model, InputCommand::CycleFilter, "cycle-filter")
-                        }
-                        KeyCode::Char('p') => {
-                            enqueue_input(&mut model, InputCommand::ToggleFollow, "toggle-follow")
-                        }
-                        KeyCode::Char('?') => {
-                            enqueue_input(&mut model, InputCommand::ToggleHelp, "toggle-help")
-                        }
-                        KeyCode::Char(':') | KeyCode::Char('a') => {
-                            enqueue_input(&mut model, InputCommand::TogglePalette, "toggle-palette")
-                        }
-                        KeyCode::Char('/') => {
-                            enqueue_input(&mut model, InputCommand::SearchOpen, "search-open")
-                        }
-                        KeyCode::Char('x') => {
-                            enqueue_input(&mut model, InputCommand::ClearSearch, "clear-search")
-                        }
-                        _ => {}
-                    },
+                model.dirty = false;
+                last_frame = Instant::now();
+            }
+
+            if event::poll(Duration::from_millis(20))? {
+                let terminal_event = event::read()?;
+                if matches!(terminal_event, CEvent::Resize(_, _)) {
+                    // Terminal::draw performs autoresize through the normal backend.
+                    // An unchanged model still needs a new layout after SIGWINCH.
+                    invalidate_frame(&mut model);
+                } else if let CEvent::Key(key) = terminal_event {
+                    if key.kind == KeyEventKind::Release {
+                        continue;
+                    }
+                    match model.overlay {
+                        OverlayMode::Help => match key.code {
+                            KeyCode::Esc | KeyCode::Char('?') => {
+                                enqueue_input(&mut model, InputCommand::ToggleHelp, "help-close")
+                            }
+                            _ => {}
+                        },
+                        OverlayMode::Palette => match key.code {
+                            KeyCode::Esc | KeyCode::Char(':') => enqueue_input(
+                                &mut model,
+                                InputCommand::TogglePalette,
+                                "palette-close",
+                            ),
+                            KeyCode::Char('j') | KeyCode::Down => {
+                                enqueue_input(&mut model, InputCommand::PaletteDown, "palette-down")
+                            }
+                            KeyCode::Char('k') | KeyCode::Up => {
+                                enqueue_input(&mut model, InputCommand::PaletteUp, "palette-up")
+                            }
+                            KeyCode::Enter => enqueue_input(
+                                &mut model,
+                                InputCommand::PaletteSelect,
+                                "palette-select",
+                            ),
+                            _ => {}
+                        },
+                        OverlayMode::Search => match key.code {
+                            KeyCode::Esc => enqueue_input(
+                                &mut model,
+                                InputCommand::SearchCancel,
+                                "search-cancel",
+                            ),
+                            KeyCode::Enter => enqueue_input(
+                                &mut model,
+                                InputCommand::SearchAccept,
+                                "search-accept",
+                            ),
+                            KeyCode::Backspace => enqueue_input(
+                                &mut model,
+                                InputCommand::SearchBackspace,
+                                "search-backspace",
+                            ),
+                            KeyCode::Char(ch) if !ch.is_control() => enqueue_input(
+                                &mut model,
+                                InputCommand::SearchChar(ch),
+                                &format!("search-char-{ch}"),
+                            ),
+                            _ => {}
+                        },
+                        OverlayMode::None => match key.code {
+                            KeyCode::Char('q') => {
+                                enqueue_input(&mut model, InputCommand::Quit, "q")
+                            }
+                            KeyCode::Char('r') => {
+                                enqueue_input(&mut model, InputCommand::RunJob, "r")
+                            }
+                            KeyCode::Char('c') => {
+                                enqueue_input(&mut model, InputCommand::CancelSelected, "c")
+                            }
+                            KeyCode::Char('j') => {
+                                enqueue_input(&mut model, InputCommand::LogsUp, "j")
+                            }
+                            KeyCode::Char('k') => {
+                                enqueue_input(&mut model, InputCommand::LogsDown, "k")
+                            }
+                            KeyCode::Char('n') => {
+                                enqueue_input(&mut model, InputCommand::JobsUp, "n")
+                            }
+                            KeyCode::Char('m') => {
+                                enqueue_input(&mut model, InputCommand::JobsDown, "m")
+                            }
+                            KeyCode::Char('u') => {
+                                enqueue_input(&mut model, InputCommand::TasksUp, "u")
+                            }
+                            KeyCode::Char('i') => {
+                                enqueue_input(&mut model, InputCommand::TasksDown, "i")
+                            }
+                            KeyCode::Tab => {
+                                enqueue_input(&mut model, InputCommand::FocusNext, "focus-next")
+                            }
+                            KeyCode::Char('1') => {
+                                enqueue_input(&mut model, InputCommand::FocusJobs, "focus-jobs")
+                            }
+                            KeyCode::Char('2') => {
+                                enqueue_input(&mut model, InputCommand::FocusTasks, "focus-tasks")
+                            }
+                            KeyCode::Char('3') => {
+                                enqueue_input(&mut model, InputCommand::FocusLogs, "focus-logs")
+                            }
+                            KeyCode::Char('f') => {
+                                enqueue_input(&mut model, InputCommand::CycleFilter, "cycle-filter")
+                            }
+                            KeyCode::Char('p') => enqueue_input(
+                                &mut model,
+                                InputCommand::ToggleFollow,
+                                "toggle-follow",
+                            ),
+                            KeyCode::Char('?') => {
+                                enqueue_input(&mut model, InputCommand::ToggleHelp, "toggle-help")
+                            }
+                            KeyCode::Char(':') | KeyCode::Char('a') => enqueue_input(
+                                &mut model,
+                                InputCommand::TogglePalette,
+                                "toggle-palette",
+                            ),
+                            KeyCode::Char('/') => {
+                                enqueue_input(&mut model, InputCommand::SearchOpen, "search-open")
+                            }
+                            KeyCode::Char('x') => {
+                                enqueue_input(&mut model, InputCommand::ClearSearch, "clear-search")
+                            }
+                            _ => {}
+                        },
+                    }
                 }
             }
-        }
 
-        if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
-            break;
+            if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
+                break;
+            }
+        }
+        Ok(())
+    })();
+
+    let shutdown = supervisor.shutdown(|event| apply_protocol_event(&mut model, event, 0));
+    for status in model.job_status.values_mut() {
+        if status.contains("running") || status == "queued" {
+            *status = "failed".to_string();
         }
     }
-
     save_snapshot(&snapshot_path, &model);
-    let _ = supervisor.kill();
-    Ok(())
+    execution.and(shutdown)
 }
 
 #[cfg(test)]

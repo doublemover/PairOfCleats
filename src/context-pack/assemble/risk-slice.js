@@ -571,7 +571,7 @@ export const buildRiskSlice = ({
           end: row.end
         })), indexSignature, repoRoot);
       for (const row of relevantRows) {
-        const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot });
+        const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot, indexSignature });
         if (hydrated.details) {
           callSiteById.set(row.callSiteId, hydrated.details);
         }
@@ -645,7 +645,8 @@ export const buildRiskSlice = ({
     graphIndex,
     chunkIndex,
     repoRoot,
-    indexCompatKey
+    indexCompatKey,
+    indexSignature
   });
   const status = degraded ? 'degraded' : baseStatus;
   const resolvedArtifactStatus = {

@@ -11,14 +11,15 @@ const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 const INPUTS = ['package.json', 'package-lock.json', '.nvmrc',
   'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
-  'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js'];
+  'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
+  'src/lang/tree-sitter/native-grammar-binding.js'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const runtime = () => ({ node: process.version, abi: process.versions.modules,
   platform: process.platform, arch: process.arch });
 const readiness = (ready, reason = null) => ({
   ...buildReadinessReceipt({ items: [{ id: 'bootstrap', required: true,
     state: ready ? 'available-and-verified' : 'unverified', reason,
-    verificationLevel: ready ? 'setup-inputs-artifact-metadata-and-native-activation' : null }] }), reason
+    verificationLevel: ready ? 'setup-inputs-artifact-metadata-with-explicit-capabilities' : null }] }), reason
 });
 const signature = file => {
   const stat = fs.statSync(file);
@@ -51,7 +52,7 @@ const safeFile = (root, relative) => {
 /** Called only after the existing complete native verifier and patch verifier
  * succeed. A receipt records evidence, not a substitute for current readiness.
  */
-export const recordBootstrapReadiness = (root, verifiedPackages) => {
+export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [] } = {}) => {
   root = fs.realpathSync(root);
   const pkg = JSON.parse(readBounded(path.join(root, 'package.json')));
   const declared = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).sort();
@@ -87,7 +88,8 @@ export const recordBootstrapReadiness = (root, verifiedPackages) => {
   }
   if (artifacts.length > 10000) throw new Error('Bootstrap artifact inventory exceeds its bound.');
   const receipt = { schemaVersion: 1, root, runtime: runtime(), inputs: inputHashes(root),
-    verifiedPackages: [...verifiedPackages].sort(), declared, artifacts: artifacts.sort((a, b) => a[0].localeCompare(b[0])) };
+    verifiedPackages: [...verifiedPackages].sort(), nativeCapabilities, declared,
+    artifacts: artifacts.sort((a, b) => a[0].localeCompare(b[0])) };
   const text = JSON.stringify(receipt);
   if (Buffer.byteLength(text) > MAX_RECEIPT_BYTES) throw new Error('Bootstrap receipt exceeds its byte bound.');
   const target = path.join(root, BOOTSTRAP_RECEIPT), temporary = `${target}.${randomUUID()}.tmp`;

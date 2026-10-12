@@ -24,7 +24,7 @@ export const parseArgs = () => {
     .option('retries', { type: 'number' })
     .option('native-status-redo', { type: 'boolean', default: true, describe: 'Rerun native failure exit statuses once; disable to preserve first-failure qualification.' })
     .option('timeout-ms', { type: 'number' })
-    .option('allow-timeouts', { type: 'boolean', default: false })
+    .option('allow-timeouts', { type: 'boolean', default: false, describe: 'Deprecated diagnostic compatibility flag; timed-out results always fail acceptance.' })
     .option('fail-fast', { type: 'boolean', default: false })
     .option('quiet', { type: 'boolean', default: false })
     .option('json', { type: 'boolean', default: false })

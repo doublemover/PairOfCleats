@@ -17,6 +17,7 @@ const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
 const inputs = ['.nvmrc', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
+  'src/lang/tree-sitter/native-grammar-binding.js',
   'tools/setup/rebuild-native-exit.js'];
 const entries = ['bin/pairofcleats.js', 'tests/run.js', 'tools/bench/bench-runner.js', 'tools/bench/micro/hash.js'];
 const execute = entry => spawnSync(process.execPath, [path.join(root, entry)], {

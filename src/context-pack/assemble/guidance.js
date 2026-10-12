@@ -10,7 +10,8 @@ export const buildRiskGuidance = ({
   graphIndex,
   chunkIndex,
   repoRoot,
-  indexCompatKey
+  indexCompatKey,
+  indexSignature = null
 }) => {
   if (!graphIndex || !Array.isArray(flows) || flows.length === 0) return null;
   const callGraphIndex = graphIndex.callGraphIndex instanceof Map ? graphIndex.callGraphIndex : new Map();
@@ -161,7 +162,8 @@ export const buildRiskGuidance = ({
         maxSuggestions: CONTEXT_PACK_MAX_RISK_GUIDANCE_TESTS,
         maxCandidates: CONTEXT_PACK_MAX_RISK_GUIDANCE_TESTS * 4
       },
-      indexCompatKey
+      indexCompatKey,
+      indexSignature
     })
     : { suggestions: [], truncation: [] };
   const tests = Array.isArray(testReport?.suggestions)
