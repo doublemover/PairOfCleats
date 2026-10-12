@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runEmbeddingsStage } from '../../../src/integrations/core/build-index/stages.js';
+import { resolveBuildInvocationArgs } from '../../../src/integrations/core/args.js';
 import { loadQueue } from '../../../tools/service/queue.js';
 import { createJobExecutor } from '../../../tools/service/indexer-service/job-executor.js';
 import { parseBuildEmbeddingsArgs } from '../../../tools/build/embeddings/cli.js';
@@ -30,9 +31,21 @@ await fs.writeFile(script, `const fs = await import('node:fs');
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(temp, 'cache'), embeddings: 'stub' });
 const config = { models: { id: 'original-config-model' }, indexing: { embeddings: { normalize: false, mode: 'service' } } };
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify(config));
-const argv = { model: 'parent-cli-model', dims: 16, threads: 1, scheduler: false,
-  'scheduler-cpu': 1, 'scheduler-io': 2, 'scheduler-mem': 3,
-  'scheduler-starvation': 400, 'scheduler-low-resource': false };
+const callerHook = () => {};
+const callerObject = { retained: true };
+const apiOptions = { model: 'parent-cli-model', dims: 16, threads: 1, scheduler: false,
+  schedulerCpu: 1, schedulerIo: 2, schedulerMem: 3, schedulerStarvation: 400,
+  schedulerLowResource: false, stubEmbeddings: true, log: callerHook, metadata: callerObject };
+const { argv } = resolveBuildInvocationArgs(apiOptions);
+assert.equal(argv.log, callerHook);
+assert.equal(argv.metadata, callerObject);
+assert.equal(argv['stub-embeddings'], true);
+assert.deepEqual(Object.fromEntries(['cpu', 'io', 'mem', 'starvation', 'low-resource'].map(key => [key, argv[`scheduler-${key}`]])),
+  { cpu: 1, io: 2, mem: 3, starvation: 400, 'low-resource': false });
+const canonicalWins = resolveBuildInvocationArgs({ ...apiOptions, 'scheduler-cpu': 4, 'stub-embeddings': false }).argv;
+assert.equal(canonicalWins['scheduler-cpu'], 4);
+assert.equal(canonicalWins['stub-embeddings'], false);
+assert.equal(resolveBuildInvocationArgs({ ...apiOptions, rawArgv: [], 'scheduler-cpu': 5 }).argv['scheduler-cpu'], 5);
 const base = { root: repo, argv, embedModes: ['code'], userConfig: config, indexRoot: build,
   includeEmbeddings: true, overallProgressRef: {}, log: () => {}, repoCacheRoot: path.join(temp, 'repo-cache'),
   runtimeEnv: env, recordIndexMetric: () => {}, buildEmbeddingsPath: script };

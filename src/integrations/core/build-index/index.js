@@ -1,7 +1,6 @@
 import crypto from 'node:crypto';
 import { consumeBuildCacheRebuild, rebuildRepoCache } from './cache-rebuild.js';
 import path from 'node:path';
-import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import { watchIndex } from '../../../index/build/watch.js';
 import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress-runtime.js';
@@ -18,7 +17,7 @@ import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-en
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
-import { buildRawArgs, buildStage2Args, normalizeStage } from '../args.js';
+import { resolveBuildInvocationArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
 import {
@@ -83,12 +82,11 @@ export const buildStreamedStage3Result = ({
  */
 export async function buildIndex(repoRoot, options = {}) {
   const root = getRepoRoot(repoRoot);
-  const defaults = parseBuildArgs([]).argv;
-  const baseArgv = { ...defaults, ...options, repo: root,
-    'cache-rebuild': options['cache-rebuild'] ?? options.cacheRebuild ?? defaults['cache-rebuild'] };
+  const invocation = resolveBuildInvocationArgs(options);
+  const baseArgv = { ...invocation.argv, repo: root };
   const explicitStage = normalizeStage(baseArgv.stage);
   const parsedArgv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
-  const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: options.rawArgv || buildRawArgs(options) });
+  const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: invocation.rawArgv });
   const { argv, rawArgv } = rebuild;
   const mode = argv.mode || 'all';
   const requestedModes = Array.isArray(options.modes) && options.modes.length ? options.modes : null;
