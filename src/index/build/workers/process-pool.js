@@ -80,7 +80,8 @@ export class IndexerProcessPool extends EventEmitter {
   get threads() { return [...this.children].map(slot => ({ threadId: slot.child.pid, terminate: () => this.stop(slot) })); }
   stats() { return { ...this.metrics, initializationRetainedBytes: this.initialization?.length || 0,
     estimatedCopiedDictionaryBytes: this.children.size * this.metrics.dictionaryCopyBytes, ownedChildren: this.children.size, queuedTasks: this.queueSize,
-    runningTasks: [...this.children].filter(slot => slot.task).length, aggregate: this.account.stats(),
+    runningTasks: [...this.children].filter(slot => slot.task).length,
+    terminatingTasks: [...this.children].filter(slot => slot.task && slot.stopping).length, aggregate: this.account.stats(),
     rssMethod: 'child-reported-samples-plus-prospective-heap-native-IPC-reservations' }; }
 
   run(payload, { name, signal = null } = {}) {
@@ -120,12 +121,21 @@ export class IndexerProcessPool extends EventEmitter {
     task.signal?.removeEventListener('abort', task.abort);
     const index = this.pending.indexOf(task);
     if (index >= 0) this.pending.splice(index, 1);
+    // Reject the caller promptly, but a terminating child still owns its input
+    // and IPC allowance until close confirms that storage has been released.
+    if (!task.slot?.stopping) this.releaseTask(task);
+    if (error) { this.metrics.failed++; task.reject(error); }
+    else { this.metrics.completed++; task.resolve(value); }
+  }
+
+  releaseTask(task) {
+    if (task.released) return;
+    task.released = true;
     if (task.slot?.task === task) task.slot.task = null;
+    task.slot = null;
     task.buffer = null;
     task.release();
     this.metrics.ipcReservedBytes -= task.reservationBytes;
-    if (error) { this.metrics.failed++; task.reject(error); }
-    else { this.metrics.completed++; task.resolve(value); }
   }
 
   reportError(error) { if (this.listenerCount('error')) this.emit('error', error); }
@@ -156,7 +166,11 @@ export class IndexerProcessPool extends EventEmitter {
     child.once('close', (code, signal) => {
       clearTimeout(slot.initializing);
       this.children.delete(slot);
-      if (slot.task) this.settle(slot.task, Object.assign(new Error(`Task process exited (${code ?? signal}).`), { code: 'ERR_PROCESS_TASK_EXIT' }));
+      if (slot.task) {
+        const task = slot.task;
+        this.settle(task, Object.assign(new Error(`Task process exited (${code ?? signal}).`), { code: 'ERR_PROCESS_TASK_EXIT' }));
+        this.releaseTask(task);
+      }
       resolveExit();
       if (!this.closed && this.pending.length) {
         if (this.metrics.restarts++ >= this.maxRestartAttempts) {
@@ -251,7 +265,10 @@ export class IndexerProcessPool extends EventEmitter {
     if (!this.destroying) {
       this.closed = true;
       for (const task of [...this.pending]) this.settle(task, createAbortError('Process pool destroyed.'));
-      for (const slot of this.children) if (slot.task) this.settle(slot.task, createAbortError('Process pool destroyed.'));
+      for (const slot of this.children) {
+        slot.stopping = true; slot.ready = false;
+        if (slot.task) this.settle(slot.task, createAbortError('Process pool destroyed.'));
+      }
       this.destroying = Promise.all([...this.children].map(slot => this.stop(slot))).then(() => {
         this.initialization = null; this.workerData = null;
         this.metrics.sampledChildRssBytes = 0;

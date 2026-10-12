@@ -1,4 +1,4 @@
-import { resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
+import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';
 import { createPreparedTextEncoder, normalizeEg2SessionOptions, normalizeEg2ModelFileName } from './embedding-prepared.js';
 import { normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
 import {
@@ -21,6 +21,7 @@ let transformersModuleLoader = () => import('@huggingface/transformers');
 let transformersModulePromise = null;
 const pipelineCache = new Map();
 const adapterCache = new Map();
+const retiringAdapters = new Set();
 let adapterFactory = null;
 
 const retirePipelineEntry = (entry) => {
@@ -69,15 +70,34 @@ const acquirePipeline = async (entry) => {
 };
 
 const retireAdapterEntry = (entry) => {
-  if (!entry || entry.references || entry.releasing) return entry?.releasing;
+  if (!entry) return;
+  entry.cacheOwned = false;
+  clearTimeout(entry.retentionTimer);
   if (adapterCache.get(entry.key) === entry) adapterCache.delete(entry.key);
-  entry.releasing = Promise.resolve().then(() => entry.adapter.dispose?.());
-  entry.releasing.catch(() => {});
-  return entry.releasing;
+  if (!entry.retirement) {
+    entry.retirement = new Promise((resolve, reject) => {
+      entry.resolveRetirement = resolve; entry.rejectRetirement = reject;
+    });
+    retiringAdapters.add(entry.retirement);
+    entry.retirement.then(() => retiringAdapters.delete(entry.retirement),
+      () => retiringAdapters.delete(entry.retirement));
+  }
+  if (!entry.references && !entry.releasing) {
+    entry.releasing = Promise.resolve().then(() => entry.adapter.dispose?.());
+    entry.releasing.then(entry.resolveRetirement, entry.rejectRetirement);
+  }
+  return entry.retirement;
+};
+const retainAdapterEntry = (entry, now) => {
+  entry.cacheOwned = true;
+  touchEntry(entry, ADAPTER_CACHE_TTL_MS, now);
+  clearTimeout(entry.retentionTimer);
+  entry.retentionTimer = setTimeout(() => { void retireAdapterEntry(entry); }, ADAPTER_CACHE_TTL_MS);
+  entry.retentionTimer.unref?.();
 };
 const releaseAdapterEntry = (entry) => {
   entry.references = Math.max(0, entry.references - 1);
-  return entry.references ? Promise.resolve() : retireAdapterEntry(entry);
+  return entry.references || entry.cacheOwned ? Promise.resolve() : retireAdapterEntry(entry);
 };
 const adapterLeaseOwners = new FinalizationRegistry(entry => { void releaseAdapterEntry(entry); });
 const LEASE_OPERATIONS = new Set(['embed', 'embedOne', 'prepare', 'embedPrepared', 'prewarm', 'estimateTokensBatch', 'endProfiling']);
@@ -103,7 +123,10 @@ const leaseAdapter = (entry) => {
         if (disposed) return Promise.reject(new Error('Embedding adapter lease is disposed.'));
         const work = Promise.resolve().then(() => value.apply(target, args));
         operations.add(work);
-        work.then(() => operations.delete(work), () => operations.delete(work));
+        work.then(() => operations.delete(work), () => {
+          operations.delete(work);
+          if (entry.cacheOwned) void retireAdapterEntry(entry);
+        });
         return work;
       });
       return methods.get(key);
@@ -113,12 +136,18 @@ const leaseAdapter = (entry) => {
   return lease;
 };
 
-const resetEmbeddingAdapterCachesInternal = () => {
-  transformersModulePromise = null;
+/** Release cache ownership, joining native disposal after outstanding leases drain. */
+export const disposeEmbeddingAdapterCaches = () => {
+  for (const entry of [...adapterCache.values()]) retireAdapterEntry(entry);
   for (const entry of pipelineCache.values()) retirePipelineEntry(entry);
   pipelineCache.clear();
-  for (const entry of adapterCache.values()) retireAdapterEntry(entry);
-  adapterCache.clear();
+  return Promise.all([...retiringAdapters]);
+};
+
+const resetEmbeddingAdapterCachesInternal = () => {
+  transformersModulePromise = null;
+  const disposing = disposeEmbeddingAdapterCaches();
+  disposing.catch(() => {});
   adapterFactory = createAdapter;
 };
 
@@ -223,6 +252,7 @@ export const __setAdapterFactoryForTests = (factory) => {
  * initialization during repeated indexing/search sessions.
  *
  * @param {object} options
+ * @param {boolean} [options.retainInCache] Keep a bounded cache owner after query leases return.
  * @returns {object}
  */
 export function getEmbeddingAdapter(options) {
@@ -238,6 +268,7 @@ export function getEmbeddingAdapter(options) {
     provider: resolvedProvider, modelId: options?.modelId, modelsDir: options?.modelsDir,
     rootDir: options?.rootDir, onnx: normalizedOnnxConfig, modelProfile, stub: options?.useStub === true
   });
+  const retainInCache = options?.retainInCache === true && embeddingArtifactReusable(modelArtifact);
   const cacheKey = JSON.stringify({
     modelArtifact,
     provider: resolvedProvider,
@@ -258,6 +289,7 @@ export function getEmbeddingAdapter(options) {
   const cached = adapterCache.get(cacheKey);
   if (cached) {
     touchEntry(cached, ADAPTER_CACHE_TTL_MS, now);
+    if (retainInCache || cached.cacheOwned) retainAdapterEntry(cached, now);
     return leaseAdapter(cached);
   }
   const adapter = adapterFactory({
@@ -278,6 +310,7 @@ export function getEmbeddingAdapter(options) {
   const entry = { key: cacheKey, adapter, references: 0, releasing: null,
     lastAccessAt: now, expiresAt: now + ADAPTER_CACHE_TTL_MS };
   adapterCache.set(cacheKey, entry);
+  if (retainInCache) retainAdapterEntry(entry, now);
   pruneCache(adapterCache, { maxEntries: ADAPTER_CACHE_MAX_ENTRIES, now, onEvict: retireAdapterEntry });
   return leaseAdapter(entry);
 }

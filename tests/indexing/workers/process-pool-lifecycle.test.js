@@ -65,4 +65,52 @@ for (const variant of ['pre', 'queued', 'active', 'initialization', 'crash']) {
     }
   } finally { await clean(pool, pids); }
 }
+// Caller settlement is not storage release: cancellation, timeout and destroy
+// must retain the active task's reservation through confirmed child termination.
+for (const variant of ['abort', 'timeout', 'destroy']) {
+  const account = createProcessMemoryAccount(1024 * 1024 * 1024);
+  pool = create({ maxThreads: 1, taskTimeout: 300, budgetAccount: account });
+  pids = new Set();
+  let started, allowStop;
+  const ready = new Promise(resolve => { started = resolve; });
+  const stopGate = new Promise(resolve => { allowStop = resolve; });
+  const originalStop = pool.stop.bind(pool);
+  pool.stop = async slot => { await stopGate; return originalStop(slot); };
+  pool.on('workerCreate', child => pids.add(child.pid));
+  pool.on('message', message => { if (message.type === 'worker-task' && message.status === 'start') started(); });
+  const abort = new AbortController();
+  const work = pool.run({ bytes: Buffer.alloc(1024 * 1024), retainUntilExit: true },
+    { name: 'quantizeVectors', signal: abort.signal });
+  const rejected = assert.rejects(work, variant === 'timeout' ? { code: 'ERR_PROCESS_TASK_TIMEOUT' } : { name: 'AbortError' });
+  let destroying;
+  try {
+    await ready;
+    const before = pool.stats();
+    if (variant === 'abort') abort.abort();
+    if (variant === 'destroy') destroying = pool.destroy();
+    await rejected;
+    const during = pool.stats();
+    assert.equal(during.ipcReservedBytes, before.ipcReservedBytes);
+    assert.equal(during.aggregate.reservedBytes, before.aggregate.reservedBytes);
+    assert.equal(during.runningTasks, 1);
+    assert.equal(during.terminatingTasks, 1);
+    for (const pid of pids) assert.equal(alive(pid), true);
+    // The same account must not lend cancelled-but-still-owned storage to a
+    // sibling pool. This reservation would fit only if the task were released.
+    const candidateBytes = account.stats().limitBytes - account.stats().parentRssBytes
+      - before.aggregate.reservedBytes + Math.floor(before.ipcReservedBytes / 2);
+    assert.throws(() => account.reserve(candidateBytes), { code: 'ERR_PROCESS_TASK_BUDGET' });
+    const slot = [...pool.children][0];
+    allowStop();
+    await slot.exited;
+    if (destroying) await destroying;
+    assert.equal(pool.stats().ipcReservedBytes, 0);
+    assert.equal(pool.stats().terminatingTasks, 0);
+    const release = account.reserve(candidateBytes);
+    release();
+  } finally {
+    allowStop();
+    await clean(pool, pids);
+  }
+}
 console.log('Bounded process overlap, task fencing, IPC caps, cancellation, initialization failure and one restart drain cleanly.');
