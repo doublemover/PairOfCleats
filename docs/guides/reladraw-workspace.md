@@ -1,8 +1,10 @@
 # Bounded Reladraw evidence workspace
 
-Status: **first-stage implementation checkpoint, not browser-qualified and not a complete viewer replacement** (2026-10-11).
+Status: **real Chromium/service/Worker qualification passed; software WebGL only** (2026-10-12).
 
-Based on `codex/semantic-resume-campaign-20261010` at `91b3c48968d3453d051bd41e23a70d98eca4f697`.
+The initial workspace checkpoint was based on `codex/semantic-resume-campaign-20261010`
+at `91b3c48968d3453d051bd41e23a70d98eca4f697`. The October 12 interface repairs use
+the audited `bb9901ac808a24629c8004ddd2479006716498be` baseline.
 The [owner's integration plan](https://chatgpt.com/space/page_aa58b6c8d548819184b23ee01c489455) identifies
 `reladraw/reladraw`; the npm dependency is exactly `reladraw@0.16.0`, Apache-2.0.
 The upstream NOTICE is retained in `docs/licenses/reladraw-NOTICE.txt`.
@@ -48,7 +50,7 @@ artifact names registered by this campaign's contracts. Inventory completeness d
 | Semantic detail/find/trace/explain | partition + local-ID identities, scope hierarchy, operands and typed edges | ordinal slots, ownership, names, source refs, available/omitted fields, frontier and explanations | real TypeScript collector fixture validated against semantic detail contract |
 | Search | separate original-ranked result lists by mode | stable rank and hit membership, evidence inspector | real ranked memory search, duplicate-ID and rank tests; no client reranking |
 | Enrichment result | task/state cards, authority and publication lineage | inspect blocked/completed state and diagnostics | real published-generation plan-only service fixture; no execution buttons |
-| Runtime evidence/families | separate observations, inferred claims, families, integrity and joins | evidence list and explicit limitations | real saved synthetic capture import, observation pagination, family discovery, comparison and immutable-claim lookup; browser flows unqualified |
+| Runtime evidence/families | separate observations, inferred claims, families, integrity and joins | evidence list and explicit limitations | actual API/browser family→verified-coordinate observation→immutable inferred claim qualified with a saved synthetic capture; no live measurements |
 | Impact/architecture/test suggestions/risk | report-specific entries and ordered witness/source fields | evidence/path inspection without invented relation edges | real architecture/test-suggestion producers and actual risk-index standalone/composite explanations; risk-delta adapter is contract-fixtured |
 | Symbolic type query | membership/cardinality results; response-inline compressed word DAG | literal/ordered-concat inspection, shared child identities, no expanded-string allocation | recovered compressed-result contract fixture; backend remains separately unpublished |
 | Logical array artifacts | manifest-pinned sequential row pages via existing loaders | 128-row / 64 KiB pages, single-use bounded cursors | 300-row loader fixture, expiration/stale/scope checks |
@@ -73,10 +75,18 @@ no accumulated expanded-path graph cache.
 - Editing failures keep the last valid layout for the same projection. A changed projection
   clears old geometry rather than displaying an old generation beneath a new coverage label.
 - Requests abort predecessors and use latest-request-wins plus explicit generation checking.
-- Artifact service owns at most eight readers with 60-second idle expiration, pruned on calls.
+- Each API router owns at most eight active or suspended readers. An unref'd
+  timer expires suspended readers after 60 seconds without requiring another
+  request. Awaited router shutdown cancels active reads and closes every reader;
+  failed reader cleanup remains a terminal error, including failure during idle
+  expiry or an active read, and is reported again by the idempotent close operation.
+  Cursors cannot cross router instances.
   Cursor tokens are single-use and tied to repository, generation and artifact.
 - Source, response, display and omitted counts are distinct. The existing display limiter also
   preserves producer truncation, counts endpoint-filtered edges and recomputes display aggregates.
+- Small/short viewports scroll the document vertically, keep wrapped editor controls
+  above the footer, and show a fixed inspector when selected. Large diagrams retain
+  their bounded internal scroll area and Fit diagram control.
 
 The 2 MiB artifact read ceiling is intentionally conservative. It can reject large JSON/columnar
 artifacts, and semantic stores have their own backend admission rules. This is not demonstrated
@@ -98,21 +108,58 @@ semantic rows, label injection, identity/rank preservation, unresolved orientati
 paged admission, request/worker replacement, timeout, generation mismatch, catalog pagination,
 API auth/origin/repository/static-path boundaries and the existing viewer contract matrix.
 
-Browser acceptance is **blocked, not passed**: the installed shell Chromium could not create its
+Historical browser acceptance at the 2026-10-11 checkpoint was **blocked, not passed**: the installed shell Chromium could not create its
 Unix singleton socket (`Operation not permitted`); the supported cloud browser could not reach
 the isolated shell loopback preview (`ERR_CONNECTION_REFUSED`). A later owner-private synthetic-only Site was successfully deployed, but its cloud-browser
 authentication redirect was denied. No sign-in was performed. No screenshots, visual-quality,
 GPU, FPS, mobile-layout or genuine browser-interaction results were fabricated.
 
-Per the owner’s direction, continue without asking for sign-in/setup. DOM emulation exercises
-real application controls and actual Reladraw output but cannot qualify visual layout or GPU behavior.
-A future authorized browser session should verify the remaining visual checklist below. The two-file published test index
-now covers catalog→semantic detail, actual code maps, graph context, impact and ranked memory search. The functional gate is assessed with producer, router, compiler and DOM tests; visual qualification remains explicitly open.
+DOM emulation exercises real application controls and actual Reladraw output but
+cannot qualify rendered layout or GPU behavior. The later October 12 task-owned
+Chromium session qualified the actual local services without browser sign-in.
+The second viewer remains documented in [Semantic stacks](code-maps.md#semantic-stacks-threejs).
 
-After the expanded eight-test producer/DOM suite passed, the owner directed proceeding with
-alternate validation rather than blocking on browser sign-in. The second-stage implementation
-is documented in [Semantic stacks](code-maps.md#semantic-stacks-threejs). Visual qualification
-remains separate from the programmatic functional gate.
+The 2026-10-12 harness uses a real published SSR witness and actual API router for
+catalog → artifact → exact semantic detail, ranked search, retained stale/cancelled
+views, downloads and real Reladraw Worker deadlines. Saved synthetic CPU/code-log
+captures join to verified SSR source coordinates and flow through family discovery,
+observations and separate immutable inferred claims. Runtime receipts include
+verification bytes and family-open counts. The independent Three.js CLI/server
+qualifies source-member selection, records the actual WebGL renderer and injects
+WebGL unavailability to verify source hierarchy/inspector fallback.
+
+The final Linux x64 run used Node 26.8.1, Playwright 1.56.1 and Chromium 141.0.7390.37.
+All eleven workflows passed in 19.08 seconds including awaited cleanup, within the
+unchanged 30-second allowance. It followed five bounded actual artifact pages to
+`alias.slice()` in retained SSR source, checked exact detail/span/hash identity,
+and inspected all five desktop/mobile/Three.js screenshots. The injected Worker
+stall terminated in 1.043 seconds and preserved the previous SVG. Runtime lookup
+opened one family and verified 42,753 bytes for one admitted observation.
+
+The observed renderer was WebGL 2 through ANGLE Vulkan SwiftShader with no context
+loss. Saved profile 10 µs deltas are explicitly synthetic; verified source refs and
+immutable inferred claims do not turn them into live or causal measurements.
+Earlier startup/paging failures and narrower machine passes remain retained;
+browser and screenshot review exposed and corrected same-origin module admission and mobile
+editor/footer overlap before final layout acceptance.
+
+Run the harness with explicitly supplied task-owned browser assets and an isolated
+receipt directory; it does not install browser dependencies or capture a live process:
+
+```text
+node tests/map/workspace/browser-qualification.js --playwright /task/browser/node_modules/playwright/index.mjs --chromium /task/browser/chrome --out /task/evidence
+```
+
+`browser-qualification.json` records the checkout, source/generation identity, browser,
+observed renderer, request statuses, measured worker deadline and workflow results.
+The complete fixture has a 30-second work allowance, propagated into the build and
+runtime import owners, with 5-second browser steps and a 1-second Worker deadline.
+It awaits all resource cleanup and reports cleanup time separately; a failed or
+over-budget run, including cleanup failure, cannot produce a passing receipt.
+Desktop, mobile portrait/landscape and separate Three.js screenshots accompany it.
+A headless software-renderer pass is distinct from hardware/GPU/platform acceptance;
+inspect the screenshots for occlusion and visual quality before making that claim.
+Perfetto was not requested and no adapter or live attach permission is implied.
 
 ## Alternate validation and remaining visual checks
 
@@ -124,6 +171,7 @@ Resource fixtures exercise 64 KiB page cuts, oversized individual row rejection,
 artifact rejection, eight-reader eviction, cancellation and recovery after rejection. Large complete
 exports are intentionally rejected; this does not establish unrestricted large-index support.
 
-Still requiring rendered visual QA: overlapping/occluded labels and pick overlays; keyboard focus
-visibility and screen-reader order; fit/zoom scroll anchoring; narrow-screen panel sizing; download
-behavior; native Worker deadlines/cancellation under CPU pressure; and real service-to-UI workflows.
+The tiny actual-service workflows qualify selection/focus, source identity, downloads,
+stale/cancelled views, bounded Worker deadlines, responsive control layout and software
+WebGL fallback. Large graph label density, screen-reader order, CPU-pressure behavior,
+hardware FPS/GPU performance and native Windows browser execution require separate receipts.

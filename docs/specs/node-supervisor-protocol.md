@@ -119,6 +119,17 @@ Defaults:
 - `captureStdout: "none"` for large-output commands
 - `captureStdout: "json"` for “setup/config dump” style commands
 
+`maxBytes` is a positive integer, clamped to 64 MiB, and bounds retained result
+bytes independently of streamed progress. Disabled capture retains zero bytes.
+`job:end.resultState` reports `disabled`, `complete`, `truncated`, `invalid-json`,
+or `incomplete`; process `status` remains a separate field. Truncated or invalid
+JSON has `result:null`. `resultCapture` includes `observedBytes`, `retainedBytes`,
+`droppedBytes`, `outputBytes`, `encodingLoss`, and `truncated`. Text may contain a
+bounded tail when truncated. A complete result is never inferred from exit code.
+`retainedBufferBytes` reports actual retained backing-buffer storage. Lifecycle
+events keep their critical status when chunked, so exhausted progress credits
+cannot suppress a terminal result.
+
 ### 4.3 `job:cancel`
 Cancels an active job. Must be idempotent.
 

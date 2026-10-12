@@ -12,6 +12,14 @@ export const SEMANTIC_ENRICHMENT_REQUEST_SCHEMA = object({ schemaVersion: { cons
   generation: SEMANTIC_GENERATION_SCHEMA }, { action: { enum: ['plan', 'enqueue', 'drain'], default: 'plan' },
   taskIds: list(taskId), limits: SEMANTIC_ENRICHMENT_LIMITS_SCHEMA });
 const lineage = object({ sourceTaskId: taskId, replannedTaskId: taskId, inputHash: hash, policyHash: hash });
+const count = { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
+const scope = (key, items) => object({ [key]: list(items), count, truncated: { type: 'boolean' } });
+const sourceScope = scope('sourceUnits', { type: 'string', pattern: '^su1:[a-f0-9]{64}$' });
+const pathScope = scope('paths', text);
+const workScopes = object({ requested: sourceScope, widened: nullable(sourceScope), retainedSyntax: nullable(sourceScope),
+  compilerParseReused: nullable(pathScope), compilerParsed: nullable(pathScope), sourceBytesReused: count, peakRetainedBytes: count,
+  retainedByteBasis: { const: 'source-bytes-times-16-estimate' }, retainedSyntaxVerifiedBytes: count,
+  replayReceiptsComplete: { type: 'boolean' }, droppedReplayReceipts: count });
 export const SEMANTIC_ENRICHMENT_RESULT_SCHEMA = object({ schemaVersion: { const: 1 }, requestId: hash,
   action: { enum: ['plan', 'enqueue', 'drain'] }, generation: SEMANTIC_GENERATION_SCHEMA,
   executionAuthorized: { type: 'boolean' }, status: { enum: ['planned', 'enqueued', 'published', 'recovered', 'blocked', 'unavailable', 'partial'] },
@@ -21,12 +29,12 @@ export const SEMANTIC_ENRICHMENT_RESULT_SCHEMA = object({ schemaVersion: { const
   publishedGeneration: nullable(SEMANTIC_GENERATION_SCHEMA), lineage: list(lineage),
   supportedExecutors: list({ enum: SEMANTIC_TASK_KINDS }), diagnostics: list(text),
   validation: { const: 'implementation-unverified' }
-});
+}, { workScopes });
 export const SEMANTIC_ENRICHMENT_JOURNAL_SCHEMA = object({ schemaVersion: { const: 1 }, requestId: hash,
   sourceGeneration: SEMANTIC_GENERATION_SCHEMA, sourceManifestHash: hash, sourcePointerHash: hash,
   taskIds: list(taskId), status: { enum: ['prepared', 'building', 'published', 'reconciled', 'failed'] },
   lineage: list(lineage), publishedGeneration: nullable(SEMANTIC_GENERATION_SCHEMA),
   publishedManifestHash: nullable(hash), newBuildRoot: nullable(text), failure: nullable(text)
-});
+}, { workScopes });
 export const SEMANTIC_ENRICHMENT_SCHEMAS = { request: SEMANTIC_ENRICHMENT_REQUEST_SCHEMA,
   result: SEMANTIC_ENRICHMENT_RESULT_SCHEMA, journal: SEMANTIC_ENRICHMENT_JOURNAL_SCHEMA };

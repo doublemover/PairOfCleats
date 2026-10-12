@@ -17,9 +17,10 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
   - Execution options: `emitOutput`, `exitOnError`, `logger`.
 - `search(repoRoot, params)`
   - Runs search and returns a JSON payload (same shape as `pairofcleats search --json`).
-  - Params mapped to CLI flags: `query`, `mode`, `backend`, `ann`, `annBackend`, `context`, `n`, `case`, `caseFile`,
+  - Params mapped to CLI flags: `query`, `mode`, `backend`, `ann`, `annBackend`, `cursor`, `n`, `case`, `caseFile`,
     `caseTokens`, `path`, `file`, `ext`, `lang`, `json`, `explain`.
   - Use `args` to pass any other CLI flags (for example `--compact`, `--top`, `--filter`, `--meta`, `--meta-json`).
+  - Deprecated `context: 0` is a no-op; other values fail before CLI invocation.
   - Execution options: `emitOutput`, `exitOnError`, `indexCache`, `sqliteCache`, `signal`, `scoreMode`, `root`.
 - `status(repoRoot, options)`
   - Returns artifact sizes and health hints (core status payload from `src/integrations/core/status.js`).

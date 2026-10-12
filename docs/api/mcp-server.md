@@ -4,6 +4,8 @@ PairOfCleats ships an MCP server that exposes indexing, search, and maintenance 
 
 ## Run
 - `node tools/mcp/server.js --mcp-mode <legacy|sdk|auto>`
+- `pairofcleats service mcp --mcp-mode <legacy|sdk|auto>`
+- From a checkout: `node bin/pairofcleats.js service mcp --mcp-mode sdk`
 
 Mode selection order: CLI `--mcp-mode` → env (`PAIROFCLEATS_MCP_MODE`) → config `mcp.mode`.
 Default mode is `legacy` unless `auto` is explicitly requested.
@@ -11,7 +13,7 @@ Default mode is `legacy` unless `auto` is explicitly requested.
 
 ## Transport
 - **SDK mode**: official MCP SDK stdio transport.
-- **Legacy mode**: Content-Length framed JSON-RPC over stdio (vscode-jsonrpc framing + parser).
+- **Legacy mode**: compatibility Content-Length framed JSON-RPC over stdio (vscode-jsonrpc framing + parser).
 - Only stdio transport is supported; `mcp.transport` is currently ignored.
 - Buffer limit defaults to 8MB. Configure via `mcp.maxBufferBytes` or `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES`.
 - Requests are queued (default 64). Configure via `mcp.queueMax` or `PAIROFCLEATS_MCP_QUEUE_MAX`.
@@ -40,12 +42,22 @@ Default mode is `legacy` unless `auto` is explicitly requested.
 - `search` defaults to compact JSON payloads. Use `output: "full"` in params to return full JSON.
 - Tool responses return `result.content[0].text` as a JSON string payload.
 - `initialize` responses include `schemaVersion`, `toolVersion`, and a capabilities payload under `capabilities.experimental.pairofcleats`.
-- Long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase, ts }`.
-  `id=0` is valid; only `null`/`undefined` is treated as missing.
+- Legacy long-running tools emit `notifications/progress` with `{ id, tool, message, stream, phase, ts }`.
+  SDK notifications carry `{ progressToken, progress, message }`; string and numeric
+  tokens, including zero, are accepted. Numeric progress counts events, and slow
+  transports coalesce pending updates. Neither count implies percentage completion.
 - Errors return `isError=true` with `{ message, code, stdout, stderr, hint, timeoutMs }` when available.
 
 ## Cancellation and timeouts
-- `$/cancelRequest` aborts in-flight calls by id.
+
+Service shutdown aborts queued and running SDK requests and awaits owned teardown.
+A transport close failure remains an error after the queue has drained; it cannot
+release running capacity or produce an apparently successful shutdown early.
+- Legacy `$/cancelRequest` cancels queued/in-flight calls by id. SDK uses standard
+  `notifications/cancelled`; transport closure or stdin EOF also cancels work.
+- SDK queue capacity is held until the actual tool and owned subprocess cleanup
+  settle. Cancelled queued calls never execute, and terminal calls emit no later
+  progress or success.
 - Tool timeouts default to 120s (longer for index/build/download tools). Configure via
   `mcp.toolTimeoutMs`, `mcp.toolTimeouts.<tool>`, or `PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS`.
 
@@ -60,4 +72,5 @@ Common cases:
 - Cache location defaults to the PairOfCleats cache root; override with `cache.root` or `PAIROFCLEATS_CACHE_ROOT`.
 - Repo paths are auto-detected; pass explicit `repoPath` when running out-of-tree.
 - JSON-RPC framing uses `vscode-jsonrpc`; LSP helpers rely on `vscode-languageserver-protocol` for symbol/position constants.
-- Tool commands spawn child Node processes via `execa` with bounded stdout/stderr buffers; long-running tools stream progress lines.
+- Tool commands use the shared subprocess runner with owned process-tree cleanup
+  and bounded stdout/stderr buffers; long-running tools stream progress lines.

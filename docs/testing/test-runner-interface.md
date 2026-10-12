@@ -110,7 +110,7 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
   - Global inactivity watchdog for the run.
   - When no child-test activity is observed for the configured duration, the runner kills active test process trees and marks watchdog telemetry in emitted artifacts.
 - `--allow-timeouts`
-  - Do not fail the run when a test times out.
+  - Deprecated diagnostic compatibility flag. Timeouts always remain failed results and exit 1, including when output contains a success phrase. Timeout classifications are diagnostic only.
 - `--node-options "<flags>"`
   - Extra `NODE_OPTIONS` passed to child test processes.
 - `--max-old-space-mb <n>`
@@ -291,7 +291,9 @@ Refer to `tests/run.rules.jsonc` for the exact match rules.
 - `2`: runner usage error (bad flags, unknown lane)
 - `77`: test skipped (use `tests/helpers/skip.js` for standard behavior)
 
-`--allow-timeouts` suppresses timeouts from contributing to exit code `1`.
+`--allow-timeouts` is a deprecated diagnostic compatibility flag. Every timeout
+still contributes to exit code `1`, including output classified as
+`timed_out_after_pass`; a success-looking log line cannot establish acceptance.
 
 ## Output format (human)
 

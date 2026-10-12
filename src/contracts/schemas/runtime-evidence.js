@@ -50,7 +50,7 @@ export const RUNTIME_CAPTURE_MANIFEST_SCHEMA = object({
 });
 const join = object({ quality: { enum: ['exact-source', 'source-map', 'heuristic', 'ambiguous', 'unresolved'] },
   sourceUnitId: nullable(sourceId), sourceHash: nullable(hash), targets: list(ref), reasons: strings,
-  sourceMapHash: nullable(hash) });
+  sourceMapHash: nullable(hash), targetQuality: { enum: ['verified-coordinate', 'unverified-candidate', 'unavailable', 'ambiguous'] } });
 const codeKey = object({ sessionId: text, processId: text, codeId: text, lifetimeId: text });
 const mapKey = object({ sessionId: text, processId: text, mapId: text, lifetimeId: text });
 const inlineFrame = object({ codeVersion: codeKey, sourceHash: nullable(hash), sourceRange: nullable(range) });
@@ -103,7 +103,7 @@ Object.assign(payloads.deoptimization.properties, {
 });
 Object.assign(payloads.icEvent.properties, { accessKind: nullable(text) });
 export const RUNTIME_EVIDENCE_SCHEMA = { oneOf: Object.entries(payloads).map(([kind, data]) => object({
-  schemaVersion: { const: 1 }, evidenceId: text, captureId: text, projectionVersion: text,
+  schemaVersion: { const: 1 }, evidenceId: text, captureId: text, projectionVersion: { const: '2' },
   kind: { const: kind }, evidenceClass: { const: kind === 'derivedClaim' ? 'inferred' : 'observed' },
   scope, clock, timestamp, workload, join, rawRefs: list(rawRef), unavailable: strings, warnings: strings, data
 })) };

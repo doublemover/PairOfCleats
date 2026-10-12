@@ -316,6 +316,13 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
+        "workerPool": {
+          "type": "object", "additionalProperties": true,
+          "properties": {
+            "processFallback": { "type": "boolean", "default": false,
+              "description": "Opt-in bounded tokenizer/quantizer process transport when Worker startup heap enforcement is unavailable; existing admission and aggregate memory budgets apply." }
+          }
+        },
         "semantic": {
           "type": "object",
           "additionalProperties": false,

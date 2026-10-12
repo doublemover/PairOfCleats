@@ -10,6 +10,8 @@ export const assertRuntimeFamily = (kind, value, { indexPath = 'runtime-evidence
     repoRoot, indexPath });
   if (kind === 'manifest' && !value?.queryIndex) throw Object.assign(new TypeError('Runtime family lookup index unavailable; explicitly reingest the saved artifacts.'),
     { code: 'ERR_RUNTIME_QUERY_INDEX_UNAVAILABLE' });
+  if (value?.queryIndex) assertCurrentIndexFormat({ operation: 'read', component: 'runtime query index',
+    foundVersion: value.queryIndex.formatVersion, expectedVersion: '2', repoRoot, indexPath });
   const validate = validators[kind];
   if (!validate || !validate(value)) throw Object.assign(new TypeError('Invalid runtime family ' + kind + ': ' + ajv.errorsText(validate?.errors)),
     { code: 'ERR_RUNTIME_FAMILY_CONTRACT' });

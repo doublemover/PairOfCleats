@@ -19,6 +19,7 @@ export const assertRuntimeEvidence = (kind, value) => {
   if (kind === 'evidence') {
     if (value.join.quality === 'exact-source' && (!value.join.sourceUnitId || !value.join.sourceHash)) fail('Exact join requires source identity and hash.');
     if (value.join.quality === 'unresolved' && value.join.targets.length) fail('Unresolved join cannot assert targets.');
+    if (value.join.targets.length && value.join.targetQuality !== 'verified-coordinate') fail('Runtime record targets need verified source coordinates.');
     if (value.kind !== 'derivedClaim' && !value.rawRefs.length) fail('Direct observation requires raw evidence.');
     for (const key of [value.data.key, value.data.codeVersion, value.data.inlinedInto, value.data.map, value.data.previousMap,
       ...(value.data.feedbackMaps || []), ...(value.data.inlineFrames || []).map(frame => frame.codeVersion)].filter(Boolean)) {

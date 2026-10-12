@@ -293,6 +293,8 @@ indexing.snapshots.maxPointerSnapshots (number)
 indexing.snapshots.protectedTagGlobs
 indexing.snapshots.retainDays (number)
 indexing.snapshots.stagingMaxAgeHours (number)
+indexing.workerPool (object)
+indexing.workerPool.processFallback (boolean)
 mcp (object)
 mcp.maxBufferBytes (number)
 mcp.mode (string) enum=legacy|sdk|auto
@@ -489,6 +491,7 @@ tooling.vfs.tokenMode (string)
 - indexing.postings.chargramFields = ["name","doc"]
 - indexing.postings.chargramStopwords = false
 - indexing.profile = "default"
+- indexing.workerPool.processFallback = false
 - retrieval.annCandidateCap = 20000
 - retrieval.annCandidateMaxDocCount = 20000
 - retrieval.annCandidateMinDocCount = 100

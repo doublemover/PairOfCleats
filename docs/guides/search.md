@@ -147,6 +147,65 @@ pairofcleats search --repo . --mode code --calls fetch --json
 
 Use the exact recorded type expression. A `boolean` filter does not also match a promise, array, union, alias, or a type merely containing that word. Inter-token whitespace is ignored; identifier case and literal contents remain significant. This is not an assignability or structural-equivalence query.
 
-`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Unknown/unrecorded compiler facts are excluded, and relation-name filters retain their provider's coverage limits. Federated enumeration is not yet available.
+`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Recorded compiler returns take precedence; declared returns remain eligible when compiler returns are unavailable. Unknown/unrecorded facts are not inferred. Relation-name filters retain their provider's coverage limits. Federated enumeration is not yet available.
+
+HTTP GET/POST, MCP `search` and the evidence workspace accept the same queryless
+filter request and continuation. For example, send `{ "returnType": "boolean",
+"mode": "code", "top": 20 }`, then include its `cursor` with the same filters.
+MCP also accepts `asOf`, `snapshot` and `snapshotId`; conflicting selectors fail.
+Search context lines are removed. Zero is accepted only as a deprecated no-op;
+use source excerpts or a context pack for context.
+
+Enumeration yields to the event loop at bounded row/time checkpoints and records
+scan, hydration and cache counters in `pagination.cost`. A compiled matching-ID
+representation admits at most 16 MiB per entry and 64 MiB across 32 entries;
+building an entry uses at most 32 MiB of bounded ID buffers. The existing retrieval
+cache directory also retains at most 64 MiB across 32 continuation entries.
+Admission charges both the old target and its atomic temporary replacement against
+that representation-file allowance; fixed key/lock metadata is separate. Cache
+members consume the shared contained-file owner and reject namespace symlinks.
+Authenticated headers bind each entry to the generation, filters, time anchor and
+mode; cold pages verify and seek only the needed ID blocks. Serialization adds
+at most 32 MiB of temporary buffers, independently of the number of matches.
+Oversized, missing, corrupt or busy entries fall back to a yielding scan that retains
+only the page. `matchingRepresentation` identifies the path, and `continuationReadBytes`
+reports its verified reads. `startupWork` reports actual metadata loads separately.
+SQLite continuations hydrate matching IDs with indexed seeks. File artifacts and the
+existing LMDB metadata blob still materialize metadata in each cold process; their
+load counters explicitly retain that cost. Long-lived index caches amortize those
+loads. Native and cold-process fixture receipts remain separate from warm predicate
+receipts, and filter-only loaders omit token, field, phrase and chargram postings.
+
+### Strict fact and scalar occurrence discovery
+
+Use build-pinned `semantic_find` for source and role selection, rather than
+changing the compatible fuzzy `inferredType` filter:
+
+The current strict producer records both lexical declarations and checker facts in
+the binding analysis partition. Declaration facts have a lexical span and a null
+compiler context key; checker failure can retain the declaration and emits an
+incomplete-coverage frontier. A missing or disabled binding producer does not imply
+that declaration facts were indexed. Inspect the returned coverage before treating
+an empty result as absence.
+
+```json
+{"selector":{"typeExpression":{"expression":"boolean","match":"exact-expression","sources":["compiler"],"roles":["return"]}}}
+```
+
+Add the normal `repoRoot` and immutable `generation` envelope. Select `declared`
+explicitly for recorded declaration facts, and select `local`, `parameter`,
+`field` or `return` roles. Results cite the matching fact, owner, compiler context
+and retained source identity. This compares tokenized expression identity, without
+assignability or alias expansion. Compiler formatting truncation and work/byte
+admission produce partial coverage rather than invented complete facts.
+
+`{"selector":{"literal":{"type":"boolean","representation":"true"}}}`
+finds parser-established scalar literal occurrences. String representations are
+JSON strings, and bigint representations are decimal strings. These are source
+occurrences; symbolic finite-string membership/classification remains a separate
+denotation query, and saved runtime type tags are separately observed evidence.
+Neither type display strings nor runtime tags become actual scalar values.
+Missing providers and unsupported domains retain coverage/frontiers; no universal
+runtime-value enumeration is asserted.
 
 Readable output includes bounded source excerpts with line numbers and lightweight syntax colors. Use `--plain` for plain text. `NO_COLOR`, non-TTY output and `TERM=dumb` also disable styling. Excerpts show the current working-tree source, which may differ from the indexed generation.
