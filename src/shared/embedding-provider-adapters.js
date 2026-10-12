@@ -55,16 +55,17 @@ export const createXenovaAdapter = ({ modelId, modelsDir, normalize, loadPipelin
       return embedder.embedPrepared(items);
     },
     executionInfo: () => ({
-      provider: 'xenova', loaded: resolvedEmbedder !== null, loading: embedderPromise !== null && resolvedEmbedder === null,
-      ...(resolvedEmbedder?.executionInfo?.() ?? {
-        preparedInputs: !!modelProfile, device: modelProfile ? 'cpu' : null,
-        executionProviders: modelProfile ? ['cpu'] : null,
-        modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
-        effectiveNativeThreads: null, effectiveGraphExecutionMode: null, sessions: [],
-        maxLength: modelProfile?.maxLength ?? null, maxConcurrentInference: modelProfile ? 1 : null,
-        profilingEnabled: sessionOptions.enableProfiling === true, profilingEnded: false,
-        optimizedModelFilePath: sessionOptions.optimizedModelFilePath ?? null
-      })
+      provider: 'xenova', requestedProvider: 'xenova', stub: false,
+      loaded: resolvedEmbedder !== null, loading: embedderPromise !== null && resolvedEmbedder === null,
+      modelArtifact: null, effectiveSessionOptions: null,
+      preparedInputs: !!modelProfile, device: null,
+      executionProviders: null,
+      modelFileName, requestedSessionOptions: structuredClone(sessionOptions),
+      effectiveNativeThreads: null, effectiveGraphExecutionMode: null, sessions: [],
+      maxLength: modelProfile?.maxLength ?? null, maxConcurrentInference: modelProfile ? 1 : null,
+      profilingEnabled: sessionOptions.enableProfiling === true, profilingEnded: false,
+      optimizedModelFilePath: sessionOptions.optimizedModelFilePath ?? null,
+      ...(resolvedEmbedder?.executionInfo?.() ?? {})
     }),
     endProfiling: async () => {
       const embedder = await ensureEmbedder();
@@ -115,6 +116,12 @@ export const createEmbeddingProviderAdapter = ({
     return {
       embed,
       embedOne,
+      executionInfo: () => ({
+        provider: resolvedProvider, requestedProvider: resolvedProvider, stub: true,
+        loaded: false, loading: false, device: null, executionProviders: null,
+        effectiveNativeThreads: null, effectiveGraphExecutionMode: null,
+        modelArtifact: null, effectiveSessionOptions: null
+      }),
       estimateTokensBatch: async (texts) => {
         const list = Array.isArray(texts) ? texts : [];
         return list.map((text) => estimateTokensHeuristic(text));
@@ -136,9 +143,25 @@ export const createEmbeddingProviderAdapter = ({
     let fallbackAdapter = null;
     let activeProvider = resolvedProvider;
     let warned = false;
-    const ensureFallback = () => {
+    let fallbackReason = null;
+    let loaded = false;
+    let loading = !!onnxEmbedder.embedderPromise;
+    // The ONNX owner acknowledges only session construction here. Requested
+    // providers/threads are not proof of effective native execution settings.
+    onnxEmbedder.embedderPromise?.then(() => {
+      loaded = true;
+      loading = false;
+    }, () => {
+      loaded = false;
+      loading = false;
+    });
+    const ensureFallback = (err) => {
       if (!fallbackAdapter) {
         fallbackAdapter = createXenovaAdapter({ modelId, modelsDir, normalize, loadPipeline });
+        fallbackReason = {
+          from: resolvedProvider, to: 'xenova', reason: 'native-load-failed',
+          code: err?.code || err?.cause?.code || 'ERR_DLOPEN_FAILED'
+        };
       }
       activeProvider = 'xenova';
       return fallbackAdapter;
@@ -151,34 +174,37 @@ export const createEmbeddingProviderAdapter = ({
     };
     return {
       embed: async (texts) => {
+        if (fallbackAdapter) return fallbackAdapter.embed(texts);
         try {
           return await onnxEmbedder.getEmbeddings(texts);
         } catch (err) {
           if (isDlopenFailure(err)) {
             warnFallback(err);
-            return ensureFallback().embed(texts);
+            return ensureFallback(err).embed(texts);
           }
           throw err;
         }
       },
       embedOne: async (text) => {
+        if (fallbackAdapter) return fallbackAdapter.embedOne(text);
         try {
           return await onnxEmbedder.getEmbedding(text);
         } catch (err) {
           if (isDlopenFailure(err)) {
             warnFallback(err);
-            return ensureFallback().embedOne(text);
+            return ensureFallback(err).embedOne(text);
           }
           throw err;
         }
       },
       estimateTokensBatch: async (texts) => {
+        if (fallbackAdapter) return fallbackAdapter.estimateTokensBatch(texts);
         try {
           return await onnxEmbedder.estimateTokens(texts);
         } catch (err) {
           if (isDlopenFailure(err)) {
             warnFallback(err);
-            return ensureFallback().estimateTokensBatch(texts);
+            return ensureFallback(err).estimateTokensBatch(texts);
           }
           throw err;
         }
@@ -193,7 +219,7 @@ export const createEmbeddingProviderAdapter = ({
         } catch (err) {
           if (isDlopenFailure(err)) {
             warnFallback(err);
-            const fallback = ensureFallback();
+            const fallback = ensureFallback(err);
             const warmTexts = normalizeAdapterPrewarmTexts(texts);
             const shouldWarmModel = model === true;
             if (shouldWarmModel && warmTexts?.length) {
@@ -209,6 +235,21 @@ export const createEmbeddingProviderAdapter = ({
           throw err;
         }
       },
+      executionInfo: () => ({
+        ...(fallbackAdapter?.executionInfo() ?? {
+          provider: activeProvider, stub: false, loaded, loading,
+          device: null, executionProviders: null,
+          effectiveNativeThreads: null, effectiveGraphExecutionMode: null,
+          modelArtifact: null, effectiveSessionOptions: null,
+          requestedSessionOptions: Object.fromEntries([
+            'executionProviders', 'intraOpNumThreads', 'interOpNumThreads', 'graphOptimizationLevel'
+          ].filter((key) => onnxConfig?.[key] != null)
+            .map((key) => [key, structuredClone(onnxConfig[key])]))
+        }),
+        requestedProvider: resolvedProvider,
+        requestedOnnxConfig: structuredClone(onnxConfig ?? {}),
+        fallback: fallbackReason ? { ...fallbackReason } : null
+      }),
       embedderPromise: onnxEmbedder.embedderPromise,
       get provider() {
         return activeProvider;
