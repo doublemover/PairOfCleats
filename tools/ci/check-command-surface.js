@@ -88,7 +88,7 @@ const getCliHelpText = (root) => {
 };
 
 const getConfigDumpCapabilityManifest = (root) => {
-  const result = spawnSync(process.execPath, [path.join(root, 'tools', 'config', 'dump.js'), '--json'], {
+  const result = spawnSync(process.execPath, [path.join(root, 'tools', 'config', 'dump.js'), '--json', '--capabilities'], {
     cwd: root,
     encoding: 'utf8'
   });

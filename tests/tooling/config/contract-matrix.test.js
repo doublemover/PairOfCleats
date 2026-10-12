@@ -184,7 +184,7 @@ const rootEnv = applyTestEnv({ syncProcess: false });
 {
   const repo = repoRoot();
   const scriptPath = path.join(repo, 'tools', 'config', 'dump.js');
-  const result = runNode([scriptPath, '--json'], 'config dump json', repo, rootEnv, { stdio: 'pipe' });
+  const result = runNode([scriptPath, '--json', '--capabilities'], 'config dump json with capabilities', repo, rootEnv, { stdio: 'pipe' });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const payload = JSON.parse(result.stdout || '{}');
   assert.ok(payload.repoRoot);
