@@ -1,3 +1,5 @@
+import { resolveEmbeddingIntent } from '../../shared/embedding-intent.js';
+import { getEnvConfig } from '../../shared/env/runtime.js';
 import { StringDecoder } from 'node:string_decoder';
 import { spawnSubprocess, SubprocessError } from '../../shared/subprocess/runner.js';
 
@@ -26,26 +28,10 @@ const createLineEmitter = (onLine) => {
   return { handleChunk, flush };
 };
 
-export const resolveEmbeddingRuntime = ({ argv, userConfig, policy }) => {
+export const resolveEmbeddingRuntime = ({ argv, userConfig, policy, envConfig = getEnvConfig() }) => {
   const embeddingsConfig = userConfig?.indexing?.embeddings || {};
-  const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
-    ? embeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
-  const baseStubEmbeddings = argv['stub-embeddings'] === true;
-  const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
-    ? embeddingModeRaw
-    : 'auto';
-  const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
-    ? (baseStubEmbeddings ? 'stub' : 'inline')
-    : normalizedEmbeddingMode;
-  const policyEmbeddings = policy?.indexing?.embeddings?.enabled;
-  const configEnabled = embeddingsConfig.enabled !== false;
-  const explicitEmbeddingsRequested = baseStubEmbeddings
-    || (normalizedEmbeddingMode !== 'auto' && normalizedEmbeddingMode !== 'off');
-  const embeddingEnabled = (explicitEmbeddingsRequested ? configEnabled : (policyEmbeddings ?? configEnabled))
-    && resolvedEmbeddingMode !== 'off';
-  const embeddingService = embeddingEnabled
-    && resolvedEmbeddingMode === 'service';
+  const intent = resolveEmbeddingIntent({ argv, embeddingsConfig, envConfig,
+    policyEnabled: policy?.indexing?.embeddings?.enabled });
   const queueDir = typeof embeddingsConfig.queue?.dir === 'string'
     ? embeddingsConfig.queue.dir.trim()
     : '';
@@ -54,10 +40,7 @@ export const resolveEmbeddingRuntime = ({ argv, userConfig, policy }) => {
     ? Math.max(0, Math.floor(queueMaxRaw))
     : null;
   return {
-    embeddingEnabled,
-    embeddingService,
-    useStubEmbeddings: resolvedEmbeddingMode === 'stub' || baseStubEmbeddings,
-    resolvedEmbeddingMode,
+    ...intent,
     queueDir,
     queueMaxQueued
   };

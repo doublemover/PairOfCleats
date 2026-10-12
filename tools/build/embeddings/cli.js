@@ -1,4 +1,6 @@
 import os from 'node:os';
+import { resolveEmbeddingIntent } from '../../../src/shared/embedding-intent.js';
+import { INDEX_BUILD_OPTIONS } from '../../../src/shared/cli-option-sets.js';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-batch.js';
@@ -18,6 +20,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       repo: { type: 'string' },
       dims: { type: 'number' },
       model: { type: 'string' },
+      ...Object.fromEntries(['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource'].map(key => [key, INDEX_BUILD_OPTIONS[key]])),
       batch: { type: 'number' },
       'stub-embeddings': { type: 'boolean', default: false },
       'index-root': { type: 'string' },
@@ -36,7 +39,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const modelConfig = getModelConfig(root, userConfig);
-  const modelId = argv.model || modelConfig.id;
+  const modelId = argv.model || embeddingsConfig.model || modelConfig.id;
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const autoTune = loadEmbeddingsAutoTuneRecommendation({
     repoCacheRoot,
@@ -45,22 +48,8 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     log: null
   });
 
-  const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
-    ? embeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
-  const baseStubEmbeddings = argv['stub-embeddings'] === true
-    || envConfig.embeddings === 'stub';
-  const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
-    ? embeddingModeRaw
-    : 'auto';
-  // build-embeddings runs inline; service mode from config is coerced here.
-  const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
-    ? (baseStubEmbeddings ? 'stub' : 'inline')
-    : (normalizedEmbeddingMode === 'service'
-      ? (baseStubEmbeddings ? 'stub' : 'inline')
-      : normalizedEmbeddingMode);
-
-  const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
+  const intent = resolveEmbeddingIntent({ argv, embeddingsConfig, envConfig, execution: 'worker' });
+  const { normalizedEmbeddingMode, resolvedEmbeddingMode, useStubEmbeddings } = intent;
 
   const embeddingBatchRaw = Number(argv.batch ?? indexingConfig.embeddingBatchSize ?? autoTune?.recommended?.batchSize);
   let embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
@@ -110,6 +99,8 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
 
   return {
     rawArgv: resolvedRawArgs,
+    rawEnv: process.env,
+    embeddingIntent: intent,
     argv,
     root,
     userConfig,

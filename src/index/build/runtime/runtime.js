@@ -1,3 +1,4 @@
+import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
@@ -18,7 +19,7 @@ import {
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
-import { log, logLine } from '../../../shared/progress-runtime.js';
+import { log, logLine, updateLogContext } from '../../../shared/progress-runtime.js';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
 import { isAbsolutePathNative } from '../../../shared/file-paths.js';
@@ -148,6 +149,30 @@ export async function createBuildRuntime({
 
   const userConfig = await timeInit('load config', () => loadUserConfig(root));
   const envConfig = getEnvConfig();
+  const stage = normalizeStage(argv.stage || envConfig.stage);
+  const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
+  const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
+  const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
+  const logDestination = logFileRaw
+    ? (isAbsolutePathNative(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
+    : null;
+  if (logDestination) {
+    try {
+      await fs.mkdir(path.dirname(logDestination), { recursive: true });
+    } catch {}
+  }
+  const loggingConfig = userConfig.logging || {};
+  configureRuntimeLogger({
+    envConfig,
+    loggingConfig,
+    buildId: null,
+    configHash: null,
+    stage,
+    root,
+    logDestination,
+    logFormatOverride,
+    observability
+  });
   const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
@@ -186,7 +211,7 @@ export async function createBuildRuntime({
   }
   if (policyEmbeddings && typeof policyEmbeddings.enabled === 'boolean') {
     indexingConfig = mergeConfig(indexingConfig, {
-      embeddings: { enabled: policyEmbeddings.enabled }
+      embeddings: { enabled: resolveEmbeddingIntent({ argv, embeddingsConfig: indexingConfig.embeddings, envConfig, policyEnabled: policyEmbeddings.enabled }).embeddingEnabled }
     });
   }
   if (policyWorkerPool) {
@@ -209,20 +234,13 @@ export async function createBuildRuntime({
     });
   }
   const baseEmbeddingsConfig = indexingConfig.embeddings || {};
-  const baseEmbeddingModeRaw = typeof baseEmbeddingsConfig.mode === 'string'
-    ? baseEmbeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
-  const baseEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(baseEmbeddingModeRaw)
-    ? baseEmbeddingModeRaw
-    : 'auto';
-  const baseEmbeddingsPlanned = baseEmbeddingsConfig.enabled !== false && baseEmbeddingMode !== 'off';
+  const baseEmbeddingsPlanned = resolveEmbeddingIntent({ argv, embeddingsConfig: baseEmbeddingsConfig, envConfig }).embeddingEnabled;
   const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
     ? indexingConfig.hash.backend.trim().toLowerCase()
     : '';
   if (requestedHashBackend && !envConfig.xxhashBackend) {
     setXxhashBackend(requestedHashBackend);
   }
-  const stage = normalizeStage(argv.stage || envConfig.stage);
   const twoStageConfig = indexingConfig.twoStage || {};
   const stageOverrides = buildStageOverrides(twoStageConfig, stage);
   if (stageOverrides) {
@@ -349,17 +367,6 @@ export async function createBuildRuntime({
     env: process.env,
     toolVersion: getToolVersion()
   }));
-  const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
-  const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
-  const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
-  const logDestination = logFileRaw
-    ? (isAbsolutePathNative(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
-    : null;
-  if (logDestination) {
-    try {
-      await fs.mkdir(path.dirname(logDestination), { recursive: true });
-    } catch {}
-  }
   if (Array.isArray(envelope.warnings) && envelope.warnings.length) {
     for (const warning of envelope.warnings) {
       if (!warning?.message) continue;
@@ -518,18 +525,7 @@ export async function createBuildRuntime({
   if (currentIndexRoot) {
     log(`[init] current index root: ${currentIndexRoot}`);
   }
-  const loggingConfig = userConfig.logging || {};
-  configureRuntimeLogger({
-    envConfig,
-    loggingConfig,
-    buildId,
-    configHash,
-    stage,
-    root,
-    logDestination,
-    logFormatOverride,
-    observability
-  });
+  updateLogContext({ runId: buildId, buildId, configHash, stage });
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
