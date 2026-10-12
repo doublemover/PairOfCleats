@@ -11,6 +11,7 @@ import { createJobExecutor } from '../../../tools/service/indexer-service/job-ex
 import { parseBuildEmbeddingsArgs } from '../../../tools/build/embeddings/cli.js';
 import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-plan-handoff-'));
 const repo = path.join(temp, 'repo');
@@ -53,6 +54,8 @@ try {
   await runEmbeddingsStage({ ...base, embeddingRuntime: { embeddingEnabled: true, embeddingService: false,
     useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' } });
   const direct = JSON.parse(await fs.readFile(output, 'utf8'));
+  assert.equal(direct.plan.repoRoot, toRealPathSync(repo));
+  assert.equal(direct.plan.indexRoot, toRealPathSync(build));
   assert.equal(direct.model, 'parent-cli-model');
   assert.equal(direct.dims, 16);
   for (const key of ['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource']) {
@@ -89,6 +92,10 @@ try {
   assert.match(failures.at(-1), /missing required/);
   assert.throws(() => validateEmbeddingExecutionPlan({ ...job.embeddingPlan, indexRoot: temp }), /digest mismatch/);
   assert.throws(() => validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repo, indexRoot: temp }), /root mismatch/);
+  assert.throws(() => validateEmbeddingExecutionPlan(job.embeddingPlan, { root: temp, indexRoot: build }), /repository root mismatch/);
+  const repoAlias = path.join(temp, 'repo-alias');
+  await fs.symlink(repo, repoAlias, process.platform === 'win32' ? 'junction' : 'dir');
+  assert.equal(validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repoAlias, indexRoot: build }).digest, job.embeddingPlan.digest);
   const missing = attachEmbeddingExecutionPlan(env, job.embeddingPlan);
   const context = JSON.parse(missing.PAIROFCLEATS_OBSERVABILITY_CONTEXT);
   delete context.context.embeddingPlan;
