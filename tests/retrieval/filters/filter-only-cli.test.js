@@ -18,7 +18,7 @@ try {
     docmeta: { returns: id % 2 ? 'boolean' : 'number' }, codeRelations: { calls: [[`fn${id}`, id % 2 ? 'read' : 'write']] } }));
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(chunks));
   const queryPlanCache = createQueryPlanCache();
-  const search = (args) => runSearchCli(['--repo', root, '--mode', 'code', '--backend', 'memory', '--json', '--compact', '--no-comments', ...args],
+  const search = (args, mode = 'code') => runSearchCli(['--repo', root, '--mode', mode, '--backend', 'memory', '--json', '--compact', '--no-comments', ...args],
     { emitOutput: false, exitOnError: false, queryPlanCache });
   await assert.rejects(search([]), /usage:/);
   let cursor = null;
@@ -47,6 +47,29 @@ try {
   const wrapped = JSON.parse(spawned.stdout);
   assert.equal(wrapped.pagination.total, 8);
   assert.equal(wrapped.code.length, 2);
+  const proseDir = await createCompatibilityIndex(root, {
+    mode: 'prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
+  });
+  await fs.writeFile(path.join(proseDir, 'chunk_meta.json'), '[]');
+  await assert.rejects(search(['--return-type', 'boolean'], 'both'), /index-extracted-prose/,
+    'a requested missing index must fail explicitly rather than silently omit a mode');
+  const extractedDir = await createCompatibilityIndex(root, {
+    mode: 'extracted-prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
+  });
+  await fs.writeFile(path.join(extractedDir, 'chunk_meta.json'), '[]');
+  let mixedCursor = null;
+  const mixedIds = [];
+  do {
+    const page = await search(['--return-type', 'boolean', '--top', '3',
+      ...(mixedCursor ? ['--cursor', mixedCursor] : [])], 'both');
+    assert.deepEqual(page.prose, []);
+    assert.deepEqual(page.extractedProse, []);
+    assert.deepEqual(page.pagination.byMode['extracted-prose'], { offset: 0, total: 0, returned: 0, hasMore: false });
+    assert.deepEqual(page.pagination.byMode.prose, { offset: 0, total: 0, returned: 0, hasMore: false });
+    mixedIds.push(...page.code.map(hit => hit.id));
+    mixedCursor = page.pagination.nextCursor;
+  } while (mixedCursor);
+  assert.deepEqual(mixedIds, ids, 'persisted empty modes retain a valid cursor state');
   const statePath = path.join(indexDir, 'index_state.json');
   const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
   await fs.writeFile(statePath, JSON.stringify({ ...state, buildId: 'changed' }));
