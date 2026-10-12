@@ -217,8 +217,8 @@ export async function loadIndex(dir, options) {
     hnswIndex = loadedHnsw.index;
     hnswAvailable = loadedHnsw.available;
   }
-  const fieldPostings = await loadOptionalObject('field_postings');
-  const fieldTokens = await loadOptionalArray('field_tokens');
+  const fieldPostings = includeTokenIndexResolved ? await loadOptionalObject('field_postings') : null;
+  const fieldTokens = includeTokenIndexResolved ? await loadOptionalArray('field_tokens') : null;
   if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
   if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
   if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
@@ -246,8 +246,8 @@ export async function loadIndex(dir, options) {
     minhash: includeMinhash
       ? await loadMinhashSignatures(dir, { maxBytes: MAX_JSON_BYTES, manifest, strict })
       : null,
-    phraseNgrams: await loadOptionalObject('phrase_ngrams'),
-    chargrams: await loadOptionalObject('chargram_postings')
+    phraseNgrams: includeTokenIndexResolved ? await loadOptionalObject('phrase_ngrams') : null,
+    chargrams: includeTokenIndexResolved ? await loadOptionalObject('chargram_postings') : null
   };
   hydrateSearchIndexPostProcessing(idx, {
     chunkMeta,

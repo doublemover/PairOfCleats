@@ -248,18 +248,20 @@ export function createSqliteHelpers(options) {
     const includeChunks = options.includeChunks !== false;
     const includeFilterIndex = options.includeFilterIndex !== false;
     let maxLocalId = -1;
+    let metadataLoadedRows = 0;
     let chunkMeta = [];
     if (includeChunks) {
       const chunkRows = db.prepare('SELECT * FROM chunks WHERE mode = ? ORDER BY id').all(mode);
+      metadataLoadedRows = chunkRows.length;
       for (const row of chunkRows) {
         if (row.id > maxLocalId) maxLocalId = row.id;
       }
-      chunkMeta = maxLocalId >= 0 ? Array.from({ length: maxLocalId + 1 }) : [];
+      chunkMeta = maxLocalId >= 0 ? new Array(maxLocalId + 1) : [];
       hydrateChunkMeta(chunkRows, chunkMeta);
     } else {
       const maxRow = db.prepare('SELECT MAX(id) as maxId FROM chunks WHERE mode = ?').get(mode);
       maxLocalId = Number.isFinite(maxRow?.maxId) ? maxRow.maxId : -1;
-      chunkMeta = maxLocalId >= 0 ? Array.from({ length: maxLocalId + 1 }) : [];
+      chunkMeta = maxLocalId >= 0 ? new Array(maxLocalId + 1) : [];
     }
 
     let minhash = null;
@@ -310,6 +312,7 @@ export function createSqliteHelpers(options) {
 
     return {
       chunkMeta,
+      metadataLoadedRows,
       denseVec,
       minhash,
       filterIndex: includeFilterIndex ? buildFilterIndex(chunkMeta, { fileChargramN }) : null,

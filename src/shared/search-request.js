@@ -1,3 +1,5 @@
+import { hasSearchFilterArgs } from '../retrieval/cli-args.js';
+
 export const STRING_FLAG_FIELDS = Object.freeze([
   ['type', '--type'],
   ['author', '--author'],
@@ -43,6 +45,25 @@ export const REPEATED_LIST_FIELDS = Object.freeze([
   ['file', '--file'],
   ['ext', '--ext']
 ]);
+
+const nonemptyString = { type: 'string', pattern: '\\S' };
+const effectiveValue = { anyOf: [nonemptyString,
+  { type: 'array', minItems: 1, items: nonemptyString }, { type: 'object', minProperties: 1 }] };
+const requirement = (field, schema) => ({ required: [field], properties: { [field]: schema } });
+/** Shared schema admission; exact predicate validation remains in the CLI owner. */
+export const SEARCH_REQUEST_REQUIREMENT = Object.freeze({ anyOf: [
+  requirement('query', nonemptyString),
+  ...STRING_FLAG_FIELDS.filter(([field]) => field !== 'branch').map(([field]) => requirement(field, nonemptyString)),
+  ...INTEGER_MIN_ZERO_FLAG_FIELDS.map(([field]) => requirement(field, { type: 'integer', minimum: 0 })),
+  ...['lint', 'async', 'generator', 'returns'].map(field => requirement(field, { const: true })),
+  ...['path', 'paths', 'file', 'ext', 'meta', 'metaJson'].map(field => requirement(field, effectiveValue))
+] });
+
+export const validateLegacySearchContext = payload => (
+  Object.hasOwn(payload, 'context') && payload.context !== undefined && payload.context !== 0
+    ? { ok: false, message: 'Search context lines are removed. Use source excerpts or context_pack; context:0 is a deprecated no-op.' }
+    : { ok: true }
+);
 
 const normalizeOutput = (value, defaultOutput, allowedOutputs) => {
   const allowed = new Set(
@@ -141,9 +162,9 @@ export function buildSearchRequestArgs(payload = {}, {
   }
 
   const query = String(payload.query || '').trim();
-  if (!query) {
-    return { ok: false, message: 'Missing query.' };
-  }
+  const contextResult = validateLegacySearchContext(payload);
+  if (!contextResult.ok) return contextResult;
+  if (query && payload.cursor) return { ok: false, message: 'cursor requires a filter-only search without query text.' };
 
   const outputResult = normalizeOutput(payload.output, defaultOutput, allowedOutputs);
   if (!outputResult.ok) return outputResult;
@@ -177,7 +198,6 @@ export function buildSearchRequestArgs(payload = {}, {
   const allowSparseFallback = payload.allowSparseFallback === true;
   const allowUnsafeMix = payload.allowUnsafeMix === true;
   const top = normalizeOptionalNumber(payload.top, { min: topMin });
-  const contextLines = normalizeOptionalNumber(payload.context, { min: 0 });
 
   if (asOf) {
     searchArgs.push('--as-of', asOf);
@@ -193,7 +213,7 @@ export function buildSearchRequestArgs(payload = {}, {
   if (allowSparseFallback) searchArgs.push('--allow-sparse-fallback');
   if (allowUnsafeMix) searchArgs.push('--allow-unsafe-mix');
   if (top != null) searchArgs.push(topFlag, String(top));
-  if (contextLines != null) searchArgs.push('--context', String(contextLines));
+  appendOptionalFlag(searchArgs, '--cursor', payload.cursor);
 
   for (const [field, flag] of STRING_FLAG_FIELDS) {
     appendOptionalFlag(searchArgs, flag, payload[field]);
@@ -236,6 +256,17 @@ export function buildSearchRequestArgs(payload = {}, {
   }
 
   appendOptionalFlag(searchArgs, '--meta-json', normalizeMetaJson(payload.metaJson));
+
+  if (!query) {
+    const flags = {};
+    for (let i = 0; i < searchArgs.length; i += 1) {
+      const flag = searchArgs[i];
+      if (!flag.startsWith('--')) continue;
+      const next = searchArgs[i + 1];
+      flags[flag.slice(2)] = next && !next.startsWith('--') ? next : true;
+    }
+    if (!hasSearchFilterArgs(flags)) return { ok: false, message: 'Provide query text or at least one nonempty search filter.' };
+  }
 
   return {
     ok: true,

@@ -554,6 +554,13 @@ const matchChunkFilters = (c, state) => {
   return true;
 };
 
+/** Reuse exact predicates without materializing a second full matching-ID set. */
+export const createChunkFilterPredicate = (filters = {}, fileRelations = null, options = {}) => {
+  if (filters.extImpossible || filters.langImpossible) return () => false;
+  const state = resolveFilterState({ meta: [], filters, filterIndex: null, fileRelations, options });
+  return chunk => matchChunkFilters(chunk, state);
+};
+
 /**
  * Filter chunk metadata by search constraints.
  * @param {Array} meta
