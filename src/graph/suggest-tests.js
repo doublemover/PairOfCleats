@@ -94,41 +94,79 @@ const matchesTestPatterns = (relPath, matchers) => {
   return matchers.some((matcher) => matcher(relPath));
 };
 
-const discoverCandidateTests = ({ repoRoot, testMatchers }) => {
-  const results = [];
+const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
+  const tests = [];
   const stack = [{ dir: repoRoot, rel: '' }];
-  while (stack.length) {
+  // Candidate discovery is incidental work. Bound even candidate-free trees and
+  // huge single directories, without retaining a complete repository inventory.
+  const maxScanEntries = maxCandidates === null ? Infinity : Math.max(64, maxCandidates * 32);
+  let scanned = 0;
+  let observed = 0;
+  let capped = false;
+  while (stack.length && !capped) {
+    if (scanned >= maxScanEntries) { capped = true; break; }
     const entry = stack.pop();
-    let entries;
-    try { entries = fs.readdirSync(entry.dir, { withFileTypes: true }); } catch { continue; }
+    let directory;
+    const entries = [];
+    try {
+      directory = fs.opendirSync(entry.dir, { bufferSize: 1 });
+      scanned += 1;
+      while (scanned < maxScanEntries) {
+        const dirent = directory.readSync();
+        if (!dirent) break;
+        scanned += 1;
+        entries.push(dirent);
+      }
+      if (scanned >= maxScanEntries) capped = true;
+    } catch {
+      continue;
+    } finally {
+      directory?.closeSync();
+    }
+    // Filesystem enumeration order is unspecified. An incomplete directory
+    // cannot supply deterministic candidates or child directories, even after
+    // sorting its prefix. Keep only earlier, fully inventoried selections.
+    if (capped) break;
+    entries.sort((a, b) => compareStrings(a.name, b.name));
+    const directories = [];
     for (const dirent of entries) {
       const relPath = entry.rel ? `${entry.rel}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {
-        if (!DEFAULT_EXCLUDED_DIRS.has(dirent.name)) stack.push({ dir: path.join(entry.dir, dirent.name), rel: relPath });
+        if (!DEFAULT_EXCLUDED_DIRS.has(dirent.name)) {
+          directories.push({ dir: path.join(entry.dir, dirent.name), rel: relPath });
+        }
         continue;
       }
       if (!dirent.isFile() || !TEST_EXTENSIONS.has(path.extname(relPath).toLowerCase())) continue;
       const normalized = toPosix(relPath);
       if (testMatchers?.length ? !matchesTestPatterns(normalized, testMatchers) : !isTestFileName(normalized)) continue;
-      results.push(normalized);
+      observed += 1;
+      if (maxCandidates !== null && tests.length >= maxCandidates) {
+        capped = true;
+        break;
+      }
+      tests.push(normalized);
     }
+    for (let i = directories.length - 1; i >= 0; i -= 1) stack.push(directories[i]);
   }
-  return results.sort(compareStrings);
+  return {
+    tests: tests.sort(compareStrings),
+    truncation: capped ? { limit: maxCandidates, observed, omitted: null } : null
+  };
 };
 
 const resolveCachedTests = ({ repoRoot, maxCandidates, recordTruncation, testMatchers, patternKey, indexSignature }) => {
-  // A generation pins graph evidence; a fresh inventory also observes working-tree additions/deletions.
-  const inventory = discoverCandidateTests({ repoRoot, testMatchers });
+  // Revisit the bounded live inventory on every request, including cache hits.
+  // This observes additions/deletions without introducing another watcher.
+  const inventory = discoverCandidateTests({ repoRoot, testMatchers, maxCandidates });
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'test-discovery',
     payload: { repoRoot, patternKey, maxCandidates: maxCandidates ?? 'all',
-      indexSignature: indexSignature || null, inventoryIdentity: sha1(inventory.join('\0')) }
+      indexSignature: indexSignature || null, inventoryIdentity: sha1(JSON.stringify(inventory)) }
   });
   let envelope = getCachedValue(testDiscoveryCache, cacheKeyInfo.key);
   if (!envelope) {
-    const tests = maxCandidates === null ? inventory : inventory.slice(0, maxCandidates);
-    envelope = { tests, truncation: tests.length < inventory.length
-      ? { limit: maxCandidates, observed: inventory.length, omitted: inventory.length - tests.length } : null };
+    envelope = inventory;
     setCachedValue(testDiscoveryCache, cacheKeyInfo.key, envelope, TEST_DISCOVERY_CACHE_MAX);
   }
   if (envelope.truncation) recordTruncation('maxCandidates', { ...envelope.truncation });

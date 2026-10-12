@@ -51,6 +51,10 @@ The canonical error registry is `docs/contracts/mcp-error-codes.md`.
   request work. A cancelled queued call never starts. Running cancellation and
   deadlines retain the queue slot until the tool and its owned subprocess cleanup
   settle, preventing overlap with work that is still tearing down.
+- A configured subprocess kill grace also retains that slot through the shared
+  process-tree owner's escalation. Termination receipts distinguish observed
+  direct-child closure from settled tree cleanup; escalation alone does not
+  certify that every descendant has been reaped.
 - SDK progress uses request `notifications/progress` with a string or numeric
   token (including zero), increasing numeric event count and message. A slow
   transport coalesces pending updates; the count is not a percentage. Notification
