@@ -200,7 +200,7 @@ jobs:
         run: npm run bootstrap:ci
 
       - name: Download packaged node artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-node-packages
           path: dist
@@ -309,7 +309,7 @@ jobs:
         run: npm run bootstrap:ci
 
       - name: Download TUI build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-tui-${{ matrix.release_id }}
           path: dist
@@ -359,55 +359,55 @@ jobs:
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-prepare
           path: dist/release/downloads/release-prepare
 
       - name: Download prepare doc drift artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-prepare-docs
           path: dist/release/downloads/release-prepare-docs
 
       - name: Download packaged node artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-node-packages
           path: dist/release/downloads/release-node-packages
 
       - name: Download runtime verification artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-runtime-verify
           path: dist/release/downloads/release-runtime-verify
 
       - name: Download node package verification artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-node-package-verify
           path: dist/release/downloads/release-node-package-verify
 
       - name: Download TUI build artifacts for ubuntu
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-tui-ubuntu
           path: dist/release/downloads/release-tui-ubuntu
 
       - name: Download TUI build artifacts for windows
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-tui-windows
           path: dist/release/downloads/release-tui-windows
 
       - name: Download TUI build artifacts for macos
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-tui-macos
           path: dist/release/downloads/release-tui-macos
 
       - name: Download TUI verification artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: release-tui-verify-*
           path: dist/release/downloads
@@ -443,13 +443,13 @@ jobs:
       id-token: write
     steps:
       - name: Download release bundle
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-bundle
           path: dist/release
 
       - name: Download trust materials
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-trust-materials
           path: dist/release/trust
@@ -490,7 +490,7 @@ jobs:
         run: cargo install cargo-cyclonedx --locked
 
       - name: Download release bundle
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-bundle
           path: dist/release
@@ -525,13 +525,13 @@ jobs:
       contents: write
     steps:
       - name: Download release bundle
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-bundle
           path: dist/release
 
       - name: Download trust materials
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-trust-materials
           path: dist/release/trust
@@ -609,38 +609,38 @@ jobs:
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-prepare
           path: dist/release/downloads/release-prepare
 
       - name: Download prepare doc drift artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-prepare-docs
           path: dist/release/downloads/release-prepare-docs
 
       - name: Download runtime verification artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-runtime-verify
           path: dist/release/downloads/release-runtime-verify
 
       - name: Download node package verification artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-node-package-verify
           path: dist/release/downloads/release-node-package-verify
 
       - name: Download TUI verification artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: release-tui-verify-*
           path: dist/release/downloads
           merge-multiple: false
 
       - name: Download trust materials
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-trust-materials
           path: dist/release/trust
