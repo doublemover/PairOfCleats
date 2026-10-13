@@ -98,7 +98,7 @@
     "onnxruntime-node": "^1.30.0",
     "p-queue": "9.1.0",
     "parse5": "^7.1.2",
-    "pdfjs-dist": "^5.4.624",
+    "pdfjs-dist": "^6.4.299",
     "picomatch": "^4.0.4",
     "pino": "^10.1.1",
     "pino-pretty": "^13.1.3",
