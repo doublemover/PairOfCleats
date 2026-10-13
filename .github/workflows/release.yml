@@ -81,7 +81,7 @@ jobs:
           --manifest dist/release/prepare/release-manifest.json
 
       - name: Upload prepare artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-prepare
           path: |
@@ -91,7 +91,7 @@ jobs:
           compression-level: 0
 
       - name: Upload prepare doc drift artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-prepare-docs
           path: |
@@ -129,7 +129,7 @@ jobs:
           --manifest dist/release/build-node/release-manifest.json
 
       - name: Upload packaged node artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-node-packages
           path: |
@@ -168,7 +168,7 @@ jobs:
           --manifest dist/release/verify-runtime/release-manifest.json
 
       - name: Upload runtime verification artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-runtime-verify
           path: |
@@ -214,7 +214,7 @@ jobs:
           --manifest dist/release/verify-node/release-manifest.json
 
       - name: Upload node package verification artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-node-package-verify
           path: |
@@ -267,7 +267,7 @@ jobs:
           --manifest dist/release/build-tui-${{ matrix.release_id }}/release-manifest.json
 
       - name: Upload TUI build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-tui-${{ matrix.release_id }}
           path: |
@@ -324,7 +324,7 @@ jobs:
           --manifest dist/release/verify-tui-${{ matrix.release_id }}/release-manifest.json
 
       - name: Upload TUI verification artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-tui-verify-${{ matrix.release_id }}
           path: |
@@ -421,7 +421,7 @@ jobs:
           --out dist/release/bundle
 
       - name: Upload release bundle
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-bundle
           path: |
@@ -503,7 +503,7 @@ jobs:
           --out-dir dist/release/trust
 
       - name: Upload trust materials
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-trust-materials
           path: |
@@ -739,7 +739,7 @@ jobs:
           --out-md dist/release/readiness/readiness-summary.md
 
       - name: Upload readiness artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-readiness
           path: |
