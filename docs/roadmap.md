@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-12
+Last audited: 2026-10-14
 Last reconciled: 2026-10-14
 Canonical for: initiative status, execution order, and remaining work
 
@@ -11,7 +11,7 @@ The active checkout is `codex/pr557-audit-repairs-20261012`, atop the open
 PR stack #556 -> #557 -> #558. Remote main is 42 commits behind the original
 repair head `d6041226b95baa6d7be8c6a06611b6d9e452d4ba`; none of these PRs is merged.
 Live GitHub inspection found zero open Dependabot security alerts and twelve
-version-update PRs. Their updates are integrated locally in `dae8ecd62`, including
+version-update PRs, now closed as superseded by #558. Their updates are pushed in `dae8ecd62`, including
 the JSON-RPC 9 Node entry point and coordinated artifact-action contract updates.
 
 Hosted CI on the original repair head passed gate/Rust but failed eight fixtures
@@ -28,10 +28,11 @@ SRC-010 cold artifact/LMDB pagination and EMB-009 representative provider
 measurements. Both follow-ups are implemented: fresh artifact/SQLite/LMDB
 processes hydrate 19,003 rows across eleven pages of a 10,000-row index;
 real fp32/q8 CPU measurements cover 24 mixed-length repository excerpts.
-The five-second full-wrapper fixture still fails on this Windows host, and
-q8 does not meet the existing 0.999 cosine threshold. See the
+The five-second full-wrapper failure was subsequently repaired in the product
+closeout below. Embedding work, including the q8 precision limit, is deferred
+by user direction. See the
 [audit continuation receipt](archived/audit-continuation-2026-10-14.md).
-Current classification is 38 bounded-verified, seven qualification-limited,
+Current classification is 39 bounded-verified, six qualification-limited,
 zero partial, and zero missing; the older 45-item table
 below records historical implementation rather than full current acceptance.
 
@@ -179,8 +180,9 @@ power-loss and unrelated build-writer/global disk quotas remain separate.
 
 ## Current Validation Boundary
 
-Current reconciliation, 2026-10-12: all 45 audit items have implementation,
-lightweight checks, focused acceptance and bounded qualification receipts.
+Current reconciliation, 2026-10-14: all 45 audit items have implementation;
+39 are bounded-verified and six retain explicit qualification limits.
+Embedding expansion and broad cross-platform CI are deferred by user direction.
 The prescribed final front gate passed; qualification limits remain explicit.
 Hosted CI is bounded validation, not release-wide readiness. Release-wide acceptance,
 optional-backend and measured-performance campaigns remain deferred.
@@ -197,47 +199,29 @@ observability, quality, and security-risk controls remain the USR acceptance sur
 old green results have not been relabeled as fresh proof. Phases and lifecycle
 acceptance stay in the [rollout policy](specs/usr-core-rollout-release-migration.md).
 
-## Platform and product queue outside this task
+## Product closeout, October 14
 
+The ten agreed priorities are handled within the bounded local scope below.
+[Detailed results, initial failures, commands and release scope](archived/product-closeout-2026-10-14.md)
+are the current receipt. Earlier platform queues remain historical in the
+[October 12 roadmap archive](archived/roadmap-pre-audit-2026-10-12.md).
 
-1. **Diagnose original Windows cold-index parity cleanup.** Current hosted Windows
-   CI and the structural-wrapper regression pass. Keep shared and packaged VS Code
-   cmd owners byte-identical, with the existing equality regression intact. Preserve
-   the archived cmd exit255 and parity EBUSY evidence. Reproduce the cold setup in
-   a bounded owned fixture, capturing its primary failure separately from finally
-   cleanup, then establish actual owned-child cleanup before closing EBUSY. A
-   seeded report pass or a bounded timeout without EBUSY is not a repair receipt.
-2. **Retain cold Pyright isolation without changing production deadlines.** The
-   published installed-tool integration case passes with its bounded explicit
-   allowance and cannot pass through persistent cache reuse. Preserve deterministic
-   short-timeout, cleanup and production timeout contracts. Recheck both published
-   portability controls and marker-bearing cache reads on the integrated source.
-3. **Preserve synchronous timeout child-tree cleanup.** POSIX tree-owned commands
-   use private process groups; detach/tree opt-outs and unbounded interactive
-   dispatch retain their requested behavior. Historical Linux/macOS regressions
-   are archived; native Windows signal acceptance remains separate.
-4. **Refresh representative retrieval quality.** Exercise free-text versus explicit
-   Boolean/phrase intent, filters, ANN allowed IDs and deterministic ranking through
-   supported memory/SQLite backends. Use the current golden/IQ fixtures and record
-   exact revisions; optional native-backend acceptance is a separate result.
-5. **Refresh snapshot and resource lifecycle acceptance.** Exercise snapshot freeze,
-   historical lookup, as-of cache isolation and cleanup across repeated searches
-   and index generation changes. Cover supported storage backends with tiny
-   repositories before larger projects or optional native components.
-6. **Measure ordered Stage1 and IO budgets.** Run current throughput/memory,
-   cancellation/backpressure and compression-order controls under the 30-second
-   per-test policy. Record timeouts as blockers and retain bounded queues/caps;
-   source-level reductions alone are not end-to-end performance measurements.
-   Parser/search fixture prewarming is split into bounded cold cases with unrelated
-   SCM history disabled; dedicated Git metadata cases own their one-commit history.
-7. **Extend real project and interactive acceptance.** Serial, small project cases
-   should cover toolchain imports/workspace roots beyond tiny single-file servers,
-   followed by supported TUI cancellation, repeated commands and shutdown flows.
-   Mac native hardware proof covers Help/Palette/Search, movement, resize, real
-   run/cancel, terminal exit and idle redraw suppression on its isolated branch.
-   Final integrated native artifacts and other platforms require distinct proof.
-   Exact-root authority remains required for build-capable tooling; broader SDK,
-   project and optional-native-backend acceptance remain separate.
+| Priority | Current result |
+| --- | --- |
+| 1. Publish completed batch | Six commits pushed; PR #558 verified at `0efc59edc`. Follow-up publication is recorded in the closeout receipt. |
+| 2. Cold CLI startup | Narrow search imports avoid indexing/language-analysis startup; all four fresh pages pass the unchanged five-second child limit. |
+| 3. Retrieval and snapshots | Golden query intent, Boolean/phrase eligibility, memory/SQLite, ranking, federation, snapshot history/retention and generation leases pass. |
+| 4. Windows cleanup | Real cold build passes its original 15-second child limit, followed by verified descendant exit and immediate directory removal. Initial setup timeouts retain separate cleanup evidence. |
+| 5. Cancellation | Sync child-tree, tracked shutdown, Stage1 cancellation/drain and LSP cleanup checks pass. |
+| 6. Indexing budgets | Real 51-file Stage1 build, memory pressure, ordered commits, byte limits, IO backpressure and compression transfer checks pass. |
+| 7. Incremental correctness | Real edit/delete/rename rebuild equals clean artifacts; SQLite update/search and interrupted-worker recovery pass. |
+| 8. Project tooling | Real TypeScript provider/import/package-resolution and Pyright workspace-planning checks pass within the recorded sample. |
+| 9. Interactive workflows | Real supervised search/failure/recovery, cancellation, shutdown, snapshot recovery and native frame captures pass on this host. |
+| 10. Release consolidation | PR #558 is the combined repair/release candidate atop #556/#557; superseded bot updates are reconciled there. Release metadata now matches Node 26. Scoped CLI release checks pass. |
+
+The final local front gate and source-candidate identity are recorded in the
+closeout receipt. No merge, package publication, broad native/platform campaign,
+or renewed embedding qualification is authorized by this status record.
 
 
 ## Release discipline
