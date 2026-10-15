@@ -1,4 +1,5 @@
-#!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -9,6 +10,7 @@ import { createRepoCacheManager } from '../../../src/shared/repo-cache-config.js
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-pointer-generation-clear-'));
 const cacheRoot = path.join(tempRoot, 'cache');
 const repoRoot = path.join(tempRoot, 'repo');
+applyTestEnv({ cacheRoot });
 
 const writeBuild = async (buildsRoot, buildId) => {
   const buildRoot = path.join(buildsRoot, buildId);
@@ -31,6 +33,7 @@ const fixedTick = new Date('2026-03-23T00:00:00.000Z');
 const buildRootA = await writeBuild(buildsRoot, 'build-a');
 const buildRootB = await writeBuild(buildsRoot, 'build-b');
 await fs.writeFile(currentPath, JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId: 'build-a',
   buildRoot: 'builds/build-a'
 }, null, 2), 'utf8');
@@ -52,6 +55,7 @@ assert.equal(entry.buildId, 'build-a', 'expected initial build id');
 assert.equal(entry.activeBuildRoot, toRealPathSync(buildRootA), 'expected initial active generation root');
 
 await fs.writeFile(currentPath, JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId: 'build-a',
   buildRoot: 'builds/build-b'
 }, null, 2), 'utf8');
@@ -98,3 +102,5 @@ assert.equal(evictedClosed, 1);
 evicting.closeRepoCaches();
 
 console.log('build pointer active generation change clears cache test passed');
+
+await fs.rm(tempRoot, { recursive: true, force: true });
