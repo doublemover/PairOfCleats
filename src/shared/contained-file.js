@@ -7,20 +7,23 @@ import { isPathWithinRoot } from './file-paths.js';
 import { throwIfAborted } from './abort.js';
 
 const unsafePath = () => Object.assign(new Error('Path is outside its authorized root or contains a symlink.'), { code: 'ERR_UNSAFE_FILE_PATH' });
+// Native Windows canonicalization avoids JS walking every ancestor repeatedly.
+// Keep the per-component no-symlink and descriptor checks below unchanged.
+const realpathSync = process.platform === 'win32' ? fs.realpathSync.native : fs.realpathSync;
 
 export const assertNoSymlinkPath = (root, target, { allowMissing = false } = {}) => {
   const lexicalRoot = path.resolve(root);
   const lexicalTarget = path.resolve(target);
   if (!isPathWithinRoot(lexicalTarget, lexicalRoot)) throw unsafePath();
   if (fs.lstatSync(lexicalRoot).isSymbolicLink()) throw unsafePath();
-  const canonicalRoot = fs.realpathSync(lexicalRoot);
+  const canonicalRoot = realpathSync(lexicalRoot);
   let current = lexicalRoot;
   const parts = path.relative(lexicalRoot, lexicalTarget).split(path.sep).filter(Boolean);
   for (const part of parts) {
     current = path.join(current, part);
     try {
       if (fs.lstatSync(current).isSymbolicLink()) throw unsafePath();
-      if (!isPathWithinRoot(fs.realpathSync(current), canonicalRoot)) throw unsafePath();
+      if (!isPathWithinRoot(realpathSync(current), canonicalRoot)) throw unsafePath();
     } catch (error) {
       if (allowMissing && error.code === 'ENOENT') return lexicalTarget;
       throw error;
