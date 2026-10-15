@@ -1,0 +1,417 @@
+{
+  "date": "2026-10-14 America/New_York",
+  "baseline": "a8c19738eb236032a56f2ac6d583b799508d5d67",
+  "provenance": "Historical author-workspace measurements; raw temp/ and .testLogs files are not shipped or promised in clean checkouts.",
+  "environment": {
+    "node": "v26.8.1",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "indexing": {
+    "scope": "One cold-cache pair on 44 copied repository JavaScript files; default all modes, embeddings disabled, SCM none, worker pool/tooling/type/risk analysis disabled. Incomplete imports are expected in this bounded sample. No full-project or statistical performance claim.",
+    "files": [
+      {
+        "file": "src/graph/architecture.js",
+        "hash": "1aee1d1adf4e5d10ff6555ad609d18e7025163b8",
+        "hashAlgo": "sha1",
+        "size": 13252
+      },
+      {
+        "file": "src/graph/context-pack.js",
+        "hash": "d4f1cf303f63b137122826113f16ac25e9bc2009",
+        "hashAlgo": "sha1",
+        "size": 1452
+      },
+      {
+        "file": "src/graph/impact.js",
+        "hash": "95fe498a93046904264ccd8da54a4a6740197be6",
+        "hashAlgo": "sha1",
+        "size": 9076
+      },
+      {
+        "file": "src/graph/indexes.js",
+        "hash": "8be2c4dc1e990bbfb1b7c516ad212485a94a33d3",
+        "hashAlgo": "sha1",
+        "size": 10762
+      },
+      {
+        "file": "src/graph/neighborhood/cache.js",
+        "hash": "2fdefd8afefb555ed0bb58a62b09b4e733a7cea9",
+        "hashAlgo": "sha1",
+        "size": 571
+      },
+      {
+        "file": "src/graph/neighborhood/caps.js",
+        "hash": "ae490c228c7e5a5b1abab7b510172abf79d389c9",
+        "hashAlgo": "sha1",
+        "size": 1267
+      },
+      {
+        "file": "src/graph/neighborhood/csr.js",
+        "hash": "5b03518b1857130feac11ec025bf8b7827adff2a",
+        "hashAlgo": "sha1",
+        "size": 4591
+      },
+      {
+        "file": "src/graph/neighborhood/edge-policy.js",
+        "hash": "b6a30715e6cbf6e1b1cf0291908aac20b6193964",
+        "hashAlgo": "sha1",
+        "size": 2710
+      },
+      {
+        "file": "src/graph/neighborhood/filter.js",
+        "hash": "4e53c7071be1c36d66b4ddad54c4c780c619cd81",
+        "hashAlgo": "sha1",
+        "size": 2602
+      },
+      {
+        "file": "src/graph/neighborhood/seed-meta.js",
+        "hash": "bb8e236dafdb28607831b3212eb75994f026794c",
+        "hashAlgo": "sha1",
+        "size": 2201
+      },
+      {
+        "file": "src/graph/neighborhood/validation.js",
+        "hash": "ffde857e1e9753727fec5ae5942bbf16af10ae1a",
+        "hashAlgo": "sha1",
+        "size": 1737
+      },
+      {
+        "file": "src/graph/neighborhood/walker.js",
+        "hash": "d8785e700e8ee120ee22289ce9a4357644a1eb94",
+        "hashAlgo": "sha1",
+        "size": 2378
+      },
+      {
+        "file": "src/graph/ordering.js",
+        "hash": "22be241a5ce0a19d62efb31a4653fdf9e8e46252",
+        "hashAlgo": "sha1",
+        "size": 4910
+      },
+      {
+        "file": "src/graph/work-budget.js",
+        "hash": "70a7c9061ff849e54b8d94630f29c6d7547ea733",
+        "hashAlgo": "sha1",
+        "size": 3712
+      },
+      {
+        "file": "src/retrieval/output/api-contracts.js",
+        "hash": "199933b1f2e5f2edba1bf3ed0596958df4113bf6",
+        "hashAlgo": "sha1",
+        "size": 1279
+      },
+      {
+        "file": "src/retrieval/output/architecture.js",
+        "hash": "bffd90f59576d382da98416e68c6e79ae18ce32b",
+        "hashAlgo": "sha1",
+        "size": 2252
+      },
+      {
+        "file": "src/retrieval/output/cache.js",
+        "hash": "093e5d900ce7ae67b3f957f16fdc81496bc2fdd8",
+        "hashAlgo": "sha1",
+        "size": 4241
+      },
+      {
+        "file": "src/retrieval/output/composite-context-pack.js",
+        "hash": "39a343feabc18a391fb804eb1abbb3791f33c8ed",
+        "hashAlgo": "sha1",
+        "size": 7121
+      },
+      {
+        "file": "src/retrieval/output/context.js",
+        "hash": "0c40a43e1fa3c821dd2b713ed90ee9489e7bed96",
+        "hashAlgo": "sha1",
+        "size": 434
+      },
+      {
+        "file": "src/retrieval/output/empty-results.js",
+        "hash": "5f333ff0e8d6c26ca59f38f32064c4e793359ac2",
+        "hashAlgo": "sha1",
+        "size": 1559
+      },
+      {
+        "file": "src/retrieval/output/explain.js",
+        "hash": "587dc3657c468fc8c224183ce84a2a32fc268572",
+        "hashAlgo": "sha1",
+        "size": 8547
+      },
+      {
+        "file": "src/retrieval/output/filters/candidates.js",
+        "hash": "7244954158e4ccab3d5b3149e60f7b7ea4643163",
+        "hashAlgo": "sha1",
+        "size": 6334
+      },
+      {
+        "file": "src/retrieval/output/filters/file-prefilter.js",
+        "hash": "77b95bdcc51f0826bb8cf810889a9963dbac7447",
+        "hashAlgo": "sha1",
+        "size": 2313
+      },
+      {
+        "file": "src/retrieval/output/filters/file.js",
+        "hash": "ed0d5f8ec975057d0c95044d80c9f7a217ce2ebe",
+        "hashAlgo": "sha1",
+        "size": 2946
+      },
+      {
+        "file": "src/retrieval/output/filters/meta.js",
+        "hash": "5649a43cf1bde8bba8f7fde4cad26eb5a623655c",
+        "hashAlgo": "sha1",
+        "size": 7965
+      },
+      {
+        "file": "src/retrieval/output/filters/predicates.js",
+        "hash": "05b406ecf60c4c40ceaf482732fca2c063b975ee",
+        "hashAlgo": "sha1",
+        "size": 1468
+      },
+      {
+        "file": "src/retrieval/output/filters/structural.js",
+        "hash": "184866a2d6a6bfbd23a1404e7f6ad3227eabb215",
+        "hashAlgo": "sha1",
+        "size": 1684
+      },
+      {
+        "file": "src/retrieval/output/filters/type-expression.js",
+        "hash": "485270edef1a6efc313f8412729b24c44f58d54f",
+        "hashAlgo": "sha1",
+        "size": 2005
+      },
+      {
+        "file": "src/retrieval/output/format.js",
+        "hash": "1f608c501b0dd2993ffab95935639de8011ceec2",
+        "hashAlgo": "sha1",
+        "size": 553
+      },
+      {
+        "file": "src/retrieval/output/format/ansi.js",
+        "hash": "a25287f28890b4223f0c615e787a120d81994a9e",
+        "hashAlgo": "sha1",
+        "size": 3932
+      },
+      {
+        "file": "src/retrieval/output/format/bundle.js",
+        "hash": "ad6876c439d10cf09ca5f0c32ee24c4d61c1f1f1",
+        "hashAlgo": "sha1",
+        "size": 4090
+      },
+      {
+        "file": "src/retrieval/output/format/display-meta.js",
+        "hash": "a947de2fa4cc6a808393cb267bbbfc1a74789396",
+        "hashAlgo": "sha1",
+        "size": 11455
+      },
+      {
+        "file": "src/retrieval/output/format/shared.js",
+        "hash": "94db57d7cd31c1cf5f4f0feb2a93cbaf52d5c4db",
+        "hashAlgo": "sha1",
+        "size": 4815
+      },
+      {
+        "file": "src/retrieval/output/format/short.js",
+        "hash": "1a577248bf237c9c678d61859db24efe6a2161cb",
+        "hashAlgo": "sha1",
+        "size": 5019
+      },
+      {
+        "file": "src/retrieval/output/format/source.js",
+        "hash": "c6947e4e3f1b01fa73992f38f4b41a6c9e89e827",
+        "hashAlgo": "sha1",
+        "size": 5284
+      },
+      {
+        "file": "src/retrieval/output/graph-context-pack.js",
+        "hash": "d2abf9eca349a9ba809bb74bd2574479be7e696c",
+        "hashAlgo": "sha1",
+        "size": 2760
+      },
+      {
+        "file": "src/retrieval/output/graph-impact.js",
+        "hash": "fe497f96d7d36ec4f0e4f00f71c912144a91f912",
+        "hashAlgo": "sha1",
+        "size": 2537
+      },
+      {
+        "file": "src/retrieval/output/report-sections.js",
+        "hash": "d2305b5e401728c6db2ff9618bec5f6c39911cf2",
+        "hashAlgo": "sha1",
+        "size": 1200
+      },
+      {
+        "file": "src/retrieval/output/retrieval-metadata.js",
+        "hash": "89644e273e907bbdbbbaa25380cad589233380a9",
+        "hashAlgo": "sha1",
+        "size": 4712
+      },
+      {
+        "file": "src/retrieval/output/risk-sarif.js",
+        "hash": "51f8790b25bec437027d0f6e20c4e00af96fad86",
+        "hashAlgo": "sha1",
+        "size": 10962
+      },
+      {
+        "file": "src/retrieval/output/score-breakdown.js",
+        "hash": "dd590f790682da2679f01fe8bc246dda66589876",
+        "hashAlgo": "sha1",
+        "size": 5913
+      },
+      {
+        "file": "src/retrieval/output/suggest-tests.js",
+        "hash": "8525b1fb639bdfcfdfc21a70255e6f33559adaf5",
+        "hashAlgo": "sha1",
+        "size": 3015
+      },
+      {
+        "file": "src/retrieval/output/summary.js",
+        "hash": "e94d6ab3bc6241fa4e6a93c58cf8e82af63ec831",
+        "hashAlgo": "sha1",
+        "size": 2348
+      },
+      {
+        "file": "src/shared/scheduler/debounce.js",
+        "hash": "a1f793292dd7722ca53881b6472d7c3c08768f0d",
+        "hashAlgo": "sha1",
+        "size": 1308
+      }
+    ],
+    "identicalInputHashes": true,
+    "before": {
+      "elapsedMs": 13053.137199999997,
+      "timings": {
+        "discoverMs": 1,
+        "importsMs": 54,
+        "processMs": 4170,
+        "writeMs": 886
+      },
+      "chunks": 55
+    },
+    "after": {
+      "elapsedMs": 11974.8168,
+      "timings": {
+        "discoverMs": 1,
+        "importsMs": 60,
+        "processMs": 3486,
+        "writeMs": 979
+      },
+      "chunks": 55
+    },
+    "wallReductionPercent": 8.261005637786425
+  },
+  "session": {
+    "childPids": [
+      19488,
+      8372
+    ],
+    "remainingChildren": [],
+    "scope": "16 sequential real SDK search calls in one session, 44-file recorded source sample; Windows idle snapshots after 4/10/16 calls; transport wrapper plus its direct Node server and console-host children",
+    "samples": [
+      {
+        "iteration": 4,
+        "childPids": [
+          19488,
+          8372
+        ],
+        "childResources": [
+          {
+            "name": "conhost",
+            "privateBytes": 1269760,
+            "workingSet": 8048640,
+            "handles": 97,
+            "pid": 19488
+          },
+          {
+            "name": "node",
+            "privateBytes": 738521088,
+            "workingSet": 631889920,
+            "handles": 286,
+            "pid": 8372
+          }
+        ],
+        "privateBytes": 58712064,
+        "workingSet": 104353792,
+        "handles": 206,
+        "children": 2
+      },
+      {
+        "iteration": 10,
+        "privateBytes": 58712064,
+        "handles": 206,
+        "workingSet": 104353792,
+        "childPids": [
+          19488,
+          8372
+        ],
+        "childResources": [
+          {
+            "workingSet": 8048640,
+            "pid": 19488,
+            "privateBytes": 1269760,
+            "handles": 97,
+            "name": "conhost"
+          },
+          {
+            "workingSet": 512593920,
+            "pid": 8372,
+            "privateBytes": 617410560,
+            "handles": 286,
+            "name": "node"
+          }
+        ],
+        "children": 2
+      },
+      {
+        "iteration": 16,
+        "handles": 206,
+        "privateBytes": 58712064,
+        "children": 2,
+        "childResources": [
+          {
+            "privateBytes": 1269760,
+            "workingSet": 8048640,
+            "pid": 19488,
+            "name": "conhost",
+            "handles": 97
+          },
+          {
+            "privateBytes": 650256384,
+            "workingSet": 542011392,
+            "pid": 8372,
+            "name": "node",
+            "handles": 286
+          }
+        ],
+        "workingSet": 104353792,
+        "childPids": [
+          19488,
+          8372
+        ]
+      }
+    ],
+    "exited": true
+  },
+  "candidate": {
+    "implementationRevision": "2df016bcf",
+    "form": "local source ZIP, version 0.3.0 unchanged",
+    "bootstrap": "npm run bootstrap:ci",
+    "upgradeVerification": "node tools/setup/rebuild-native.js --verify",
+    "baseline": {
+      "phase": "baseline",
+      "version": "0.3.0",
+      "priorIndexReadable": true,
+      "configurationPreserved": true,
+      "incrementalRebuild": false
+    },
+    "upgrade": {
+      "phase": "upgrade",
+      "version": "0.3.0",
+      "priorIndexReadable": true,
+      "configurationPreserved": true,
+      "incrementalRebuild": true
+    },
+    "optionalMissing": [
+      "sharp"
+    ],
+    "published": false
+  }
+}

@@ -227,6 +227,34 @@ or renewed embedding qualification is authorized by this status record.
 
 ## Release discipline
 
+### Active product improvements
+
+User-selected follow-up: items 3, 4 and 6-20 from the product-win proposal.
+Items 1, 2 and 5 are not in this batch. Embeddings and broad cross-platform CI
+remain deferred. Implementation and bounded checks are recorded in the
+[product receipt](archived/product-wins-2026-10-14.md). Local install/upgrade qualification and the publication gate pass. This is
+not cross-platform release acceptance. The prior native crash remains unresolved.
+
+| Item | Required outcome | Status |
+| --- | --- | --- |
+| 3 | Bounded watcher latency under continuous edits | implemented; bounded check passed |
+| 4 | Evidence-based empty-result guidance | implemented; bounded check passed |
+| 6 | Bounded real-source indexing profile and measured improvement | implemented; bounded check passed |
+| 7 | Index freshness and coverage visibility | implemented; bounded check passed |
+| 8 | Useful, deduplicated agent context within token budgets | implemented; bounded check passed |
+| 9 | Actual MCP discovery/search/inspect/context workflow | implemented; bounded check passed |
+| 10 | Generation-safe federated structured enumeration | implemented; bounded check passed |
+| 11 | Change-impact usefulness and uncertainty | implemented; bounded check passed |
+| 12 | Focused, evidence-backed test suggestions | implemented; bounded check passed |
+| 13 | Actionable doctor/status recovery guidance | implemented; bounded check passed |
+| 14 | Bounded investigation of Windows native teardown crash | investigated; crash not reproduced/root-caused |
+| 15 | Bounded long-lived session resource checks | bounded resource check passed |
+| 16 | Lease-safe disk usage and cleanup preview | implemented; bounded check passed |
+| 17 | Installed Pyright proof on a representative Python package | implemented; bounded check passed |
+| 18 | One real JS/TS semantic precision improvement | implemented; bounded check passed |
+| 19 | TUI inspect/refine/return state preservation | implemented; bounded check passed |
+| 20 | Locally installable candidate and upgrade verification | local source candidate install/upgrade passed |
+
 Preserve revision-specific lineage and explicit launch authority. Follow
 [release validation](roadmap-release-validation-plan.md) when scheduled; bounded
 fixtures and setup receipts do not replace its acceptance. Update the affected
