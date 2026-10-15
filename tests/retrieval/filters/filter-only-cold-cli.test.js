@@ -20,12 +20,14 @@ try {
     { timeout: 5000, maxBuffer: 1048576 });
     const page = JSON.parse(result.stdout), cost = page.pagination.cost.byMode.code;
     assert.equal(page.pagination.total, rows); assert.equal(cost.startupWork.tokenIndexLoaded, false);
-    assert.equal(cost.startupWork.filterIndexBuilt, false); assert.equal(cost.startupWork.kind, 'artifact-materialization');
+    assert.equal(cost.startupWork.filterIndexBuilt, false);
+    assert.equal(cost.startupWork.kind, cursor ? 'authenticated-metadata-seek-page' : 'artifact-materialization');
     if (cursor) assert.equal(cost.matchingRepresentation, 'persisted-seek');
     scans += cost.scannedMetadata; loads += cost.startupWork.metadataLoadedRows; pages += 1;
     ids.push(...page.code.map(row => row.id)); cursor = page.pagination.nextCursor;
   } while (cursor);
-  assert.deepEqual(ids, Array.from({ length: rows }, (_, id) => id)); assert.equal(scans, rows); assert.equal(loads, rows * pages);
+  assert.deepEqual(ids, Array.from({ length: rows }, (_, id) => id)); assert.equal(scans, rows);
+  assert.equal(loads, rows + rows - 257, 'cold continuation hydrates only the requested page');
   console.log(JSON.stringify({ qualification: 'real wrapper; fresh process per page', backend: 'artifact-memory', rows, pages,
-    predicateScans: scans, metadataLoadedRows: loads, limitation: 'cold artifact loader materializes metadata on each invocation; no ranking postings' }));
+    predicateScans: scans, metadataLoadedRows: loads, limitation: 'oversized or invalid continuation representations fall back to the authoritative artifact loader' }));
 } finally { await fs.rm(root, { recursive: true, force: true }); }

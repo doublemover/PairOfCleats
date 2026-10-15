@@ -189,9 +189,37 @@ export function createIndexBackendLoader({
       dir,
       backend = 'cached',
       modeLoadOptions = cachedLoadOptions,
-      allowSqliteFallback = false
+      allowSqliteFallback = false,
+      skipFilterSnapshot = false
     }) {
       if (!run) return emptyIndex();
+      if (!skipFilterSnapshot && backend !== 'sqlite' && filterEnumeration
+        && Number.isSafeInteger(filterTopN) && filterTopN > 0
+        && !needsFileRelations && !needsRepoMap && !needsGraphRelations) {
+        const started = performance.now();
+        const page = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
+          identity: filterRepresentationIdentity(filterEnumeration, mode),
+          offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, includeRows: true,
+          throwIfAborted: () => signal?.throwIfAborted() });
+        if (page?.rows) {
+          const chunkMeta = new Array(page.rowCount);
+          for (let i = 0; i < page.ids.length; i++) chunkMeta[page.ids[i]] = page.rows[i];
+          const cost = { kind: 'authenticated-metadata-seek-page', metadataLoadedRows: page.rows.length,
+            elapsedMs: performance.now() - started, tokenIndexLoaded: false, filterIndexBuilt: false };
+          return { ...emptyIndex(), chunkMeta, preparedFilterPage: page, filterLoadCost: cost,
+            loadFilterMetadata: async () => {
+              const full = await this.loadModeIndex({ mode, run, dir, backend, modeLoadOptions,
+                allowSqliteFallback, skipFilterSnapshot: true });
+              for (let id = 0; id < full.chunkMeta.length; id++) {
+                if (id % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); signal?.throwIfAborted(); }
+                chunkMeta[id] = full.chunkMeta[id];
+              }
+              cost.kind = 'metadata-seek-fallback-materialization';
+              cost.metadataLoadedRows += full.chunkMeta.length;
+              cost.elapsedMs = performance.now() - started;
+            } };
+        }
+      }
       if (backend === 'sqlite') {
         const started = performance.now();
         if (filterEnumeration && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
