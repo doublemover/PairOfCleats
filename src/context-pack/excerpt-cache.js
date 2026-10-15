@@ -422,6 +422,16 @@ export const normalizeTypeFacts = (seedRef, chunk, maxTypeEntries, warnings) => 
       confidence: Number.isFinite(entry.confidence) ? entry.confidence : null
     });
   }
+  // Exact duplicates consume the cap without adding evidence. Preserve distinct
+  // sources/confidences, including disagreements from different providers.
+  const seen = new Set();
+  const uniqueFacts = facts.filter((fact) => {
+    const key = JSON.stringify([fact.role, fact.name, fact.type, fact.source, fact.confidence]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  facts.splice(0, facts.length, ...uniqueFacts);
   facts.sort((a, b) => compareStrings(a.role, b.role) || compareStrings(a.type, b.type));
   if (Number.isFinite(maxTypeEntries) && maxTypeEntries >= 0 && facts.length > maxTypeEntries) {
     warnings.push({

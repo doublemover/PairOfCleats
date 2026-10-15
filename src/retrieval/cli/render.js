@@ -1,4 +1,5 @@
-import { sanitizeTerminalText } from '../output/format/source.js';
+import { createSourcePreviewReader, sanitizeTerminalText } from '../output/format/source.js';
+import { wrapTerminalText } from '../output/format/shared.js';
 import { buildFilterPagination } from '../pipeline/filter-enumeration.js';
 import { compactHit } from './render-output.js';
 import {
@@ -12,6 +13,7 @@ import {
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
 import { buildRetrievalMetadata } from '../output/retrieval-metadata.js';
+import { explainEmptyResults } from '../output/empty-results.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
 
 const FALLBACK_TERMINAL_COLUMNS = 108;
@@ -19,12 +21,12 @@ const INDENT = '  ';
 
 const resolveTerminalColumns = (stream = process.stdout) => {
   const envColumns = Number.parseInt(String(process.env.COLUMNS || ''), 10);
-  if (Number.isFinite(envColumns) && envColumns >= 40) {
-    return envColumns;
+  if (Number.isFinite(envColumns) && envColumns >= 20) {
+    return Math.min(envColumns, 500);
   }
   const streamColumns = Number.parseInt(String(stream?.columns ?? ''), 10);
-  if (Number.isFinite(streamColumns) && streamColumns >= 40) {
-    return streamColumns;
+  if (Number.isFinite(streamColumns) && streamColumns >= 20) {
+    return Math.min(streamColumns, 500);
   }
   return FALLBACK_TERMINAL_COLUMNS;
 };
@@ -33,7 +35,7 @@ const resolveHumanLayout = (stream = process.stdout) => {
   const columns = resolveTerminalColumns(stream);
   return {
     columns,
-    contentWidth: Math.max(54, columns - 4),
+    contentWidth: Math.max(8, columns - 4),
     isNarrow: columns <= 80,
     isMedium: columns > 80 && columns <= 120,
     isWide: columns >= 160,
@@ -118,7 +120,8 @@ const buildNoResultsLines = ({
   color,
   layout,
   queryLabel,
-  renderedModeLabels
+  renderedModeLabels,
+  diagnostics = []
 }) => {
   const lines = [
     color.bold('No matches'),
@@ -130,14 +133,14 @@ const buildNoResultsLines = ({
         restPrefix: '  '
       }
     ),
-    ...wrapWords(
-      'Try broader terms, relax filters, switch mode, or rebuild indexes if the corpus changed.',
+    ...diagnostics.flatMap((entry) => wrapWords(
+      `${entry.message} ${entry.next}`,
       {
         width: layout.columns,
         firstPrefix: '  ',
         restPrefix: '  '
       }
-    )
+    ))
   ];
   return lines;
 };
@@ -282,6 +285,7 @@ const sectionModeLabel = (mode) => {
  */
 export function renderSearchOutput({
   filterEnumeration = null,
+  filtersActive = false,
   plain = false,
   emitOutput,
   jsonOutput,
@@ -392,6 +396,11 @@ export function renderSearchOutput({
     asOfContext,
     generationContext
   });
+  if (![payload.code, payload.prose, payload.extractedProse, payload.records].some((hits) => hits.length)) {
+    payload.retrieval.emptyResults = explainEmptyResults({
+      filtersActive, filterEnumeration, backend: payload.retrieval.backend
+    });
+  }
   if (asOfContext) {
     payload.asOf = {
       ref: asOfContext.ref || 'latest',
@@ -598,9 +607,14 @@ export function renderSearchOutput({
     const visibleExtracted = filterEnumeration ? outputPayload.extractedProse : extractedProseHitsFinal;
     const visibleRecords = filterEnumeration ? outputPayload.records : recordHitsFinal;
     const styled = !plain && process.stdout.isTTY === true && !Object.hasOwn(process.env, 'NO_COLOR') && process.env.TERM !== 'dumb';
-    const outputStream = styled ? process.stdout : { write: (text) => process.stdout.write(stripAnsi(text)) };
     if (!styled) hyperlinkMode = 'off';
     const layout = { ...resolveHumanLayout(process.stdout), styled };
+    const outputStream = { write: (text) => {
+      const readable = styled ? text : stripAnsi(text);
+      // Pipes retain ordinary readable text and opaque cursors stay on one line.
+      return process.stdout.write(process.stdout.isTTY === true ? wrapTerminalText(readable, layout.columns) : readable);
+    } };
+    const readPreview = createSourcePreviewReader(rootDir);
     let showProse = runProse ? topN : 0;
     let showExtractedProse = runExtractedProse ? topN : 0;
     let showCode = runCode ? topN : 0;
@@ -634,12 +648,9 @@ export function renderSearchOutput({
       recordHits: visibleRecords.slice(0, showRecords)
     });
 
-    const countSummary = formatCountSummary([
-      { label: 'code', count: visibleCode.length },
-      { label: 'comments', count: visibleExtracted.length },
-      { label: 'text', count: visibleProse.length },
-      { label: 'records', count: visibleRecords.length }
-    ], color);
+    const countSummary = formatCountSummary(sectionInputs.map((section) => ({
+      label: sectionModeLabel(section.mode), count: section.hits.length
+    })), color);
     writeLine(
       outputStream,
       alignLine(
@@ -670,6 +681,9 @@ export function renderSearchOutput({
     if (countSummary) {
       writeLine(outputStream, `${colorText('hits', ANSI.fgDarkGray)} ${countSummary}`);
     }
+    if (sectionInputs.length && !filterEnumeration) {
+      writeLine(outputStream, colorText('order ranked within each mode; counts reflect displayed hits', ANSI.fgDarkGray));
+    }
     if (asOfContext?.provided) {
       const shortHash = asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8);
       writeLine(
@@ -683,6 +697,9 @@ export function renderSearchOutput({
       writeLine(outputStream, 'order indexed chunks; missing compiler facts are excluded');
       if (page.nextCursor) writeLine(outputStream, `next --cursor ${page.nextCursor}`);
     }
+    if (sectionInputs.some((section) => section.mode === 'code')) {
+      writeLine(outputStream, colorText('Source previews: current files at indexed offsets; edits may differ. > marks query text, not ranking evidence.', ANSI.fgDarkGray));
+    }
     writeLine(outputStream, makeRule(layout.columns));
     writeLine(outputStream);
 
@@ -691,7 +708,8 @@ export function renderSearchOutput({
         color,
         layout,
         queryLabel,
-        renderedModeLabels
+        renderedModeLabels,
+        diagnostics: outputPayload.retrieval?.emptyResults || []
       })) {
         writeLine(outputStream, line);
       }
@@ -720,7 +738,11 @@ export function renderSearchOutput({
           rx: highlightRegex,
           matched: showMatched,
           layout,
-          hyperlinkMode
+          hyperlinkMode,
+          sourcePreview: section.mode === 'code' ? readPreview(hit, {
+            queryTokens, maxLines: index < section.fullCount ? 8 : 3,
+            maxChars: index < section.fullCount ? 1600 : 600
+          }) : null
         };
         if (index < section.fullCount) {
           outputStream.write(formatFullChunk({
@@ -736,6 +758,13 @@ export function renderSearchOutput({
           }));
         }
       });
+      writeLine(outputStream);
+    }
+
+    if (process.stdout.isTTY === true) {
+      const hints = [!explain ? '--explain scores' : null, explainTier !== 'full' ? '--why details' : null,
+        '--json structured output', 'search --help options'].filter(Boolean);
+      writeLine(outputStream, colorText(`More: ${hints.join('; ')}.`, ANSI.fgDarkGray));
       writeLine(outputStream);
     }
 

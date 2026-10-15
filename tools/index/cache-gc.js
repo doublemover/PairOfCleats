@@ -32,6 +32,7 @@ import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
+import { inspectRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../../src/shared/cache/repo-access.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',
@@ -80,7 +81,7 @@ const resolveMs = (value, fallbackMs = 0) => {
 };
 
 const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
-  const dryRun = argv['dry-run'] === true;
+  const dryRun = argv.apply !== true || argv['dry-run'] === true;
   const repoRoot = path.join(cacheRoot, 'repos');
 
   if (!maxBytes && !maxAgeDays) {
@@ -105,10 +106,25 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
 
   const entries = await fs.readdir(repoRoot, { withFileTypes: true });
   const repos = [];
+  const protectedRepos = [];
   const needsSizeScan = maxBytes != null;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const repoPath = path.join(repoRoot, entry.name);
+    const protectedBytes = needsSizeScan ? await sizeOfPath(repoPath) : null;
+    const owners = inspectRepoCacheAccess(repoPath);
+    if (owners.length) {
+      protectedRepos.push({ id: entry.name, reason: 'active-process-lease', bytes: protectedBytes, owners });
+      continue;
+    }
+    const locks = await fs.readdir(path.join(repoPath, 'locks')).catch((error) => {
+      if (error.code === 'ENOENT') return [];
+      return ['unreadable-lock-directory'];
+    });
+    if (locks.length) {
+      protectedRepos.push({ id: entry.name, reason: 'lock-present', bytes: protectedBytes, locks });
+      continue;
+    }
     const stat = await fs.stat(repoPath);
     const repo = {
       id: entry.name,
@@ -117,11 +133,12 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       mtimeMs: stat.mtimeMs
     };
     if (needsSizeScan) {
-      repo.bytes = await sizeOfPath(repoPath);
+      repo.bytes = protectedBytes;
     }
     repos.push(repo);
   }
 
+  const protectedBytes = protectedRepos.reduce((sum, repo) => sum + (repo.bytes || 0), 0);
   const removals = [];
   const keep = new Map(repos.map((repo) => [repo.path, repo]));
 
@@ -136,7 +153,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
   }
 
   if (maxBytes != null) {
-    let total = Array.from(keep.values()).reduce((sum, repo) => sum + repo.bytes, 0);
+    let total = protectedBytes + Array.from(keep.values()).reduce((sum, repo) => sum + repo.bytes, 0);
     if (total > maxBytes) {
       const sorted = Array.from(keep.values()).sort((a, b) => a.mtimeMs - b.mtimeMs);
       for (const repo of sorted) {
@@ -164,13 +181,27 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       process.exit(1);
     }
     if (dryRun) continue;
-    const deleteResult = await removePathWithRetry(repo.path, {
-      recursive: true,
-      force: true,
-      attempts: 20,
-      baseDelayMs: 40,
-      maxDelayMs: 1200
+    const currentLocks = await fs.readdir(path.join(repo.path, 'locks')).catch((error) => (
+      error.code === 'ENOENT' ? [] : ['unreadable-lock-directory']
+    ));
+    if (currentLocks.length) {
+      failedRemovals.push({ id: repo.id, path: path.resolve(repo.path), reason: repo.reason,
+        code: 'ERR_CACHE_IN_USE', message: 'Ownership appeared after planning; cache preserved.', attempts: 0 });
+      continue;
+    }
+    const cleanup = await withExclusiveRepoCacheCleanup(repo.path, async () => {
+      // Recheck legacy writer locks inside the admission barrier as well.
+      const locks = await fs.readdir(path.join(repo.path, 'locks')).catch((error) => (
+        error.code === 'ENOENT' ? [] : ['unreadable-lock-directory']
+      ));
+      if (locks.length) return { ok: false, error: { code: 'ERR_CACHE_IN_USE', message: 'Writer lock present.' }, attempts: 0 };
+      return removePathWithRetry(repo.path, {
+        recursive: true, force: true, attempts: 20, baseDelayMs: 40, maxDelayMs: 1200
+      });
     });
+    const deleteResult = cleanup.protected
+      ? { ok: false, error: { code: 'ERR_CACHE_IN_USE', message: cleanup.reason }, attempts: 0 }
+      : cleanup.result;
     if (!deleteResult.ok) {
       failedRemovals.push({
         id: repo.id,
@@ -183,9 +214,9 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
     }
   }
 
-  const hasSizeData = repos.some((repo) => Number.isFinite(repo.bytes));
+  const hasSizeData = needsSizeScan;
   const totalBytes = hasSizeData
-    ? repos.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
+    ? protectedBytes + repos.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
     : null;
   const freedBytes = removals.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0);
   const payload = {
@@ -199,8 +230,9 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       maxAgeDays: maxAgeDays ?? null
     },
     totals: {
-      repos: repos.length,
-      bytes: totalBytes
+      repos: repos.length + protectedRepos.length,
+      bytes: totalBytes,
+      protectedBytes: needsSizeScan ? protectedBytes : null
     },
     removals: removals.map((repo) => ({
       id: repo.id,
@@ -209,13 +241,21 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       reason: repo.reason
     })),
     failedRemovals,
-    freedBytes
+    protectedRepos,
+    coordination: 'process-leases-v1',
+    plannedBytes: freedBytes,
+    freedBytes: dryRun ? 0 : removals.filter((repo) => !failedRemovals.some((failure) => failure.id === repo.id))
+      .reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
   };
+
+  payload.remainingBytes = totalBytes == null ? null : totalBytes - payload.freedBytes;
+  payload.projectedRemainingBytes = totalBytes == null ? null : totalBytes - payload.plannedBytes;
+  payload.quotaSatisfied = maxBytes == null ? null : (dryRun ? payload.projectedRemainingBytes : payload.remainingBytes) <= maxBytes;
 
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error(`Cache GC: ${removals.length} repo(s) removed, freed ${formatBytes(freedBytes)}.`);
+    console.error(`Cache GC: ${removals.length} repo(s) ${dryRun ? 'planned' : 'selected'}; ${dryRun ? 'planned' : 'freed'} ${formatBytes(payload.freedBytes || (dryRun ? payload.plannedBytes : 0))}; ${protectedRepos.length} protected by process leases or locks.`);
     for (const repo of removals) {
       console.error(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.reason})`);
     }
@@ -329,6 +369,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
   const cutoffMs = nowMs - Math.max(0, Number(graceDays)) * 24 * 60 * 60 * 1000;
   const skippedByLease = [];
   const candidates = [];
+  let scannedBytes = 0;
+  let reachableBytes = 0;
   for (const hash of objectHashes) {
     const objectPath = getCasObjectPath(cacheRoot, hash);
     let stat = null;
@@ -341,7 +383,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
     const metadata = await readCasMetadata(cacheRoot, hash);
     const createdMs = resolveMs(metadata?.createdAt, stat.birthtimeMs || stat.mtimeMs || 0);
     const lastAccessedMs = resolveMs(metadata?.lastAccessedAt, stat.mtimeMs || createdMs);
-    const size = Number.isFinite(Number(metadata?.size)) ? Number(metadata.size) : stat.size;
+    const size = stat.size;
+    scannedBytes += size;
     const candidateBase = {
       hash,
       objectPath: path.resolve(objectPath),
@@ -353,6 +396,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       lastAccessedMs
     };
     if (reachableHashes.has(hash)) {
+      reachableBytes += size;
       continue;
     }
     if (activeLeases.has(hash)) {
@@ -452,6 +496,14 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       manifests: manifestPaths.length,
       objects: objectHashes.length
     },
+    bytes: {
+      scanned: scannedBytes,
+      reachable: reachableBytes,
+      protectedByLease: skippedByLease.reduce((sum, entry) => sum + entry.size, 0),
+      eligible: candidates.reduce((sum, entry) => sum + entry.size, 0),
+      planned: deletionPlan.reduce((sum, entry) => sum + entry.size, 0),
+      deleted: deletionPlan.filter((entry) => deleted.includes(entry.hash)).reduce((sum, entry) => sum + entry.size, 0)
+    },
     counts: {
       reachable: reachableHashes.size,
       candidateDeletes: candidates.length,
@@ -491,6 +543,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
   console.error(`- objects scanned: ${payload.scans.objects}`);
   console.error(`- reachable: ${payload.counts.reachable}`);
   console.error(`- skipped by lease: ${payload.counts.skippedByLease}`);
+  console.error(`- bytes: ${formatBytes(payload.bytes.scanned)} scanned, ${formatBytes(payload.bytes.reachable)} reachable, ${formatBytes(payload.bytes.protectedByLease)} leased`);
+  console.error(`- cleanup: ${formatBytes(payload.bytes.planned)} planned, ${formatBytes(payload.bytes.deleted)} deleted`);
   if (!payload.dryRun) {
     console.error(`- deleted: ${payload.counts.deleted}`);
     if (payload.counts.failedDeletes) {

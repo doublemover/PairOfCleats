@@ -2,14 +2,15 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { isPathWithinRoot, isRootPath } from './file-paths.js';
 import { assertNoSymlinkPath } from './contained-file.js';
+import { resolveSystemCacheAlias } from './system-cache-alias.js';
 
 /** Validate all targets before deleting any. Roots must be launch/user-owned. */
 export const CACHE_OWNER_FILE = '.pairofcleats-cache-owner.json';
 
 export const assertSafeCacheDeletion = (target, roots, { allowUnmarked = false } = {}) => {
-  const resolved = path.resolve(target);
+  const resolved = resolveSystemCacheAlias(path.resolve(target));
   if (isRootPath(resolved)) throw new Error('Refusing to delete a filesystem root.');
-  const candidates = roots.filter(Boolean).map((entry) => path.resolve(entry))
+  const candidates = roots.filter(Boolean).map((entry) => resolveSystemCacheAlias(path.resolve(entry)))
     .filter((entry) => isPathWithinRoot(resolved, entry) && fs.existsSync(entry));
   const root = candidates.find((entry) => {
     if (allowUnmarked) return true;
@@ -21,7 +22,8 @@ export const assertSafeCacheDeletion = (target, roots, { allowUnmarked = false }
     } catch { return false; }
   });
   if (!root) throw new Error('Cleanup target is outside user-authorized PairOfCleats storage.');
-  // Approved lexical roots must not be reinterpreted through a parent link.
+  // Beyond verified platform aliases, approved lexical roots must not be
+  // reinterpreted through a parent link, including links within the same root.
   assertNoSymlinkPath(path.parse(root).root, root);
   assertNoSymlinkPath(root, resolved, { allowMissing: true });
   return resolved;

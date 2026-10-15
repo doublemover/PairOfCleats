@@ -1,6 +1,7 @@
 import { ANSI, applyLineBackground, stripAnsi as stripAnsiShared } from '../../../shared/cli/ansi-utils.js';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { stripVTControlCharacters } from 'node:util';
 
 export { ANSI, applyLineBackground };
 
@@ -21,6 +22,14 @@ const OSC = {
   close: '\x1b]8;;\x1b\\',
   terminator: '\x1b\\'
 };
+
+const SGR = /^\x1b\[[0-9;]*m$/u;
+const UNSAFE_TERMINAL_TEXT = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu;
+const sanitizeLinkLabel = (value) => String(value).split(/(\x1b\[[0-9;]*m)/gu).map((part) => (
+  SGR.test(part) ? part : stripVTControlCharacters(part).replace(UNSAFE_TERMINAL_TEXT,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`)
+)).join('');
+const isWindowsAbsolute = (value) => /^[a-z]:[\\/]/iu.test(value) || /^\x5c\x5c[^\x5c]+\x5c[^\x5c]+/u.test(value);
 
 export const resolveHyperlinkMode = ({
   configuredMode = null,
@@ -59,20 +68,34 @@ export const buildFileHyperlink = ({
 } = {}) => {
   const effectiveMode = mode || resolveHyperlinkMode({ configuredMode, env, stdout });
   if (effectiveMode === 'off') return null;
-  const absolutePath = path.isAbsolute(String(filePath || ''))
-    ? path.normalize(String(filePath))
-    : path.resolve(rootDir, String(filePath || ''));
-  if (effectiveMode === 'vscode') {
-    const normalized = absolutePath.replace(/\\/g, '/');
-    const linePart = Number.isFinite(Number(line)) ? `:${Number(line)}:${Number.isFinite(Number(column)) ? Number(column) : 1}` : '';
-    return encodeURI(`vscode://file/${normalized}${linePart}`);
+  const file = String(filePath || '');
+  const root = String(rootDir || process.cwd());
+  // Explicit paths keep their own platform's semantics, even when displayed on
+  // another host. A POSIX backslash is a filename character, not a separator.
+  const windows = isWindowsAbsolute(file) ? true : file.startsWith('/') ? false
+    : isWindowsAbsolute(root) ? true : root.startsWith('/') ? false : process.platform === 'win32';
+  const pathApi = windows ? path.win32 : path.posix;
+  const absolutePath = pathApi.resolve(root, file);
+  try {
+    if (effectiveMode === 'vscode') {
+      const normalized = windows ? absolutePath.replace(/\\/g, '/') : absolutePath;
+      const lineNumber = Number(line);
+      const columnNumber = Number(column);
+      const linePart = Number.isSafeInteger(lineNumber) && lineNumber > 0
+        ? `:${lineNumber}:${Number.isSafeInteger(columnNumber) && columnNumber > 0 ? columnNumber : 1}` : '';
+      const encodedPath = encodeURI(normalized).replace(/[?#]/gu, (char) => encodeURIComponent(char));
+      return `vscode://file/${encodedPath}${linePart}`;
+    }
+    return pathToFileURL(absolutePath, { windows }).href;
+  } catch {
+    return null;
   }
-  return pathToFileURL(absolutePath).href;
 };
 
 export const hyperlinkText = (text, href) => {
-  if (!href) return String(text);
-  return `${OSC.open}${href}${OSC.terminator}${text}${OSC.close}`;
+  const label = sanitizeLinkLabel(text);
+  if (!href || /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/u.test(String(href))) return label;
+  return `${OSC.open}${href}${OSC.terminator}${label}${OSC.close}`;
 };
 
 export const hyperlinkFileLabel = ({

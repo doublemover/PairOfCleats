@@ -1,3 +1,4 @@
+import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { prepareTypeScriptBabelSyntax } from './syntax-context.js';
 import { collectImportsFromAst } from '../javascript.js';
 import { findCLikeBodyBounds } from '../clike.js';
@@ -34,20 +35,6 @@ const getLastDottedSegment = (raw) => {
   if (!end) return '';
   const idx = raw.lastIndexOf('.', end - 1);
   return raw.slice(idx + 1, end);
-};
-
-const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true });
-
-const getCalleeName = (callee) => {
-  if (!callee) return null;
-  if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
-  if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
-  if (callee.type === 'Identifier') return callee.name;
-  if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
-    return getMemberName(callee);
-  }
-  if (callee.type === 'Super') return 'super';
-  return null;
 };
 
 function collectTypeScriptImportsFromNormalized(normalized) {
@@ -155,6 +142,21 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
   const usages = new Set();
 
   const ast = prepareTypeScriptBabelSyntax(text, options);
+  const constants = collectConstantReferences(ast);
+  const getMemberName = (node) => resolveAstMemberName(node, { includeTsQualifiedName: true, constantKeys: constants.keys });
+
+  const getCalleeName = (callee) => {
+    if (!callee) return null;
+    if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
+    if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
+    if (callee.type === 'Identifier') return constants.aliases.get(callee) || callee.name;
+    if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
+      return getMemberName(callee);
+    }
+    if (callee.type === 'Super') return 'super';
+    return null;
+  };
+
   const chunkRanges = Array.isArray(tsChunks)
     ? tsChunks
       .filter((chunk) => chunk && chunk.name && Number.isFinite(chunk.start) && Number.isFinite(chunk.end))

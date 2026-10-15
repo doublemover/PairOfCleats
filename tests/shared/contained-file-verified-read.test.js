@@ -48,7 +48,8 @@ try {
     return read;
   };
   try {
-    assert.throws(() => readVerifiedContainedFileSync(root, file), { code: 'ERR_UNSAFE_FILE_PATH' });
+    // Windows prevents replacement of the open file itself; POSIX reaches descriptor verification.
+    assert.throws(() => readVerifiedContainedFileSync(root, file), { code: process.platform === 'win32' ? 'EPERM' : 'ERR_UNSAFE_FILE_PATH' });
   } finally { fs.readSync = originalRead; }
   assert.throws(() => fs.fstatSync(observedFd), { code: 'EBADF' });
   if (process.platform !== 'win32') {

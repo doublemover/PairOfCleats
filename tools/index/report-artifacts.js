@@ -332,6 +332,19 @@ const lmdbCode = repo.lmdb?.code;
 const lmdbProse = repo.lmdb?.prose;
 
 console.error('Repo artifacts');
+for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
+  console.error(`- ${mode} coverage: ${coverage.status}; scanned ${coverage.files?.scanned ?? 'unknown'}, skipped ${coverage.files?.skipped ?? 'unknown'}, chunks ${coverage.chunks ?? 'unknown'}; recorded ${coverage.generatedAt || 'unknown'}`);
+  if (coverage.provenance?.head) console.error(`  indexed revision: ${JSON.stringify(coverage.provenance.head)}`);
+  console.error(`  revision comparison: ${coverage.revisionComparison}`);
+  if (coverage.files?.skippedByReason) console.error(`  skipped reasons: ${JSON.stringify(coverage.files.skippedByReason)}`);
+}
+console.error(`- working-tree freshness: bounded indexed-file comparison and new-file discovery (${status.coverage?.discovery?.status || 'unknown'})`);
+for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
+  const comparison = coverage.workingTree;
+  if (!comparison) continue;
+  console.error(`  ${mode}: ${comparison.status}; ${comparison.unchanged} unchanged; changed ${JSON.stringify(comparison.changed)}; missing ${JSON.stringify(comparison.missing)}; added ${JSON.stringify(comparison.added)}; unknown ${JSON.stringify(comparison.unknown)}${comparison.truncated ? '; truncated' : ''}`);
+}
+if (status.coverage?.watcher) console.error(`- watcher (last recorded): ${status.coverage.watcher.consistency}; backlog ${status.coverage.watcher.backlogDepth ?? 'unknown'}; process ${status.coverage.watcher.processStatus}; recorded ${status.coverage.watcher.recordedAt || 'unknown'}`);
 console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repoCacheRoot})`);
 if (repoRoot) {
   console.error(`- repo root: ${repoRoot}`);

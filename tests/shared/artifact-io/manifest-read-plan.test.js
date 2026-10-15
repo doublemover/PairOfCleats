@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import {
   loadPiecesManifestWithReadPlan,
@@ -26,7 +27,7 @@ const manifest = await loadPiecesManifestWithReadPlan('ignored', {
       error.code = 'ERR_MANIFEST_MISSING';
       throw error;
     }
-    return { pieces: [{ path: 'token_postings.json' }] };
+    return { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [{ path: 'token_postings.json' }] };
   }
 });
 assert.equal(attempts, 3, 'expected strict manifest plan to retry missing manifests');

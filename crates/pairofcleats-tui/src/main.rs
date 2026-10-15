@@ -94,6 +94,24 @@ impl Drop for UiGuard {
 
 #[derive(Default, Serialize, Deserialize)]
 struct SessionSnapshot {
+    #[serde(default)]
+    focus_panel: Option<FocusPanel>,
+    #[serde(default)]
+    job_filter: Option<JobFilter>,
+    #[serde(default)]
+    task_filter: Option<TaskFilter>,
+    #[serde(default)]
+    log_level_filter: Option<LogLevelFilter>,
+    #[serde(default)]
+    log_source_filter: Option<LogSourceFilter>,
+    #[serde(default)]
+    follow_updates: Option<bool>,
+    #[serde(default)]
+    search_jobs: String,
+    #[serde(default)]
+    search_tasks: String,
+    #[serde(default)]
+    search_logs: String,
     selected_job: Option<String>,
     job_scroll: usize,
     task_scroll: usize,
@@ -143,7 +161,7 @@ struct LogEntry {
     source: String,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum FocusPanel {
     Jobs,
     Tasks,
@@ -168,7 +186,7 @@ impl FocusPanel {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum JobFilter {
     All,
     Active,
@@ -196,7 +214,7 @@ impl JobFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum TaskFilter {
     All,
     Active,
@@ -224,7 +242,7 @@ impl TaskFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum LogLevelFilter {
     All,
     WarnError,
@@ -249,7 +267,7 @@ impl LogLevelFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum LogSourceFilter {
     All,
     Supervisor,
@@ -910,14 +928,55 @@ fn load_snapshot(snapshot_path: &Path) -> Option<SessionSnapshot> {
     serde_json::from_str::<SessionSnapshot>(&body).ok()
 }
 
-fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
-    let payload = SessionSnapshot {
+fn snapshot_from_model(model: &AppModel) -> SessionSnapshot {
+    SessionSnapshot {
         selected_job: model.selected_job.clone(),
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
         log_scroll: model.log_scroll,
         final_job_statuses: model.job_status.clone(),
-    };
+        focus_panel: Some(model.focus_panel),
+        job_filter: Some(model.job_filter),
+        task_filter: Some(model.task_filter),
+        log_level_filter: Some(model.log_level_filter),
+        log_source_filter: Some(model.log_source_filter),
+        follow_updates: Some(model.follow_updates),
+        search_jobs: model.search_jobs.clone(),
+        search_tasks: model.search_tasks.clone(),
+        search_logs: model.search_logs.clone(),
+    }
+}
+
+fn restore_snapshot(model: &mut AppModel, snapshot: SessionSnapshot) {
+    model.selected_job = snapshot.selected_job;
+    model.job_scroll = snapshot.job_scroll;
+    model.task_scroll = snapshot.task_scroll;
+    model.log_scroll = snapshot.log_scroll;
+    model.search_jobs = snapshot.search_jobs;
+    model.search_tasks = snapshot.search_tasks;
+    model.search_logs = snapshot.search_logs;
+    if let Some(value) = snapshot.focus_panel {
+        model.focus_panel = value;
+    }
+    if let Some(value) = snapshot.job_filter {
+        model.job_filter = value;
+    }
+    if let Some(value) = snapshot.task_filter {
+        model.task_filter = value;
+    }
+    if let Some(value) = snapshot.log_level_filter {
+        model.log_level_filter = value;
+    }
+    if let Some(value) = snapshot.log_source_filter {
+        model.log_source_filter = value;
+    }
+    if let Some(value) = snapshot.follow_updates {
+        model.follow_updates = value;
+    }
+}
+
+fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
+    let payload = snapshot_from_model(model);
     if let Some(parent) = snapshot_path.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -3219,10 +3278,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut model = AppModel::new(run_id.clone(), terminal_caps, telemetry_file);
     if let Some(snapshot) = load_snapshot(&snapshot_path) {
-        model.selected_job = snapshot.selected_job;
-        model.job_scroll = snapshot.job_scroll;
-        model.task_scroll = snapshot.task_scroll;
-        model.log_scroll = snapshot.log_scroll;
+        restore_snapshot(&mut model, snapshot);
     }
 
     let (supervisor, events_rx) = spawn_supervisor(&run_id, &observability_dir)?;
@@ -3448,6 +3504,35 @@ mod redraw_tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect()
+    }
+
+    #[test]
+    fn session_snapshot_preserves_refinement_and_accepts_old_state() {
+        let mut original = model();
+        original.selected_job = Some("job-7".into());
+        original.search_logs = "parse failure".into();
+        original.search_jobs = "index".into();
+        original.search_tasks = "typescript".into();
+        original.focus_panel = FocusPanel::Logs;
+        original.log_level_filter = LogLevelFilter::Error;
+        original.follow_updates = false;
+        original.log_scroll = 12;
+        let encoded = serde_json::to_string(&snapshot_from_model(&original)).unwrap();
+        let mut restored = model();
+        restore_snapshot(&mut restored, serde_json::from_str(&encoded).unwrap());
+        assert_eq!(restored.selected_job, original.selected_job);
+        assert_eq!(restored.search_logs, original.search_logs);
+        assert_eq!(restored.search_jobs, original.search_jobs);
+        assert_eq!(restored.search_tasks, original.search_tasks);
+        assert!(restored.focus_panel == FocusPanel::Logs);
+        assert!(restored.log_level_filter == LogLevelFilter::Error);
+        assert!(!restored.follow_updates);
+        assert_eq!(restored.log_scroll, 12);
+        let old = r#"{"selected_job":null,"job_scroll":0,"task_scroll":0,"log_scroll":0}"#;
+        let mut legacy = model();
+        restore_snapshot(&mut legacy, serde_json::from_str(old).unwrap());
+        assert!(legacy.follow_updates);
+        assert!(legacy.search_logs.is_empty());
     }
 
     #[test]

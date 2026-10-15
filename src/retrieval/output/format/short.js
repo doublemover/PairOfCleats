@@ -1,4 +1,4 @@
-import { sanitizeTerminalMetadata } from './source.js';
+import { sanitizeTerminalMetadata, readSourcePreview, formatSourcePreview } from './source.js';
 import { formatScoreBreakdown } from '../explain.js';
 import { getFormatShortCache } from '../cache.js';
 import {
@@ -36,13 +36,16 @@ export function formatShortChunk({
   rootDir = process.cwd(),
   hyperlinkMode = null,
   layout = null,
+  sourcePreview: suppliedSourcePreview = undefined,
   _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
+  const sourcePreview = suppliedSourcePreview !== undefined ? suppliedSourcePreview
+    : (mode === 'code' ? readSourcePreview(rootDir, chunk, { maxLines: 3, maxChars: 600, queryTokens }) : null);
   chunk = sanitizeTerminalMetadata(chunk);
-  const canCache = !_skipCache && !explain;
+  const canCache = !sourcePreview && !_skipCache && !explain;
   const { formatCache, cacheKey, cached } = resolveFormatCache({
     canCache,
     getFormatCache: getFormatShortCache,
@@ -143,6 +146,10 @@ export function formatShortChunk({
     if (matchedTokens.length) {
       out += `\n  ${color.gray(`Matched: ${matchedTokens.join(', ')}`)}`;
     }
+  }
+
+  if (sourcePreview) {
+    out += `\n${formatSourcePreview(sourcePreview, { styled: layout?.styled !== false, columns }).trimEnd()}`;
   }
 
   if (explain && chunk.scoreBreakdown) {

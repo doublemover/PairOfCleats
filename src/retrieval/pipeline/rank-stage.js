@@ -4,6 +4,7 @@ import { applyGraphRanking } from './graph-ranking.js';
 import { createScoreBreakdown } from '../output/score-breakdown.js';
 import { computeRelationBoost } from '../scoring/relation-boost.js';
 import { resolveAnnType } from './provider-runtime.js';
+import { exactLookupIntent } from '../scoring/exact-intent.js';
 
 /**
  * Execute ranking stage over fused sparse+ANN scores.
@@ -36,6 +37,7 @@ export const runRankStage = ({
   relationBoostConfig,
   resolveFileRelations,
   queryTokens,
+  query,
   graphRankingConfig,
   sqliteFtsNormalize,
   sqliteFtsWeights,
@@ -161,12 +163,16 @@ export const runRankStage = ({
       let factor = 1;
       if (isDefinition) factor *= symbolBoostDefinitionWeight;
       if (isExported) factor *= symbolBoostExportWeight;
+      const exact = exactLookupIntent(query, chunk, isDefinition);
+      factor *= exact.factor;
       symbolFactor = factor;
       if (factor !== 1) {
         symbolBoost = score * (factor - 1);
         score *= factor;
       }
       symbolInfo = {
+        exactSymbol: exact.symbol,
+        exactFile: exact.file,
         definition: isDefinition,
         export: isExported,
         factor: symbolFactor,

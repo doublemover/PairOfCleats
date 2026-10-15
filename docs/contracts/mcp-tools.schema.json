@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.6.0",
+  "schemaVersion": "1.7.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -116,7 +116,7 @@
     },
     {
       "name": "cache_gc",
-      "description": "Garbage-collect repo caches.",
+      "description": "Preview cache cleanup by default. Explicit dryRun=false applies deletion; whole-repo cleanup protects cooperating local sessions with process-lifetime leases.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2857,8 +2857,7 @@
           }
         },
         "required": [
-          "workspacePath",
-          "query"
+          "workspacePath"
         ]
       }
     },

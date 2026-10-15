@@ -23,6 +23,8 @@ import {
   upsertFederatedQueryCacheEntry
 } from './query-cache.js';
 import { selectWorkspaceRepos } from './select.js';
+import { enumerateWorkspace, withoutCursor } from './enumeration.js';
+import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 
 const MODE_PAYLOAD_KEYS = Object.freeze({
   code: 'code',
@@ -561,7 +563,9 @@ const resolveWorkspaceConfig = (request, context) => {
 
 export const runFederatedSearch = async (request = {}, context = {}) => {
   const query = String(request.query || '').trim();
-  if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
+  if (query && (request.cursor || request.search?.cursor)) {
+    throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace cursors require filter-only enumeration.');
+  }
 
   const workspaceConfig = resolveWorkspaceConfig(request, context);
   if (request.workspaceId && request.workspaceId !== workspaceConfig.repoSetId) {
@@ -632,6 +636,40 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       perRepoTop
     });
   const perRepoQuery = request.rawArgs ? '' : query;
+  if (!query) {
+    const enumerationArgs = withoutCursor(request.rawArgs
+      ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop: Math.max(1, topN) })
+      : buildPerRepoArgsFromRequest({ query: '', search: { ...request.search, cursor: null }, perRepoTop: Math.max(1, topN) }));
+    if (!hasSearchFilterArgs(parseSearchArgs(enumerationArgs))) {
+      throw createError(ERROR_CODES.INVALID_REQUEST, 'Provide query text or at least one search filter.');
+    }
+    const tasks = activeRepoIds.flatMap((repoId) => {
+      const repo = selection.selectedRepos.find((entry) => entry.repoId === repoId);
+      return Array.from(repoEligibleModesById.get(repoId) || []).sort().map((mode) => ({ repo, mode }));
+    });
+    const result = await enumerateWorkspace({
+      tasks, args: enumerationArgs, cursor: request.cursor || request.search?.cursor,
+      manifestHash: manifest.manifestHash, search: context.searchFn || coreSearch, signal: context.signal,
+      verifyGeneration: async () => {
+        const current = await generateWorkspaceManifest(workspaceConfig, { write: false });
+        if (current.manifest.manifestHash !== manifest.manifestHash) {
+          throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace generation changed during enumeration. Restart without --cursor.');
+        }
+      }
+    });
+    const unavailable = selection.selectedRepos.flatMap((repo) => requestedModes
+      .filter((mode) => !repoEligibleModesById.get(repo.repoId)?.has(mode))
+      .map((mode) => ({ repoId: repo.repoId, mode, reason: 'not-eligible-for-request' })));
+    if (strictFailures && unavailable.length) {
+      throw createError(ERROR_CODES.NO_INDEX, 'Some requested repository modes are unavailable for workspace enumeration.');
+    }
+    result.status = unavailable.length ? 'partial' : 'ok';
+    result.partialSuccess = unavailable.length > 0;
+    result.warnings = [...toArray(selection.warnings), ...toArray(cohortResult?.warnings)];
+    result.meta = { manifestHash: manifest.manifestHash, cohorts: cohortResult, selectedRepoIds: selection.selectedRepoIds,
+      completeness: { scope: 'eligible-indexed-metadata', unavailable, remainingPages: result.pagination.hasMore } };
+    return toStableResponse(result, includePaths);
+  }
   const cohortSelectors = request.cohort || request.cohorts?.cohort || [];
   const cachePath = resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId);
   const cachePolicy = {

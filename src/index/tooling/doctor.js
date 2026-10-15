@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { buildProviderRecovery } from './recovery.js';
 import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import semver from 'semver';
 import { getXxhashBackend } from '../../shared/hash.js';
@@ -683,6 +684,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
     providerReport.available = providerAvailable;
     providerReport.failureReasons = toStructuredFailureReasons(providerReport.checks);
+    providerReport.recovery = buildProviderRecovery(providerReport, repoRoot);
     report.providers.push(providerReport);
     const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
     log(

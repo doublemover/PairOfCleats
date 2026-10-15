@@ -8,7 +8,7 @@ import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic
 import { getToolVersion } from '../../shared/dict-utils.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.6.0';
+export const MCP_SCHEMA_VERSION = '1.7.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -311,7 +311,7 @@ export function getToolDefs(defaultModelId) {
             }
           }
         }),
-        required: ['workspacePath', 'query']
+        required: ['workspacePath']
       }
     },
     {
@@ -453,7 +453,7 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'cache_gc',
-      description: 'Garbage-collect repo caches.',
+      description: 'Preview cache cleanup by default. Explicit dryRun=false applies deletion; whole-repo cleanup protects cooperating local sessions with process-lifetime leases.',
       inputSchema: {
         type: 'object',
         properties: {

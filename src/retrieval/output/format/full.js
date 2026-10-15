@@ -125,12 +125,14 @@ export function formatFullChunk({
   summaryState,
   allowSummary = true,
   layout = null,
+  sourcePreview: suppliedSourcePreview = undefined,
   _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
-  const sourcePreview = mode === 'code' ? readSourcePreview(rootDir, chunk) : null;
+  const sourcePreview = suppliedSourcePreview !== undefined ? suppliedSourcePreview
+    : (mode === 'code' ? readSourcePreview(rootDir, chunk, { queryTokens }) : null);
   chunk = sanitizeTerminalMetadata(chunk);
   const canCache = !sourcePreview && !_skipCache && !explain && (!summaryState || !allowSummary);
   const { formatCache, cacheKey, cached } = resolveFormatCache({
@@ -150,7 +152,7 @@ export function formatFullChunk({
   const c = color;
   let out = '';
   const columns = Number.isFinite(layout?.columns) ? layout.columns : 108;
-  const wrapWidth = Math.max(42, Math.min(Number.isFinite(layout?.contentWidth) ? layout.contentWidth : 104, columns - 6));
+  const wrapWidth = Math.max(8, Math.min(Number.isFinite(layout?.contentWidth) ? layout.contentWidth : 104, columns - 6));
   const fullExplain = explain && explainTier === 'full';
   const joinInlineParts = (parts, { indent = INDENT, maxWidth = wrapWidth, separator = ` ${colorText('•', ANSI.fgDarkGray)} ` } = {}) => {
     const filtered = parts.filter(Boolean);

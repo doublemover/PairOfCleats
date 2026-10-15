@@ -208,6 +208,8 @@ export async function watchIndex({
       || stabilityRetryTimers.size > 0;
     const quiescent = !running && !pendingReplay && backlogDepth === 0;
     const snapshot = {
+      pid: process.pid,
+      recordedAt: new Date().toISOString(),
       consistency: quiescent ? 'consistent' : 'catching-up',
       quiescent,
       backlogDepth,
@@ -374,11 +376,12 @@ export async function watchIndex({
   };
 
   const scheduleUpdateFlush = () => {
-    if (updateScheduled) return;
+    if (shouldExit || updateScheduled) return;
     updateScheduled = true;
     emitWatchState();
     setImmediate(() => {
       updateScheduled = false;
+      if (shouldExit) return;
       emitWatchState();
       void flushPendingUpdates();
     });
@@ -891,6 +894,8 @@ export async function watchIndex({
 
   scheduler = createDebouncedScheduler({
     debounceMs,
+    // Continuous saves must not indefinitely postpone a searchable generation.
+    maxWaitMs: Math.max(1000, debounceMs * 4),
     onRun: runBuild,
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
@@ -935,9 +940,11 @@ export async function watchIndex({
   };
 
   const recordAddOrChange = async (absPath, { fromStabilityRetry = false } = {}) => {
+    if (shouldExit) return;
     watchState.lastEventAt = new Date().toISOString();
     if (stabilityGuard?.enabled) {
       const stable = await waitForStableFile(absPath, stabilityGuard);
+      if (shouldExit) return;
       if (!stable) {
         if (!fromStabilityRetry) {
           log(`[watch] Deferring unstable update: ${absPath}`);
@@ -1035,6 +1042,7 @@ export async function watchIndex({
   };
 
   const handleEvent = (event) => {
+    if (shouldExit) return;
     incWatchEvent(event?.type || 'unknown');
     recordBurst();
     if (event?.type === 'unlink') {
@@ -1084,12 +1092,12 @@ export async function watchIndex({
       swallowTimeout: false
     });
 
-    if (running) {
+    if (running || updateRunning || updateScheduled) {
       log('[watch] Waiting for active build to finish...');
       await runBuildCleanupWithTimeout({
         label: 'watch.active-build.wait',
         cleanup: async () => {
-          while (running) {
+          while (running || updateRunning || updateScheduled) {
             await sleep(200);
           }
         },

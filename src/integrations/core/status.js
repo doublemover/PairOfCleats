@@ -9,6 +9,9 @@ import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js'
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { sizeOfPath } from '../../shared/disk-space.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
+import { readIndexCoverage, readCurrentProvenance } from './status-coverage.js';
+import { compareIndexedFiles } from './status-freshness.js';
+import { discoverFreshnessFiles } from './status-discovery.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
@@ -41,7 +44,8 @@ export async function getStatus(input = {}) {
     indexRecords: indexRecordsDir,
     metrics: path.join(repoCacheRoot, 'metrics'),
     queryCache: path.join(repoCacheRoot, 'query-cache'),
-    incremental: path.join(repoCacheRoot, 'incremental')
+    incremental: path.join(repoCacheRoot, 'incremental'),
+    snapshots: path.join(repoCacheRoot, 'snapshots')
   };
 
   const repoCacheSize = await sizeOfPath(repoCacheRoot);
@@ -170,7 +174,22 @@ export async function getStatus(input = {}) {
     health.hints.push('Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB indexes.');
   }
 
+  const coverage = readIndexCoverage({
+    currentProvenance: await readCurrentProvenance(root, userConfig.indexing?.scm?.provider),
+    metricsDir: getMetricsDir(root, userConfig),
+    repoCacheRoot,
+    indexes: { code: indexCodeDir, prose: indexProseDir, 'extracted-prose': indexExtractedProseDir, records: indexRecordsDir }
+  });
+  const discovery = await discoverFreshnessFiles({ repoRoot: root, userConfig });
+  coverage.discovery = { status: discovery.status };
+  for (const [mode, indexDir] of Object.entries({ code: indexCodeDir, prose: indexProseDir,
+    'extracted-prose': indexExtractedProseDir, records: indexRecordsDir })) {
+    coverage.modes[mode].workingTree = await compareIndexedFiles({ repoRoot: root, indexDir,
+      currentFiles: discovery.files?.[mode], discoveryStatus: discovery.status });
+  }
+  coverage.workingTreeComparison = 'bounded-indexed-files-and-discovery';
   const payload = {
+    coverage,
     repo: {
       root: path.resolve(root),
       cacheRoot: path.resolve(repoCacheRoot),

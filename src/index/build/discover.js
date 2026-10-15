@@ -49,6 +49,7 @@ export async function discoverFiles({
   fileCaps = null,
   maxDepth = null,
   maxFiles = null,
+  strictTraversal = false,
   abortSignal = null
 }) {
   const { entries, skippedCommon } = await discoverEntries({
@@ -64,6 +65,7 @@ export async function discoverFiles({
     fileCaps,
     maxDepth,
     maxFiles,
+    strictTraversal,
     abortSignal
   });
   if (skippedFiles) skippedFiles.push(...skippedCommon);
@@ -91,6 +93,7 @@ export async function discoverFilesForModes({
   fileCaps = null,
   maxDepth = null,
   maxFiles = null,
+  strictTraversal = false,
   abortSignal = null
 }) {
   const { entries, skippedCommon } = await discoverEntries({
@@ -106,6 +109,7 @@ export async function discoverFilesForModes({
     fileCaps,
     maxDepth,
     maxFiles,
+    strictTraversal,
     abortSignal
   });
   const output = {};
@@ -139,6 +143,7 @@ export async function discoverEntries({
   fileCaps = null,
   maxDepth = null,
   maxFiles = null,
+  strictTraversal = false,
   abortSignal = null
 }) {
   throwIfAborted(abortSignal);
@@ -200,6 +205,7 @@ export async function discoverEntries({
 
   const listFdirFiles = async () => {
     let crawler = new fdir().withFullPaths();
+    if (strictTraversal) crawler = crawler.withErrors();
     if (maxDepthValue != null) {
       crawler = crawler.withMaxDepth(maxDepthValue);
     }
@@ -228,6 +234,7 @@ export async function discoverEntries({
     ? scmFiles.map((rel) => path.join(scmResult.repoRoot || root, rel))
     : await listFdirFiles();
 
+  throwIfAborted(abortSignal);
   const entries = [];
   let acceptedCount = 0;
   let reservedCount = 0;
@@ -304,70 +311,64 @@ export async function discoverEntries({
         return;
       }
     }
+    let stat;
     try {
-      let stat;
-      try {
-        stat = await fs.lstat(absPath);
-      } catch {
-        recordSkip(absPath, 'stat-failed');
+      stat = await fs.lstat(absPath);
+    } catch {
+      recordSkip(absPath, 'stat-failed');
+      return;
+    }
+    throwIfAborted(abortSignal);
+    if (stat.isSymbolicLink()) {
+      recordSkip(absPath, 'symlink');
+      return;
+    }
+    if (!preclassifiedRecord && stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
+      const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
+      if (artifact?.action === 'omit') {
+        recordSkip(absPath, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,
+          artifactFlags: artifact.flags, action: artifact.action });
         return;
-      }
-      throwIfAborted(abortSignal);
-      if (stat.isSymbolicLink()) {
-        recordSkip(absPath, 'symlink');
-        return;
-      }
-      if (!preclassifiedRecord && stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
-        const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
-        if (artifact?.action === 'omit') {
-          recordSkip(absPath, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,
-            artifactFlags: artifact.flags, action: artifact.action });
-          return;
-        }
-      }
-      let language = getLanguageForFile(ext, relPosix);
-      if (!ext && !language && stat.isFile()) {
-        const shebang = await detectShebangLanguage(absPath);
-        if (shebang?.languageId) {
-          ext = shebang.ext || ext;
-          language = getLanguageForFile(ext, relPosix);
-        }
-      }
-      const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
-      const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
-      const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null);
-      if (maxBytesForFile && stat.size > maxBytesForFile) {
-        recordSkip(absPath, 'oversize', {
-          stage: 'discover',
-          capSource: 'maxBytes',
-          bytes: stat.size,
-          maxBytes: maxBytesForFile
-        });
-        return;
-      }
-      if (maxFilesValue && acceptedCount >= maxFilesValue) {
-        return;
-      }
-      const record = preclassifiedRecord
-        || (recordsClassifier
-          ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
-          : null);
-      entries.push({
-        abs: absPath,
-        rel: relPosix,
-        stat,
-        ext,
-        isSpecial,
-        isManifest,
-        isLock,
-        ...(record ? { record } : {})
-      });
-      acceptedCount += 1;
-    } finally {
-      if (maxFilesValue) {
-        reservedCount = Math.max(0, reservedCount - 1);
       }
     }
+    let language = getLanguageForFile(ext, relPosix);
+    if (!ext && !language && stat.isFile()) {
+      const shebang = await detectShebangLanguage(absPath);
+      if (shebang?.languageId) {
+        ext = shebang.ext || ext;
+        language = getLanguageForFile(ext, relPosix);
+      }
+    }
+    const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
+    const isSpecial = isSpecialCodeFile(baseName) || isManifest || isLock || isSpecialLanguage;
+    const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null);
+    if (maxBytesForFile && stat.size > maxBytesForFile) {
+      recordSkip(absPath, 'oversize', {
+        stage: 'discover',
+        capSource: 'maxBytes',
+        bytes: stat.size,
+        maxBytes: maxBytesForFile
+      });
+      return;
+    }
+    if (maxFilesValue && acceptedCount >= maxFilesValue) {
+      return;
+    }
+    const record = preclassifiedRecord
+      || (recordsClassifier
+        ? recordsClassifier.classify({ absPath, relPath: relPosix, ext })
+        : null);
+    entries.push({
+      abs: absPath,
+      rel: relPosix,
+      stat,
+      ext,
+      isSpecial,
+      isManifest,
+      isLock,
+      ...(record ? { record } : {})
+    });
+    acceptedCount += 1;
   };
   const workerCount = Math.min(
     statConcurrency,
@@ -394,7 +395,11 @@ export async function discoverEntries({
           }
           break;
         }
-        await processCandidate(candidates[idx]);
+        try {
+          await processCandidate(candidates[idx]);
+        } finally {
+          if (maxFilesValue) reservedCount = Math.max(0, reservedCount - 1);
+        }
       }
     })());
     await Promise.all(workers);

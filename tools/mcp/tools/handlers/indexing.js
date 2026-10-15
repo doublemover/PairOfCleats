@@ -1,8 +1,4 @@
 import path from 'node:path';
-import {
-  buildIndex as coreBuildIndex,
-  buildSqliteIndex as coreBuildSqliteIndex
-} from '../../../../src/integrations/core/index.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { createProgressReporter } from '../../../../src/shared/progress-events.js';
 import { clearRepoCaches } from '../../repo.js';
@@ -15,6 +11,7 @@ import { maybeRestoreArtifacts, resolveMcpRepoContext, toolRoot } from '../helpe
  * @returns {object}
  */
 export async function buildIndex(args = {}, context = {}) {
+  const { buildIndex: coreBuildIndex, buildSqliteIndex: coreBuildSqliteIndex } = await import('../../../../src/integrations/core/build-index.js');
   const { repoPath, userConfig, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const sqliteConfigured = userConfig.sqlite?.use !== false;
   const shouldUseSqlite = typeof args.sqlite === 'boolean' ? args.sqlite : sqliteConfigured;
@@ -96,6 +93,7 @@ export async function buildIndex(args = {}, context = {}) {
  * @returns {Promise<object>}
  */
 export async function buildSqliteIndex(args = {}, context = {}) {
+  const { buildSqliteIndex: coreBuildSqliteIndex } = await import('../../../../src/integrations/core/build-index.js');
   const { repoPath } = resolveMcpRepoContext(args.repoPath, {
     includeRuntimeEnv: false,
     includeUserConfig: false

@@ -625,7 +625,6 @@
     {
       "name": "search_workspace",
       "required": [
-        "query",
         "workspacePath"
       ],
       "properties": [

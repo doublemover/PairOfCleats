@@ -159,3 +159,50 @@ Required outputs:
 
 - `tests/shared/cache/contract-matrix.test.js`
 - `tests/tooling/cache/gc-contract-matrix.test.js`
+
+## Preview accounting
+
+Both CAS and legacy quota/age GC default to preview; deletion requires `--apply` and is suppressed by `--dry-run`. CAS reports actual object bytes scanned, reachable, protected by active leases, eligible, planned, and deleted. Preview `deleted` bytes are zero. Legacy `plannedBytes` is separate from actual `freedBytes`. CAS lease protection applies to its object planner; whole-repository deletion uses the local process admission protocol described below. Status reports snapshot bytes separately within repository cache usage; artifact breakdowns overlap the repository total and must not be added to it.
+
+The MCP `cache_gc` tool also previews when `dryRun` is omitted; explicit `dryRun: false` maps to `--apply`.
+
+### Cache path authority
+
+Cleanup checks ownership and containment after normalizing only verified macOS
+system aliases: root-owned `/var` and `/tmp` symlinks whose canonical destinations
+are exactly `/private/var` and `/private/tmp`. Tooling cache storage shares this
+same policy. All remaining path components stay lexical and must pass the
+no-symlink checks, including the cache root, its other ancestors, the ownership
+marker, and the target. Resolving an entire authorized root with `realpath` is not
+an equivalent authorization check. Preview or explicit unmarked-cache permission
+waives the marker requirement only; it does not waive containment or link checks.
+
+
+### Whole-repository admission protocol (2026-10-15)
+
+Repository cache access retains a process-lifetime lease outside the removable
+`repos/<id>` tree, under `repo-access/<canonical-path-hash>/leases`. Standard
+cache path resolution and explicit artifact/SQLite/LMDB readers participate.
+A collector takes an external `cleanup.lock` before checking leases; a reader
+creates its lease before checking that lock. New readers receive
+`ERR_REPO_CACHE_CLEANUP_BUSY` before opening cache data during cleanup. Existing
+readers, indexers and watchers keep their cache protected until process exit,
+including idle sessions retaining handles. Live leases never expire on a timer.
+Dead local lease owners are reaped; malformed, unreadable and foreign owners
+remain protected. Legacy writer locks are also checked inside the barrier.
+
+This is a cooperating, single-host protocol with writable coordination storage.
+Stop clients running older versions before first using online cleanup. It cannot
+coordinate arbitrary external readers or multi-host shared filesystems. A crashed
+collector can leave its exclusion lock: rerun GC to reclaim a verified dead local
+owner; do not manually remove a lock belonging to a live process. Unknown owners
+require investigation. No cache deletion or process termination is implied by
+status queries.
+
+Repo GC reports `coordination: process-leases-v1`, includes protected repositories
+and their measured bytes in quota planning, and reports `remainingBytes`,
+`projectedRemainingBytes`, and `quotaSatisfied`. Protected caches can prevent a
+quota from being satisfied; they are never evicted to force it. Without a size
+scan, total/remaining byte values are unknown (`null`). Preview remains the
+default and reports zero actually freed bytes. CAS object GC keeps its existing
+separate reachability/lease protocol.
