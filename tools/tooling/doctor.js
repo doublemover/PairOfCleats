@@ -64,6 +64,10 @@ async function runCli() {
       const marker = check.status === 'error' ? '!' : (check.status === 'warn' ? '~' : 'ok');
       console.error(`  - ${marker} ${check.name}: ${check.message}`);
     }
+    for (const action of provider.recovery || []) {
+      console.error(`  - next: ${action.message}`);
+      console.error(`    command arguments: ${JSON.stringify(action.argv)}`);
+    }
   }
 
   process.exit(report.summary.status === 'error' ? 1 : 0);

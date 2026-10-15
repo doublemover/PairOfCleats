@@ -89,6 +89,22 @@ try {
   assert.ok(!manifestCandidates.includes(keep.hash));
   assert.ok(!manifestCandidates.includes(leased.hash));
   assert.ok(leaseHashes.includes(leased.hash));
+  assert.equal(manifestPayload.bytes.protectedByLease, Buffer.byteLength('leased-object'));
+  assert.ok(manifestPayload.bytes.planned >= Buffer.byteLength('prune-object'));
+  assert.equal(manifestPayload.bytes.deleted, 0, 'preview never reports planned bytes as deleted');
+  assert.ok(manifestPayload.bytes.scanned >= manifestPayload.bytes.planned + manifestPayload.bytes.protectedByLease);
+
+  const legacyRepo = path.join(cacheRoot, 'repos', 'legacy-preview');
+  await fs.mkdir(legacyRepo, { recursive: true });
+  await fs.writeFile(path.join(legacyRepo, 'data'), 'preserved');
+  const preview = runNode([toolPath, '--json', '--cache-root', cacheRoot, '--max-bytes', '1'],
+    'legacy preview requires apply', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true });
+  assert.equal(preview.status, 0, preview.stderr);
+  const legacyPayload = JSON.parse(preview.stdout);
+  assert.equal(legacyPayload.dryRun, true);
+  assert.equal(legacyPayload.freedBytes, 0);
+  assert.ok(legacyPayload.plannedBytes > 0);
+  assert.equal(await fs.readFile(path.join(legacyRepo, 'data'), 'utf8'), 'preserved');
 
   console.log('tooling cache gc contract matrix test passed');
 } finally {

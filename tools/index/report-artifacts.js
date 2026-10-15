@@ -332,6 +332,14 @@ const lmdbCode = repo.lmdb?.code;
 const lmdbProse = repo.lmdb?.prose;
 
 console.error('Repo artifacts');
+for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
+  console.error(`- ${mode} coverage: ${coverage.status}; scanned ${coverage.files?.scanned ?? 'unknown'}, skipped ${coverage.files?.skipped ?? 'unknown'}, chunks ${coverage.chunks ?? 'unknown'}; recorded ${coverage.generatedAt || 'unknown'}`);
+  if (coverage.provenance?.head) console.error(`  indexed revision: ${JSON.stringify(coverage.provenance.head)}`);
+  console.error(`  revision comparison: ${coverage.revisionComparison}`);
+  if (coverage.files?.skippedByReason) console.error(`  skipped reasons: ${JSON.stringify(coverage.files.skippedByReason)}`);
+}
+console.error('- working-tree freshness: not compared; recorded coverage does not establish current freshness');
+if (status.coverage?.watcher) console.error(`- watcher (last recorded): ${status.coverage.watcher.consistency}; backlog ${status.coverage.watcher.backlogDepth ?? 'unknown'}`);
 console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repoCacheRoot})`);
 if (repoRoot) {
   console.error(`- repo root: ${repoRoot}`);

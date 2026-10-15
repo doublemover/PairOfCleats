@@ -1174,3 +1174,9 @@ coverage. Dated audit results are not current hosted-alert closure; the later br
 development-tool advisory remains parked, without gate suppression.
 Broad release/platform/native-backend/TUI/performance and hosted-security acceptance
 remain deferred. No new GitHub CI check, rerun or security workflow was used here.
+
+## Doctor recovery actions
+
+Provider doctor JSON includes `recovery` actions for failed enabled providers. Each action has a reason and an argv array that preserves repository paths with spaces. Missing commands/runtimes point to installation help, workspace/configuration failures to tooling detection, and every failure to a follow-up doctor check. These diagnostics do not install tools or modify configuration automatically.
+
+`tests/tooling/lsp/pyright-real-imports.test.js` exercises the installed Pyright server against a temporary Python package with a relative import. It requires the inferred `int` return from the imported implementation and no fabricated parameters on a zero-argument function. This is bounded package proof, not coverage for every Python project layout.

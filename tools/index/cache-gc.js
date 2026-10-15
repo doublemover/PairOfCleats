@@ -80,7 +80,7 @@ const resolveMs = (value, fallbackMs = 0) => {
 };
 
 const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
-  const dryRun = argv['dry-run'] === true;
+  const dryRun = argv.apply !== true || argv['dry-run'] === true;
   const repoRoot = path.join(cacheRoot, 'repos');
 
   if (!maxBytes && !maxAgeDays) {
@@ -209,7 +209,9 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       reason: repo.reason
     })),
     failedRemovals,
-    freedBytes
+    plannedBytes: freedBytes,
+    freedBytes: dryRun ? 0 : removals.filter((repo) => !failedRemovals.some((failure) => failure.id === repo.id))
+      .reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
   };
 
   if (argv.json) {
@@ -329,6 +331,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
   const cutoffMs = nowMs - Math.max(0, Number(graceDays)) * 24 * 60 * 60 * 1000;
   const skippedByLease = [];
   const candidates = [];
+  let scannedBytes = 0;
+  let reachableBytes = 0;
   for (const hash of objectHashes) {
     const objectPath = getCasObjectPath(cacheRoot, hash);
     let stat = null;
@@ -341,7 +345,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
     const metadata = await readCasMetadata(cacheRoot, hash);
     const createdMs = resolveMs(metadata?.createdAt, stat.birthtimeMs || stat.mtimeMs || 0);
     const lastAccessedMs = resolveMs(metadata?.lastAccessedAt, stat.mtimeMs || createdMs);
-    const size = Number.isFinite(Number(metadata?.size)) ? Number(metadata.size) : stat.size;
+    const size = stat.size;
+    scannedBytes += size;
     const candidateBase = {
       hash,
       objectPath: path.resolve(objectPath),
@@ -353,6 +358,7 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       lastAccessedMs
     };
     if (reachableHashes.has(hash)) {
+      reachableBytes += size;
       continue;
     }
     if (activeLeases.has(hash)) {
@@ -452,6 +458,14 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
       manifests: manifestPaths.length,
       objects: objectHashes.length
     },
+    bytes: {
+      scanned: scannedBytes,
+      reachable: reachableBytes,
+      protectedByLease: skippedByLease.reduce((sum, entry) => sum + entry.size, 0),
+      eligible: candidates.reduce((sum, entry) => sum + entry.size, 0),
+      planned: deletionPlan.reduce((sum, entry) => sum + entry.size, 0),
+      deleted: deletionPlan.filter((entry) => deleted.includes(entry.hash)).reduce((sum, entry) => sum + entry.size, 0)
+    },
     counts: {
       reachable: reachableHashes.size,
       candidateDeletes: candidates.length,
@@ -491,6 +505,8 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
   console.error(`- objects scanned: ${payload.scans.objects}`);
   console.error(`- reachable: ${payload.counts.reachable}`);
   console.error(`- skipped by lease: ${payload.counts.skippedByLease}`);
+  console.error(`- bytes: ${formatBytes(payload.bytes.scanned)} scanned, ${formatBytes(payload.bytes.reachable)} reachable, ${formatBytes(payload.bytes.protectedByLease)} leased`);
+  console.error(`- cleanup: ${formatBytes(payload.bytes.planned)} planned, ${formatBytes(payload.bytes.deleted)} deleted`);
   if (!payload.dryRun) {
     console.error(`- deleted: ${payload.counts.deleted}`);
     if (payload.counts.failedDeletes) {
