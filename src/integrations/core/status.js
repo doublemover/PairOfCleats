@@ -9,6 +9,7 @@ import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js'
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { sizeOfPath } from '../../shared/disk-space.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
+import { readIndexCoverage, readCurrentProvenance } from './status-coverage.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
@@ -41,7 +42,8 @@ export async function getStatus(input = {}) {
     indexRecords: indexRecordsDir,
     metrics: path.join(repoCacheRoot, 'metrics'),
     queryCache: path.join(repoCacheRoot, 'query-cache'),
-    incremental: path.join(repoCacheRoot, 'incremental')
+    incremental: path.join(repoCacheRoot, 'incremental'),
+    snapshots: path.join(repoCacheRoot, 'snapshots')
   };
 
   const repoCacheSize = await sizeOfPath(repoCacheRoot);
@@ -171,6 +173,12 @@ export async function getStatus(input = {}) {
   }
 
   const payload = {
+    coverage: readIndexCoverage({
+      currentProvenance: await readCurrentProvenance(root, userConfig.indexing?.scm?.provider),
+      metricsDir: getMetricsDir(root, userConfig),
+      repoCacheRoot,
+      indexes: { code: indexCodeDir, prose: indexProseDir, 'extracted-prose': indexExtractedProseDir, records: indexRecordsDir }
+    }),
     repo: {
       root: path.resolve(root),
       cacheRoot: path.resolve(repoCacheRoot),

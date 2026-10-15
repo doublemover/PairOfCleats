@@ -168,3 +168,7 @@ Use `node tools/tui/capture-fixtures.js --list` to see the bundled fixtures, or 
 - `docs/specs/node-supervisor-protocol.md`
 - `docs/specs/progress-protocol-v2.md`
 - `docs/specs/tui-performance-and-backpressure.md`
+
+## Session refinement recovery
+
+The saved session restores the selected job, panel search strings, job/task/log filters, focused panel, follow setting, and scroll offsets. Older snapshots without these fields retain the normal defaults. An unfinished search draft is not committed by recovery; reopen search to refine the restored filter. This restores UI state, not running jobs or index freshness.
