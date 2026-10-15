@@ -453,7 +453,7 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'cache_gc',
-      description: 'Garbage-collect repo caches.',
+      description: 'Preview cache cleanup by default. Explicit dryRun=false applies deletion; legacy whole-repo cleanup requires offline sessions.',
       inputSchema: {
         type: 'object',
         properties: {
