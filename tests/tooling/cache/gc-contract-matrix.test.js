@@ -8,6 +8,8 @@ import { getCasLeasesRoot } from '../../../src/shared/cache-cas/paths.js';
 import { touchCasObject, writeCasObject } from '../../../src/shared/cache-cas/objects.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
+import { cacheGc } from '../../../tools/mcp/tools/handlers/artifacts.js';
+import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 
 applyTestEnv();
 
@@ -105,6 +107,16 @@ try {
   assert.equal(legacyPayload.freedBytes, 0);
   assert.ok(legacyPayload.plannedBytes > 0);
   assert.equal(await fs.readFile(path.join(legacyRepo, 'data'), 'utf8'), 'preserved');
+
+  applyTestEnv({ cacheRoot, testConfig: { cache: { root: cacheRoot } } });
+  const mcpPreview = cacheGc({ repoPath: tempRoot });
+  assert.equal(path.resolve(mcpPreview.cacheRoot), path.resolve(cacheRoot));
+  assert.equal(mcpPreview.dryRun, true, 'omitted MCP dryRun must preview');
+  await fs.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
+  const mcpApplied = cacheGc({ repoPath: tempRoot, dryRun: false });
+  assert.equal(mcpApplied.dryRun, false, 'explicit MCP dryRun=false applies');
+  assert.ok(mcpApplied.deleted.includes(prune.hash));
+  await fs.access(leased.objectPath);
 
   console.log('tooling cache gc contract matrix test passed');
 } finally {

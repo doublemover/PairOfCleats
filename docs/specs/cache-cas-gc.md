@@ -163,3 +163,5 @@ Required outputs:
 ## Preview accounting
 
 Both CAS and legacy quota/age GC default to preview; deletion requires `--apply` and is suppressed by `--dry-run`. CAS reports actual object bytes scanned, reachable, protected by active leases, eligible, planned, and deleted. Preview `deleted` bytes are zero. Legacy `plannedBytes` is separate from actual `freedBytes`. CAS lease protection applies to its object planner; legacy whole-repository deletion is an offline maintenance operation and must not run against active index/search sessions. Status reports snapshot bytes separately within repository cache usage; artifact breakdowns overlap the repository total and must not be added to it.
+
+The MCP `cache_gc` tool also previews when `dryRun` is omitted; explicit `dryRun: false` maps to `--apply`.
