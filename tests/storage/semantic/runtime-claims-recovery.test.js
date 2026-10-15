@@ -5,8 +5,8 @@ import path from 'node:path';
 import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/import.js';
 import { compareRuntimeCaptures } from '../../../src/index/semantic/runtime/compare.js';
 import { persistRuntimeDerivedClaims, queryRuntimeDerivedClaims } from '../../../src/index/semantic/runtime/claims.js';
-import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
-const fixture = await createRuntimeImportFixture();
+import { createVerifiedRuntimeImportFixture } from '../../helpers/verified-runtime-import-fixture.js';
+const fixture = await createVerifiedRuntimeImportFixture();
 try {
   const first = await importRuntimeEvidence(fixture.options());
   const options = fixture.options(); options.capture = structuredClone(fixture.capture); options.capture.captureId = 'capture-b';
@@ -16,6 +16,9 @@ try {
     leftFamily: first.pointer.generationId, rightFamily: second.pointer.generationId, sources: fixture.capture.sources,
     limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, persist: true };
   const result = await compareRuntimeCaptures({ destination, request });
+  assert.equal(result.status, 'complete', JSON.stringify({ reasons: result.reasons,
+    leftCoverage: first.coverage, rightCoverage: second.coverage }));
+  assert.ok(result.claimGeneration, 'complete comparison must publish an immutable claim generation');
   const root = path.join(destination, 'claims'), family = path.join(root, result.claimGeneration);
   const pointer = await fs.readFile(path.join(root, 'current.json'));
   const manifest = JSON.parse(await fs.readFile(path.join(family, 'manifest.json')));

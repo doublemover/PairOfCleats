@@ -6,8 +6,9 @@ import { RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_SERVICE_REQUES
 import { RUNTIME_COMPARE_SERVICE_SCHEMA, RUNTIME_CLAIMS_SERVICE_SCHEMA } from '../../contracts/schemas/runtime-claims.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
 import { getToolVersion } from '../../shared/dict-utils.js';
+import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.5.0';
+export const MCP_SCHEMA_VERSION = '1.6.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -61,7 +62,7 @@ const buildWorkspaceToolProperties = ({
  */
 export function getToolDefs(defaultModelId) {
   return [
-    {name:'semantic_find',description:'Experimental, qualification pending: discover pinned structural or compiler-target candidates with bounded coverage. Similarity is not behavioral equivalence.',inputSchema:SEMANTIC_FIND_REQUEST_SCHEMA},
+    {name:'semantic_find',description:'Experimental, qualification pending: discover pinned structural/compiler-target candidates, exact type-expression facts by source and role, or parser-established scalar literal occurrences. Bounded indexed coverage; no assignability, alias expansion, behavioral equivalence or universal runtime-value claim.',inputSchema:SEMANTIC_FIND_REQUEST_SCHEMA},
     {name:'semantic_explain',description:'Experimental, qualification pending: explain a pinned static witness and suggest exact source/task plan or enqueue requests. Never executes suggested work automatically.',inputSchema:SEMANTIC_EXPLAIN_REQUEST_SCHEMA},
     {name:'semantic_enrichment',description:'Experimental, qualification pending: plan by default; explicit enqueue persists pending tasks, explicit drain requires verified dependency authority and whole-generation publication. No live retrieval overlays.',inputSchema:SEMANTIC_ENRICHMENT_REQUEST_SCHEMA},
     { name: 'runtime_evidence', description: 'Query explicitly pinned saved runtime families with exact capture/source/workload/code-lifetime selectors. Never executes, probes or attaches.', inputSchema: RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA },
@@ -112,12 +113,17 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'search',
-      description: 'Run a search query against the repo index.',
+      description: 'Run ranked text search or exhaustively enumerate indexed filter matches with generation-bound continuation.',
       inputSchema: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
           query: { type: 'string' },
+          cursor: { type: 'string', minLength: 1, maxLength: 8192, description: 'Filter-only nextCursor; reuse identical filters, modes and generation.' },
+          asOf: { type: 'string', description: 'Pin the original indexed build or snapshot.' },
+          snapshot: { type: 'string', description: 'Compatibility snapshot reference; cannot combine with asOf.' },
+          snapshotId: { type: 'string', description: 'Alias for snapshot; conflicting references fail.' },
           mode: { type: 'string', enum: ['both', 'code', 'prose', 'extracted-prose', 'records', 'all'] },
           backend: { type: 'string', enum: ['memory', 'sqlite', 'sqlite-fts'] },
           output: { type: 'string', enum: ['compact', 'full'], description: 'Return compact JSON (default) or full payload.' },
@@ -125,7 +131,7 @@ export function getToolDefs(defaultModelId) {
           allowSparseFallback: { type: 'boolean', description: 'Allow ANN fallback when sparse-only is requested but sparse is unavailable.' },
           allowUnsafeMix: { type: 'boolean', description: 'Allow compatibility/profile cohort mixing when keys do not match.' },
           top: { type: 'number', description: 'Top N results.' },
-          context: { type: 'number', description: 'Context lines.' },
+          context: { type: 'integer', const: 0, deprecated: true, description: 'Deprecated zero-only compatibility input. Use context_pack for source context.' },
           type: { type: 'string', description: 'Filter by chunk kind/type.' },
           author: { type: 'string', description: 'Filter by last author (git).' },
           import: { type: 'string', description: 'Filter by imported module.' },
@@ -163,6 +169,8 @@ export function getToolDefs(defaultModelId) {
           modifiedSince: { type: 'number', description: 'Filter by last modified recency (days).' },
           lint: { type: 'boolean', description: 'Filter chunks with lint results.' },
           path: { type: 'string', description: 'Substring/regex match for file paths.' },
+          paths: STRING_OR_STRING_ARRAY_SCHEMA,
+          filter: { type: 'string', description: 'Canonical filter expression.' },
           file: { type: 'string', description: 'Substring/regex match for file paths.' },
           ext: { type: 'string', description: 'Extension filter (ex: .js).' },
           lang: { type: 'string', description: 'Language filter (maps to extensions).' },
@@ -173,7 +181,7 @@ export function getToolDefs(defaultModelId) {
           meta: { type: 'object', description: 'Metadata filters for records (key/value).' },
           metaJson: { type: 'string', description: 'JSON metadata filters for records.' }
         },
-        required: ['query']
+        ...SEARCH_REQUEST_REQUIREMENT
       }
     },
     {

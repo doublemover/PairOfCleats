@@ -99,7 +99,8 @@ export const createCompilerDependencySystem = ({ ts, inventory = null, signal = 
 };
 
 /** Reuse TypeScript configuration and resolver APIs; never construct a second Program. */
-export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConfig, files, sourceInputs = [], documents = [], signal }) => {
+export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConfig, files, sourceInputs = [], documents = [], signal,
+  sourceReuse = null }) => {
   const ts = await loadTypeScript(toolingConfig, repoRoot);
   if (!ts) throw fail('TypeScript dependency preflight is unavailable.');
   const { system, observations } = createCompilerDependencySystem({ ts, signal });
@@ -166,7 +167,8 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
         closureFiles.set(contextKey + ':' + key(context.configPath), { path: path.resolve(context.configPath),
           hash: digest(configText), bytes: Buffer.byteLength(configText), contextKey });
       }
-      const host = createVirtualCompilerHost(ts, effectiveOptions, vfs, sourcePaths, origins, system);
+      const host = createVirtualCompilerHost(ts, effectiveOptions, vfs, sourcePaths, origins, system,
+        sourceReuse ? { cache: sourceReuse, mode: 'prepare' } : null);
       const queue = [...context.rootNames], seen = new Set();
       const libDirectory = path.dirname(ts.getDefaultLibFilePath(effectiveOptions));
       const addLib = lib => {

@@ -235,6 +235,9 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   let firstStarted = false;
   let secondStarted = false;
+  let enterFirst, enterSecond;
+  const firstEntered = new Promise(resolve => { enterFirst = resolve; });
+  const secondEntered = new Promise(resolve => { enterSecond = resolve; });
 
   const writer = createBoundedWriterQueue({
     scheduleIo: (fn) => fn(),
@@ -243,14 +246,17 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   await writer.enqueue(async () => {
     firstStarted = true;
+    enterFirst();
     await firstGate;
   });
+  await firstEntered;
   assert.equal(firstStarted, true);
   assert.equal(secondStarted, false);
 
   let secondEnqueued = false;
   const enqueueSecond = writer.enqueue(async () => {
     secondStarted = true;
+    enterSecond();
     await secondGate;
   }).then(() => {
     secondEnqueued = true;
@@ -262,6 +268,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   resolveFirst?.();
   await enqueueSecond;
+  await secondEntered;
   assert.equal(secondStarted, true);
 
   resolveSecond?.();

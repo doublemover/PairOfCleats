@@ -33,7 +33,46 @@ export const probeSqliteNative = (root, nativeBinding = null) => {
   };
 };
 
-export const probeNativePackage = async (root, pkgName) => {
+/** Isolated parser activation using the same binding owner as production. */
+export const probeNativeGrammarRoutes = (root, routes) => {
+  const script = `
+    const fs = require('node:fs'), path = require('node:path');
+    const { createRequire } = require('node:module');
+    const { pathToFileURL } = require('node:url');
+    (async () => {
+      const root = process.cwd(), routes = JSON.parse(process.argv[1]);
+      const requireFromRoot = createRequire(path.join(root, 'package.json'));
+      const { loadGrammarModule, resolveGrammarLanguageExport, normalizeLanguageBinding } =
+        await import(pathToFileURL(path.join(root, 'src/lang/tree-sitter/native-grammar-binding.js')));
+      const Parser = requireFromRoot('tree-sitter');
+      const capabilities = [];
+      for (const { languageId, source, ...spec } of routes) {
+        const module = loadGrammarModule(spec, requireFromRoot);
+        const language = normalizeLanguageBinding(resolveGrammarLanguageExport(module, spec).language, module);
+        if (!language) throw Error(languageId + ': missing native grammar binding');
+        const parser = new Parser();
+        parser.setLanguage(language);
+        const tree = parser.parse(source);
+        if (!tree?.rootNode || tree.rootNode.hasError) throw Error(languageId + ': parser activation failed');
+        const pkg = JSON.parse(fs.readFileSync(path.join(root, 'node_modules', spec.moduleName, 'package.json')));
+        capabilities.push({ languageId, moduleName: spec.moduleName, packageVersion: pkg.version,
+          nodeVersion: process.version, abi: process.versions.modules, state: 'parser-activated' });
+        tree.delete?.(); parser.delete?.();
+      }
+      process.stdout.write(JSON.stringify(capabilities));
+    })().catch(error => { console.error(error.message); process.exitCode = 1; });
+  `;
+  const result = spawnSync(process.execPath, ['-e', script, JSON.stringify(routes)], {
+    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+  });
+  if (result.status !== 0) return { ok: false, capabilities: [],
+    message: (result.stderr || '').trim() || formatSpawnFailureReason(result) };
+  try { return { ok: true, message: null, capabilities: JSON.parse(result.stdout) }; }
+  catch { return { ok: false, capabilities: [], message: 'Invalid parser activation evidence.' }; }
+};
+
+export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } = {}) => {
+  if (grammarRoutes.length) return probeNativeGrammarRoutes(root, grammarRoutes);
   if (pkgName === 'better-sqlite3') return probeSqliteNative(root);
   /**
    * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not

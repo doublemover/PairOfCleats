@@ -35,7 +35,7 @@ export const touchEntry = (entry, ttlMs, now = Date.now()) => {
   entry.expiresAt = now + ttlMs;
 };
 
-export const pruneCache = (cache, { maxEntries, now = Date.now() } = {}) => {
+export const pruneCache = (cache, { maxEntries, now = Date.now(), onEvict = null } = {}) => {
   for (const [key, entry] of cache.entries()) {
     if (!entry || typeof entry !== 'object') {
       cache.delete(key);
@@ -43,6 +43,7 @@ export const pruneCache = (cache, { maxEntries, now = Date.now() } = {}) => {
     }
     if (entry.expiresAt && entry.expiresAt <= now) {
       cache.delete(key);
+      onEvict?.(entry, key);
     }
   }
   if (!Number.isFinite(Number(maxEntries)) || cache.size <= maxEntries) return;
@@ -50,7 +51,8 @@ export const pruneCache = (cache, { maxEntries, now = Date.now() } = {}) => {
   const oldest = Array.from(cache.entries())
     .sort((a, b) => (a[1]?.lastAccessAt || 0) - (b[1]?.lastAccessAt || 0))
     .slice(0, overflow);
-  for (const [key] of oldest) {
+  for (const [key, entry] of oldest) {
     cache.delete(key);
+    onEvict?.(entry, key);
   }
 };

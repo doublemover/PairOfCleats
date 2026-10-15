@@ -1,5 +1,6 @@
 import { joinProviderCallSummaries } from './provider-call-joins.js';
 import { collectCompilerImplicitCalls } from './compiler-implicit-calls.js';
+import { emitCompilerTypeFacts } from './compiler-type-facts.js';
 import { createCompilerDispatchResolver } from './compiler-dispatch.js';
 import { retainedWasmSource } from './wasm/retained-source.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from './analysis-versions.js';
@@ -108,6 +109,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
   };
   return {
     fileTextByFile: texts,
+    compilerSourceReuse() { return state.semanticCompilerSourceReuse || null; },
     setSignal(value) { signal = value; },
     describeCompilerDocuments(documents) {
       return documents.map(doc => {
@@ -340,33 +342,36 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         }
       }
       for (const { from, to } of aliases.values()) edge('aliases', expand(from), expand(to));
+      const typeFacts = await emitCompilerTypeFacts({ ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor,
+        declarationFor: declaration => {
+          const target = declarationRef(declaration);
+          return target?.externalKey ? null : target;
+        }, context, ref, evidence, allocate: () => ref(nextId++), signal });
+      for (const reason of typeFacts.reasons) dispatchReasons.add(reason);
+      for (const entry of typeFacts.rows) {
+        if (entry.family === 'edge') {
+          const { id: _id, ...value } = entry.row;
+          edges.push(value);
+        } else rows.push(entry);
+      }
       const uniqueEdges = [...new Map(edges.map(row => [canonicalSemanticJson(row), row])).entries()].sort(([a], [b]) => order(a, b));
       for (let id = 0; id < uniqueEdges.length; id += 1) rows.push({ family: 'edge', row: { id, ...uniqueEdges[id][1] } });
       for (const [value, id] of names) rows.push({ family: 'lookup', row: { kind: 'name', id, value } });
       const coverage = { scope: { sourceUnitId: item.source.sourceUnitId }, phase: 'bindings',
-        state: !policy.targetSelectionConfigured && !dispatchReasons.size && completedCount === observations.length ? 'complete' : 'partial',
+        state: !policy.targetSelectionConfigured && !dispatchReasons.size && completedCount === observations.length
+          && typeFacts.completedCount === typeFacts.observedCount ? 'complete' : 'partial',
         reason: [...new Set([...dispatchReasons,...(policy.targetSelectionConfigured ? ['targeted_binding_scope_widened_or_selected_only'] : completedCount === observations.length ? [] : ['unresolved_or_unmapped_checker_occurrence'])])].sort().join(';') || null,
-        observedCount: observations.length, completedCount, frontierRef: null };
+        observedCount: observations.length + typeFacts.observedCount, completedCount: completedCount + typeFacts.completedCount, frontierRef: null };
       rows.push({ family: 'coverage', row: coverage });
       const bytes = await fs.readFile(path.join(item.root, 'semantic-sources', item.source.byteHash + '.utf8'));
       const partition = await writeSemanticAnalysis({ rows, policy, stagingRoot: item.root, source: item.source,
         sourceBytes: bytes, partitionId, producerHash: semanticHash('semantic.compiler-producer.v1', { version: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings, compiler: ts.version }),
         contextHash: context.contextKey, policyHash: item.policy.identity.analysis,
-        diskAccount: state.semanticDiskAccount, signal });
+        diskAccount: state.semanticDiskAccount, structuralSlots: typeFacts.structuralSlots, signal });
       for (const observation of observations) if (observation.invocation) {
         for (const detail of detailsByFile.get(item.source.path)?.get(spanKey(observation.span)) || []) detail.semanticFactsHash = partition.canonicalHash;
       }
       emitted.push(partition);
-      const valueSlice = await collectCompilerValueSlice({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
-        expressionFor,
-        observations, source: item.source, bytes, bindingPartition: partition, context,
-        isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
-      if (valueSlice) emitted.push(valueSlice.partition);
-      const storageFlow = await collectCompilerStorageFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(),
-        expressionFor,
-        observations, source: item.source, bytes, bindingPartition: partition, context,
-        isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
-      if (storageFlow) emitted.push(storageFlow.partition);
       const flow = await collectCompilerFlow({ ts, checker, isDefaultLibrary:group.isDefaultLibrary, sourceFile, nodes: nodeIndex.nodes(),
         expressionFor,
         declarationFor: declaration => {
@@ -374,9 +379,19 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
           return node ? item.declarations.get(node.getStart(sourceFile) + ':' + node.end) || (ts.isFunctionLike(declaration) ? item.callables.get(declaration.getStart(sourceFile)+':'+declaration.end) : null) || null : null;
         }, source: item.source, bytes, bindingPartition: partition, context,
         root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
+      const valueSlice = await collectCompilerValueSlice({ ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor,
+        observations, source: item.source, bytes, bindingPartition: partition, context, orderedOperations: flow?.orderedOperations,
+        orderedAccesses: flow?.orderedAccesses,
+        isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
+      if (valueSlice) emitted.push(valueSlice.partition);
+      const storageFlow = await collectCompilerStorageFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor,
+        observations, source: item.source, bytes, bindingPartition: partition, context, orderedAccesses: flow?.orderedAccesses,
+        isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
+      if (storageFlow) emitted.push(storageFlow.partition);
       if (flow) {
         emitted.push(flow.partition);
         group.flowDocuments.push({ item, bytes, policy, bindingPartition:partition, flowEdges: flow.edges, partition: flow.partition,
+          orderedAccesses: flow.orderedAccesses, orderedOperations: flow.orderedOperations,
           fieldAccesses: flow.fieldAccesses || [], aliases: flow.aliases || [], callEffects: flow.callEffects || [],
           summaries: flow.summaries.map(summary => ({ ...summary, owner: undefined,
             async: Boolean(summary.owner.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword)), generator: Boolean(summary.owner.asteriskToken) })),

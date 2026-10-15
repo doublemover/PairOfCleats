@@ -73,7 +73,8 @@ const cases = [
           indexSignature: 'test-updated',
           maxTokens: 2
         });
-        assert.equal(second.primary.excerpt, first.primary.excerpt);
+        assert.equal(second.primary.excerpt, 'delta epsilon');
+        assert.equal(second.primary.evidence.sourceIdentity.drift, 'unknown');
         assert.equal(third.primary.excerpt, 'delta epsilon');
       });
     }
@@ -128,7 +129,7 @@ const cases = [
           maxTokens: 1
         });
         assert.equal(first.primary.excerpt, 'alpha beta');
-        assert.equal(second.primary.excerpt, 'alpha');
+        assert.equal(second.primary.excerpt, 'delta');
       });
     }
   },

@@ -45,6 +45,7 @@ export function createLmdbHelpers(options) {
     const includeDense = options.includeDense !== false;
     const includeChunks = options.includeChunks !== false;
     const includeFilterIndex = options.includeFilterIndex !== false;
+    const includeTokenIndex = options.includeTokenIndex !== false;
     const includeHnsw = options.includeHnsw !== false;
 
     const chunkCountRaw = getArtifact(db, LMDB_META_KEYS.chunkCount);
@@ -110,12 +111,12 @@ export function createLmdbHelpers(options) {
       }
     }
 
-    const fieldPostings = getArtifact(db, LMDB_ARTIFACT_KEYS.fieldPostings);
-    const fieldTokens = getArtifact(db, LMDB_ARTIFACT_KEYS.fieldTokens);
+    const fieldPostings = includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.fieldPostings) : null;
+    const fieldTokens = includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.fieldTokens) : null;
     if (denseVec && !denseVec.model && modelIdDefault) denseVec.model = modelIdDefault;
     if (denseVecDoc && !denseVecDoc.model && modelIdDefault) denseVecDoc.model = modelIdDefault;
     if (denseVecCode && !denseVecCode.model && modelIdDefault) denseVecCode.model = modelIdDefault;
-    const filterIndexRaw = getArtifact(db, LMDB_ARTIFACT_KEYS.filterIndex);
+    const filterIndexRaw = includeFilterIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.filterIndex) : null;
     const idx = {
       chunkMeta,
       fileRelations,
@@ -133,8 +134,8 @@ export function createLmdbHelpers(options) {
       fieldPostings,
       fieldTokens,
       minhash: includeMinhash ? getArtifact(db, LMDB_ARTIFACT_KEYS.minhashSignatures) : null,
-      phraseNgrams: getArtifact(db, LMDB_ARTIFACT_KEYS.phraseNgrams),
-      chargrams: getArtifact(db, LMDB_ARTIFACT_KEYS.chargramPostings)
+      phraseNgrams: includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.phraseNgrams) : null,
+      chargrams: includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.chargramPostings) : null
     };
     hydrateSearchIndexPostProcessing(idx, {
       chunkMeta,
@@ -142,7 +143,7 @@ export function createLmdbHelpers(options) {
       filterIndexRaw,
       includeFilterIndex
     });
-    idx.tokenIndex = getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings);
+    idx.tokenIndex = includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings) : null;
     return idx;
   }
 

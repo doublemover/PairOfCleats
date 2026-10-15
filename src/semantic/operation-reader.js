@@ -1,10 +1,10 @@
 import { assertSemanticOperationIndex } from '../contracts/validators/semantic-operation-index.js';
 import { canonicalSemanticJson } from '../index/semantic/identity.js';
-import { compareOperationIndexRows, OPERATION_SELECTOR_FIELDS } from './operation-index.js';
+import { compareOperationIndexRows, OPERATION_INDEX_FIELDS } from './operation-index.js';
 import { readJsonlRowsAt } from '../shared/artifact-io/offsets.js';
 import { throwIfAborted } from '../shared/abort.js';
 export const validateOperationSelector = (selector, offset, limit) => {
-  if (!selector || Object.keys(selector).sort().join(',') !== 'field,value' || !OPERATION_SELECTOR_FIELDS.includes(selector.field)
+  if (!selector || Object.keys(selector).sort().join(',') !== 'field,value' || !OPERATION_INDEX_FIELDS.includes(selector.field)
     || typeof selector.value !== 'string' || !selector.value.length || selector.value.length > 4096
     || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 128) throw new TypeError('Invalid operation selector or page allowance.');
 };

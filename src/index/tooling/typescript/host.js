@@ -15,7 +15,8 @@ const resolveScriptKind = (ts, fileName) => {
   return ts.ScriptKind.Unknown;
 };
 
-export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths, system = ts.sys) => {
+export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths, system = ts.sys,
+  reuse = null) => {
   const baseHost = ts.createCompilerHost(compilerOptions, true);
   for (const method of ['fileExists', 'readFile', 'directoryExists', 'getDirectories', 'readDirectory', 'realpath']) {
     if (typeof system[method] === 'function') baseHost[method] = system[method];
@@ -42,12 +43,19 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
   const getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
     const hit = readFile(fileName);
     if (typeof hit === 'string') {
+      const filename = canonicalize(fileName), scriptKind = resolveScriptKind(ts, fileName);
+      const reuseKey = reuse?.cache.identity({ ts, filename, text: hit, languageVersion, scriptKind,
+        options: compilerOptions, mapping: { origins: [...moduleOrigins].sort(), sources: [...sourcePaths].sort() } });
+      // Dependency reads still happen above. A cache hit cannot bypass the
+      // sealed resolver/system or a forced fresh SourceFile request.
+      const cached = !shouldCreateNewSourceFile && reuseKey ? reuse.cache.get(reuseKey, filename, reuse.mode) : null;
+      if (cached) return cached;
       const sourceFile = ts.createSourceFile(
         fileName,
         hit,
         languageVersion,
         true,
-        resolveScriptKind(ts, fileName)
+        scriptKind
       );
       // Triple-slash path references are processed by Program itself, outside
       // resolveModuleNameLiterals. Keep their physical container origin and
@@ -59,6 +67,7 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
           return { ...reference, fileName: virtualBySource.get(canonicalize(absolute)) || absolute };
         });
       }
+      if (reuseKey) reuse.cache.put(reuseKey, filename, sourceFile, reuse.mode);
       return sourceFile;
     }
     return undefined;

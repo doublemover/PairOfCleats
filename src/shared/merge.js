@@ -109,6 +109,7 @@ export const readJsonlRows = async function* (filePath, { parse = JSON.parse } =
     }
   } finally {
     if (!stream.destroyed) stream.destroy();
+    if (!stream.closed) await new Promise(resolve => stream.once('close', resolve));
   }
 };
 
@@ -230,20 +231,30 @@ export const mergeSortedRuns = async function* (
     if (cmp !== 0) return cmp;
     return a.order - b.order;
   });
-  for (let i = 0; i < runs.length; i += 1) {
-    const runPath = resolveRunPath(runs[i]);
-    if (!runPath) continue;
-    const iterator = readRun(runPath)[Symbol.asyncIterator]();
-    const cursor = { iterator, row: null, done: false, order: i };
-    const hasRow = await advance(cursor);
-    if (hasRow) heap.push(cursor);
-  }
-  while (heap.size) {
-    const best = heap.pop();
-    if (!best) break;
-    yield best.row;
-    const hasMore = await advance(best);
-    if (hasMore) heap.push(best);
+  const iterators = [];
+  try {
+    for (let i = 0; i < runs.length; i += 1) {
+      const runPath = resolveRunPath(runs[i]);
+      if (!runPath) continue;
+      const iterator = readRun(runPath)[Symbol.asyncIterator]();
+      iterators.push(iterator);
+      const cursor = { iterator, row: null, done: false, order: i };
+      const hasRow = await advance(cursor);
+      if (hasRow) heap.push(cursor);
+    }
+    while (heap.size) {
+      const best = heap.pop();
+      if (!best) break;
+      yield best.row;
+      const hasMore = await advance(best);
+      if (hasMore) heap.push(best);
+    }
+  } finally {
+    // Consumers can fail while a writer is admitting a row. Close every child
+    // before their task-owned paths are eligible for retirement or cleanup.
+    const outcomes = await Promise.allSettled(iterators.map(iterator => iterator.return?.()));
+    const failures = outcomes.filter(outcome => outcome.status === 'rejected').map(outcome => outcome.reason);
+    if (failures.length) throw new AggregateError(failures, 'Merge run readers failed to close.');
   }
 };
 

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { redactDiagnosticText } from './diagnostic-text.js';
 import { stableStringify } from './stable-json.js';
 import { getModelConfig } from './dict-utils.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig } from './onnx-embeddings.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxConfig } from './onnx-embeddings.js';
 import { projectSchedulerRequestConfig } from '../index/build/runtime/scheduler.js';
 import { resolveQuantizationParams } from '../storage/sqlite/quantization.js';
 import { getEnvConfig } from './env/runtime.js';
@@ -54,7 +54,7 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
   const configured = userConfig.indexing?.embeddings || {};
   const model = getModelConfig(root, userConfig);
   const selected = intent || resolveEmbeddingIntent({ argv, embeddingsConfig: configured, envConfig: getEnvConfig(rawEnv) });
-  const onnx = normalizeOnnxConfig(configured.onnx || {});
+  const onnx = resolveOnnxConfig(configured.onnx || {}, rawEnv);
   // Prewarm text is not a model-space decision and can contain private input.
   delete onnx.prewarmTexts;
   const embeddings = {
@@ -69,7 +69,7 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
     embeddinggemma2: pick(configured.embeddinggemma2, ['revision', 'dtype', 'dimensions'])
   };
   const plan = {
-    version: 1,
+    version: 2,
     selectedAt: new Date().toISOString(),
     buildId,
     repoRoot: toRealPathSync(root),
@@ -130,7 +130,7 @@ const validatePlan = (plan, { root, indexRoot = null, modes = null } = {}) => {
   const allowed = ['version', 'selectedAt', 'buildId', 'repoRoot', 'indexRoot', 'modes', 'options', 'embeddings', 'modelsDir', 'resourcePolicy', 'resources', 'environment', 'sources', 'digest'];
   record(plan, allowed, 'plan');
   const serialized = JSON.stringify(plan);
-  if (plan.version !== 1 || typeof plan.digest !== 'string'
+  if (plan.version !== 2 || typeof plan.digest !== 'string'
     || Buffer.byteLength(serialized) > 32768 || plan.digest !== digest(plan)) throw fail('version, size or digest mismatch');
   if (redactDiagnosticText(serialized, serialized.length + 1) !== serialized) throw fail('contains credential-bearing text');
   if (!text(plan.selectedAt) || !Number.isFinite(Date.parse(plan.selectedAt))) throw fail('invalid selection time');
@@ -154,14 +154,17 @@ const validatePlan = (plan, { root, indexRoot = null, modes = null } = {}) => {
   }, 'embeddings');
   fields(plan.embeddings.quantization, { minVal: numeric, maxVal: numeric, levels: numeric }, 'quantization');
   equalProjection(plan.embeddings.quantization, resolveQuantizationParams(plan.embeddings.quantization), 'quantization');
-  // ONNX normalizers include current-process environment overrides. Validate the
-  // frozen output shape without applying those overrides a second time here.
+  // Canonical ONNX settings are resolved at submission and transported as values.
+  // Execution consumes this shape without applying its ambient environment.
   fields(plan.embeddings.onnx, {
     modelPath: text, tokenizerId: text, executionProviders: nullable(value => Array.isArray(value) && value.every(text)),
     intraOpNumThreads: nullable(numeric), interOpNumThreads: nullable(numeric), graphOptimizationLevel: nullable(text),
     cpuExecutionProviderTuning: boolean, tokenizationCacheEnabled: boolean, tokenizationCacheMaxEntries: numeric,
     prewarmTokenizer: boolean, prewarmModel: boolean
   }, 'onnx');
+  const canonicalOnnx = normalizeOnnxConfig(plan.embeddings.onnx);
+  delete canonicalOnnx.prewarmTexts;
+  equalProjection(plan.embeddings.onnx, canonicalOnnx, 'onnx');
   record(plan.embeddings.embeddinggemma2, ['revision', 'dtype', 'dimensions'], 'embeddinggemma2');
   for (const [key, value] of Object.entries(plan.embeddings.embeddinggemma2)) {
     if (!(key === 'dimensions' ? numeric(value) : text(value))) throw fail(`invalid embeddinggemma2.${key}`);

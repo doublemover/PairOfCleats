@@ -42,7 +42,8 @@ export const RUNTIME_QUERY_RESULT_SCHEMA = object({ schemaVersion: { const: 1 },
   omitted: { type: 'array', maxItems: 128, items: object({ generationId: hash, evidenceId: text, reason: text }) },
   status: { enum: ['complete', 'partial'] }, warnings: list(text), nextCursor: nullable({ type: 'string', maxLength: 4096 }),
   integrity: object({ manifest: { const: 'verified' }, queryIndex: { const: 'verified' }, returnedRows: { const: 'verified' }, rawArtifacts: { const: 'not-read' } }),
-  cost: object({ visitedRecords: integer, hydratedRecords: integer, elapsedMs: integer, responseBytes: integer })
+  cost: object({ visitedRecords: integer, hydratedRecords: integer, elapsedMs: integer, responseBytes: integer,
+    familyOpens: integer, verificationBytes: integer })
 });
 
 export const RUNTIME_QUERY_CURSOR_SCHEMA = object({ version: { const: 1 }, queryId: hash,

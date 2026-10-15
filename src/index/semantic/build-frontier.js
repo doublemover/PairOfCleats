@@ -1,6 +1,8 @@
 import { assertSemanticTaskAuthority } from './task-authority.js';
 import { createWasmTaskInventory, wasmTaskInventoryHash, WASM_DEPENDENCY_KEY } from './wasm/task-authority.js';
 import { prepareWasmTaskExecution, executeWasmTask } from './wasm/task-execution.js';
+import { collectNativeTaskInventory, nativeTaskInventoryHash, NATIVE_DEPENDENCY_KEY } from './native-task-authority.js';
+import { prepareNativeTaskExecution, executeNativeTask } from './native-task-execution.js';
 import { collectCompilerDependencyInventory, compilerInventoryHash, COMPILER_DEPENDENCY_KEY } from './compiler-dependencies.js';
 import { retainSemanticBytes } from './disk-writes.js';
 import { resolveSemanticSourcePolicy, validateSemanticSourceTargets } from './policy.js';
@@ -28,6 +30,7 @@ import { semanticTaskInputHash } from './frontier.js';
 import { openSemanticControlStore } from './control-store.js';
 import { reopenSemanticDiskAccount } from '../build/incremental/working-set.js';
 import { normalizeSemanticConfig } from './config.js';
+import { createCompilerSourceReuse } from '../tooling/typescript/source-reuse.js';
 
 const hashBytes = bytes => createHash('sha256').update(bytes).digest('hex');
 const fail = (message, code = 'ERR_SEMANTIC_BINDING_WORK') => Object.assign(new Error(message), { code });
@@ -83,7 +86,7 @@ const readTargetSet = async ({ root, task, generation, syntaxPartitions }) => {
   const filename = await resolveSemanticPartPath(root, task.targetsRef);
   if ((await fs.stat(filename)).size > 32 * 1024 * 1024) throw fail('Task target set exceeds descriptor allowance.');
   const target = JSON.parse(await fs.readFile(filename, 'utf8'));
-  if (Object.keys(target).some(key => !['schemaVersion', 'generation', 'sourceUnits', 'syntaxPartitionRefs', 'compilerInventory', 'binaryInventory'].includes(key))
+  if (Object.keys(target).some(key => !['schemaVersion', 'generation', 'sourceUnits', 'syntaxPartitionRefs', 'compilerInventory', 'binaryInventory', 'nativeInventory'].includes(key))
     || target.schemaVersion !== 1 || canonicalSemanticJson(target.generation) !== canonicalSemanticJson(generation)
     || semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash
     || canonicalSemanticJson(target.sourceUnits) !== canonicalSemanticJson(ordered(task.sourceUnits))
@@ -114,26 +117,32 @@ const prepareBindingGroup = async ({ state, runtime, policy, kind = 'bind', phas
   }
   const store = createArtifactSemanticStore({ root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions: syntaxPartitions });
   await validateSemanticPartitions({ store, partitions: syntaxPartitions, signal });
-  const eligible = entries.filter(([file]) => (family==='wasm' ? sources.get(file)?.language==='wasm' : ['javascript', 'typescript'].includes(sources.get(file)?.language)) && (!sources.get(file).mapping || sources.get(file).mapping.quality === 'exact'));
+  const eligible = entries.filter(([file]) => (family === 'wasm' ? sources.get(file)?.language === 'wasm'
+    : family === 'native' ? sources.get(file)?.language === 'c' && sources.get(file).path.endsWith('.c') && !sources.get(file).mapping
+      : ['javascript', 'typescript'].includes(sources.get(file)?.language)) && (!sources.get(file).mapping || sources.get(file).mapping.quality === 'exact'));
   if (!eligible.length) return { task: null, status: 'unsupported' };
   const eligibleSyntax = eligible.map(([, entry]) => syntaxPartitions.find(row => row.partitionId === entry.syntaxPartitionId));
   const sourceUnits = ordered(eligible.map(([, entry]) => entry.sourceUnitId));
 
-  let compilerInventory = null, dependencyFailure = null;
+  let compilerInventory = null, nativeInventory = null, dependencyFailure = null;
   const binaryInventory=family==='wasm'?createWasmTaskInventory(eligible.map(([file])=>sources.get(file))):null;
   try {
-    if(!binaryInventory) {
+    if (family === 'native') {
+      nativeInventory = await collectNativeTaskInventory({ repoRoot: runtime.root, toolingConfig: getToolingConfig(runtime.root),
+        sources: eligible.map(([file]) => sources.get(file)), signal });
+    } else if(!binaryInventory) {
       state.semanticCompilerPreflight ||= collectCompilerDependencyInventory({ repoRoot: runtime.root, toolingConfig: getToolingConfig(runtime.root),
         files: state.semanticCompilerSourceInputs.map(source => source.path), sourceInputs: state.semanticCompilerSourceInputs,
-        documents: state.semanticCompilerDocuments || [], signal });
+        documents: state.semanticCompilerDocuments || [], sourceReuse: state.semanticCompilerSourceReuse, signal });
       compilerInventory = await state.semanticCompilerPreflight;
     }
   } catch (error) {
-    throwIfAborted(signal); if (error.code !== 'ERR_SEMANTIC_DEPENDENCY_UNSEALED') throw error;
+    throwIfAborted(signal); if (!['ERR_SEMANTIC_DEPENDENCY_UNSEALED', 'ERR_SEMANTIC_NATIVE_UNSEALED'].includes(error.code)) throw error;
     dependencyFailure = error.message;
   }
-  const authorityHash = binaryInventory?wasmTaskInventoryHash(binaryInventory):compilerInventory ? compilerInventoryHash(compilerInventory) : null;
-  const targetSet = { schemaVersion: 1, generation, sourceUnits, ...(binaryInventory?{binaryInventory}:{compilerInventory}),
+  const authorityHash = binaryInventory ? wasmTaskInventoryHash(binaryInventory) : nativeInventory ? nativeTaskInventoryHash(nativeInventory)
+    : compilerInventory ? compilerInventoryHash(compilerInventory) : null;
+  const targetSet = { schemaVersion: 1, generation, sourceUnits, ...(binaryInventory ? { binaryInventory } : family === 'native' ? { nativeInventory } : { compilerInventory }),
     syntaxPartitionRefs: eligibleSyntax.map(({ partitionId, canonicalHash, sourceUnitId }) => ({ partitionId, canonicalHash, sourceUnitId })).sort((a,b) => a.partitionId.localeCompare(b.partitionId)) };
   const targetSetHash = semanticHash('pairofcleats.semantic.binding-targets.v1', targetSet);
   const dependencySignatures = createSemanticCacheDependencySignatures({ dependencySignatures: { tooling: getToolingConfig(runtime.root) }, policy, root: runtime.root });
@@ -141,10 +150,12 @@ const prepareBindingGroup = async ({ state, runtime, policy, kind = 'bind', phas
     authorityHash, effectiveAnalysis: policy.identity?.analysis || null, enrichment: policy.enrichment });
   const inputHashes = ordered([...new Set(eligibleSyntax.map(row => row.canonicalHash))]);
   const prerequisiteDisabled = !binaryInventory && (kind !== 'bind' && policy.enrichment.bindings === 'off' || kind === 'crossFileFlow' && policy.enrichment.localFlow === 'off');
-  const reason = !authorityHash ? 'compiler_dependency_unavailable' : prerequisiteDisabled ? 'analysis_dependency_disabled' : binaryInventory?'generation_pinned_binary_pass':'generation_pinned_compiler_pass';
+  const reason = !authorityHash ? family === 'native' ? 'native_dependency_unavailable' : 'compiler_dependency_unavailable'
+    : prerequisiteDisabled ? 'analysis_dependency_disabled' : binaryInventory ? 'generation_pinned_binary_pass'
+      : nativeInventory ? 'generation_pinned_native_bindings' : 'generation_pinned_compiler_pass';
   const task = assertSemanticTask({ schemaVersion: 1, taskId: createSemanticTaskId({ kind, inputHashes, policyHash, targetSetHash }),
     kind, baseBuildId: generation.baseBuildId, sourceUnits, inputHashes, policyHash, targetSetHash,
-    targetsRef: 'semantic-frontier-targets/' + targetSetHash + '.json', dependencies: authorityHash ? [{ dependencyKey: binaryInventory?WASM_DEPENDENCY_KEY:COMPILER_DEPENDENCY_KEY, expectedHash: authorityHash }] : [],
+    targetsRef: 'semantic-frontier-targets/' + targetSetHash + '.json', dependencies: authorityHash ? [{ dependencyKey: binaryInventory ? WASM_DEPENDENCY_KEY : nativeInventory ? NATIVE_DEPENDENCY_KEY : COMPILER_DEPENDENCY_KEY, expectedHash: authorityHash }] : [],
     priority: 1, reason, coverageToProduce: [phase] });
   const targetInventory = await writeTargetSet({ root, targetSet, targetSetHash, diskAccount: state.semanticDiskAccount, signal });
   state.semanticFrontierTargets ||= [];
@@ -173,7 +184,7 @@ const prepareBindingGroup = async ({ state, runtime, policy, kind = 'bind', phas
     return admitted = drain ? await drain.admitTask({task,targetSet}) === true
       : policy.executionMode !== 'deferred' || policy.execution.deferredDrain === 'after-index';
   };
-  return {task,policy,phase,root,generation,compilerInventory,binaryInventory,targetSet,admit,sources,syntaxPartitions:eligibleSyntax};
+  return {task,policy,phase,root,generation,compilerInventory,binaryInventory,nativeInventory,targetSet,admit,sources,syntaxPartitions:eligibleSyntax};
 };
 
 /** Source policy groups stage independent immutable tasks, then share one admitted tooling pass. */
@@ -184,6 +195,8 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
   state.semanticPlanningBySource ||= new Map();
   state.semanticCompilerSourceInputs = [];
   state.semanticCompilerPreflight = null;
+  state.semanticCompilerSourceReuse?.clear();
+  state.semanticCompilerSourceReuse = createCompilerSourceReuse();
   state.semanticCompilerDocuments = compilerDocuments;
   for (const [file, descriptor] of entries) {
     throwIfAborted(signal);
@@ -203,6 +216,15 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
         && descriptor.coverage.some(row=>row.phase==='syntax'&&row.state==='complete') && (plan.modes.localFlow==='deferred'||runtime.semanticEnrichmentDrain)) {
         groups.set('wasm:'+source.sourceUnitId,{kind:'localFlow',phase:'localFlow',family:'wasm',policy:{...policy,executionMode:plan.modes.localFlow},entries:[[file,descriptor]]});
       }
+      if (source.language === 'c' && source.path.endsWith('.c') && !source.mapping && policy.languages.includes('c') && plan.modes.bindings !== 'off'
+        && (!policy.targetSelectionConfigured || policy.targets.length)
+        && (policy.enrichment.bindings !== 'eager' || runtime.semanticEnrichmentDrain)) {
+        const key = semanticHash('semantic.native-policy-group.v1', { analysis: policy.identity.analysis,
+          mode: plan.modes.bindings, execution: policy.execution });
+        if (!groups.has(key)) groups.set(key, { kind: 'bind', phase: 'bindings', family: 'native',
+          policy: { ...policy, executionMode: plan.modes.bindings }, entries: [] });
+        groups.get(key).entries.push([file, descriptor]);
+      }
       if (!policy.languages.includes(source.language) || !['javascript','typescript'].includes(source.language)
         || source.mapping && source.mapping.quality !== 'exact' || policy.targetSelectionConfigured && !policy.targets.length) continue;
       for (const [kind,phase] of [['bind','bindings'],['localFlow','localFlow'],['crossFileFlow','crossFileFlow']]) {
@@ -219,12 +241,22 @@ export const prepareSemanticBindingWork = async ({ state, runtime, signal = null
   state.semanticPhaseWorkPrepared = true;
   state.semanticPhaseTasks = work.map(item => item.task).filter(Boolean);
   return { task:work[0]?.task || null,tasks:state.semanticPhaseTasks,status:work.length?'pending':'empty',async run(fn) {
-    const selected=[];
-    for (const item of work) if(item.task && await item.admit()) selected.push(item);
-    const binaryResults=[];
-    for(const item of selected.filter(item=>item.binaryInventory)) binaryResults.push(await runSemanticTaskBatch({state,runtime,selected:[item],signal,openControl:()=>openControl(runtime, state.semanticDiskAccount, signal),prepareExecution:prepareWasmTaskExecution,fn:({signal})=>executeWasmTask({state,runtime,item,signal})}));
-    if(!selected.some(item=>!item.binaryInventory)&&binaryResults.length)return {ran:binaryResults.every(result=>result.ran),receipts:binaryResults.flatMap(result=>result.receipts),results:binaryResults};
-    return runSemanticTaskBatch({state,runtime,selected:selected.filter(item=>!item.binaryInventory),signal,fn,openControl:()=>openControl(runtime, state.semanticDiskAccount, signal)});
+    try {
+      const selected=[];
+      for (const item of work) if(item.task && await item.admit()) selected.push(item);
+      const binaryResults=[];
+      for(const item of selected.filter(item=>item.binaryInventory)) binaryResults.push(await runSemanticTaskBatch({state,runtime,selected:[item],signal,openControl:()=>openControl(runtime, state.semanticDiskAccount, signal),prepareExecution:prepareWasmTaskExecution,fn:({signal})=>executeWasmTask({state,runtime,item,signal})}));
+      for (const item of selected.filter(item => item.nativeInventory)) binaryResults.push(await runSemanticTaskBatch({ state, runtime,
+        selected: [item], signal, openControl: () => openControl(runtime, state.semanticDiskAccount, signal),
+        prepareExecution: prepareNativeTaskExecution, fn: ({ signal }) => executeNativeTask({ state, runtime, signal }) }));
+      const compiler = selected.filter(item => item.compilerInventory);
+      if (!compiler.length && binaryResults.length) return { ran: binaryResults.every(result => result.ran),
+        receipts: binaryResults.flatMap(result => result.receipts), results: binaryResults };
+      const compilerResult = await runSemanticTaskBatch({ state, runtime, selected: compiler, signal, fn,
+        openControl: () => openControl(runtime, state.semanticDiskAccount, signal) });
+      return binaryResults.length ? { ...compilerResult, receipts: [...binaryResults.flatMap(result => result.receipts), ...compilerResult.receipts],
+        results: [...binaryResults, compilerResult] } : compilerResult;
+    } finally { state.semanticCompilerSourceReuse?.clear(); }
   }};
 };
 

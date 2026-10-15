@@ -34,6 +34,10 @@ Options:
 - `--cors-allowed-origins <list>`: comma-separated allowlist of origins
 - `--cors-allow-any`: explicit opt-in to allow any origin (unsafe)
 - `--allowed-repo-roots <list>`: comma-separated allowlist for `repoPath` overrides
+- `--allowed-hosts <list>`: explicit comma-separated HTTP authorities for a reverse
+  proxy, for example `proxy.example:443`. Empty by default; entries omit schemes
+  and paths, and an omitted port means HTTP port 80. This does not bypass tokens,
+  Origin checks or repository allowlists.
 - `--max-body-bytes <n>`: cap request body size in bytes (default 1,000,000)
 
 ## Endpoints
@@ -88,14 +92,18 @@ Payload schema (canonical):
 - Unknown keys are rejected (`additionalProperties: false`).
 
 Required:
-- `query` (string, non-empty)
+- Nonempty `query`, or at least one effective search filter for exhaustive enumeration.
+  An empty query with only mode/output/ANN/generation settings is invalid.
 
 Optional:
 - `repo` / `repoPath` (string)
 - `output` (`compact` | `json` | `full`)
 - `mode` (`code` | `prose` | `records` | `both` | `all` | `extracted-prose`)
 - `backend` (`auto` | `memory` | `sqlite` | `sqlite-fts` | `lmdb`)
-- `ann` (boolean), `top` (integer), `context` (integer)
+- `ann` (boolean), `top` (integer)
+- `cursor` (filter-only continuation), `asOf`, `snapshot` / `snapshotId` (generation selectors)
+- Deprecated compatibility input `context: 0` is a no-op. Positive/invalid context
+  values fail with a migration message; use source excerpts or context packs.
 - `type`, `author`, `import`, `calls`, `uses`, `signature`, `param`, `decorator`, `inferredType`,
   `returnType`, `throws`, `reads`, `writes`, `mutates`, `alias`, `awaits`
 - `risk`, `riskTag`, `riskSource`, `riskSink`, `riskCategory`, `riskFlow`
@@ -105,6 +113,11 @@ Optional:
 - `lint`, `async`, `generator`, `returns`, `case`, `caseFile`, `caseTokens` (booleans)
 - `path`, `file`, `ext` (string or array of strings)
 - `meta` (string | array | object), `metaJson` (any JSON value)
+
+Enumeration returns the CLI's ordered IDs, totals and `pagination.nextCursor`.
+Repeat identical filters/modes and the original generation with that cursor;
+text plus cursor and conflicting generation selectors fail. GET `/search` decodes
+the same fields. The viewer's search operation uses this same POST contract.
 
 Response:
 ```json
@@ -189,8 +202,22 @@ Startup failures should be treated as configuration issues first:
 - missing indexes for the default repo when search/status requests begin
 
 ## Security considerations
-- Auth is required for non-localhost bindings unless `--allow-unauthenticated` is set.
-- CORS is disabled by default; enable with `--cors-allowed-origins` (include localhost explicitly) or opt-in to
-  `--cors-allow-any` only if you understand the exposure.
+- Non-localhost bindings require a token and refuse `--allow-unauthenticated`.
+- Host authority is checked before static assets, preflight and data routes. The
+  default loopback listener accepts `localhost`, `127.0.0.1` and `[::1]` with its
+  actual listening port. A foreign, missing or malformed Host is rejected even
+  when Origin is absent or allowed. Other listeners accept their configured
+  hostname/actual local address; wildcard bind addresses are not public names.
+- Reverse proxies must list their external authorities in `--allowed-hosts`.
+  Forwarded headers do not establish authority. Origin and bearer checks remain
+  separate and apply to explicitly admitted proxy hosts.
+- Exact same-origin requests are admitted after Host validation, including
+  browser module GETs. The Origin must match the request authority and the
+  socket's actual HTTP/HTTPS protocol; forwarded headers do not change this
+  comparison. Data routes still require their configured bearer token.
+- Cross-origin access is disabled by default; enable with
+  `--cors-allowed-origins` or opt in to `--cors-allow-any`. A TLS-terminating
+  reverse proxy must explicitly allow its external HTTPS Origin when the
+  backend listener uses HTTP.
 - `repoPath` overrides require an explicit allowlist; otherwise the server uses its configured repo only.
 - If this is used operationally, pair it with service/indexer status monitoring rather than treating `/health` as sufficient readiness.

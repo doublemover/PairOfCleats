@@ -35,7 +35,8 @@ try {
   assert.ok(exact.coverage[1].reasons.includes('exact_source_mapping_unavailable_in_saved_capture'));
   assert.equal(exact.status, 'partial', 'complete saved profiles do not imply complete source mapping');
   assert.equal((await query({ sources: [{ sourceUnitId: fixture.source.sourceUnitId, byteHash: 'a'.repeat(64) }] })).observations.length, 0);
-  assert.equal((await query({ records: fixture.options().sourceCandidates[0].targets })).observations.length, 6);
+  assert.equal((await query({ records: fixture.options().sourceCandidates[0].targets })).observations.length, 0,
+    'unverified supplied references cannot filter authoritative runtime observations');
   assert.equal((await query({ joinQualities: ['unresolved'] })).observations.length, 3);
   assert.equal((await query({ captureIds: ['capture-b'] })).observations.length, 2);
   assert.equal((await query({ workload: { fingerprint: fixture.capture.workload.fingerprint, phase: 'capture' } })).observations.length, 7);

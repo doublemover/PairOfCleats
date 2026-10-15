@@ -6,7 +6,8 @@ import { attachObservability, normalizeObservability } from '../../src/shared/ob
 import { getCapabilities } from '../../src/shared/capabilities.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { tryImport } from '../../src/shared/optional-deps.js';
-import { withTimeout } from './runner.js';
+import { incTimeout } from '../../src/shared/metrics/core.js';
+import { raceAbort } from '../../src/shared/abort.js';
 import { handleToolCall } from './tools.js';
 import { getMcpServerConfig } from './server-config.js';
 
@@ -58,31 +59,48 @@ const resolveSdkModules = async () => {
   };
 };
 
-const buildProgressSender = (server, token, tool, observability = null) => {
-  if (!token || typeof server?.sendNotification !== 'function') {
-    return null;
-  }
-  const notify = (method, params) => {
-    try {
-      server.sendNotification(method, params);
-    } catch {
-      try {
-        server.sendNotification({ method, params });
-      } catch {}
+const cancelledError = () => Object.assign(new Error('Request cancelled.'), {
+  name: 'AbortError', code: ERROR_CODES.CANCELLED
+});
+
+// A slow transport retains only the newest pending update. Progress is an
+// increasing event count, not an invented percentage of unknown tool work.
+const buildProgressSender = (context, token, signal) => {
+  let accepting = true, disabled = false, count = 0, pending = null, flight = null;
+  const enabled = token !== null && token !== undefined
+    && typeof context?.sendNotification === 'function';
+  const drain = async () => {
+    while (pending && !disabled && !signal.aborted) {
+      const params = pending;
+      pending = null;
+      try { await context.sendNotification({ method: 'notifications/progress', params }); }
+      catch { disabled = true; pending = null; }
     }
   };
-  return (payload) => {
-    const message = payload?.message ? String(payload.message) : '';
-    if (!message) return;
-    notify('notifications/progress', {
-      progressToken: token,
-      tool,
-      message,
-      stream: payload?.stream || 'info',
-      phase: payload?.phase || 'progress',
-      ts: new Date().toISOString(),
-      observability: payload?.observability || observability || null
+  const cancel = () => { accepting = false; pending = null; };
+  const pump = () => {
+    flight = drain().finally(() => {
+      flight = null;
+      if (pending && !disabled && !signal.aborted) pump();
     });
+  };
+  signal.addEventListener('abort', cancel, { once: true });
+  return {
+    progress: enabled ? payload => {
+      const message = payload?.message ? String(payload.message) : '';
+      if (!message || !accepting || disabled || signal.aborted) return;
+      pending = { progressToken: token, progress: ++count, message };
+      if (!flight) pump();
+    } : null,
+    async close() {
+      accepting = false;
+      if (signal.aborted) pending = null;
+      while (flight && !signal.aborted) {
+        try { await raceAbort(signal, flight); }
+        catch (error) { if (!signal.aborted) throw error; }
+      }
+      signal.removeEventListener('abort', cancel);
+    }
   };
 };
 
@@ -94,7 +112,9 @@ export async function startMcpSdkServer({
   resolveToolTimeoutMs,
   queueMax,
   capabilities,
-  capabilityManifest
+  capabilityManifest,
+  executeTool = handleToolCall,
+  transport: suppliedTransport = null
 }) {
   const {
     Server,
@@ -104,6 +124,7 @@ export async function startMcpSdkServer({
     InitializeRequestSchema
   } = await resolveSdkModules();
   const queue = new PQueue({ concurrency: 1 });
+  const lifetime = new AbortController();
   const attachToolResultObservability = (result, requestObservability) => (
     result && typeof result === 'object' && !Array.isArray(result) && result.observability
       ? result
@@ -126,6 +147,7 @@ export async function startMcpSdkServer({
   const server = new Server(serverInfo, {
     capabilities: baseCapabilities
   });
+  server.onclose = () => lifetime.abort(cancelledError());
 
   if (InitializeRequestSchema) {
     server.setRequestHandler(InitializeRequestSchema, async () => buildInitializeResult({
@@ -154,6 +176,14 @@ export async function startMcpSdkServer({
         }]
       };
     }
+    const requestSignal = context?.signal;
+    const signal = requestSignal
+      ? AbortSignal.any([requestSignal, lifetime.signal]) : lifetime.signal;
+    const errorResult = error => ({
+      isError: true,
+      content: [{ type: 'text', text: JSON.stringify(formatToolError(error), null, 2) }]
+    });
+    if (signal.aborted) return errorResult(cancelledError());
     const totalQueued = queue.size + queue.pending;
     if (Number.isFinite(queueMax) && queueMax > 0 && totalQueued >= queueMax) {
       return {
@@ -161,11 +191,18 @@ export async function startMcpSdkServer({
         content: [{ type: 'text', text: JSON.stringify(formatToolError({ code: ERROR_CODES.QUEUE_OVERLOADED, message: 'Server overloaded.' }), null, 2) }]
       };
     }
-    return await queue.add(async () => {
+    // PQueue's signal is admission-only: aborting a running queue task would
+    // release its slot before the underlying tool/owned children have settled.
+    const admission = new AbortController();
+    const cancelAdmission = () => admission.abort(cancelledError());
+    signal.addEventListener('abort', cancelAdmission, { once: true });
+    try { return await queue.add(async () => {
+      signal.removeEventListener('abort', cancelAdmission);
+      if (signal.aborted) return errorResult(cancelledError());
       const timeoutMs = resolveToolTimeoutMs(name, args);
       const controller = new AbortController();
-      let timedOut = false;
-      const progressToken = request?.params?._meta?.progressToken || context?.progressToken;
+      const workSignal = AbortSignal.any([signal, controller.signal]);
+      const progressToken = request?.params?._meta?.progressToken ?? context?.progressToken;
       const requestObservability = normalizeObservability({
         correlationId: request?.params?._meta?.correlationId || null,
         parentCorrelationId: request?.params?._meta?.parentCorrelationId || null,
@@ -178,45 +215,71 @@ export async function startMcpSdkServer({
           toolCallId: context?.requestId || null
         }
       });
-      const progress = buildProgressSender(server, progressToken, name, requestObservability);
+      const sender = buildProgressSender(context, progressToken, workSignal);
+      const timer = Number.isFinite(timeoutMs) && timeoutMs > 0 ? setTimeout(() => {
+        incTimeout({ surface: 'mcp', operation: 'tool' });
+        controller.abort(Object.assign(new Error(`Tool timeout after ${timeoutMs}ms (${name}).`), {
+          code: ERROR_CODES.TOOL_TIMEOUT, timeoutMs
+        }));
+      }, timeoutMs) : null;
       try {
-        const result = await withTimeout(
-          handleToolCall(name, args, {
-            progress,
-            toolCallId: context?.requestId || null,
-            signal: controller.signal,
-            observability: requestObservability
-          }),
-          timeoutMs,
-          {
-            label: name,
-            onTimeout: () => {
-              timedOut = true;
-              controller.abort();
-            }
-          }
-        );
-        if (timedOut) {
-          return {
-            isError: true,
-            content: [{ type: 'text', text: JSON.stringify(formatToolError({ code: ERROR_CODES.TOOL_TIMEOUT, message: 'Tool timeout.' }), null, 2) }]
-          };
-        }
+        // Keep the capacity lease until execution and subprocess teardown
+        // finish. Cancellation/timeout signals never substitute for settlement.
+        const result = await executeTool(name, args, {
+          progress: sender.progress,
+          toolCallId: context?.requestId ?? null,
+          signal: workSignal,
+          observability: requestObservability
+        });
+        if (workSignal.aborted) throw workSignal.reason;
+        await sender.close();
+        if (workSignal.aborted) throw workSignal.reason;
         return {
           content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
         };
       } catch (error) {
-        const payload = formatToolError(error);
-        return {
-          isError: true,
-          content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }]
-        };
+        return errorResult(workSignal.aborted
+          ? (workSignal.reason?.code === ERROR_CODES.TOOL_TIMEOUT ? workSignal.reason : cancelledError()) : error);
+      } finally {
+        if (timer) clearTimeout(timer);
+        await sender.close();
       }
-    });
+    }, { signal: admission.signal }); }
+    catch (error) { return errorResult(signal.aborted ? cancelledError() : error); }
+    finally { signal.removeEventListener('abort', cancelAdmission); }
   });
 
-  const transport = new StdioServerTransport();
+  const transport = suppliedTransport || new StdioServerTransport();
   await server.connect(transport);
+  let closing = null;
+  const onInputEnd = () => { void service.close().catch(() => { process.exitCode = 1; }); };
+  const service = {
+    server,
+    queue,
+    close() {
+      if (!closing) closing = (async () => {
+        lifetime.abort(cancelledError());
+        let transportError;
+        try { await server.close(); } catch (error) { transportError = error; }
+        try { await queue.onIdle(); }
+        finally {
+          if (!suppliedTransport) {
+            process.stdin.off('end', onInputEnd); process.stdin.off('close', onInputEnd);
+          }
+          await (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches();
+        }
+        if (transportError) throw transportError;
+      })();
+      return closing;
+    }
+  };
+  // The SDK stdio transport does not translate EOF into transport.onclose.
+  // EOF is nevertheless a disconnect and must cancel owned tool work.
+  if (!suppliedTransport) {
+    process.stdin.once('end', onInputEnd);
+    process.stdin.once('close', onInputEnd);
+  }
+  return service;
 }
 
 if (isDirectExecution(import.meta.url)) {

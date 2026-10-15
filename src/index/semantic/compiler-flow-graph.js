@@ -1,4 +1,5 @@
 import { throwIfAborted } from '../../shared/abort.js';
+import { compilerOperationDependencies } from './compiler-operation-dependencies.js';
 /** Structured intraprocedural CFG. Nodes are syntax anchors, not runtime executions. */
 export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, signal }) => {
   const blocks = [], reasons = new Set();
@@ -95,7 +96,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     }
     const mayThrow = ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node) || ts.isNewExpression(node) || ts.isPropertyAccessExpression(node)
       || ts.isElementAccessExpression(node) || ts.isAwaitExpression(node) || ts.isBinaryExpression(node)
-      || ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node);
+      || ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node) || compilerOperationDependencies(ts, node)?.mayThrow;
     if (ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node)) reasons.add('call_heap_and_captured_effects_unresolved');
     if (ts.isAwaitExpression(node) || ts.isYieldExpression(node)) reasons.add('suspension_shared_effects_unresolved');
     if (node.questionDotToken) reasons.add('optional_guard_effects_conservative');

@@ -1,8 +1,8 @@
-import { normalizeFilePath } from '../../../shared/path-normalize.js';
+import { canonicalBundleSourceKey } from '../../../shared/bundle-source-key.js';
 
 export const normalizeIncrementalRelPath = (value) => {
-  const normalized = normalizeFilePath(value, { lower: process.platform === 'win32' });
-  return normalized.startsWith('./') ? normalized.slice(2) : normalized;
+  const normalized = canonicalBundleSourceKey(value);
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 };
 
 export const resolvePrefetchedVfsRows = (store, normalizedFile, rawFile) => {

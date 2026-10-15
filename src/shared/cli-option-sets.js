@@ -68,6 +68,7 @@ export const SERVICE_API_OPTIONS = {
   'cors-allowed-origins': { type: 'string' },
   'cors-allow-any': { type: 'boolean', default: false },
   'allowed-repo-roots': { type: 'string' },
+  'allowed-hosts': { type: 'string', default: '', describe: 'Comma-separated request hostnames for a reverse proxy; listener-derived authorities are used by default.' },
   'max-body-bytes': { type: 'number' }
 };
 

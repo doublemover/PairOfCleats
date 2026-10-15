@@ -32,6 +32,11 @@ try {
   const result = await runSemanticEnrichmentService({ request: { ...request, action: 'drain', taskIds: selected.map(task => task.taskId) } });
   assert.equal(result.status, 'published');
   assert.equal(result.lineage.length, 2);
+  assert.ok(result.workScopes.compilerParseReused.count > 0, 'Selected normal compiler work consumes actual retained preflight trees.');
+  assert.ok(result.workScopes.sourceBytesReused > 0);
+  assert.ok(result.workScopes.peakRetainedBytes > 0);
+  assert.equal(result.workScopes.retainedByteBasis, 'source-bytes-times-16-estimate');
+  assert.ok(result.workScopes.compilerParsed, 'Fresh parses are reported alongside verified reuse.');
   assert.notEqual(result.publishedGeneration.baseBuildId, manifest.generation.baseBuildId);
   const freshDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const { store, manifest: fresh } = await openPublishedSemanticStore({ indexDir: freshDir, repoRoot, generation: result.publishedGeneration });

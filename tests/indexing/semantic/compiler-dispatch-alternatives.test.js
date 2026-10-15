@@ -70,6 +70,8 @@ try {
   assert.ok(edges.some(edge=>edge.kind==='writes'&&edge.callSite&&key(edge.callSite)===key(receiverCall.occurrence)&&key(edge.to)===key(expressionFor(receiverOwner.body.statements.at(-1).expression))),'receiver effects are instantiated at the caller read');
   const restCall=call('rest(a,b)');
   assert.equal(edges.filter(edge=>edge.kind==='packs'&&edge.callSite&&key(edge.callSite)===key(restCall.occurrence)).length,2,'rest packs all supplied arguments');
+  const restPack=edges.find(edge=>edge.kind==='packs'&&edge.callSite&&key(edge.callSite)===key(restCall.occurrence));
+  assert.ok(edges.some(edge=>edge.kind==='argumentToParameter'&&key(edge.from)===key(restPack.to)&&key(edge.callSite)===key(restCall.occurrence)),'rest aggregate enters the shared formal through one balanced transition');
   assert.equal(document.summaries.find(summary=>summary.owner.name?.text==='implicit').returns.length,2);
   assert.equal(document.summaries.find(summary=>summary.owner.name?.text==='bare').returns.length,1);
   assert.equal(document.summaries.find(summary=>summary.owner.name?.text==='overridden').returns.length,1);

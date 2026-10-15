@@ -1,3 +1,5 @@
+import { EMBEDDING_IDENTITY_VERSION } from '../../../shared/embedding-identity.js';
+import { assertEmbeddingArtifactCompatibility, resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
 import { getQueryEmbedding } from '../../embedding.js';
 import { incCacheEvent } from '../../../shared/metrics/core.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
@@ -44,7 +46,7 @@ export function createEmbeddingResolver({
     }
   };
 
-  return async (modelId, dims, normalize, inputFormatting, modelProfile = null) => {
+  return async (modelId, dims, normalize, inputFormatting, modelProfile = null, expectedIdentity = null) => {
     throwIfAborted();
     if (!modelId) return null;
     const normalizeFlag = normalize !== false;
@@ -55,6 +57,15 @@ export function createEmbeddingResolver({
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(parsedDims) && parsedDims > 0 ? Math.floor(parsedDims) : null);
+    const modelArtifact = expectedIdentity ? resolveEmbeddingArtifactIdentity({ provider: embeddingProvider,
+      modelId, modelsDir: modelConfig?.dir, rootDir, onnx: embeddingOnnx,
+      modelProfile, stub: useStubEmbeddings }) : null;
+    if (expectedIdentity) {
+      if (expectedIdentity.version !== EMBEDDING_IDENTITY_VERSION) {
+        throw Object.assign(new Error('Unsupported embedding identity. Rebuild the dense index.'), { code: 'ERR_EMBEDDING_IDENTITY_UNSUPPORTED' });
+      }
+      assertEmbeddingArtifactCompatibility(expectedIdentity.modelArtifact, modelArtifact);
+    }
     const cacheKeyLocal = buildLocalCacheKey({
       namespace: 'embedding-query',
       payload: {
@@ -69,6 +80,7 @@ export function createEmbeddingResolver({
         normalize: normalizeFlag,
         inputFormatting: formatting,
         modelProfile,
+        modelArtifact,
         stub: useStubEmbeddings
       }
     }).key;
@@ -92,7 +104,8 @@ export function createEmbeddingResolver({
       rootDir,
       normalize: normalizeFlag,
       inputFormatting: formatting,
-      modelProfile
+      modelProfile,
+      modelArtifact
     }).then(value => {
       if (!value) embeddingCache.delete(cacheKeyLocal);
       return value;

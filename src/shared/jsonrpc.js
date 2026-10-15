@@ -1,4 +1,4 @@
-import { WriteableStreamMessageWriter } from 'vscode-jsonrpc';
+import { WriteableStreamMessageWriter } from 'vscode-jsonrpc/node';
 
 const writerCache = new WeakMap();
 const CLOSED_STREAM_WRITE_ERROR_CODES = new Set([

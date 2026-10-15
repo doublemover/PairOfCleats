@@ -104,7 +104,7 @@ def build_search_payload(
         'repo': repo_root,
         'query': query,
         'mode': mode or 'both',
-        'output': 'compact-json',
+        'output': 'compact',
     }
     if backend:
         payload['backend'] = backend

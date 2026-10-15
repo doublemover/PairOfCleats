@@ -39,7 +39,7 @@ const truncatedPack = assembleCompositeContextPack({
 });
 
 assert.equal(truncatedPack.evidence?.primary?.state, 'file-backed');
-assert.equal(truncatedPack.evidence?.primary?.source, 'file-range');
+assert.equal(truncatedPack.evidence?.primary?.source, 'working-tree-preview');
 assert.equal(truncatedPack.evidence?.primary?.truncated, true);
 assert.equal(truncatedPack.evidence?.primary?.truncatedTokens, true);
 assert.equal(truncatedPack.evidence?.complete, false);

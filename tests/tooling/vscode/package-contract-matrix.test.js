@@ -188,7 +188,6 @@ const keyMap = {
   backendKey: 'pairofcleats',
   annKey: 'pairofcleats',
   maxResultsKey: 'pairofcleats',
-  contextLinesKey: 'pairofcleats',
   fileKey: 'pairofcleats',
   pathKey: 'pairofcleats',
   langKey: 'pairofcleats',

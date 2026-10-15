@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../../src/shared/effective-memory.js';
 import os from 'node:os';
 import { readEmbeddingExecutionPlan, applyEmbeddingExecutionPlan, EMBEDDING_LAUNCH_OPTION_KEYS } from '../../../src/shared/embedding-execution-plan.js';
 import { resolveEmbeddingIntent } from '../../../src/shared/embedding-intent.js';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-batch.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../../src/shared/onnx-embeddings.js';
+import { normalizeEmbeddingProvider, resolveOnnxConfig } from '../../../src/shared/onnx-embeddings.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
 import { getModelConfig, getRepoCacheRoot, loadUserConfig, resolveIndexRoot, resolveRepoRootArg } from '../../shared/dict-utils.js';
 import { loadEmbeddingsAutoTuneRecommendation } from './autotune-profile.js';
@@ -51,7 +52,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   const indexingConfig = userConfig.indexing || {};
   const embeddingsConfig = indexingConfig.embeddings || {};
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-  const embeddingOnnx = executionPlan?.embeddings.onnx || normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const embeddingOnnx = executionPlan?.embeddings.onnx || resolveOnnxConfig(embeddingsConfig.onnx || {}, rawEnv);
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const modelConfig = getModelConfig(root, userConfig);
   if (executionPlan?.modelsDir) modelConfig.dir = executionPlan.modelsDir;
@@ -75,7 +76,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     const cpuCount = typeof os.availableParallelism === 'function'
       ? os.availableParallelism()
       : os.cpus().length;
-    embeddingBatchSize = resolveAutoEmbeddingBatchSize(os.totalmem(), {
+    embeddingBatchSize = resolveAutoEmbeddingBatchSize(readEffectiveMemory().totalBytes, {
       provider: useStubEmbeddings ? 'stub' : embeddingProvider,
       cpuCount
     });

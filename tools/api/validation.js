@@ -2,7 +2,10 @@ import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factor
 import {
   INTEGER_MIN_ZERO_FLAG_FIELDS,
   REPEATED_LIST_FIELDS,
-  STRING_FLAG_FIELDS
+  STRING_FLAG_FIELDS,
+  SEARCH_REQUEST_REQUIREMENT,
+  buildSearchRequestArgs,
+  validateLegacySearchContext
 } from '../../src/shared/search-request.js';
 
 const stringListSchema = {
@@ -46,14 +49,15 @@ const repeatedListFieldProperties = Object.fromEntries(
 const searchRequestSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query'],
+  ...SEARCH_REQUEST_REQUIREMENT,
   properties: {
-    query: { type: 'string', minLength: 1 },
+    query: { type: 'string' },
     repoPath: { type: 'string' },
     repo: { type: 'string' },
     asOf: { type: 'string' },
     snapshot: { type: 'string' },
     snapshotId: { type: 'string' },
+    cursor: { type: 'string', minLength: 1, maxLength: 8192 },
     output: { type: 'string', enum: ['compact', 'json', 'full'] },
     mode: { type: 'string', enum: ['code', 'prose', 'records', 'both', 'all', 'extracted-prose'] },
     backend: { type: 'string', enum: ['auto', 'memory', 'sqlite', 'sqlite-fts', 'lmdb'] },
@@ -61,7 +65,7 @@ const searchRequestSchema = {
     allowSparseFallback: { type: 'boolean' },
     allowUnsafeMix: { type: 'boolean' },
     top: { type: 'integer', minimum: 0 },
-    context: { type: 'integer', minimum: 0 },
+    context: { type: 'integer', const: 0, deprecated: true },
     ...stringFieldProperties,
     ...integerMinZeroFieldProperties,
     visibility: { type: 'string' },
@@ -267,8 +271,15 @@ export const createSearchValidator = () => {
   const ajv = createAjv({ allErrors: false, strict: false });
   const validateSearchRequest = compileSchema(ajv, searchRequestSchema);
   return (payload) => {
+    if (payload && typeof payload === 'object') {
+      const context = validateLegacySearchContext(payload);
+      if (!context.ok) return { ok: false, errors: [context.message] };
+    }
     const valid = validateSearchRequest(payload);
-    if (valid) return { ok: true };
+    if (valid) {
+      const request = buildSearchRequestArgs(payload);
+      return request.ok ? { ok: true } : { ok: false, errors: [request.message] };
+    }
     return { ok: false, errors: formatValidationErrors(validateSearchRequest.errors || []) };
   };
 };

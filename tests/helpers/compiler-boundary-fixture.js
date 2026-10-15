@@ -22,7 +22,9 @@ export const createCompilerBoundaryFixture = async (root, texts, binaries = {}, 
   const state = { semanticDiskAccount: account, semanticFactsByFile: new Map() }, documents = [], syntaxPartitions = [];
   const storeFor = partitions => createArtifactSemanticStore({ root: stagingRoot, repoRoot: root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation, partitions });
   for (const [file, text] of Object.entries(texts)) {
-    const sourceFile = program.getSourceFile(path.join(root, file)); prepareTypeScriptSyntax(text, { ts, sourceFile, ext: '.ts' });
+    const sourceFile = program.getSourceFile(path.join(root, file));
+    const syntax = prepareTypeScriptSyntax(text, { ts, sourceFile, ext: path.extname(file) });
+    if (syntax.sourceFile !== sourceFile) throw new Error('Compiler fixture syntax must retain its actual Program source.');
     const bytes = Buffer.from(text), facts = await collectFileSemanticFacts({ bytes, text, ast: sourceFile, ts, language: 'typescript', relPath: file, repositoryNamespace: root, stagingRoot, diskAccount: account, policy });
     const expressions = new Map(), declarations = new Map();
     for await (const row of storeFor([facts.partition]).iterateRows(facts.partition.partitionId, 'semantic_records')) if (row.span) {
@@ -50,9 +52,9 @@ export const createCompilerBoundaryFixture = async (root, texts, binaries = {}, 
   }
   const flowDocuments = [];
   if (withFlow) for(const doc of documents) {
-    const flow=await collectCompilerFlow({...doc, source:doc.item.source, root:stagingRoot, diskAccount:account, context:{contextKey:'a'.repeat(64)},
+    const flow=await collectCompilerFlow({...doc, source:doc.item.source, root:stagingRoot, diskAccount:account, context:{contextKey:'a'.repeat(64)},isDefaultLibrary:file=>program.isSourceFileDefaultLibrary(file),
       declarationFor:node=> {const anchor=node?.name||node;return anchor?doc.item.declarations.get(anchor.getStart(doc.sourceFile)+':'+anchor.end):null;} });
-    flowDocuments.push({...doc,partition:flow.partition,policy,summaries:flow.summaries,flowEdges:flow.edges,aliases:flow.aliases,fieldAccesses:flow.fieldAccesses,callEffects:flow.callEffects,calls:[]});syntaxPartitions.push(flow.partition);
+    flowDocuments.push({...doc,partition:flow.partition,policy,summaries:flow.summaries,flowEdges:flow.edges,aliases:flow.aliases,fieldAccesses:flow.fieldAccesses,callEffects:flow.callEffects,orderedAccesses:flow.orderedAccesses,orderedOperations:flow.orderedOperations,calls:[]});syntaxPartitions.push(flow.partition);
     const current=state.semanticFactsByFile.get(doc.item.file);
     state.semanticFactsByFile.set(doc.item.file,createSemanticFactsRef({source:doc.item.source,syntaxPartitionId:current.syntaxPartitionId,storage:current.storage,partitions:[...current.partitions,flow.partition],coverage:[...current.coverage,...flow.coverage]}));
   }

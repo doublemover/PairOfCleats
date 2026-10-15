@@ -278,7 +278,7 @@ export const createFlowController = ({ runId, nextSeq, eventLogRecorder }) => {
     const chunked = splitEventPayloadIntoChunks(entry);
     if (Array.isArray(chunked)) {
       for (const chunkEntry of chunked) {
-        emitEntry(chunkEntry, { critical });
+        emitEntry(chunkEntry, { critical: critical || CRITICAL_EVENTS.has(event) });
       }
       return;
     }

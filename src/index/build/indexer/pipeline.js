@@ -6,6 +6,9 @@ import { estimateFileTextBytes } from '../../../shared/cache/size.js';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { log, logLine } from '../../../shared/progress-runtime.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
+import { acquireIndexLock } from '../lock.js';
+import { createIndexCacheLease, assertIndexCacheLease } from '../cache-lease.js';
+import { drainCacheWriters, combineCacheWriterErrors, releaseCacheWriterOwnership } from '../cache-writer-drain.js';
 import { createCrashLogger } from '../crash-log.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
@@ -95,7 +98,30 @@ export const resolveFileTextCacheForMode = ({ runtime, mode, cacheReporter = nul
  * }} input
  * @returns {Promise<void>}
  */
-export async function buildIndexForMode({ mode, runtime, discovery = null, abortSignal = null }) {
+export async function buildIndexForMode(input) {
+  const { runtime, abortSignal } = input;
+  if (runtime.cacheWriterLease) {
+    assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
+    return buildIndexForModeOwned(input);
+  }
+  const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, signal: abortSignal,
+    metadata: { owner: 'indexer', operation: 'cache-writer' } });
+  if (!lock) throw Object.assign(new Error('Repository cache writer is busy.'), { code: 'ERR_INDEX_CACHE_OWNERSHIP' });
+  runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);
+  let operationError = null;
+  try { return await buildIndexForModeOwned(input); }
+  catch (error) { operationError = error; throw error; }
+  finally {
+    // Standalone callers own this runtime; all scheduled writers must settle
+    // before the borrowed cache namespace becomes available to another process.
+    try { await drainCacheWriters(runtime, { shutdown: true, timeoutMs: 15000 }); }
+    catch (cleanupError) { throw combineCacheWriterErrors(operationError, cleanupError); }
+    await releaseCacheWriterOwnership({ lease: runtime.cacheWriterLease, release: () => lock.release(), operationError });
+    delete runtime.cacheWriterLease;
+  }
+}
+
+async function buildIndexForModeOwned({ mode, runtime, discovery = null, abortSignal = null }) {
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   throwIfAborted(effectiveAbortSignal);
   const envConfig = getEnvConfig();

@@ -658,7 +658,7 @@ assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticIds,
 assert.deepEqual(fullPack.risk?.flows?.[0]?.path?.watchByStep?.[0]?.semanticKinds, ['callback']);
 assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerpt, 'query(input)');
 assert.match(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.excerptHash || '', /^sha1:/);
-assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'repo-range');
+assert.equal(fullPack.risk?.flows?.[0]?.evidence?.callSitesByStep?.[0]?.[0]?.details?.provenance?.excerptSource, 'working-tree-preview');
 assert.equal(fullPack.risk?.guidance?.callers?.[0]?.chunkUid, 'chunk-caller');
 assert.equal(fullPack.risk?.guidance?.symbols?.[0]?.symbolId, 'sym:query');
 assert.equal(fullPack.risk?.guidance?.tests?.[0]?.testPath, 'tests/risky.test.js');

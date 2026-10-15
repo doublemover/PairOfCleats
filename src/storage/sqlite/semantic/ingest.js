@@ -4,8 +4,9 @@ import { canonicalSemanticJson, semanticHash } from '../../../index/semantic/ide
 import { throwIfAborted } from '../../../shared/abort.js';
 import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
 import { assertSemanticTask } from '../../../contracts/validators/semantic-task.js';
+import { discoveryIndexEntry } from '../../../semantic/discovery-facts.js';
 
-const TABLES = ['semantic_records', 'semantic_operands', 'semantic_edges',
+const TABLES = ['semantic_records', 'semantic_discovery', 'semantic_operands', 'semantic_edges',
   'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_frontier', 'semantic_analysis'];
 let savepointSequence = 0;
 
@@ -48,11 +49,14 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
     }
     if (sources !== 1) throw new Error('Semantic partition requires exactly one source manifest.');
     const insertNode = db.prepare('INSERT INTO semantic_records VALUES (?, ?, ?, ?)');
+    const insertDiscovery = db.prepare('INSERT INTO semantic_discovery VALUES (?, ?, ?, ?)');
     let nextNode = 0;
     for await (const row of readRows('semantic_records')) {
       throwIfAborted(signal);
       if (row.id !== nextNode++) throw new Error('Noncontiguous semantic record IDs.');
       insertNode.run(partitionId, row.id, row.kind, canonicalSemanticJson(row));
+      const discovery = discoveryIndexEntry(row, { partitionId, localId: row.id });
+      if (discovery) insertDiscovery.run(partitionId, row.id, discovery.field, discovery.value);
     }
     const insertOperand = db.prepare('INSERT INTO semantic_operands VALUES (?, ?, ?, ?, ?, ?)');
     for await (const row of readRows('semantic_operands')) {

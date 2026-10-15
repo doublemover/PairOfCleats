@@ -1,3 +1,4 @@
+import { createIndexCacheLease, assertIndexCacheLease } from '../../../index/build/cache-lease.js';
 import crypto from 'node:crypto';
 import { refreshRuntimeReceipt } from '../../../index/build/runtime/receipt.js';
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
@@ -40,6 +41,7 @@ import { buildSqliteIndex } from './sqlite.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { createOverallProgress } from './progress.js';
 import { teardownRuntime } from './runtime.js';
+import { combineCacheWriterErrors, releaseCacheWriterOwnership } from '../../../index/build/cache-writer-drain.js';
 import { createCloseoutRegistry } from './closeout-registry.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { runEmbeddingsTool } from '../embeddings.js';
@@ -92,9 +94,10 @@ const attachIndexLockSignalCleanup = (lock, options) => {
  * @param {{repoCacheRoot:string,log:(line:string)=>void,metadata?:object|null}} input
  * @returns {Promise<{release:()=>Promise<void>}>}
  */
-const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null }) => {
+const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null, signal = null }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
+    signal,
     waitMs: BUILD_INDEX_LOCK_WAIT_MS,
     pollMs: BUILD_INDEX_LOCK_POLL_MS,
     metadata: {
@@ -167,6 +170,7 @@ export const runEmbeddingsStage = async ({
   runtimeEnv,
   recordIndexMetric,
   buildEmbeddingsPath
+  , cacheWriterLease = null
 }) => {
   const launchObservability = parseObservabilityContextEnv(runtimeEnv) || {};
   if (parentAttemptId) launchObservability.context = { ...launchObservability.context, runtimeAttemptId: parentAttemptId };
@@ -201,14 +205,14 @@ export const runEmbeddingsStage = async ({
       modeIndexRootCache.set(mode, resolved);
       return resolved;
     };
-    const lock = await acquireBuildIndexLock({
-      repoCacheRoot,
-      log,
-      metadata: {
-        operation: 'stage3-embeddings'
-      }
-    });
-    const detachSignalCleanup = attachIndexLockSignalCleanup(lock);
+    const borrowed = Boolean(cacheWriterLease);
+    const lock = borrowed ? assertIndexCacheLease(cacheWriterLease, repoCacheRoot)
+      : await acquireBuildIndexLock({ repoCacheRoot, log, signal: effectiveAbortSignal,
+        metadata: { operation: 'stage3-embeddings' } });
+    // Graceful abort drains the child before ownership ends; process-exit cleanup
+    // remains the lock owner's fallback, never an early signal unlink.
+    const detachSignalCleanup = () => {};
+    let embeddingError = null;
     try {
       throwIfAborted(effectiveAbortSignal);
       const embedTotal = embedModes.length;
@@ -376,11 +380,12 @@ export const runEmbeddingsStage = async ({
         }
       }
       return recordOk({ modes: embedModes, embeddings: { queued: false, inline: true }, repo: root, stage: 'stage3' });
-    } finally {
+    } catch (error) { embeddingError = error; throw error; }
+    finally {
       detachSignalCleanup();
       await runBuildCleanupWithTimeout({
         label: 'stage3.lock.release',
-        cleanup: () => lock.release(),
+        cleanup: () => borrowed ? null : releaseCacheWriterOwnership({ release: () => lock.release(), operationError: embeddingError }),
         log,
         swallowTimeout: false
       });
@@ -728,6 +733,8 @@ export const runStage = async (
       runtime.overallProgress = null;
     }
     let lock = null;
+    let writersDrained = false;
+    let operationError = null;
     let detachLockSignalCleanup = null;
     let sqliteResult = null;
     let phaseRunning = false;
@@ -743,6 +750,10 @@ export const runStage = async (
       : () => {};
     try {
       throwIfAborted(effectiveAbortSignal);
+      lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
+        signal: effectiveAbortSignal, metadata: { operation: `${phaseStage}-cache-writer` } });
+      runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);
+
       await updateBuildState(runtime.buildRoot, {
         buildId: runtime.buildId,
         repoRoot: runtime.root,
@@ -965,14 +976,7 @@ export const runStage = async (
       await markBuildPhase(runtime.buildRoot, 'validation', 'done');
       validationDone = true;
       throwIfAborted(effectiveAbortSignal);
-      lock = await acquireBuildIndexLock({
-        repoCacheRoot: runtime.repoCacheRoot,
-        log,
-        metadata: {
-          operation: `${phaseStage}-promote`
-        }
-      });
-      detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
+      assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
       await markBuildPhase(runtime.buildRoot, 'promote', 'running');
       promoteRunning = true;
       throwIfAborted(effectiveAbortSignal);
@@ -1005,6 +1009,7 @@ export const runStage = async (
       };
     } catch (err) {
       const phaseFailureDetail = toPhaseFailureDetail(err);
+      operationError = err;
       await markFailedPhases({
         buildRoot: runtime?.buildRoot,
         markPhase: markBuildPhase,
@@ -1042,12 +1047,17 @@ export const runStage = async (
         })
       });
       closeout.addStep({
+        label: 'runtime.teardown',
+        run: async () => { await teardownRuntime(runtime); writersDrained = true; }
+      });
+      closeout.addStep({
         label: 'lock.release',
         run: async () => {
           if (!lock?.release) return null;
           const releaseResult = await runBuildCleanupWithTimeout({
             label: `${phaseStage}.lock.release`,
-            cleanup: () => lock.release(),
+            cleanup: () => releaseCacheWriterOwnership({ lease: runtime.cacheWriterLease, release: () => lock.release(),
+              operationError, drained: writersDrained }),
             log,
             swallowTimeout: false
           });
@@ -1057,12 +1067,9 @@ export const runStage = async (
           return releaseResult;
         }
       });
-      closeout.addStep({
-        label: 'runtime.teardown',
-        run: () => teardownRuntime(runtime)
-      });
+
       const closeoutResult = await closeout.run();
-      if (closeoutResult.error) throw closeoutResult.error;
+      if (closeoutResult.error) throw combineCacheWriterErrors(operationError, closeoutResult.error);
     }
   } catch (err) {
     await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });

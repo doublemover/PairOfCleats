@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { runtimeByteHash, readRuntimeLines, runtimeImportError } from './raw-store.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
-export const RUNTIME_QUERY_INDEX_VERSION = '1';
+export const RUNTIME_QUERY_INDEX_VERSION = '2';
 export const runtimeIndexRow = (row, ordinal, byteLength, hash) => {
   const key = row.data.key || row.data.codeVersion || null;
   const fields = [row.evidenceId, row.kind, row.evidenceClass, row.join.sourceUnitId, row.join.sourceHash,
@@ -77,8 +77,8 @@ export const writeRuntimeQueryIndex = async ({ root, evidence, capture, reserve,
   }
 };
 
-export const openRuntimeQueryIndex = ({ filename, manifest, capture }) => {
-  const db = new Database(filename, { readonly: true, fileMustExist: true });
+export const openRuntimeQueryIndex = ({ filename, bytes = null, manifest, capture }) => {
+  const db = new Database(bytes || filename, { readonly: true, fileMustExist: !bytes });
   try {
     db.pragma('query_only = ON'); db.pragma('cache_size = -512'); db.pragma('trusted_schema = OFF');
     const metadataRows = db.prepare('SELECT key,value FROM metadata LIMIT 6').all();

@@ -3,111 +3,44 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildChunksFromBundles } from '../../../tools/build/embeddings/chunks.js';
-import { resolveBundleShardFilename } from '../../../src/shared/bundle-io-paths.js';
-import { writeBundleFile } from '../../../src/shared/bundle-io.js';
-import { removePathWithRetry } from '../../../src/shared/io/remove-path-with-retry.js';
-import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
-const root = process.cwd();
-const tempRoot = resolveTestCachePath(root, `chunks-from-bundle-shards-${process.pid}-${Date.now()}`);
-const bundleDir = path.join(tempRoot, 'files');
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(bundleDir, { recursive: true });
-
-const relPath = 'src/example.ts';
-const shard0 = resolveBundleShardFilename(relPath, 'json', 0);
-const shard1 = resolveBundleShardFilename(relPath, 'json', 1);
-
+const { dir: root } = await prepareIsolatedTestCacheDir('chunks-from-bundle-shards');
+const bundleDir = path.join(root, 'files');
+const seed = async (file, rows) => {
+  const entry = { hash: 'source', size: 1, mtimeMs: 1, dependencySignatures: { parse: 'fixture' } };
+  const snapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: file, entry,
+    bundles: rows.map(chunk => ({ ...entry, file, chunks: [chunk] })), format: 'json' });
+  return { ...entry, ...snapshot };
+};
 try {
-  await writeBundleFile({
-    bundlePath: path.join(bundleDir, shard0),
-    format: 'json',
-    bundle: {
-      file: relPath,
-      hash: 'abc',
-      mtimeMs: 1,
-      size: 1,
-      chunks: [{ id: 0, file: relPath, chunkUid: 'ck:0', text: 'zero' }]
-    }
-  });
-  await writeBundleFile({
-    bundlePath: path.join(bundleDir, shard1),
-    format: 'json',
-    bundle: {
-      file: relPath,
-      hash: 'abc',
-      mtimeMs: 1,
-      size: 1,
-      chunks: [{ id: 1, file: relPath, chunkUid: 'ck:1', text: 'one' }]
-    }
-  });
-
-  const { chunksByFile, totalChunks } = await buildChunksFromBundles(bundleDir, {
-    [relPath]: {
-      hash: 'abc',
-      mtimeMs: 1,
-      size: 1,
-      bundles: [shard0, shard1],
-      bundleFormat: 'json'
-    }
-  }, 'json');
-
-  assert.equal(totalChunks, 2, 'expected both shard chunks to be indexed');
-  const rows = chunksByFile.get(relPath) || [];
-  assert.equal(rows.length, 2, 'expected combined shard rows for file');
-  assert.deepEqual(
-    rows.map((entry) => entry.index).sort((a, b) => a - b),
-    [0, 1],
-    'expected chunk ids from both bundle shards'
-  );
-
-  const fileA = 'src/A.ts';
-  const fileZ = 'src/z.ts';
-  const a0 = resolveBundleShardFilename(fileA, 'json', 0);
-  const a1 = resolveBundleShardFilename(fileA, 'json', 1);
-  const z0 = resolveBundleShardFilename(fileZ, 'json', 0);
-  const manifest = {
-    [fileA]: { bundles: [a0, a1], bundleFormat: 'json' },
-    [fileZ]: { bundles: [z0], bundleFormat: 'json' }
-  };
-  const reversedManifest = Object.fromEntries(Object.entries(manifest).reverse());
-  for (const [label, ids, expectedIndexes, expectedTotal] of [
+  const fileA = 'src/A.ts', fileZ = 'src/z.ts';
+  for (const [label, ids, expected, total] of [
     ['missing ids', [null, null, null], [0, 1, 2], 3],
     ['mixed ids', [4, null, null], [4, 5, 6], 7],
     ['explicit ids', [4, 1, 8], [4, 1, 8], 9]
   ]) {
-    for (const [index, file, bundle] of [[0, fileA, a0], [1, fileA, a1], [2, fileZ, z0]]) {
-      await writeBundleFile({
-        bundlePath: path.join(bundleDir, bundle),
-        format: 'json',
-        bundle: {
-          file, hash: `hash-${index}`, mtimeMs: 1, size: 1,
-          chunks: [{ ...(ids[index] === null ? {} : { id: ids[index] }), file, chunkUid: `row-${index}`, text: `row-${index}` }]
-        }
-      });
-    }
+    const row = (i, file) => ({ ...(ids[i] == null ? {} : { id: ids[i] }), file,
+      chunkUid: `row-${i}`, text: `row-${i}` });
+    const manifest = { [fileA]: await seed(fileA, [row(0, fileA), row(1, fileA)]),
+      [fileZ]: await seed(fileZ, [row(2, fileZ)]) };
     const forward = await buildChunksFromBundles(bundleDir, manifest, 'json');
-    const reversed = await buildChunksFromBundles(bundleDir, reversedManifest, 'json');
-    assert.deepEqual([...reversed.chunksByFile], [...forward.chunksByFile], `${label}: manifest order must not change file/chunk order or fallback ids`);
-    assert.equal(forward.totalChunks, expectedTotal);
-    assert.equal(reversed.totalChunks, expectedTotal);
+    const reversed = await buildChunksFromBundles(bundleDir, Object.fromEntries(Object.entries(manifest).reverse()), 'json');
+    assert.deepEqual([...forward.chunksByFile], [...reversed.chunksByFile], `${label}: manifest order cannot change fallback IDs/scatter`);
     assert.deepEqual([...forward.chunksByFile.keys()], [fileA, fileZ]);
-    const orderedRows = [...forward.chunksByFile.values()].flat();
-    assert.deepEqual(orderedRows.map((row) => row.index), expectedIndexes, `${label}: preserve explicit ids and per-file shard order`);
-    assert.deepEqual(orderedRows.map((row) => row.chunk.chunkUid), ['row-0', 'row-1', 'row-2']);
+    assert.deepEqual([...forward.chunksByFile.values()].flat().map(row => row.index), expected);
+    assert.equal(forward.totalChunks, total);
   }
-  const aliases = { 'z-alias': { bundles: [a1] }, 'a-alias': { bundles: [a0] } };
+  const aliases = { 'src/./A.ts': await seed(fileA, [{ id: 4, file: fileA, chunkUid: 'alias-a' }]),
+    'src\\A.ts': await seed(fileA, [{ id: 1, file: fileA, chunkUid: 'alias-b' }]) };
   const aliasResult = await buildChunksFromBundles(bundleDir, aliases, 'json');
-  const reversedAliases = await buildChunksFromBundles(bundleDir, Object.fromEntries(Object.entries(aliases).reverse()), 'json');
-  assert.deepEqual([...aliasResult.chunksByFile], [...reversedAliases.chunksByFile], 'aliases targeting one logical file must merge deterministically');
+  const reversed = await buildChunksFromBundles(bundleDir, Object.fromEntries(Object.entries(aliases).reverse()), 'json');
+  assert.deepEqual([...aliasResult.chunksByFile], [...reversed.chunksByFile]);
   assert.equal(aliasResult.chunksByFile.size, 1);
-  assert.deepEqual(aliasResult.chunksByFile.get(fileA).map((row) => row.index), [4, 1], 'ordering must not deduplicate or reassign explicit ids');
-  console.log('embeddings chunks-from-bundle-shards test passed');
-} finally {
-  const cleanup = await removePathWithRetry(tempRoot, {
-    attempts: 6,
-    baseDelayMs: 100,
-    maxDelayMs: 100
-  });
-  if (!cleanup.ok) throw cleanup.error;
-}
+  assert.deepEqual(aliasResult.chunksByFile.get(fileA).map(row => row.index), [4, 1]);
+  const wrongSource = { 'src/wrong.ts': aliases['src/./A.ts'] };
+  assert.equal((await buildChunksFromBundles(bundleDir, wrongSource, 'json')).chunksByFile.size, 0,
+    'fallback cannot bypass manifest-bound source identity');
+} finally { await fs.rm(root, { recursive: true, force: true }); }
+console.log('Verified immutable shards, canonical aliases, deterministic fallback IDs and source-bound grouping pass.');

@@ -12,6 +12,8 @@ try {
   assert.equal((await fetch(base+'/map/workspace',{headers:{...headers,Origin:'http://blocked.test'}})).status,403);
   const page=await fetch(base+'/map/workspace',{headers});assert.equal(page.status,200);assert.match(await page.text(),/Evidence workspace/i);
   for (const file of ['app.js','projection.js','reladraw-worker.js']) assert.equal((await fetch(base+'/map/workspace/'+file,{headers})).status,200);
+  assert.equal((await fetch(base+'/map/workspace/app.js',{headers:{Origin:base}})).status,200);
+  assert.equal((await fetch(base+'/map/workspace/app.js',{headers:{Origin:'http://foreign.test'}})).status,403);
   assert.equal((await fetch(base+'/map/vendor/reladraw/index.js',{headers})).status,200);
   for (const path of ['/map/workspace/nope.js','/map/workspace/nested/app.js','/map/vendor/reladraw/../../package.json']) assert.equal((await fetch(base+path,{headers})).status,404);
   const denied=await fetch(base+'/map/catalog',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({repoRoot:'/outside-allowed-root'})});

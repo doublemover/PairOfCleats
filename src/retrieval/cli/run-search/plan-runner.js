@@ -34,7 +34,7 @@ import { resolveRunConfig } from '../resolve-run-config.js';
 import { resolveRequiredArtifacts } from '../required-artifacts.js';
 import { loadSearchIndexes } from '../load-indexes.js';
 import { executeSearchAndEmit } from '../search-execution.js';
-import { resolveRetrievalCachePath } from '../cache-paths.js';
+import { resolveRetrievalCacheDir, resolveRetrievalCachePath } from '../cache-paths.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
 import { compileFilterPredicates } from '../../output/filters.js';
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../../sparse/requirements.js';
@@ -398,7 +398,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const needsProse = runProse;
     const needsExtractedProse = runExtractedProseRaw;
     const requiresExtractedProse = searchMode === 'extracted-prose';
-    const joinComments = commentsEnabled && runCode;
+    const joinComments = !filterOnly && commentsEnabled && runCode;
     const needsSqlite = runCode || runProse || runExtractedProseRaw;
     let annEnabledEffective = annEnabled;
     let vectorAnnEnabled = false;
@@ -1077,6 +1077,13 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       modelIdForExtractedProse,
       modelIdForRecords
     } = await loadSearchIndexes({
+      filterOnly,
+      filterCursor: argv.cursor || null,
+      filterCacheFilters: queryPlan.cacheFilters,
+      filterGeneration: planIndexSignaturePayload,
+      filterCacheDir: resolveRetrievalCacheDir({ queryCacheDir, metricsDir }),
+      filterTopN: topN,
+      signal,
       rootDir,
       userConfig,
       searchMode,

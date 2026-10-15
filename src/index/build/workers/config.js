@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import os from 'node:os';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { coerceClampedFraction, coercePositiveIntMinOne } from '../../../shared/number-coerce.js';
@@ -174,11 +175,11 @@ export const buildWorkerExecArgv = () => buildSanitizedWorkerExecArgv();
  * @param {number} requested
  * @returns {number|null}
  */
-export const resolveMemoryWorkerCap = (requested) => {
-  const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
+export const resolveMemoryWorkerCap = (requested, options = {}) => {
+  const totalMemMb = Math.floor((options.memorySnapshot || readEffectiveMemory()).totalBytes / (1024 * 1024));
   if (!Number.isFinite(requested) || requested <= 0) return null;
   if (!Number.isFinite(totalMemMb) || totalMemMb <= 0) return null;
-  const cap = Math.max(1, Math.floor(totalMemMb / 4096));
+  const cap = Math.max(1, Math.floor(totalMemMb / Math.max(128, (Number(options.heapTargetMb) || 4000) + 96)));
   return Math.min(requested, cap);
 };
 
@@ -199,15 +200,14 @@ export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
   const envTargetMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapTargetMb);
   const envMinMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapMinMb);
   const envMaxMb = coercePositiveIntMinOne(envConfig?.workerPoolHeapMaxMb);
-  const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
+  const totalMemMb = Math.floor((options.memorySnapshot || readEffectiveMemory()).totalBytes / (1024 * 1024));
   const autoTargetMb = Number.isFinite(totalMemMb) && totalMemMb >= 65536
     ? WORKER_HEAP_TARGET_MAX_MB
     : Number.isFinite(totalMemMb) && totalMemMb >= 24576
       ? WORKER_HEAP_TARGET_DEFAULT_MB
       : WORKER_HEAP_TARGET_MIN_MB;
-  const minPerWorkerMb = coercePositiveIntMinOne(options.minPerWorkerMb)
-    || envMinMb
-    || WORKER_HEAP_TARGET_MIN_MB;
+  const minPerWorkerMb = Math.min(Math.max(1, Math.floor(totalMemMb * 0.5)),
+    coercePositiveIntMinOne(options.minPerWorkerMb) || envMinMb || WORKER_HEAP_TARGET_MIN_MB);
   const maxPerWorkerMb = Math.max(
     minPerWorkerMb,
     Math.min(
@@ -250,7 +250,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   const workerCount = Math.max(1, Math.floor(Number(maxWorkers) || 0));
   if (!Number.isFinite(workerCount) || workerCount <= 0) return null;
 
-  const totalMemMb = Math.floor(os.totalmem() / (1024 * 1024));
+  const totalMemMb = Math.floor((options.memorySnapshot || readEffectiveMemory()).totalBytes / (1024 * 1024));
   const maxOldSpaceMb = parseMaxOldSpaceMb();
   const explicitProcessHeapBudget = Number.isFinite(maxOldSpaceMb) && maxOldSpaceMb > 0;
   const heapPolicy = resolveWorkerHeapBudgetPolicy(options);
@@ -283,7 +283,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
   // Avoid fully consuming physical memory; leave headroom for the main process
   // and native allocations (SQLite, parser runtimes, model runtimes, etc.).
   if (Number.isFinite(totalMemMb) && totalMemMb > 0) {
-    const hardCap = Math.max(1024, Math.floor(totalMemMb * 0.9));
+    const hardCap = Math.max(1, Math.floor(totalMemMb * 0.9));
     budgetMb = Math.min(budgetMb, hardCap);
   }
 
@@ -308,7 +308,7 @@ export const resolveWorkerResourceLimits = (maxWorkers, options = {}) => {
     boostedBudgetTargetMb
   );
   const platformCap = process.platform === 'win32' ? 8192 : 16384;
-  const policyMinMb = Math.max(256, minPerWorkerMb || WORKER_HEAP_TARGET_MIN_MB);
+  const policyMinMb = Math.max(1, minPerWorkerMb || WORKER_HEAP_TARGET_MIN_MB);
   const policyMaxMb = Math.max(
     policyMinMb,
     Math.min(platformCap, maxPerWorkerMb || WORKER_HEAP_TARGET_MAX_MB)
@@ -474,6 +474,7 @@ export function normalizeWorkerPoolConfig(raw = {}, options = {}) {
   const numaEnabled = numaConfig.enabled === true;
   return {
     enabled,
+    processFallback: raw.processFallback === true,
     maxWorkers,
     maxFileBytes,
     minFileBytes,

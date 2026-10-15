@@ -25,7 +25,7 @@ export const fileCompletionIdentity = ({ repositoryNamespace, relKey, sourceHash
   }
   return {
     schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-    resultLaneSchema: 1, repositoryNamespace, path: relKey.split('\\').join('/'), sourceHash,
+    resultLaneSchema: 2, repositoryNamespace, path: relKey.split('\\').join('/'), sourceHash,
     extraction: {
       parse: dependencySignatures.parse || null,
       lexical: dependencySignatures.lexical || null,
@@ -104,7 +104,7 @@ export const commitFileCompletion = async ({ bundleDir, relKey, manifestEntry, s
  * remain errors. No valid sibling file is discarded.
  */
 export const readFileCompletion = async ({ bundleDir, relKey, sourceBytes, semanticContext }) => {
-  const { signal, dependencySignatures, repositoryNamespace, repoRoot } = semanticContext;
+  const { signal, dependencySignatures, repositoryNamespace, repoRoot, replayVerification } = semanticContext;
   throwIfAborted(signal);
   const identity = fileCompletionIdentity({ repositoryNamespace, relKey,
     sourceHash: hashBytes(sourceBytes), dependencySignatures });
@@ -130,10 +130,12 @@ export const readFileCompletion = async ({ bundleDir, relKey, sourceBytes, seman
       const actual = await inventoryFile(await resolveSemanticPartPath(bundleDir, part.path), part.path);
       if (canonicalSemanticJson(actual) !== canonicalSemanticJson(part)) throw fail('Completion part checksum mismatch.');
     }
-    const opened = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: entry.semanticCache,
-      expectedDependencySignatures: dependencySignatures, expectedSourceHash: identity.sourceHash,
-      expectedSourcePath: identity.path, expectedRepositoryNamespace: repositoryNamespace, signal });
-    await validateSemanticPartitions({ store: opened.store, partitions: opened.factsRef.partitions, signal });
+    const opened = replayVerification ? await replayVerification.verify({ repoRoot, locator: entry.semanticCache,
+      dependencySignatures, sourceHash: identity.sourceHash, sourcePath: identity.path, repositoryNamespace, signal })
+      : await openSemanticCacheEntry({ repoRoot, bundleDir, locator: entry.semanticCache,
+        expectedDependencySignatures: dependencySignatures, expectedSourceHash: identity.sourceHash,
+        expectedSourcePath: identity.path, expectedRepositoryNamespace: repositoryNamespace, signal });
+    if (!replayVerification) await validateSemanticPartitions({ store: opened.store, partitions: opened.factsRef.partitions, signal });
     for (const segment of entry.semanticSegmentCaches || []) {
       const embedded = await openSemanticCacheEntry({ repoRoot, bundleDir, locator: segment.locator,
         expectedDependencySignatures: dependencySignatures, expectedRepositoryNamespace: repositoryNamespace, signal });
@@ -164,6 +166,7 @@ export const preloadFileCompletions = async ({ entries, incrementalState, semant
     let sourceBytes;
     try { sourceBytes = await fs.readFile(entry.abs); }
     catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    semanticContext.replayVerification?.recordSourceRead(sourceBytes.length);
     const receipt = await readFileCompletion({ bundleDir: incrementalState.bundleDir,
       relKey: entry.rel, sourceBytes, semanticContext });
     if (!receipt) continue;

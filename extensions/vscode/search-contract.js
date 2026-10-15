@@ -6,6 +6,11 @@ function normalizeStringSetting(value) {
   return value == null ? '' : String(value).trim();
 }
 
+function normalizeLegacyContext(value) {
+  if (value === undefined || value === 0) return 0;
+  throw new Error('PairOfCleats searchContextLines is removed. Set it to 0 or use source excerpts/context packs.');
+}
+
 function readSearchOptions(config, settings) {
   return {
     mode: normalizeStringSetting(config.get(settings.modeKey)) || 'both',
@@ -14,9 +19,7 @@ function readSearchOptions(config, settings) {
     maxResults: Number.isFinite(Number(config.get(settings.maxResultsKey)))
       ? Math.max(1, Number(config.get(settings.maxResultsKey)))
       : 25,
-    contextLines: Number.isFinite(Number(config.get(settings.contextLinesKey)))
-      ? Math.max(0, Number(config.get(settings.contextLinesKey)))
-      : 0,
+    contextLines: normalizeLegacyContext(config.get('searchContextLines')),
     file: normalizeStringSetting(config.get(settings.fileKey)),
     path: normalizeStringSetting(config.get(settings.pathKey)),
     lang: normalizeStringSetting(config.get(settings.langKey)),
@@ -50,9 +53,7 @@ function normalizeSearchContractOptions(options = {}) {
     modifiedAfter: normalizeStringSetting(options.modifiedAfter),
     modifiedSince: normalizeStringSetting(options.modifiedSince),
     churn: normalizeStringSetting(options.churn),
-    contextLines: Number.isFinite(Number(options.contextLines))
-      ? Math.max(0, Number(options.contextLines))
-      : 0
+    contextLines: normalizeLegacyContext(options.contextLines)
   };
 }
 
@@ -89,7 +90,7 @@ function buildSearchArgs(query, repoRoot, options = {}) {
   if (mode && mode !== 'both') args.push('--mode', mode);
   if (backend) args.push('--backend', backend);
   if (options.annEnabled === false) args.push('--no-ann');
-  if (contextLines > 0) args.push('--context', String(contextLines));
+  if (options.cursor) args.push('--cursor', String(options.cursor));
   if (file) args.push('--file', file);
   if (pathValue) args.push('--path', pathValue);
   if (lang) args.push('--lang', lang);
@@ -143,7 +144,7 @@ function buildSearchPayload(query, repoRoot, options = {}) {
 
   if (backend) payload.backend = backend;
   if (options.annEnabled === false) payload.ann = false;
-  if (contextLines > 0) payload.context = contextLines;
+  if (options.cursor) payload.cursor = String(options.cursor);
   if (file) payload.file = file;
   if (pathValue) payload.path = pathValue;
   if (lang) payload.lang = lang;
