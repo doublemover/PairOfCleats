@@ -12,6 +12,7 @@ import {
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
 import { buildRetrievalMetadata } from '../output/retrieval-metadata.js';
+import { explainEmptyResults } from '../output/empty-results.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
 
 const FALLBACK_TERMINAL_COLUMNS = 108;
@@ -118,7 +119,8 @@ const buildNoResultsLines = ({
   color,
   layout,
   queryLabel,
-  renderedModeLabels
+  renderedModeLabels,
+  diagnostics = []
 }) => {
   const lines = [
     color.bold('No matches'),
@@ -130,14 +132,14 @@ const buildNoResultsLines = ({
         restPrefix: '  '
       }
     ),
-    ...wrapWords(
-      'Try broader terms, relax filters, switch mode, or rebuild indexes if the corpus changed.',
+    ...diagnostics.flatMap((entry) => wrapWords(
+      `${entry.message} ${entry.next}`,
       {
         width: layout.columns,
         firstPrefix: '  ',
         restPrefix: '  '
       }
-    )
+    ))
   ];
   return lines;
 };
@@ -282,6 +284,7 @@ const sectionModeLabel = (mode) => {
  */
 export function renderSearchOutput({
   filterEnumeration = null,
+  filtersActive = false,
   plain = false,
   emitOutput,
   jsonOutput,
@@ -392,6 +395,11 @@ export function renderSearchOutput({
     asOfContext,
     generationContext
   });
+  if (![payload.code, payload.prose, payload.extractedProse, payload.records].some((hits) => hits.length)) {
+    payload.retrieval.emptyResults = explainEmptyResults({
+      filtersActive, filterEnumeration, backend: payload.retrieval.backend
+    });
+  }
   if (asOfContext) {
     payload.asOf = {
       ref: asOfContext.ref || 'latest',
@@ -691,7 +699,8 @@ export function renderSearchOutput({
         color,
         layout,
         queryLabel,
-        renderedModeLabels
+        renderedModeLabels,
+        diagnostics: outputPayload.retrieval?.emptyResults || []
       })) {
         writeLine(outputStream, line);
       }

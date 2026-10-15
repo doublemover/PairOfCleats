@@ -147,7 +147,7 @@ pairofcleats search --repo . --mode code --calls fetch --json
 
 Use the exact recorded type expression. A `boolean` filter does not also match a promise, array, union, alias, or a type merely containing that word. Inter-token whitespace is ignored; identifier case and literal contents remain significant. This is not an assignability or structural-equivalence query.
 
-`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Recorded compiler returns take precedence; declared returns remain eligible when compiler returns are unavailable. Unknown/unrecorded facts are not inferred. Relation-name filters retain their provider's coverage limits. Federated enumeration is not yet available.
+`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Recorded compiler returns take precedence; declared returns remain eligible when compiler returns are unavailable. Unknown/unrecorded facts are not inferred. Relation-name filters retain their provider's coverage limits. For `--workspace`, pages traverse eligible repository/mode pairs in stable order. Follow `pagination.nextCursor` even after an empty page if `hasMore` is true. Changes to membership, filters, or indexed generations require restarting. Check `meta.completeness.unavailable` for excluded or missing modes.
 
 HTTP GET/POST, MCP `search` and the evidence workspace accept the same queryless
 filter request and continuation. For example, send `{ "returnType": "boolean",
@@ -209,3 +209,7 @@ Missing providers and unsupported domains retain coverage/frontiers; no universa
 runtime-value enumeration is asserted.
 
 Readable output includes bounded source excerpts with line numbers and lightweight syntax colors. Use `--plain` for plain text. `NO_COLOR`, non-TTY output and `TERM=dumb` also disable styling. Excerpts show the current working-tree source, which may differ from the indexed generation.
+
+### Empty-result guidance
+
+Empty results include `retrieval.emptyResults` diagnostics in JSON and actionable guidance in human output. Guidance distinguishes query/filter combinations, metadata enumeration, and recorded backend fallback. It never infers a stale index from an empty result. Use `pairofcleats index report` for recorded coverage, skipped-file reasons, revision comparison, and saved watcher backlog. A dirty working tree remains unverified; matching clean revisions do not prove current filesystem contents were indexed.

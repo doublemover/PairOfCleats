@@ -53,7 +53,6 @@ export async function runWorkspaceSearch(args = {}, context = {}) {
   const workspacePath = typeof args.workspacePath === 'string' ? args.workspacePath.trim() : '';
   const query = String(args.query || '').trim();
   if (!workspacePath) throw createError(ERROR_CODES.INVALID_REQUEST, 'workspacePath is required.');
-  if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
 
   return await runFederatedSearch({
     ...args,

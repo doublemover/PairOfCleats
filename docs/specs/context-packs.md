@@ -148,7 +148,7 @@ are included only when requested and available.
 
 **Hard caps (must be enforced regardless of config):**
 - Graph traversal caps are resolved through `resolveGraphCliCapsAndFilters()` and `mergeCaps()`.
-- Output shaping caps (`maxBytes`, `maxTokens`, `maxTypeEntries`) are normalized before assembly.
+- Output shaping caps (`maxBytes`, `maxTokens`, `maxTypeEntries`) are normalized before assembly. `maxBytes` and `maxTokens` bound the primary source excerpt, not the serialized composite response. Graph nodes/edges and other evidence use their own caps. Exact duplicate type facts are removed before `maxTypeEntries` admission; distinct provider/confidence evidence remains separate.
 - Federated packs are bounded by `maxFederatedRepos`.
 
 ---
