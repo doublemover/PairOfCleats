@@ -231,7 +231,9 @@ const buildFallbackSuggestions = (changed, tests) => {
   for (const testPath of tests) {
     let best = null;
     for (const change of changedMeta) {
-      if (change.base && testPath.includes(change.base)) {
+      if (change.base && testPath.split('/').some((segment) => (
+        segment === change.base || ['.', '-', '_'].some((separator) => segment.startsWith(`${change.base}${separator}`))
+      ))) {
         best = { score: 0.5, reason: `name match: ${change.base}` };
         break;
       }

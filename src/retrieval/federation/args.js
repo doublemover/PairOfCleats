@@ -1,4 +1,4 @@
-import { parseSearchArgs } from '../cli-args.js';
+import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { normalizeNonNegativeInt, normalizePositiveInt } from '../../shared/limits.js';
 import { buildSearchRequestArgs } from '../../shared/search-request.js';
@@ -187,7 +187,7 @@ export const parseFederatedCliRequest = (rawArgs = []) => {
   if (!workspacePath) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'Federated search requires --workspace <path>.');
   }
-  if (!query) {
+  if (!query && !hasSearchFilterArgs(argv)) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'Federated search requires a query string.');
   }
   if (argv.repo) {
@@ -204,6 +204,7 @@ export const parseFederatedCliRequest = (rawArgs = []) => {
   return {
     workspacePath,
     query,
+    cursor: argv.cursor || null,
     rawArgs: rawArgs.slice(),
     mode,
     top,

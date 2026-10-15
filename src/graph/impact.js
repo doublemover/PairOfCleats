@@ -241,6 +241,10 @@ export const buildImpactAnalysis = ({
   }
 
   const capsUsed = { graph: { ...caps } };
+  if (!impacted.length) mergeWarnings(warnings, [{
+    code: 'NO_RECORDED_IMPACT',
+    message: 'No dependent was found within the selected graph direction and depth. This does not prove the change has no impact; unresolved or unindexed dependencies are outside this result.'
+  }]);
 
   return {
     version: '1.0.0',

@@ -256,6 +256,7 @@ export async function executeSearchAndEmit(input) {
 
   const payload = renderSearchOutput({
     filterEnumeration: searchResult.filterEnumeration,
+    filtersActive: queryPlan.filtersActive,
     plain,
     emitOutput,
     jsonOutput,
