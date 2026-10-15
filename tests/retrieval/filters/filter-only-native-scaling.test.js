@@ -36,6 +36,7 @@ try {
       if (cursor) {
         assert.equal(cost.matchingRepresentation, 'persisted-seek');
         if (backend === 'sqlite') assert.equal(cost.startupWork.kind, 'sqlite-seek-page');
+        else assert.equal(cost.startupWork.kind, 'authenticated-metadata-seek-page');
       }
       ids.push(...page.ids); cursor = page.pagination.nextCursor;
     } while (cursor);
@@ -43,9 +44,9 @@ try {
     assert.deepEqual(ids, Array.from({ length: rows }, (_, id) => id));
     assert.equal(scans, rows);
     if (backend === 'sqlite') assert.ok(loads < 2 * rows, 'cold SQLite hydrates only continuation-page metadata');
-    else assert.equal(loads, rows * costs.length, 'LMDB single-blob decoding remains explicit startup work');
+    else assert.equal(loads, rows + rows - 997, 'LMDB decodes the authoritative blob only on the first page');
     console.log(JSON.stringify({ backend, qualification: 'real native handles; fresh process for every page', rows, pages: costs.length,
       predicateScans: scans, metadataLoadedRows: loads, startup: costs.map(cost => cost.startupWork), additionalMatchingCacheBytes: 64 * 1024 * 1024,
-      limitation: backend === 'lmdb' ? 'existing single-blob metadata authority is decoded in each cold process' : 'first page materializes metadata; continuation uses indexed ID seeks' }));
+      limitation: 'first page materializes metadata; bounded continuation entries seek page rows; invalid or oversized caches fall back' }));
   }
 } finally { await fs.rm(root, { recursive: true, force: true }); }

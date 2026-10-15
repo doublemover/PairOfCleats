@@ -130,7 +130,7 @@ export async function enumerateFilterMatches({ meta, allowed, match = null, mode
       let start = 0;
       for (const saved of blocks) { ids.set(saved, start); start += saved.length; }
       ids.set(block.subarray(0, used), start); admitMatches(key, ids);
-      saved = await persistFilterMatches({ cacheDir: enumeration.cacheDir, identity, rowCount: meta.length, ids, throwIfAborted });
+      saved = await persistFilterMatches({ cacheDir: enumeration.cacheDir, identity, rowCount: meta.length, ids, metadata: meta, throwIfAborted });
     }
   }
   throwIfAborted?.();
