@@ -70,8 +70,10 @@ export const resolveAstMemberName = (node, options = {}) => {
         ? String(node.property.value)
         : null)
       : (node.property?.name || node.property?.id?.name || null);
+    // A dynamic key is not a call to the receiver itself. Likewise, do not turn
+    // an unresolved receiver into a precise global call to its property name.
     if (obj && prop) return `${obj}.${prop}`;
-    return obj || prop;
+    return null;
   }
   if (options.includeTsQualifiedName && node.type === 'TSQualifiedName') {
     const left = resolveAstMemberName(node.left, options);

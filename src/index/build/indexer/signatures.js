@@ -14,7 +14,7 @@ import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-export const SIGNATURE_VERSION = 4;
+export const SIGNATURE_VERSION = 5;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
