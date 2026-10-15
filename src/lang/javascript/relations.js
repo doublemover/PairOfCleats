@@ -1,3 +1,4 @@
+import { collectConstantReferences } from '../js-ts/constant-references.js';
 import * as esprima from 'esprima';
 import {
   collectPatternNames,
@@ -50,14 +51,16 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const functionStack = [];
   const classStack = [];
 
-  const getMemberName = (node) => resolveAstMemberName(node);
+  const ast = options.ast || parseJavaScriptAst(text, options);
+  const constants = collectConstantReferences(ast);
+  const getMemberName = (node) => resolveAstMemberName(node, { constantKeys: constants.keys });
 
   const getCalleeName = (callee) => {
     if (!callee) return null;
     if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
     if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
     if (callee.type === 'Import') return null;
-    if (callee.type === 'Identifier') return callee.name;
+    if (callee.type === 'Identifier') return constants.aliases.get(callee) || callee.name;
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       return getMemberName(callee);
     }
@@ -613,7 +616,6 @@ export function buildCodeRelations(text, relPath, options = {}) {
     }
   };
 
-  const ast = options.ast || parseJavaScriptAst(text, options);
   if (ast) {
     walk(ast);
   }
