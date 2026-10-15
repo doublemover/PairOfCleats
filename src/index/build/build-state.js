@@ -1,3 +1,4 @@
+import { collectRuntimeAttemptEvents } from '../../shared/runtime-envelope/receipt.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -102,7 +103,7 @@ export async function initBuildState({
   profile = null
 }) {
   if (!buildRoot) return null;
-  await loadBuildState(buildRoot, { repoRoot });
+  const previous = await loadBuildState(buildRoot, { repoRoot });
   const statePath = resolveStatePath(buildRoot);
   const now = new Date().toISOString();
   const payload = {
@@ -132,7 +133,8 @@ export async function initBuildState({
     },
     repo: repoProvenance || null,
     phases: {},
-    progress: {}
+    progress: {},
+    ...(previous?.state?.runtime ? { runtime: previous.state.runtime } : {})
   };
   await fs.mkdir(buildRoot, { recursive: true });
   await atomicWriteJson(statePath, payload, { spaces: 0 });
@@ -162,7 +164,7 @@ export async function updateBuildStateOutcome(
     };
   }
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
-  const events = collectCheckpointEvents(patch.stageCheckpoints);
+  const events = [...collectCheckpointEvents(patch.stageCheckpoints), ...collectRuntimeAttemptEvents(patch.runtime)];
   return normalizeWriteOutcome(await patchQueue.queueStatePatch(
     buildRoot,
     patch,

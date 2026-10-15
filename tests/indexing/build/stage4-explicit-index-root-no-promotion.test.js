@@ -56,6 +56,8 @@ assert.notEqual(currentA.buildRoot, currentB.buildRoot, 'expected second stage2 
 
 const oldBuildRoot = path.join(repoCacheRoot, currentA.buildRoot);
 const currentBeforeStage4Raw = await fsPromises.readFile(currentPath, 'utf8');
+const beforeReceipt = JSON.parse(await fsPromises.readFile(path.join(oldBuildRoot, 'build_state.json'), 'utf8'));
+assert.equal(beforeReceipt.runtime.attempts.at(-1).lifecycle, 'succeeded');
 
 await runBuild(
   {
@@ -66,6 +68,19 @@ await runBuild(
   },
   'explicit stage4 on old index root'
 );
+
+const afterReceipt = JSON.parse(await fsPromises.readFile(path.join(oldBuildRoot, 'build_state.json'), 'utf8'));
+assert.equal(afterReceipt.buildId, beforeReceipt.buildId);
+assert.equal(afterReceipt.createdAt, beforeReceipt.createdAt);
+assert.deepEqual(afterReceipt.modes, beforeReceipt.modes);
+assert.deepEqual(afterReceipt.phases.stage2, beforeReceipt.phases.stage2);
+assert.deepEqual(afterReceipt.phases.validation, beforeReceipt.phases.validation);
+assert.deepEqual(afterReceipt.stageCheckpoints, beforeReceipt.stageCheckpoints);
+assert.deepEqual(afterReceipt.validation, beforeReceipt.validation);
+assert.equal(afterReceipt.runtime.attempts.length, beforeReceipt.runtime.attempts.length + 1);
+assert.equal(afterReceipt.runtime.attempts.at(-1).stage, 'stage4');
+assert.equal(afterReceipt.runtime.attempts.at(-1).lifecycle, 'succeeded');
+assert.equal(afterReceipt.runtime.attempts.at(-1).embeddings.observation.state, 'not-started');
 
 const currentAfterStage4Raw = await fsPromises.readFile(currentPath, 'utf8');
 assert.equal(

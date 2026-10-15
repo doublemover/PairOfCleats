@@ -1,4 +1,5 @@
 import { coercePositiveInt as coercePositiveIntShared } from '../number-coerce.js';
+import { resolveNodeHeapSource } from '../workers/node-argv.js';
 
 const normalizeString = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -14,22 +15,6 @@ export const parseNodeOptions = (env = {}) => {
   return raw || null;
 };
 
-export const parseEffectiveMaxOldSpaceMb = ({ env = {}, execArgv = [] } = {}) => {
-  const argv = Array.isArray(execArgv) ? execArgv : [];
-  const nodeOptionsRaw = normalizeString(env?.NODE_OPTIONS || '');
-  const nodeOptionsArgv = nodeOptionsRaw ? nodeOptionsRaw.split(/\s+/).filter(Boolean) : [];
-  const args = [...argv, ...nodeOptionsArgv];
-  for (let i = 0; i < args.length; i += 1) {
-    const arg = args[i];
-    if (typeof arg !== 'string') continue;
-    if (arg.startsWith('--max-old-space-size=')) {
-      const value = Number(arg.split('=')[1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
-    }
-    if (arg === '--max-old-space-size') {
-      const value = Number(args[i + 1]);
-      if (Number.isFinite(value) && value > 0) return Math.floor(value);
-    }
-  }
-  return null;
-};
+export const parseEffectiveMaxOldSpaceMb = ({ env = {}, execArgv = [] } = {}) => (
+  resolveNodeHeapSource({ execArgv, nodeOptions: env?.NODE_OPTIONS }).value
+);

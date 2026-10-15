@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { runBatched, assertVectorArrays } from '../../../tools/build/embeddings/embed.js';
 import { createFileEmbeddingsProcessor } from '../../../tools/build/embeddings/pipeline.js';
 import { createEmbeddingWorkEstimate } from '../../../tools/build/embeddings/work-estimate.js';
+import { planEmbeddingBatches } from '../../../tools/build/embeddings/batch-plan.js';
 
 // Interleaved source families: packing reduces padding without changing payloads,
 // vector identity, or the number of provider calls.
@@ -21,6 +22,37 @@ const baseline = await measure(false), grouped = await measure(true);
 assert.equal(grouped.calls, baseline.calls);
 assert.ok(grouped.padded < baseline.padded);
 console.log(JSON.stringify({ baseline, grouped }));
+// The measured tail regression: ascending buckets previously cost 2304 padded
+// tokens versus source-order's 2080, despite the same two provider calls.
+const tailEstimates = Array.from({ length: 3 }, () => [8, 128, 8, 128, 16, 16]).flat();
+const tailGroups = tailEstimates.map((_, index) => ({ groupId: `file-${Math.floor(index / 6)}` }));
+const tailPlan = planEmbeddingBatches({ estimates: tailEstimates, groups: tailGroups, maxItems: 16, tokenBudget: 2048 });
+assert.equal(tailPlan.baselinePaddedTokens, 2080);
+assert.equal(tailPlan.paddedTokens, 2064);
+assert.equal(tailPlan.strategy, 'length-descending');
+assert.equal(tailPlan.batches.length, 2);
+const tailOutput = await runBatched({ texts: tailEstimates.map((_, index) => String(index)),
+  tokenEstimates: tailEstimates, groups: tailGroups, batchSize: 16, maxBatchTokens: 2048,
+  embed: async batch => batch.map(text => [Number(text)]) });
+assert.deepEqual(tailOutput, tailEstimates.map((_, index) => [index]));
+// Bounded deterministic shape coverage: no more calls or padded work than the
+// original plan; retain every input once, with the existing oversize exception.
+let seed = 20261012;
+for (let example = 0; example < 200; example++) {
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed; };
+  const lengths = Array.from({ length: 1 + random() % 75 }, () => 1 + random() % 1024);
+  const maxItems = 1 + random() % 32, tokenBudget = random() % 4097;
+  const family = lengths.map((_, index) => ({ groupId: `file-${index % 7}` }));
+  const original = planEmbeddingBatches({ estimates: lengths, maxItems, tokenBudget });
+  const actual = planEmbeddingBatches({ estimates: lengths, maxItems, tokenBudget, groups: family });
+  assert.ok(actual.batches.length <= original.batches.length);
+  assert.ok(actual.paddedTokens <= original.paddedTokens);
+  assert.deepEqual(actual.batches.flat().sort((a, b) => a - b), lengths.map((_, index) => index));
+  for (const batch of actual.batches) {
+    assert.ok(batch.length <= maxItems);
+    assert.ok(!tokenBudget || batch.length === 1 || batch.reduce((sum, index) => sum + lengths[index], 0) <= tokenBudget);
+  }
+}
 let scheduled = 0, resolved = 0, prepared = 0;
 const completed = [];
 const processor = createFileEmbeddingsProcessor({ embeddingBatchSize: 4, embeddingBatchTokenBudget: 40,

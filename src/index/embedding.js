@@ -5,6 +5,7 @@ import {
   resolveEmbeddingInputFormatting
 } from '../shared/embedding-input-format.js';
 import {
+  isNonEmptyVector,
   normalizeEmbeddingVector,
   quantizeEmbeddingVector,
   quantizeEmbeddingVectorUint8
@@ -41,7 +42,8 @@ export const normalizeVec = normalizeEmbeddingVector;
  *   getChunkEmbedding:(text:string)=>Promise<number[]>,
  *   getChunkEmbeddings:(texts:string[])=>Promise<number[][]>,
  *   embedderPromise:Promise<any>|null,
- *   getActiveProvider:()=>string
+ *   getActiveProvider:()=>string,
+ *   executionInfo:()=>object
  * }}
  */
 export function createEmbedder({
@@ -68,6 +70,18 @@ export function createEmbedder({
   });
   const inputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelAwareCharsPerToken = resolveModelAwareCharsPerToken(modelId);
+  let observedDims = null;
+  let inferenceSucceeded = false;
+  const observeVectors = (vectors) => {
+    if (Array.isArray(vectors) && vectors.length && vectors.every(isNonEmptyVector)) {
+      const width = vectors[0].length;
+      if (vectors.every((vector) => vector.length === width)) {
+        observedDims = width;
+        inferenceSucceeded = true;
+      }
+    }
+    return vectors;
+  };
 
   async function getChunkEmbedding(text) {
     const payload = formatEmbeddingInput(text, {
@@ -75,7 +89,9 @@ export function createEmbedder({
       kind: 'passage',
       formatting: inputFormatting
     });
-    return adapter.embedOne(payload);
+    const vector = await adapter.embedOne(payload);
+    observeVectors([vector]);
+    return vector;
   }
 
   async function getChunkEmbeddings(texts) {
@@ -84,7 +100,7 @@ export function createEmbedder({
       kind: 'passage',
       formatting: inputFormatting
     });
-    return adapter.embed(payloads);
+    return observeVectors(await adapter.embed(payloads));
   }
 
   const estimateChunkTokensBatch = async (texts) => {
@@ -128,11 +144,27 @@ export function createEmbedder({
       ? provider
       : 'xenova';
   };
+  // Telemetry must not access the adapter's loading getter. Vector evidence is
+  // local to this wrapper; a cached adapter may have served an earlier attempt.
+  const executionInfo = () => ({
+    provider: getActiveProvider(),
+    loaded: null,
+    loading: null,
+    device: null,
+    executionProviders: null,
+    effectiveNativeThreads: null,
+    ...(adapter?.executionInfo?.() ?? {}),
+    observedDims,
+    inferenceSucceeded
+  });
 
   return {
     getChunkEmbedding,
     getChunkEmbeddings,
-    embedderPromise: adapter.embedderPromise,
-    getActiveProvider
+    get embedderPromise() {
+      return adapter.embedderPromise;
+    },
+    getActiveProvider,
+    executionInfo
   };
 }

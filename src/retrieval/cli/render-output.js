@@ -18,6 +18,8 @@ export function compactHit(hit, includeExplain = false) {
     'sourceScore',
     'sourceScoreType',
     'rankMethod',
+    'filterEvidence',
+    'typeExpressions',
     'reranker',
     'file',
     'start',
@@ -40,6 +42,8 @@ export function compactHit(hit, includeExplain = false) {
   for (const field of fields) {
     if (hit[field] !== undefined) compact[field] = hit[field];
   }
+  const typeExpressions = hit.typeExpressions || hit.docmeta?.typeExpressions || hit.metaV2?.types?.expressions;
+  if (typeExpressions) compact.typeExpressions = typeExpressions;
   if (includeExplain && hit.scoreBreakdown !== undefined) {
     compact.scoreBreakdown = hit.scoreBreakdown;
   }

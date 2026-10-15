@@ -69,6 +69,7 @@ export const createRunnerHelpers = ({ emitOutput, exitOnError, jsonOutput, recor
 
   const ensureRetrievalHealth = ({
     query,
+    filterOnly = false,
     runCode,
     runProse,
     runExtractedProse,
@@ -78,6 +79,7 @@ export const createRunnerHelpers = ({ emitOutput, exitOnError, jsonOutput, recor
     // Fail fast with machine-readable health codes before hot-path retrieval.
     const report = runRetrievalHealthChecks({
       query,
+      filterOnly,
       runCode,
       runProse,
       runExtractedProse,

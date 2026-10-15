@@ -1,3 +1,4 @@
+import { BUILD_RUNTIME_RECEIPT_SCHEMA } from './runtime-receipt.js';
 export const BUILD_STATE_SCHEMA_VERSION = 1;
 
 const ISO_DATE_TIME = {
@@ -419,6 +420,7 @@ export const BUILD_STATE_SCHEMA = {
       additionalProperties: DOCUMENT_EXTRACTION_SUMMARY
     },
     orderingLedger: ORDERING_LEDGER,
+    runtime: BUILD_RUNTIME_RECEIPT_SCHEMA,
     ignore: {
       type: 'object',
       additionalProperties: false,

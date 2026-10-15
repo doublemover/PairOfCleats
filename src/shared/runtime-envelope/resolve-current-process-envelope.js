@@ -1,5 +1,7 @@
 import os from 'node:os';
 import { resolveRuntimeEnvelope } from './resolve.js';
+import { observeRuntimeProcess, getNodeStartupInputs } from './observe.js';
+import { resolveNodeHeapSource } from '../workers/node-argv.js';
 
 /**
  * Resolve a runtime envelope for the current Node process.
@@ -26,7 +28,7 @@ export function resolveCurrentProcessRuntimeEnvelope(input = {}) {
     cpuCount = os.cpus().length
   } = input;
 
-  return resolveRuntimeEnvelope({
+  const envelope = resolveRuntimeEnvelope({
     argv,
     rawArgv,
     userConfig,
@@ -45,4 +47,29 @@ export function resolveCurrentProcessRuntimeEnvelope(input = {}) {
     },
     toolVersion
   });
+  const observation = observeRuntimeProcess();
+  const startup = getNodeStartupInputs();
+  const heap = resolveNodeHeapSource(startup);
+  envelope.evidenceScope = 'current-process';
+  envelope.observed = observation;
+  envelope.runtime.maxOldSpaceMb.effective = { ...heap, evidenceScope: 'startup-input' };
+  envelope.runtime.uvThreadpoolSize.effective = {
+    value: observation.startupInputs.uvThreadpoolSize,
+    source: observation.startupInputs.uvThreadpoolSize == null ? 'unknown' : 'external-env',
+    detail: 'UV_THREADPOOL_SIZE',
+    evidenceScope: 'startup-input'
+  };
+  envelope.runtime.nodeOptions.effective = {
+    value: startup.nodeOptions || null,
+    source: startup.nodeOptions ? 'external-env' : 'unknown',
+    detail: 'NODE_OPTIONS',
+    evidenceScope: 'startup-input'
+  };
+  for (const name of ['maxOldSpaceMb', 'uvThreadpoolSize', 'nodeOptions']) {
+    const setting = envelope.runtime[name];
+    setting.application = setting.planned.value === setting.effective.value
+      ? 'matches-startup-input'
+      : 'not-applied-to-current-process';
+  }
+  return envelope;
 }

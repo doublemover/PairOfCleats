@@ -18,8 +18,13 @@ are bounded claims; release-wide acceptance requires its own current evidence.
 
 ## Semantic indexing implementation (2026-10-10)
 
-Draft [PR548](https://github.com/doublemover/PairOfCleats/pull/548) continues
-`codex/semantic-indexing-20261010` on `codex/semantic-resume-campaign-20261010`.
+PR547–555 are consolidated into main at `11f1556c8`.
+[Integration/backlog receipt](archived/runtime-search-consolidation-2026-10-12.md)
+records exact-tree checks. [Runtime/search repairs](archived/runtime-search-repairs-2026-10-12.md)
+add attempt evidence, queryless pagination and safe terminal excerpts. Conflicting
+parent heap flags currently select inline tokenization/quantization; isolated-process
+parallelism and corpus/platform qualification remain open.
+[Windows recovery](archived/runtime-search-local-recovery-2026-10-12.md): one native test fails.
 [Detailed implementation and receipts](archived/semantic-campaign-checkpoint-2026-10-10.md)
 preserve earlier checkpoints; [semantic guide](guides/semantic-index.md) describes the surface.
 

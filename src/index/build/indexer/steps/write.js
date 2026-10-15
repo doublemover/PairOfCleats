@@ -269,7 +269,9 @@ export const writeIndexArtifactsForMode = async ({
       riskRules: riskRules || null,
       artifacts,
       extensions: {
-        tokenIdCollisions
+        tokenIdCollisions,
+        runtimeAttemptId: runtime.runtimeAttempt?.attemptId || null,
+        runtimeEmbeddingObservation: runtime.getEmbeddingObservation?.() || null
       }
     }
   });

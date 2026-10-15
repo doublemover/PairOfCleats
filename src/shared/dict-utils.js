@@ -66,12 +66,12 @@ export {
  * @param {string} [cwd]
  * @returns {{repoRoot:string,userConfig:object,rootArg:string|null}}
  */
-export function resolveRepoConfig(repoArg, cwd = process.cwd()) {
+export function resolveRepoConfig(repoArg, cwd = process.cwd(), options = {}) {
   const rootArg = repoArg ? path.resolve(repoArg) : null;
   const repoRoot = rootArg
     ? toRealPathSync(rootArg)
     : toRealPathSync(resolveRepoRoot(cwd));
-  const userConfig = loadUserConfig(repoRoot);
+  const userConfig = loadUserConfig(repoRoot, options);
   return { repoRoot, userConfig, rootArg };
 }
 

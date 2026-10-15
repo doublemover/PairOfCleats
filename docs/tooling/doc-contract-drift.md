@@ -1,6 +1,6 @@
 # Doc Contract Drift
 
-Status: DRIFT
+Status: OK
 
 ## searchCliFlags
 - doc: docs/contracts/search-cli.md
@@ -12,13 +12,13 @@ Status: DRIFT
 - doc: docs/contracts/search-contract.md
 - source: src/retrieval/cli-args.js
 - note: non-blocking drift (informational)
-- missing in docs (77): --alias, --allow-sparse-fallback, --allow-unsafe-mix, --ann, --ann-backend, --ann-candidates, --as-of, --async, --author, --awaits
+- missing in docs (79): --alias, --allow-sparse-fallback, --allow-unsafe-mix, --ann, --ann-backend, --ann-candidates, --as-of, --async, --author, --awaits
 - extra in docs: none
 
 ## artifactSchemas
 - doc: docs/contracts/artifact-schemas.md
 - source: src/contracts/schemas/artifacts.js
-- missing in docs (2): symbolic_type_graph, symbolic_type_manifest
+- missing in docs: none
 - extra in docs: none
 
 ## scoreBreakdown

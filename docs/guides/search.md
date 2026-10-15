@@ -133,3 +133,20 @@ Pass `--explain` to include `scoreBreakdown` in JSON responses. This includes:
 - `symbol` boost metadata for definitions/exports
 - `phrase` metadata when phrase/chargram boosts are active
 - `selected` final score type + value
+
+## Enumerate classes, return types, and relations
+
+No placeholder query is needed for indexed metadata searches:
+
+```bash
+pairofcleats search --repo . --mode code --return-type boolean --top 20 --json
+pairofcleats search --repo . --mode code --return-type '{ ok: boolean; value: string }' --json
+pairofcleats search --repo . --mode code --type ClassDeclaration --extends Base --json
+pairofcleats search --repo . --mode code --calls fetch --json
+```
+
+Use the exact recorded type expression. A `boolean` filter does not also match a promise, array, union, alias, or a type merely containing that word. Inter-token whitespace is ignored; identifier case and literal contents remain significant. This is not an assignability or structural-equivalence query.
+
+`--top` sets a page size per selected mode. Repeat the same filters with `--cursor <nextCursor>` from the `pagination` object until `hasMore` is false. Matching is exhaustive over the indexed metadata and does not invoke vectors or models. The cursor is tied to that generation; if indexing changes, restart or select the original `--as-of` generation. Unknown/unrecorded compiler facts are excluded, and relation-name filters retain their provider's coverage limits. Federated enumeration is not yet available.
+
+Readable output includes bounded source excerpts with line numbers and lightweight syntax colors. Use `--plain` for plain text. `NO_COLOR`, non-TTY output and `TERM=dumb` also disable styling. Excerpts show the current working-tree source, which may differ from the indexed generation.

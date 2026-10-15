@@ -10,10 +10,11 @@ const { createDisplay } = await import('./src/shared/cli/display.js');
 const { setProgressHandlers } = await import('./src/shared/progress-runtime.js');
 const { buildAutoPolicy } = await import('./src/shared/auto-policy/build.js');
 const { parseObservabilityContextEnv } = await import('./src/shared/observability.js');
-const { resolveRuntimeEnvelope } = await import('./src/shared/runtime-envelope/resolve.js');
+const { createRuntimePreview } = await import('./src/shared/runtime-envelope/preview.js');
+const { resolveCurrentProcessRuntimeEnvelope } = await import('./src/shared/runtime-envelope/resolve-current-process-envelope.js');
 const { createAbortControllerWithHandlers, isAbortError } = await import('./src/shared/abort.js');
 const { isDirectExecution } = await import('./src/shared/direct-execution.js');
-const { setCacheRebuildEnv, setVerboseEnv } = await import('./src/shared/env.js');
+const { setVerboseEnv } = await import('./src/shared/env.js');
 const { emitLegacyCliEntrypointWarning } = await import('./src/shared/cli/legacy-entrypoint.js');
 const {
   getCurrentBuildInfo,
@@ -53,9 +54,14 @@ export const main = async ({
   const rootArg = argv.repo ? path.resolve(argv.repo) : null;
   if (argv['config-dump'] === true) {
     const resolvedRoot = rootArg || resolveRepoRoot(cwd);
-    const userConfig = loadUserConfig(resolvedRoot);
-    const policy = await buildAutoPolicy({ repoRoot: resolvedRoot, config: userConfig });
-    const envelope = resolveRuntimeEnvelope({
+    let configSources = null;
+    const userConfig = loadUserConfig(resolvedRoot, { onSources: (sources) => { configSources = sources; } });
+    const quality = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
+    const policy = await buildAutoPolicy({
+      repoRoot: resolvedRoot,
+      config: quality ? { ...userConfig, quality } : userConfig
+    });
+    const envelope = resolveCurrentProcessRuntimeEnvelope({
       argv,
       rawArgv: rawArgs,
       userConfig,
@@ -63,15 +69,13 @@ export const main = async ({
       env,
       toolVersion: getToolVersion()
     });
-    const output = argv.json === true ? JSON.stringify(envelope) : JSON.stringify(envelope, null, 2);
+    const preview = await createRuntimePreview({ repoRoot: resolvedRoot, userConfig, policy, envelope, argv, configSources });
+    const output = argv.json === true ? JSON.stringify(preview) : JSON.stringify(preview, null, 2);
     stdout.write(`${output}\n`);
     return 0;
   }
   if (argv.verbose === true) {
     setVerboseEnv(true);
-  }
-  if (argv['cache-rebuild'] === true) {
-    setCacheRebuildEnv(true);
   }
 
   const display = createDisplay({

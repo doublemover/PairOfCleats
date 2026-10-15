@@ -31,6 +31,8 @@ const SEARCH_OPTIONS = {
   'output-bytes': { type: 'number' },
   top: { type: 'number', default: 5 },
   json: { type: 'boolean', default: false, describe: 'emit JSON output (no stats unless --stats/--explain)' },
+  cursor: { type: 'string', describe: 'continue a filter-only enumeration with the same filters and indexed generation' },
+  plain: { type: 'boolean', default: false, describe: 'plain readable output without colors or hyperlinks' },
   compact: { type: 'boolean', default: false, describe: 'compact JSON output' },
   stats: { type: 'boolean', default: false, describe: 'include stats payload' },
   explain: { type: 'boolean', default: false, describe: 'include score breakdowns' },
@@ -111,20 +113,22 @@ const SEARCH_OPTIONS = {
 
 export function getSearchHelp({ full = false } = {}) {
   const help = {
-    version: 'search-help.v1', command: 'pairofcleats search', usage: 'pairofcleats search "query" [options]',
+    version: 'search-help.v1', command: 'pairofcleats search', usage: 'pairofcleats search ["query"] [options]',
     defaults: { top: 5, mode: 'default (code, prose and extracted-prose)', output: 'readable; --json for agents' },
     aliases: { '-n': '--top', '--n': '--top', '-h': '--help' },
     semantics: {
       query: 'Sparse search uses implicit AND. ANN free text expresses intent; use explicit AND/OR/parentheses for hard Boolean constraints.',
       constraints: 'Quoted phrases, NOT/- exclusions and structured filters remain hard constraints with ANN.',
-      filters: 'Filters are ANDed. --filter bare tokens mean file/path filters; unknown keys are rejected.',
+      filters: 'Filters are ANDed. --filter bare tokens mean file/path filters; unknown keys are rejected. --return-type matches a complete, case-sensitive type expression, not a substring or an assignability test.',
       time: '--modified-after accepts an ISO date; --modified-since accepts a number of days. These are code modification filters, not archive-message dates.',
-      pagination: 'Code search supports top-k, not offset pagination. Increase --top with the same query/filters and compare stable result IDs; do not invent --offset.',
+      pagination: 'Omit query and supply filters to enumerate indexed matches. --top sets page size per mode; pass nextCursor with --cursor and the same filters. A changed generation rejects the cursor. Ranked text queries remain top-k.',
       context: 'Use context-pack with a returned file/symbol seed for related code. Archive context/role/date fields belong to the separate history reader.',
       output: '--json emits machine-readable results; --compact reduces whitespace. --stats/--explain add metadata; --why adds deeper explanation.',
       recovery: 'Missing index: build the explicitly authorized repository first. Empty hits: inspect filters and query constraints; no automatic index build or query broadening.'
     },
     examples: [
+      'pairofcleats search --return-type boolean --mode code --top 20 --json',
+      'pairofcleats search --type ClassDeclaration --mode code --json',
       'pairofcleats search "parseSearchArgs" --repo . --mode code --json',
       'pairofcleats search "cache AND refresh" --repo . --top 5 --json',
       'pairofcleats search "cache" --repo . --path src/retrieval --lang javascript --no-ann --json',
@@ -138,6 +142,23 @@ export function getSearchHelp({ full = false } = {}) {
   ]));
   return help;
 }
+
+export const SEARCH_FILTER_OPTION_NAMES = Object.freeze([
+  'filter', 'type', 'author', 'import', 'lang', 'ext', 'path', 'file',
+  'branches', 'loops', 'breaks', 'continues', 'churn', 'meta', 'meta-json',
+  'calls', 'uses', 'signature', 'param', 'decorator', 'inferred-type', 'return-type',
+  'throws', 'reads', 'writes', 'mutates', 'alias', 'lint', 'awaits', 'visibility',
+  'extends', 'async', 'generator', 'returns', 'chunk-author', 'modified-after',
+  'modified-since', 'risk', 'risk-tag', 'risk-source', 'risk-sink', 'risk-category',
+  'risk-flow', 'struct-pack', 'struct-rule', 'struct-tag'
+]);
+
+export const hasSearchFilterArgs = (argv) => SEARCH_FILTER_OPTION_NAMES.some((key) => {
+  const value = argv?.[key];
+  const values = Array.isArray(value) ? value : [value];
+  return values.some((entry) => entry === true || (typeof entry === 'string' && entry.trim().length > 0)
+    || (typeof entry === 'number' && Number.isFinite(entry)));
+});
 
 export const SEARCH_OPTION_NAMES = Object.freeze(Object.keys(SEARCH_OPTIONS));
 
@@ -211,9 +232,12 @@ export function parseSearchArgs(rawArgs) {
  */
 export function getSearchUsage() {
   return [
-    'usage: search "query" [options]',
+    'usage: search ["query"] [options]',
     '',
     'Options:',
+    '  --cursor <nextCursor> (filter-only pagination; reuse the same filters)',
+    '  --plain (disable terminal styling and hyperlinks)',
+    '  Omit query with filters to enumerate every indexed match, page by page.',
     '  --repo <path>',
     '  --workspace <path>',
     '  --select <repoId|alias|path> (repeatable)',

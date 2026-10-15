@@ -123,6 +123,10 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('index.validate', ['index', 'validate'], 'tools/index/validate.js', 'Validate index artifacts.', {
     helpGroup: 'Index'
   }),
+  entry('index.report', ['index', 'report'], 'tools/index/report-artifacts.js', 'Inspect artifact health and persisted runtime attempts.', {
+    helpGroup: 'Index', capability: false, supportTier: 'operator',
+    helpExamples: ['pairofcleats index report --repo . --runtime --json', 'pairofcleats index report --runtime --index-root /path/to/build --explain embeddings.model']
+  }),
   entry('index.stats', ['index', 'stats'], 'tools/index/stats.js', 'Report per-mode index artifact stats.', {
     helpGroup: 'Index',
     capability: false,

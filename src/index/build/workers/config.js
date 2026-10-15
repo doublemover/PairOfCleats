@@ -232,7 +232,7 @@ export const resolveWorkerHeapBudgetPolicy = (options = {}) => {
 const parseMaxOldSpaceMb = () => {
   // process.execArgv does NOT include NODE_OPTIONS; include both sources when
   // inferring the heap budget from user/runtime config.
-  return parseMaxOldSpaceSizeMb(collectNodeHeapArgv(), { strategy: 'min' });
+  return parseMaxOldSpaceSizeMb(collectNodeHeapArgv());
 };
 
 /**

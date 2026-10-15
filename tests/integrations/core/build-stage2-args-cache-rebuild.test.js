@@ -46,8 +46,8 @@ const stage2FromArgv = buildStage2Args({
   rawArgv: []
 });
 assert.ok(
-  stage2FromArgv.includes('--cache-rebuild'),
-  'expected stage2 args to include cache-rebuild from parsed argv'
+  !stage2FromArgv.includes('--cache-rebuild'),
+  'stage2 must not inherit consumed rebuild intent'
 );
 
 const stage2FromRaw = buildStage2Args({
@@ -64,8 +64,8 @@ const stage2FromRaw = buildStage2Args({
   rawArgv: ['--cache-rebuild']
 });
 assert.ok(
-  stage2FromRaw.includes('--cache-rebuild'),
-  'expected stage2 args to include cache-rebuild when present in raw argv'
+  !stage2FromRaw.includes('--cache-rebuild'),
+  'stage2 raw handoff must not inherit rebuild intent'
 );
 
 const stage2WithoutCacheRebuild = buildStage2Args({

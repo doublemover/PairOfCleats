@@ -88,7 +88,7 @@ expectIds({ structTag: 'sqli' }, [0], 'structTag should match metaV2.structural'
 expectIds({ async: true }, [0], 'async should match metaV2.modifiers');
 expectIds({ generator: true }, [0], 'generator should match metaV2.modifiers');
 expectIds({ returns: true }, [0], 'returns should match metaV2.modifiers/returns');
-expectIds({ returnType: 'promise' }, [0], 'returnType should match metaV2.types.declared.returns');
+expectIds({ returnType: 'Promise<Result>' }, [0], 'returnType should match metaV2.types.declared.returns');
 expectIds({ inferredType: 'input' }, [0], 'inferredType should match metaV2.types.inferred');
 expectIds({ riskTag: 'security' }, [0], 'riskTag should match metaV2.risk.tags');
 expectIds({ riskSource: 'request.body' }, [0], 'riskSource should match metaV2.risk.sources');

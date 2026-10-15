@@ -630,6 +630,8 @@ export const createRuntimeWorkerPools = async ({
   treeSitterConfig,
   memoryPolicy = null,
   stage = 'stage1',
+  runtimeAttemptId = null,
+  buildId = null,
   debugCrash,
   log
 }) => {
@@ -659,6 +661,8 @@ export const createRuntimeWorkerPools = async ({
         treeSitterConfig,
         memoryPolicy,
         stage,
+        runtimeAttemptId,
+        buildId,
         crashLogger: workerCrashLogger,
         log
       });

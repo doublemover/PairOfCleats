@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import { createEmbeddingExecutionPlan, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
+import { parseObservabilityContextEnv } from '../../../shared/observability.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCacheRoot } from '../../../shared/dict-utils.js';
@@ -62,6 +64,11 @@ export const enqueueEmbeddingJob = async ({
     if (isRelativePathEscape(rel) || isAbsolutePathNative(rel)) {
       throw new Error(`Embedding job indexDir must live under buildRoot (${resolvedIndexDir}).`);
     }
+    const embeddingPlan = createEmbeddingExecutionPlan({ root: repoRoot, buildId: runtime.buildId || null, indexRoot: buildRoot, modes: [mode],
+      argv: runtime.argv, modelId: runtime.modelId,
+      userConfig: { ...runtime.userConfig, indexing: runtime.indexingConfig || runtime.userConfig?.indexing },
+      intent: { embeddingEnabled: true, resolvedEmbeddingMode: runtime.embeddingMode || 'service',
+        useStubEmbeddings: runtime.useStubEmbeddings, reason: 'resolved-runtime' } });
     await ensureQueueDir(queueDir);
     throwIfAborted(abortSignal);
     const queueConfig = {
@@ -83,9 +90,11 @@ export const enqueueEmbeddingJob = async ({
         indexRoot: indexRoot ? path.resolve(indexRoot) : null,
         configHash: runtime.configHash || null,
         repoProvenance: runtime.repoProvenance || null,
+        embeddingPlan,
+        observability: parseObservabilityContextEnv(attachEmbeddingExecutionPlan(process.env, embeddingPlan, runtime.observability)),
         embeddingIdentity: runtime.embeddingIdentity || null,
         embeddingIdentityKey: runtime.embeddingIdentityKey || null,
-        embeddingPayloadFormatVersion: 2,
+        embeddingPayloadFormatVersion: 3,
         idempotencyKey: `embq1:${jobId}`
       },
       maxQueued,
