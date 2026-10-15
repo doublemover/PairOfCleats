@@ -1,4 +1,5 @@
 import { buildSemanticContextSection } from '../../context-pack/semantic.js';
+import { enforceContextPackResponseBudget } from '../../context-pack/response-budget.js';
 import { attachSemanticContextSection } from '../../context-pack/assemble/finalize.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
@@ -550,10 +551,13 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  * @returns {Promise<object>}
  */
 export async function buildCompositeContextPackPayload(input = {}, context = {}) {
-  if (shouldUseFederatedContextPack(input)) {
-    return await buildFederatedCompositeContextPackPayload(input, context);
-  }
-  return await buildSingleRepoCompositeContextPackPayload(input);
+  const payload = shouldUseFederatedContextPack(input)
+    ? await buildFederatedCompositeContextPackPayload(input, context)
+    : await buildSingleRepoCompositeContextPackPayload(input);
+  const bounded = enforceContextPackResponseBudget(payload, input);
+  const validation = validateCompositeContextPack(bounded);
+  if (!validation.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', validation.errors.join('; '), 500);
+  return bounded;
 }
 
 /**

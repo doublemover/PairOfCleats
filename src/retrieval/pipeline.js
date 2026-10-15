@@ -754,6 +754,7 @@ export function createSearchPipeline(context) {
           symbolBoostEnabled,
           symbolBoostDefinitionWeight,
           symbolBoostExportWeight,
+          query,
           isDefinitionKind,
           isExportedChunk,
           relationBoostEnabled,
