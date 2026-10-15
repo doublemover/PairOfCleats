@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { search as coreSearch } from '../../integrations/core/index.js';
+import { search as coreSearch } from '../../integrations/core/search.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { isAbortError } from '../../shared/abort.js';
 import { normalizeOptionalInt } from '../../shared/limits.js';
