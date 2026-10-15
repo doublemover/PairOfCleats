@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T21:10:41.000Z",
+  "generatedAt": "2026-10-15T02:04:05.525Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4631,6 +4631,7 @@
         "src/shared/cli/legacy-entrypoint.js",
         "src/shared/env/testing.js",
         "src/shared/ops/failure-injection.js",
+        "tests/ci/env-usage-scope.test.js",
         "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/cli/search/non-result-surfaces.test.js",
