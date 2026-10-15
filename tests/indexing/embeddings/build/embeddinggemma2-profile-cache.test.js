@@ -40,13 +40,15 @@ const indexDir = path.join(indexRoot, 'index-code');
 const modelId = 'onnx-community/embeddinggemma-2-ONNX';
 const profilesSeen = [];
 let calls = 0;
+let disposals = 0;
 __setAdapterFactoryForTests((options) => {
   profilesSeen.push(options.modelProfile);
   const embed = async (texts) => {
     calls += 1;
     return texts.map(() => new Float32Array(options.modelProfile.dimensions).fill(1 / Math.sqrt(options.modelProfile.dimensions)));
   };
-  return { embed, embedOne: async () => (await embed(['alpha']))[0], embedderPromise: null, provider: 'xenova' };
+  return { embed, embedOne: async () => (await embed(['alpha']))[0], embedderPromise: null, provider: 'xenova',
+    dispose: async () => { disposals += 1; } };
 });
 try {
   let firstIdentityKey = null;
@@ -58,6 +60,7 @@ try {
     config.embeddingsConfig.embeddinggemma2 = { dtype, dimensions: 128 };
     const callsBefore = calls;
     await runBuildEmbeddingsWithConfig(config);
+    assert.equal(disposals, run + 1, 'each standalone build releases its provider ownership');
     const state = JSON.parse(await fs.readFile(path.join(indexDir, 'index_state.json'), 'utf8'));
     const vectors = JSON.parse(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.meta.json'), 'utf8'));
     const identity = state.embeddings.embeddingIdentity;
@@ -87,7 +90,7 @@ try {
       assert(calls > callsBefore, 'changed precision must run inference instead of reusing the old space');
     }
   }
-  assert.deepEqual(profilesSeen.map((entry) => entry.dtype), ['q8', 'q4']);
+  assert.deepEqual(profilesSeen.map((entry) => entry.dtype), ['q8', 'q8', 'q4']);
 } finally {
   __resetEmbeddingAdapterCachesForTests();
 }

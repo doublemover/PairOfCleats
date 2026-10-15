@@ -5,14 +5,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveImportLinks } from '../../../src/index/build/import-resolution.js';
 import { scanImports } from '../../../src/index/build/imports.js';
-import { readCachedImports } from '../../../src/index/build/incremental.js';
+import { readCachedImports, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
 import {
   applyImportResolutionCacheFileSetDiffInvalidation,
   loadImportResolutionCache,
   saveImportResolutionCache
 } from '../../../src/index/build/import-resolution-cache.js';
-import { resolveBundleFilename } from '../../../src/shared/bundle-io-paths.js';
-import { writeBundleFile } from '../../../src/shared/bundle-io.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import {
   createImportResolutionCacheStats,
@@ -331,37 +329,14 @@ const cases = [
       const fileHash = sha1(source);
       const bundleDir = path.join(tempRoot, 'bundles');
       await fs.mkdir(bundleDir, { recursive: true });
-      const bundleName = resolveBundleFilename(relKey, 'json');
-      const bundlePath = path.join(bundleDir, bundleName);
       const matchingFingerprint = 'matching-scan-fingerprint';
-
-      await writeBundleFile({
-        bundlePath,
-        format: 'json',
-        bundle: {
-          file: relKey,
-          hash: fileHash,
-          mtimeMs: stat.mtimeMs,
-          size: stat.size,
-          chunks: [],
-          fileRelations: {
-            imports: ['./client.codegen.ts'],
-            importScanFingerprint: matchingFingerprint
-          }
-        }
-      });
-
       const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-        bundleFormat: 'json',
-        files: {
-          [relKey]: {
-            hash: fileHash,
-            mtimeMs: stat.mtimeMs,
-            size: stat.size,
-            bundle: bundleName
-          }
-        }
-      };
+        bundleFormat: 'json', files: {} };
+      manifest.files[relKey] = await writeIncrementalBundle({
+        enabled: true, bundleDir, manifest, relKey, fileStat: stat,
+        fileHash, fileChunks: [], bundleFormat: 'json',
+        fileRelations: { imports: ['./client.codegen.ts'], importScanFingerprint: matchingFingerprint }
+      });
 
       const matched = await readCachedImports({
         enabled: true,
