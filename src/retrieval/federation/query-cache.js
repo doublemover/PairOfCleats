@@ -120,7 +120,7 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  v: 1,
+  v: 2,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),

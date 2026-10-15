@@ -342,8 +342,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v3 isolates strict return-type matching and corrected structured-filter identities.
-    version: 3,
+    // v4 isolates exact symbol/file ranking from previously cached results.
+    version: 4,
     payload
   });
   return { key: keyInfo.key, payload };

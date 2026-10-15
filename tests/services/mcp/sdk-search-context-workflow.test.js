@@ -41,6 +41,7 @@ try {
     const { result, payload } = await call('search', { query: 'sum', mode: 'code', backend: 'memory', top: 3 });
     assert.ok(!result.isError, JSON.stringify(payload));
     assert.ok(payload.code.some((hit) => hit.file === 'math.js'));
+    assert.equal(payload.code[0].file, 'math.js', 'exact definition outranks callers and tests');
     assert.ok(calls.at(-1).bytes < 64 * 1024, 'compact search response stays bounded');
   }
   const context = await call('context_pack', { seed: 'file:math.js', hops: 1, includeGraph: true,
