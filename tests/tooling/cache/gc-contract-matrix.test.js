@@ -9,12 +9,13 @@ import { touchCasObject, writeCasObject } from '../../../src/shared/cache-cas/ob
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { cacheGc } from '../../../tools/mcp/tools/handlers/artifacts.js';
-import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
+import { assertSafeCacheDeletion, CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 
 applyTestEnv();
 
 const root = process.cwd();
 const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
+// Keep the lexical temp path: macOS may supply /var rather than /private/var.
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cache-gc-contract-'));
 const cacheRoot = path.join(tempRoot, 'cache');
 await fs.mkdir(cacheRoot, { recursive: true });
@@ -32,6 +33,32 @@ const runGc = (graceDays) => {
 };
 
 try {
+  if (process.platform === 'darwin') {
+    // Cover both system aliases even if TMPDIR already has a canonical spelling.
+    for (const aliasBase of ['/tmp', '/var/tmp']) {
+      const aliasRoot = await fs.mkdtemp(path.join(aliasBase, 'pairofcleats-gc-alias-'));
+      try {
+        const aliasCache = path.join(aliasRoot, 'cache');
+        await fs.mkdir(aliasCache);
+        const missingTarget = path.join(aliasCache, 'missing', 'nested');
+        assert.throws(() => assertSafeCacheDeletion(missingTarget, [aliasCache]),
+          'system aliases do not waive cache ownership');
+        const canonicalCache = await fs.realpath(aliasCache);
+        const canonicalTarget = path.join(canonicalCache, 'missing', 'nested');
+        assert.equal(assertSafeCacheDeletion(missingTarget, [aliasCache], { allowUnmarked: true }), canonicalTarget);
+        await fs.writeFile(path.join(aliasCache, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
+        assert.equal(assertSafeCacheDeletion(missingTarget, [aliasCache]), canonicalTarget);
+        assert.equal(assertSafeCacheDeletion(missingTarget, [canonicalCache]), canonicalTarget);
+        assert.equal(assertSafeCacheDeletion(canonicalTarget, [aliasCache]), canonicalTarget);
+        const linkedRoot = path.join(aliasRoot, 'linked-cache');
+        await fs.symlink(aliasCache, linkedRoot, 'dir');
+        assert.throws(() => assertSafeCacheDeletion(path.join(linkedRoot, 'missing'), [linkedRoot]),
+          'a trusted system prefix must not canonicalize a linked cache root');
+      } finally {
+        await fs.rm(aliasRoot, { recursive: true, force: true });
+      }
+    }
+  }
   const oldCreatedAt = '2020-01-01T00:00:00.000Z';
   const recentlyTouchedAt = Date.now();
 
