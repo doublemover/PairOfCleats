@@ -1,0 +1,549 @@
+{
+  "date": "2026-10-14",
+  "qualification": "bounded real CPU provider; single trial per precision/batch; not production or cross-platform acceptance",
+  "platform": "win32",
+  "node": "v26.8.1",
+  "modelRevision": "751bff37182d3f1213fa05d7196b954e230abad9",
+  "modelProvenance": {
+    "repository": "Xenova/all-MiniLM-L6-v2",
+    "revision": "751bff37182d3f1213fa05d7196b954e230abad9",
+    "files": [
+      {
+        "file": "config.json",
+        "bytes": 650,
+        "sha256": "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7"
+      },
+      {
+        "file": "tokenizer.json",
+        "bytes": 711661,
+        "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
+      },
+      {
+        "file": "tokenizer_config.json",
+        "bytes": 366,
+        "sha256": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3"
+      },
+      {
+        "file": "special_tokens_map.json",
+        "bytes": 125,
+        "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3"
+      },
+      {
+        "file": "onnx/model.onnx",
+        "bytes": 90387606,
+        "sha256": "759c3cd2b7fe7e93933ad23c4c9181b7396442a2ed746ec7c1d46192c469c46e"
+      },
+      {
+        "file": "onnx/model_quantized.onnx",
+        "bytes": 22972370,
+        "sha256": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
+      }
+    ]
+  },
+  "corpus": [
+    {
+      "file": "src/index/embedding.js",
+      "sourceSha256": "1956938f9bf33e1c5f34bbfb687903bbf2b7d373db80332785f6e7127a113c58",
+      "textSha256": "f37764290511ed1beedf70f5f76ee1c333c1906f0462db920a662656b52493be",
+      "characters": 128,
+      "text": "import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';\r\nimport {\r\n  formatEmbeddingInput,\r\n  formatEmbeddingInput"
+    },
+    {
+      "file": "src/index/embedding.js",
+      "sourceSha256": "1956938f9bf33e1c5f34bbfb687903bbf2b7d373db80332785f6e7127a113c58",
+      "textSha256": "0fb8a249d9bc1e476b0f081f65d18e4096aada0d8c874f6f3a87aa0380376772",
+      "characters": 512,
+      "text": "import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';\r\nimport {\r\n  formatEmbeddingInput,\r\n  formatEmbeddingInputs,\r\n  resolveEmbeddingInputFormatting\r\n} from '../shared/embedding-input-format.js';\r\nimport {\r\n  isNonEmptyVector,\r\n  normalizeEmbeddingVector,\r\n  quantizeEmbeddingVector,\r\n  quantizeEmbeddingVectorUint8\r\n} from '../shared/embedding-utils.js';\r\n\r\nexport const quantizeVec = quantizeEmbeddingVector;\r\n\r\nexport const quantizeVecUint8 = quantizeEmbeddingVectorUint8;\r\n\r\nconst resolveMod"
+    },
+    {
+      "file": "src/index/embedding.js",
+      "sourceSha256": "1956938f9bf33e1c5f34bbfb687903bbf2b7d373db80332785f6e7127a113c58",
+      "textSha256": "3a58851f3a26ec40b589fdfda73289d50ba6faa525ff3f12ece8b4a15f082ba0",
+      "characters": 2048,
+      "text": "import { getEmbeddingAdapter } from '../shared/embedding-adapter.js';\r\nimport {\r\n  formatEmbeddingInput,\r\n  formatEmbeddingInputs,\r\n  resolveEmbeddingInputFormatting\r\n} from '../shared/embedding-input-format.js';\r\nimport {\r\n  isNonEmptyVector,\r\n  normalizeEmbeddingVector,\r\n  quantizeEmbeddingVector,\r\n  quantizeEmbeddingVectorUint8\r\n} from '../shared/embedding-utils.js';\r\n\r\nexport const quantizeVec = quantizeEmbeddingVector;\r\n\r\nexport const quantizeVecUint8 = quantizeEmbeddingVectorUint8;\r\n\r\nconst resolveModelAwareCharsPerToken = (modelId) => {\r\n  const id = String(modelId || '').toLowerCase();\r\n  if (!id) return 4;\r\n  if (id.includes('jina-embeddings-v2-base-code') || id.includes('code')) return 3;\r\n  if (id.includes('e5')) return 4;\r\n  if (id.includes('bge')) return 4;\r\n  return 4;\r\n};\r\n\r\n/**\r\n * L2-normalize an embedding vector.\r\n * @param {number[]} vec\r\n * @returns {number[]}\r\n */\r\nexport const normalizeVec = normalizeEmbeddingVector;\r\n\r\n/**\r\n * Build an embedder wrapper for chunk embeddings.\r\n * @param {object} options\r\n * @param {boolean} options.useStubEmbeddings\r\n * @param {string} options.modelId\r\n * @param {number} options.dims\r\n * @param {string} options.modelsDir\r\n * @returns {{\r\n *   getChunkEmbedding:(text:string)=>Promise<number[]>,\r\n *   getChunkEmbeddings:(texts:string[])=>Promise<number[][]>,\r\n *   embedderPromise:Promise<any>|null,\r\n *   getActiveProvider:()=>string,\r\n *   executionInfo:()=>object\r\n * }}\r\n */\r\nexport function createEmbedder({\r\n  rootDir,\r\n  useStubEmbeddings,\r\n  modelId,\r\n  dims,\r\n  modelsDir,\r\n  provider,\r\n  onnx,\r\n  normalize,\r\n  modelProfile,\r\n  modelArtifact = null\r\n}) {\r\n  const adapter = getEmbeddingAdapter({\r\n    rootDir,\r\n    useStub: useStubEmbeddings,\r\n    modelId,\r\n    dims,\r\n    modelsDir,\r\n    provider,\r\n    onnxConfig: onnx,\r\n    normalize,\r\n    modelProfile,\r\n    modelArtifact\r\n  });\r\n  const inputFormatting = resolveEmbeddingInputFormatting(modelId);\r\n  const modelAwareCharsPerToken = resolveModelAwareCharsPerToken(modelId);\r\n  let observedDims = null;\r\n  let in"
+    },
+    {
+      "file": "src/shared/onnx-embeddings.js",
+      "sourceSha256": "dab7de8b0984674bfb55006cb7067295481221e4572b0000617895fd98188c83",
+      "textSha256": "14ae3f98d870436ea9ec8f4d4ef5f9061ecd5d199e6188ce134e0f0647eef955",
+      "characters": 128,
+      "text": "import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-a"
+    },
+    {
+      "file": "src/shared/onnx-embeddings.js",
+      "sourceSha256": "dab7de8b0984674bfb55006cb7067295481221e4572b0000617895fd98188c83",
+      "textSha256": "a8d1ad6042121295ebc3ad9440463bc1868eb636611415a57997fd1a0e3e6819",
+      "characters": 512,
+      "text": "import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';\r\nimport path from 'node:path';\r\nimport {\r\n  DEFAULT_EMBEDDING_TRUNCATION,\r\n  normalizeEmbeddingVectorInPlace\r\n} from './embedding-utils.js';\r\nimport {\r\n  LARGE_MODEL_BYTES,\r\n  ONNX_TOKENIZATION_CACHE_DEFAULT_MAX_ENTRIES,\r\n  normalizeEmbeddingProvider,\r\n  normalizeOnnxConfig,\r\n  resolveOnnxModelPath,\r\n  resolvePrewarmList,\r\n  statSize\r\n} from './onnx-embeddings"
+    },
+    {
+      "file": "src/shared/onnx-embeddings.js",
+      "sourceSha256": "dab7de8b0984674bfb55006cb7067295481221e4572b0000617895fd98188c83",
+      "textSha256": "b9aec7c34ebd410add46c4db00d1ed96d4b0932b2c2c6271c07c5eb013db04ce",
+      "characters": 2048,
+      "text": "import { assertEmbeddingArtifactCompatibility, embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from './embedding-artifact-identity.js';\r\nimport path from 'node:path';\r\nimport {\r\n  DEFAULT_EMBEDDING_TRUNCATION,\r\n  normalizeEmbeddingVectorInPlace\r\n} from './embedding-utils.js';\r\nimport {\r\n  LARGE_MODEL_BYTES,\r\n  ONNX_TOKENIZATION_CACHE_DEFAULT_MAX_ENTRIES,\r\n  normalizeEmbeddingProvider,\r\n  normalizeOnnxConfig,\r\n  resolveOnnxModelPath,\r\n  resolvePrewarmList,\r\n  statSize\r\n} from './onnx-embeddings/config.js';\r\nimport { createRunQueue } from './onnx-embeddings/run-queue.js';\r\nimport { __tokenizeBatchWithCacheForTests, tokenizeBatchWithCache } from './onnx-embeddings/tokenization.js';\r\n\r\nexport {\r\n  normalizeEmbeddingProvider,\r\n  normalizeOnnxConfig,\r\n  resolveOnnxConfig,\r\n  resolveOnnxModelPath\r\n} from './onnx-embeddings/config.js';\r\nexport { createRunQueue } from './onnx-embeddings/run-queue.js';\r\nexport { __tokenizeBatchWithCacheForTests } from './onnx-embeddings/tokenization.js';\r\n\r\nconst ONNX_CACHE_TTL_MS = 15 * 60 * 1000;\r\nconst ONNX_CACHE_MAX_ENTRIES = 8;\r\nconst onnxCache = new Map();\r\n\r\nconst retireEntry = (key, entry) => {\r\n  if (onnxCache.get(key) === entry) onnxCache.delete(key);\r\n  entry.retired = true;\r\n  if (entry.references || entry.releasing) return;\r\n  entry.releasing = entry.queue.onIdle().then(async () => {\r\n    const loaded = await entry.promise.catch(() => null);\r\n    await loaded?.session?.release?.();\r\n    await loaded?.tokenizer?.dispose?.();\r\n  });\r\n  // GC/cache retirement has no caller to receive disposal failure.\r\n  entry.releasing.catch(() => {});\r\n};\r\nconst releaseEntry = (entry) => {\r\n  entry.references = Math.max(0, entry.references - 1);\r\n  if (!entry.references) retireEntry(entry.key, entry);\r\n  return entry.releasing || Promise.resolve();\r\n};\r\nconst sessionOwners = new FinalizationRegistry((entry) => { void releaseEntry(entry); });\r\nexport const __resetOnnxSessionCacheForTests = () => {\r\n  for (const [key, entry] of onnxCache) retireEntry(key, entry);\r\n};\r\n\r\nconst touchC"
+    },
+    {
+      "file": "src/retrieval/pipeline/filter-enumeration.js",
+      "sourceSha256": "dc5acfaa9118b1b102d4dde9478f1c0cbbf8b8a2b4b0113f9298c3c18bdae0fc",
+      "textSha256": "5dbe0ccc70bad9dab2a73cce7e6153076b3aaf49714c362d89e354dcb785f349",
+      "characters": 128,
+      "text": "import { resolveReturnTypeFacts } from '../output/filters/type-expression.js';\r\nimport { createHash } from 'node:crypto';\r\nimpor"
+    },
+    {
+      "file": "src/retrieval/pipeline/filter-enumeration.js",
+      "sourceSha256": "dc5acfaa9118b1b102d4dde9478f1c0cbbf8b8a2b4b0113f9298c3c18bdae0fc",
+      "textSha256": "d5e562fd9b800ffb3d4ecac2da7703096945b7c54aa9d7d743f3b0ae26f69046",
+      "characters": 512,
+      "text": "import { resolveReturnTypeFacts } from '../output/filters/type-expression.js';\r\nimport { createHash } from 'node:crypto';\r\nimport { stableStringify } from '../../shared/stable-json.js';\r\nimport { createError, ERROR_CODES } from '../../shared/error-codes.js';\r\nimport { bitmapHas } from '../bitmap.js';\r\nimport { FILTER_MATCH_ENTRY_BYTES, FILTER_MATCH_CACHE_BYTES, persistFilterMatches, readFilterMatchPage } from './filter-enumeration-cache.js';\r\n\r\nconst VERSION = 1;\r\nconst MODE_KEYS = { code: 'code', prose: 'p"
+    },
+    {
+      "file": "src/retrieval/pipeline/filter-enumeration.js",
+      "sourceSha256": "dc5acfaa9118b1b102d4dde9478f1c0cbbf8b8a2b4b0113f9298c3c18bdae0fc",
+      "textSha256": "26d625a138ef9c9e28e05820353647d53610332c51cb10f69ec256b929afa8d6",
+      "characters": 2048,
+      "text": "import { resolveReturnTypeFacts } from '../output/filters/type-expression.js';\r\nimport { createHash } from 'node:crypto';\r\nimport { stableStringify } from '../../shared/stable-json.js';\r\nimport { createError, ERROR_CODES } from '../../shared/error-codes.js';\r\nimport { bitmapHas } from '../bitmap.js';\r\nimport { FILTER_MATCH_ENTRY_BYTES, FILTER_MATCH_CACHE_BYTES, persistFilterMatches, readFilterMatchPage } from './filter-enumeration-cache.js';\r\n\r\nconst VERSION = 1;\r\nconst MODE_KEYS = { code: 'code', prose: 'prose', 'extracted-prose': 'extractedProse', records: 'records' };\r\nconst digest = (value) => createHash('sha256').update(stableStringify(value)).digest('hex');\r\nconst invalid = (message) => createError(ERROR_CODES.INVALID_REQUEST, message);\r\nconst CACHE_BYTES = FILTER_MATCH_CACHE_BYTES;\r\nconst ENTRY_BYTES = FILTER_MATCH_ENTRY_BYTES;\r\nconst matchesCache = new Map();\r\nconst metadataIds = new WeakMap();\r\nlet nextMetadataId = 0, cachedBytes = 0;\r\nconst metadataId = meta => {\r\n  if (!metadataIds.has(meta)) metadataIds.set(meta, ++nextMetadataId);\r\n  return metadataIds.get(meta);\r\n};\r\nconst admitMatches = (key, ids) => {\r\n  while (matchesCache.size >= 32 || cachedBytes + ids.byteLength > CACHE_BYTES) {\r\n    const oldest = matchesCache.keys().next().value;\r\n    if (!oldest) break;\r\n    cachedBytes -= matchesCache.get(oldest).byteLength; matchesCache.delete(oldest);\r\n  }\r\n  matchesCache.set(key, ids); cachedBytes += ids.byteLength;\r\n};\r\n\r\n/** A cursor is bound to both the indexed generation and the exact filters. */\r\nexport function createFilterEnumeration({ cursor = null, filters, modes, generation, cacheDir = null }) {\r\n  const generationHash = digest(generation);\r\n  const relativeTime = filters.modifiedSinceDays != null;\r\n  const requestHash = digest({ version: VERSION, filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });\r\n  let modifiedAfter = relativeTime ? filters.modifiedAfter : null;\r\n  let offsets = Object.fromEntries(modes.map((mode) => [mode, 0]));\r\n  if (cursor != null) {\r\n    le"
+    },
+    {
+      "file": "src/retrieval/pipeline/filter-enumeration-cache.js",
+      "sourceSha256": "ff62edb090aa1f4ae83137437ec746e19f61e3dd6c767d4d0ad73adc1da69fd6",
+      "textSha256": "eac28f5496d4cb5b510672c011ae268cb1b3d536aacd43a136bee126dc99a4ae",
+      "characters": 128,
+      "text": "import fs from 'node:fs/promises';\r\nimport path from 'node:path';\r\nimport { createHash, createHmac, randomBytes, timingSafeEqual"
+    },
+    {
+      "file": "src/retrieval/pipeline/filter-enumeration-cache.js",
+      "sourceSha256": "ff62edb090aa1f4ae83137437ec746e19f61e3dd6c767d4d0ad73adc1da69fd6",
+      "textSha256": "6cda3fe6800d7bedf9daa0c145a8aa5d4bdcd50ea9d948c25de9cf19058d236b",
+      "characters": 512,
+      "text": "import fs from 'node:fs/promises';\r\nimport path from 'node:path';\r\nimport { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';\r\nimport { atomicWriteText } from '../../shared/io/atomic-write.js';\r\nimport { withFileLock } from '../../shared/locks/file-lock.js';\r\nimport { assertNoSymlinkPath, openContainedFile } from '../../shared/contained-file.js';\r\n\r\nexport const FILTER_MATCH_ENTRY_BYTES = 16 * 1024 * 1024;\r\nexport const FILTER_MATCH_CACHE_BYTES = 64 * 1024 * 1024;\r\nconst HEADER_BYTE"
+    },
+    {
+      "file": "src/retrieval/pipeline/filter-enumeration-cache.js",
+      "sourceSha256": "ff62edb090aa1f4ae83137437ec746e19f61e3dd6c767d4d0ad73adc1da69fd6",
+      "textSha256": "ad4bf2a34e3e84ab98ebccd8c29d32f2448bc0deda018d6752c4bbd11c27444a",
+      "characters": 2048,
+      "text": "import fs from 'node:fs/promises';\r\nimport path from 'node:path';\r\nimport { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';\r\nimport { atomicWriteText } from '../../shared/io/atomic-write.js';\r\nimport { withFileLock } from '../../shared/locks/file-lock.js';\r\nimport { assertNoSymlinkPath, openContainedFile } from '../../shared/contained-file.js';\r\n\r\nexport const FILTER_MATCH_ENTRY_BYTES = 16 * 1024 * 1024;\r\nexport const FILTER_MATCH_CACHE_BYTES = 64 * 1024 * 1024;\r\nconst HEADER_BYTES = 128 * 1024;\r\nconst BLOCK_BYTES = 16 * 1024;\r\nconst ENTRY_LIMIT = 32;\r\nconst sha = value => createHash('sha256').update(value).digest('hex');\r\nconst sign = (value, key) => createHmac('sha256', key).update(value).digest();\r\nconst directory = cacheDir => cacheDir ? path.join(cacheDir, 'filter-enumeration-v1') : null;\r\nconst filename = identity => sha(identity) + '.bin';\r\n\r\nconst readExact = async (handle, buffer, position) => {\r\n  let read = 0;\r\n  while (read < buffer.length) {\r\n    const result = await handle.read(buffer, read, buffer.length - read, position + read);\r\n    if (!result.bytesRead) throw new Error('Incomplete filter continuation cache.');\r\n    read += result.bytesRead;\r\n  }\r\n  return buffer;\r\n};\r\nconst openRegular = async (root, file) => {\r\n  const handle = await openContainedFile(root, file);\r\n  try {\r\n    const stat = await handle.stat();\r\n    if (!stat.isFile() || stat.nlink !== 1) throw new Error('Invalid filter continuation file.');\r\n    return { handle, stat };\r\n  } catch (error) { await handle.close(); throw error; }\r\n};\r\nconst readKey = async (root, dir) => {\r\n  const { handle, stat } = await openRegular(root, path.join(dir, 'key'));\r\n  try {\r\n    if (stat.size !== 32) throw new Error('Invalid filter continuation key.');\r\n    return await readExact(handle, Buffer.alloc(32), 0);\r\n  } finally { await handle.close(); }\r\n};\r\n\r\n/** Optional acceleration only: authenticate bounded metadata, then verify only\r\n * the opened blocks needed by this page. Failure always returns to the index. */\r\nexpo"
+    },
+    {
+      "file": "src/shared/jsonrpc.js",
+      "sourceSha256": "d21dbb1828355f5d4ce58bde985939e745bd6f00e583c24dc0d360c68680aecb",
+      "textSha256": "848f037c35f87ffa627a29d74ec68aa9dd6bd123aaa0aac8be31a8389d74cbf5",
+      "characters": 128,
+      "text": "import { WriteableStreamMessageWriter } from 'vscode-jsonrpc/node';\r\n\r\nconst writerCache = new WeakMap();\r\nconst CLOSED_STREAM_W"
+    },
+    {
+      "file": "src/shared/jsonrpc.js",
+      "sourceSha256": "d21dbb1828355f5d4ce58bde985939e745bd6f00e583c24dc0d360c68680aecb",
+      "textSha256": "ecd46d4253f24a2e5ea1fdca1253a63e3668d61bdb467d3806b4ace7783e22b7",
+      "characters": 512,
+      "text": "import { WriteableStreamMessageWriter } from 'vscode-jsonrpc/node';\r\n\r\nconst writerCache = new WeakMap();\r\nconst CLOSED_STREAM_WRITE_ERROR_CODES = new Set([\r\n  'ERR_STREAM_DESTROYED',\r\n  'EPIPE',\r\n  'ECONNRESET',\r\n  'ERR_SOCKET_CLOSED',\r\n  'EOF'\r\n]);\r\n\r\nexport const isClosedStreamWriteError = (err) => {\r\n  const code = String(err?.code || '').toUpperCase();\r\n  if (code && CLOSED_STREAM_WRITE_ERROR_CODES.has(code)) return true;\r\n  const message = String(err?.message || err || '');\r\n  return /\\bEPIPE\\b/i.test"
+    },
+    {
+      "file": "src/shared/jsonrpc.js",
+      "sourceSha256": "d21dbb1828355f5d4ce58bde985939e745bd6f00e583c24dc0d360c68680aecb",
+      "textSha256": "53700c6c2bf025ac315d494b7478e88cb1bf2b950360b72b3e26c884cdb2f65a",
+      "characters": 2048,
+      "text": "import { WriteableStreamMessageWriter } from 'vscode-jsonrpc/node';\r\n\r\nconst writerCache = new WeakMap();\r\nconst CLOSED_STREAM_WRITE_ERROR_CODES = new Set([\r\n  'ERR_STREAM_DESTROYED',\r\n  'EPIPE',\r\n  'ECONNRESET',\r\n  'ERR_SOCKET_CLOSED',\r\n  'EOF'\r\n]);\r\n\r\nexport const isClosedStreamWriteError = (err) => {\r\n  const code = String(err?.code || '').toUpperCase();\r\n  if (code && CLOSED_STREAM_WRITE_ERROR_CODES.has(code)) return true;\r\n  const message = String(err?.message || err || '');\r\n  return /\\bEPIPE\\b/i.test(message) || /stream (?:is )?closed/i.test(message);\r\n};\r\n\r\nconst getWriterState = (outputStream) => {\r\n  let state = writerCache.get(outputStream);\r\n  if (state) return state;\r\n  const listeners = new Set();\r\n  const subscribe = (event, listener, once = false) => {\r\n    if (once) outputStream.once(event, listener);\r\n    else outputStream.on(event, listener);\r\n    const dispose = () => {\r\n      outputStream.removeListener(event, listener);\r\n      listeners.delete(dispose);\r\n    };\r\n    listeners.add(dispose);\r\n    return { dispose };\r\n  };\r\n  // Own the adapter subscriptions explicitly. The upstream writer disposes its\r\n  // emitters, but does not dispose the underlying stream subscriptions.\r\n  const writer = new WriteableStreamMessageWriter({\r\n    onClose: (listener) => subscribe('close', listener),\r\n    onError: (listener) => subscribe('error', listener),\r\n    onEnd: (listener) => subscribe('end', listener),\r\n    write: (data, encoding) => new Promise((resolve, reject) => {\r\n      const callback = (error) => error == null ? resolve() : reject(error);\r\n      if (typeof data === 'string') outputStream.write(data, encoding, callback);\r\n      else outputStream.write(data, callback);\r\n    }),\r\n    end: () => outputStream.end()\r\n  });\r\n  state = { writer, closed: false, pending: 0, disposed: false, queue: Promise.resolve() };\r\n  state.release = () => {\r\n    if (!state.closed || state.pending || state.disposed) return;\r\n    state.disposed = true;\r\n    state.writer.dispose();\r\n    for (const dispose of listeners) dis"
+    },
+    {
+      "file": "tests/perf/bench/query-runtime.js",
+      "sourceSha256": "4ffd011597fa77a81e2e3da62888a027f1c0a1d75906b85925a5f77fa92e1cf9",
+      "textSha256": "08132ed967933622ea12ed5a48f29d939b25e139353f6bab52f19919dda99f58",
+      "characters": 128,
+      "text": "import fsSync from 'node:fs';\r\nimport os from 'node:os';\r\nimport { fork } from 'node:child_process';\r\nimport { readIndexArtifact"
+    },
+    {
+      "file": "tests/perf/bench/query-runtime.js",
+      "sourceSha256": "4ffd011597fa77a81e2e3da62888a027f1c0a1d75906b85925a5f77fa92e1cf9",
+      "textSha256": "fd852d9d01cf87d225135e98e6505af9d4373dd5204962a4de7e1d8a26c5738a",
+      "characters": 512,
+      "text": "import fsSync from 'node:fs';\r\nimport os from 'node:os';\r\nimport { fork } from 'node:child_process';\r\nimport { readIndexArtifactBytes } from '../../../src/shared/ops/resource-visibility.js';\r\nimport { killProcessTree } from '../../../src/shared/kill-tree.js';\r\nimport { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';\r\nimport { attachSilentLogging } from '../../helpers/test-env.js';\r\nimport { resolveBenchQueryByteEstimate } from '../../../tools/bench/language/query-byte-estimate."
+    },
+    {
+      "file": "tests/perf/bench/query-runtime.js",
+      "sourceSha256": "4ffd011597fa77a81e2e3da62888a027f1c0a1d75906b85925a5f77fa92e1cf9",
+      "textSha256": "b2f86abf58c474006f20793a3a513a6feed926aaf2c8fd6fa82ef1990fbb5330",
+      "characters": 2048,
+      "text": "import fsSync from 'node:fs';\r\nimport os from 'node:os';\r\nimport { fork } from 'node:child_process';\r\nimport { readIndexArtifactBytes } from '../../../src/shared/ops/resource-visibility.js';\r\nimport { killProcessTree } from '../../../src/shared/kill-tree.js';\r\nimport { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';\r\nimport { attachSilentLogging } from '../../helpers/test-env.js';\r\nimport { resolveBenchQueryByteEstimate } from '../../../tools/bench/language/query-byte-estimate.js';\r\n\r\nexport const DEFAULT_QUERY_WORKER_HEARTBEAT_MS = 5000;\r\nexport const DEFAULT_QUERY_WORKER_STALL_WARN_MS = 30000;\r\nexport const DEFAULT_QUERY_WORKER_STALL_TIMEOUT_MS = 10 * 60 * 1000;\r\nconst DEFAULT_QUERY_WORKER_SHUTDOWN_TIMEOUT_MS = 2000;\r\nconst DEFAULT_QUERY_WORKER_STDERR_TAIL_LINES = 40;\r\nconst DEFAULT_SQLITE_QUERY_MAX_RUNS_PER_WORKER = 1;\r\nconst MiB = 1024 * 1024;\r\nconst GiB = 1024 * MiB;\r\n\r\nconst toFiniteNonNegative = (value, fallback = 0) => {\r\n  const numeric = Number(value);\r\n  return Number.isFinite(numeric) && numeric >= 0 ? numeric : fallback;\r\n};\r\n\r\nconst statSizeSync = (filePath) => {\r\n  try {\r\n    const stat = fsSync.statSync(filePath);\r\n    return Number.isFinite(stat.size) ? stat.size : 0;\r\n  } catch {\r\n    return 0;\r\n  }\r\n};\r\n\r\nconst includesBackend = (backends, prefix) => (\r\n  Array.isArray(backends) && backends.some((backend) => String(backend || '').startsWith(prefix))\r\n);\r\n\r\nconst hasPositiveTimestamp = (value) => Number.isFinite(Number(value)) && Number(value) > 0;\r\n\r\nconst classifyQueryBackend = (backend) => (\r\n  String(backend || '').startsWith('sqlite') ? 'sqlite' : 'memory'\r\n);\r\n\r\n/**\r\n * Estimate a safe query-worker count for bench searches. Memory-backed queries\r\n * duplicate large index caches per worker, and SQLite searches benefit little\r\n * from wide parallelism against the same repo-local DBs.\r\n *\r\n * @param {{\r\n *   requestedConcurrency:number,\r\n *   backends:string[],\r\n *   runtimeRoot?:string,\r\n *   userConfig?:object,\r\n *   totalSystemMemoryBytes?:number,\r\n *   codeAr"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "sourceSha256": "deba638cd1c36f8407b7e229fe8b488d8109c600000bc872d6289ea6003cac8e",
+      "textSha256": "8e10655427be2a51994635999a0d635dc5a9075e4afbaa144586a2a1d232d18f",
+      "characters": 128,
+      "text": "# PairOfCleats Roadmap\r\n\r\nStatus: Active\r\nLast audited: 2026-10-12\r\nLast reconciled: 2026-10-14\r\nCanonical for: initiative statu"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "sourceSha256": "deba638cd1c36f8407b7e229fe8b488d8109c600000bc872d6289ea6003cac8e",
+      "textSha256": "e57afb12f8e37e5480c81d15c2185c373e5252d39ff8ca146a4a6a7bcfeb6a4b",
+      "characters": 512,
+      "text": "# PairOfCleats Roadmap\r\n\r\nStatus: Active\r\nLast audited: 2026-10-12\r\nLast reconciled: 2026-10-14\r\nCanonical for: initiative status, execution order, and remaining work\r\n\r\n## Dependency and CI reconciliation, October 14\r\n\r\nThe active checkout is `codex/pr557-audit-repairs-20261012`, atop the open\r\nPR stack #556 -> #557 -> #558. Remote main is 42 commits behind the original\r\nrepair head `d6041226b95baa6d7be8c6a06611b6d9e452d4ba`; none of these PRs is merged.\r\nLive GitHub inspection found zero open Dependabot s"
+    },
+    {
+      "file": "docs/roadmap.md",
+      "sourceSha256": "deba638cd1c36f8407b7e229fe8b488d8109c600000bc872d6289ea6003cac8e",
+      "textSha256": "8e6a1a323f90d239d4f5fc54871dd5281fb93785419a4e8271612a1f446f7fb9",
+      "characters": 2048,
+      "text": "# PairOfCleats Roadmap\r\n\r\nStatus: Active\r\nLast audited: 2026-10-12\r\nLast reconciled: 2026-10-14\r\nCanonical for: initiative status, execution order, and remaining work\r\n\r\n## Dependency and CI reconciliation, October 14\r\n\r\nThe active checkout is `codex/pr557-audit-repairs-20261012`, atop the open\r\nPR stack #556 -> #557 -> #558. Remote main is 42 commits behind the original\r\nrepair head `d6041226b95baa6d7be8c6a06611b6d9e452d4ba`; none of these PRs is merged.\r\nLive GitHub inspection found zero open Dependabot security alerts and twelve\r\nversion-update PRs. Their updates are integrated locally in `dae8ecd62`, including\r\nthe JSON-RPC 9 Node entry point and coordinated artifact-action contract updates.\r\n\r\nHosted CI on the original repair head passed gate/Rust but failed eight fixtures\r\non Ubuntu/macOS and seven on Windows (one Windows skip). Those eight fixtures\r\nnow pass locally on Windows after lifecycle repairs and current-contract fixture\r\ncorrections. This is not a hosted rerun or cross-platform acceptance. Twenty\r\ndependency-focused fixtures also pass. Initial failures and environment limits\r\nremain in the [reconciliation receipt](archived/dependency-ci-reconciliation-2026-10-14.md).\r\nThe final batch front gate and hosted acceptance remain pending.\r\n\r\nExecution order: dependencies, CI repairs, this status reconciliation, then\r\nSRC-010 cold artifact/LMDB pagination and EMB-009 representative provider\r\nmeasurements. The latest audit classification is 38 bounded-verified, five\r\nqualification-limited, two partial, and zero missing; the older 45-item table\r\nbelow records historical implementation rather than full current acceptance.\r\n\r\n## PR 557 completion-audit follow-up\r\n\r\nThe follow-up at `6125e534ec8a2d588688c8c3b107bad268d6cd90` confirmed substantive\r\nimplementation across all 45 items and reproduced ten additional regressions plus\r\none existing repeated-build RE2 failure. Targeted local repairs and regression\r\ntests now cover those findings, with independent edge-case review. See the\r\n[repair record](archived/pr5"
+    },
+    {
+      "file": "package.json",
+      "sourceSha256": "a13be3ef1c5822907bf5a6ce2134bedab7352d4db20c0d44139db3231b861e1e",
+      "textSha256": "d6f87fb3cf374492a8589fb9f3b5086d4d2591c7f3630975b155550c63eeba5b",
+      "characters": 128,
+      "text": "{\n  \"name\": \"pairofcleats\",\n  \"version\": \"0.3.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"engines\": {\n    \"node\": \">=26.0.0 <2"
+    },
+    {
+      "file": "package.json",
+      "sourceSha256": "a13be3ef1c5822907bf5a6ce2134bedab7352d4db20c0d44139db3231b861e1e",
+      "textSha256": "e6962f7c209e2128b163800222fba10b930671e07f4574195b61ff359a0c28e9",
+      "characters": 512,
+      "text": "{\n  \"name\": \"pairofcleats\",\n  \"version\": \"0.3.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"engines\": {\n    \"node\": \">=26.0.0 <27\"\n  },\n  \"bin\": {\n    \"pairofcleats\": \"bin/pairofcleats.js\",\n    \"pairofcleats-tui\": \"bin/pairofcleats-tui.js\"\n  },\n  \"description\": \"Hybrid semantic indexer and search utility for codebases\",\n  \"scripts\": {\n    \"bootstrap\": \"npm install --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js\",\n    \"bootstrap:ci\": \"npm ci --include"
+    },
+    {
+      "file": "package.json",
+      "sourceSha256": "a13be3ef1c5822907bf5a6ce2134bedab7352d4db20c0d44139db3231b861e1e",
+      "textSha256": "d2e319239f0e2c6280c901740262d9073a5b647b1668f3a8ed2f51ff3d613fd3",
+      "characters": 2048,
+      "text": "{\n  \"name\": \"pairofcleats\",\n  \"version\": \"0.3.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"engines\": {\n    \"node\": \">=26.0.0 <27\"\n  },\n  \"bin\": {\n    \"pairofcleats\": \"bin/pairofcleats.js\",\n    \"pairofcleats-tui\": \"bin/pairofcleats-tui.js\"\n  },\n  \"description\": \"Hybrid semantic indexer and search utility for codebases\",\n  \"scripts\": {\n    \"bootstrap\": \"npm install --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js\",\n    \"bootstrap:ci\": \"npm ci --include=dev --ignore-scripts && node tools/setup/apply-patches.js && node tools/setup/rebuild-native.js\",\n    \"test\": \"node tests/run.js --lane ci-lite\",\n    \"test:ci-lite\": \"node tests/run.js --lane ci-lite\",\n    \"test:ci\": \"node tests/run.js --lane ci\",\n    \"test:ci-long\": \"node tests/run.js --lane ci-long\",\n    \"test:lane-audit\": \"node tools/testing/lane-audit.js\",\n    \"test:refresh-governance\": \"node tools/testing/refresh-governance.js\",\n    \"test:services\": \"node tests/run.js --lane services\",\n    \"test:api\": \"node tests/run.js --lane api\",\n    \"test:storage\": \"node tests/run.js --lane storage\",\n    \"test:perf\": \"node tests/run.js --lane perf\",\n    \"audit:duplicates\": \"jscpd --config .jscpd.json --absolute src bin tools tests extensions sublime\",\n    \"verify\": \"node tools/ci/run-suite.js --mode ci\",\n    \"verify:production\": \"node tools/testing/refresh-governance.js && node tests/ci/markdown-link-check.test.js && node tests/tooling/docs/contract-matrix.test.js && node tests/tooling/script-coverage/harness.test.js && node tools/release/check.js --dry-run\",\n    \"config:budget\": \"node tools/config/inventory.js --check\",\n    \"env:check\": \"node tools/ci/check-env-usage.js\",\n    \"release:verify\": \"node tools/release/check.js --report release_check_report.json --manifest release-manifest.json\",\n    \"lint\": \"eslint .\",\n    \"format\": \"eslint . --fix\",\n    \"postinstall\": \"node tools/setup/postinstall.js\"\n  },\n  \"dependencies\": {\n    \"@ast-grep/napi\": \"^0.40.4\",\n    \"@astrojs/compiler\": \"^2.13.0\",\n    \"@babel/parser\": \"^7.27"
+    }
+  ],
+  "measurements": [
+    {
+      "precision": "fp32",
+      "baselineThreads": {
+        "scope": "process",
+        "providerAttribution": "unknown",
+        "observedAt": "2026-10-15T01:58:00.567Z",
+        "method": "unavailable-platform",
+        "clockTickSeconds": null,
+        "threads": [],
+        "count": null,
+        "truncated": false
+      },
+      "rows": [
+        {
+          "batchSize": 1,
+          "wallMs": 1752.1842,
+          "textsPerSecond": 13.697190055703048,
+          "usefulTokens": 5896,
+          "paddedTokens": 5896,
+          "providerBusyMs": 1741.7103000000002,
+          "tokenizerMs": 0.6583000000001675,
+          "runs": 24,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:02.983Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        },
+        {
+          "batchSize": 4,
+          "wallMs": 4361.907300000001,
+          "textsPerSecond": 5.502180204517413,
+          "usefulTokens": 5896,
+          "paddedTokens": 12288,
+          "providerBusyMs": 4353.091200000001,
+          "tokenizerMs": 0.3755000000014661,
+          "runs": 6,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:07.346Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        },
+        {
+          "batchSize": 8,
+          "wallMs": 4862.076900000001,
+          "textsPerSecond": 4.936162157369415,
+          "usefulTokens": 5896,
+          "paddedTokens": 12288,
+          "providerBusyMs": 4850.3106,
+          "tokenizerMs": 0.4261999999980617,
+          "runs": 3,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:12.209Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        },
+        {
+          "batchSize": 16,
+          "wallMs": 4570.223100000001,
+          "textsPerSecond": 5.2513847737542605,
+          "usefulTokens": 5896,
+          "paddedTokens": 12288,
+          "providerBusyMs": 4560.112300000001,
+          "tokenizerMs": 0.5423000000009779,
+          "runs": 2,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:16.779Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        }
+      ]
+    },
+    {
+      "precision": "q8",
+      "baselineThreads": {
+        "scope": "process",
+        "providerAttribution": "unknown",
+        "observedAt": "2026-10-15T01:58:17.185Z",
+        "method": "unavailable-platform",
+        "clockTickSeconds": null,
+        "threads": [],
+        "count": null,
+        "truncated": false
+      },
+      "rows": [
+        {
+          "batchSize": 1,
+          "wallMs": 1686.0605999999998,
+          "textsPerSecond": 14.234363818239986,
+          "usefulTokens": 5896,
+          "paddedTokens": 5896,
+          "providerBusyMs": 1674.6854999999998,
+          "tokenizerMs": 1.4269000000005008,
+          "runs": 24,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:19.446Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        },
+        {
+          "batchSize": 4,
+          "wallMs": 4341.6847,
+          "textsPerSecond": 5.527808134017655,
+          "usefulTokens": 5896,
+          "paddedTokens": 12288,
+          "providerBusyMs": 4335.5188,
+          "tokenizerMs": 0.3350000000009459,
+          "runs": 6,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:23.790Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        },
+        {
+          "batchSize": 8,
+          "wallMs": 4313.468800000001,
+          "textsPerSecond": 5.563967450048554,
+          "usefulTokens": 5896,
+          "paddedTokens": 12288,
+          "providerBusyMs": 4303.829000000001,
+          "tokenizerMs": 0.39020000000255095,
+          "runs": 3,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:28.103Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        },
+        {
+          "batchSize": 16,
+          "wallMs": 3882.061599999999,
+          "textsPerSecond": 6.182282115255463,
+          "usefulTokens": 5896,
+          "paddedTokens": 12288,
+          "providerBusyMs": 3873.7854000000007,
+          "tokenizerMs": 0.37220000000161235,
+          "runs": 2,
+          "effectiveSessionOptions": {
+            "executionProviders": [
+              {
+                "name": "cpu",
+                "useArena": false
+              }
+            ],
+            "intraOpNumThreads": 2,
+            "interOpNumThreads": 1,
+            "graphOptimizationLevel": "basic",
+            "enableCpuMemArena": false,
+            "enableMemPattern": false,
+            "executionMode": "sequential"
+          },
+          "threads": {
+            "scope": "process",
+            "providerAttribution": "unknown",
+            "observedAt": "2026-10-15T01:58:31.985Z",
+            "method": "unavailable-platform",
+            "clockTickSeconds": null,
+            "threads": [],
+            "count": null,
+            "truncated": false
+          }
+        }
+      ]
+    }
+  ],
+  "cosine": {
+    "threshold": 0.999,
+    "min": 0.9851013986248204,
+    "mean": 0.9907595454830429,
+    "belowThreshold": 24,
+    "perExcerpt": [
+      0.9921811381742142,
+      0.9886587958508173,
+      0.9934855492222492,
+      0.991998858015146,
+      0.9891932342348609,
+      0.9930867448183904,
+      0.9911432259579751,
+      0.9894687938563429,
+      0.9923741630125588,
+      0.9887472409137674,
+      0.9908574099660414,
+      0.9943833750463816,
+      0.9912055221406562,
+      0.9935472678711683,
+      0.9926655184607791,
+      0.9897157654967371,
+      0.9865107409493196,
+      0.9924371425388334,
+      0.9851013986248204,
+      0.9919836836131174,
+      0.9907125977788895,
+      0.989213318452959,
+      0.9903626028394032,
+      0.9891950037576035
+    ]
+  }
+}

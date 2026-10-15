@@ -20,12 +20,19 @@ now pass locally on Windows after lifecycle repairs and current-contract fixture
 corrections. This is not a hosted rerun or cross-platform acceptance. Twenty
 dependency-focused fixtures also pass. Initial failures and environment limits
 remain in the [reconciliation receipt](archived/dependency-ci-reconciliation-2026-10-14.md).
-The final batch front gate and hosted acceptance remain pending.
+The final local front gate passes, including all 39 gate cases with zero
+skips, retries or timeouts. Hosted cross-platform acceptance remains pending.
 
 Execution order: dependencies, CI repairs, this status reconciliation, then
 SRC-010 cold artifact/LMDB pagination and EMB-009 representative provider
-measurements. The latest audit classification is 38 bounded-verified, five
-qualification-limited, two partial, and zero missing; the older 45-item table
+measurements. Both follow-ups are implemented: fresh artifact/SQLite/LMDB
+processes hydrate 19,003 rows across eleven pages of a 10,000-row index;
+real fp32/q8 CPU measurements cover 24 mixed-length repository excerpts.
+The five-second full-wrapper fixture still fails on this Windows host, and
+q8 does not meet the existing 0.999 cosine threshold. See the
+[audit continuation receipt](archived/audit-continuation-2026-10-14.md).
+Current classification is 38 bounded-verified, seven qualification-limited,
+zero partial, and zero missing; the older 45-item table
 below records historical implementation rather than full current acceptance.
 
 ## PR 557 completion-audit follow-up
@@ -37,8 +44,9 @@ tests now cover those findings, with independent edge-case review. See the
 [repair record](archived/pr557-completion-audit-repairs-2026-10-12.md).
 The original table below remains the prior implementation/qualification receipt;
 it is not a replacement for the follow-up's fresh evidence. Cold artifact/LMDB
-all-page loading (SRC-010), representative provider measurements (EMB-009), and
-explicit platform/resource/model qualification limits remain open. No hosted CI
+all-page loading (SRC-010) and representative provider measurements (EMB-009)
+were subsequently addressed in the October 14 continuation above. Explicit
+wrapper/platform/resource/model qualification limits remain open. No hosted CI
 or merge was performed during this follow-up.
 
 ## Audit backlog implementation
