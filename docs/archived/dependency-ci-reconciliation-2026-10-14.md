@@ -52,3 +52,17 @@ Historical author-workspace logs: `.testLogs/run-1792028699419-ulteor` and
 process groups; Linux/macOS hosted confirmation remains outstanding.
 
 No push, merge, bot-PR closure, full index or release qualification is recorded.
+
+## Additional front-gate repair
+
+The environment-usage checker originally traversed historical temp checkouts
+and test-log probes. It now prunes excluded directories before traversal,
+including task-owned temp and test logs. A new focused regression proves actual
+source/tool violations remain rejected while the environment owner is allowed.
+The focused case passed in 403ms; historical local receipt:
+`.testLogs/run-1792029818563-nz47rp`. Config inventory was regenerated.
+
+The first generated-surface check failed because four archived source receipts
+were checked out as CRLF despite their existing LF attributes. Each file was
+verified against its committed Git bytes, then restored to those exact bytes.
+No archive content or contract was changed. Freshness subsequently passed.
