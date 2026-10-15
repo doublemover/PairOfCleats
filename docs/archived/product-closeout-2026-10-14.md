@@ -128,5 +128,18 @@ Gate receipt: `.testLogs/run-1792031489956-goefa9` (historical author-workspace)
 The first freshness check caught a mismatched roadmap audit/reconciliation date;
 the date was corrected and freshness passed without weakening its contract.
 `git diff --check` also passed. Documentation link and roadmap contract checks
-are run after the final receipt update. Hosted CI is not claimed as final-head
+passed after the final receipt update. Hosted CI is not claimed as final-head
 acceptance; broad cross-platform campaigns remain deferred.
+
+## Integration follow-up
+
+After the user requested continuation, #556 merged to main at `c2da7d72f`,
+#558 merged into #557 at `e536e169d`, and the combined #557 merged to main at
+`5e0060003304138386f659acdd897d84c9cc4cf7`. All three PR states were read back
+as MERGED. The combined branch and landed main trees exactly match candidate
+`ece2c60bde1ccc469b8517d296c6d20efff1d1d5`; no source or conflict-resolution
+changes were introduced. Existing review threads were empty and branch rules
+reported no blockers. Candidate hosted policy, gate and Rust checks had passed;
+platform jobs and fresh integration-head CI were not claimed complete. No extra
+platform campaign or package publication was initiated. Original commits and
+branches are retained. The earlier no-merge statements describe the prior phase.
