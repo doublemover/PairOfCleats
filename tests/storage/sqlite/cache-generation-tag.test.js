@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -78,6 +80,7 @@ try {
   const writer = new Database(sharedPath);
   try {
     writer.exec(CREATE_TABLES_SQL);
+    writeSqliteIndexFormat(writer);
     writer.pragma(`user_version = ${SCHEMA_VERSION}`);
     const insert = writer.prepare('INSERT INTO chunks (id, chunk_id, mode, file) VALUES (?, ?, ?, ?)');
     modes.forEach((mode, index) => insert.run(index + 1, `chunk-${mode}`, mode, `${mode}.txt`));
@@ -86,12 +89,14 @@ try {
   }
   await fs.copyFile(sharedPath, separatePath);
   const invalidWriter = new Database(invalidPath);
+  invalidWriter.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(invalidWriter);
   invalidWriter.close();
   const originalStat = await fs.stat(sharedPath);
 
   const sqliteStates = Object.fromEntries(modes.map((mode) => [mode, {
     buildId: `build-${mode}`,
-    artifactSurfaceVersion: 1,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     profile: { id: 'default', schemaVersion: 1 },
     sqlite: { ready: true, pending: false }
   }]));

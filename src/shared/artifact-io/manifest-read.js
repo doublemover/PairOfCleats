@@ -1,3 +1,4 @@
+import { retainCachePathAccess } from '../cache/repo-access.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
@@ -57,6 +58,7 @@ export const assertPiecesManifestFormat = (dir, manifest, repoRoot = process.cwd
 };
 
 export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}) => {
+  retainCachePathAccess(dir);
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
   if (!existsOrBak(manifestPath)) return assertPiecesManifestFormat(dir, null, repoRoot);
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
@@ -114,6 +116,7 @@ export const loadPiecesManifestWithReadPlan = async (
   dir,
   options = {}
 ) => {
+  retainCachePathAccess(dir);
   const plan = resolvePiecesManifestReadPlan(options);
   if (plan.manifest) return assertPiecesManifestFormat(dir, plan.manifest, options.repoRoot);
   const readManifest = typeof options.readManifest === 'function'

@@ -1,3 +1,4 @@
+import { retainCachePathAccess } from '../shared/cache/repo-access.js';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
 import { createBackendDisposer } from './cli/backend-disposal.js';
 import {
@@ -62,6 +63,7 @@ export async function createLmdbBackend(options) {
   }
 
   const openStore = async (storePath, label) => {
+    retainCachePathAccess(storePath);
     if (!hasLmdbStore(storePath)) return null;
     const db = open({ path: storePath, readOnly: true });
     if (!closeByDb.has(db)) {
