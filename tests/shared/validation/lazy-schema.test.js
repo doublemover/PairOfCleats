@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { compileSchema, createAjv } from '../../../src/shared/validation/ajv-factory.js';
+const ajv = createAjv({ allErrors: true, strict: true });
+let compilations = 0;
+const original = ajv.compile.bind(ajv);
+ajv.compile = (...args) => { compilations++; return original(...args); };
+const schema = {type:'object',required:['id'],properties:{id:{type:'integer'}},additionalProperties:false};
+const validate = compileSchema(ajv,schema,{lazy:true});
+schema.required.length=0;
+assert.equal(compilations,0);
+assert.equal(validate.errors,null);
+assert.equal(validate({}),false,'snapshot the declared schema before deferred compilation');
+assert.ok(validate.errors.some(error=>error.keyword==='required'));
+assert.equal(validate({id:1}),true);
+assert.equal(validate.errors,null,'successful calls clear previous validation errors');
+assert.equal(compilations,1,'reuse the compiled validator');
+assert.throws(()=>compileSchema(ajv,{type:'invalid'}),'eager callers retain eager failures');
+console.log('lazy validator preserves validation and error ownership');

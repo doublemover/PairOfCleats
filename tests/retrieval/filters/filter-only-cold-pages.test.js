@@ -29,7 +29,9 @@ try {
   assert.equal(scans, 10000, 'predicate work is linear across fresh processes');
   const files = await fs.readdir(path.join(root, 'filter-enumeration-v1'));
   const entry = path.join(root, 'filter-enumeration-v1', files.find(file => file.endsWith('.bin')));
-  const corrupt = await fs.readFile(entry); corrupt[corrupt.length - 1] ^= 1;
+  const corrupt = await fs.readFile(entry);
+  const headerBytes = corrupt.readUInt32LE();
+  corrupt[4 + headerBytes + 10000 * 4 - 1] ^= 1;
   await fs.writeFile(entry, corrupt);
   const last = await page({ cursor: (await page({})).pagination.nextCursor });
   // The first block remains valid. Damage to a later page must trigger a scan

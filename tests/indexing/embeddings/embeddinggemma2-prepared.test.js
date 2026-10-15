@@ -135,7 +135,9 @@ try {
   assert.deepEqual(unloaded.sessions, []);
   assert.equal(unloaded.requestedSessionOptions.intraOpNumThreads, 6);
   assert.equal(loads.length, 0, 'telemetry must not trigger model loading');
-  assert.equal(adapter, getEmbeddingAdapter({ ...config, sessionOptions: { ...options } }));
+  const sibling = getEmbeddingAdapter({ ...config, sessionOptions: { ...options } });
+  assert.notEqual(adapter, sibling, 'matching options share the model through independent leases');
+  await sibling.dispose();
   const items = await adapter.prepare(['a']);
   assert.equal((await adapter.embedPrepared(items))[0].length, 768);
   assert.deepEqual(loads[0].session_options, options);

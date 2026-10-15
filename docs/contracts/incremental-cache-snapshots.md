@@ -20,6 +20,10 @@ shard has an immutable content identity. Stage1 `resume-*` snapshots remain pinn
 independently of richer Stage2/Stage3 `snapshot-*` replacements. Changes to current
 dependencies still use the existing per-stage refresh policy after snapshot
 admission. A bad file is a cache miss; intact siblings remain reusable.
+After durable manifest publication and writer drain, the same collector retires
+unreferenced ordinary `snapshot-*` files even when semantic indexing is disabled.
+This recovers snapshots abandoned between bundle write and manifest publication;
+the nonsemantic sweep leaves retained Stage1 descriptors and semantic objects alone.
 
 Bundle source keys normalize separators and dot aliases to safe repository
 relative POSIX keys. Absolute paths, root escapes and NUL bytes are rejected.

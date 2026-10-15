@@ -53,9 +53,11 @@ Deferred C bindings now use the existing durable task, attempt and
 relations-scheduler owners. The bounded Linux ELF route requires direct `.c`
 sources, an existing arguments-only `compile_commands.json` (at most 64 entries),
 an actual clang driver and clangd, explicit `-std=c11` or `-std=c17`, `-nostdinc`
-and `-ffreestanding`. Project-contained literal includes and simple defines are
-supported; shell command entries, driver queries, plugins, builds, default system
-headers, macro includes, dynamic preprocessing, symlinks and unsupported flags are
+and `-ffreestanding`. Project-contained literal includes with scanned `.c`, `.h`,
+or `.inc` targets and simple defines are supported. Other included extensions and
+digraph/trigraph preprocessing remain unsupported; shell command entries, driver
+queries, plugins, builds, default system headers, macro includes, dynamic
+preprocessing, symlinks and unsupported flags are
 not admitted. It inventories at most 512 files/16 MiB and 128 project directories,
 4096 include probes, plus at most 128 installed ELF/loader members/1 GiB. Explicit
 absolute `LD_LIBRARY_PATH` directories participate in the same hashed dependency
@@ -89,7 +91,10 @@ elements. Same-source const aliases retain allocation identity. Unique unescaped
 fields use strong updates; concrete `slice` copies capture the state at that program
 point, while concrete `subarray` views read the same backing storage. The CFG owns
 these value paths, so unordered storage projections and coarse copy/unknown-call
-channels do not reintroduce overwritten or post-snapshot inputs. These are modeled
+channels do not reintroduce overwritten or post-snapshot inputs. Whole-array
+construction and returned live views retain their modeled
+aggregate inputs as well as the field-level channels. One source-owner/capture
+inventory is shared across the document's function analyses. These are modeled
 static identities and API assumptions, not observed allocation identity or counts.
 Dynamic keys/offsets, mutable pointer aliases, nested storage paths, accessors,
 escapes/captures, recovering exceptions, loops, suspension and memory-growth epochs

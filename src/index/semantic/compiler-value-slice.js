@@ -8,7 +8,7 @@ import { throwIfAborted } from '../../shared/abort.js';
  */
 export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes, expressionFor,
   observations, source, bytes, bindingPartition, context, isDefaultLibrary, root, policy, diskAccount, signal,
-  orderedOperations = new Set() }) => {
+  orderedOperations = new Set(), orderedAccesses = new Set() }) => {
   if (policy.enrichment.localFlow === 'off' || policy.enrichment.localFlow === 'deferred') return null;
   const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-value-slice', version: SEMANTIC_ANALYSIS_VERSIONS.valueSlice },
     inputPartitionHashes: [bindingPartition.canonicalHash], compilerContext: context,
@@ -55,7 +55,8 @@ export const collectCompilerValueSlice = async ({ ts, checker, sourceFile, nodes
     if (ts.isIdentifier(node)) {
       const symbol = ts.isShorthandPropertyAssignment(node.parent) ? checker.getShorthandAssignmentValueSymbol(node.parent) : checker.getSymbolAtLocation(node);
       const value = constants.get(symbol);
-      if (value && !(ts.isVariableDeclaration(node.parent) && node.parent.name === node)) {
+      if (value && !orderedAccesses.has(canonicalSemanticJson(target))
+        && !(ts.isVariableDeclaration(node.parent) && node.parent.name === node)) {
         edge('reads', value, target);
         const owner = ownerOf(node);
         if (owner && owner !== declarationOwners.get(symbol)) edge('captures', value, expressionFor(owner));

@@ -23,12 +23,13 @@ try {
     function escaped(){const buffer=new Uint8Array([41]);leak(buffer);buffer[0]=42;return buffer[0];}
     function dynamic(offset:number){const buffer=new Uint8Array([51]);const view=buffer.subarray(offset);return view[0];}
     function recovering(){const box={value:61};try{box.value=62;}catch{}return box.value;}
+    function captured(){const buffer=new Uint8Array([71]);const read=()=>buffer[0];buffer[0]=72;return read();}
   ` }, {}, { withFlow: true });
   const doc = fixture.documents[0], flow = fixture.group.flowDocuments[0], { ts, sourceFile, expressionFor } = doc;
   const added = [];
   const args = { ...doc, source: doc.item.source, root: fixture.stagingRoot, context: fixture.group.context,
     isDefaultLibrary: fixture.group.isDefaultLibrary, diskAccount: fixture.state.semanticDiskAccount };
-  const slice = await collectCompilerValueSlice({ ...args, orderedOperations: flow.orderedOperations });
+  const slice = await collectCompilerValueSlice({ ...args, orderedOperations: flow.orderedOperations, orderedAccesses: flow.orderedAccesses });
   const storage = await collectCompilerStorageFlow({ ...args, orderedAccesses: flow.orderedAccesses });
   added.push(slice.partition, storage.partition, ...await collectCompilerCrossFileFlow(fixture));
   backends = await createCompilerTraceBackends(fixture, [...fixture.syntaxPartitions, ...added]);
@@ -53,6 +54,7 @@ try {
   assert.ok(!flow.orderedOperations.has(canonicalSemanticJson(expressionFor(dynamic))), 'dynamic offset remains outside the precise subset');
   assert.ok(await reaches(literal('escaped', 41), expression('escaped', 'buffer[0]', 1)), 'escape retains older may-alternatives');
   assert.ok(!flow.orderedAccesses.has(canonicalSemanticJson(expression('recovering', 'box.value', 0))), 'recovering exceptional paths retain conservative state');
+  assert.ok(!flow.orderedAccesses.has(canonicalSemanticJson(expression('captured', 'buffer[0]', 1))), 'owner-local indexing retains nested capture escapes');
   const counts = { records: 0, edges: 0 };
   for (const partition of [...fixture.syntaxPartitions, ...added]) {
     for await (const _row of backends.artifact.iterateRows(partition.partitionId, 'semantic_records')) counts.records += 1;

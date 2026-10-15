@@ -307,6 +307,8 @@ await fs.writeFile(stubbornShutdownScriptPath, [
 ].join('\n'), 'utf8');
 
 const stubbornEvents = [];
+let markStubbornStarted;
+const stubbornStarted = new Promise(resolve => { markStubbornStarted = resolve; });
 const stubbornPool = createSearchWorkerPool({
   size: 1,
   env: { ...process.env },
@@ -314,15 +316,19 @@ const stubbornPool = createSearchWorkerPool({
   heartbeatMs: 20,
   stallWarnMs: 1000,
   stallTimeoutMs: 2000,
-  onEvent: (event) => stubbornEvents.push(event)
+  onEvent: (event) => {
+    stubbornEvents.push(event);
+    if (event?.type === 'run-start') markStubbornStarted();
+  }
 });
 const stubbornRun = stubbornPool.run(['--slow'], { backend: 'sqlite', query: 'stubborn close' });
 const stubbornRunAssertion = assert.rejects(
   () => stubbornRun,
   (error) => error?.code === 'ERR_QUERY_WORKER_CLOSED'
 );
-await new Promise((resolve) => setTimeout(resolve, 40));
+await stubbornStarted;
 const stubbornPid = stubbornEvents.find((event) => event?.type === 'run-start')?.pid ?? null;
+assert.ok(Number.isFinite(stubbornPid), 'shutdown acceptance requires a started child');
 await stubbornPool.close();
 await stubbornRunAssertion;
 if (Number.isFinite(stubbornPid)) {

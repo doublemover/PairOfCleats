@@ -62,7 +62,8 @@ export async function getQueryEmbedding({
       onnxConfig,
       normalize,
       modelProfile: profile,
-      modelArtifact
+      modelArtifact,
+      retainInCache: true
     });
     const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
       ? inputFormatting

@@ -57,6 +57,25 @@ const inventoryFiles = (root, prefix = '', depth = 0) => {
   return out;
 };
 
+// Match the pinned Transformers.js loader's repository-ID/direct-path split
+// without initializing a provider. Invalid repository IDs (including bare local
+// paths with multiple slashes) are direct paths, not cache-relative model IDs.
+const isRepositoryId = id => /^(\b[\w.-]+\b\/)?\b[\w.-]{1,96}\b$/u.test(id)
+  && !id.includes('..') && !id.includes('--') && !/\.(?:git|ipynb)$/u.test(id);
+const resolveArtifactRoot = (id, modelsDir) => {
+  if (typeof id !== 'string' || !id) return null;
+  if (!isRepositoryId(id)) {
+    const directRoot = path.resolve(id);
+    const cacheRoot = modelsDir ? path.resolve(path.join(modelsDir, id)) : null;
+    // Transformers checks its filesystem cache before direct local files. A
+    // shadow inventory can mix sources file-by-file; refuse that ambiguous
+    // authority rather than verify only the direct directory.
+    if (cacheRoot && cacheRoot !== directRoot && inventoryFiles(cacheRoot).length) return null;
+    return directRoot;
+  }
+  return modelsDir ? path.join(modelsDir, id) : null;
+};
+
 /** No provider loading or network I/O. Unknown evidence is scoped to one attempt. */
 export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir, rootDir,
   onnx = null, modelProfile = null, stub = false } = {}) => {
@@ -66,19 +85,21 @@ export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir,
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
-  const modelRoot = typeof modelId === 'string' && fs.existsSync(modelId)
-    ? path.resolve(modelId) : modelsDir && modelId ? path.join(modelsDir, modelId) : null;
+  const modelRoot = resolveArtifactRoot(modelId, modelsDir);
   const tokenizerId = onnx?.tokenizerId || modelId;
-  const tokenizerRoot = modelsDir && tokenizerId ? path.join(modelsDir, tokenizerId) : modelRoot;
+  const tokenizerRoot = resolveArtifactRoot(tokenizerId, modelsDir);
   const rootFiles = inventoryFiles(provider === 'onnx' ? tokenizerRoot : modelRoot);
+  const tokenizerFiles = rootFiles.filter(({ rel, filePath }) => !rel.includes('/')
+    && TOKENIZER_FILES.has(path.basename(filePath)));
   const files = provider === 'onnx' && modelPath
     ? [{ rel: 'weights/model.onnx', filePath: modelPath },
-      ...inventoryFiles(path.dirname(modelPath)).filter(({ filePath }) => filePath !== modelPath)
+      ...inventoryFiles(path.dirname(modelPath)).filter(({ filePath }) => filePath !== modelPath
+        && !TOKENIZER_FILES.has(path.basename(filePath)))
         .map(({ rel, filePath }) => ({ rel: `weights/${rel}`, filePath })),
-      ...rootFiles.map(({ rel, filePath }) => ({ rel: `tokenizer/${rel}`, filePath }))]
+      ...tokenizerFiles.map(({ rel, filePath }) => ({ rel: `tokenizer/${rel}`, filePath }))]
     : rootFiles;
   const hasWeights = files.some(({ filePath }) => /\.onnx$/u.test(filePath));
-  const hasTokenizer = files.some(({ filePath }) => /(?:tokenizer\.json|vocab\.(?:json|txt)|(?:tokenizer|spiece)\.model|sentencepiece\.bpe\.model)$/u.test(filePath));
+  const hasTokenizer = tokenizerFiles.some(({ filePath }) => /(?:tokenizer\.json|vocab\.(?:json|txt)|(?:tokenizer|spiece)\.model|sentencepiece\.bpe\.model)$/u.test(filePath));
   if (!hasWeights || !hasTokenizer) return unknown(modelPath ? fingerprintFile(modelPath).sha256 : null);
   const seen = new Set();
   const inventory = files.filter(({ rel }) => !seen.has(rel) && seen.add(rel))
