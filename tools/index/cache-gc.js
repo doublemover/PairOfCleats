@@ -105,10 +105,21 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
 
   const entries = await fs.readdir(repoRoot, { withFileTypes: true });
   const repos = [];
+  const protectedRepos = [];
   const needsSizeScan = maxBytes != null;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const repoPath = path.join(repoRoot, entry.name);
+    // Offline whole-repository cleanup must never knowingly remove active
+    // ownership. This guard is not an online reader-admission protocol.
+    const locks = await fs.readdir(path.join(repoPath, 'locks')).catch((error) => {
+      if (error.code === 'ENOENT') return [];
+      return ['unreadable-lock-directory'];
+    });
+    if (locks.length) {
+      protectedRepos.push({ id: entry.name, reason: 'lock-present', locks });
+      continue;
+    }
     const stat = await fs.stat(repoPath);
     const repo = {
       id: entry.name,
@@ -164,6 +175,14 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       process.exit(1);
     }
     if (dryRun) continue;
+    const currentLocks = await fs.readdir(path.join(repo.path, 'locks')).catch((error) => (
+      error.code === 'ENOENT' ? [] : ['unreadable-lock-directory']
+    ));
+    if (currentLocks.length) {
+      failedRemovals.push({ id: repo.id, path: path.resolve(repo.path), reason: repo.reason,
+        code: 'ERR_CACHE_IN_USE', message: 'Ownership appeared after planning; cache preserved.', attempts: 0 });
+      continue;
+    }
     const deleteResult = await removePathWithRetry(repo.path, {
       recursive: true,
       force: true,
@@ -209,6 +228,8 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       reason: repo.reason
     })),
     failedRemovals,
+    protectedRepos,
+    coordination: 'offline-only',
     plannedBytes: freedBytes,
     freedBytes: dryRun ? 0 : removals.filter((repo) => !failedRemovals.some((failure) => failure.id === repo.id))
       .reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
@@ -217,7 +238,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error(`Cache GC: ${removals.length} repo(s) removed, freed ${formatBytes(freedBytes)}.`);
+    console.error(`Cache GC: ${removals.length} repo(s) ${dryRun ? 'planned' : 'selected'}; ${dryRun ? 'planned' : 'freed'} ${formatBytes(payload.freedBytes || (dryRun ? payload.plannedBytes : 0))}; ${protectedRepos.length} protected by locks.`);
     for (const repo of removals) {
       console.error(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.reason})`);
     }

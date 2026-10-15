@@ -51,7 +51,7 @@ export async function cleanArtifacts(args = {}, context = {}) {
  * @returns {object}
  */
 export async function reportArtifacts(args = {}) {
-  const { status: coreStatus } = await import('../../../../src/integrations/core/index.js');
+  const { status: coreStatus } = await import('../../../../src/integrations/core/status.js');
   const { repoPath } = resolveMcpRepoContext(args.repoPath, {
     includeRuntimeEnv: false,
     includeUserConfig: false
