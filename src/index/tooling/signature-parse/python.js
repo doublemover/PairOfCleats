@@ -99,7 +99,9 @@ export const parsePythonSignature = (detail) => {
   if (!candidate) return null;
   const signature = candidate.trim().replace(/:\s*$/, '');
   const open = signature.indexOf('(');
-  const close = signature.lastIndexOf(')');
+  // The last parenthesis can belong to a return annotation or function body.
+  const closingOffset = open < 0 ? -1 : findTopLevelIndex(signature.slice(open), ')');
+  const close = closingOffset < 0 ? -1 : open + closingOffset;
   if (open === -1 || close === -1 || close < open) return null;
   const paramsText = signature.slice(open + 1, close).trim();
   const after = signature.slice(close + 1).trim();
