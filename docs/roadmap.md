@@ -2,152 +2,46 @@
 
 Status: Active
 Last audited: 2026-10-14
-Last reconciled: 2026-10-14
+Last reconciled: 2026-10-15
 Canonical for: initiative status, execution order, and remaining work
 
-## Dependency and CI reconciliation, October 14
+## Current product follow-up
 
-The stack is landed on `main` at `5e0060003304138386f659acdd897d84c9cc4cf7`.
-PR #556 merged first; #558 merged into #557, then the combined #557 merged
-into main. The landed tree exactly matches tested candidate `ece2c60bd`.
-Integration-head CI runs automatically; it is not yet final-head acceptance.
-Live GitHub inspection found zero open Dependabot security alerts and twelve
-version-update PRs, now closed as superseded by #558. Their updates are pushed in `dae8ecd62`, including
-the JSON-RPC 9 Node entry point and coordinated artifact-action contract updates.
+User priority order: JS/TS precision, real edit-to-search latency, search relevance,
+then actionable freshness. The implementation adds immutable computed keys and
+function aliases, real filesystem-watch publication/search coverage, exact symbol
+and filename ranking, and bounded hash comparisons of indexed source files.
+The watch experiment reproduced a Parcel subscription cleanup defect; it is
+repaired. Optional MCP build imports now load on demand. Complete context-pack
+responses have a 128 KiB ceiling with explicit optional-section omissions.
+Whole-repository cleanup protects lock-bearing caches and remains offline-only.
 
-Hosted CI on the original repair head passed gate/Rust but failed eight fixtures
-on Ubuntu/macOS and seven on Windows (one Windows skip). Those eight fixtures
-now pass locally on Windows after lifecycle repairs and current-contract fixture
-corrections. This is not a hosted rerun or cross-platform acceptance. Twenty
-dependency-focused fixtures also pass. Initial failures and environment limits
-remain in the [reconciliation receipt](archived/dependency-ci-reconciliation-2026-10-14.md).
-The final local front gate passes, including all 39 gate cases with zero
-skips, retries or timeouts. Hosted cross-platform acceptance remains pending.
+Validation and limitations are recorded in the
+[follow-up receipt](archived/product-follow-up-2026-10-14.md).
+The preceding 45-item audit table and completed product batches are preserved in
+[the prior roadmap snapshot](archived/roadmap-product-wins-2026-10-14.md).
+The audit classification remains 39 bounded-verified and six qualification-limited.
 
-Execution order: dependencies, CI repairs, this status reconciliation, then
-SRC-010 cold artifact/LMDB pagination and EMB-009 representative provider
-measurements. Both follow-ups are implemented: fresh artifact/SQLite/LMDB
-processes hydrate 19,003 rows across eleven pages of a 10,000-row index;
-real fp32/q8 CPU measurements cover 24 mixed-length repository excerpts.
-The five-second full-wrapper failure was subsequently repaired in the product
-closeout below. Embedding work, including the q8 precision limit, is deferred
-by user direction. See the
-[audit continuation receipt](archived/audit-continuation-2026-10-14.md).
-Current classification is 39 bounded-verified, six qualification-limited,
-zero partial, and zero missing; the older 45-item table
-below records historical implementation rather than full current acceptance.
+Next concrete work, when separately scoped:
 
-## PR 557 completion-audit follow-up
+1. Reader admission and lifetime leases for safe online whole-repository cleanup.
+   Existing writer locks cannot protect active search readers or close admission
+   races during deletion; a pre-delete lock check is not an online protocol.
+2. New/unindexed file discovery and live watcher identity verification for full
+   freshness. Current hash comparison covers indexed paths, reports unknowns and
+   limits, and never infers complete freshness from a saved watcher receipt.
+3. Representative search-quality acceptance beyond the focused exact-lookup
+   regression, plus retained-heap analysis if MCP memory remains a practical issue.
+4. Remaining semantic precision and release qualification listed below.
 
-The follow-up at `6125e534ec8a2d588688c8c3b107bad268d6cd90` confirmed substantive
-implementation across all 45 items and reproduced ten additional regressions plus
-one existing repeated-build RE2 failure. Targeted local repairs and regression
-tests now cover those findings, with independent edge-case review. See the
-[repair record](archived/pr557-completion-audit-repairs-2026-10-12.md).
-The original table below remains the prior implementation/qualification receipt;
-it is not a replacement for the follow-up's fresh evidence. Cold artifact/LMDB
-all-page loading (SRC-010) and representative provider measurements (EMB-009)
-were subsequently addressed in the October 14 continuation above. Explicit
-wrapper/platform/resource/model qualification limits remain open. No hosted CI
-or merge was performed during this follow-up.
-
-## Audit backlog implementation
-
-The current task implements all 45 items from the October 12 audit, starting at
-`bb9901ac808a24629c8004ddd2479006716498be` on
-`codex/audit-backlog-implementation-20261012`. The uploaded evidence archive's
-41 SHA-256 entries match. Attachments define evidence and scope; the user's
-implementation and validation workflow controls execution.
-
-Four durable GPT-6.1 Sol agents at xhigh own embeddings, semantics, interfaces,
-and storage/runtime. The coordinator owns quality, TUI, and shared integration.
-Source, fixtures, contracts, documentation, and measurement instrumentation are
-frontloaded. During implementation, only owned formatting/lint, applicable type
-checks, syntax checks, and diff checks run. The integrated lightweight boundary
-passed; strict timeout acceptance passed first. All focused owner selections,
-native Linux TUI cleanup, and native C authority passed. Real-model and
-runtime-cost qualification passed within recorded limits. Actual browser layout and service qualification
-passed. The prescribed final front gate passed: 39 cases, zero skips/timeouts,
-retries or native redos. Initial failures remain in the detailed receipts.
-
-Official Node 26.8.1 bootstrap and supported native repair completed. Setup assets
-include task-owned Rust 1.88, LLVM/clangd 19.1.7, Chromium 141, and verified q8/fp32
-MiniLM files. Asset availability does not establish provider/project acceptance.
-Supported native verification now passes the registered grammar activation probes
-and refreshed the real readiness receipt. Actual provider/project qualification
-is independently recorded.
-
-Completed order: all implementation and lightweight checks first; previewed
-focused fixtures with jobs=1, timeout=30s, retries=0; bounded measurements and
-real browser/native qualification; the prescribed integrated front gate. Failure
-corrections reran their affected cases only. There are 148 unique accepted focused
-cases plus the 39-case gate; final documentation link/USR checks also pass.
-
-`done` means implemented; `pass` means the applicable check passed. Focused
-tests and qualification are independently recorded. Bounded qualification does
-not imply every native platform, provider, corpus or precision variant passed. [Detailed receipts and limits](archived/audit-backlog-implementation-2026-10-12.md)
-retain the implementation contracts and later acceptance results.
-
-| Item | Implemented | Lightweight | Focused-tested | Qualified |
-| --- | --- | --- | --- | --- |
-| EMB-001 | done | pass | pass | fp32/native-ref pass |
-| EMB-002 | done | pass | pass | fp32/native-ref pass |
-| EMB-003 | done | pass | pass | bounded pass |
-| EMB-004 | done | pass | pass | bounded pass |
-| EMB-005 | done | pass | pass | bounded pass |
-| EMB-006 | done | pass | pass | bounded pass |
-| EMB-007 | done | pass | pass | bounded pass |
-| EMB-008 | done | pass | pass | bounded pass |
-| EMB-009 | done | pass | pass | CPU pass; q8 limit |
-| EMB-010 | done | pass | pass | bounded pass |
-| EMB-011 | done | pass | pass | bounded pass |
-| QUAL-001 | done | pass | pass | bounded pass |
-| QUAL-002 | done | pass | pass | bounded pass |
-| QUAL-003 | done | pass | pass | bounded pass |
-| QUAL-004 | done | pass | pass | bounded pass |
-| QUAL-005 | done | pass | pass | bounded pass |
-| SEM-001 | done | pass | pass | bounded pass |
-| SEM-002 | done | pass | pass | bounded pass |
-| SEM-003 | done | pass | pass | bounded pass |
-| SEM-004 | done | pass | pass | bounded pass |
-| SEM-005 | done | pass | pass | bounded pass |
-| SEM-006 | done | pass | pass | bounded pass |
-| SEM-007 | done | pass | pass | bounded pass |
-| SEM-008 | done | pass | pass | bounded pass |
-| SRC-001 | done | pass | pass | bounded pass |
-| SRC-002 | done | pass | pass | bounded pass |
-| SRC-003 | done | pass | pass | bounded pass |
-| SRC-004 | done | pass | pass | bounded pass |
-| SRC-005 | done | pass | pass | bounded pass |
-| SRC-006 | done | pass | pass | bounded pass |
-| SRC-007 | done | pass | pass | bounded pass |
-| SRC-008 | done | pass | pass | Linux pass; platforms open |
-| SRC-009 | done | pass | pass | bounded pass |
-| SRC-010 | done | pass | pass | bounded pass |
-| SRC-011 | done | pass | pass | bounded pass |
-| SRC-012 | done | pass | pass | browser/software pass |
-| SRC-013 | done | pass | pass | bounded pass |
-| SRC-014 | done | pass | pass | bounded pass |
-| STO-001 | done | pass | pass | bounded pass |
-| STO-002 | done | pass | pass | bounded pass |
-| STO-003 | done | pass | pass | bounded pass |
-| STO-004 | done | pass | pass | bounded pass |
-| STO-005 | done | pass | pass | bounded pass |
-| STO-006 | done | pass | pass | bounded pass |
-| STO-007 | done | pass | pass | bounded pass |
-
-
-Qualified limits: official q8 batch/single cosine remains below the prepared 0.999
-threshold; direct native output reproduces it, while strict fp32 mechanism checks
-pass. Native Windows/macOS, hardware GPU, full-corpus quality/performance and other
-providers remain unqualified. Automatic native cost admission still lacks child
-RSS evidence. The 1024-node runtime sample refuses its 16 MiB cap; smaller/family
-cohorts qualify. Saved synthetic observations are labelled; Perfetto was optional.
+The old native crash was not reproduced in its bounded investigation. Per user
+instruction it is closed as non-reproduced and reopens only on new evidence.
+Embeddings and broad cross-platform CI remain outside this batch.
 
 ## Other current work and validation limits
 
 The audit task does not close release-wide acceptance, unrelated Windows cold-index
-EBUSY investigation, the parked Windows native crash, full-index throughput,
+EBUSY investigation, full-index throughput,
 optional provider/platform campaigns, or the calibrated estimator. Native C work
 is bounded to the qualified clangd authority route; other native provider and
 local/cross-file precision limits remain explicit. Perfetto remains optional.
@@ -233,7 +127,7 @@ User-selected follow-up: items 3, 4 and 6-20 from the product-win proposal.
 Items 1, 2 and 5 are not in this batch. Embeddings and broad cross-platform CI
 remain deferred. Implementation and bounded checks are recorded in the
 [product receipt](archived/product-wins-2026-10-14.md). Local install/upgrade qualification and the publication gate pass. This is
-not cross-platform release acceptance. The prior native crash remains unresolved.
+not cross-platform release acceptance. The prior native crash was not reproduced; reopen only on new evidence.
 
 | Item | Required outcome | Status |
 | --- | --- | --- |
