@@ -68,7 +68,7 @@ export const resolveAstMemberName = (node, options = {}) => {
     const prop = node.computed
       ? (node.property?.type === 'StringLiteral' || node.property?.type === 'Literal'
         ? String(node.property.value)
-        : null)
+        : (options.constantKeys?.get(node.property) ?? null))
       : (node.property?.name || node.property?.id?.name || null);
     // A dynamic key is not a call to the receiver itself. Likewise, do not turn
     // an unresolved receiver into a precise global call to its property name.
