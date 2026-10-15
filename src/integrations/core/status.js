@@ -11,6 +11,7 @@ import { sizeOfPath } from '../../shared/disk-space.js';
 import { hasLmdbStore } from '../../storage/lmdb/utils.js';
 import { readIndexCoverage, readCurrentProvenance } from './status-coverage.js';
 import { compareIndexedFiles } from './status-freshness.js';
+import { discoverFreshnessFiles } from './status-discovery.js';
 
 const MAX_STATUS_JSON_BYTES = 8 * 1024 * 1024;
 
@@ -179,11 +180,14 @@ export async function getStatus(input = {}) {
     repoCacheRoot,
     indexes: { code: indexCodeDir, prose: indexProseDir, 'extracted-prose': indexExtractedProseDir, records: indexRecordsDir }
   });
+  const discovery = await discoverFreshnessFiles({ repoRoot: root, userConfig });
+  coverage.discovery = { status: discovery.status };
   for (const [mode, indexDir] of Object.entries({ code: indexCodeDir, prose: indexProseDir,
     'extracted-prose': indexExtractedProseDir, records: indexRecordsDir })) {
-    coverage.modes[mode].workingTree = await compareIndexedFiles({ repoRoot: root, indexDir });
+    coverage.modes[mode].workingTree = await compareIndexedFiles({ repoRoot: root, indexDir,
+      currentFiles: discovery.files?.[mode], discoveryStatus: discovery.status });
   }
-  coverage.workingTreeComparison = 'bounded-indexed-files';
+  coverage.workingTreeComparison = 'bounded-indexed-files-and-discovery';
   const payload = {
     coverage,
     repo: {

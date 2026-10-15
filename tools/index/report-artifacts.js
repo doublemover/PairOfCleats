@@ -338,11 +338,11 @@ for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
   console.error(`  revision comparison: ${coverage.revisionComparison}`);
   if (coverage.files?.skippedByReason) console.error(`  skipped reasons: ${JSON.stringify(coverage.files.skippedByReason)}`);
 }
-console.error('- working-tree freshness: bounded comparison of indexed files; new/unindexed files are not checked');
+console.error(`- working-tree freshness: bounded indexed-file comparison and new-file discovery (${status.coverage?.discovery?.status || 'unknown'})`);
 for (const [mode, coverage] of Object.entries(status.coverage?.modes || {})) {
   const comparison = coverage.workingTree;
   if (!comparison) continue;
-  console.error(`  ${mode}: ${comparison.status}; ${comparison.unchanged} unchanged; changed ${JSON.stringify(comparison.changed)}; missing ${JSON.stringify(comparison.missing)}; unknown ${JSON.stringify(comparison.unknown)}${comparison.truncated ? '; truncated' : ''}`);
+  console.error(`  ${mode}: ${comparison.status}; ${comparison.unchanged} unchanged; changed ${JSON.stringify(comparison.changed)}; missing ${JSON.stringify(comparison.missing)}; added ${JSON.stringify(comparison.added)}; unknown ${JSON.stringify(comparison.unknown)}${comparison.truncated ? '; truncated' : ''}`);
 }
 if (status.coverage?.watcher) console.error(`- watcher (last recorded): ${status.coverage.watcher.consistency}; backlog ${status.coverage.watcher.backlogDepth ?? 'unknown'}; process ${status.coverage.watcher.processStatus}; recorded ${status.coverage.watcher.recordedAt || 'unknown'}`);
 console.error(`- cache root: ${formatBytes(repo.totalBytes)} (${repoCacheRoot})`);

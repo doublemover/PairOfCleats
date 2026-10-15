@@ -6,6 +6,7 @@ import { readIndexCoverage, compareIndexRevision } from '../../../src/integratio
 import { compareIndexedFiles } from '../../../src/integrations/core/status-freshness.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { sha1 } from '../../../src/shared/hash.js';
+import { discoverFreshnessFiles } from '../../../src/integrations/core/status-discovery.js';
 
 assert.equal(compareIndexRevision({ commit: 'a', dirty: false }, { commit: 'b', dirty: false }), 'revision-changed');
 assert.equal(compareIndexRevision({ commit: 'a', dirty: false }, { commit: 'a', dirty: true }), 'working-tree-unverified');
@@ -33,6 +34,26 @@ try {
   assert.deepEqual(comparison.unknown, ['../outside.js']);
   assert.equal(comparison.newFilesChecked, false);
   assert.equal((await compareIndexedFiles({ repoRoot: root, indexDir, maxFiles: 1 })).truncated, true);
+  await fs.writeFile(path.join(root, 'new-module.js'), 'export const added = 1;');
+  await fs.writeFile(path.join(root, 'ignored.js'), 'export const ignored = 1;');
+  await fs.writeFile(path.join(root, '.pairofcleatsignore'), 'ignored.js\nactive/\n');
+  const discovery = await discoverFreshnessFiles({ repoRoot: root });
+  assert.equal(discovery.status, 'complete');
+  assert.ok(discovery.files.code.includes('new-module.js'));
+  assert.ok(!discovery.files.code.includes('ignored.js'));
+  assert.equal((await discoverFreshnessFiles({ repoRoot: root, maxFiles: 1 })).status, 'partial');
+  assert.equal((await discoverFreshnessFiles({ repoRoot: path.join(root, 'nonexistent') })).status, 'unavailable');
+  const capped = await discoverFreshnessFiles({ repoRoot: root, userConfig: { indexing: { maxFileBytes: 1 } } });
+  assert.equal(capped.status, 'complete');
+  assert.deepEqual(capped.files.code, []);
+  const withNew = await compareIndexedFiles({ repoRoot: root, indexDir,
+    currentFiles: discovery.files.code, discoveryStatus: discovery.status });
+  assert.deepEqual(withNew.added, ['new-module.js']);
+  assert.equal(withNew.newFilesChecked, true);
+  const partial = await compareIndexedFiles({ repoRoot: root, indexDir,
+    currentFiles: discovery.files.code, discoveryStatus: 'partial', maxFiles: 1 });
+  assert.equal(partial.newFilesChecked, false);
+  assert.deepEqual(partial.added, [], 'partial index inventory must not invent added paths');
   await fs.writeFile(path.join(root, 'index-code.json'), JSON.stringify({
     indexDir, generatedAt: '2026-10-14', files: { scanned: 8, skipped: 2, skippedByReason: { tooLarge: 2 } }, chunks: { total: 12 }
   }));
