@@ -42,9 +42,9 @@ const readKey = async (root, dir) => {
 
 /** Optional acceleration only: authenticate bounded metadata, then verify only
  * the opened blocks needed by this page. Failure always returns to the index. */
-export const readFilterMatchPage = async ({ cacheDir, identity, rowCount, offset, limit, throwIfAborted }) => {
+export const readFilterMatchPage = async ({ cacheDir, identity, rowCount = null, offset, limit, includeRows = false, throwIfAborted }) => {
   const dir = directory(cacheDir);
-  if (!dir) return null;
+  if (!dir || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1) return null;
   let handle;
   try {
     throwIfAborted?.();
@@ -59,36 +59,92 @@ export const readFilterMatchPage = async ({ cacheDir, identity, rowCount, offset
     if (typeof envelope.data !== 'string' || !/^[a-f0-9]{64}$/.test(envelope.mac)) return null;
     if (!timingSafeEqual(sign(envelope.data, key), Buffer.from(envelope.mac, 'hex'))) return null;
     const header = JSON.parse(envelope.data);
-    if (header.version !== 1 || header.identity !== identity || header.rowCount !== rowCount
-      || !Number.isSafeInteger(header.total) || header.total < 0 || header.total > rowCount
-      || header.total * 4 > FILTER_MATCH_ENTRY_BYTES || header.blockBytes !== BLOCK_BYTES
-      || !Array.isArray(header.hashes) || header.hashes.length !== Math.ceil(header.total * 4 / BLOCK_BYTES)
+    const bodyBytes = header.version === 1 ? header.total * 4 : header.bodyBytes;
+    const hasRows = header.version === 2;
+    if (![1, 2].includes(header.version) || header.identity !== identity
+      || !Number.isSafeInteger(header.rowCount) || header.rowCount < 0 || header.rowCount > 0xffffffff
+      || rowCount != null && header.rowCount !== rowCount
+      || !Number.isSafeInteger(header.total) || header.total < 0 || header.total > header.rowCount
+      || !Number.isSafeInteger(bodyBytes) || bodyBytes < header.total * 4 || bodyBytes > FILTER_MATCH_ENTRY_BYTES
+      || hasRows && bodyBytes < header.total * 8 + 4 || header.blockBytes !== BLOCK_BYTES
+      || !Array.isArray(header.hashes) || header.hashes.length !== Math.ceil(bodyBytes / BLOCK_BYTES)
       || header.hashes.some(value => !/^[a-f0-9]{64}$/.test(value))
-      || opened.stat.size !== 4 + size + header.total * 4) return null;
+      || opened.stat.size !== 4 + size + bodyBytes) return null;
     const end = Math.min(header.total, offset + limit);
-    const ids = new Uint32Array(Math.max(0, end - offset));
+    const count = Math.max(0, end - offset), ids = new Uint32Array(count);
     let bytes = 32 + 4 + size;
-    for (let block = Math.floor(offset * 4 / BLOCK_BYTES); block < Math.ceil(end * 4 / BLOCK_BYTES); block += 1) {
-      throwIfAborted?.();
-      const start = block * BLOCK_BYTES;
-      const buffer = await readExact(handle, Buffer.alloc(Math.min(BLOCK_BYTES, header.total * 4 - start)), 4 + size + start);
-      bytes += buffer.length;
-      if (sha(buffer) !== header.hashes[block]) return null;
-      for (let i = Math.max(offset, start / 4); i < Math.min(end, (start + buffer.length) / 4); i += 1) {
-        const id = buffer.readUInt32LE(i * 4 - start);
-        if (id >= rowCount || i > offset && id <= ids[i - offset - 1]) return null;
-        ids[i - offset] = id;
+    const blocks = new Map();
+    const readRange = async (start, length) => {
+      if (start < 0 || length < 0 || start + length > bodyBytes) throw new Error('Invalid continuation range.');
+      const result = Buffer.alloc(length);
+      for (let block = Math.floor(start / BLOCK_BYTES); length && block < Math.ceil((start + length) / BLOCK_BYTES); block++) {
+        throwIfAborted?.();
+        let buffer = blocks.get(block);
+        const blockStart = block * BLOCK_BYTES;
+        if (!buffer) {
+          buffer = await readExact(handle, Buffer.alloc(Math.min(BLOCK_BYTES, bodyBytes - blockStart)), 4 + size + blockStart);
+          bytes += buffer.length;
+          if (sha(buffer) !== header.hashes[block]) throw new Error('Corrupt continuation block.');
+          blocks.set(block, buffer);
+        }
+        const from = Math.max(start, blockStart), to = Math.min(start + length, blockStart + buffer.length);
+        buffer.copy(result, from - start, from - blockStart, to - blockStart);
+      }
+      return result;
+    };
+    const idBytes = count ? await readRange(offset * 4, count * 4) : Buffer.alloc(0);
+    for (let i = 0; i < count; i++) {
+      const id = idBytes.readUInt32LE(i * 4);
+      if (id >= header.rowCount || i && id <= ids[i - 1]) return null;
+      ids[i] = id;
+    }
+    let rows = null;
+    if (hasRows && includeRows) {
+      rows = [];
+      if (count) {
+        const positions = await readRange(header.total * 4 + offset * 4, (count + 1) * 4);
+        const rowBase = header.total * 8 + 4;
+        for (let i = 0; i < count; i++) {
+          if (i % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); throwIfAborted?.(); }
+          const from = positions.readUInt32LE(i * 4), to = positions.readUInt32LE((i + 1) * 4);
+          if (to <= from || rowBase + to > bodyBytes) return null;
+          const row = JSON.parse((await readRange(rowBase + from, to - from)).toString('utf8'));
+          if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+          rows.push(row);
+        }
       }
     }
     throwIfAborted?.();
-    return { ids, total: header.total, readBytes: bytes };
+    return { ids, rows, rowCount: header.rowCount, total: header.total, readBytes: bytes };
   } catch { throwIfAborted?.(); return null; }
   finally { await handle?.close(); }
 };
 
+// Rows share the existing entry, physical-byte cap, authentication and eviction
+// owner. If row payloads do not fit, retain the original ID-only acceleration.
+const encodeBody = async (ids, metadata, throwIfAborted) => {
+  const idBytes = Buffer.alloc(ids.byteLength);
+  for (let i = 0; i < ids.length; i++) idBytes.writeUInt32LE(ids[i], i * 4);
+  if (!metadata || ids.byteLength * 2 + 4 > FILTER_MATCH_ENTRY_BYTES) return { body: idBytes, version: 1 };
+  const offsets = Buffer.alloc((ids.length + 1) * 4), rows = [];
+  let bytes = 0;
+  try {
+    for (let i = 0; i < ids.length; i++) {
+      if (i % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); throwIfAborted?.(); }
+      const row = metadata[ids[i]];
+      if (!row || typeof row !== 'object' || Array.isArray(row)) return { body: idBytes, version: 1 };
+      const encoded = Buffer.from(JSON.stringify(row));
+      bytes += encoded.length;
+      if (idBytes.length + offsets.length + bytes > FILTER_MATCH_ENTRY_BYTES) return { body: idBytes, version: 1 };
+      offsets.writeUInt32LE(bytes, (i + 1) * 4); rows.push(encoded);
+    }
+  } catch { throwIfAborted?.(); return { body: idBytes, version: 1 }; }
+  return { body: Buffer.concat([idBytes, offsets, ...rows]), version: 2 };
+};
+
 /** Serialize admission/eviction with the shared lock owner. Oversized results
  * never persist and callers continue streaming with a bounded page buffer. */
-export const persistFilterMatches = async ({ cacheDir, identity, rowCount, ids, throwIfAborted }) => {
+export const persistFilterMatches = async ({ cacheDir, identity, rowCount, ids, metadata = null, throwIfAborted }) => {
   const dir = directory(cacheDir);
   if (!dir || ids.byteLength > FILTER_MATCH_ENTRY_BYTES) return false;
   try {
@@ -107,16 +163,15 @@ export const persistFilterMatches = async ({ cacheDir, identity, rowCount, ids, 
         assertNoSymlinkPath(cacheDir, path.join(dir, 'key'), { allowMissing: true });
         await fs.writeFile(path.join(dir, 'key'), key, { flag: 'wx', mode: 0o600 });
       }
-      const body = Buffer.alloc(ids.byteLength), hashes = [];
+      const { body, version } = await encodeBody(ids, metadata, throwIfAborted);
+      const hashes = [];
       for (let block = 0; block < body.length; block += BLOCK_BYTES) {
         if (block % (64 * BLOCK_BYTES) === 0) {
           throwIfAborted?.(); await new Promise(resolve => setImmediate(resolve)); throwIfAborted?.();
         }
-        const end = Math.min(body.length, block + BLOCK_BYTES);
-        for (let at = block; at < end; at += 4) body.writeUInt32LE(ids[at / 4], at);
-        hashes.push(sha(body.subarray(block, end)));
+        hashes.push(sha(body.subarray(block, Math.min(body.length, block + BLOCK_BYTES))));
       }
-      const data = JSON.stringify({ version: 1, identity, rowCount, total: ids.length, blockBytes: BLOCK_BYTES, hashes });
+      const data = JSON.stringify({ version, identity, rowCount, total: ids.length, bodyBytes: body.length, blockBytes: BLOCK_BYTES, hashes });
       const header = Buffer.from(JSON.stringify({ data, mac: sign(data, key).toString('hex') }));
       if (header.length > HEADER_BYTES) return false;
       const size = Buffer.alloc(4); size.writeUInt32LE(header.length);

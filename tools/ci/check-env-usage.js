@@ -2,11 +2,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fdir } from 'fdir';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 
-const root = resolveToolRoot();
-const allowedFile = toPosix(path.join(root, 'src', 'shared', 'env.js'));
 const envNameRegex = /PAIROFCLEATS_[A-Z0-9_]+/g;
 const envRegexes = [
   /process\.env\s*\??\.\s*PAIROFCLEATS_[A-Z0-9_]+/g,
@@ -14,23 +13,13 @@ const envRegexes = [
   /\{\s*[^}]*PAIROFCLEATS_[A-Z0-9_]+[^}]*}\s*=\s*process\.env/g
 ];
 
-const listSourceFiles = async () => {
-  const files = await new fdir().withFullPaths().crawl(root).withPromise();
-  return files.filter((filePath) => {
-    if (!filePath.endsWith('.js')) return false;
-    const normalized = toPosix(filePath);
-    if (normalized.includes('/node_modules/')) return false;
-    if (normalized.includes('/.git/')) return false;
-    if (normalized.includes('/tests/')) return false;
-    if (normalized.includes('/docs/')) return false;
-    if (normalized.includes('/worktrees/')) return false;
-    if (normalized.includes('/.worktrees/')) return false;
-    return true;
-  });
-};
+const excludedDirectories = new Set(['node_modules', '.git', 'tests', 'docs', 'worktrees', '.worktrees', 'temp', '.testLogs']);
 
-const run = async () => {
-  const files = await listSourceFiles();
+export const findEnvUsageViolations = async (root) => {
+  const allowedFile = toPosix(path.join(root, 'src', 'shared', 'env.js'));
+  const files = await new fdir().withFullPaths()
+    .exclude(name => excludedDirectories.has(name))
+    .filter(file => file.endsWith('.js')).crawl(root).withPromise();
   const violations = [];
 
   for (const filePath of files) {
@@ -54,6 +43,11 @@ const run = async () => {
     }
   }
 
+  return violations;
+};
+
+const run = async () => {
+  const violations = await findEnvUsageViolations(resolveToolRoot());
   if (violations.length) {
     console.error('[env-usage] process.env.PAIROFCLEATS_* usage found outside src/shared/env.js');
     for (const entry of violations) {
@@ -63,4 +57,4 @@ const run = async () => {
   }
 };
 
-await run();
+if (isDirectExecution(import.meta.url)) await run();

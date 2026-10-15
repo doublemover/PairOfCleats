@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-12T21:10:41.000Z",
+  "generatedAt": "2026-10-15T02:28:32.101Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3270,6 +3270,7 @@
         "tests/perf/baseline-artifacts.test.js",
         "tests/run.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
+        "tests/tooling/reports/parity-cold-build-cleanup.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/bench/ab-sweep.js",
         "tools/ci/run-suite.js",
@@ -4631,6 +4632,7 @@
         "src/shared/cli/legacy-entrypoint.js",
         "src/shared/env/testing.js",
         "src/shared/ops/failure-injection.js",
+        "tests/ci/env-usage-scope.test.js",
         "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/cli/search/non-result-surfaces.test.js",
@@ -4692,6 +4694,7 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/shared/runtime/embedding-plan-allowlist.test.js",
+        "tests/tooling/reports/parity-cold-build-cleanup.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"

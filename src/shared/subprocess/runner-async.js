@@ -80,15 +80,19 @@ const terminateAndRejectFactory = ({
   try {
     if (typeof child.unref === 'function') child.unref();
   } catch {}
-  void killChildProcessTree(child, {
+  let treeCleanupResult = null, treeCleanupError = null;
+  const treeCleanup = killChildProcessTree(child, {
     killTree,
     killSignal,
     graceMs: timeoutAbortKillGraceMs,
     detached,
     awaitGrace: true
-  }).catch(() => {});
+  }).then(result => { treeCleanupResult = result; }, error => { treeCleanupError = error; });
   cleanup({ keepTrackedRegistration: true });
-  await awaitBoundedClose(closed, timeoutAbortReapWaitMs);
+  // A parent can close while a descendant is still inside its configured
+  // termination grace. Keep the caller's capacity lease until the existing
+  // tree owner has finished escalation, as well as observing bounded close.
+  await Promise.all([treeCleanup, awaitBoundedClose(closed, timeoutAbortReapWaitMs)]);
   const result = buildResult({
     pid: child.pid,
     exitCode: null,
@@ -100,9 +104,11 @@ const terminateAndRejectFactory = ({
   });
   const closeObserved = wasCloseObserved();
   result.termination = { scope: 'spawned-child-close-only', method: 'child-close-event',
-    closeObserved, closeTimedOut: !closeObserved, waitMs: timeoutAbortReapWaitMs };
+    closeObserved, closeTimedOut: !closeObserved, waitMs: timeoutAbortReapWaitMs,
+    treeCleanupSettled: true, treeCleanupFailed: treeCleanupError !== null,
+    treeCleanupForced: treeCleanupResult?.forced ?? null };
   const error = createError(result);
-  if (!closeObserved) error.cacheOwnershipPending = true;
+  if (!closeObserved || treeCleanupError) error.cacheOwnershipPending = true;
   reject(error);
 };
 

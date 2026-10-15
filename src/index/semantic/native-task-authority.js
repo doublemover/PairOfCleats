@@ -66,6 +66,38 @@ const compileEntry = async (row, repoRoot) => {
   return { file: filename, directory, arguments: [...args], driver, includeRoots: [...new Set(includeRoots)].sort() };
 };
 
+/** Source closure guard shared by sealed admission and dependency-free regressions. */
+export const collectNativeIncludeProbes = async ({ repoRoot, entries, textByPath, present, signal }) => {
+  const probes = [];
+  for (const entry of entries) {
+    if (!present.has(entry.file)) throw fail('Native compilation source was not inventoried.');
+    for (const [filename, rawText] of textByPath) {
+      throwIfAborted(signal);
+      const text = preprocessingText(rawText);
+      if (/\?\?|%:|__DATE__|__TIME__|__TIMESTAMP__|__has_include|__has_embed|_Pragma|__pragma|__builtin_(?:available|dump_struct)/.test(text)) throw fail('Native dynamic/trigraph/digraph preprocessing is outside sealed authority.');
+      for (const match of text.matchAll(/^\s*#\s*([A-Za-z_][A-Za-z0-9_]*)\b([^\n]*)/gm)) {
+        if (!['include', 'define', 'undef', 'if', 'ifdef', 'ifndef', 'elif', 'else', 'endif', 'error', 'warning'].includes(match[1])) throw fail('Native preprocessing directive is outside sealed authority.');
+        if (match[1] !== 'include') continue;
+        const target = /^\s*(["<])([^">]+)[">]\s*$/.exec(match[2]);
+        if (!target) throw fail('Native macro includes require a separately qualified closure.');
+        const roots = [...(target[1] === '"' ? [path.dirname(filename)] : []), ...entry.includeRoots];
+        for (const root of roots) {
+          const candidate = path.resolve(root, target[2]);
+          if (!isWithinRoot(candidate, repoRoot)) throw fail('Native include probe escapes its project.');
+          let exists = false;
+          try { await fs.lstat(candidate); exists = true; } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
+          if (exists && !present.has(candidate)) throw fail('Native include candidate was not inventoried.');
+          if (exists && !textByPath.has(candidate)) throw fail('Native included file requires a supported scanned source extension.');
+          probes.push({ path: candidate, exists });
+          if (probes.length > MAX_PROBES) throw fail('Native include probe inventory exceeds its allowance.');
+          if (exists) break;
+        }
+      }
+    }
+  }
+  return probes;
+};
+
 export const nativeTaskInventoryHash = inventory => semanticHash(NATIVE_DEPENDENCY_KEY, inventory);
 
 /** Actual C/clangd closure: all bounded project files/directory names, supported
@@ -108,32 +140,8 @@ const collectInventory = async ({ repoRoot, toolingConfig, sources, signal = nul
       if (/\.(?:c|h|inc)$/.test(filename)) textByPath.set(filename, new TextDecoder('utf-8', { fatal: true }).decode(read.buffer));
     }
   }
-  const present = new Set(files.map(row => row.path)), probes = [];
-  for (const entry of entries) {
-    if (!present.has(entry.file)) throw fail('Native compilation source was not inventoried.');
-    for (const [filename, rawText] of textByPath) {
-      throwIfAborted(signal);
-      const text = preprocessingText(rawText);
-      if (/\?\?|__DATE__|__TIME__|__TIMESTAMP__|__has_include|__has_embed|_Pragma|__pragma|__builtin_(?:available|dump_struct)/.test(text)) throw fail('Native dynamic/trigraph preprocessing is outside sealed authority.');
-      for (const match of text.matchAll(/^\s*#\s*([A-Za-z_][A-Za-z0-9_]*)\b([^\n]*)/gm)) {
-        if (!['include', 'define', 'undef', 'if', 'ifdef', 'ifndef', 'elif', 'else', 'endif', 'error', 'warning'].includes(match[1])) throw fail('Native preprocessing directive is outside sealed authority.');
-        if (match[1] !== 'include') continue;
-        const target = /^\s*(["<])([^">]+)[">]\s*$/.exec(match[2]);
-        if (!target) throw fail('Native macro includes require a separately qualified closure.');
-        const roots = [...(target[1] === '"' ? [path.dirname(filename)] : []), ...entry.includeRoots];
-        for (const root of roots) {
-          const candidate = path.resolve(root, target[2]);
-          if (!isWithinRoot(candidate, repoRoot)) throw fail('Native include probe escapes its project.');
-          let exists = false;
-          try { await fs.lstat(candidate); exists = true; } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
-          if (exists && !present.has(candidate)) throw fail('Native include candidate was not inventoried.');
-          probes.push({ path: candidate, exists });
-          if (probes.length > MAX_PROBES) throw fail('Native include probe inventory exceeds its allowance.');
-          if (exists) break;
-        }
-      }
-    }
-  }
+  const probes = await collectNativeIncludeProbes({ repoRoot, entries, textByPath,
+    present: new Set(files.map(row => row.path)), signal });
   for (const source of sources) {
     const row = files.find(row => row.path === path.resolve(repoRoot, source.path));
     if (!row || row.hash !== source.byteHash || !entries.some(entry => entry.file === row.path)) throw fail('Native source differs from its retained syntax authority.');

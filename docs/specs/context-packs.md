@@ -19,6 +19,10 @@ separate verified path. Test suggestions observe a fresh working-tree inventory,
 pin graph generations, and replay identical truncation/coverage on warm cache hits.
 Each excerpt, range, and hash cache has an 8 MiB conservative retained-string
 allowance in addition to its entry cap; oversized entries bypass caching.
+Call-site hydration shares a request-scoped verified source snapshot, bounded to
+64 MiB and 64 files, rather than rereading whole files for every small range.
+The assembly uses that point-in-time working-tree view and releases it afterward;
+a later request verifies current bytes again, including under the same generation.
 **Primary goal:** Deterministic, evidence-rich, bounded "context bundles" assembled using graph neighborhoods (calls/usages/imports/dataflow) and exposed consistently across CLI, MCP, and any API/server surfaces.
 
 ---

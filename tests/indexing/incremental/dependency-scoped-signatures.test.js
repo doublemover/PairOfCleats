@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { persistIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildDependencySignatures, buildIncrementalSignature } from '../../../src/index/build/indexer/signatures.js';
@@ -21,8 +22,8 @@ const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('temp/ta
 await fs.mkdir(parent,{recursive:true});
 const root=await fs.mkdtemp(path.join(parent,'manifest-'));
 const state=await loadIncrementalState({repoCacheRoot:root,mode:'code',enabled:true,cacheSignature:signature(base),tokenizationKey:'tokens',dependencySignatures:deps(base)});
-state.manifest.files={'src/a.js':{hash:'fixture',size:4,mtimeMs:123,bundle:'retained.json'}};
-await fs.writeFile(state.manifestPath,JSON.stringify(state.manifest));
+state.manifest.files={'src/a.js':{hash:'fixture',size:4,mtimeMs:123,bundle:'retained.json',dependencySignatures:deps(base)}};
+await persistIncrementalManifest(state.manifestPath,state.manifest);
 const same=await loadIncrementalState({repoCacheRoot:root,mode:'code',enabled:true,cacheSignature:signature(batch),tokenizationKey:'tokens',dependencySignatures:deps(batch)});
 assert.deepEqual(same.manifest.files,state.manifest.files);
 assert.equal(same.artifactNeedsRebuild,false);

@@ -731,7 +731,10 @@ export const createApiRouter = ({
     close() {
       if (!closing) closing = (async () => {
         try { await artifactBrowser?.close(); }
-        finally { await closeRepoCaches(); }
+        finally {
+          try { await closeRepoCaches(); }
+          finally { await (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches(); }
+        }
       })();
       return closing;
     }

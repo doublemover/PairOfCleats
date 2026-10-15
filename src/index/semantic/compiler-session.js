@@ -381,6 +381,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
         root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       const valueSlice = await collectCompilerValueSlice({ ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor,
         observations, source: item.source, bytes, bindingPartition: partition, context, orderedOperations: flow?.orderedOperations,
+        orderedAccesses: flow?.orderedAccesses,
         isDefaultLibrary: group.isDefaultLibrary, root: item.root, policy, diskAccount: state.semanticDiskAccount, signal });
       if (valueSlice) emitted.push(valueSlice.partition);
       const storageFlow = await collectCompilerStorageFlow({ ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor,
