@@ -891,6 +891,8 @@ export async function watchIndex({
 
   scheduler = createDebouncedScheduler({
     debounceMs,
+    // Continuous saves must not indefinitely postpone a searchable generation.
+    maxWaitMs: Math.max(1000, debounceMs * 4),
     onRun: runBuild,
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
