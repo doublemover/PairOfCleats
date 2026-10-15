@@ -7,9 +7,10 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Dependency and CI reconciliation, October 14
 
-The active checkout is `codex/pr557-audit-repairs-20261012`, atop the open
-PR stack #556 -> #557 -> #558. Remote main is 42 commits behind the original
-repair head `d6041226b95baa6d7be8c6a06611b6d9e452d4ba`; none of these PRs is merged.
+The stack is landed on `main` at `5e0060003304138386f659acdd897d84c9cc4cf7`.
+PR #556 merged first; #558 merged into #557, then the combined #557 merged
+into main. The landed tree exactly matches tested candidate `ece2c60bd`.
+Integration-head CI runs automatically; it is not yet final-head acceptance.
 Live GitHub inspection found zero open Dependabot security alerts and twelve
 version-update PRs, now closed as superseded by #558. Their updates are pushed in `dae8ecd62`, including
 the JSON-RPC 9 Node entry point and coordinated artifact-action contract updates.
