@@ -107,6 +107,13 @@ try {
   assert.equal(legacyPayload.freedBytes, 0);
   assert.ok(legacyPayload.plannedBytes > 0);
   assert.equal(await fs.readFile(path.join(legacyRepo, 'data'), 'utf8'), 'preserved');
+  await fs.mkdir(path.join(legacyRepo, 'locks'));
+  await fs.writeFile(path.join(legacyRepo, 'locks/index.lock'), JSON.stringify({ pid: process.pid }));
+  const protectedPreview = runNode([toolPath, '--json', '--cache-root', cacheRoot, '--max-bytes', '1'],
+    'legacy active ownership is protected', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true });
+  assert.equal(protectedPreview.status, 0, protectedPreview.stderr);
+  assert.equal(JSON.parse(protectedPreview.stdout).protectedRepos[0].id, 'legacy-preview');
+  assert.equal(JSON.parse(protectedPreview.stdout).removals.length, 0);
 
   applyTestEnv({ cacheRoot, testConfig: { cache: { root: cacheRoot } } });
   const mcpPreview = cacheGc({ repoPath: tempRoot });
