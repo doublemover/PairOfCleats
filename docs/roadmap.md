@@ -14,7 +14,9 @@ and filename ranking, and bounded hash comparisons of indexed source files.
 The watch experiment reproduced a Parcel subscription cleanup defect; it is
 repaired. Optional MCP build imports now load on demand. Complete context-pack
 responses have a 128 KiB ceiling with explicit optional-section omissions.
-Whole-repository cleanup protects lock-bearing caches and remains offline-only.
+Whole-repository cleanup now uses local process admission/lifetime leases.
+Freshness discovers new candidate files using indexing ignore/routing rules.
+Ten real-index search-quality cases pass across code and extracted prose.
 
 Validation and limitations are recorded in the
 [follow-up receipt](archived/product-follow-up-2026-10-14.md).
@@ -22,17 +24,17 @@ The preceding 45-item audit table and completed product batches are preserved in
 [the prior roadmap snapshot](archived/roadmap-product-wins-2026-10-14.md).
 The audit classification remains 39 bounded-verified and six qualification-limited.
 
-Next concrete work, when separately scoped:
+The [October 15 follow-up receipt](archived/product-follow-up-2026-10-15.md)
+records online-GC concurrency, bounded new-file discovery, search quality and
+remaining qualification limits.
 
-1. Reader admission and lifetime leases for safe online whole-repository cleanup.
-   Existing writer locks cannot protect active search readers or close admission
-   races during deletion; a pre-delete lock check is not an online protocol.
-2. New/unindexed file discovery and live watcher identity verification for full
-   freshness. Current hash comparison covers indexed paths, reports unknowns and
-   limits, and never infers complete freshness from a saved watcher receipt.
-3. Representative search-quality acceptance beyond the focused exact-lookup
-   regression, plus retained-heap analysis if MCP memory remains a practical issue.
-4. Remaining semantic precision and release qualification listed below.
+Remaining work, when separately scoped:
+
+1. Live watcher identity verification; saved watcher state still does not prove
+   liveness. Bounded file discovery and hash comparisons are not an atomic snapshot.
+2. Production-corpus relevance and retained-heap analysis if MCP memory remains
+   a practical issue. The new eight-file, ten-query fixture is bounded acceptance.
+3. Remaining semantic precision and release qualification listed below.
 
 The old native crash was not reproduced in its bounded investigation. Per user
 instruction it is closed as non-reproduced and reopens only on new evidence.
