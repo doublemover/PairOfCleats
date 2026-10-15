@@ -166,6 +166,17 @@ Both CAS and legacy quota/age GC default to preview; deletion requires `--apply`
 
 The MCP `cache_gc` tool also previews when `dryRun` is omitted; explicit `dryRun: false` maps to `--apply`.
 
+### Cache path authority
+
+Cleanup checks ownership and containment after normalizing only verified macOS
+system aliases: root-owned `/var` and `/tmp` symlinks whose canonical destinations
+are exactly `/private/var` and `/private/tmp`. Tooling cache storage shares this
+same policy. All remaining path components stay lexical and must pass the
+no-symlink checks, including the cache root, its other ancestors, the ownership
+marker, and the target. Resolving an entire authorized root with `realpath` is not
+an equivalent authorization check. Preview or explicit unmarked-cache permission
+waives the marker requirement only; it does not waive containment or link checks.
+
 
 ### Whole-repository admission protocol (2026-10-15)
 
