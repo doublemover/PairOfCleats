@@ -89,6 +89,29 @@ Tokens without a key are treated as file/path filters. Unknown keys are rejected
 ### Text mode
 Human readable results (ranked list, or indexed-order filter enumeration). Code entries include bounded, line-numbered working-tree excerpts when the source is available within the repo. Excerpts use lightweight lexical highlighting in a TTY. Non-TTY output, `NO_COLOR` (including an empty value), `TERM=dumb`, and `--plain` disable styles and hyperlinks. Repository-controlled escape sequences and bidi controls are sanitized before terminal display. Exact formatting may evolve.
 
+Every displayed code hit is eligible for a source preview: up to eight lines for
+the leading hit and three for later hits. A literal query-token occurrence selects
+the preview window when found; otherwise the excerpt starts at the indexed chunk
+offset. `>` marks visible, case-insensitive query text only. It does not assert why
+the retrieval engine selected or ranked the hit, and semantic matches need not
+contain query text. Use `--explain` for recorded score evidence and `--why` for
+deeper analysis details.
+
+These excerpts are current working-tree text at indexed offsets, not an indexed
+snapshot or a freshness guarantee. Their line numbers are derived from the text
+read, while the result's location remains its indexed source range. Edits can make
+those differ. The preview reader examines at most 32 distinct file paths and 2 MiB per render,
+with a 512 KiB per-file limit, and reuses a read only within that render. Preview
+selection scans at most 64 Ki characters of a chunk. Missing, outside-root,
+oversized or over-budget sources do not hide a result; only the preview is absent.
+
+The summary counts displayed hits, not the total number of possible ranked
+matches. Filter enumeration separately reports its exact indexed total and
+continuation cursor. Narrow TTY output wraps long lines without splitting
+graphemes; overflowing lines use plain text to avoid broken ANSI/link sequences.
+Opaque cursor lines remain intact for copying. Pipes remain unstyled and omit
+interactive next-step hints. JSON payloads are unaffected by these display choices.
+
 ### JSON mode
 For a successful single-repository search, the CLI emits:
 - `backend`: the selected retrieval backend
