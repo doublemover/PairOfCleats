@@ -12,6 +12,12 @@ assert.equal(registry.schemaVersion, '1.0.0');
 assert.ok(fs.existsSync(registry.registryPath), 'expected shipped surface registry file');
 
 const surfaceIds = registry.surfaces.map((surface) => surface.id);
+const engineRange = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).engines.node;
+for (const surface of registry.surfaces) {
+  for (const target of surface.runtimeTargets) {
+    if (target.startsWith('node')) assert.equal(target, 'node' + engineRange, 'release runtime must match the package engine contract');
+  }
+}
 assert.deepEqual(
   surfaceIds,
   ['cli', 'api', 'mcp', 'indexer-service', 'vscode', 'sublime', 'tui']
