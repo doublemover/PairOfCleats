@@ -148,7 +148,8 @@ export async function buildIndex(repoRoot, options = {}) {
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;
     try {
-      const watchState = await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal });
+      const watchState = await watchIndex({ runtime, modes, pollMs, debounceMs, abortSignal,
+        onReady: options.onWatchReady, onStateChange: options.onWatchStateChange });
       return attachObservability({ modes, watch: true, watchState: watchState || runtime.watchState || null }, observability);
     } finally {
       await teardownRuntime(runtime);

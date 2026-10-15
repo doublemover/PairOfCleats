@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { readJsonFileSyncSafe } from '../../shared/file-read.js';
 import { getScmProviderAndRoot } from '../../index/scm/registry.js';
+import { isProcessAlive } from '../../shared/locks/file-lock.js';
 
 export const compareIndexRevision = (recorded, current) => {
   const indexedCommit = recorded?.head?.commitId || recorded?.commit;
@@ -41,6 +42,11 @@ export const readIndexCoverage = ({ metricsDir, indexes, repoCacheRoot, currentP
     currentProvenance,
     watcher: watch ? {
       status: 'last-recorded',
+      processStatus: watch.shutdownSignal ? 'stopped'
+        : Number.isSafeInteger(watch.pid) && watch.pid > 0
+          ? (isProcessAlive(watch.pid) ? 'pid-present-unverified' : 'not-running') : 'unknown',
+      pid: watch.pid ?? null,
+      recordedAt: watch.recordedAt ?? null,
       consistency: watch.consistency ?? null,
       backlogDepth: watch.backlogDepth ?? null,
       lastEventAt: watch.lastEventAt ?? null,
