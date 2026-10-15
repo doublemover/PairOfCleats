@@ -2,8 +2,31 @@
 
 Status: Active
 Last audited: 2026-10-12
-Last reconciled: 2026-10-12
+Last reconciled: 2026-10-14
 Canonical for: initiative status, execution order, and remaining work
+
+## Dependency and CI reconciliation, October 14
+
+The active checkout is `codex/pr557-audit-repairs-20261012`, atop the open
+PR stack #556 -> #557 -> #558. Remote main is 42 commits behind the original
+repair head `d6041226b95baa6d7be8c6a06611b6d9e452d4ba`; none of these PRs is merged.
+Live GitHub inspection found zero open Dependabot security alerts and twelve
+version-update PRs. Their updates are integrated locally in `dae8ecd62`, including
+the JSON-RPC 9 Node entry point and coordinated artifact-action contract updates.
+
+Hosted CI on the original repair head passed gate/Rust but failed eight fixtures
+on Ubuntu/macOS and seven on Windows (one Windows skip). Those eight fixtures
+now pass locally on Windows after lifecycle repairs and current-contract fixture
+corrections. This is not a hosted rerun or cross-platform acceptance. Twenty
+dependency-focused fixtures also pass. Initial failures and environment limits
+remain in the [reconciliation receipt](archived/dependency-ci-reconciliation-2026-10-14.md).
+The final batch front gate and hosted acceptance remain pending.
+
+Execution order: dependencies, CI repairs, this status reconciliation, then
+SRC-010 cold artifact/LMDB pagination and EMB-009 representative provider
+measurements. The latest audit classification is 38 bounded-verified, five
+qualification-limited, two partial, and zero missing; the older 45-item table
+below records historical implementation rather than full current acceptance.
 
 ## PR 557 completion-audit follow-up
 
