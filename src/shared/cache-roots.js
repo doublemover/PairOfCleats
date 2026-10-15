@@ -7,7 +7,6 @@ export const CACHE_ROOT_DIRNAME = 'cache';
 export const CACHE_ROOT_LAYOUT_VERSION = CACHE_ROOT_DIRNAME;
 const LEGACY_CACHE_ROOT_DIRNAME = 'cache-v1';
 
-const rebuiltRoots = new Set();
 const cacheRootWarnings = new Set();
 const warnCacheRootIssue = (key, message) => {
   if (!key || !message) return;
@@ -119,17 +118,7 @@ export function getCacheRootBase() {
  * @returns {string}
  */
 export function getCacheRoot() {
-  const envConfig = getEnvConfig();
-  const cacheRoot = resolveVersionedCacheRoot(getCacheRootBase());
-  if (envConfig.cacheRebuild && cacheRoot) {
-    const resolvedRoot = path.resolve(cacheRoot);
-    if (!rebuiltRoots.has(resolvedRoot)) {
-      rebuiltRoots.add(resolvedRoot);
-      console.warn(`[cache] purge cache root: ${resolvedRoot}`);
-      purgeCacheRoot(cacheRoot);
-    }
-  }
-  return cacheRoot;
+  return resolveVersionedCacheRoot(getCacheRootBase());
 }
 
 /**

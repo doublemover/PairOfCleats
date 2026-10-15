@@ -34,6 +34,7 @@ export function getMissingFlagMessages(argv, rawArgs = []) {
   };
 
   const missingValueFlags = [
+    { key: 'cursor', flag: '--cursor', example: '--cursor <nextCursor>' },
     { key: 'repo', flag: '--repo', example: '--repo .' },
     { key: 'filter', flag: '--filter', example: '--filter "lang:js"' },
     { key: 'type', flag: '--type', example: '--type Function' },

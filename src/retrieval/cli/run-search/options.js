@@ -69,31 +69,34 @@ export const extractPositionalQuery = (argv) => (
 );
 
 /**
- * Emit legacy missing-query output and throw INVALID_REQUEST.
+ * Emit a controlled invalid request and preserve CLI JSON/human error routing.
  *
  * @param {{
+ *   message:string,
  *   jsonOutput:boolean,
  *   emitOutput:boolean,
  *   exitOnError:boolean,
  *   recordSearchMetrics:(status:string)=>void
  * }} input
  */
-export const emitMissingQueryAndThrow = ({
+export const emitInvalidRequestAndThrow = ({
+  message,
   jsonOutput,
   emitOutput,
   exitOnError,
   recordSearchMetrics
 }) => {
   recordSearchMetrics('error');
-  const message = getSearchUsage();
-  if (emitOutput) {
-    emitInvalidRequestOutput({ jsonOutput, message });
-  }
+  if (emitOutput) emitInvalidRequestOutput({ jsonOutput, message });
   if (exitOnError) process.exit(1);
   const error = createError(ERROR_CODES.INVALID_REQUEST, message);
   error.emitted = true;
   throw error;
 };
+
+export const emitMissingQueryAndThrow = (input) => emitInvalidRequestAndThrow({
+  ...input, message: getSearchUsage()
+});
 
 /**
  * Resolve optional workspace path argument.

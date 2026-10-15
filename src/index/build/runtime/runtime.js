@@ -1,3 +1,7 @@
+import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receipt.js';
+import { persistRuntimeAttempt } from '../build-state/runtime.js';
+import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
+import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
@@ -18,7 +22,7 @@ import {
 import { normalizeBundleFormat } from '../../../shared/bundle-io-paths.js';
 import { normalizeCommentConfig } from '../../comments.js';
 import { normalizeSegmentsConfig } from '../../segments.js';
-import { log, logLine } from '../../../shared/progress-runtime.js';
+import { log, logLine, updateLogContext } from '../../../shared/progress-runtime.js';
 import { getEnvConfig } from '../../../shared/env/runtime.js';
 import { isTestingEnv } from '../../../shared/env/testing.js';
 import { isAbsolutePathNative } from '../../../shared/file-paths.js';
@@ -111,13 +115,18 @@ const isObject = (value) => Boolean(value) && typeof value === 'object' && !Arra
  * @param {{root:string,argv:object,rawArgv:string[]}} input
  * @returns {Promise<object>}
  */
-export async function createBuildRuntime({
+export const createBuildRuntime = (input = {}) => withRuntimeReceiptInitialization((onRuntimeAttempt) => (
+  createBuildRuntimeImpl({ ...input, onRuntimeAttempt })
+));
+
+async function createBuildRuntimeImpl({
   root,
   argv,
   rawArgv,
   policy,
   indexRoot: indexRootOverride = null,
-  observability = null
+  observability = null,
+  onRuntimeAttempt
 } = {}) {
   const initStartedAt = Date.now();
   /**
@@ -146,8 +155,33 @@ export async function createBuildRuntime({
     return result;
   };
 
-  const userConfig = await timeInit('load config', () => loadUserConfig(root));
+  let configSources = null;
+  const userConfig = await timeInit('load config', () => loadUserConfig(root, { onSources: (sources) => { configSources = sources; } }));
   const envConfig = getEnvConfig();
+  const stage = normalizeStage(argv.stage || envConfig.stage);
+  const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
+  const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
+  const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
+  const logDestination = logFileRaw
+    ? (isAbsolutePathNative(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
+    : null;
+  if (logDestination) {
+    try {
+      await fs.mkdir(path.dirname(logDestination), { recursive: true });
+    } catch {}
+  }
+  const loggingConfig = userConfig.logging || {};
+  configureRuntimeLogger({
+    envConfig,
+    loggingConfig,
+    buildId: null,
+    configHash: null,
+    stage,
+    root,
+    logDestination,
+    logFormatOverride,
+    observability
+  });
   const importGraphEnabled = envConfig.importGraph == null ? true : envConfig.importGraph;
   const rawIndexingConfig = userConfig.indexing || {};
   let indexingConfig = rawIndexingConfig;
@@ -186,7 +220,7 @@ export async function createBuildRuntime({
   }
   if (policyEmbeddings && typeof policyEmbeddings.enabled === 'boolean') {
     indexingConfig = mergeConfig(indexingConfig, {
-      embeddings: { enabled: policyEmbeddings.enabled }
+      embeddings: { enabled: resolveEmbeddingIntent({ argv, embeddingsConfig: indexingConfig.embeddings, envConfig, policyEnabled: policyEmbeddings.enabled }).embeddingEnabled }
     });
   }
   if (policyWorkerPool) {
@@ -209,20 +243,13 @@ export async function createBuildRuntime({
     });
   }
   const baseEmbeddingsConfig = indexingConfig.embeddings || {};
-  const baseEmbeddingModeRaw = typeof baseEmbeddingsConfig.mode === 'string'
-    ? baseEmbeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
-  const baseEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(baseEmbeddingModeRaw)
-    ? baseEmbeddingModeRaw
-    : 'auto';
-  const baseEmbeddingsPlanned = baseEmbeddingsConfig.enabled !== false && baseEmbeddingMode !== 'off';
+  const baseEmbeddingsPlanned = resolveEmbeddingIntent({ argv, embeddingsConfig: baseEmbeddingsConfig, envConfig }).embeddingEnabled;
   const requestedHashBackend = typeof indexingConfig?.hash?.backend === 'string'
     ? indexingConfig.hash.backend.trim().toLowerCase()
     : '';
   if (requestedHashBackend && !envConfig.xxhashBackend) {
     setXxhashBackend(requestedHashBackend);
   }
-  const stage = normalizeStage(argv.stage || envConfig.stage);
   const twoStageConfig = indexingConfig.twoStage || {};
   const stageOverrides = buildStageOverrides(twoStageConfig, stage);
   if (stageOverrides) {
@@ -349,17 +376,6 @@ export async function createBuildRuntime({
     env: process.env,
     toolVersion: getToolVersion()
   }));
-  const logFileRaw = typeof argv['log-file'] === 'string' ? argv['log-file'].trim() : '';
-  const logFormatRaw = typeof argv['log-format'] === 'string' ? argv['log-format'].trim() : '';
-  const logFormatOverride = logFormatRaw ? logFormatRaw.toLowerCase() : null;
-  const logDestination = logFileRaw
-    ? (isAbsolutePathNative(logFileRaw) ? logFileRaw : path.resolve(root, logFileRaw))
-    : null;
-  if (logDestination) {
-    try {
-      await fs.mkdir(path.dirname(logDestination), { recursive: true });
-    } catch {}
-  }
   if (Array.isArray(envelope.warnings) && envelope.warnings.length) {
     for (const warning of envelope.warnings) {
       if (!warning?.message) continue;
@@ -499,13 +515,30 @@ export async function createBuildRuntime({
     || null;
   const resolvedIndexRoot = indexRootOverride ? path.resolve(indexRootOverride) : null;
   const buildsRoot = getBuildsRoot(root, userConfig);
-  const { buildId, buildRoot } = resolveRuntimeBuildRoot({
+  let { buildId, buildRoot } = resolveRuntimeBuildRoot({
     resolvedIndexRoot,
     buildsRoot,
     scmHeadId,
     configHash,
     existsSync: fsSync.existsSync
   });
+  if (resolvedIndexRoot) {
+    const existing = await readRuntimeReceipt({ buildRoot, requireProducerIdentity: true });
+    if ((existing.errorCode && existing.errorCode !== 'ENOENT') || existing.evidence === 'unsupported-runtime-receipt') {
+      throw Object.assign(new Error('Cannot preserve runtime evidence in the selected build root.'), { code: existing.errorCode || 'ERR_RUNTIME_RECEIPT_CONTRACT' });
+    }
+    buildId = existing.buildId || 'unknown';
+  }
+  const runtimeAttempt = await initializeRuntimeReceipt({
+    buildRoot, buildId, root, stage, configHash, toolVersion, repoProvenance, profile,
+    observability, envelope, executionClass: daemonSession ? 'daemon' : 'in-process',
+    paths: { repo: root, cache: { selected: cacheRoot, source: cacheRootSource }, repoCache: repoCacheRoot, build: buildRoot, logs: logDestination },
+    inputs: { configSources, quality: autoPolicy.quality, platformPreset: platformRuntimePreset, learnedAutoProfile, schedulerAutoTuneProfile },
+    embeddings: { observation: { state: 'not-started', provider: null, dims: null, observedAt: null } }
+  });
+  onRuntimeAttempt(runtimeAttempt, buildRoot);
+  observability = { ...observability, context: { ...observability?.context, runtimeAttemptId: runtimeAttempt.attemptId } };
+  logRuntimeReceiptLocation(buildRoot, runtimeAttempt, log);
   const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
   const daemonJobContext = createRuntimeDaemonJobContext(daemonSession, {
     root,
@@ -518,18 +551,7 @@ export async function createBuildRuntime({
   if (currentIndexRoot) {
     log(`[init] current index root: ${currentIndexRoot}`);
   }
-  const loggingConfig = userConfig.logging || {};
-  configureRuntimeLogger({
-    envConfig,
-    loggingConfig,
-    buildId,
-    configHash,
-    stage,
-    root,
-    logDestination,
-    logFormatOverride,
-    observability
-  });
+  updateLogContext({ runId: buildId, buildId, configHash, stage });
   const toolingConfig = getToolingConfig(root, userConfig);
   const toolingEnabled = toolingConfig.autoEnableOnDetect !== false;
   const postingsConfig = normalizePostingsConfig(indexingConfig.postings || {});
@@ -739,7 +761,8 @@ export async function createBuildRuntime({
     indexingConfig,
     envConfig,
     argv,
-    cpuConcurrency
+    cpuConcurrency,
+    onEmbeddingObservation: (embeddings) => persistRuntimeAttempt(buildRoot, runtimeAttempt, { embeddings })
   }));
   const {
     embeddingBatchSize,
@@ -752,14 +775,14 @@ export async function createBuildRuntime({
     embeddingNormalize,
     embeddingQueue,
     embeddingIdentity,
-    embeddingIdentityKey,
     embeddingCache,
     useStubEmbeddings,
     modelConfig,
     modelId,
     modelsDir,
     getChunkEmbedding,
-    getChunkEmbeddings
+    getChunkEmbeddings,
+    getEmbeddingObservation
   } = embeddingRuntime;
   const daemonPrewarmEmbeddings = daemonConfig.prewarmEmbeddings !== false;
   const embeddingPrewarmTokenizer = embeddingProvider === 'onnx' && embeddingOnnx?.prewarmTokenizer === true;
@@ -970,6 +993,8 @@ export async function createBuildRuntime({
 
   const workerPoolsResult = await timeInit('worker pools', () => createRuntimeWorkerPools({
     workerPoolConfig,
+    runtimeAttemptId: runtimeAttempt.attemptId,
+    buildId,
     repoCacheRoot,
     dictWords,
     dictSharedPayload,
@@ -1074,7 +1099,8 @@ export async function createBuildRuntime({
   } catch {}
   logInit('runtime ready', initStartedAt);
 
-  return {
+  const runtime = {
+    runtimeAttempt,
     envelope,
     root,
     log,
@@ -1163,8 +1189,8 @@ export async function createBuildRuntime({
     embeddingOnnx,
     embeddingNormalize,
     embeddingQueue,
-    embeddingIdentity,
-    embeddingIdentityKey,
+    get embeddingIdentity() { return embeddingRuntime.embeddingIdentity; },
+    get embeddingIdentityKey() { return embeddingRuntime.embeddingIdentityKey; },
     embeddingCache,
     fileCaps,
     guardrails,
@@ -1219,6 +1245,7 @@ export async function createBuildRuntime({
     codeDictionaryPaths: codeDictPaths,
     getChunkEmbedding,
     getChunkEmbeddings,
+    getEmbeddingObservation,
     languageOptions,
     generatedPolicy,
     ignoreMatcher,
@@ -1230,4 +1257,6 @@ export async function createBuildRuntime({
     verboseCache,
     importGraphEnabled
   };
+  await refreshRuntimeReceipt(runtime);
+  return runtime;
 }

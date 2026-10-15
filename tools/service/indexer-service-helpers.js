@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { buildEmbeddingLaunchArgs } from '../../src/shared/embedding-execution-plan.js';
+import { resolveTrustedConfigPath } from '../../src/shared/config-authority.js';
 import path from 'node:path';
 import {
   getIndexDir,
@@ -127,10 +129,11 @@ export const resolveEmbeddingBackendStageDir = (job, mode = null) => {
  * @param {{buildPath:string,repoPath:string,mode?:string|null,indexRoot?:string|null}} input
  * @returns {string[]}
  */
-export const buildEmbeddingsArgs = ({ buildPath, repoPath, mode, indexRoot }) => {
+export const buildEmbeddingsArgs = ({ buildPath, repoPath, mode, indexRoot, embeddingPlan = null }) => {
   const args = [buildPath, '--repo', repoPath];
   if (mode && mode !== 'both') args.push('--mode', mode);
   if (indexRoot) args.push('--index-root', indexRoot);
+  if (embeddingPlan) args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options));
   return args;
 };
 
@@ -176,51 +179,60 @@ export function createServiceRuntimeEnvResolver({
 } = {}) {
   const runtimeConfigCache = new Map();
 
-  const getCachedRuntimeConfig = (repoPath) => {
+  const configInputs = (repoPath, env) => {
+    const paths = [resolveRepoConfigPath(repoPath, null), resolveTrustedConfigPath(repoPath, env)].filter(Boolean);
+    return paths.map(filename => {
+      try {
+        const stat = fs.statSync(filename, { bigint: true });
+        return { path: filename, exists: true, fingerprint: [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(':') };
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+        return { path: filename, exists: false, fingerprint: 'missing' };
+      }
+    });
+  };
+  const getCachedUserConfig = (repoPath, env) => {
     const resolvedRepoPath = path.resolve(repoPath || process.cwd());
-    const cacheKey = normalizeRuntimeConfigCacheKey(resolvedRepoPath);
+    const cacheKey = JSON.stringify([normalizeRuntimeConfigCacheKey(resolvedRepoPath),
+      env.PAIROFCLEATS_TRUSTED_CONFIG || '', env.PAIROFCLEATS_TRUSTED_REPOS || '',
+      env.PAIROFCLEATS_TESTING || '', env.PAIROFCLEATS_TEST_CONFIG || '']);
     const cached = runtimeConfigCache.get(cacheKey);
     const now = Date.now();
-    if (
-      cached?.runtimeConfig
-      && Number.isFinite(Number(cached.lastConfigCheckAtMs))
-      && (now - Number(cached.lastConfigCheckAtMs)) < revalidateMs
-    ) {
-      setRuntimeConfigCacheEntry(runtimeConfigCache, maxEntries, cacheKey, {
-        ...cached,
-        lastConfigCheckAtMs: now
-      });
-      return cached.runtimeConfig;
+    if (cached && now >= cached.lastValidatedAtMs && now - cached.lastValidatedAtMs < revalidateMs) {
+      // LRU access must never postpone source validation.
+      setRuntimeConfigCacheEntry(runtimeConfigCache, maxEntries, cacheKey, cached);
+      return cached;
     }
-    const { configPath, mtimeMs } = readRepoConfigMtime(resolvedRepoPath);
-    if (
-      cached
-      && cached.configPath === configPath
-      && cached.mtimeMs === mtimeMs
-      && cached.runtimeConfig
-    ) {
-      setRuntimeConfigCacheEntry(runtimeConfigCache, maxEntries, cacheKey, {
-        ...cached,
-        lastConfigCheckAtMs: now
-      });
-      return cached.runtimeConfig;
-    }
-    const userConfig = loadUserConfig(resolvedRepoPath);
-    const runtimeConfig = getRuntimeConfig(resolvedRepoPath, userConfig);
-    setRuntimeConfigCacheEntry(runtimeConfigCache, maxEntries, cacheKey, {
-      runtimeConfig,
-      configPath,
-      mtimeMs,
-      lastConfigCheckAtMs: now
+    const sources = configInputs(resolvedRepoPath, env);
+    const unchanged = cached && JSON.stringify(cached.sources) === JSON.stringify(sources);
+    let sourceMetadata = cached?.sourceMetadata || null;
+    const userConfig = unchanged ? cached.userConfig : loadUserConfig(resolvedRepoPath, {
+      env, onSources: value => { sourceMetadata = value; }
     });
-    return runtimeConfig;
+    const entry = {
+      userConfig,
+      sourceMetadata,
+      sources,
+      lastValidatedAtMs: now
+    };
+    setRuntimeConfigCacheEntry(runtimeConfigCache, maxEntries, cacheKey, entry);
+    return entry;
   };
 
+  const getCachedRuntimeConfig = (repoPath, env = baseEnv) => {
+    const entry = getCachedUserConfig(repoPath, env);
+    // Startup settings are planned for this exact launch, never cached from a
+    // different environment and replayed over caller-owned overrides.
+    return {
+      ...getRuntimeConfig(repoPath, entry.userConfig, env),
+      configSources: entry.sourceMetadata,
+      configValidatedAt: new Date(entry.lastValidatedAtMs).toISOString()
+    };
+  };
   const resolveRepoRuntimeEnv = (repoPath, extraEnv = {}) => {
-    const runtimeConfig = getCachedRuntimeConfig(repoPath);
     const envCandidate = extraEnv && typeof extraEnv === 'object'
-      ? { ...baseEnv, ...extraEnv }
-      : baseEnv;
+      ? { ...baseEnv, ...extraEnv } : { ...baseEnv };
+    const runtimeConfig = getCachedRuntimeConfig(repoPath, envCandidate);
     return resolveRuntimeEnv(runtimeConfig, envCandidate);
   };
 

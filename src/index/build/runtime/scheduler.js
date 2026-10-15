@@ -361,6 +361,32 @@ export const SCHEDULER_QUEUE_NAMES = {
   embeddingsIo: 'embeddings.io'
 };
 
+/** Bounded request projection for process/job handoff; defaults still resolve here. */
+export const projectSchedulerRequestConfig = (runtimeScheduler, indexingScheduler) => {
+  const source = mergeSchedulerSurfaces(runtimeScheduler, indexingScheduler);
+  const result = {};
+  for (const key of ['enabled', 'adaptive', 'lowResourceMode']) {
+    if (typeof source[key] === 'boolean') result[key] = source[key];
+  }
+  for (const key of ['adaptiveStep', 'adaptiveTargetUtilization', 'cpuTokens', 'ioTokens',
+    'maxCpuTokens', 'maxIoTokens', 'maxMemoryTokens', 'memoryPerTokenMb', 'memoryReserveMb',
+    'memoryTokens', 'starvationMs', 'targetUtilization', 'utilizationAlertTarget',
+    'utilizationAlertWindowMs', 'utilizationTarget']) {
+    if (source[key] != null && Number.isFinite(Number(source[key]))) result[key] = Number(source[key]);
+  }
+  if (isObject(source.queues)) result.queues = resolveQueueConfig(source.queues);
+  if (isObject(source.adaptiveSurfaces)) {
+    const normalized = resolveAdaptiveSurfacesConfig(source.adaptiveSurfaces);
+    if (normalized) result.adaptiveSurfaces = normalized;
+  }
+  if (isObject(source.writeBackpressure)) {
+    const normalized = resolveWriteBackpressureConfig(source.writeBackpressure);
+    if (normalized) result.writeBackpressure = normalized;
+  }
+  if (isObject(source.autoTune)) result.autoTune = { enabled: source.autoTune.enabled !== false };
+  return result;
+};
+
 /**
  * Build the effective scheduler runtime config from CLI/env/config defaults.
  *

@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { DEFAULT_MODEL_ID, getModelConfig } from '../../../shared/dict-utils.js';
 import { createEmbedder } from '../../embedding.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../shared/embedding-batch.js';
@@ -32,7 +33,8 @@ export const resolveEmbeddingRuntime = async ({
   indexingConfig,
   envConfig,
   argv,
-  cpuConcurrency
+  cpuConcurrency,
+  onEmbeddingObservation = async () => {}
 }) => {
   const embeddingsConfig = indexingConfig.embeddings || {};
   const embeddingBatchRaw = Number(indexingConfig.embeddingBatchSize);
@@ -48,9 +50,6 @@ export const resolveEmbeddingRuntime = async ({
   const embeddingNormalize = embeddingsConfig.normalize !== false;
   const embeddingQueueConfig = embeddingsConfig.queue || {};
   const embeddingCacheConfig = embeddingsConfig.cache || {};
-  const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
-    ? embeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
   const embeddingQueueDir = typeof embeddingQueueConfig.dir === 'string'
     ? embeddingQueueConfig.dir.trim()
     : '';
@@ -81,44 +80,51 @@ export const resolveEmbeddingRuntime = async ({
       embeddingConcurrency = maxConcurrency;
     }
   }
-  const baseStubEmbeddings = argv['stub-embeddings'] === true
-    || envConfig.embeddings === 'stub';
-  const envEmbeddingMode = typeof envConfig.embeddings === 'string'
-    ? envConfig.embeddings.trim().toLowerCase()
-    : '';
-  const envForcesOff = ['off', 'false', '0', 'disabled', 'none'].includes(envEmbeddingMode);
-  const envForcesStub = envEmbeddingMode === 'stub';
-  const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
-    ? embeddingModeRaw
-    : 'auto';
-  const resolvedEmbeddingMode = envForcesOff
-    ? 'off'
-    : (envForcesStub
-      ? 'stub'
-      : (normalizedEmbeddingMode === 'auto'
-        ? (baseStubEmbeddings ? 'stub' : 'inline')
-        : normalizedEmbeddingMode));
-  const embeddingService = embeddingsConfig.enabled !== false
-    && resolvedEmbeddingMode === 'service';
-  const embeddingEnabled = embeddingsConfig.enabled !== false
-    && resolvedEmbeddingMode !== 'off'
-    && !embeddingService;
-  if (!embeddingEnabled) {
-    embeddingConcurrency = 0;
-  }
-  const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
+  const intent = resolveEmbeddingIntent({ argv, embeddingsConfig, envConfig });
+  const { resolvedEmbeddingMode, embeddingService, useStubEmbeddings } = intent;
+  const embeddingEnabled = intent.embeddingEnabled && !embeddingService;
+  if (!embeddingEnabled) embeddingConcurrency = 0;
   const modelConfig = getModelConfig(rootDir, userConfig);
   const modelId = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
   const modelProfile = resolveEmbeddingModelProfile(modelId, embeddingsConfig.embeddinggemma2);
   validateEmbeddingModelProfile(modelProfile, { provider: embeddingProvider, normalize: embeddingNormalize });
   const embeddingInputFormatting = resolveEmbeddingInputFormatting(modelId);
   const modelsDir = modelConfig.dir;
-  if (modelsDir) {
+  if (modelsDir && embeddingEnabled) {
     try {
       await fs.mkdir(modelsDir, { recursive: true });
     } catch {}
   }
 
+  let observation = { state: 'not-started', provider: null, dims: null, device: null, dtype: null, observedAt: null, method: null };
+  let embeddingIdentity = null;
+  let embeddingIdentityKey = null;
+  let observationWrite = Promise.resolve();
+  const publishObservation = (next) => {
+    const write = observationWrite.then(async () => {
+      if (next.state === observation.state && next.provider === observation.provider && next.dims === observation.dims) return;
+      const candidate = { ...observation, ...next, observedAt: new Date().toISOString() };
+      let identity = embeddingIdentity;
+      if (candidate.state === 'ready' && Number.isFinite(candidate.dims)) {
+        if ((identity?.dims != null && identity.dims !== candidate.dims)
+          || (observation.state === 'ready' && observation.dims !== candidate.dims)) {
+          throw Object.assign(new Error(`Embedding dimensions mismatch: expected ${identity.dims}, observed ${candidate.dims}.`), { code: 'ERR_EMBEDDING_DIMS_MISMATCH' });
+        }
+        // Inline signatures/cache keys have already selected their identity.
+        // A previously undeclared dimension is observed evidence only.
+      }
+      if (candidate.provider && identity?.provider !== candidate.provider) {
+        identity = { ...identity, provider: candidate.provider, onnx: candidate.provider === 'onnx' ? identity.onnx : null };
+      }
+      const identityKey = identity ? buildEmbeddingIdentityKey(identity) : null;
+      await onEmbeddingObservation({ observation: candidate, resolvedIdentity: identity, identityKey });
+      observation = candidate;
+      embeddingIdentity = identity;
+      embeddingIdentityKey = identityKey;
+    });
+    observationWrite = write.catch(() => {});
+    return write;
+  };
   let getChunkEmbedding = async () => [];
   let getChunkEmbeddings = async () => [];
   if (embeddingEnabled) {
@@ -139,8 +145,43 @@ export const resolveEmbeddingRuntime = async ({
       }
       return embedder;
     };
-    getChunkEmbedding = async (text) => ensureEmbedder().getChunkEmbedding(text);
-    getChunkEmbeddings = async (texts) => ensureEmbedder().getChunkEmbeddings(texts);
+    const execute = async (input, batch) => {
+      if (batch && (!Array.isArray(input) || input.length === 0)) return [];
+      if (!embedder) await publishObservation({ state: 'loading', method: 'provider-request-started' });
+      try {
+        const active = ensureEmbedder();
+        const result = await (batch ? active.getChunkEmbeddings(input) : active.getChunkEmbedding(input));
+        const actualProvider = active.getActiveProvider();
+        if (actualProvider !== embeddingProvider) {
+          await publishObservation({ state: 'failed', provider: actualProvider, requestedProvider: embeddingProvider,
+            method: 'provider-changed-after-identity-selection', errorCode: 'ERR_EMBEDDING_PROVIDER_CHANGED' });
+          throw Object.assign(new Error(`Embedding provider changed from ${embeddingProvider} to ${actualProvider} after cache/signature selection. Retry with indexing.embeddings.provider=${actualProvider}; this attempt cannot publish mixed identity.`), { code: 'ERR_EMBEDDING_PROVIDER_CHANGED' });
+        }
+        const vectors = batch ? result : [result];
+        const vector = vectors[0];
+        if (!Array.isArray(vectors) || (batch && vectors.length !== input.length) || !vector?.length || vectors.some((item) => !item?.length || item.length !== vector.length)) {
+          throw Object.assign(new Error('Embedding batch did not return consistent nonempty vectors.'), { code: 'ERR_EMBEDDING_DIMS_MISMATCH' });
+        }
+        {
+          const info = active.executionInfo?.() || {};
+          await publishObservation({
+            state: 'ready', provider: active.getActiveProvider(), dims: vector.length,
+            method: useStubEmbeddings ? 'stub-vector-returned' : 'successful-inference',
+            device: info.device ?? null, dtype: info.dtype ?? null,
+            modelRevision: info.modelRevision ?? null, modelArtifact: info.modelArtifact ?? null,
+            sessionOptions: info.effectiveSessionOptions ?? null,
+            requestedSessionOptions: info.requestedSessionOptions ?? null,
+            effectiveNativeThreads: info.effectiveNativeThreads ?? null
+          });
+        }
+        return result;
+      } catch (error) {
+        await publishObservation({ state: 'failed', method: 'provider-request-failed', errorCode: String(error?.code || 'UNKNOWN') });
+        throw error;
+      }
+    };
+    getChunkEmbedding = (text) => execute(text, false);
+    getChunkEmbeddings = (texts) => execute(texts, true);
   }
 
   const resolvedOnnxModelPath = embeddingProvider === 'onnx'
@@ -156,7 +197,7 @@ export const resolveEmbeddingRuntime = async ({
   const denseScale = quantLevels > 1 && Number.isFinite(quantRange) && quantRange !== 0
     ? quantRange / (quantLevels - 1)
     : 2 / 255;
-  const embeddingIdentity = buildEmbeddingIdentity({
+  embeddingIdentity = buildEmbeddingIdentity({
     modelProfile,
     modelId,
     provider: embeddingProvider,
@@ -180,7 +221,7 @@ export const resolveEmbeddingRuntime = async ({
       resolvedModelPath: resolvedOnnxModelPath
     } : null
   });
-  const embeddingIdentityKey = buildEmbeddingIdentityKey(embeddingIdentity);
+  embeddingIdentityKey = buildEmbeddingIdentityKey(embeddingIdentity);
 
   return {
     embeddingBatchSize,
@@ -196,8 +237,9 @@ export const resolveEmbeddingRuntime = async ({
       dir: embeddingQueueDir || null,
       maxQueued: embeddingQueueMaxQueued
     },
-    embeddingIdentity,
-    embeddingIdentityKey,
+    get embeddingIdentity() { return embeddingIdentity; },
+    get embeddingIdentityKey() { return embeddingIdentityKey; },
+    getEmbeddingObservation: () => ({ ...observation }),
     embeddingCache: {
       dir: embeddingCacheDir || null
     },

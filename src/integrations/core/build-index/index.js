@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
+import { consumeBuildCacheRebuild, rebuildRepoCache } from './cache-rebuild.js';
 import path from 'node:path';
-import { parseBuildArgs } from '../../../index/build/args.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import { watchIndex } from '../../../index/build/watch.js';
 import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress-runtime.js';
@@ -17,7 +17,7 @@ import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-en
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
-import { buildRawArgs, buildStage2Args, normalizeStage } from '../args.js';
+import { resolveBuildInvocationArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
 import {
@@ -82,16 +82,17 @@ export const buildStreamedStage3Result = ({
  */
 export async function buildIndex(repoRoot, options = {}) {
   const root = getRepoRoot(repoRoot);
-  const defaults = parseBuildArgs([]).argv;
-  const baseArgv = { ...defaults, ...options, repo: root };
+  const invocation = resolveBuildInvocationArgs(options);
+  const baseArgv = { ...invocation.argv, repo: root };
   const explicitStage = normalizeStage(baseArgv.stage);
-  const argv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
+  const parsedArgv = explicitStage ? { ...baseArgv, stage: explicitStage } : baseArgv;
+  const rebuild = consumeBuildCacheRebuild({ argv: parsedArgv, rawArgv: invocation.rawArgv });
+  const { argv, rawArgv } = rebuild;
   const mode = argv.mode || 'all';
   const requestedModes = Array.isArray(options.modes) && options.modes.length ? options.modes : null;
   const modes = requestedModes || (mode === 'all'
     ? ['code', 'prose', 'extracted-prose', 'records']
     : [mode]);
-  const rawArgv = options.rawArgv || buildRawArgs(options);
   const log = typeof options.log === 'function' ? options.log : defaultLog;
   const logError = typeof options.logError === 'function' ? options.logError : defaultLogError;
   const warn = typeof options.warn === 'function'
@@ -119,7 +120,11 @@ export async function buildIndex(repoRoot, options = {}) {
   };
 
   throwIfAborted(abortSignal);
-  const userConfig = loadUserConfig(root);
+  let configSources = null;
+  const userConfig = loadUserConfig(root, { onSources: value => { configSources = value; } });
+  if (rebuild.requested) {
+    await rebuildRepoCache({ root, userConfig, argv, log, abortSignal });
+  }
   const qualityOverride = typeof argv.quality === 'string' ? argv.quality.trim().toLowerCase() : '';
   const policyConfig = qualityOverride ? { ...userConfig, quality: qualityOverride } : userConfig;
   const policy = await buildAutoPolicy({ repoRoot: root, config: policyConfig, logger: log });
@@ -154,7 +159,7 @@ export async function buildIndex(repoRoot, options = {}) {
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const twoStageConfig = userConfig?.indexing?.twoStage || {};
   const twoStageEnabled = twoStageConfig.enabled === true;
-  const embeddingRuntime = resolveEmbeddingRuntime({ argv, userConfig, policy });
+  const embeddingRuntime = { ...resolveEmbeddingRuntime({ argv, userConfig, policy }), configSources };
   const embedModes = modes.filter((modeItem) => (
     modeItem === 'code'
     || modeItem === 'prose'
@@ -248,6 +253,8 @@ export async function buildIndex(repoRoot, options = {}) {
           embeddingRuntime,
           userConfig,
           indexRoot: runtime?.buildRoot || null,
+          buildId: runtime?.buildId || null,
+          parentAttemptId: runtime?.runtimeAttempt?.attemptId || null,
           includeEmbeddings,
           overallProgressRef,
           log,
@@ -282,6 +289,8 @@ export async function buildIndex(repoRoot, options = {}) {
         embeddingRuntime,
         userConfig,
         indexRoot: stage2Result?.buildRoot || null,
+        buildId: stage2Result?.buildId || null,
+        parentAttemptId: stage2Result?.runtimeAttemptId || null,
         includeEmbeddings,
         overallProgressRef,
         log,

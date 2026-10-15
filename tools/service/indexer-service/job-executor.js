@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -441,11 +442,14 @@ export const createJobExecutor = ({
     indexRoot,
     extraEnv = {},
     logPath = null,
-    abortSignal = null
+    abortSignal = null,
+    embeddingPlan = null,
+    observability = null
   ) => {
     const buildPath = path.join(toolRoot, 'tools', 'build', 'embeddings.js');
-    const args = buildEmbeddingsArgs({ buildPath, repoPath, mode, indexRoot });
-    const runtimeEnv = resolveRepoRuntimeEnv(repoPath, extraEnv);
+    const args = buildEmbeddingsArgs({ buildPath, repoPath, mode, indexRoot, embeddingPlan });
+    const resolvedEnv = resolveRepoRuntimeEnv(repoPath, extraEnv);
+    const runtimeEnv = embeddingPlan ? attachEmbeddingExecutionPlan(resolvedEnv, embeddingPlan, observability) : resolvedEnv;
     return spawnWithLog(args, runtimeEnv, logPath, abortSignal);
   };
 
@@ -479,6 +483,14 @@ export const createJobExecutor = ({
     if (normalized.indexDirUnderBuildRoot === false) {
       console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
     }
+    if (!job.embeddingPlan && (normalized.formatVersion >= 3 || job.observability?.context?.embeddingPlanRequired)) {
+      await completeNonRetriableFailure(job, 'missing required embedding execution plan');
+      return { handled: true };
+    }
+    if (job.embeddingPlan) {
+      try { validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repoPath, indexRoot: normalized.buildRoot, modes: [job.mode] }); }
+      catch (error) { await completeNonRetriableFailure(job, error.message); return { handled: true }; }
+    }
     const replayRepair = await repairEmbeddingReplayState(job);
     job.replayState = replayRepair.after;
     const subprocessResult = await jobLifecycle.registerPromise(
@@ -488,7 +500,9 @@ export const createJobExecutor = ({
         normalized.buildRoot,
         embeddingExtraEnv,
         logPath,
-        abortSignal
+        abortSignal,
+        job.embeddingPlan || null,
+        job.observability || null
       ),
       { label: 'indexer-service-run-embeddings' }
     );

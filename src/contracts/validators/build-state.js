@@ -3,6 +3,7 @@ import { BUILD_STATE_SCHEMA } from '../schemas/build-state.js';
 import { toValidationResult } from './result.js';
 
 const ajv = createAjv({
+  dialect: '2020',
   allErrors: true,
   allowUnionTypes: true,
   strict: true

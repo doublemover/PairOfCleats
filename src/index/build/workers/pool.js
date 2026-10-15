@@ -1,3 +1,4 @@
+import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
 import { isAbortError } from '../../../shared/abort.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import os from 'node:os';
@@ -214,6 +215,16 @@ export async function createIndexerWorkerPool(input = {}) {
       maxPerWorkerMb: heapPolicy.maxPerWorkerMb
     });
     let currentResourceLimits = resolveResourceLimitsForWorkers(configuredMaxWorkers);
+    let heapLaunchContract = resolveWorkerHeapLaunchContract(currentResourceLimits);
+    const reportHeapContract = () => input.onRuntimeEvidence?.({
+      pool: poolLabel, configuredMaxWorkers, heapLaunchContract,
+      observedAt: new Date().toISOString()
+    });
+    reportHeapContract();
+    if (!heapLaunchContract.supported) {
+      log(`Worker pool ${poolLabel} disabled: ${heapLaunchContract.reason}; requested old-generation=${heapLaunchContract.requestedOldGenerationSizeMb}MB, parent startup=${heapLaunchContract.parentStartupOldSpaceMb ?? 'unknown'}MB. Using inline fallback; worker heap enforcement is unavailable.`);
+      return null;
+    }
     const serializedDictWords = dictSharedForPool?.bytes && dictSharedForPool?.offsets
       ? null
       : normalizeStringArray(dictWordsForPool);
@@ -262,6 +273,11 @@ export async function createIndexerWorkerPool(input = {}) {
       setWorkerGcPressure,
       readProcessPressureSample: queueController.readProcessPressureSample,
       updatePressureState: queueController.updatePressureState,
+      onRuntimeObservation: (observation) => {
+        if (observation.resourceLimitAcknowledged === false && lifecycle) {
+          void lifecycle.disablePermanently('worker heap acknowledgement rejected').catch(() => {});
+        }
+      },
       maybeReduceWorkersOnPressure: async (sample) => {
         if (!lifecycle) return;
         await lifecycle.maybeReduceWorkersOnPressure(sample);
@@ -270,12 +286,17 @@ export async function createIndexerWorkerPool(input = {}) {
 
     const createPool = (maxWorkers) => {
       currentResourceLimits = resolveResourceLimitsForWorkers(maxWorkers);
+      heapLaunchContract = resolveWorkerHeapLaunchContract(currentResourceLimits);
+      reportHeapContract();
+      if (!heapLaunchContract.supported) throw new Error(`Worker heap bound is not enforceable: ${heapLaunchContract.reason}`);
       const numaPinningPlan = resolveNumaPinningPlan({
         config: poolConfig,
         maxWorkers
       });
       workerCoordinator.setNumaPinningPlan(numaPinningPlan);
       const workerData = {
+        runtimeAttemptId: typeof input.runtimeAttemptId === 'string' ? input.runtimeAttemptId.slice(0, 128) : null,
+        buildId: typeof input.buildId === 'string' ? input.buildId.slice(0, 2048) : null,
         dictConfig: sanitizeDictConfig(dictConfig),
         postingsConfig: postingsConfig || {},
         numaPinning: numaPinningPlan.active
@@ -512,6 +533,9 @@ export async function createIndexerWorkerPool(input = {}) {
           restartAttempts: lifecycle.getRestartAttempts(),
           heapPolicy,
           heapLimitMb: Number(currentResourceLimits?.maxOldGenerationSizeMb) || null,
+          heapLimitEvidenceScope: 'requested-resource-limit',
+          heapLaunchContract,
+          runtimeObservations: workerCoordinator.runtimeObservationStats(pool),
           quantizeTypedTempBuffers,
           pressureDownscale: lifecycle.pressureDownscaleStats(),
           memoryPressure: {
@@ -678,9 +702,15 @@ export async function createIndexerWorkerPool(input = {}) {
  * @returns {Promise<{tokenizePool:object|null,quantizePool:object|null,destroy:()=>Promise<void>}>}
  */
 export async function createIndexerWorkerPools(input = {}) {
+  const runtimeEvidence = {};
+  const outerReport = input.onRuntimeEvidence;
+  input = { ...input, onRuntimeEvidence: (evidence) => {
+    runtimeEvidence[evidence.pool] = evidence;
+    outerReport?.(evidence);
+  } };
   const baseConfig = input.config;
   if (!baseConfig || baseConfig.enabled === false) {
-    return { tokenizePool: null, quantizePool: null, destroy: async () => {} };
+    return { runtimeEvidence, tokenizePool: null, quantizePool: null, destroy: async () => {} };
   }
   if (!baseConfig.splitByTask) {
     const pool = await createIndexerWorkerPool({ ...input, poolName: 'tokenize' });
@@ -689,7 +719,7 @@ export async function createIndexerWorkerPools(input = {}) {
         await pool.destroy();
       }
     };
-    return { tokenizePool: pool, quantizePool: pool, destroy };
+    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, destroy };
   }
 
   // When splitting work across pools, treat maxWorkers as a TOTAL thread budget.
@@ -707,7 +737,7 @@ export async function createIndexerWorkerPools(input = {}) {
         await pool.destroy();
       }
     };
-    return { tokenizePool: pool, quantizePool: pool, destroy };
+    return { runtimeEvidence, tokenizePool: pool, quantizePool: pool, destroy };
   }
 
   const requestedQuantize = Number.isFinite(baseConfig.quantizeMaxWorkers)
@@ -754,6 +784,7 @@ export async function createIndexerWorkerPools(input = {}) {
     return destroyPromise;
   };
   return {
+    runtimeEvidence,
     tokenizePool: finalTokenizePool,
     quantizePool: finalQuantizePool,
     destroy

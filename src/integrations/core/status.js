@@ -1,10 +1,10 @@
+import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getIndexDir, getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
 import { getCacheRoot, getDictConfig, getMetricsDir, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io/manifest.js';
-import { getEnvConfig } from '../../shared/env/runtime.js';
 import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js';
 import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { sizeOfPath } from '../../shared/disk-space.js';
@@ -22,9 +22,7 @@ export async function getStatus(input = {}) {
   const root = getRepoRoot(input.repoRoot);
   const includeAll = input.includeAll === true;
   const userConfig = loadUserConfig(root);
-  const envConfig = getEnvConfig();
   const cacheRoot = (userConfig.cache && userConfig.cache.root)
-    || envConfig.cacheRoot
     || getCacheRoot();
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const dictConfig = getDictConfig(root, userConfig);
@@ -191,6 +189,11 @@ export async function getStatus(input = {}) {
       }
     },
     health,
+    runtime: await Promise.all(Array.from(new Set([
+      indexCodeDir, indexProseDir, indexExtractedProseDir, indexRecordsDir
+    ].map((directory) => path.dirname(directory)))).map((buildRoot) => readRuntimeReceipt({
+      buildRoot, selection: 'published-mode-root'
+    }))),
     durability,
     overall: {
       cacheRoot: path.resolve(cacheRoot),

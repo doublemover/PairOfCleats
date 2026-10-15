@@ -34,6 +34,7 @@ export function buildQueueJobIdempotencyPayload(job = {}, queueName = null) {
     indexRoot: normalizeIdentityPath(job?.indexRoot),
     configHash: normalizeString(job?.configHash),
     repoProvenance: normalizeString(job?.repoProvenance),
+    embeddingPlanDigest: normalizeString(job?.embeddingPlan?.digest),
     embeddingIdentityKey: normalizeString(job?.embeddingIdentityKey),
     embeddingPayloadFormatVersion: Number.isFinite(Number(job?.embeddingPayloadFormatVersion))
       ? Math.max(1, Math.floor(Number(job.embeddingPayloadFormatVersion)))

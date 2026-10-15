@@ -1,6 +1,7 @@
 import { quantizeVecUint8 } from '../../../src/index/embedding.js';
 import { mergeEmbeddingVectors, normalizeEmbeddingVector } from '../../../src/shared/embedding-utils.js';
 import { resolveQuantizationParams } from '../../../src/storage/sqlite/quantization.js';
+import { planEmbeddingBatches } from './batch-plan.js';
 
 const isVectorLike = (value) => {
   if (Array.isArray(value)) return true;
@@ -92,32 +93,8 @@ export const runBatched = async ({
   // length buckets, avoiding padding a tiny chunk to an unrelated huge chunk.
   const grouped = Array.isArray(groups) && groups.length === texts.length;
   const estimates = texts.map((text, index) => resolveTokenEstimate(text, index));
-  const bucket = (index) => Math.ceil(Math.log2(estimates[index]));
-  const groupOrder = new Map();
-  const order = texts.map((_, index) => {
-    const id = groups?.[index]?.groupId;
-    if (!groupOrder.has(id)) groupOrder.set(id, groupOrder.size);
-    return index;
-  });
-  if (grouped) order.sort((a, b) => bucket(a) - bucket(b)
-    || groupOrder.get(groups[a]?.groupId) - groupOrder.get(groups[b]?.groupId) || a - b);
-  const batches = [];
-  let current = [];
-  let currentTokens = 0;
-  for (const index of order) {
-    const estimated = estimates[index];
-    const exceeds = current.length >= maxItems || (tokenBudget > 0 &&
-      currentTokens + estimated > tokenBudget);
-    if (current.length && exceeds) {
-      batches.push(current);
-      current = [];
-      currentTokens = 0;
-    }
-    // Preserve the existing single oversized-item policy; never truncate inputs.
-    current.push(index);
-    currentTokens += estimated;
-  }
-  if (current.length) batches.push(current);
+  const plan = planEmbeddingBatches({ estimates, maxItems, tokenBudget, groups });
+  const { batches } = plan;
   const out = new Array(texts.length);
   let completed = 0;
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
@@ -139,6 +116,9 @@ export const runBatched = async ({
       batchCount: batches.length,
       batchSize: indices.length,
       batchTokens,
+      batchPlanStrategy: plan.strategy,
+      plannedPaddedTokens: plan.paddedTokens,
+      baselinePaddedTokens: plan.baselinePaddedTokens,
       paddedTokens: indices.reduce((max, index) => Math.max(max, estimates[index]), 0) * indices.length,
       groupTokens: [...groupTokens],
       groups: groupTokens.size,

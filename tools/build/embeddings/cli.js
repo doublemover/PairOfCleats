@@ -1,4 +1,7 @@
 import os from 'node:os';
+import { readEmbeddingExecutionPlan, applyEmbeddingExecutionPlan, EMBEDDING_LAUNCH_OPTION_KEYS } from '../../../src/shared/embedding-execution-plan.js';
+import { resolveEmbeddingIntent } from '../../../src/shared/embedding-intent.js';
+import { INDEX_BUILD_OPTIONS } from '../../../src/shared/cli-option-sets.js';
 import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { resolveAutoEmbeddingBatchSize } from '../../../src/shared/embedding-batch.js';
@@ -18,6 +21,7 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
       repo: { type: 'string' },
       dims: { type: 'number' },
       model: { type: 'string' },
+      ...Object.fromEntries(['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource'].map(key => [key, INDEX_BUILD_OPTIONS[key]])),
       batch: { type: 'number' },
       'stub-embeddings': { type: 'boolean', default: false },
       'index-root': { type: 'string' },
@@ -28,15 +32,30 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
   }).parse();
 
   const root = resolveRepoRootArg(argv.repo);
-  const userConfig = loadUserConfig(root);
-  const envConfig = getEnvConfig();
+  let configSources = null;
+  let rawEnv = process.env;
+  const requestedMode = (argv.mode || 'all').toLowerCase();
+  const requestedModes = ['all', 'both'].includes(requestedMode) ? ['code', 'prose', 'extracted-prose', 'records'] : [requestedMode];
+  const executionPlan = readEmbeddingExecutionPlan(rawEnv, { root, indexRoot: argv['index-root'], modes: requestedModes });
+  let userConfig = loadUserConfig(root, { env: rawEnv, onSources: value => { configSources = value; } });
+  if (executionPlan) {
+    if (executionPlan.indexRoot && !argv['index-root']) throw new Error('Embedding execution plan requires its pinned --index-root.');
+    for (const key of EMBEDDING_LAUNCH_OPTION_KEYS) {
+      const provided = resolvedRawArgs.some(value => value === `--${key}` || value === `--no-${key}` || value.startsWith(`--${key}=`));
+      if (provided && argv[key] !== executionPlan.options[key]) throw new Error(`Embedding execution plan disagrees with --${key}.`);
+    }
+    ({ userConfig, rawEnv } = applyEmbeddingExecutionPlan(executionPlan, userConfig, rawEnv));
+    Object.assign(argv, executionPlan.options);
+  }
+  const envConfig = getEnvConfig(rawEnv);
   const indexingConfig = userConfig.indexing || {};
   const embeddingsConfig = indexingConfig.embeddings || {};
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const embeddingOnnx = executionPlan?.embeddings.onnx || normalizeOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const modelConfig = getModelConfig(root, userConfig);
-  const modelId = argv.model || modelConfig.id;
+  if (executionPlan?.modelsDir) modelConfig.dir = executionPlan.modelsDir;
+  const modelId = argv.model || embeddingsConfig.model || modelConfig.id;
   const repoCacheRoot = getRepoCacheRoot(root, userConfig);
   const autoTune = loadEmbeddingsAutoTuneRecommendation({
     repoCacheRoot,
@@ -45,22 +64,8 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
     log: null
   });
 
-  const embeddingModeRaw = typeof embeddingsConfig.mode === 'string'
-    ? embeddingsConfig.mode.trim().toLowerCase()
-    : 'auto';
-  const baseStubEmbeddings = argv['stub-embeddings'] === true
-    || envConfig.embeddings === 'stub';
-  const normalizedEmbeddingMode = ['auto', 'inline', 'service', 'stub', 'off'].includes(embeddingModeRaw)
-    ? embeddingModeRaw
-    : 'auto';
-  // build-embeddings runs inline; service mode from config is coerced here.
-  const resolvedEmbeddingMode = normalizedEmbeddingMode === 'auto'
-    ? (baseStubEmbeddings ? 'stub' : 'inline')
-    : (normalizedEmbeddingMode === 'service'
-      ? (baseStubEmbeddings ? 'stub' : 'inline')
-      : normalizedEmbeddingMode);
-
-  const useStubEmbeddings = resolvedEmbeddingMode === 'stub' || baseStubEmbeddings;
+  const intent = resolveEmbeddingIntent({ argv, embeddingsConfig, envConfig, execution: 'worker' });
+  const { normalizedEmbeddingMode, resolvedEmbeddingMode, useStubEmbeddings } = intent;
 
   const embeddingBatchRaw = Number(argv.batch ?? indexingConfig.embeddingBatchSize ?? autoTune?.recommended?.batchSize);
   let embeddingBatchSize = Number.isFinite(embeddingBatchRaw)
@@ -110,6 +115,10 @@ export const parseBuildEmbeddingsArgs = (rawArgs = process.argv.slice(2)) => {
 
   return {
     rawArgv: resolvedRawArgs,
+    rawEnv,
+    executionPlan,
+    configSources,
+    embeddingIntent: intent,
     argv,
     root,
     userConfig,
