@@ -10,7 +10,7 @@ export const RUNTIME_FAMILY_MANIFEST_SCHEMA = object({
   capture: member, evidence: object({ path, hash, byteLength: integer, count: integer, offsetsPath: path, offsetsHash: hash }),
   raw: { type: 'array', items: object({ artifactId: text, captureId: text, path, hash, byteLength: integer,
     format: text, formatVersion: text, pinned: { type: 'boolean' } }) },
-  queryIndex: object({ path, hash, byteLength: integer, formatVersion: { const: '1' } }),
+  queryIndex: object({ path, hash, byteLength: integer, formatVersion: { const: '2' } }),
   coverage: { type: 'array', items: coverage }
 });
 export const RUNTIME_FAMILY_POINTER_SCHEMA = object({ schemaVersion: { const: 1 },

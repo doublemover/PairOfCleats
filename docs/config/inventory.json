@@ -1,13 +1,14 @@
 {
-  "generatedAt": "2026-10-12T03:18:50.205Z",
+  "generatedAt": "2026-10-15T02:28:32.101Z",
   "budgets": {
-    "configKeys": 3,
+    "configKeys": 4,
     "envVars": 1,
-    "cliFlags": 72
+    "cliFlags": 73
   },
   "allowlists": {
     "configKeys": [
       "cache.root",
+      "indexing.workerPool.processFallback",
       "quality",
       "tooling.typescript.typeRepresentation"
     ],
@@ -17,6 +18,7 @@
     "cliFlags": [
       "all",
       "allow-unauthenticated",
+      "allowed-hosts",
       "allowed-repo-roots",
       "auth-token",
       "backend",
@@ -493,6 +495,7 @@
       "indexing.snapshots.protectedTagGlobs",
       "indexing.snapshots.retainDays",
       "indexing.snapshots.stagingMaxAgeHours",
+      "indexing.workerPool.processFallback",
       "mcp.maxBufferBytes",
       "mcp.mode",
       "mcp.queueMax",
@@ -659,8 +662,8 @@
   },
   "configSchema": {
     "path": "docs/config/schema.json",
-    "totalKeys": 457,
-    "leafKeys": 371,
+    "totalKeys": 459,
+    "leafKeys": 372,
     "topLevel": [
       {
         "key": "cache",
@@ -672,7 +675,7 @@
       },
       {
         "key": "indexing",
-        "count": 253
+        "count": 255
       },
       {
         "key": "mcp",
@@ -2176,6 +2179,16 @@
       "enum": null
     },
     {
+      "path": "indexing.workerPool",
+      "type": "object",
+      "enum": null
+    },
+    {
+      "path": "indexing.workerPool.processFallback",
+      "type": "boolean",
+      "enum": null
+    },
+    {
       "path": "mcp",
       "type": "object",
       "enum": null
@@ -3154,6 +3167,7 @@
   ],
   "configKeysPublic": [
     "cache.root",
+    "indexing.workerPool.processFallback",
     "quality",
     "tooling.typescript.typeRepresentation"
   ],
@@ -3256,6 +3270,7 @@
         "tests/perf/baseline-artifacts.test.js",
         "tests/run.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
+        "tests/tooling/reports/parity-cold-build-cleanup.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/bench/ab-sweep.js",
         "tools/ci/run-suite.js",
@@ -3846,6 +3861,7 @@
       "files": [
         "src/shared/onnx-embeddings/config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tests/indexing/embeddings/onnx-frozen-plan-environment.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3854,6 +3870,7 @@
       "files": [
         "src/shared/onnx-embeddings/config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tests/indexing/embeddings/onnx-frozen-plan-environment.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3862,6 +3879,7 @@
       "files": [
         "src/shared/onnx-embeddings/config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tests/indexing/embeddings/onnx-frozen-plan-environment.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3870,6 +3888,7 @@
       "files": [
         "src/shared/onnx-embeddings/config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tests/indexing/embeddings/onnx-frozen-plan-environment.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3878,6 +3897,7 @@
       "files": [
         "src/shared/onnx-embeddings/config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tests/indexing/embeddings/onnx-frozen-plan-environment.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3886,6 +3906,7 @@
       "files": [
         "src/shared/onnx-embeddings/config.js",
         "tests/indexing/embeddings/onnx-cpu-tuning-and-token-cache.test.js",
+        "tests/indexing/embeddings/onnx-frozen-plan-environment.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4354,6 +4375,7 @@
         "tests/helpers/fixture-index-risk-config.test.js",
         "tests/helpers/fixture-index.js",
         "tests/helpers/lane-default-test-config.test.js",
+        "tests/helpers/published-runtime-witness.js",
         "tests/helpers/search-lifecycle-env-isolation.test.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env-sync-option.test.js",
@@ -4610,6 +4632,7 @@
         "src/shared/cli/legacy-entrypoint.js",
         "src/shared/env/testing.js",
         "src/shared/ops/failure-injection.js",
+        "tests/ci/env-usage-scope.test.js",
         "tests/cli/general/legacy-entrypoint-symlink-contract.test.js",
         "tests/cli/general/legacy-entrypoint-warning.test.js",
         "tests/cli/search/non-result-surfaces.test.js",
@@ -4671,6 +4694,7 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/shared/runtime/embedding-plan-allowlist.test.js",
+        "tests/tooling/reports/parity-cold-build-cleanup.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"
@@ -5046,10 +5070,11 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 495,
+    "totalFlags": 497,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
+      "allowed-hosts",
       "allowed-repo-roots",
       "auth-token",
       "backend",
@@ -5258,6 +5283,7 @@
       "from",
       "full-run",
       "gates",
+      "generation",
       "git-sha",
       "global",
       "grace-days",
@@ -5549,6 +5575,7 @@
     "publicDetected": [
       "all",
       "allow-unauthenticated",
+      "allowed-hosts",
       "allowed-repo-roots",
       "auth-token",
       "category",
@@ -5627,6 +5654,7 @@
         "flags": [
           "all",
           "allow-unauthenticated",
+          "allowed-hosts",
           "allowed-repo-roots",
           "auth-token",
           "category",
@@ -7226,7 +7254,9 @@
       {
         "file": "tools/ingest/runtime-evidence.js",
         "flags": [
+          "generation",
           "out",
+          "repo",
           "specification"
         ]
       },
@@ -7718,7 +7748,7 @@
       },
       {
         "flag": "repo",
-        "count": 58,
+        "count": 59,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
@@ -7762,6 +7792,7 @@
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
+          "tools/ingest/runtime-evidence.js",
           "tools/ingest/scip.js",
           "tools/mcp/cli-entry.js",
           "tools/mcp/server.js",
@@ -9386,6 +9417,7 @@
       "src/index/semantic/compiler-session.js",
       "src/index/semantic/embedded-source.js",
       "src/index/tooling/typescript-provider.js",
+      "src/index/tooling/typescript/host.js",
       "src/index/tooling/typescript/symbolic.js",
       "src/integrations/tooling/context-pack.js",
       "src/integrations/tooling/graph-context.js",
@@ -9404,8 +9436,10 @@
       "src/shared/cli.js",
       "src/shared/concurrency/scheduler-core/index.js",
       "src/shared/embedding-adapter.js",
+      "tests/helpers/published-runtime-witness.js",
       "tests/helpers/semantic-cache-fixture.js",
       "tests/helpers/semantic-recovery.js",
+      "tests/helpers/verified-runtime-import-fixture.js",
       "tests/indexing/chunking/chunker-options-forwarding.test.js",
       "tests/indexing/contracts/semantic-foundations.test.js",
       "tests/indexing/contracts/semantic-handoff-contracts.test.js",
@@ -9429,15 +9463,17 @@
       "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
       "tests/map/workspace/dom-interaction.test.js",
       "tests/map/workspace/projection.test.js",
-      "tests/map/workspace/runtime-producer.test.js",
       "tests/perf/bench/run.test.js",
       "tests/services/api/runtime-claims.test.js",
       "tests/services/api/runtime-evidence.test.js",
       "tests/shared/cli-option-validators-contract.test.js",
       "tests/storage/semantic/partitions.test.js",
       "tests/storage/semantic/runtime-claims-recovery.test.js",
+      "tests/storage/semantic/runtime-destination-ownership.test.js",
       "tests/storage/semantic/runtime-import-publication.test.js",
+      "tests/storage/semantic/runtime-opened-byte-integrity.test.js",
       "tests/storage/semantic/runtime-query-integrity.test.js",
+      "tests/storage/semantic/runtime-source-reference-authority.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
       "tests/tooling/signature-parse/signature-contract-matrix.test.js",
       "tests/tooling/typescript-root-preflight.test.js",

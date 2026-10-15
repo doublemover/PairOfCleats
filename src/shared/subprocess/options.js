@@ -136,6 +136,9 @@ const createCollector = ({ enabled, maxOutputBytes, encoding }) => {
   const chunks = [];
   let headIndex = 0;
   let totalBytes = 0;
+  let observedBytes = 0;
+  let outputBytes = 0;
+  let encodingLoss = false;
 
   const maybeCompact = () => {
     // Avoid repeated O(n) shifts under sustained output pressure by compacting
@@ -146,44 +149,69 @@ const createCollector = ({ enabled, maxOutputBytes, encoding }) => {
   };
 
   const push = (chunk) => {
+    const size = Buffer.isBuffer(chunk) ? chunk.length : Buffer.byteLength(chunk, encoding);
+    observedBytes += size;
     if (!enabled) return;
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
-    if (!buffer.length) return;
-    chunks.push(buffer);
-    totalBytes += buffer.length;
-    while (totalBytes > maxOutputBytes && headIndex < chunks.length) {
-      const overflow = totalBytes - maxOutputBytes;
+    if (!size) return;
+    const retainedSize = Math.min(size, maxOutputBytes);
+    // Evict before copying a new tail. Dropped slots must release their buffers,
+    // and partial tails must not keep the oversized original backing allocation.
+    while (totalBytes + retainedSize > maxOutputBytes && headIndex < chunks.length) {
+      const overflow = totalBytes + retainedSize - maxOutputBytes;
       const head = chunks[headIndex];
       if (head.length <= overflow) {
+        chunks[headIndex] = null;
         headIndex += 1;
         totalBytes -= head.length;
       } else {
-        chunks[headIndex] = head.subarray(overflow);
+        const tail = Buffer.allocUnsafeSlow(head.length - overflow);
+        head.copy(tail, 0, overflow);
+        chunks[headIndex] = tail;
         totalBytes -= overflow;
       }
     }
     maybeCompact();
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding);
+    const owned = Buffer.allocUnsafeSlow(retainedSize);
+    buffer.copy(owned, 0, buffer.length - retainedSize);
+    chunks.push(owned);
+    totalBytes += retainedSize;
   };
   const toOutput = (mode) => {
     if (!enabled) return undefined;
     const activeChunks = headIndex > 0 ? chunks.slice(headIndex) : chunks;
     if (!activeChunks.length) return mode === 'lines' ? [] : '';
-    const text = Buffer.concat(activeChunks).toString(encoding);
+    const bytes = Buffer.concat(activeChunks);
+    let text = bytes.toString(encoding);
+    const encoded = Buffer.from(text, encoding);
+    encodingLoss = !encoded.equals(bytes);
+    if (encoded.length > maxOutputBytes) {
+      let start = encoded.length - maxOutputBytes;
+      if (encoding === 'utf8' || encoding === 'utf-8') {
+        while (start < encoded.length && (encoded[start] & 0xc0) === 0x80) start += 1;
+      }
+      text = encoded.subarray(start).toString(encoding);
+    }
+    outputBytes = Buffer.byteLength(text, encoding);
     if (mode !== 'lines') return text;
     const lines = text.split(/\r?\n/);
     if (lines.length && lines[lines.length - 1] === '') lines.pop();
     return lines;
   };
-  return { push, toOutput };
+  return { push, toOutput, stats: () => ({ enabled, maxBytes: maxOutputBytes,
+    observedBytes, retainedBytes: totalBytes, droppedBytes: observedBytes - totalBytes,
+    retainedBufferBytes: chunks.reduce((sum, chunk) => sum + (chunk?.buffer.byteLength || 0), 0),
+    outputBytes, encodingLoss, truncated: enabled && observedBytes > totalBytes }) };
 };
 
-const buildResult = ({ pid, exitCode, signal, startedAt, stdout, stderr }) => ({
+const buildResult = ({ pid, exitCode, signal, startedAt, stdout, stderr, outputCapture }) => ({
   pid,
   exitCode,
   signal,
   durationMs: Math.max(0, Date.now() - startedAt),
   stdout,
-  stderr
+  stderr,
+  ...(outputCapture ? { outputCapture } : {})
 });
 
 const trimOutput = (value, maxBytes, encoding, mode) => {

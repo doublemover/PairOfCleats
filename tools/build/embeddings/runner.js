@@ -1,3 +1,8 @@
+import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
+import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
+import { readIncrementalBundleSnapshot, writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
+import { embeddingArtifactReusable, resolveEmbeddingArtifactIdentity } from '../../../src/shared/embedding-artifact-identity.js';
 import { createStage3RuntimeReceipts } from './runtime-receipt.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -48,13 +53,8 @@ import { resolveFdConcurrencyCap } from '../../../src/index/build/workers/config
 import { formatEtaSeconds } from '../../../src/shared/perf/eta.js';
 import {
   normalizeBundleFormat,
-  resolveManifestBundleNames,
-  resolveBundleFormatFromName
+  resolveManifestBundleNames
 } from '../../../src/shared/bundle-io-paths.js';
-import {
-  readBundleFile,
-  writeBundleFile
-} from '../../../src/shared/bundle-io.js';
 import {
   getCurrentBuildInfo,
   getIndexDir,
@@ -394,9 +394,13 @@ export const resolveEmbeddingsSqliteDenseWriteBatchSize = (indexingConfig) => (
 export const createEmbeddingTextReuseCache = ({
   maxEntries = DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES,
   maxTextChars = DEFAULT_EMBEDDINGS_TEXT_REUSE_MAX_TEXT_CHARS,
-  persistentStore = null
+  persistentStore = null,
+  maxBytes = 64 * 1024 * 1024
 } = {}) => {
   const cache = new Map();
+  const sizes = new Map();
+  let retainedBytes = 0;
+  const byteCap = Math.max(1, Math.floor(Number(maxBytes) || 64 * 1024 * 1024));
   const cap = Math.max(1, coercePositiveIntMinOne(maxEntries) || DEFAULT_EMBEDDINGS_TEXT_REUSE_CACHE_ENTRIES);
   const maxChars = Math.max(
     1,
@@ -404,12 +408,16 @@ export const createEmbeddingTextReuseCache = ({
   );
   const canCache = (text) => typeof text === 'string' && text.length > 0 && text.length <= maxChars;
   const promote = (text, value) => {
-    cache.delete(text);
-    cache.set(text, value);
-    while (cache.size > cap) {
+    if (cache.has(text)) retainedBytes -= sizes.get(text) || 0;
+    cache.delete(text); sizes.delete(text);
+    const bytes = estimateRetainedBytes(text) + estimateRetainedBytes(value) + 48;
+    if (bytes > byteCap) return;
+    cache.set(text, value); sizes.set(text, bytes); retainedBytes += bytes;
+    while (cache.size > cap || retainedBytes > byteCap) {
       const oldestKey = cache.keys().next().value;
       if (oldestKey == null) break;
-      cache.delete(oldestKey);
+      retainedBytes -= sizes.get(oldestKey) || 0;
+      sizes.delete(oldestKey); cache.delete(oldestKey);
     }
   };
   return {
@@ -440,8 +448,9 @@ export const createEmbeddingTextReuseCache = ({
     },
     canCache,
     size: () => cache.size,
+    stats: () => ({ entries: cache.size, retainedBytes, maxBytes: byteCap, method: 'estimated-string-vector-map-storage' }),
     clear() {
-      cache.clear();
+      cache.clear(); sizes.clear(); retainedBytes = 0;
       if (typeof persistentStore?.clear === 'function') {
         try {
           persistentStore.clear();
@@ -496,6 +505,9 @@ export const createEmbeddingInFlightCoalescer = ({
         resolveClaim = resolve;
         rejectClaim = reject;
       });
+      // The owner reports compute failure directly; zero followers is valid.
+      // Observe rejection without changing the promise delivered to followers.
+      promise.catch(() => {});
       const finalize = () => {
         inFlight.delete(text);
       };
@@ -980,6 +992,8 @@ const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
  */
 export const refreshIncrementalBundlesWithEmbeddings = async ({
   mode,
+  repoRoot = process.cwd(),
+  signal = null,
   incremental,
   chunksByFile,
   mergedVectors,
@@ -993,13 +1007,13 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
   if (!incremental?.manifest || !incremental?.bundleDir || !incremental?.manifestPath) {
     return { attempted: 0, rewritten: 0, manifestWritten: false, completeCoverage: false };
   }
-  const manifest = incremental.manifest;
+  const manifest = structuredClone(incremental.manifest);
   const manifestFiles = manifest.files && typeof manifest.files === 'object'
     ? manifest.files
     : {};
   const orderedManifestEntries = sortEntriesByOrderIndex(
     Object.entries(manifestFiles).map(([filePath, entry], index) => {
-      const normalizedFile = toPosix(filePath).trim();
+      const normalizedFile = canonicalBundleSourceKey(filePath);
       return {
         filePath,
         normalizedFile,
@@ -1044,7 +1058,7 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
    */
   const processManifestEntry = async (record) => {
     const filePath = String(record?.filePath || '');
-    const normalizedFile = String(record?.normalizedFile || toPosix(filePath).trim());
+    const normalizedFile = canonicalBundleSourceKey(record?.normalizedFile || filePath);
     const entry = record?.entry;
     processedEntries += 1;
     const chunkMapping = resolveChunkFileMapping(mappingIndex, normalizedFile);
@@ -1053,26 +1067,15 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
       skippedInvalidBundle += 1;
       return;
     }
-    const bundleShards = [];
-    for (const bundleName of bundleNames) {
-      const bundlePath = path.join(incremental.bundleDir, bundleName);
-      const bundleFormat = resolveBundleFormatFromName(bundleName, resolvedBundleFormat);
-      let existing = null;
-      try {
-        existing = await scheduleIo(() => readBundleFile(bundlePath, { format: bundleFormat }));
-      } catch {
-        existing = null;
-      }
-      if (!existing?.ok || !Array.isArray(existing.bundle?.chunks)) {
-        skippedInvalidBundle += 1;
-        return;
-      }
-      bundleShards.push({
-        bundlePath,
-        bundleFormat,
-        bundle: existing.bundle
-      });
+    const snapshot = await scheduleIo(() => readIncrementalBundleSnapshot({
+      repoRoot, bundleDir: incremental.bundleDir, relKey: normalizedFile, entry,
+      fallbackFormat: resolvedBundleFormat, signal
+    }));
+    if (!snapshot) {
+      skippedInvalidBundle += 1;
+      return;
     }
+    const bundleShards = snapshot.shards;
 
     const totalChunks = bundleShards.reduce(
       (sum, shard) => sum + (Array.isArray(shard.bundle?.chunks) ? shard.bundle.chunks.length : 0),
@@ -1143,13 +1146,12 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
       return;
     }
     try {
-      for (const shard of bundleShards) {
-        await scheduleIo(() => writeBundleFile({
-          bundlePath: shard.bundlePath,
-          bundle: shard.bundle,
-          format: shard.bundleFormat
-        }));
-      }
+      const replacement = await scheduleIo(() => writeIncrementalBundleSnapshot({
+        repoRoot, bundleDir: incremental.bundleDir, relKey: normalizedFile, entry,
+        bundles: bundleShards.map((shard) => shard.bundle), format: entry.bundleFormat || resolvedBundleFormat,
+        diskAccount: incremental.diskAccount || null, signal
+      }));
+      Object.assign(entry, replacement);
       rewritten += 1;
       if (fileCovered) covered += 1;
     } catch (err) {
@@ -1179,6 +1181,7 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
     manifestWritten = await scheduleIo(
       () => writeIncrementalManifest(incremental.manifestPath, manifest)
     );
+    if (manifestWritten) incremental.manifest = manifest;
     if (!manifestWritten) {
       warn(`[embeddings] ${mode}: failed to persist incremental manifest embedding metadata.`);
     }
@@ -1254,11 +1257,28 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
  */
 export async function runBuildEmbeddingsWithConfig(config) {
   let receipts = null;
-  try { return await runBuildEmbeddingsImpl(config, (value) => { receipts = value; }); }
-  catch (error) { await receipts?.fail(error); throw error; }
+  let cleanup = null, primaryFailure = null;
+  try { return await runBuildEmbeddingsImpl(config, value => { receipts = value; }, value => { cleanup = value; }); }
+  catch (error) {
+    primaryFailure = error;
+    try { await receipts?.fail(error); } catch { /* Preserve the original failure. */ }
+    throw error;
+  } finally {
+    try { await cleanup?.(); }
+    catch (error) {
+      if (primaryFailure) {
+        primaryFailure.cleanupError = error;
+        primaryFailure.cacheOwnershipPending = true;
+      } else {
+        error.cacheOwnershipPending = true;
+        throw error;
+      }
+    }
+  }
 }
 
-async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
+async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
+  throwIfAborted(config.signal);
   const {
     argv,
     root,
@@ -1450,9 +1470,12 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
     })
     : null;
   let runtimeEmbeddingProvider = embeddingProvider;
+  let modelArtifact = resolveEmbeddingArtifactIdentity({ provider: embeddingProvider,
+    modelId, modelsDir, rootDir: root, onnx: embeddingOnnx, modelProfile, stub: useStubEmbeddings });
   const buildCacheIdentityForProvider = (provider) => {
     const identityPayload = buildCacheIdentity({
       modelProfile,
+      modelArtifact,
       modelId,
       provider,
       mode: resolvedEmbeddingMode,
@@ -1683,7 +1706,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
       provider: embeddingProvider,
       onnx: embeddingOnnx,
       normalize: embeddingNormalize,
-      modelProfile
+      modelProfile,
+      modelArtifact
     });
   } catch (err) {
     crashLogger.logError({
@@ -1692,9 +1716,17 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
       message: err?.message || String(err),
       stack: err?.stack || null
     });
-    await runtimeReceipts.fail(err);
+    try { await runtimeReceipts.fail(err); } catch { /* Preserve adapter construction failure. */ }
     throw err;
   }
+  let cleanupScheduler = null;
+  onCleanup(async () => {
+    try { await cleanupScheduler?.shutdown?.({ awaitRunning: true, timeoutMs: 5000 }); }
+    finally {
+      try { await embedder?.dispose?.(); }
+      finally { finalize(); }
+    }
+  });
   const getChunkEmbeddings = async (texts) => {
     if (!Array.isArray(texts) || !texts.length) return [];
     await runtimeReceipts.loading(activeReceiptMode);
@@ -1704,13 +1736,13 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
       await runtimeReceipts.observed(activeReceiptMode, embedder, vectors, activeReceiptMode ? 'successful-inference' : 'provider-probe');
       return vectors;
     } catch (failure) {
-      await runtimeReceipts.fail(failure, activeReceiptMode);
+      try { await runtimeReceipts.fail(failure, activeReceiptMode); } catch { /* Keep the original provider failure. */ }
       throw failure;
     }
   };
   getChunkEmbeddings.supportsParallelDispatch = embedder.getChunkEmbeddings.supportsParallelDispatch;
   getChunkEmbeddings.estimateTokensBatch = embedder.getChunkEmbeddings.estimateTokensBatch;
-  if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims)) {
+  if (!useStubEmbeddings && (embeddingProvider === 'onnx' || !cacheDims || !embeddingArtifactReusable(modelArtifact))) {
     try {
       const probeVectors = await getChunkEmbeddings(['pairofcleats-provider-probe']);
       assertVectorArrays(probeVectors, 1, 'provider-probe');
@@ -1726,7 +1758,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
         message: err?.message || String(err),
         stack: err?.stack || null
       });
-      await runtimeReceipts.fail(err);
+      try { await runtimeReceipts.fail(err); } catch { /* Keep the original provider probe failure. */ }
+      try { await embedder.dispose?.(); } catch { /* Best-effort cleanup must not replace the probe failure. */ }
       throw err;
     }
     const detectedProvider = typeof embedder.getActiveProvider === 'function'
@@ -1740,10 +1773,13 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
         `${priorProvider} -> ${runtimeEmbeddingProvider}.`
       );
     }
+    modelArtifact = resolveEmbeddingArtifactIdentity({ provider: runtimeEmbeddingProvider,
+      modelId, modelsDir, rootDir: root, onnx: embeddingOnnx, modelProfile });
     // Resolve dimensions before any cache keys, pending state, or incremental
     // bundles are written; a ready identity must never carry unknown dims=0.
     ({ cacheIdentity, cacheIdentityKey, cacheKeyFlags } = buildCacheIdentityForProvider(runtimeEmbeddingProvider));
   }
+  const effectiveMemory = config.memorySnapshot || readEffectiveMemory();
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const {
     scheduler,
@@ -1756,8 +1792,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
     userConfig,
     rawEnv: config.rawEnv || process.env,
     envConfig,
-    indexingConfig
+    indexingConfig,
+    signal: config.signal || null,
+    memorySnapshot: effectiveMemory
   });
+  cleanupScheduler = scheduler;
   await runtimeReceipts.resolved(cacheIdentity, cacheIdentityKey, scheduler);
   const triageConfig = getTriageConfig(root, userConfig);
   const recordsDir = triageConfig.recordsDir;
@@ -1908,6 +1947,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
         fail(`Invalid mode: ${mode}`);
       }
       let stageCheckpoints = null;
+      let modeWriterQueue = null;
       modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
       /**
        * Mark one mode complete in top-level progress task.
@@ -2045,7 +2085,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
                 unresolvedFileRows += 1;
                 continue;
               }
-              const normalizedFilePath = toPosix(filePath);
+              const normalizedFilePath = canonicalBundleSourceKey(filePath);
               if (!normalizedFilePath) {
                 unresolvedFileRows += 1;
                 continue;
@@ -2191,8 +2231,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
           : false;
         const hnswResults = { merged: null, doc: null, code: null };
 
-        const modePersistentCacheEnabled = !stubFastPathEnabled;
-        const modeGlobalChunkCacheEnabled = !stubFastPathEnabled;
+        const modePersistentCacheEnabled = !stubFastPathEnabled && embeddingArtifactReusable(modelArtifact);
+        const modeGlobalChunkCacheEnabled = modePersistentCacheEnabled;
         if (stubFastPathEnabled) {
           log(`[embeddings] ${mode}: stub fast-path active; persistent/global chunk cache disabled.`);
         }
@@ -2521,6 +2561,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
         );
         const sqliteDenseWriteBatchSize = resolveEmbeddingsSqliteDenseWriteBatchSize(indexingConfig);
         const embeddingTextCache = createEmbeddingTextReuseCache({
+          maxBytes: Math.max(1, Math.min(64 * 1024 * 1024, Math.floor(effectiveMemory.freeBytes * 0.05))),
           maxEntries: textReuseCacheEntries,
           maxTextChars: textReuseMaxTextChars,
           persistentStore: persistentTextCacheStore
@@ -2543,8 +2584,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
           );
         }
         const writerAdmission = createEmbeddingWriterAdmission({ scheduler, indexingConfig });
-        const writerQueue = createBoundedWriterQueue({
+        const writerQueue = modeWriterQueue = createBoundedWriterQueue({
           scheduleIo,
+          signal: config.signal || null,
+          maxPendingBytes: Math.max(1, Math.min(256 * 1024 * 1024, Math.floor(effectiveMemory.freeBytes * 0.1))),
           maxPending: writerAdmission.initialLimit,
           resolveMaxPending: writerAdmission.resolve
         });
@@ -2964,26 +3007,29 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
                 docVectors: cachedDocVectors,
                 mergedVectors: cachedMergedVectors
               };
-              const encodedPayload = await encodeCacheEntryPayload(cachePayload);
-              await writerQueue.enqueue(async () => {
-                const shardEntry = await writeCacheEntry(cacheDirLocal, cacheKeyLocal, cachePayload, {
-                  index: cacheIndex,
-                  encodedBuffer: encodedPayload,
-                  shardHandlePool: cacheShardHandlePool
-                });
-                if (shardEntry) {
-                  upsertCacheIndexEntry(cacheIndex, cacheKeyLocal, {
-                    key: cacheKeyLocal,
-                    file: normalizedRelLocal,
-                    hash: fileHashLocal,
-                    chunkSignature: chunkSignatureLocal,
-                    chunkCount: entry.items.length,
-                    chunkHashesFingerprint: chunkHashesFingerprintLocal,
-                    chunkHashesCount: Array.isArray(chunkHashesLocal) ? chunkHashesLocal.length : null
-                  }, shardEntry);
-                  markCacheIndexDirty();
+              await writerQueue.enqueuePrepared({
+                estimateBytes: Math.max(256, estimateRetainedBytes(cachePayload) * 2),
+                prepare: () => encodeCacheEntryPayload(cachePayload),
+                write: async (encodedPayload) => {
+                  const shardEntry = await writeCacheEntry(cacheDirLocal, cacheKeyLocal, cachePayload, {
+                    index: cacheIndex,
+                    encodedBuffer: encodedPayload,
+                    shardHandlePool: cacheShardHandlePool
+                  });
+                  if (shardEntry) {
+                    upsertCacheIndexEntry(cacheIndex, cacheKeyLocal, {
+                      key: cacheKeyLocal,
+                      file: normalizedRelLocal,
+                      hash: fileHashLocal,
+                      chunkSignature: chunkSignatureLocal,
+                      chunkCount: entry.items.length,
+                      chunkHashesFingerprint: chunkHashesFingerprintLocal,
+                      chunkHashesCount: Array.isArray(chunkHashesLocal) ? chunkHashesLocal.length : null
+                    }, shardEntry);
+                    markCacheIndexDirty();
+                  }
                 }
-              }, {bytes: encodedPayload.length});
+              });
             } catch {
             // Ignore cache write failures.
             }
@@ -3042,47 +3088,44 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
               }
               if (writes.length) {
                 try {
-                  const encodedWrites = await runWithConcurrency(
-                    writes,
-                    Math.max(1, Math.min(8, writes.length)),
-                    async (write) => ({
-                      ...write,
-                      encodedPayload: await encodeCacheEntryPayload(write.payload)
-                    })
-                  );
-                  await writerQueue.enqueue(async () => {
-                    let persisted;
-                    try {
-                      persisted = await writeCacheEntries(globalChunkCacheDir, globalChunkCacheIndex,
-                        encodedWrites.map(write => ({ ...write, cacheKey: write.globalCacheKey })),
-                        { shardHandlePool: cacheShardHandlePool });
-                    } catch {
-                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
-                      return;
-                    }
-                    if (!persisted) {
-                      for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
-                      return;
-                    }
-                    for (const write of encodedWrites) {
+                  await writerQueue.enqueuePrepared({
+                    estimateBytes: Math.max(256, estimateRetainedBytes(writes) * 2),
+                    prepare: () => runWithConcurrency(writes, Math.max(1, Math.min(8, writes.length)),
+                      async (write) => ({ ...write, encodedPayload: await encodeCacheEntryPayload(write.payload) })),
+                    write: async (encodedWrites) => {
+                      let persisted;
                       try {
-                        globalChunkCacheExistingKeys.add(write.globalCacheKey);
-                        globalChunkCacheMemo.set(
-                          write.globalCacheKey,
-                          Promise.resolve({
-                            cacheKey: write.globalCacheKey,
-                            vectors: write.vectors,
-                            rejected: false
-                          })
-                        );
-                        globalChunkCacheStores += 1;
+                        persisted = await writeCacheEntries(globalChunkCacheDir, globalChunkCacheIndex,
+                          encodedWrites.map(write => ({ ...write, cacheKey: write.globalCacheKey })),
+                          { shardHandlePool: cacheShardHandlePool });
                       } catch {
-                        globalChunkCacheMemo.delete(write.globalCacheKey);
-                      } finally {
-                        globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                        for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                        return;
+                      }
+                      if (!persisted) {
+                        for (const write of encodedWrites) globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                        return;
+                      }
+                      for (const write of encodedWrites) {
+                        try {
+                          globalChunkCacheExistingKeys.add(write.globalCacheKey);
+                          globalChunkCacheMemo.set(
+                            write.globalCacheKey,
+                            Promise.resolve({
+                              cacheKey: write.globalCacheKey,
+                              vectors: write.vectors,
+                              rejected: false
+                            })
+                          );
+                          globalChunkCacheStores += 1;
+                        } catch {
+                          globalChunkCacheMemo.delete(write.globalCacheKey);
+                        } finally {
+                          globalChunkCachePendingWrites.delete(write.globalCacheKey);
+                        }
                       }
                     }
-                  }, {bytes: encodedWrites.reduce((sum, write) => sum + write.encodedPayload.length, 0)});
+                  });
                 } catch (err) {
                   for (const write of writes) {
                     globalChunkCachePendingWrites.delete(write.globalCacheKey);
@@ -3102,6 +3145,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
         };
 
         const computeFileEmbeddings = createFileEmbeddingsProcessor({
+          globalMicroBatchingMaxPendingBytes: Math.max(1, Math.min(64 * 1024 * 1024, Math.floor(effectiveMemory.freeBytes * 0.1))),
           embeddingBatchSize,
           embeddingBatchTokenBudget,
           estimateEmbeddingTokens,
@@ -3178,7 +3222,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
            * @returns {Promise<void>}
            */
           const processFileEntryInner = async ([relPath, items]) => {
-            const normalizedRel = toPosix(relPath);
+            const normalizedRel = canonicalBundleSourceKey(relPath);
             const chunkSignature = buildChunkSignature(items);
             const manifestEntry = manifestFiles[normalizedRel] || null;
             const manifestHash = typeof manifestEntry?.hash === 'string' ? manifestEntry.hash : null;
@@ -3682,6 +3726,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
         bundleTask.set(0, 1, { message: 'refreshing incremental bundles' });
         const refreshedBundles = await refreshIncrementalBundlesWithEmbeddings({
           mode,
+          repoRoot: root,
+          signal: config.signal || null,
           repoCacheRoot,
           incremental,
           chunksByFile,
@@ -3972,7 +4018,13 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
           rewriteFailures: refreshedBundles.rewriteFailures || 0,
           manifestWritten: refreshedBundles.manifestWritten === true
         };
-        await runtimeReceipts.ready(mode, { cacheHits, totalChunks, scheduler, writer: writerStatsByMode[mode], cacheRoot });
+        writerStatsByMode[mode] = writerQueue.stats();
+        await runtimeReceipts.ready(mode, { cacheHits, totalChunks, scheduler, writer: writerStatsByMode[mode], cacheRoot,
+          providerMeasurement: { execution: embedder.executionInfo(), stage3: {
+            batches: embeddingBatchesCompleted, paddedTokens: embeddingBatchPaddedTokens,
+            sourceTokens: embeddingBatchTokensProcessed, computeMs: embeddingBatchComputeMs,
+            textCache: embeddingTextCache.stats(), memory: effectiveMemory
+          } } });
         indexState.extensions = { ...indexState.extensions, runtimeAttemptId: runtimeReceipts.reference(mode), runtimeEmbeddingObservation: runtimeReceipts.observation(mode) };
         indexState.embeddings = {
           ...(indexState.embeddings || {}),
@@ -4119,7 +4171,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
             `mergedRequests=${avgMergedRequests.toFixed(2)} mergedLabels=${avgMergedLabels.toFixed(2)}).`
           );
         }
-        writerStatsByMode[mode] = writerQueue.stats();
         const schedulerStats = scheduler?.stats?.();
         const starvationCount = schedulerStats?.counters?.starvation ?? 0;
         if (starvationCount > 0) {
@@ -4207,8 +4258,18 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
             stage: failureState.enrichment.stage || failureState.stage || 'stage2'
           };
         }
-        await runtimeReceipts.fail(err, mode);
-        await scheduleIo(() => writeIndexState(statePath, failureState));
+        try {
+          if (modeWriterQueue) {
+            await modeWriterQueue.onIdle();
+            writerStatsByMode[mode] = modeWriterQueue.stats();
+          }
+          await runtimeReceipts.fail(err, mode, { writer: writerStatsByMode[mode] });
+        } catch { /* Preserve the original failure when a best-effort snapshot fails. */ }
+        failureState.extensions = { ...failureState.extensions,
+          runtimeAttemptId: runtimeReceipts.reference(mode),
+          runtimeEmbeddingObservation: runtimeReceipts.observation(mode) };
+        // Terminal cleanup must persist after the run's signal has cancelled normal admission.
+        try { await writeIndexState(statePath, failureState); } catch { /* Preserve the original failure. */ }
         throw err;
       } finally {
         if (stageCheckpoints) {
@@ -4223,7 +4284,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } catch (err) {
-    await runtimeReceipts.fail(err);
+    try { await runtimeReceipts.fail(err); } catch { /* Preserve the original failure. */ }
     crashLogger.logError({
       phase: 'stage3',
       stage: 'embeddings',
@@ -4233,7 +4294,5 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts) {
     throw err;
   } finally {
     await persistentTextCacheStore?.close?.();
-    scheduler?.shutdown?.();
-    finalize();
   }
 }

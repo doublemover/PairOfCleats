@@ -30,9 +30,9 @@ const capture = { schemaVersion: 1, captureId: 'capture-1', requestId: request.r
   limits, completion: 'partial', coverage: ['process-1 only'], warnings: ['worker not captured'], droppedEvents: null, rawArtifacts: [raw] };
 assert.equal(assertRuntimeImportAuthority({ authority: { action: 'import-existing', captureId: capture.captureId, artifactHashes: [hash] }, capture, artifacts: [raw] }).executionAuthorized, false);
 assert.throws(() => assertRuntimeImportAuthority({ authority: { action: 'execute', captureId: capture.captureId, artifactHashes: [hash] }, capture, artifacts: [raw] }), { code: 'ERR_RUNTIME_IMPORT_AUTHORITY' });
-const evidence = { schemaVersion: 1, evidenceId: 'observation-1', captureId: capture.captureId, projectionVersion: '1', kind: 'codeVersion',
+const evidence = { schemaVersion: 1, evidenceId: 'observation-1', captureId: capture.captureId, projectionVersion: '2', kind: 'codeVersion',
   evidenceClass: 'observed', scope, clock, timestamp: null, workload,
-  join: { quality: 'unresolved', sourceUnitId: null, sourceHash: null, targets: [], reasons: ['source map missing'], sourceMapHash: null },
+  join: { quality: 'unresolved', targetQuality: 'unavailable', sourceUnitId: null, sourceHash: null, targets: [], reasons: ['source map missing'], sourceMapHash: null },
   rawRefs: [{ artifactId: raw.artifactId, hash, byteRange: null }], unavailable: ['tier'], warnings: [],
   data: { key: { sessionId: scope.sessionId, processId: scope.processId, codeId: '0x100', lifetimeId: 'creation-1' },
     functionId: null, moduleHash: null, tier: null, architecture: 'x64', codeHash: null, disassemblyHash: null,

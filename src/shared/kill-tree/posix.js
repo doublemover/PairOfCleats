@@ -163,7 +163,15 @@ export const killPosixGroup = async (pid, {
 }) => {
   const state = createPosixKillState(pid, { signal, useProcessGroup, killTreeRequested });
   if (graceMs > 0 && awaitGrace) {
-    await wait(graceMs, { unrefTimer: false });
+    const deadline = Date.now() + graceMs;
+    // End a graceful shutdown as soon as every selected target has exited.
+    // Direct-child close alone is insufficient when descendants remain alive.
+    while ((useProcessGroup ? isAlivePosix(pid) : isAliveSinglePosix(pid))
+      || (killTreeRequested && isAnyPosixPidAlive(state.fallbackDescendants))) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await wait(Math.min(25, remaining), { unrefTimer: false });
+    }
   }
   if (!awaitGrace) {
     if (graceMs > 0) {

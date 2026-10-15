@@ -4,6 +4,8 @@ import { openRuntimeQueryFamily } from './query-store.js';
 import { runtimeImportError } from './raw-store.js';
 import { persistRuntimeDerivedClaims, runtimeClaimsBudget } from './claims.js';
 import { runtimeCaptureCompatibility } from './compatibility.js';
+import { mergeRuntimeObservationWarnings } from './adapters/shared.js';
+import { closeRuntimeResources } from './close-resources.js';
 
 const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
 const location = row => canonicalSemanticJson({ sourceUnitId: row.join.sourceUnitId, sourceHash: row.join.sourceHash,
@@ -14,6 +16,7 @@ const location = row => canonicalSemanticJson({ sourceUnitId: row.join.sourceUni
 export const compareRuntimeCaptures = async ({ destination, request, signal = null }) => {
   assertRuntimeClaims('compareRequest', request); request = structuredClone(request);
   const check = runtimeClaimsBudget(request.limits, signal), families = [];
+  let operationError = null;
   try {
     for (const generationId of [request.leftFamily, request.rightFamily]) {
       check(); families.push(await openRuntimeQueryFamily({ destination, generationId, signal: check.signal }));
@@ -73,10 +76,11 @@ export const compareRuntimeCaptures = async ({ destination, request, signal = nu
         estimatedCost: 'Compare another existing saved profile; any new capture needs separate authorization.',
         permissionRequirements: ['Explicit authorization before execution, collection or attachment.'] } };
       const claim = { schemaVersion: 1, evidenceId: 'derived:' + semanticHash('pairofcleats.runtime.sample-claim.v1', { pins, key, data }),
-        captureId: primary.captureId, projectionVersion: '1', kind: 'derivedClaim', evidenceClass: 'inferred',
+        captureId: primary.captureId, projectionVersion: '2', kind: 'derivedClaim', evidenceClass: 'inferred',
         scope: primary.scope, clock: primary.clock, timestamp: null, workload: primary.workload, join: primary.join,
         rawRefs: [...new Map(observed.flatMap(row => row.rawRefs).map(ref => [canonicalSemanticJson(ref), ref])).values()],
-        unavailable: ['causal-inference', 'cross-capture-time-alignment', 'code-version-equivalence'], warnings: [], data };
+        unavailable: ['causal-inference', 'cross-capture-time-alignment', 'code-version-equivalence'],
+        warnings: mergeRuntimeObservationWarnings({ warnings: primary.warnings }, observed.flatMap(row => row.warnings)), data };
       result.claims.push(claim);
       if (result.claims.length > 64) throw runtimeImportError('Comparison claim allowance exceeded.', 'ERR_RUNTIME_QUERY_BUDGET');
     }
@@ -90,6 +94,8 @@ export const compareRuntimeCaptures = async ({ destination, request, signal = nu
       repositoryNamespace: request.repositoryNamespace, generation: request.generation, inputs: pins, citations,
       claims: result.claims, limits: request.limits, signal });
     check(); return assertRuntimeClaims('compareResult', result);
-  } catch (error) { check(); throw error; }
-  finally { for (const family of families) await family.close(); }
+  } catch (error) {
+    try { check(); } catch (budgetError) { error = budgetError; }
+    operationError = error; throw error;
+  } finally { await closeRuntimeResources(families, operationError); }
 };

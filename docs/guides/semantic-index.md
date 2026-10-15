@@ -49,8 +49,28 @@ authority and request limits still apply. Only definition locations mapped to
 retained declaration spans receive exact-static target edges; external/unmapped
 locations stay modeled and ambiguity is preserved. Exact-static describes the
 recorded source-location join, not runtime execution or a sealed compiler closure.
-Native deferred/auto enrichment is unsupported pending durable provider authority;
-it is not silently admitted under a TypeScript lease. Cross-file value propagation
+Deferred C bindings now use the existing durable task, attempt and
+relations-scheduler owners. The bounded Linux ELF route requires direct `.c`
+sources, an existing arguments-only `compile_commands.json` (at most 64 entries),
+an actual clang driver and clangd, explicit `-std=c11` or `-std=c17`, `-nostdinc`
+and `-ffreestanding`. Project-contained literal includes with scanned `.c`, `.h`,
+or `.inc` targets and simple defines are supported. Other included extensions and
+digraph/trigraph preprocessing remain unsupported; shell command entries, driver
+queries, plugins, builds, default system headers, macro includes, dynamic
+preprocessing, symlinks and unsupported flags are
+not admitted. It inventories at most 512 files/16 MiB and 128 project directories,
+4096 include probes, plus at most 128 installed ELF/loader members/1 GiB. Explicit
+absolute `LD_LIBRARY_PATH` directories participate in the same hashed dependency
+closure; preloads/audit overrides remain unsupported. Files, directory names,
+negative include candidates, compiler binaries/libraries, effective environment
+and launch configuration are verified before execution and publication. Changed
+closure leaves work pending. Native auto work retains its task and stays pending
+while clangd child-process cost is unmeasured; explicit manual drain can admit the
+same sealed task. The existing compiler admission policy bounds project inputs
+and reserves its resident ceiling (at least 256 MiB), rechecked when scheduler execution starts;
+this reservation is policy admission rather than a hard process-memory limit.
+Header-only tasks and the other native providers
+still require their own durable authority. Cross-file value propagation
 and runtime/native-library effects remain unknown. The same published artifact and
 SQLite readers, bounded find/detail/trace and retained-source context APIs apply.
 
@@ -65,6 +85,29 @@ paths. Nested shorthand/spread initializers resolve the selected field rather th
 using the whole spread object; snapshot and overwrite order remain conservative. Local summaries retain bare/implicit undefined returns and respect explicit
 finally return/throw overrides; more complex completion alternatives remain conservative.
 
+A bounded ordered subset preserves versions of literal-key fields on local plain
+objects/arrays and verified default-library `Uint8Array` instances with at most 64
+elements. Same-source const aliases retain allocation identity. Unique unescaped
+fields use strong updates; concrete `slice` copies capture the state at that program
+point, while concrete `subarray` views read the same backing storage. The CFG owns
+these value paths, so unordered storage projections and coarse copy/unknown-call
+channels do not reintroduce overwritten or post-snapshot inputs. Whole-array
+construction and returned live views retain their modeled
+aggregate inputs as well as the field-level channels. One source-owner/capture
+inventory is shared across the document's function analyses. These are modeled
+static identities and API assumptions, not observed allocation identity or counts.
+Dynamic keys/offsets, mutable pointer aliases, nested storage paths, accessors,
+escapes/captures, recovering exceptions, loops, suspension and memory-growth epochs
+remain conservative frontiers. Existing bounds and may-paths continue outside the
+declared subset.
+
+CFG and immutable value producers share one runtime-operation input contract.
+Parentheses, TypeScript assertions, non-null and `satisfies` wrappers preserve the
+runtime value without treating type syntax as an input. Template substitutions
+retain their input channels separately from literal text; coercion and possible
+exceptions remain modeled. Unsupported value operations emit unknown values and
+partial coverage instead of complete empty summaries.
+
 Call-site summaries join bounded source-backed callable alternatives, retain positional
 and rest-argument channels, and keep an unknown result/effect remainder when targets
 or summaries are incomplete. Visible object/class methods, inherited members, callable
@@ -77,6 +120,9 @@ summary contract, and getter return expressions can supply callable candidates.
 Constructor object-return overrides, initialization order, proxies, runtime private
 brands, lexical arrow receivers, rest-array mutation and escaping aliases remain partial. Limits include 32 alias/target candidates, 16 key candidates and bounded work;
 coverage records truncation rather than silently declaring complete analysis.
+Rest arguments first enter a call-owned aggregate, then cross the same balanced
+formal-parameter boundary as positional arguments. Packing alone never enters a
+call context, including worker payloads and WASM multivalue results.
 
 Checker-authorized Function.call/apply and same-source const bound functions can
 reuse source summaries with normalized receiver and argument positions. Literal
@@ -393,6 +439,9 @@ allowance. Synchronous compiler calls cannot be forcibly interrupted by this tim
 The `targeted` profile defers bindings and local flow unless explicitly overridden.
 
 Task state and leases live in a separate semantic frontier SQLite control database.
+Every execution has a unique owner, and renew/release/publication acknowledgment
+requires its acquired attempt number. Expired attempts cannot act on a reacquired
+lease even when the caller repeats an owner label; attempt omission is rejected.
 Missing control-store capability leaves work deferred. Completion is acknowledged
 only after normal whole-generation promotion. Changing generations produces a new
 target request; old tasks are never retargeted by filename. Bindings, local flow and
@@ -441,8 +490,21 @@ phases. Enqueue does not execute a compiler. Drain requires sealed compiler/conf
 module-resolution authority and exact source/dependency hashes; unavailable authority
 or over-budget admission leaves work pending. A successful drain publishes a fresh
 whole generation through the normal builder, then acknowledges receipts and retains
-old/new task lineage. The builder may rediscover/reparse source; targeted parse reuse
-is not promised. Source changes are rejected rather than completing an old task
+old/new task lineage. Current source bytes and compiler/project resolution are
+always rediscovered and verified. Bounded immutable syntax replay retains the
+cache writer lease and exact source/dependency identity. Unbound preflight
+SourceFiles can pass directly to the one normal Program when compiler load receipt,
+bytes, options, parsing mode and VFS/source mappings match. Consumed trees are
+removed before binding and never retain checker/symbol arenas for a later build.
+The default retained-tree charge is source bytes times 16 with a 4 KiB per-entry
+floor plus filename/key bytes, capped at 16 MiB; this
+is an admission estimate, not a measured heap size. Oversize/mismatched/forced-fresh
+requests parse normally. `workScopes` reports requested sources, publication-wide
+additional sources, verified syntax replay receipts and actual reused/fresh parser
+paths with total counts and bounded/truncated samples. Verified replay bytes are
+authenticated inventory bytes, not OS read counts; receipt completeness covers
+the accepted verified-replay stream and does not count missing receipts as new
+syntax computation. Compiler closure may widen selected work. Source changes are rejected rather than completing an old task
 against new input. Experimental public surfaces remain qualification pending.
 
 ## Saved runtime evidence
@@ -454,7 +516,8 @@ collector:
 pairofcleats ingest runtime-evidence --specification import.json --out evidence-dir
 ```
 
-The specification contains strict `capture`, `authority`, `inputs`, `sourceCandidates`
+The [runtime import guide](runtime-evidence-import.md) describes the verified
+`--repo`/`--generation` CLI handoff. The specification contains strict `capture`, `authority`, `inputs`, `sourceCandidates`
 and `importOptions` contracts. See the authoritative runtime-evidence schemas and
 `tests/helpers/runtime-import-fixture.js` for a complete saved-fixture example.
 Inputs resolve relative to the specification file. `importOptions.maxDiskWorkingSetBytes`

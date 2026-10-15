@@ -10,7 +10,7 @@ const ajv = createAjv({
 });
 
 export const ARTIFACT_VALIDATORS = Object.fromEntries(
-  Object.entries(ARTIFACT_SCHEMA_DEFS).map(([name, schema]) => [name, compileSchema(ajv, schema)])
+  Object.entries(ARTIFACT_SCHEMA_DEFS).map(([name, schema]) => [name, compileSchema(ajv, schema, { lazy: true })])
 );
 
 export function validateArtifact(name, data) {

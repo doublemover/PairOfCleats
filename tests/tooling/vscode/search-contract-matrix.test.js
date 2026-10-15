@@ -15,7 +15,7 @@ const args = buildSearchArgs('needle', '/repo', {
   annEnabled: false,
   explain: true,
   maxResults: 7,
-  contextLines: 3,
+  contextLines: 0,
   file: 'src/index.js',
   path: 'src/',
   lang: 'javascript',
@@ -32,12 +32,15 @@ const args = buildSearchArgs('needle', '/repo', {
 });
 assert.deepEqual(args, [
   'search', '--json', '--top', '7', '--mode', 'extracted-prose', '--backend', 'sqlite-fts', '--no-ann',
-  '--context', '3', '--file', 'src/index.js', '--path', 'src/', '--lang', 'javascript', '--ext', '.js',
+  '--file', 'src/index.js', '--path', 'src/', '--lang', 'javascript', '--ext', '.js',
   '--type', 'Function', '--as-of', 'snap:latest', '--filter', 'lang:javascript', '--author', 'Jane Doe',
   '--modified-after', '2025-01-01', '--modified-since', '30', '--churn', '10', '--case', '--explain',
   '--repo', '/repo', '--risk', 'high', '--', 'needle'
 ]);
 assert.deepEqual(buildSearchArgs('alpha', null, {}), ['search', '--json', '--top', '25', '--', 'alpha']);
+for (const contextLines of [1, -1, 0.5, null, '0']) {
+  assert.throws(() => buildSearchArgs('alpha', null, { contextLines }), /removed/);
+}
 assert.throws(() => buildSearchArgs('alpha', '/repo', { asOf: 'snap:current', snapshot: 'snap-123' }), /searchAsOf and searchSnapshot/i);
 
 const settings = {
@@ -45,7 +48,6 @@ const settings = {
   backendKey: 'searchBackend',
   annKey: 'searchAnn',
   maxResultsKey: 'maxResults',
-  contextLinesKey: 'searchContextLines',
   fileKey: 'searchFile',
   pathKey: 'searchPath',
   langKey: 'searchLang',
@@ -68,7 +70,7 @@ const options = readSearchOptions({
       searchBackend: 'sqlite',
       searchAnn: false,
       maxResults: 50,
-      searchContextLines: 2,
+      searchContextLines: 0,
       searchFile: 'src/app.ts',
       searchPath: 'src/',
       searchLang: 'typescript',
@@ -91,7 +93,7 @@ assert.deepEqual(options, {
   backend: 'sqlite',
   annEnabled: false,
   maxResults: 50,
-  contextLines: 2,
+  contextLines: 0,
   file: 'src/app.ts',
   path: 'src/',
   lang: 'typescript',

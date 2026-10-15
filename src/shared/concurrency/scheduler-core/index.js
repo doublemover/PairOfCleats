@@ -92,7 +92,7 @@ export function createBuildScheduler(input = {}) {
   });
 
   const stats = () => {
-    return buildSchedulerStatsSnapshot({
+    return { runningTasks: state.runningTasks.size, shuttingDown: state.shuttingDown, ...buildSchedulerStatsSnapshot({
       captureTelemetryIfDue,
       snapshotQueueAdmission: dispatch.snapshotQueueAdmission,
       queueOrder: config.queueOrder,
@@ -125,7 +125,7 @@ export function createBuildScheduler(input = {}) {
       queueDepthSnapshotIntervalMs: state.queueDepthSnapshotIntervalMs,
       queueDepthSnapshotsEnabled: state.queueDepthSnapshotsEnabled,
       telemetryCapture
-    });
+    }) };
   };
 
   captureSchedulingTrace({ reason: 'init', force: true });

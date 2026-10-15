@@ -9,8 +9,14 @@ import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../s
 import { loadIndex } from '../../cli-index.js';
 import { loadIndexCached } from '../index-loader.js';
 import { EMPTY_INDEX } from '../filter-index.js';
+import { filterRepresentationIdentity } from '../../pipeline/filter-enumeration.js';
+import { readFilterMatchPage } from '../../pipeline/filter-enumeration-cache.js';
 
 export function createIndexBackendLoader({
+  filterOnly = false,
+  filterEnumeration = null,
+  filterTopN = null,
+  signal = null,
   rootDir,
   userConfig,
   useSqlite,
@@ -40,8 +46,8 @@ export function createIndexBackendLoader({
   const runtimeConfig = getRuntimeConfig(rootDir, userConfig);
   const runtimeEnv = resolveRuntimeEnv(runtimeConfig, process.env);
   const hasRequirements = requiredArtifacts && typeof requiredArtifacts.has === 'function';
-  const needsAnnArtifacts = hasRequirements ? requiredArtifacts.has('ann') : true;
-  const needsFilterIndex = hasRequirements ? requiredArtifacts.has('filterIndex') : true;
+  const needsAnnArtifacts = !filterOnly && (hasRequirements ? requiredArtifacts.has('ann') : true);
+  const needsFilterIndex = !filterOnly && (hasRequirements ? requiredArtifacts.has('filterIndex') : true);
   const needsFileRelations = hasRequirements ? requiredArtifacts.has('fileRelations') : true;
   const needsRepoMap = hasRequirements ? requiredArtifacts.has('repoMap') : true;
   const needsGraphRelations = hasRequirements
@@ -65,41 +71,52 @@ export function createIndexBackendLoader({
     }
   }
 
-  const loadIndexCachedLocal = async (dir, options = {}, mode = null) => loadIndexCached({
-    indexCache,
-    dir,
-    generationTag: generationContext && mode
-      ? {
-        mode,
-        buildId: generationContext.buildId || null,
-        buildGenerationKey: generationContext.buildGenerationKey || null,
-        activeBuildRoot: generationContext.activeBuildRoot || null
+  const loadIndexCachedLocal = async (dir, options = {}, mode = null) => {
+    const started = performance.now();
+    let metadataLoadedRows = 0;
+    const result = await loadIndexCached({
+      indexCache,
+      dir,
+      generationTag: generationContext && mode
+        ? {
+          mode,
+          buildId: generationContext.buildId || null,
+          buildGenerationKey: generationContext.buildGenerationKey || null,
+          activeBuildRoot: generationContext.activeBuildRoot || null
+        }
+        : null,
+      modelIdDefault,
+      fileChargramN,
+      includeHnsw: options.includeHnsw !== false,
+      includeDense: options.includeDense !== false,
+      includeMinhash: options.includeMinhash !== false,
+      includeFilterIndex: options.includeFilterIndex !== false,
+      includeTokenIndex: options.includeTokenIndex !== false,
+      includeFileRelations: options.includeFileRelations !== false,
+      includeRepoMap: options.includeRepoMap !== false,
+      includeChunkMetaCold: options.includeChunkMetaCold !== false,
+      hnswConfig,
+      denseVectorMode: resolvedDenseVectorMode,
+      loadIndex: async (targetDir, loadOptions) => {
+        const loaded = await loadIndex(targetDir, {
+          ...loadOptions, strict, mode, denseVectorMode: resolvedDenseVectorMode
+        });
+        metadataLoadedRows += loaded.chunkMeta.length;
+        return loaded;
       }
-      : null,
-    modelIdDefault,
-    fileChargramN,
-    includeHnsw: options.includeHnsw !== false,
-    includeDense: options.includeDense !== false,
-    includeMinhash: options.includeMinhash !== false,
-    includeFilterIndex: options.includeFilterIndex !== false,
-    includeFileRelations: options.includeFileRelations !== false,
-    includeRepoMap: options.includeRepoMap !== false,
-    includeChunkMetaCold: options.includeChunkMetaCold !== false,
-    hnswConfig,
-    denseVectorMode: resolvedDenseVectorMode,
-    loadIndex: (targetDir, loadOptions) => loadIndex(targetDir, {
-      ...loadOptions,
-      strict,
-      mode,
-      denseVectorMode: resolvedDenseVectorMode
-    })
-  });
+    });
+    return { ...result, filterLoadCost: { kind: metadataLoadedRows ? 'artifact-materialization' : 'index-cache-reuse',
+      metadataLoadedRows, elapsedMs: performance.now() - started,
+      tokenIndexLoaded: metadataLoadedRows > 0 && options.includeTokenIndex !== false,
+      filterIndexBuilt: metadataLoadedRows > 0 && options.includeFilterIndex !== false } };
+  };
 
   const emptyIndex = () => ({ ...EMPTY_INDEX });
   const baseBackendLoadOptions = {
     includeDense: needsAnnArtifacts && !lazyDenseVectorsEnabled,
     includeMinhash: needsAnnArtifacts,
-    includeFilterIndex: needsFilterIndex
+    includeFilterIndex: needsFilterIndex,
+    includeTokenIndex: !filterOnly
   };
   const sqliteBackendLoadOptions = {
     ...baseBackendLoadOptions,
@@ -172,21 +189,88 @@ export function createIndexBackendLoader({
       dir,
       backend = 'cached',
       modeLoadOptions = cachedLoadOptions,
-      allowSqliteFallback = false
+      allowSqliteFallback = false,
+      skipFilterSnapshot = false
     }) {
       if (!run) return emptyIndex();
+      if (!skipFilterSnapshot && backend !== 'sqlite' && filterEnumeration
+        && Number.isSafeInteger(filterTopN) && filterTopN > 0
+        && !needsFileRelations && !needsRepoMap && !needsGraphRelations) {
+        const started = performance.now();
+        const page = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
+          identity: filterRepresentationIdentity(filterEnumeration, mode),
+          offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, includeRows: true,
+          throwIfAborted: () => signal?.throwIfAborted() });
+        if (page?.rows) {
+          const chunkMeta = new Array(page.rowCount);
+          for (let i = 0; i < page.ids.length; i++) chunkMeta[page.ids[i]] = page.rows[i];
+          const cost = { kind: 'authenticated-metadata-seek-page', metadataLoadedRows: page.rows.length,
+            elapsedMs: performance.now() - started, tokenIndexLoaded: false, filterIndexBuilt: false };
+          return { ...emptyIndex(), chunkMeta, preparedFilterPage: page, filterLoadCost: cost,
+            loadFilterMetadata: async () => {
+              const full = await this.loadModeIndex({ mode, run, dir, backend, modeLoadOptions,
+                allowSqliteFallback, skipFilterSnapshot: true });
+              for (let id = 0; id < full.chunkMeta.length; id++) {
+                if (id % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); signal?.throwIfAborted(); }
+                chunkMeta[id] = full.chunkMeta[id];
+              }
+              cost.kind = 'metadata-seek-fallback-materialization';
+              cost.metadataLoadedRows += full.chunkMeta.length;
+              cost.elapsedMs = performance.now() - started;
+            } };
+        }
+      }
       if (backend === 'sqlite') {
+        const started = performance.now();
+        if (filterEnumeration && Number.isSafeInteger(filterTopN) && filterTopN > 0) {
+          try {
+            const lazy = loadIndexFromSqlite(mode, { ...sqliteBackendLoadOptions, includeChunks: false });
+            const page = await readFilterMatchPage({ cacheDir: filterEnumeration.cacheDir,
+              identity: filterRepresentationIdentity(filterEnumeration, mode), rowCount: lazy.chunkMeta.length,
+              offset: filterEnumeration.offsets[mode] || 0, limit: filterTopN, throwIfAborted: () => signal?.throwIfAborted() });
+            if (page) {
+              lazy.loadChunkMetaByIds(mode, Array.from(page.ids), lazy.chunkMeta);
+              if (page.ids.every(id => lazy.chunkMeta[id])) {
+                const cost = { kind: 'sqlite-seek-page',
+                  metadataLoadedRows: page.ids.length, elapsedMs: performance.now() - started,
+                  tokenIndexLoaded: false, filterIndexBuilt: false };
+                return { ...lazy, preparedFilterPage: page, filterLoadCost: cost,
+                  loadFilterMetadata: async () => {
+                    const full = loadIndexFromSqlite(mode, sqliteBackendLoadOptions), all = full.chunkMeta;
+                    for (let id = 0; id < all.length; id += 1) {
+                      if (id % 256 === 0) { await new Promise(resolve => setImmediate(resolve)); signal?.throwIfAborted(); }
+                      lazy.chunkMeta[id] = all[id];
+                    }
+                    cost.kind = 'sqlite-seek-fallback-materialization'; cost.metadataLoadedRows += full.metadataLoadedRows;
+                    cost.elapsedMs = performance.now() - started;
+                  } };
+              }
+            }
+          } catch (error) {
+            signal?.throwIfAborted();
+            if (!allowSqliteFallback) throw error;
+            return loadCachedModeIndex(mode, dir, modeLoadOptions);
+          }
+        }
+        const loadSqlite = () => {
+          const loaded = loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
+          return { ...loaded, filterLoadCost: { kind: 'sqlite-materialization', metadataLoadedRows: loaded.metadataLoadedRows,
+            elapsedMs: performance.now() - started, tokenIndexLoaded: false, filterIndexBuilt: needsFilterIndex } };
+        };
         if (allowSqliteFallback) {
           try {
-            return loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
+            return loadSqlite();
           } catch {
             return loadCachedModeIndex(mode, dir, modeLoadOptions);
           }
         }
-        return loadIndexFromSqlite(mode, sqliteBackendLoadOptions);
+        return loadSqlite();
       }
       if (backend === 'lmdb') {
-        return loadIndexFromLmdb(mode, lmdbBackendLoadOptions);
+        const started = performance.now();
+        const loaded = loadIndexFromLmdb(mode, lmdbBackendLoadOptions);
+        return { ...loaded, filterLoadCost: { kind: 'lmdb-artifact-materialization', metadataLoadedRows: loaded.chunkMeta.length,
+          elapsedMs: performance.now() - started, tokenIndexLoaded: !filterOnly, filterIndexBuilt: needsFilterIndex } };
       }
       return loadCachedModeIndex(mode, dir, modeLoadOptions);
     },

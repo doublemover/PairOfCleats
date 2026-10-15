@@ -83,6 +83,15 @@ export const createBudgetController = (maxRequests) => {
   };
 };
 
+export const createDefinitionBudgetControllers = (plan) => {
+  const cap = toNonNegativeInt(plan?.maxRequests);
+  const semanticCap = Math.min(cap, toNonNegativeInt(plan?.semanticMaxRequests));
+  return {
+    definition: createBudgetController(cap - semanticCap),
+    semanticDefinition: createBudgetController(semanticCap)
+  };
+};
+
 export const createEmptyRequestCacheMetrics = (providerId = null) => ({
   providerId: String(providerId || '').trim() || null,
   hits: 0,
@@ -131,6 +140,7 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
 }) => {
   const selectedDocs = toNonNegativeInt(selection?.selectedDocs);
   const selectedTargets = toNonNegativeInt(selection?.selectedTargets);
+  const semanticDefinitionTargets = toNonNegativeInt(selection?.semanticDefinitionTargets);
   const hoverMaxPerFile = Math.max(1, toNonNegativeInt(selection?.hoverMaxPerFile || 1));
   const providerWeight = Number(REQUEST_BUDGET_PROVIDER_WEIGHTS[String(providerId || '').trim()]) || 1;
   const methodMetrics = clientMetrics?.byMethod || {};
@@ -146,7 +156,7 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
     semanticTokens: selectedDocs,
     signatureHelp: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
     inlayHints: Math.ceil(selectedDocs * hoverMaxPerFile * 0.75),
-    definition: Math.max(toNonNegativeInt(selection?.semanticDefinitionTargets), Math.ceil(selectedDocs * hoverMaxPerFile * 0.5)),
+    definition: Math.max(semanticDefinitionTargets, Math.ceil(selectedDocs * hoverMaxPerFile * 0.5)),
     typeDefinition: Math.ceil(selectedDocs * hoverMaxPerFile * 0.35),
     references: Math.ceil(selectedDocs * hoverMaxPerFile * 0.25)
   };
@@ -157,6 +167,25 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
   const scale = weightedCost > workspaceCostCeiling && weightedCost > 0
     ? (workspaceCostCeiling / weightedCost)
     : 1;
+  // Definition work for admitted semantic occurrences must be funded before
+  // optional enrichment. The reservation stays inside the existing cost cap;
+  // health/quarantine pressure below can still reduce or refuse that work.
+  let fundedByKind = null;
+  if (semanticDefinitionTargets > 0) {
+    const definitionWeight = REQUEST_BUDGET_WEIGHTS.definition;
+    const reservedDefinitions = Math.min(semanticDefinitionTargets,
+      Math.floor(Math.max(0, workspaceCostCeiling - selectedDocs) / definitionWeight));
+    const reserved = { documentSymbol: selectedDocs, definition: reservedDefinitions };
+    const reservedCost = selectedDocs + reservedDefinitions * definitionWeight;
+    const optionalCost = weightedCost - reservedCost;
+    const optionalScale = optionalCost > 0
+      ? Math.min(1, Math.max(0, workspaceCostCeiling - reservedCost) / optionalCost)
+      : 0;
+    fundedByKind = Object.fromEntries(Object.entries(baseByKind).map(([kind, value]) => {
+      const mandatory = reserved[kind] || 0;
+      return [kind, mandatory + Math.floor(Math.max(0, value - mandatory) * optionalScale)];
+    }));
+  }
   const byKind = Object.create(null);
   let degraded = false;
   const reasons = [];
@@ -170,7 +199,7 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
     const failureRate = requests > 0 ? (failures / requests) : 0;
     const timeoutRate = requests > 0 ? (timedOut / requests) : 0;
     const p95Ms = Math.max(0, Number(method?.latencyMs?.p95 || 0));
-    let multiplier = scale;
+    let multiplier = fundedByKind ? 1 : scale;
     const reasonCodes = [];
     if (timeoutRate >= 0.15 || timedOut >= 2) {
       multiplier *= 0.5;
@@ -198,12 +227,13 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
       reasonCodes.push('breaker_or_quarantine');
     }
     const forcedZero = lifecycle?.crashLoopQuarantined === true && kind !== 'documentSymbol';
-    const minimumRequests = kind === 'documentSymbol' ? baseValue : (baseValue > 0 ? 1 : 0);
+    const fundedValue = fundedByKind ? fundedByKind[kind] : baseValue;
+    const minimumRequests = kind === 'documentSymbol' ? fundedValue : (fundedValue > 0 ? 1 : 0);
     const maxRequests = forcedZero
       ? 0
       : (
-        baseValue > 0
-          ? Math.max(minimumRequests, Math.floor(baseValue * multiplier))
+        fundedValue > 0
+          ? Math.max(minimumRequests, Math.floor(fundedValue * multiplier))
           : 0
       );
     byKind[kind] = {
@@ -218,6 +248,7 @@ export const resolveAdaptiveLspRequestBudgetPlanForTests = ({
       p95Ms,
       reasonCodes
     };
+    if (kind === 'definition') byKind[kind].semanticMaxRequests = Math.min(semanticDefinitionTargets, maxRequests);
     if (reasonCodes.length) reasons.push(`${kind}:${reasonCodes.join('+')}`);
   }
   return {

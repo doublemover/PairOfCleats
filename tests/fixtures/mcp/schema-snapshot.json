@@ -453,7 +453,8 @@
         "include",
         "limits",
         "refs",
-        "repoRoot"
+        "repoRoot",
+        "typeQueries"
       ]
     },
     {
@@ -485,14 +486,13 @@
     },
     {
       "name": "search",
-      "required": [
-        "query"
-      ],
+      "required": [],
       "properties": [
         "alias",
         "allowSparseFallback",
         "allowUnsafeMix",
         "ann",
+        "asOf",
         "async",
         "author",
         "awaits",
@@ -508,10 +508,12 @@
         "churnMin",
         "context",
         "continuesMin",
+        "cursor",
         "decorator",
         "ext",
         "extends",
         "file",
+        "filter",
         "generator",
         "import",
         "inferredType",
@@ -527,6 +529,7 @@
         "output",
         "param",
         "path",
+        "paths",
         "query",
         "reads",
         "repoPath",
@@ -539,6 +542,8 @@
         "riskSource",
         "riskTag",
         "signature",
+        "snapshot",
+        "snapshotId",
         "throws",
         "top",
         "type",
@@ -563,6 +568,7 @@
         "includePaths",
         "includeRisk",
         "includeRiskPartialFlows",
+        "includeSemantic",
         "includeTypes",
         "includeUsages",
         "maxBytes",

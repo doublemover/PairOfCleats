@@ -47,13 +47,16 @@ try {
   assert.equal(ready.observedDims, 3, 'observe actual vectors rather than configured dimensions');
   assert.equal(ready.inferenceSucceeded, true);
   assert.equal(ready.device, null, 'ordinary Xenova does not acknowledge a native device');
-  assert.equal(ready.modelArtifact, null);
+  assert.equal(ready.modelArtifact.status, 'unknown');
+  assert.equal(ready.modelArtifact.reuse, 'refuse');
   assert.equal(ready.effectiveSessionOptions, null);
   const cached = createEmbedder(options);
-  assert.equal(cached.executionInfo().loaded, true, 'a cached adapter may already be loaded');
+  assert.equal(cached.executionInfo().loaded, false, 'unknown artifact provenance cannot reuse a loaded adapter across attempts');
+  assert.notEqual(cached.executionInfo().modelArtifact.attempt, ready.modelArtifact.attempt);
   assert.equal(cached.executionInfo().observedDims, null, 'a fresh attempt has no fresh vector evidence');
   assert.equal(cached.executionInfo().inferenceSucceeded, false);
   assert.equal(loads, 1);
+  await Promise.all([embedder.dispose(), cached.dispose()]);
 } finally {
   __setTransformersModuleLoaderForTests(null);
 }

@@ -24,7 +24,7 @@ assert.match(invalidPayload.message, /Invalid search payload/i);
 
 const missingQuery = buildSearchRequestArgs({ query: '   ' });
 assert.equal(missingQuery.ok, false);
-assert.match(missingQuery.message, /Missing query/i);
+assert.match(missingQuery.message, /query text or at least one nonempty search filter/i);
 
 const canonical = buildSearchRequestArgs({
   query: 'needle',
@@ -35,7 +35,7 @@ const canonical = buildSearchRequestArgs({
   ann: false,
   allowSparseFallback: true,
   top: -5,
-  context: 2,
+  context: 0,
   path: ['src/**'],
   ext: ['js'],
   meta: [{ lang: 'js' }, 'owner=api'],
@@ -64,6 +64,10 @@ assert.deepEqual(
   'expected each normalized meta filter to emit its own --meta flag'
 );
 assert.equal(canonical.args.includes('--meta-json'), true);
+assert.equal(canonical.args.includes('--context'), false, 'legacy context:0 is a no-op');
+const removedContext = buildSearchRequestArgs({ query: 'needle', context: 2 });
+assert.equal(removedContext.ok, false);
+assert.match(removedContext.message, /context lines are removed/i);
 assert.deepEqual(
   canonical.args.slice(canonical.args.indexOf('--top'), canonical.args.indexOf('--top') + 2),
   ['--top', '0'],

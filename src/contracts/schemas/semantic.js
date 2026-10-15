@@ -41,9 +41,13 @@ const payloads = {
     literalKind: text, textRef,
     scalar: nullable(object({ type: text, representation: { type: 'string' } }))
   }),
-  type: object({
-    origin: enumeration('declared contextual checker-inferred'), textRef, compilerContextKey: nullable(text)
-  }),
+  type: {
+    ...object({ origin: enumeration('declared contextual checker-inferred'), textRef, compilerContextKey: nullable(text) }),
+    properties: {
+      origin: enumeration('declared contextual checker-inferred'), textRef, compilerContextKey: nullable(text),
+      expression: { type: 'string', minLength: 1, maxLength: 65536 }
+    }
+  },
   binding: object({
     occurrence: ref, contextKey: text,
     status: enumeration('resolved ambiguous heuristic unresolved'), signature: nullable(textRef),

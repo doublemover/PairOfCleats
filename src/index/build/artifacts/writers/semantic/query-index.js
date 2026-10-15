@@ -14,7 +14,9 @@ const members = ['semantic_operands', 'semantic_lookup', 'semantic_ownership', '
 /** Publication-time physical index; canonical partition identities exclude this layout. */
 export const writeSemanticQueryIndex = async ({ root, generation, partitions, store,
   diskAccount, signal = null, scheduleIo = (fn) => fn(), batchRows = 1024, batchBytes = 1048576,
-  maxOpenRuns = 16, entries = null, compareRows = compareQueryIndexRows, keyForRow = queryIndexKey, validateIndex = assertSemanticQueryIndex, directoryPrefix = 'semantic-query-index-', schemaVersion = 1 }) => {
+  maxOpenRuns = 16, entries = null, compareRows = compareQueryIndexRows, keyForRow = queryIndexKey,
+  validateIndex = assertSemanticQueryIndex, directoryPrefix = 'semantic-query-index-', schemaVersion = 1,
+  metrics = null, onMergeGroup = null }) => {
   if (!diskAccount?.reserve || !diskAccount?.release) throw new TypeError('Shared semantic disk account required.');
   for (const limit of [batchRows, batchBytes, maxOpenRuns]) if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Positive query index bounds required.');
   if (maxOpenRuns < 2) throw new TypeError('Query index merge fan-in must be at least two.');
@@ -22,8 +24,25 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
   const directory = await fs.mkdtemp(path.toNamespacedPath(path.join(root, directoryPrefix)));
   const prefix = path.basename(directory);
   let workingReserved = 0, finalReserved = 0;
-  const reserveWork = (bytes) => { diskAccount.reserve(bytes); workingReserved += bytes; };
+  const ownedRuns = new Map();
+  const observeWork = () => {
+    if (metrics) {
+      metrics.workingBytes = workingReserved;
+      metrics.peakWorkingBytes = Math.max(metrics.peakWorkingBytes || 0, workingReserved);
+    }
+  };
+  const reserveWork = (bytes) => { diskAccount.reserve(bytes); workingReserved += bytes; observeWork(); };
   const reserveFinal = (bytes) => { diskAccount.reserve(bytes); finalReserved += bytes; };
+  const retire = async runs => {
+    for (const filename of runs) {
+      const bytes = ownedRuns.get(filename);
+      if (bytes === undefined) throw new Error('Query spill run is not owned by this computation.');
+      await fs.unlink(filename);
+      ownedRuns.delete(filename); diskAccount.release(bytes); workingReserved -= bytes;
+      if (metrics) { metrics.retiredRuns = (metrics.retiredRuns || 0) + 1; metrics.retiredBytes = (metrics.retiredBytes || 0) + bytes; }
+      observeWork();
+    }
+  };
   const collector = createRowSpillCollector({ outDir: directory, runPrefix: 'query-index',
     compare: compareRows, maxBufferRows: batchRows, maxBufferBytes: batchBytes,
     maxJsonBytes: batchBytes, serialize: canonicalSemanticJson, scheduleIo });
@@ -55,26 +74,38 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
     }
     const collected = await collector.finalize();
     let runs = collected.runs || [];
+    for (const filename of runs) ownedRuns.set(filename, (await fs.stat(filename)).size);
+    if (runs.length && [...ownedRuns.values()].reduce((sum, bytes) => sum + bytes, 0) !== workingReserved) {
+      throw new Error('Query spill accounting differs from the physical run inventory.');
+    }
     let pass = 0;
-    // Bounded merge fan-in; retain accounting for all temporary copies until cleanup.
+    // A completed replacement owns the computation before retiring its closed inputs.
     while (runs.length > maxOpenRuns) {
       const next = [];
       for (let start = 0; start < runs.length; start += maxOpenRuns) {
         throwIfAborted(signal);
+        const inputs = runs.slice(start, start + maxOpenRuns);
         const target = path.join(directory, `merge-${pass}-${start}.jsonl`);
         const writer = createJsonlBatchWriter(target, { compression: null, atomic: false, signal });
+        let targetBytes = 0;
         try {
-          for await (const entry of mergeSortedRuns(runs.slice(start, start + maxOpenRuns), { compare: compareRows, validateComparator: true })) {
+          for await (const entry of mergeSortedRuns(inputs, { compare: compareRows, validateComparator: true })) {
             throwIfAborted(signal);
             const line = canonicalSemanticJson(entry), bytes = Buffer.byteLength(line) + 1;
             reserveWork(bytes);
+            targetBytes += bytes;
             await writer.writeLine(line, bytes);
           }
           await writer.close();
         } catch (error) { await writer.destroy(error); throw error; }
+        ownedRuns.set(target, targetBytes);
         next.push(target);
+        await retire(inputs);
+        if (metrics) metrics.mergeGroups = (metrics.mergeGroups || 0) + 1;
+        await onMergeGroup?.({ pass, start, target, inputCount: inputs.length, workingBytes: workingReserved });
       }
       runs = next; pass += 1;
+      if (metrics) metrics.mergePasses = pass;
     }
     const rows = runs.length ? mergeSortedRuns(runs, { compare: compareRows, validateComparator: true }) : collected.rows;
     let batch = [], bytes = 0, previous = null;
@@ -123,14 +154,16 @@ export const writeSemanticQueryIndex = async ({ root, generation, partitions, st
       batch.push(entry); bytes += length;
     }
     await flush();
+    if (runs.length) await retire(runs);
     await collected.cleanup();
-    for (const file of await fs.readdir(directory)) if (file.startsWith('merge-')) await fs.rm(path.join(directory, file));
     diskAccount.release(workingReserved); workingReserved = 0;
+    observeWork();
     return validateIndex({ schemaVersion, generation, partitionHashes: inventory.map(({ partitionId, canonicalHash }) => ({ partitionId, canonicalHash })), pieces, rowCount });
   } catch (error) {
     // The directory is a verified child created here, never a live generation root.
     await fs.rm(directory, { recursive: true, force: true });
     diskAccount.release(workingReserved + finalReserved);
+    workingReserved = 0; finalReserved = 0; ownedRuns.clear(); observeWork();
     throw error;
   }
 };

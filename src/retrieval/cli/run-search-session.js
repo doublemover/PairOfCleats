@@ -1,5 +1,6 @@
 import { compileFilterPredicates } from '../output/filters.js';
 import { createFilterEnumeration } from '../pipeline/filter-enumeration.js';
+import { resolveRetrievalCacheDir } from './cache-paths.js';
 import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
@@ -168,21 +169,25 @@ function createModeState({
  * @param {object} input
  * @returns {object}
  */
-function resolveModeAnnMetadata({
+async function resolveModeAnnMetadata({
   modeState,
   vectorAnnState,
   hnswAnnState,
-  lanceAnnState
+  lanceAnnState,
+  probeLazyDense = false
 }) {
-  for (const mode of EMBEDDING_MODE_ORDER) {
+  await Promise.all(EMBEDDING_MODE_ORDER.map(async mode => {
     const state = modeState[mode];
     const idx = state.idx;
+    const hasReadyBackend = Boolean(vectorAnnState?.[mode]?.available
+      || hnswAnnState?.[mode]?.available || lanceAnnState?.[mode]?.available);
+    // A lazy loader is an I/O capability, not evidence of an indexed vector.
+    // Resolve it only for active uncached ANN searches before provider selection.
+    if (probeLazyDense && state.run && !hasReadyBackend && !isDenseVectorPayloadAvailable(idx?.denseVec)
+      && typeof idx?.loadDenseVectors === 'function') await idx.loadDenseVectors();
     state.hasAnn = Boolean(
       isDenseVectorPayloadAvailable(idx?.denseVec)
-      || typeof idx?.loadDenseVectors === 'function'
-      || vectorAnnState?.[mode]?.available
-      || hnswAnnState?.[mode]?.available
-      || lanceAnnState?.[mode]?.available
+      || hasReadyBackend
     );
     state.embeddingDims = (
       idx?.denseVec?.dims
@@ -192,7 +197,8 @@ function resolveModeAnnMetadata({
     );
     state.embeddingNormalize = idx?.state?.embeddings?.embeddingIdentity?.normalize !== false;
     state.embeddingModelProfile = idx?.state?.embeddings?.embeddingIdentity?.modelProfile || null;
-  }
+    state.embeddingIdentity = idx?.state?.embeddings?.embeddingIdentity || null;
+  }));
   return modeState;
 }
 
@@ -223,7 +229,8 @@ async function resolveQueryEmbeddingsByMode({
       state.embeddingDims,
       state.embeddingNormalize,
       state.inputFormatting,
-      state.embeddingModelProfile
+      state.embeddingModelProfile,
+      state.embeddingIdentity
     );
   }
   return embeddingsByMode;
@@ -441,7 +448,8 @@ export async function runSearchSession({
     cursor: filterCursor,
     filters: cacheFilters,
     modes: [runCode && 'code', runProse && 'prose', runExtractedProse && 'extracted-prose', runRecords && 'records'].filter(Boolean),
-    generation: indexSignaturePayload || { asOfContext, indexDirByMode }
+    generation: indexSignaturePayload || { asOfContext, indexDirByMode },
+    cacheDir: resolveRetrievalCacheDir({ queryCacheDir, metricsDir })
   }) : null;
   if (filterEnumeration?.modifiedAfter != null) {
     filters = { ...filters, modifiedAfter: filterEnumeration.modifiedAfter };
@@ -644,7 +652,7 @@ export async function runSearchSession({
   }
   throwIfAborted();
 
-  const modeState = resolveModeAnnMetadata({
+  const modeState = await resolveModeAnnMetadata({
     modeState: createModeState({
       runCode,
       runProse,
@@ -659,7 +667,8 @@ export async function runSearchSession({
     }),
     vectorAnnState,
     hnswAnnState,
-    lanceAnnState
+    lanceAnnState,
+    probeLazyDense: !cacheHit && annActive
   });
   const needsEmbedding = !cacheHit && annActive && EMBEDDING_MODE_ORDER.some((mode) => {
     const state = modeState[mode];

@@ -348,8 +348,7 @@ const createSearchWorker = ({
     const pid = Number(targetChild?.pid);
     if (!Number.isFinite(pid)) return Promise.resolve();
     return killProcessTree(pid, {
-      signal,
-      forceSignal: signal === 'SIGKILL' ? undefined : 'SIGKILL',
+      killSignal: signal,
       graceMs: 250,
       killTree: true,
       detached: process.platform !== 'win32'
@@ -384,11 +383,13 @@ const createSearchWorker = ({
   const createWorkerSession = () => {
     const spawnedChild = fork(workerScriptPath, [], {
       env,
+      detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe', 'ipc']
     });
     const session = {
       generation: nextGeneration,
       child: spawnedChild,
+      closed: new Promise(resolve => spawnedChild.once('close', resolve)),
       pid: Number(spawnedChild?.pid) || null,
       runsSinceStart: 0,
       stderrLines: []
@@ -485,7 +486,7 @@ const createSearchWorker = ({
 
   const closeChild = async (targetSession = currentSession, { cancelActiveRequest = false } = {}) => {
     const targetChild = targetSession?.child;
-    if (!targetChild || targetChild.killed || targetChild.exitCode != null) return;
+    if (!targetChild) return;
     if (currentSession === targetSession) {
       currentSession = null;
     }
@@ -502,30 +503,20 @@ const createSearchWorker = ({
         meta: request.meta
       }));
     }
-    await new Promise((resolve) => {
-      let settled = false;
-      let timeout = null;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        if (timeout) {
-          clearTimeout(timeout);
-          timeout = null;
-        }
-        resolve();
-      };
-      targetChild.once('exit', finish);
-      try {
-        targetChild.send({ type: 'shutdown' });
-      } catch {
-        finish();
+    let timeout;
+    try {
+      const graceful = new Promise(resolve => {
+        timeout = setTimeout(() => resolve(false), Math.max(250, Math.floor(shutdownTimeoutMs)));
+      });
+      if (targetChild.connected) {
+        targetChild.send({ type: 'shutdown' }, () => {});
       }
-      timeout = setTimeout(async () => {
-        await terminateChild(targetChild, 'SIGTERM');
-        finish();
-      }, Math.max(250, Math.floor(shutdownTimeoutMs)));
-      timeout.unref?.();
-    });
+      const closedGracefully = await Promise.race([targetSession.closed.then(() => true), graceful]);
+      if (!closedGracefully) await terminateChild(targetChild, 'SIGTERM');
+      await targetSession.closed;
+    } finally {
+      clearTimeout(timeout);
+    }
   };
 
   const ensureChild = () => {

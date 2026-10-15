@@ -1,3 +1,4 @@
+import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
 
 /**
@@ -489,7 +490,8 @@ export const createFileEmbeddingsProcessor = ({
       docPayloads.push(entry.docTexts[i]);
       docMapping.push(entry.docMapping[i]);
     }
-    const groupId = entry.normalizedRel || entry.items[0]?.chunk?.file || '';
+    const sourceKey = entry.normalizedRel || entry.items[0]?.chunk?.file;
+    const groupId = sourceKey ? canonicalBundleSourceKey(sourceKey) : '';
     const descriptor = (index, kind) => ({ groupId,
       chunkId: entry.items[index]?.chunk?.chunkId ?? entry.items[index]?.index ?? index, kind });
     const codeGroups = entry.codeMapping.map((index) => descriptor(index, 'code'));

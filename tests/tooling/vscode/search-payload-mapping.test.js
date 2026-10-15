@@ -10,7 +10,7 @@ const payload = buildSearchPayload('needle', '/repo', {
   backend: 'sqlite',
   annEnabled: false,
   maxResults: 11,
-  contextLines: 4,
+  contextLines: 0,
   file: 'src/index.js',
   path: 'src/',
   lang: 'javascript',
@@ -32,7 +32,6 @@ assert.deepEqual(payload, {
   mode: 'records',
   backend: 'sqlite',
   ann: false,
-  context: 4,
   file: 'src/index.js',
   path: 'src/',
   lang: 'javascript',
@@ -48,6 +47,7 @@ assert.deepEqual(payload, {
 });
 
 const defaultPayload = buildSearchPayload('alpha', '', {});
+assert.throws(() => buildSearchPayload('alpha', '', { contextLines: 1 }), /removed/);
 assert.deepEqual(defaultPayload, {
   query: 'alpha',
   repo: '',

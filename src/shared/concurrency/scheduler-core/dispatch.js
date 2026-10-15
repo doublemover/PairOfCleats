@@ -176,7 +176,11 @@ export function createSchedulerDispatch({
       const startedAt = config.nowMs();
       queue.runningSince.set(next, startedAt);
       const done = Promise.resolve()
-        .then(next.fn)
+        .then(() => {
+          if (state.shuttingDown) throw new Error('scheduler is shut down');
+          if (next.signal?.aborted) throw createAbortError();
+          return next.fn();
+        })
         .then(
           (value) => {
             queue.stats.completed += 1;
@@ -226,9 +230,6 @@ export function createSchedulerDispatch({
       config.counters.rejectedByReason.signalRequired += 1;
       return Promise.reject(config.createSignalRequiredError(queueName));
     }
-    if (!config.enabled) {
-      return Promise.resolve().then(fn);
-    }
     if (state.shuttingDown) {
       config.counters.rejected += 1;
       config.counters.rejectedByReason.shutdown += 1;
@@ -238,6 +239,15 @@ export function createSchedulerDispatch({
       config.counters.rejected += 1;
       config.counters.rejectedByReason.abort += 1;
       return Promise.reject(createAbortError());
+    }
+    if (!config.enabled) {
+      const done = Promise.resolve().then(() => {
+        if (state.shuttingDown) throw new Error('scheduler is shut down');
+        if (scheduleSignal?.aborted) throw createAbortError();
+        return fn();
+      }).finally(() => state.runningTasks.delete(done));
+      state.runningTasks.add(done);
+      return done;
     }
     const normalizedReq = config.normalizeRequest(tokensReq || {});
     const queue = queueLifecycle.ensureQueue(queueName);
@@ -269,6 +279,7 @@ export function createSchedulerDispatch({
         tokens: normalizedReq,
         bytes: normalizedReq.bytes,
         fn,
+        signal: scheduleSignal,
         resolve,
         reject,
         enqueuedAt: config.nowMs(),

@@ -1,6 +1,5 @@
 import { createError, ERROR_CODES, isErrorCode } from '../../../shared/error-codes.js';
 import { getSearchUsage, parseSearchArgs } from '../../cli-args.js';
-import { runFederatedSearch } from '../../federation/coordinator.js';
 import { parseFederatedCliRequest } from '../../federation/args.js';
 import { stableStringify } from '../../../shared/stable-json.js';
 import { formatHumanError, inferJsonOutputFromArgs } from '../runner.js';
@@ -136,6 +135,7 @@ export const runFederatedIfRequested = async ({
 }) => {
   if (!workspacePath) return null;
   try {
+    const { runFederatedSearch } = await import('../../federation/coordinator.js');
     const federatedRequest = parseFederatedCliRequest(rawArgs);
     const payload = await runFederatedSearch(federatedRequest, {
       signal,

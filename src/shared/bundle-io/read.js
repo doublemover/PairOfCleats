@@ -21,8 +21,14 @@ import {
 } from '../bundle-contract.js';
 import { checksumBundlePayload } from './support.js';
 import { applyBundlePatch, readBundlePatches } from './patch.js';
+import { normalizeBundleSourceKeys } from '../bundle-source-key.js';
 
 const unpackr = new Unpackr({ useRecords: false });
+const normalizeRead = result => {
+  if (!result.ok) return result;
+  try { return { ...result, bundle: normalizeBundleSourceKeys(result.bundle) }; }
+  catch { return { ok: false, reason: 'invalid bundle source key' }; }
+};
 
 export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX_BUNDLE_BYTES, repoRoot = process.cwd() } = {}) {
   const gate = (value, component) => assertCurrentIndexFormat({
@@ -60,15 +66,15 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
       if (!descriptor.ok) {
         return descriptor;
       }
-      return verifyBundleChecksum({
+      return normalizeRead(await verifyBundleChecksum({
         bundle: payload,
         checksum: descriptor.checksum,
         supportedVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION,
         maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES,
         checksumBundlePayload
-      });
+      }));
     }
-    return { ok: true, bundle: payload };
+    return normalizeRead({ ok: true, bundle: payload });
   }
   const raw = await fs.readFile(bundlePath, 'utf8');
   let bundle = null;
@@ -130,5 +136,5 @@ export async function readBundleFile(bundlePath, { format = null, maxBytes = MAX
       return { ok: false, reason: 'invalid bundle checksum' };
     }
   }
-  return { ok: true, bundle };
+  return normalizeRead({ ok: true, bundle });
 }

@@ -1,3 +1,7 @@
+import { readRuntimeMemberBytes, readRuntimeMemberJson, openVerifiedRuntimeMember } from './verified-reads.js';
+import { withRuntimeDestinationWriter } from './ownership.js';
+import { closeRuntimeResources } from './close-resources.js';
+import { qualifyRuntimeSourceCandidates } from './source-authority.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -19,10 +23,6 @@ import { writeRuntimeQueryIndex, openRuntimeQueryIndex, assertRuntimeIndexedRow 
 const MAX_MANIFEST_BYTES = 16 * 1024 * 1024;
 const pointerCharges = new WeakMap();
 const jsonBytes = value => Buffer.from(canonicalSemanticJson(value) + '\n');
-const readJson = async filename => {
-  if ((await fs.stat(filename)).size > MAX_MANIFEST_BYTES) throw runtimeImportError('Runtime manifest exceeds allowance.');
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await fs.readFile(filename)));
-};
 const assertCandidates = (capture, candidates) => {
   if (!Array.isArray(candidates) || candidates.length > capture.limits.maxEvents) throw runtimeImportError('Source candidate inventory exceeds allowance.');
   for (const row of candidates) {
@@ -36,18 +36,15 @@ const assertCandidates = (capture, candidates) => {
 
 /** Verify a complete standalone immutable family without loading evidence rows into a repository array. */
 export const verifyRuntimeFamily = async ({ destination, pointer = null, maxBytes = Number.MAX_SAFE_INTEGER, signal = null }) => {
-  const current = assertRuntimeFamily('pointer', pointer || await readJson(path.join(destination, 'current.json')));
+  const current = assertRuntimeFamily('pointer', pointer || (await readRuntimeMemberJson({ root: destination, relativePath: 'current.json', maxBytes: MAX_MANIFEST_BYTES, signal })).value);
   if (current.manifest.path !== 'generations/' + current.generationId + '/manifest.json') throw runtimeImportError('Runtime pointer generation/path mismatch.');
-  const manifestPath = await resolveSemanticPartPath(destination, current.manifest.path);
-  await hashRuntimeFile({ filename: manifestPath, expectedHash: current.manifest.hash,
-    expectedBytes: current.manifest.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal });
-  const manifest = assertRuntimeFamily('manifest', await readJson(manifestPath));
+  const manifestRead = await readRuntimeMemberJson({ root: destination, relativePath: current.manifest.path,
+    expectedHash: current.manifest.hash, expectedBytes: current.manifest.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal });
+  const manifest = assertRuntimeFamily('manifest', manifestRead.value);
   if (manifest.generationId !== current.generationId) throw runtimeImportError('Runtime family generation mismatch.');
-  const root = path.dirname(manifestPath);
-  const capturePath = await resolveSemanticPartPath(root, manifest.capture.path);
-  await hashRuntimeFile({ filename: capturePath, expectedHash: manifest.capture.hash,
-    expectedBytes: manifest.capture.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal });
-  const capture = assertRuntimeEvidence('capture', await readJson(capturePath));
+  const root = await resolveSemanticPartPath(destination, 'generations/' + current.generationId);
+  const capture = assertRuntimeEvidence('capture', (await readRuntimeMemberJson({ root, relativePath: manifest.capture.path,
+    expectedHash: manifest.capture.hash, expectedBytes: manifest.capture.byteLength, maxBytes: MAX_MANIFEST_BYTES, signal })).value);
   if (capture.completion === 'complete' && manifest.coverage.some(row => row.status !== 'complete')) {
     throw runtimeImportError('Incomplete runtime coverage cannot claim a complete capture projection.');
   }
@@ -62,26 +59,27 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
   }
   if (capture.rawArtifacts.length !== manifest.raw.length) throw runtimeImportError('Missing retained raw artifact.');
   if (manifest.queryIndex.path !== 'query.sqlite') throw runtimeImportError('Runtime lookup index path mismatch.');
-  const queryIndexPath = await resolveSemanticPartPath(root, manifest.queryIndex.path);
-  await hashRuntimeFile({ filename: queryIndexPath, expectedHash: manifest.queryIndex.hash,
-    expectedBytes: manifest.queryIndex.byteLength, maxBytes, signal });
-  const evidencePath = await resolveSemanticPartPath(root, manifest.evidence.path);
-  await hashRuntimeFile({ filename: evidencePath, expectedHash: manifest.evidence.hash,
-    expectedBytes: manifest.evidence.byteLength, maxBytes, signal });
-  const offsetsPath = await resolveSemanticPartPath(root, manifest.evidence.offsetsPath);
-  await hashRuntimeFile({ filename: offsetsPath, expectedHash: manifest.evidence.offsetsHash,
-    expectedBytes: manifest.evidence.count * 8, maxBytes, signal });
-  const offsets = await fs.open(offsetsPath, 'r');
+  const queryBytes = await readRuntimeMemberBytes({ root, relativePath: manifest.queryIndex.path,
+    expectedHash: manifest.queryIndex.hash, expectedBytes: manifest.queryIndex.byteLength,
+    maxBytes: Math.min(maxBytes, 64 * 1024 * 1024), signal });
+  const evidence = await openVerifiedRuntimeMember({ root, relativePath: manifest.evidence.path,
+    expectedHash: manifest.evidence.hash, expectedBytes: manifest.evidence.byteLength, maxBytes, signal });
+  let offsets;
+  try {
+    offsets = (await readRuntimeMemberBytes({ root, relativePath: manifest.evidence.offsetsPath,
+      expectedHash: manifest.evidence.offsetsHash, expectedBytes: manifest.evidence.count * 8, maxBytes, signal })).buffer;
+  } catch (error) { await closeRuntimeResources([evidence], error); }
   let queryIndex = null;
-  const ids = new Set(), offsetBuffer = Buffer.alloc(8);
+  let verificationError = null;
+  const ids = new Set();
   let count = 0;
   try {
-    queryIndex = openRuntimeQueryIndex({ filename: queryIndexPath, manifest, capture });
+    queryIndex = openRuntimeQueryIndex({ bytes: queryBytes.buffer, manifest, capture });
     if (queryIndex.prepare('SELECT count(*) AS count FROM evidence').get().count !== manifest.evidence.count
       || queryIndex.prepare('SELECT 1 FROM source_refs r LEFT JOIN evidence e ON e.ordinal=r.ordinal WHERE e.ordinal IS NULL LIMIT 1').get()) throw runtimeImportError('Runtime lookup row/reference inventory mismatch.');
     const indexRow = queryIndex.prepare('SELECT * FROM evidence WHERE ordinal=?');
     const indexRefs = queryIndex.prepare('SELECT partition_id,local_id FROM source_refs WHERE ordinal=? ORDER BY partition_id,local_id');
-    for await (const line of readRuntimeLines({ filename: evidencePath, maxLineBytes: MAX_MANIFEST_BYTES, signal })) {
+    for await (const line of readRuntimeLines({ handle: evidence, maxLineBytes: MAX_MANIFEST_BYTES, signal })) {
       if (!line.terminated || line.oversized) throw runtimeImportError('Malformed published runtime row.');
       const row = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(line.bytes));
       assertRuntimeProjection({ capture, evidence: [row] });
@@ -93,11 +91,11 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
       const expectedRefs = [...new Set(row.join.targets.map(ref => JSON.stringify([ref.partitionId, ref.localId])))].sort();
       const actualRefs = indexRefs.all(count).map(ref => JSON.stringify([ref.partition_id, ref.local_id])).sort();
       if (JSON.stringify(expectedRefs) !== JSON.stringify(actualRefs)) throw runtimeImportError('Runtime lookup source references mismatch.');
-      if ((await offsets.read(offsetBuffer, 0, 8, count * 8)).bytesRead !== 8
-        || offsetBuffer.readBigUInt64LE() !== BigInt(line.start)) throw runtimeImportError('Runtime offset table mismatch.');
+      if (count * 8 + 8 > offsets.length || offsets.readBigUInt64LE(count * 8) !== BigInt(line.start)) throw runtimeImportError('Runtime offset table mismatch.');
       count += 1;
     }
-  } finally { queryIndex?.close(); await offsets.close(); }
+  } catch (error) { verificationError = error; throw error; }
+  finally { await closeRuntimeResources([queryIndex, evidence], verificationError); }
   if (count !== manifest.evidence.count) throw runtimeImportError('Runtime evidence inventory count mismatch.');
   const expected = semanticHash('pairofcleats.runtime.family.v1', { ...manifest, generationId: null });
   if (expected !== manifest.generationId) throw runtimeImportError('Runtime family canonical identity mismatch.');
@@ -105,8 +103,8 @@ export const verifyRuntimeFamily = async ({ destination, pointer = null, maxByte
 };
 
 /** Explicit offline import only. The API has no collector, process, inspector, or execution hook. */
-export const importRuntimeEvidence = async ({ destination, capture: suppliedCapture, authority,
-  inputs, sourceCandidates = [], importOptions, diskAccount = null, signal = null }) => {
+const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCapture, authority,
+  inputs, sourceCandidates = [], verifiedCandidates, importOptions, diskAccount = null, signal = null }) => {
   if (!importOptions || Object.keys(importOptions).some(key => key !== 'maxDiskWorkingSetBytes')
     || !Number.isSafeInteger(importOptions.maxDiskWorkingSetBytes) || importOptions.maxDiskWorkingSetBytes < 0) {
     throw new TypeError('Explicit maxDiskWorkingSetBytes import allowance required.');
@@ -116,6 +114,7 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
     || capture.rawArtifacts.length > capture.limits.maxEvents) throw runtimeImportError('Exact bounded raw input inventory required.');
   assertRuntimeImportAuthority({ authority, capture, artifacts: capture.rawArtifacts });
   assertCandidates(capture, sourceCandidates);
+  sourceCandidates = verifiedCandidates;
   const inputMap = new Map();
   for (const input of inputs) {
     if (!input || Object.keys(input).some(key => !['artifactId', 'path'].includes(key))
@@ -147,7 +146,7 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
   await fs.mkdir(generations, { recursive: true });
   await resolveSemanticPartPath(destination, 'generations');
   const pending = await fs.mkdtemp(path.join(generations, '.pending-'));
-  let reserved = 0, retained = false, published = false, promotedRoot = null;
+  let reserved = 0, retained = false;
   const reserve = async bytes => {
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: capture.limits.diskReserveBytes, additionalBytes: bytes });
     account.reserve(bytes); reserved += bytes;
@@ -164,6 +163,7 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
     const evidenceHash = createHash('sha256'), offsetsHash = createHash('sha256');
     const offset = Buffer.alloc(8), ids = new Set(), scriptHashes = new Map(), scriptConflicts = new Set(), coverage = [];
     let count = 0, byteLength = 0;
+    let projectionError = null;
     try {
       offsets = await fs.open(path.join(pending, 'evidence.offsets'), 'wx');
       // Saved script metadata is projected before profiles, independently of caller input order.
@@ -201,7 +201,8 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
         }
       }
       await evidence.sync(); await offsets.sync();
-    } finally { await evidence.close(); if (offsets) await offsets.close(); }
+    } catch (error) { projectionError = error; throw error; }
+    finally { await closeRuntimeResources([evidence, offsets], projectionError); }
     if (coverage.some(row => row.status !== 'complete')) {
       if (capture.completion === 'complete') capture.completion = 'partial';
       capture.warnings = [...new Set([...capture.warnings, 'offline_projection_has_incomplete_coverage'])];
@@ -222,7 +223,7 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
     const pointer = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generationId: family.generationId,
       manifest: { ...manifest, path: 'generations/' + family.generationId + '/manifest.json' } };
     const final = path.join(generations, family.generationId);
-    try { await fs.rename(pending, final); retained = true; promotedRoot = final; }
+    try { await fs.rename(pending, final); retained = true; }
     catch (error) {
       if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
       await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });
@@ -233,8 +234,7 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
     const pointerBytes = jsonBytes(assertRuntimeFamily('pointer', pointer));
     const currentPath = path.join(destination, 'current.json');
     try {
-      if ((await fs.readFile(currentPath)).equals(pointerBytes)) {
-        published = true;
+      if ((await readRuntimeMemberBytes({ root: destination, relativePath: 'current.json', maxBytes: MAX_MANIFEST_BYTES, signal })).buffer.equals(pointerBytes)) {
         return { executionAuthorized: false, pointer, capture, coverage, recordCount: count };
       }
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -247,7 +247,7 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
       try { await handle.writeFile(pointerBytes); await handle.sync(); } finally { await handle.close(); }
       throwIfAborted(signal);
       await fs.rename(pointerTemporary, currentPath);
-      pointerPublished = true; published = true;
+      pointerPublished = true;
       let charges = pointerCharges.get(sharedAccount);
       if (!charges) { charges = new Map(); pointerCharges.set(sharedAccount, charges); }
       const previous = charges.get(path.resolve(currentPath)) || 0;
@@ -260,7 +260,22 @@ export const importRuntimeEvidence = async ({ destination, capture: suppliedCapt
     return { executionAuthorized: false, pointer, capture, coverage, recordCount: count };
   } finally {
     await fs.rm(pending, { recursive: true, force: true });
-    if (promotedRoot && !published) await fs.rm(promotedRoot, { recursive: true, force: true });
-    if (!retained || !published) account.release(reserved);
+    // Promotion relinquishes exclusive ownership: another publisher or pinned
+    // reader may already use this family, even if this pointer step failed.
+    if (!retained) account.release(reserved);
   }
+};
+
+/** Public offline import; semantic and disk authority are resolved before publication. */
+export const importRuntimeEvidence = async options => {
+  const limit = options.importOptions?.maxDiskWorkingSetBytes;
+  if (!Number.isSafeInteger(limit) || limit < 0) throw new TypeError('Explicit maxDiskWorkingSetBytes import allowance required.');
+  assertRuntimeEvidence('capture', options.capture);
+  assertRuntimeImportAuthority({ authority: options.authority, capture: options.capture, artifacts: options.capture.rawArtifacts });
+  assertCandidates(options.capture, options.sourceCandidates || []);
+  const verifiedCandidates = await qualifyRuntimeSourceCandidates({ capture: options.capture,
+    candidates: options.sourceCandidates || [], semanticContext: options.semanticContext, signal: options.signal });
+  return withRuntimeDestinationWriter({ destination: options.destination, maxDiskWorkingSetBytes: limit,
+    diskAccount: options.diskAccount, signal: options.signal }, ({ destination, account }) =>
+    importRuntimeEvidenceOwned({ ...options, destination, diskAccount: account, verifiedCandidates }));
 };

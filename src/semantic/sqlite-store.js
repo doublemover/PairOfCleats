@@ -152,6 +152,15 @@ export const createSqliteSemanticStore = ({
   };
   const findOperations = async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
     validateOperationSelector(selector,offset,limit); throwIfAborted(signal);
+    if (['typeExpression', 'literalValue'].includes(selector.field)) {
+      if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='semantic_discovery'").get()) {
+        throw Object.assign(new Error('Typed/value discovery index unavailable; rebuild the pinned generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
+      }
+      const rows = db.prepare('SELECT partition_id,local_id FROM semantic_discovery WHERE field=? AND value=? ORDER BY partition_id,local_id LIMIT ? OFFSET ?')
+        .all(selector.field,selector.value,limit+1,offset);
+      return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),
+        offset: offset+Math.min(limit,rows.length),done: rows.length<=limit };
+    }
     const fields = { astKind: '$.data.astKind', operation: '$.data.operation', invocationKind: '$.data.invocationKind' };
     const sql = selector.field === 'chunkUid'
       ? "SELECT DISTINCT r.partition_id,r.local_id FROM semantic_ownership o JOIN semantic_records r ON r.partition_id=o.record_partition AND r.local_id=o.local_id WHERE o.chunk_uid=? AND r.record_kind='expression' ORDER BY r.partition_id,r.local_id LIMIT ? OFFSET ?"

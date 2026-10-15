@@ -1,0 +1,58 @@
+{
+  "scope": "51 JavaScript files including a 2000-declaration file; one bounded stage1 run",
+  "node": "v26.8.1",
+  "platform": "win32",
+  "files": {
+    "scanned": 51,
+    "skipped": 0,
+    "candidates": 51,
+    "skippedByReason": {}
+  },
+  "chunks": {
+    "total": 58,
+    "avgTokens": 247.41379310344828
+  },
+  "queues": {
+    "limits": {
+      "maxPending": 16,
+      "maxPendingRows": 2000,
+      "maxPendingBytes": 1048576,
+      "maxHeapFraction": 0.0001,
+      "reserveTimeoutMs": 120000
+    },
+    "highWater": {
+      "pending": 1,
+      "rows": 8,
+      "bytes": 531634,
+      "heapUsed": 162721736,
+      "heapRatio": 0.03701897431875913
+    },
+    "backpressure": {
+      "count": 0,
+      "waitMs": 0,
+      "maxWaitMs": 0,
+      "events": 0,
+      "byCount": 0,
+      "byRows": 0,
+      "byBytes": 0,
+      "timeouts": 0,
+      "aborts": 0,
+      "bypass": 0
+    },
+    "oversize": {
+      "rows": 0,
+      "bytes": 0
+    },
+    "memory": {
+      "heapLimitBytes": 4395630592,
+      "pressureEvents": 51
+    }
+  },
+  "timings": {
+    "discoverMs": 0,
+    "processMs": 1070,
+    "writeMs": 789,
+    "totalMs": 2588
+  },
+  "provenance": ".testLogs/run-1792030894910-rirvia"
+}

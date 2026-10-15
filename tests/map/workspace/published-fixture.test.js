@@ -63,7 +63,7 @@ try {
   const plan=await runSemanticEnrichmentService({request:{schemaVersion:1,repoRoot:repo,generation:selected.generation,limits:{maxTasks:32,maxBytes:65536,maxMs:1000,drainMaxMs:1000}}});
   const enrichmentView=projectOutput(plan);assert.equal(enrichmentView.family,'enrichment');
   assert.equal(plan.executionAuthorized,false);assert.equal(enrichmentView.nodes.length,plan.tasks.length);
-  const found=await search(repo,{args:['--backend','memory','--mode','code','--json'],query:'twice',emitOutput:false,exitOnError:false});
+  const found=await search(repo,{args:['--backend','memory','--mode','code','--json','--no-ann'],query:'twice',emitOutput:false,exitOnError:false});
   const ranked=projectOutput(found);assert.equal(ranked.family,'search');assert.ok(ranked.nodes.length);
   assert.equal(ranked.nodes[0].detail.originalRank,1);
   await verifyMapIsoLauncher(repo,temp);

@@ -163,8 +163,8 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
     /wait_for_successful_run 'ci-long\.yml' 'dispatch'/,
     /gh run download "\$ci_run_id" -n ci-quality-artifacts-ubuntu/,
     /tools\/release\/readiness-gate\.js[\s\S]*--release-git-sha\s+\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/,
-    /uses:\s*actions\/download-artifact@v7\b/,
-    /uses:\s*actions\/upload-artifact@v6\b/,
+    /uses:\s*actions\/download-artifact@v8\b/,
+    /uses:\s*actions\/upload-artifact@v7\b/,
     /uses:\s*actions\/attest-build-provenance@v4\b/,
     /environment:\s*release/,
     /gh release create/,
@@ -385,6 +385,13 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
 }
 
 const ciWorkflow = readWorkflow('ci.yml');
+const gateJob = parse(ciWorkflow).jobs.gate;
+const gateCommand = gateJob.steps.find((step) => step.name === 'Gate lane')?.run || '';
+if (/--allow-timeouts/.test(gateCommand) || !/--timeout-ms 30000/.test(gateCommand)
+  || gateJob.steps.find((step) => step.name === 'Upload gate artifacts')?.if !== 'always()') {
+  console.error('The mandatory gate must reject bounded timeouts and always retain acceptance receipts.');
+  process.exit(1);
+}
 assertWorkflowScriptsExist({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertNodePinned({ workflowText: ciWorkflow, label: 'CI workflow' });
 assertHiddenArtifactUploadsConfigured({ workflowText: ciWorkflow, label: 'CI workflow' });

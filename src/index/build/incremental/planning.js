@@ -8,8 +8,11 @@ import { isIndexBuildStageAtLeast } from '../../../shared/indexing/stages.js';
 import { isWithinRoot, toRealPathSync } from '../../../workspace/identity.js';
 import { SIGNATURE_VERSION } from '../indexer/signatures.js';
 import { pathExists } from './shared.js';
+import { INCREMENTAL_MANIFEST_VERSION, INCREMENTAL_MANIFEST_MAX_BYTES, decodeIncrementalManifest } from './manifest-codec.js';
+import { sourceEntryIsFresh } from './source-freshness.js';
+import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 
-const INCREMENTAL_MANIFEST_JSON_MAX_BYTES = 8 * 1024 * 1024;
+const INCREMENTAL_MANIFEST_JSON_MAX_BYTES = INCREMENTAL_MANIFEST_MAX_BYTES;
 const INCREMENTAL_INDEX_STATE_JSON_MAX_BYTES = 8 * 1024 * 1024;
 const INCREMENTAL_PIECES_MANIFEST_JSON_MAX_BYTES = 16 * 1024 * 1024;
 const PIECE_VALIDATION_CONCURRENCY = 32;
@@ -93,7 +96,7 @@ export async function loadIncrementalState({
   let artifactNeedsRebuild = false;
   let manifest = {
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-    version: 5,
+    version: INCREMENTAL_MANIFEST_VERSION,
     signatureVersion: SIGNATURE_VERSION,
     mode,
     tokenizationKey: tokenizationKey || null,
@@ -107,10 +110,11 @@ export async function loadIncrementalState({
   };
   if (enabled && await pathExists(manifestPath)) {
     try {
-      const loaded = await readJsonFile(manifestPath, {
+      const raw = await readJsonFile(manifestPath, {
         maxBytes: INCREMENTAL_MANIFEST_JSON_MAX_BYTES,
         label: `${mode} incremental manifest`
       });
+      const loaded = decodeIncrementalManifest(raw, { repoRoot, indexPath: manifestPath });
       assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest',
         foundVersion: loaded?.artifactSurfaceVersion, repoRoot, indexPath: manifestPath });
       if (loaded && typeof loaded === 'object') {
@@ -184,7 +188,7 @@ export async function loadIncrementalState({
         }
       }
     } catch (error) {
-      if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
+      if (['ERR_INDEX_FORMAT_UNSUPPORTED', 'ERR_INCREMENTAL_JSON_OVERSIZE', 'ERR_FILE_TOO_LARGE'].includes(error?.code)) throw error;
       if (typeof log === 'function') {
         log(
           `[incremental] ${mode} cache manifest read failed ` +
@@ -278,7 +282,10 @@ const readJsonFile = async (filePath, { maxBytes = 0, label = 'json' } = {}) => 
       throw err;
     }
   }
-  const raw = await fs.readFile(filePath, 'utf8');
+  const { buffer } = await readVerifiedContainedFile(path.dirname(filePath), filePath, {
+    maxBytes: maxBytes || INCREMENTAL_MANIFEST_MAX_BYTES
+  });
+  const raw = buffer.toString('utf8');
   try {
     return JSON.parse(raw);
   } catch (error) {
@@ -407,7 +414,7 @@ export async function shouldReuseIncrementalIndex({
     if (!relKey) return fail('missing entry rel path');
     const cached = manifestFiles[relKey];
     if (!cached || !entry.stat) return fail('missing cached entry stats');
-    if (cached.size !== entry.stat.size || cached.mtimeMs !== entry.stat.mtimeMs) {
+    if (!(await sourceEntryIsFresh({ absPath: entry.abs, entry: cached, stat: entry.stat }))) {
       return fail('entry stats changed');
     }
   }

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { StringDecoder } from 'node:string_decoder';
 import { killChildProcessTree } from '../kill-tree.js';
 import { isAbortSignal } from '../abort.js';
 import {
@@ -37,23 +38,13 @@ const resolveTimeoutAbortReapWaitMs = (value) => {
   return Math.max(0, Math.floor(parsed));
 };
 
-const waitMs = (ms) => new Promise((resolve) => {
-  setTimeout(resolve, Math.max(1, Math.floor(ms)));
-});
-
-const awaitBoundedReap = async (promise, waitTimeoutMs) => {
-  if (!promise || typeof promise.then !== 'function') return;
+const awaitBoundedClose = async (promise, waitTimeoutMs) => {
   const boundedMs = resolveTimeoutAbortReapWaitMs(waitTimeoutMs);
-  if (boundedMs <= 0) {
-    await promise.catch(() => {});
-    return;
-  }
-  const boundedWait = waitMs(boundedMs);
-  await Promise.race([
-    promise.catch(() => {}),
-    boundedWait
-  ]);
-  await boundedWait;
+  if (boundedMs <= 0) return;
+  let timer;
+  try {
+    await Promise.race([promise, new Promise(resolve => { timer = setTimeout(resolve, boundedMs); })]);
+  } finally { clearTimeout(timer); }
 };
 
 const resolveCleanupScope = (options, abortSignal) => {
@@ -82,29 +73,43 @@ const terminateAndRejectFactory = ({
   stdoutCollector,
   stderrCollector,
   outputMode,
+  closed,
+  wasCloseObserved,
   reject
 }) => async (createError) => {
   try {
     if (typeof child.unref === 'function') child.unref();
   } catch {}
-  const killPromise = killChildProcessTree(child, {
+  let treeCleanupResult = null, treeCleanupError = null;
+  const treeCleanup = killChildProcessTree(child, {
     killTree,
     killSignal,
     graceMs: timeoutAbortKillGraceMs,
     detached,
     awaitGrace: true
-  });
+  }).then(result => { treeCleanupResult = result; }, error => { treeCleanupError = error; });
   cleanup({ keepTrackedRegistration: true });
-  await awaitBoundedReap(killPromise, timeoutAbortReapWaitMs);
+  // A parent can close while a descendant is still inside its configured
+  // termination grace. Keep the caller's capacity lease until the existing
+  // tree owner has finished escalation, as well as observing bounded close.
+  await Promise.all([treeCleanup, awaitBoundedClose(closed, timeoutAbortReapWaitMs)]);
   const result = buildResult({
     pid: child.pid,
     exitCode: null,
     signal: null,
     startedAt,
     stdout: stdoutCollector.toOutput(outputMode),
-    stderr: stderrCollector.toOutput(outputMode)
+    stderr: stderrCollector.toOutput(outputMode),
+    outputCapture: { stdout: stdoutCollector.stats(), stderr: stderrCollector.stats() }
   });
-  reject(createError(result));
+  const closeObserved = wasCloseObserved();
+  result.termination = { scope: 'spawned-child-close-only', method: 'child-close-event',
+    closeObserved, closeTimedOut: !closeObserved, waitMs: timeoutAbortReapWaitMs,
+    treeCleanupSettled: true, treeCleanupFailed: treeCleanupError !== null,
+    treeCleanupForced: treeCleanupResult?.forced ?? null };
+  const error = createError(result);
+  if (!closeObserved || treeCleanupError) error.cacheOwnershipPending = true;
+  reject(error);
 };
 
 export function spawnSubprocess(command, args, options = {}) {
@@ -160,6 +165,11 @@ export function spawnSubprocess(command, args, options = {}) {
     }
     const stdoutCollector = createCollector({ enabled: captureStdout, maxOutputBytes, encoding });
     const stderrCollector = createCollector({ enabled: captureStderr, maxOutputBytes, encoding });
+    const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
+    const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
+    // Construct before spawning so an invalid decoder encoding cannot leak a child.
+    const stdoutDecoder = onStdout ? new StringDecoder(encoding) : null;
+    const stderrDecoder = onStderr ? new StringDecoder(encoding) : null;
     if (options.shell === true) {
       const result = buildResult({
         pid: null,
@@ -180,6 +190,8 @@ export function spawnSubprocess(command, args, options = {}) {
       detached,
       windowsVerbatimArguments: options.windowsVerbatimArguments === true
     });
+    let closeObserved = false;
+    const closed = new Promise(resolve => child.once('close', () => { closeObserved = true; resolve(); }));
     let unregisterTrackedChild = () => {};
     if (cleanupOnParentExit) {
       unregisterTrackedChild = registerChildProcessForCleanup(child, {
@@ -212,8 +224,6 @@ export function spawnSubprocess(command, args, options = {}) {
     let settled = false;
     let timeoutId = null;
     let abortHandler = null;
-    const onStdout = typeof options.onStdout === 'function' ? options.onStdout : null;
-    const onStderr = typeof options.onStderr === 'function' ? options.onStderr : null;
     let onStdoutData = null;
     let onStderrData = null;
     const cleanup = ({ keepTrackedRegistration = false } = {}) => {
@@ -234,7 +244,8 @@ export function spawnSubprocess(command, args, options = {}) {
         signal,
         startedAt,
         stdout: stdoutCollector.toOutput(outputMode),
-        stderr: stderrCollector.toOutput(outputMode)
+        stderr: stderrCollector.toOutput(outputMode),
+        outputCapture: { stdout: stdoutCollector.stats(), stderr: stderrCollector.stats() }
       });
       if (!rejectOnNonZeroExit || expectedExitCodes.includes(exitCode ?? -1)) {
         resolve(result);
@@ -255,6 +266,8 @@ export function spawnSubprocess(command, args, options = {}) {
       stdoutCollector,
       stderrCollector,
       outputMode,
+      closed,
+      wasCloseObserved: () => closeObserved,
       reject
     });
     const onOutputHandlerError = (streamName, error) => {
@@ -266,22 +279,29 @@ export function spawnSubprocess(command, args, options = {}) {
         error
       ));
     };
-    const handleOutput = (collector, handler, streamName) => (chunk) => {
+    const handleOutput = (collector, handler, decoder, streamName) => (chunk) => {
       if (settled) return;
       collector.push(chunk);
       if (!handler) return;
-      const text = Buffer.isBuffer(chunk) ? chunk.toString(encoding) : String(chunk);
       try {
-        handler(text);
+        const text = decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding));
+        if (text) handler(text);
       } catch (error) {
         onOutputHandlerError(streamName, error);
       }
     };
+    const flushOutput = (decoder, handler, streamName) => {
+      if (!decoder || settled) return;
+      try {
+        const text = decoder.end();
+        if (text) handler(text);
+      } catch (error) { onOutputHandlerError(streamName, error); }
+    };
     onStdoutData = captureStdout || onStdout
-      ? handleOutput(stdoutCollector, onStdout, 'stdout')
+      ? handleOutput(stdoutCollector, onStdout, stdoutDecoder, 'stdout')
       : null;
     onStderrData = captureStderr || onStderr
-      ? handleOutput(stderrCollector, onStderr, 'stderr')
+      ? handleOutput(stderrCollector, onStderr, stderrDecoder, 'stderr')
       : null;
     if (onStdoutData && child.stdout) {
       child.stdout.on('data', onStdoutData);
@@ -315,15 +335,21 @@ export function spawnSubprocess(command, args, options = {}) {
         signal: null,
         startedAt,
         stdout: stdoutCollector.toOutput(outputMode),
-        stderr: stderrCollector.toOutput(outputMode)
+        stderr: stderrCollector.toOutput(outputMode),
+        outputCapture: { stdout: stdoutCollector.stats(), stderr: stderrCollector.stats() }
       });
       reject(new SubprocessError(err?.message || 'Subprocess failed', result, err));
     });
     child.on('close', (code, signal) => {
       if (settled) return;
+      flushOutput(stdoutDecoder, onStdout, 'stdout');
+      flushOutput(stderrDecoder, onStderr, 'stderr');
+      if (settled) return;
       settled = true;
       cleanup();
       finalize(code, signal);
     });
+    // onSpawn is user code and can synchronously cancel before listener setup.
+    if (abortSignal?.aborted) abortHandler();
   });
 }

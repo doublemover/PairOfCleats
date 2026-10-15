@@ -1,4 +1,4 @@
-import { parentPort, threadId, workerData } from 'node:worker_threads';
+import { parentPort as nativeParentPort, threadId as nativeThreadId, workerData as nativeWorkerData } from 'node:worker_threads';
 import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
@@ -13,7 +13,12 @@ import {
   normalizeCodeDictLanguages
 } from '../../../shared/code-dictionaries.js';
 
-const runtimeObservation = observeWorkerHeap();
+const workerData = nativeWorkerData || globalThis.__indexerTaskProcessData;
+const threadId = nativeParentPort ? nativeThreadId : process.pid;
+const parentPort = nativeParentPort || (globalThis.__indexerTaskProcessData ? {
+  postMessage: message => process.send?.({ ...message, generation: globalThis.__indexerTaskProcessGeneration })
+} : null);
+const runtimeObservation = nativeParentPort ? observeWorkerHeap() : globalThis.__indexerTaskProcessObservation;
 runtimeObservation.workerAttemptId = runtimeObservation.processInstanceId;
 runtimeObservation.parentAttemptId = workerData?.runtimeAttemptId || null;
 runtimeObservation.buildId = workerData?.buildId || null;

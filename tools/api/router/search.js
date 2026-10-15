@@ -143,6 +143,8 @@ export const buildSearchPayloadFromQuery = (searchParams) => {
 
   const snapshotId = getString(searchParams, 'snapshotId', 'snapshot');
   if (snapshotId) payload.snapshotId = snapshotId;
+  const cursor = getString(searchParams, 'cursor');
+  if (cursor) payload.cursor = cursor;
 
   const output = getString(searchParams, 'output');
   if (output) payload.output = output;

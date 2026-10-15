@@ -5,18 +5,22 @@ import path from 'node:path';
 import { refreshIncrementalBundlesWithEmbeddings } from '../../../../tools/build/embeddings/runner.js';
 import { resolveTestCachePath } from '../../../helpers/test-cache.js';
 import { readBundleFile } from '../../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
 
 const root = resolveTestCachePath(process.cwd(), `bundle-refresh-coverage-${process.pid}-${Date.now()}`);
 await fs.mkdir(root, { recursive: true });
 try {
   const bundleDir = path.join(root, 'bundles');
   await fs.mkdir(bundleDir);
-  await fs.writeFile(path.join(bundleDir, 'empty.json'), JSON.stringify({ chunks: [] }));
-  await fs.writeFile(path.join(bundleDir, 'valid.json'), JSON.stringify({ chunks: [{ chunkUid: 'fixture-vector', embedding_u8: [1, 2] }] }));
+  const seed = async (file, shards) => {
+    const entry = { hash: 'source', size: 1, mtimeMs: 1, dependencySignatures: { parse: 'fixture' } };
+    return { ...entry, ...await writeIncrementalBundleSnapshot({ bundleDir, relKey: file, entry,
+      bundles: shards.map(chunks => ({ ...entry, file, chunks })), format: 'json' }) };
+  };
   const manifest = { bundleFormat: 'json', files: {
-    'empty.md': { bundle: 'empty.json', orderIndex: 0 },
-    'missing.md': { bundle: 'missing.json', orderIndex: 1 },
-    'valid.md': { bundle: 'valid.json', orderIndex: 2 }
+    'empty.md': { ...await seed('empty.md', [[]]), orderIndex: 0 },
+    'missing.md': { bundles: ['missing.json'], orderIndex: 1 },
+    'valid.md': { ...await seed('valid.md', [[{ chunkUid: 'fixture-vector', file: 'valid.md', embedding_u8: [1, 2] }]]), orderIndex: 2 }
   } };
   const manifestPath = path.join(root, 'manifest.json');
   const refreshed = await refreshIncrementalBundlesWithEmbeddings({ mode: 'code', repoCacheRoot: root,
@@ -33,12 +37,14 @@ try {
   assert.equal(stored.bundleEmbeddingCoverageInvalidBundles, 1);
   assert.equal(stored.bundleEmbeddingCoverageProcessedFiles, 3);
 
-  const emptyEntries = Array.from({ length: 48 }, (_, orderIndex) => [`generated/empty-${orderIndex}.js`,
-    { bundle: 'empty.json', orderIndex }]);
-  await fs.writeFile(path.join(bundleDir, 'late-a.json'), JSON.stringify({ chunks: [{ chunkUid: 'late-a' }] }));
-  await fs.writeFile(path.join(bundleDir, 'late-b.json'), JSON.stringify({ chunks: [{ chunkUid: 'late-b' }] }));
+  const emptyEntries = [];
+  for (let orderIndex = 0; orderIndex < 48; orderIndex++) {
+    const file = `generated/empty-${orderIndex}.js`;
+    emptyEntries.push([file, { ...await seed(file, [[]]), orderIndex }]);
+  }
+  const lateEntry = await seed('generated/late.js', [[{ chunkUid: 'late-a' }], [{ chunkUid: 'late-b' }]]);
   const bailoutManifest = { bundleFormat: 'json', files: Object.fromEntries([
-    ...emptyEntries, ['generated/late.js', { bundles: ['late-a.json', 'late-b.json'], orderIndex: 48 }]
+    ...emptyEntries, ['generated/late.js', { ...lateEntry, orderIndex: 48 }]
   ]) };
   const bailoutPath = path.join(root, 'bailout-manifest.json');
   const bailoutInput = { mode: 'extracted-prose', repoCacheRoot: root,
@@ -60,7 +66,7 @@ try {
   assert.equal(storedBailout.bundleEmbeddingCoverageUnexaminedFiles, 0);
   assert.equal(storedBailout.bundleEmbeddingCoverageProcessedFiles, 49);
   const lateChunks = [];
-  for (const name of ['late-a.json', 'late-b.json']) {
+  for (const name of bailoutInput.incremental.manifest.files['generated/late.js'].bundles) {
     const read = await readBundleFile(path.join(bundleDir, name), { format: 'json' });
     assert.equal(read.ok, true, 'refreshed shards pass the existing checksum-aware reader');
     lateChunks.push(...read.bundle.chunks);
@@ -73,5 +79,15 @@ try {
   assert.equal(fullyExamined.completeCoverage, true);
   assert.equal(fullyExamined.rewritten, 0, 'a second synchronization reuses unchanged vectors');
   assert.equal(fullyExamined.coverage.unexaminedFiles, 0);
+  const retained = structuredClone(bailoutInput.incremental.manifest);
+  const priorBytes = await fs.readFile(bailoutPath);
+  const oversized = { ...bailoutInput, incremental: { ...bailoutInput.incremental,
+    manifest: { ...retained, largeMetadata: 'x'.repeat(8 * 1024 * 1024) } } };
+  const refsBefore = structuredClone(oversized.incremental.manifest.files);
+  await assert.rejects(refreshIncrementalBundlesWithEmbeddings(oversized), { code: 'ERR_INCREMENTAL_MANIFEST_CAPACITY' });
+  assert.deepEqual(await fs.readFile(bailoutPath), priorBytes, 'failed publication retains the prior readable manifest');
+  assert.deepEqual(oversized.incremental.manifest.files, refsBefore, 'failed publication preserves selected in-memory references');
+  const formatGate = JSON.parse(await fs.readFile(bailoutPath, 'utf8'));
+  assert.equal(formatGate.version, 6);
   console.log('Actual refresh owner synchronizes late sharded vectors after empty warmup and rejects invalid siblings; synthetic payloads only.');
 } finally { await fs.rm(root, { recursive: true, force: true }); }

@@ -1,4 +1,4 @@
-import os from 'node:os';
+import { readEffectiveMemory } from '../../effective-memory.js';
 
 export function createAdaptiveTokenController({
   config,
@@ -46,7 +46,7 @@ export function createAdaptiveTokenController({
     const ioFloor = fdTokenCap == null
       ? ioBaselineFloor
       : Math.max(1, Math.min(ioBaselineFloor, fdTokenCap));
-    const memFloor = Math.max(config.baselineLimits.mem, floorMem);
+    const requestedMemFloor = Math.max(config.baselineLimits.mem, floorMem);
     const tokenBudget = Math.max(1, state.tokens.cpu.total + state.tokens.io.total);
     const memoryTokenBudgetBytes = Math.max(1, state.tokens.mem.total) * config.adaptiveMemoryPerTokenMb * 1024 * 1024;
     const pendingBytePressure = totalPendingBytes > Math.max(
@@ -89,8 +89,9 @@ export function createAdaptiveTokenController({
     } else {
       state.adaptiveCurrentIntervalMs = config.adaptiveMinIntervalMs;
     }
-    const totalMem = Number(os.totalmem()) || 0;
-    const freeMem = Number(os.freemem()) || 0;
+    const effectiveMemory = state.lastSystemSignals?.memory || readEffectiveMemory(config.input.memoryBudget || {});
+    const totalMem = Number(effectiveMemory.totalBytes) || 0;
+    const freeMem = Number(effectiveMemory.freeBytes) || 0;
     const freeRatio = totalMem > 0 ? (freeMem / totalMem) : null;
     const headroomBytes = Number.isFinite(totalMem) && Number.isFinite(freeMem)
       ? Math.max(0, freeMem)
@@ -98,19 +99,21 @@ export function createAdaptiveTokenController({
     const memoryLowHeadroom = Number.isFinite(freeRatio) && freeRatio < 0.15;
     const memoryHighHeadroom = !Number.isFinite(freeRatio) || freeRatio > 0.25;
     let memoryTokenHeadroomCap = config.maxLimits.mem;
-    if (Number.isFinite(freeMem) && freeMem > 0) {
+    if (Number.isFinite(freeMem) && totalMem > 0) {
       const reserveBytes = config.adaptiveMemoryReserveMb * 1024 * 1024;
       const bytesPerToken = config.adaptiveMemoryPerTokenMb * 1024 * 1024;
       const availableBytes = Math.max(0, freeMem - reserveBytes);
       const headroomTokens = Math.max(1, Math.floor(availableBytes / Math.max(1, bytesPerToken)));
       memoryTokenHeadroomCap = Math.max(
-        config.baselineLimits.mem,
+        1,
         Math.min(config.maxLimits.mem, headroomTokens)
       );
       if (state.tokens.mem.total > memoryTokenHeadroomCap) {
         state.tokens.mem.total = Math.max(state.tokens.mem.used, memoryTokenHeadroomCap);
       }
     }
+    // Queue/baseline floors cannot restore capacity beyond effective headroom.
+    const memFloor = Math.max(1, Math.min(requestedMemFloor, memoryTokenHeadroomCap));
 
     if (memoryLowHeadroom) {
       state.adaptiveMode = 'steady';

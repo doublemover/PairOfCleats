@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import os from 'node:os';
 import { createSchedulerQueueAdapter } from '../../../shared/concurrency/queue-adapter.js';
 import { createTaskQueues } from '../../../shared/concurrency/task-queues.js';
@@ -66,14 +67,14 @@ const resolvePerWorkerCacheAndWriteBudget = ({
   const defaultWriteBufferMb = Math.max(128, Math.min(640, Math.floor(effectiveWorkerHeapMb * 0.35)));
 
   const rssHeadroomMb = Number.isFinite(maxGlobalRssMb) && maxGlobalRssMb > 0
-    ? Math.max(256, Math.floor(maxGlobalRssMb - reserveRssMb))
+    ? Math.max(0, Math.floor(maxGlobalRssMb - reserveRssMb))
     : null;
   const perWorkerRssBudgetMb = Number.isFinite(rssHeadroomMb)
-    ? Math.max(256, Math.floor(rssHeadroomMb / Math.max(1, workerCount)))
+    ? Math.max(0, Math.floor(rssHeadroomMb / Math.max(1, workerCount)))
     : null;
   const nonHeapBudgetMb = Number.isFinite(perWorkerRssBudgetMb)
     ? Math.max(
-      MIN_RUNTIME_CACHE_MB + MIN_RUNTIME_WRITE_BUFFER_MB,
+      0,
       Math.floor(perWorkerRssBudgetMb - Math.max(1, effectiveWorkerHeapMb))
     )
     : null;
@@ -96,6 +97,10 @@ const resolvePerWorkerCacheAndWriteBudget = ({
     );
   }
 
+  if (Number.isFinite(nonHeapBudgetMb)) {
+    perWorkerCacheMb = Math.max(0, Math.min(perWorkerCacheMb, Math.floor(nonHeapBudgetMb * 0.6)));
+    perWorkerWriteBufferMb = Math.max(0, Math.min(perWorkerWriteBufferMb, nonHeapBudgetMb - perWorkerCacheMb));
+  }
   return {
     perWorkerCacheMb,
     perWorkerWriteBufferMb,
@@ -205,10 +210,10 @@ export const resolveThreadLimitsConfig = ({ argv, rawArgv, envConfig, indexingCo
  *   queueHeadroomScale:number
  * }}
  */
-export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) => {
-  const totalMemMb = Number.isFinite(Number(os.totalmem()))
-    ? Math.floor(os.totalmem() / (1024 * 1024))
-    : null;
+export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency, memorySnapshot = null }) => {
+  const effectiveMemory = memorySnapshot || readEffectiveMemory();
+  const totalMemMb = Number.isFinite(Number(effectiveMemory.totalBytes))
+    ? Math.floor(effectiveMemory.totalBytes / (1024 * 1024)) : null;
   const memoryConfig = indexingConfig?.memory && typeof indexingConfig.memory === 'object'
     ? indexingConfig.memory
     : {};
@@ -236,20 +241,21 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
   const workerHeapPolicy = resolveWorkerHeapBudgetPolicy({
     targetPerWorkerMb: memoryConfig.workerHeapTargetMb,
     minPerWorkerMb: memoryConfig.workerHeapMinMb,
-    maxPerWorkerMb: memoryConfig.workerHeapMaxMb
+    maxPerWorkerMb: memoryConfig.workerHeapMaxMb,
+    memorySnapshot: effectiveMemory
   });
   const workerCount = Number.isFinite(cpuConcurrency)
     ? Math.max(1, Math.floor(cpuConcurrency))
     : 1;
-  const workerResourceLimits = resolveWorkerResourceLimits(workerCount, workerHeapPolicy);
+  const workerResourceLimits = resolveWorkerResourceLimits(workerCount, { ...workerHeapPolicy, memorySnapshot: effectiveMemory });
   const effectiveWorkerHeapMb = Number.isFinite(Number(workerResourceLimits?.maxOldGenerationSizeMb))
     ? Math.max(1, Math.floor(Number(workerResourceLimits.maxOldGenerationSizeMb)))
     : workerHeapPolicy.targetPerWorkerMb;
   const reserveRssMb = Number.isFinite(Number(memoryConfig.reserveRssMb))
-    ? Math.max(512, Math.floor(Number(memoryConfig.reserveRssMb)))
-    : 1024;
+    ? Math.max(0, Math.min(Math.floor(Number(memoryConfig.reserveRssMb)), Math.floor(totalMemMb * 0.25)))
+    : Math.min(1024, Math.max(1, Math.floor(totalMemMb * 0.15)));
   const maxGlobalRssMb = Number.isFinite(totalMemMb) && totalMemMb > 0
-    ? Math.max(2048, Math.floor(totalMemMb * 0.9))
+    ? Math.max(1, Math.floor(totalMemMb * 0.9))
     : null;
   const budgetSplit = resolvePerWorkerCacheAndWriteBudget({
     memoryConfig,
@@ -301,6 +307,7 @@ export const resolveRuntimeMemoryPolicy = ({ indexingConfig, cpuConcurrency }) =
       : 3)
     : 3;
   return {
+    effectiveMemory,
     totalMemMb,
     maxGlobalRssMb,
     reserveRssMb,

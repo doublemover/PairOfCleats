@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { persistIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { reuseCachedBundle } from '../../../src/index/build/file-processor/cached-bundle.js';
@@ -21,7 +22,7 @@ const checkpoint = captureChunkingCheckpoint(chunks, {usedHeuristicCodeChunking:
 assert.ok(checkpoint);
 assert.equal(captureChunkingCheckpoint([{start:0,end:1,cycle: (()=>{const v={};v.self=v;return v;})()}],{},1),null,'unsupported optional checkpoint must not break a fresh build');
 state.manifest.files['source.js'] = await writeBundleForFile({runIo:fn=>fn(),incrementalState:state,relKey:'source.js',fileStat:stat,fileHash:sha1(Buffer.from(text)),fileChunks:[{...chunks[0],tokens:['alpha'],seq:['alpha'],embedding:[1,2]}],parseCheckpoint:checkpoint,fileRelations:{imports:[]}});
-await fs.writeFile(state.manifestPath,JSON.stringify(state.manifest));
+await persistIncrementalManifest(state.manifestPath,state.manifest);
 for (const stage of ['lexical','enrichment','embeddings']) {
   const current = {...old,[stage]:'changed'};
   const refreshed = await load(current);
@@ -41,7 +42,7 @@ assert.deepEqual(native.embedding,[1,2],'invalidate returned vectors without mut
 assert.deepEqual(vectorRefresh.result.chunks[0].tokens,['alpha'],'vector changes preserve lexical payload');
 const next={...old,enrichment:'e2'};
 const interrupted = await load(next);
-await fs.writeFile(interrupted.manifestPath,JSON.stringify(interrupted.manifest));
+await persistIncrementalManifest(interrupted.manifestPath,interrupted.manifest);
 const resumed = await load(next);
 assert.equal(resolveStageRefresh(next,resumed.manifest.files['source.js'].dependencySignatures).enrichment,true,'manifest-wide checkpoint must not mark untouched file current');
 const reasons=[];

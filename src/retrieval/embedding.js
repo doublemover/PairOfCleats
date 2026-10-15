@@ -41,7 +41,8 @@ export async function getQueryEmbedding({
   rootDir,
   normalize,
   inputFormatting = null,
-  modelProfile = null
+  modelProfile = null,
+  modelArtifact = null
 }) {
   try {
     const envMode = resolveEnvEmbeddingMode(getEnvConfig().embeddings);
@@ -60,7 +61,9 @@ export async function getQueryEmbedding({
       provider,
       onnxConfig,
       normalize,
-      modelProfile: profile
+      modelProfile: profile,
+      modelArtifact,
+      retainInCache: true
     });
     const resolvedInputFormatting = inputFormatting && typeof inputFormatting === 'object'
       ? inputFormatting
@@ -70,9 +73,11 @@ export async function getQueryEmbedding({
       kind: 'query',
       formatting: resolvedInputFormatting
     });
-    const embedding = await adapter.embedOne(formattedText);
-    if (!embedding || !embedding.length) return null;
-    return embedding;
+    try {
+      const embedding = await adapter.embedOne(formattedText);
+      if (!embedding || !embedding.length) return null;
+      return embedding;
+    } finally { await adapter.dispose?.(); }
   } catch (err) {
     warnOnce(`[embeddings] Query embedder unavailable; skipping ANN. ${err?.message || err}`);
     return null;

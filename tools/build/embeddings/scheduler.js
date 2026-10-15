@@ -1,3 +1,4 @@
+import { readEffectiveMemory } from '../../../src/shared/effective-memory.js';
 import os from 'node:os';
 import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope/resolve.js';
@@ -26,12 +27,11 @@ export const resolveExplicitThreadsCap = ({ argv, rawArgv }) => {
   return null;
 };
 
-const scheduleWithFallback = async (scheduler, queueName, tokens, fn, enabled) => {
-  if (!enabled) return fn();
+const scheduleWithFallback = async (scheduler, queueName, tokens, fn) => {
   return await scheduler.schedule(queueName, tokens, fn);
 };
 
-export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, rawEnv = process.env, envConfig, indexingConfig }) => {
+export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, rawEnv = process.env, envConfig, indexingConfig, signal = null, memorySnapshot = null }) => {
   const resolvedRawArgv = Array.isArray(rawArgv) ? rawArgv : [];
   const cpuCount = typeof os.availableParallelism === 'function'
     ? os.availableParallelism()
@@ -52,7 +52,17 @@ export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, rawEnv = 
     runtimeConfig: userConfig?.runtime,
     envelope
   });
-  const scheduler = createBuildScheduler(schedulerConfig);
+  const effectiveMemory = memorySnapshot || readEffectiveMemory();
+  const boundedSchedulerConfig = { ...schedulerConfig, memoryBudget: {
+    configuredLimitBytes: effectiveMemory.totalBytes
+  }, maxInFlightBytes: Math.min(schedulerConfig.maxInFlightBytes || Infinity,
+    Math.max(1, Math.floor(effectiveMemory.freeBytes * 0.25))) };
+  let scheduler = createBuildScheduler(boundedSchedulerConfig);
+  const explicitlyEnabled = envConfig?.schedulerEnabled === true || argv?.scheduler === true;
+  if (scheduler.enabled && scheduler.lowResourceMode && !explicitlyEnabled) {
+    scheduler.shutdown();
+    scheduler = createBuildScheduler({ ...boundedSchedulerConfig, enabled: false });
+  }
   scheduler.registerQueues?.(schedulerConfig.queues);
   const envelopeCpuConcurrencyRaw = Number(envelope?.concurrency?.cpuConcurrency?.value);
   const envelopeCpuConcurrencyUncapped = Number.isFinite(envelopeCpuConcurrencyRaw) && envelopeCpuConcurrencyRaw > 0
@@ -63,21 +73,17 @@ export const createEmbeddingsScheduler = ({ argv, rawArgv, userConfig, rawEnv = 
     ? Math.max(1, Math.min(envelopeCpuConcurrencyUncapped, explicitThreadsCap))
     : envelopeCpuConcurrencyUncapped;
 
-  const schedulerExplicitlyEnabled = envConfig?.schedulerEnabled === true || argv?.scheduler === true;
-  const schedulerEnabled = scheduler.enabled && (!scheduler.lowResourceMode || schedulerExplicitlyEnabled);
   const scheduleCompute = (fn) => scheduleWithFallback(
     scheduler,
     SCHEDULER_QUEUE_NAMES.embeddingsCompute,
-    { cpu: 1 },
-    fn,
-    schedulerEnabled
+    { cpu: 1, signal },
+    fn
   );
   const scheduleIo = (fn) => scheduleWithFallback(
     scheduler,
     SCHEDULER_QUEUE_NAMES.embeddingsIo,
-    { io: 1 },
-    fn,
-    schedulerEnabled
+    { io: 1, signal },
+    fn
   );
 
   return {

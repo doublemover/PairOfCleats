@@ -2,7 +2,7 @@ import { resolveSearchControls } from './search-controls.js';
 import { getVectorExtensionConfig } from '../../../tools/sqlite/vector-extension.js';
 import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig } from '../../shared/onnx-embeddings.js';
+import { normalizeEmbeddingProvider, resolveOnnxConfig } from '../../shared/onnx-embeddings.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
 import { resolveFtsWeights } from '../fts.js';
 import { parseJson } from '../query-cache.js';
@@ -136,7 +136,7 @@ export function normalizeSearchOptions({
 
   const embeddingsConfig = userConfig?.indexing?.embeddings || {};
   const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-  const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+  const embeddingOnnx = resolveOnnxConfig(embeddingsConfig.onnx || {});
   const hnswConfig = normalizeHnswConfig(embeddingsConfig.hnsw || {});
   const lancedbConfig = normalizeLanceDbConfig(embeddingsConfig.lancedb || {});
 

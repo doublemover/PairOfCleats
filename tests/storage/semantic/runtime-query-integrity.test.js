@@ -31,7 +31,7 @@ try {
   await fs.writeFile(manifestPath, JSON.stringify(missing));
   await assert.rejects(query(), { code: 'ERR_RUNTIME_QUERY_INDEX_UNAVAILABLE' });
   await fs.writeFile(manifestPath, JSON.stringify({ ...manifest, queryIndex: { ...manifest.queryIndex, formatVersion: '0' } }));
-  await assert.rejects(query(), { code: 'ERR_RUNTIME_FAMILY_CONTRACT' });
+  await assert.rejects(query(), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
   await fs.writeFile(manifestPath, originalManifest);
   const missingFamily = { ...missing, generationId: null };
   missingFamily.generationId = semanticHash('pairofcleats.runtime.family.v1', missingFamily);
@@ -49,7 +49,7 @@ try {
   let offsetOpens = 0;
   fs.open = async (...args) => {
     const handle = await originalOpen(...args);
-    if (String(args[0]).endsWith('evidence.offsets') && args[1] === 'r' && ++offsetOpens === 2) {
+    if (String(args[0]).endsWith('evidence.offsets') && ++offsetOpens === 1) {
       const originalRead = handle.read;
       handle.read = async (...readArgs) => {
         const result = await originalRead.apply(handle, readArgs);
@@ -60,7 +60,7 @@ try {
   };
   try { await assert.rejects(queryRuntimeEvidence({ destination, request, signal: abort.signal }), { code: 'ABORT_ERR' }); }
   finally { fs.open = originalOpen; }
-  assert.equal(offsetOpens, 2, 'cancellation happens after SQLite opens and during selected row hydration');
+  assert.equal(offsetOpens, 1, 'cancellation occurs while reading the same bounded offsets descriptor');
   // Windows denies this rename for a leaked open SQLite handle.
   const index = path.join(root, 'query.sqlite');
   await fs.rename(index, index + '.closed'); await fs.rename(index + '.closed', index);

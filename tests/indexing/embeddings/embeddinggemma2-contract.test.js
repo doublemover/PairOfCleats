@@ -91,7 +91,9 @@ __setTransformersModuleLoaderForTests(async () => fakeModule);
 try {
   const options = { modelId, provider: 'xenova', modelsDir: '/tmp/embeddinggemma2-model-test', modelProfile: profile };
   const adapter = getEmbeddingAdapter(options);
-  assert.equal(adapter, getEmbeddingAdapter(options));
+  const sibling = getEmbeddingAdapter(options);
+  assert.notEqual(adapter, sibling, 'callers own distinct leases over the shared model');
+  await sibling.dispose();
   const chunk = createEmbedder({ ...options, useStubEmbeddings: false });
   const results = await chunk.getChunkEmbeddings(['alpha', 'beta']);
   assert.equal(results[0].length, 128);

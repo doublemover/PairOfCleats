@@ -12,6 +12,9 @@ export async function loadCachedBundleForFile({
   fileStat,
   semanticContext = null
 }) {
+  if (semanticContext && incrementalState.semanticReplayVerification) semanticContext = {
+    ...semanticContext, replayVerification: incrementalState.semanticReplayVerification
+  };
   const read = () => runIo(() => readCachedBundle({
     repoRoot,
     enabled: incrementalState.enabled,
@@ -40,6 +43,10 @@ export async function loadCachedBundleForFile({
       }
     }
   }
+  if (result.cachedBundle && result.semanticFactsRef) semanticContext?.replayVerification?.recordReplay(
+    result.semanticReplayToken, result.semanticFactsRef, result.semanticReplayVerificationReceipt);
+  delete result.semanticReplayToken;
+  delete result.semanticReplayVerificationReceipt;
   if (result.cachedBundle) result.cachedBundle.stageRefresh = resolveStageRefresh(incrementalState.manifest.dependencySignatures, incrementalState.manifest.files?.[relKey]?.dependencySignatures);
   return result;
 }

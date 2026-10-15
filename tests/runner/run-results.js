@@ -58,6 +58,12 @@ export const summarizeResults = (results, totalMs) => {
   return summary;
 };
 
+/** Timeout classifications describe cleanup diagnostics, never acceptance. */
+export const resolveAcceptanceExitCode = (results, { perfBudgetViolations = [] } = {}) => (
+  results.some((result) => result.timedOut || result.status === 'failed' || result.status === 'redo')
+    || perfBudgetViolations.length > 0 ? 1 : 0
+);
+
 export const formatFailure = (result) => {
   if (result.timedOut) {
     const timeoutClass = String(result.timeoutClass || '').trim();

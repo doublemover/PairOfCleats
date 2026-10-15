@@ -8,6 +8,7 @@ import { createTruncationRecorder } from '../shared/truncation.js';
 import { toPosix } from '../shared/file-paths.js';
 import { compareStrings } from '../shared/sort.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
+import { sha1 } from '../shared/hash.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -61,8 +62,7 @@ const isTestFileName = (relPath) => {
   if (!TEST_EXTENSIONS.has(ext)) return false;
   if (base.includes('.test.')) return true;
   if (base.includes('_test.')) return true;
-  if (normalized.includes('/__tests__/')) return true;
-  if (normalized.includes('/tests/')) return true;
+  if (normalized.split('/').some((segment) => segment === '__tests__' || segment === 'tests')) return true;
   return false;
 };
 
@@ -94,73 +94,83 @@ const matchesTestPatterns = (relPath, matchers) => {
   return matchers.some((matcher) => matcher(relPath));
 };
 
-const discoverCandidateTests = ({
-  repoRoot,
-  maxCandidates,
-  recordTruncation,
-  testMatchers
-}) => {
-  const results = [];
+const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
+  const tests = [];
   const stack = [{ dir: repoRoot, rel: '' }];
-  while (stack.length) {
+  // Candidate discovery is incidental work. Bound even candidate-free trees and
+  // huge single directories, without retaining a complete repository inventory.
+  const maxScanEntries = maxCandidates === null ? Infinity : Math.max(64, maxCandidates * 32);
+  let scanned = 0;
+  let observed = 0;
+  let capped = false;
+  while (stack.length && !capped) {
+    if (scanned >= maxScanEntries) { capped = true; break; }
     const entry = stack.pop();
-    let entries = null;
+    let directory;
+    const entries = [];
     try {
-      entries = fs.readdirSync(entry.dir, { withFileTypes: true });
-    } catch (err) {
+      directory = fs.opendirSync(entry.dir, { bufferSize: 1 });
+      scanned += 1;
+      while (scanned < maxScanEntries) {
+        const dirent = directory.readSync();
+        if (!dirent) break;
+        scanned += 1;
+        entries.push(dirent);
+      }
+      if (scanned >= maxScanEntries) capped = true;
+    } catch {
       continue;
+    } finally {
+      directory?.closeSync();
     }
+    // Filesystem enumeration order is unspecified. An incomplete directory
+    // cannot supply deterministic candidates or child directories, even after
+    // sorting its prefix. Keep only earlier, fully inventoried selections.
+    if (capped) break;
+    entries.sort((a, b) => compareStrings(a.name, b.name));
+    const directories = [];
     for (const dirent of entries) {
       const relPath = entry.rel ? `${entry.rel}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {
-        if (DEFAULT_EXCLUDED_DIRS.has(dirent.name)) continue;
-        stack.push({ dir: path.join(entry.dir, dirent.name), rel: relPath });
+        if (!DEFAULT_EXCLUDED_DIRS.has(dirent.name)) {
+          directories.push({ dir: path.join(entry.dir, dirent.name), rel: relPath });
+        }
         continue;
       }
-      if (!dirent.isFile()) continue;
-      if (!isTestFileName(relPath)) continue;
+      if (!dirent.isFile() || !TEST_EXTENSIONS.has(path.extname(relPath).toLowerCase())) continue;
       const normalized = toPosix(relPath);
-      if (!matchesTestPatterns(normalized, testMatchers)) continue;
-      results.push(normalized);
-      if (maxCandidates != null && results.length >= maxCandidates) {
-        recordTruncation('maxCandidates', {
-          limit: maxCandidates,
-          observed: results.length,
-          omitted: null
-        });
-        return results;
+      if (testMatchers?.length ? !matchesTestPatterns(normalized, testMatchers) : !isTestFileName(normalized)) continue;
+      observed += 1;
+      if (maxCandidates !== null && tests.length >= maxCandidates) {
+        capped = true;
+        break;
       }
+      tests.push(normalized);
     }
+    for (let i = directories.length - 1; i >= 0; i -= 1) stack.push(directories[i]);
   }
-  results.sort(compareStrings);
-  return results;
+  return {
+    tests: tests.sort(compareStrings),
+    truncation: capped ? { limit: maxCandidates, observed, omitted: null } : null
+  };
 };
 
-const resolveCachedTests = ({
-  repoRoot,
-  maxCandidates,
-  recordTruncation,
-  testMatchers,
-  patternKey
-}) => {
+const resolveCachedTests = ({ repoRoot, maxCandidates, recordTruncation, testMatchers, patternKey, indexSignature }) => {
+  // Revisit the bounded live inventory on every request, including cache hits.
+  // This observes additions/deletions without introducing another watcher.
+  const inventory = discoverCandidateTests({ repoRoot, testMatchers, maxCandidates });
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'test-discovery',
-    payload: {
-      repoRoot: repoRoot || null,
-      patternKey: patternKey || null,
-      maxCandidates: maxCandidates ?? 'all'
-    }
+    payload: { repoRoot, patternKey, maxCandidates: maxCandidates ?? 'all',
+      indexSignature: indexSignature || null, inventoryIdentity: sha1(JSON.stringify(inventory)) }
   });
-  const cached = getCachedValue(testDiscoveryCache, cacheKeyInfo.key);
-  if (cached) return cached;
-  const tests = discoverCandidateTests({
-    repoRoot,
-    maxCandidates,
-    recordTruncation,
-    testMatchers
-  });
-  setCachedValue(testDiscoveryCache, cacheKeyInfo.key, tests, TEST_DISCOVERY_CACHE_MAX);
-  return tests;
+  let envelope = getCachedValue(testDiscoveryCache, cacheKeyInfo.key);
+  if (!envelope) {
+    envelope = inventory;
+    setCachedValue(testDiscoveryCache, cacheKeyInfo.key, envelope, TEST_DISCOVERY_CACHE_MAX);
+  }
+  if (envelope.truncation) recordTruncation('maxCandidates', { ...envelope.truncation });
+  return envelope.tests;
 };
 
 const buildImportGraphIndex = (graphRelations, repoRoot) => {
@@ -370,7 +380,8 @@ export const buildSuggestTestsReport = ({
       maxCandidates: capsNormalized.maxCandidates,
       recordTruncation,
       testMatchers,
-      patternKey: testMatcherKey
+      patternKey: testMatcherKey,
+      indexSignature
     });
   const changedEntries = seeds.map((entry) => ({ path: entry }));
 

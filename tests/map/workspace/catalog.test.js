@@ -12,7 +12,7 @@ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'poc-viewer-catalog-'));
 const repo=path.join(temp,'repo'); await fs.mkdir(repo);
 applyTestEnv({cacheRoot:path.join(temp,'cache')});
 const dir=getIndexDir(repo,'code',loadUserConfig(repo)); await fs.mkdir(dir,{recursive:true});
-let now=0; const browser=createArtifactBrowser({clock:()=>now});
+let now=0; let browser=createArtifactBrowser({clock:()=>now});
 try {
   const rows=Array.from({length:300},(_,id)=>({id,start:id,end:id+1,name:`row ${id}`}));
   await fs.writeFile(path.join(dir,'chunk_meta.json'),JSON.stringify(rows));
@@ -38,7 +38,7 @@ try {
   const cancelled=new AbortController();cancelled.abort();
   await assert.rejects(browser.read(repo,input,cancelled.signal),{name:'AbortError'});
   const writeRows=async value=>{
-    await browser.close();await fs.writeFile(path.join(dir,'chunk_meta.json'),JSON.stringify(value));
+    await browser.close();browser=createArtifactBrowser({clock:()=>now});await fs.writeFile(path.join(dir,'chunk_meta.json'),JSON.stringify(value));
     await writePiecesManifest(dir,pieces,{buildId:String(value.length)});
     return {...input,generation:(await browser.catalog(repo)).generation};
   };

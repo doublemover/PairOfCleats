@@ -1,5 +1,6 @@
 import { normalizeIndexBuildStage } from '../../shared/indexing/stages.js';
 import { parseBuildArgs } from '../../index/build/args.js';
+import { validateLegacySearchContext } from '../../shared/search-request.js';
 
 /**
  * Append a normalized CLI flag/value pair to an args array.
@@ -145,7 +146,10 @@ export const resolveBuildInvocationArgs = (options = {}) => {
  * @returns {string[]}
  */
 export const buildSearchArgs = (params = {}) => {
+  const context = validateLegacySearchContext(params);
+  if (!context.ok) throw new Error(context.message);
   const args = [];
+  pushFlag(args, 'cursor', params.cursor);
   pushFlag(args, 'as-of', params.asOf);
   pushFlag(args, 'snapshot', params.snapshot);
   pushFlag(args, 'mode', params.mode);
@@ -156,7 +160,6 @@ export const buildSearchArgs = (params = {}) => {
   pushFlag(args, 'ann-backend', params.annBackend);
   pushFlag(args, 'json', params.json);
   pushFlag(args, 'explain', params.explain);
-  pushFlag(args, 'context', params.context);
   pushFlag(args, 'n', params.n);
   pushFlag(args, 'case', params.case);
   pushFlag(args, 'case-file', params.caseFile);

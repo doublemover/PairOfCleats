@@ -3,14 +3,32 @@ import { createHash } from 'node:crypto';
 import { stableStringify } from '../../shared/stable-json.js';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { bitmapHas } from '../bitmap.js';
+import { FILTER_MATCH_ENTRY_BYTES, FILTER_MATCH_CACHE_BYTES, persistFilterMatches, readFilterMatchPage } from './filter-enumeration-cache.js';
 
 const VERSION = 1;
 const MODE_KEYS = { code: 'code', prose: 'prose', 'extracted-prose': 'extractedProse', records: 'records' };
 const digest = (value) => createHash('sha256').update(stableStringify(value)).digest('hex');
 const invalid = (message) => createError(ERROR_CODES.INVALID_REQUEST, message);
+const CACHE_BYTES = FILTER_MATCH_CACHE_BYTES;
+const ENTRY_BYTES = FILTER_MATCH_ENTRY_BYTES;
+const matchesCache = new Map();
+const metadataIds = new WeakMap();
+let nextMetadataId = 0, cachedBytes = 0;
+const metadataId = meta => {
+  if (!metadataIds.has(meta)) metadataIds.set(meta, ++nextMetadataId);
+  return metadataIds.get(meta);
+};
+const admitMatches = (key, ids) => {
+  while (matchesCache.size >= 32 || cachedBytes + ids.byteLength > CACHE_BYTES) {
+    const oldest = matchesCache.keys().next().value;
+    if (!oldest) break;
+    cachedBytes -= matchesCache.get(oldest).byteLength; matchesCache.delete(oldest);
+  }
+  matchesCache.set(key, ids); cachedBytes += ids.byteLength;
+};
 
 /** A cursor is bound to both the indexed generation and the exact filters. */
-export function createFilterEnumeration({ cursor = null, filters, modes, generation }) {
+export function createFilterEnumeration({ cursor = null, filters, modes, generation, cacheDir = null }) {
   const generationHash = digest(generation);
   const relativeTime = filters.modifiedSinceDays != null;
   const requestHash = digest({ version: VERSION, filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });
@@ -39,27 +57,89 @@ export function createFilterEnumeration({ cursor = null, filters, modes, generat
     modifiedAfter = relativeTime ? parsed.modifiedAfter : null;
     offsets = parsed.offsets;
   }
-  return { version: VERSION, generation: generationHash, request: requestHash, offsets, byMode: {}, filters, modifiedAfter };
+  return { version: VERSION, generation: generationHash, request: requestHash, offsets, byMode: {}, filters, modifiedAfter, cacheDir };
 }
 
+export const filterRepresentationIdentity = (enumeration, mode) =>
+  enumeration.generation + ':' + enumeration.request + ':' + enumeration.modifiedAfter + ':' + mode;
+
 /** Scan every eligible indexed chunk; retain only this page, with no ranking cutoff. */
-export function enumerateFilterMatches({ meta, allowed, mode, topN, enumeration, throwIfAborted }) {
+export async function enumerateFilterMatches({ meta, allowed, match = null, mode, topN, enumeration, throwIfAborted, loadCost = null, preparedPage = null, ensureMetadata = null }) {
   const offset = enumeration.offsets[mode] || 0;
   const hits = [];
-  let total = 0;
-  for (let id = 0; id < meta.length; id += 1) {
-    if (id % 256 === 0) throwIfAborted?.();
-    const chunk = meta[id];
-    if (!chunk || (allowed && !bitmapHas(allowed, id))) continue;
-    if (total >= offset && hits.length < topN) {
-      hits.push({ ...chunk, score: 0, scoreType: 'filter', rankMethod: 'indexed-order',
-        ...(enumeration.filters?.returnType ? { filterEvidence: {
-          returnType: { requested: enumeration.filters.returnType, match: 'type-expression-exact', facts: resolveReturnTypeFacts(chunk) }
-        } } : {}) });
-    }
-    total += 1;
+  const identity = filterRepresentationIdentity(enumeration, mode);
+  const key = identity + ':' + metadataId(meta) + ':' + meta.length;
+  const cached = matchesCache.get(key);
+  const persisted = cached ? null : preparedPage || await readFilterMatchPage({ cacheDir: enumeration.cacheDir,
+    identity, rowCount: meta.length, offset, limit: topN, throwIfAborted });
+  let total = 0, scanned = 0, yielded = 0;
+  const checkpoint = async () => {
+    throwIfAborted?.(); await new Promise(resolve => setImmediate(resolve)); yielded += 1; throwIfAborted?.();
+  };
+  let diskPage = persisted;
+  if (diskPage) for (let i = 0; i < diskPage.ids.length; i += 1) {
+    if (i % 256 === 0) await checkpoint();
+    const id = diskPage.ids[i];
+    if (!meta[id] || match && !match(meta[id])) { diskPage = null; break; }
   }
-  enumeration.byMode[mode] = { offset, total, matched: hits.length };
+  let saved = false;
+  const append = id => {
+    const chunk = meta[id];
+    hits.push({ ...chunk, score: 0, scoreType: 'filter', rankMethod: 'indexed-order',
+      ...(enumeration.filters?.returnType ? { filterEvidence: {
+        returnType: { requested: enumeration.filters.returnType, match: 'type-expression-exact', facts: resolveReturnTypeFacts(chunk) }
+      } } : {}) });
+  };
+  if (cached) {
+    matchesCache.delete(key); matchesCache.set(key, cached);
+    total = cached.length;
+    for (let i = offset; i < Math.min(total, offset + topN); i += 1) {
+      if ((i - offset) % 256 === 0) await checkpoint();
+      append(cached[i]);
+    }
+  } else if (diskPage) {
+    total = diskPage.total;
+    for (let i = 0; i < diskPage.ids.length; i += 1) {
+      if (i % 256 === 0) await checkpoint();
+      append(diskPage.ids[i]);
+    }
+  } else {
+    await ensureMetadata?.();
+    throwIfAborted?.();
+    let blocks = [], block = new Uint32Array(16384), used = 0, retained = 0, cacheable = true;
+    let checkpoint = performance.now();
+    for (let id = 0; id < meta.length; id += 1) {
+      if (id % 256 === 0 || performance.now() - checkpoint >= 8) {
+        throwIfAborted?.(); await new Promise(resolve => setImmediate(resolve));
+        yielded += 1; checkpoint = performance.now(); throwIfAborted?.();
+      }
+      const chunk = meta[id]; scanned += 1;
+      if (!chunk || allowed && !bitmapHas(allowed, id) || match && !match(chunk)) continue;
+      if (total >= offset && hits.length < topN) append(id);
+      total += 1;
+      if (cacheable) {
+        if ((retained + used + 1) * 4 > ENTRY_BYTES) { cacheable = false; blocks = []; block = null; }
+        else {
+          block[used++] = id;
+          if (used === block.length) { blocks.push(block); retained += used; used = 0; block = new Uint32Array(16384); }
+        }
+      }
+    }
+    if (cacheable) {
+      const ids = new Uint32Array(total);
+      let start = 0;
+      for (const saved of blocks) { ids.set(saved, start); start += saved.length; }
+      ids.set(block.subarray(0, used), start); admitMatches(key, ids);
+      saved = await persistFilterMatches({ cacheDir: enumeration.cacheDir, identity, rowCount: meta.length, ids, metadata: meta, throwIfAborted });
+    }
+  }
+  throwIfAborted?.();
+  enumeration.byMode[mode] = { offset, total, matched: hits.length, cost: {
+    scannedMetadata: scanned, hydratedHits: hits.length, yieldedCheckpoints: yielded, metadataRetainedRows: meta.length,
+    matchingRepresentation: cached ? 'warm' : diskPage ? 'persisted-seek' : matchesCache.has(key) ? 'admitted' : 'entry-byte-limit',
+    cacheBytes: cachedBytes, persisted: saved, continuationReadBytes: diskPage?.readBytes || 0,
+    startupWork: loadCost || { kind: 'caller-supplied-metadata', metadataLoadedRows: null }
+  } };
   return hits;
 }
 
@@ -90,6 +170,7 @@ export function buildFilterPagination(enumeration, payload) {
     kind: 'filter', order: 'indexed-order', generation: enumeration.generation,
     total, returned, hasMore, nextCursor, byMode,
     coverage: 'indexed-metadata',
+    cost: { byMode: Object.fromEntries(Object.entries(enumeration.byMode).map(([mode, state]) => [mode, state.cost || null])) },
     coverageNote: 'Enumerates every matching indexed chunk. Missing compiler facts are not inferred; this is not whole-program type or relation completeness.'
   };
 }

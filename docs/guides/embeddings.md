@@ -14,6 +14,13 @@ Existing generic model downloads and inference explicitly select `dtype: 'q8'`, 
 to full-precision weights. The `onnx` provider uses the same tokenizer package.
 See the upstream [dtype migration guide](https://huggingface.co/docs/transformers.js/guides/dtypes).
 
+Verified artifact identity establishes the selected bytes, not numerical
+invariance across batch shapes. The bounded CPU qualification for
+`Xenova/all-MiniLM-L6-v2` found a q8 batch/single difference reproduced by direct
+native inference; its fp32 export passed the unchanged consistency gate. See the
+[qualified scope and measurements](../archived/embedding-audit-repairs-2026-10-12.md).
+Model precision defaults are unchanged.
+
 Embeddings MUST be treated as build-scoped artifacts. A build may only consume embeddings produced with the same:
 
 - embedding model/provider identity
@@ -190,3 +197,71 @@ Strict tooling must only discover artifacts via `pieces/manifest.json`. Non-stri
 - `indexing.embeddings.charsPerToken` controls token estimation for batching (default `4` chars/token).
 - Text reuse cache can persist across runs with `indexing.embeddings.persistentTextCache` (default `true`) and `indexing.embeddings.persistentTextCacheMaxEntries` (default `500000`).
 - Per-model profile-guided defaults are written under `<repoCacheRoot>/metrics/embeddings-autotune.json` and can influence batch size, token budget, and file parallelism when no explicit value is configured.
+
+## Model identity and execution handoffs
+
+Embedding identity version 4 records verified local weight/tokenizer/config content,
+qualified immutable revisions, or an explicit unknown artifact policy. Replacing
+weights or tokenizer files at the same model ID/path invalidates persistent reuse.
+A fresh lazy model load may produce vectors with unknown artifact provenance;
+those outputs belong to one attempt and cannot authorize persistent cache reuse or
+cross-run dense compatibility. Once supported model downloads make the artifacts
+available, rebuild to select a verified identity. Sparse search and off/stub modes
+remain available. Older embedding identities require a rebuild.
+
+ONNX execution plans use version 2. Submission resolves ONNX environment/config
+precedence once; adapters consume that canonical configuration without re-reading
+the execution process environment. Private prewarm text is excluded from handoffs.
+All adapters sharing a native ONNX session use one run queue. Input tensors own
+separate storage until inference settles; disposing an adapter drains its work and
+releases its session ownership without closing another adapter's active session.
+
+Stage3 records its drained writer snapshot in `build_state.json` before readiness,
+and returns the same snapshot in its summary. Bundle refresh reads verified
+manifest-bound immutable snapshots and publishes replacement references last.
+Failed manifest publication preserves the preceding readable snapshot. Canonical
+relative POSIX source keys bind fallback groups, work ledgers and vector scatter.
+
+Semantic content identity uses a versioned projection. Credentials, logging,
+cache locations, scheduling/memory knobs and raw stage selection are execution
+provenance. Actual resolved stage analysis settings remain semantic inputs.
+
+## Memory admission and isolated CPU tasks
+
+Automatic memory decisions use one source that combines host RAM, container
+constraints, available headroom and configured limits. Scheduler pressure,
+worker heaps/cache/write budgets and embedding sizing consume that authority.
+Text/vector reuse is bounded by estimated retained bytes; writer queue statistics
+separately report waiting producer bytes and encoding reservations. Cache payloads
+reserve count/bytes before encoding and keep encoding outside the I/O critical
+section. Estimates describe owned storage; measured RSS remains a separate fact.
+
+`indexing.workerPool.processFallback` defaults to `false`. When explicitly enabled,
+a rejected Worker startup heap contract can select a bounded child-process
+backend for the existing tokenizer/quantizer tasks. Normal Worker execution and
+safe inline fallback remain available. Each child receives its own startup heap
+flags without mutating the parent's environment. Dictionary copies, parent
+buffers, IPC input/output reservations and prospective child memory share one
+aggregate budget. Cancellation, task identity fencing, bounded restart and joined
+process-tree teardown use the existing task/lifecycle owners. Receipts distinguish
+process startup old-space requests, measured V8 total heap and sampled RSS.
+Default enablement requires the focused lifecycle/resource acceptance and a
+representative CPU-work receipt; synthetic task overlap is not a production speedup.
+
+The existing provider throughput benchmark now emits initialization, provider
+interval, queue wait, padded-work and execution observations. Linux receipts also
+include process thread IDs and per-thread CPU ticks before initialization and
+inference and afterward. Thread ownership attribution is explicitly unknown
+unless independently established. Its fixed-small-string workload is not a
+representative corpus, and it does not exercise the Stage3 writer. Tiny Stage3
+runtime receipts supply the writer encoding/I/O intervals and packing facts.
+Real-model measurements run only after correctness acceptance; no throughput or
+neural quality result is inferred from mocked sessions or fixed stub timing.
+
+The provider benchmark reads the existing model-directory and ONNX configuration
+owners, including `PAIROFCLEATS_MODELS_DIR`. An explicitly requested unavailable
+provider exits with failure. Warmup and measured sweeps release their adapter
+leases through the same cleanup path. Cancellation stops waiting/admitted writer
+encoding before allocation; terminal Stage3 cleanup drains owned writers and
+records failure state with the current attempt even after ordinary admission
+has stopped.

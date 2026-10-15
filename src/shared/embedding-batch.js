@@ -1,6 +1,7 @@
+import { readEffectiveMemory } from './effective-memory.js';
 import os from 'node:os';
 
-export const resolveAutoEmbeddingBatchSize = (totalMemBytes = os.totalmem(), options = {}) => {
+export const resolveAutoEmbeddingBatchSize = (totalMemBytes = readEffectiveMemory().totalBytes, options = {}) => {
   const totalGb = totalMemBytes / (1024 ** 3);
   const memBatch = Math.min(128, Math.max(16, Math.floor(totalGb * 16)));
 

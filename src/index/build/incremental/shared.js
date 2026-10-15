@@ -5,6 +5,7 @@ import {
   resolveManifestBundleNames
 } from '../../../shared/bundle-io-paths.js';
 import { readBundleFile } from '../../../shared/bundle-io.js';
+import { readIncrementalBundleSnapshot } from './bundle-snapshot.js';
 
 /**
  * Check whether a filesystem path is accessible.
@@ -80,6 +81,7 @@ export const resolveBundleRecords = ({
   const bundleNames = resolveManifestBundleNames(entry);
   if (!bundleNames.length) return null;
   return bundleNames.map((bundleName) => ({
+    relKey, manifestEntry: entry, bundleDir,
     bundleName,
     bundlePath: path.join(bundleDir, bundleName),
     bundleFormat: resolveBundleFormatFromName(bundleName, fallbackFormat)
@@ -133,6 +135,13 @@ export const readBundleOrNull = async (input) => {
     ? input
     : (Array.isArray(input?.bundleRecords) ? input.bundleRecords : (input ? [input] : []));
   if (!records.length) return null;
+  if (records[0].manifestEntry) {
+    const first = records[0];
+    const snapshot = await readIncrementalBundleSnapshot({ repoRoot: input?.repoRoot,
+      bundleDir: first.bundleDir, relKey: first.relKey, entry: first.manifestEntry,
+      fallbackFormat: first.bundleFormat, signal: input?.signal });
+    return snapshot?.bundle || null;
+  }
   const loadedShards = [];
   try {
     for (const record of records) {

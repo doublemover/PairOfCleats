@@ -1,4 +1,5 @@
 import { WASM_DEPENDENCY_KEY, verifyWasmTaskAuthority } from '../index/semantic/wasm/task-authority.js';
+import { NATIVE_DEPENDENCY_KEY, verifyNativeTaskAuthority } from '../index/semantic/native-task-authority.js';
 import { verifyCompilerDependencyInventory, COMPILER_DEPENDENCY_KEY } from '../index/semantic/compiler-dependencies.js';
 import { resolveSemanticPartPath } from './artifact-store.js';
 import { getToolingConfig } from '../shared/dict-utils.js';
@@ -14,6 +15,7 @@ import { semanticHash } from '../index/semantic/identity.js';
 import { semanticTaskInputHash } from '../index/semantic/frontier.js';
 import { reconcilePublishedSemanticBindingWork, openRepositorySemanticControl } from '../index/semantic/build-frontier.js';
 import { createSemanticEnrichmentGrant } from '../index/semantic/enrichment-context.js';
+import { createEnrichmentWorkScopes, recordCompilerReuseScopes, recordPublishedWorkScopes, trimEnrichmentWorkScopes } from './enrichment-scopes.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { createEnrichmentBudget, enrichmentError, enrichmentSame, openEnrichmentInventory,
   readEnrichmentCurrent, verifyEnrichmentTask, verifyEnrichmentLiveSources } from './enrichment-inventory.js';
@@ -28,6 +30,7 @@ const sameTaskInputs = (old, next) => old.kind === next.kind && old.policyHash =
 const syntaxInventory = inventory => inventory.syntax.map(row => ({ sourceUnitId: row.sourceUnitId,
   partitionId: row.partitionId, canonicalHash: row.canonicalHash })).sort((a, b) => a.sourceUnitId.localeCompare(b.sourceUnitId));
 const boundedResult = (result, limits) => {
+  trimEnrichmentWorkScopes(result, limits.maxBytes);
   if (Buffer.byteLength(JSON.stringify(result)) > limits.maxBytes) throw enrichmentError('Enrichment response exceeds its byte allowance.', 'ERR_SEMANTIC_ENRICHMENT_BUDGET');
   return assertSemanticEnrichment('result', result);
 };
@@ -66,7 +69,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
       reason: !executors.includes(task.kind) ? 'executor_not_available' : task.reason === 'analysis_dependency_disabled' ? 'analysis_dependency_disabled' : 'dependency_authority_unavailable',
       state: inventory.manifest.completedTasks?.some(row => row.taskId === task.taskId) ? 'completed' : 'not-inspected' })),
     publishedGeneration: null, lineage: [], supportedExecutors: executors, diagnostics: ['whole_generation_publication_only',
-      'full_source_rebuild_no_targeted_parse_reuse'], validation: 'implementation-unverified' };
+      'compiler_project_closure_may_widen_requested_scope'], workScopes: createEnrichmentWorkScopes(tasks), validation: 'implementation-unverified' };
   if (!request.taskIds.length && inventory.tasks.size > limits.maxTasks) result.diagnostics.push('plan_window_truncated_select_exact_task_ids');
   dependencyAuthority ||= { async verify({ repoRoot, inventory, task, signal }) {
     const filename = await resolveSemanticPartPath(path.join(inventory.indexDir, 'semantic'), task.targetsRef);
@@ -74,6 +77,8 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     const target = JSON.parse(await fs.readFile(filename, 'utf8'));
     if (semanticHash('pairofcleats.semantic.binding-targets.v1', target) !== task.targetSetHash) return null;
     if(target.binaryInventory)return verifyWasmTaskAuthority({task,target,sources:inventory.sources,store:inventory.store,signal});
+    if (target.nativeInventory) return verifyNativeTaskAuthority({ task, target, repoRoot, toolingConfig: getToolingConfig(repoRoot),
+      sources: inventory.sources, store: inventory.store, signal });
     if(!target.compilerInventory)return null;
     const authority = await verifyCompilerDependencyInventory({ inventory: target.compilerInventory, repoRoot,
       toolingConfig: getToolingConfig(repoRoot), signal });
@@ -84,7 +89,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
   const verifyAuthority = async (task, phase, signal) => {
     // A producer must freeze the complete compiler/config/module-resolution inventory.
     // Generic dependency entries, an empty list, or caller-supplied expected hashes are not proof.
-    const dependency = task.dependencies.find(row => [COMPILER_DEPENDENCY_KEY,WASM_DEPENDENCY_KEY].includes(row.dependencyKey));
+    const dependency = task.dependencies.find(row => [COMPILER_DEPENDENCY_KEY,WASM_DEPENDENCY_KEY,NATIVE_DEPENDENCY_KEY].includes(row.dependencyKey));
     if (!dependency || typeof dependencyAuthority?.verify !== 'function') return null;
     const authority = await dependencyAuthority.verify({ repoRoot, inventory, task, phase, signal });
     if (authority?.verified !== true || authority.complete !== true || authority.authorityHash !== dependency.expectedHash
@@ -160,6 +165,7 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     journal = { ...candidate, status: 'reconciled', publishedGeneration: fresh.manifest.generation, publishedManifestHash: fresh.manifestHash, failure: null };
     await writeJournal(); result.status = 'recovered'; result.publishedGeneration = fresh.manifest.generation;
     result.lineage = candidate.lineage; result.tasks.forEach(row => { row.state = 'superseded'; });
+    if (candidate.workScopes) result.workScopes = candidate.workScopes;
     return true;
   };
   try {
@@ -184,11 +190,11 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     }
     journal = { schemaVersion: 1, requestId, sourceGeneration: generation, sourceManifestHash: inventory.manifestHash,
       sourcePointerHash: current.hash, taskIds: ids, status: 'prepared', lineage: [], publishedGeneration: null,
-      publishedManifestHash: null, newBuildRoot: null, failure: null };
+      publishedManifestHash: null, newBuildRoot: null, failure: null, workScopes: result.workScopes };
     await writeJournal();
     const leaseMs = Math.max(60000, limits.drainMaxMs + 30000);
     renewal = setInterval(() => {
-      try { for (const taskId of leases.keys()) control.renew({ taskId, owner, leaseMs }); }
+      try { for (const [taskId, lease] of leases) control.renew({ taskId, owner, attempt: lease.attempt, leaseMs }); }
       catch (error) { child.abort(error); }
     }, Math.floor(leaseMs / 3)); renewal.unref?.();
     deadline = setTimeout(() => child.abort(enrichmentError('Manual drain deadline exhausted.', 'ERR_SEMANTIC_ENRICHMENT_BUDGET')), limits.drainMaxMs);
@@ -207,11 +213,16 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
         if (!old) return false;
         if (!await verifyAuthority(old, 'before-work', drainBudget.signal)) throw enrichmentError('Original dependency authority changed before execution.');
         if (task.baseBuildId !== runtime.buildId || task.taskId === old.taskId) throw enrichmentError('Replanned task must retain a distinct fresh generation identity.');
-        control.renew({ taskId: old.taskId, owner, leaseMs });
+        control.renew({ taskId: old.taskId, owner, attempt: leases.get(old.taskId).attempt, leaseMs });
         const line = { sourceTaskId: old.taskId, replannedTaskId: task.taskId, inputHash: semanticTaskInputHash(old), policyHash: old.policyHash };
         if (journal.lineage.some(value => value.sourceTaskId === old.taskId && !enrichmentSame(value, line))) throw enrichmentError('Ambiguous old/new task lineage.');
         if (!journal.lineage.some(value => enrichmentSame(value, line))) journal.lineage.push(line);
         await writeJournal(); return true;
+      },
+      async recordReuse(receipt) {
+        recordCompilerReuseScopes(result.workScopes, receipt);
+        journal.workScopes = result.workScopes;
+        await writeJournal();
       },
       async beforePublish() {
         drainBudget.check();
@@ -222,13 +233,15 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
         const fresh = await drainBudget.run(() => openEnrichmentInventory({ repoRoot, userConfig,
           generation: journal.publishedGeneration, indexDir: path.join(runtime.buildRoot, 'index-code'), budget: drainBudget }));
         if (!enrichmentSame(syntaxInventory(fresh), syntaxInventory(inventory))) throw enrichmentError('Fresh generation source facts changed; old tasks cannot be retargeted.');
+        recordPublishedWorkScopes(result.workScopes, tasks, fresh, runtime);
+        journal.workScopes = result.workScopes;
         for (const line of journal.lineage) {
           const old = inventory.tasks.get(line.sourceTaskId), next = fresh.tasks.get(line.replannedTaskId);
           if (!await verifyAuthority(old, 'before-publication', drainBudget.signal)) throw enrichmentError('Original dependency authority changed before publication.');
           if (!next || !sameTaskInputs(old, next) || !fresh.manifest.completedTasks?.some(receipt => receipt.taskId === next.taskId
               && receipt.inputHash === line.inputHash && receipt.policyHash === line.policyHash)) throw enrichmentError('Fresh drain output is incomplete for the selected task inputs.');
           await drainBudget.run(() => verifyEnrichmentTask({ inventory: fresh, task: next, budget: drainBudget, deep: true }));
-          control.renew({ taskId: old.taskId, owner, leaseMs });
+          control.renew({ taskId: old.taskId, owner, attempt: leases.get(old.taskId).attempt, leaseMs });
         }
         journal.publishedManifestHash = fresh.manifestHash; await writeJournal();
       } };
@@ -255,11 +268,11 @@ export const runSemanticEnrichmentService = async ({ request, userConfig, signal
     if (renewal) clearInterval(renewal); if (deadline) clearTimeout(deadline);
     signal?.removeEventListener('abort', abort);
     let cleanupFailure = null;
-    for (const taskId of leases.keys()) {
+    for (const [taskId, lease] of leases) {
       try {
         const row = control.getTask(taskId);
         if (row?.state === 'leased' && row.leaseOwner === owner && row.leaseUntil > Date.now()) {
-          control.release({ taskId, owner, reason: 'manual_drain_not_acknowledged', transient: true });
+          control.release({ taskId, owner, attempt: lease.attempt, reason: 'manual_drain_not_acknowledged', transient: true });
         }
       } catch (error) { if (error.code !== 'ERR_SEMANTIC_LEASE_LOST') cleanupFailure ||= error; }
     }

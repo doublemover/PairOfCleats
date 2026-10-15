@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -9,7 +10,6 @@ import {
   updateBundlesWithChunks,
   writeIncrementalBundle
 } from '../../../src/index/build/incremental.js';
-import { resolveBundleShardFilename } from '../../../src/shared/bundle-io-paths.js';
 
 applyTestEnv({
   testing: '1',
@@ -60,6 +60,7 @@ const pruneEntryFail = await writeSeedEntry({
 assert.ok(pruneEntryFail?.bundles?.length, 'expected prune seed bundle');
 const pruneBundleFail = path.join(bundleDir, pruneEntryFail.bundles[0]);
 const pruneManifestFail = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     [pruneRel]: pruneEntryFail
@@ -87,6 +88,7 @@ const pruneEntryOk = await writeSeedEntry({
 assert.ok(pruneEntryOk?.bundles?.length, 'expected prune success seed bundle');
 const pruneBundleOk = path.join(bundleDir, pruneEntryOk.bundles[0]);
 const pruneManifestOk = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     [pruneRel]: pruneEntryOk
@@ -127,6 +129,7 @@ const updateSeedEntry = await writeSeedEntry({
 assert.ok((updateSeedEntry?.bundles?.length || 0) > 1, 'expected multi-shard seed bundle');
 
 const updateManifest = {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   bundleFormat: 'json',
   files: {
     [updateRel]: updateSeedEntry
@@ -188,31 +191,25 @@ assert.deepEqual(
 );
 
 const partialFailureRel = 'src/partial-failure-target.js';
-const partialFailureShardOne = resolveBundleShardFilename(partialFailureRel, 'json', 0);
-const partialFailureShardTwo = resolveBundleShardFilename(partialFailureRel, 'json', 1);
-await fs.mkdir(path.join(bundleDir, partialFailureShardTwo), { recursive: true });
-const partialFailureEntry = await writeIncrementalBundle({
-  enabled: true,
-  bundleDir,
-  relKey: partialFailureRel,
-  fileStat: baseStat,
+const partialFailureOptions = {
+  enabled: true, bundleDir, relKey: partialFailureRel, fileStat: baseStat,
   fileHash: 'hash:partial-failure',
   fileChunks: [
     { file: partialFailureRel, chunkId: 'pf-a', text: largeText },
     { file: partialFailureRel, chunkId: 'pf-b', text: largeText },
     { file: partialFailureRel, chunkId: 'pf-c', text: largeText }
-  ],
-  fileRelations: { imports: [] },
-  vfsManifestRows: null,
-  bundleFormat: 'json'
-});
-assert.equal(partialFailureEntry, null, 'expected partial shard write failure to fail closed');
-assert.equal(
-  await pathExists(path.join(bundleDir, partialFailureShardOne)),
-  false,
-  'expected already-written shard artifacts to be cleaned up after partial write failure'
-);
-await fs.rm(path.join(bundleDir, partialFailureShardTwo), { recursive: true, force: true });
+  ], fileRelations: { imports: [] }, vfsManifestRows: null, bundleFormat: 'json'
+};
+const completedSnapshot = await writeIncrementalBundle(partialFailureOptions);
+const firstSnapshot = path.join(bundleDir, completedSnapshot.bundles[0]);
+const secondSnapshot = path.join(bundleDir, completedSnapshot.bundles[1]);
+await fs.unlink(secondSnapshot);
+await fs.mkdir(secondSnapshot);
+const partialFailureEntry = await writeIncrementalBundle(partialFailureOptions);
+assert.equal(partialFailureEntry, null, 'expected invalid existing shard to fail closed');
+assert.equal(await pathExists(firstSnapshot), true,
+  'failed equivalent attempt must preserve a previously completed immutable shard');
+await fs.rm(secondSnapshot, { recursive: true, force: true });
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

@@ -89,7 +89,7 @@ import { createTokenRetentionState } from '../../../src/index/build/indexer/step
   const hashC = buildContentConfigHash({ indexing: { concurrency: 1, importConcurrency: 2, maxFileBytes: 2048 } }, envA);
   assert.equal(hashA, hashC, 'expected concurrency-only changes to be ignored');
   const hashD = buildContentConfigHash(config, { cacheRoot: '/tmp/a', stage: 'stage2' });
-  assert.notEqual(hashA, hashD, 'expected stage changes to affect content hash');
+  assert.equal(hashA, hashD, 'raw stage selection is execution provenance; effective semantic overrides are hashed');
   const hashE = buildContentConfigHash({ indexing: { maxFileBytes: 4096 } }, envA);
   assert.notEqual(hashA, hashE, 'expected relevant config changes to affect content hash');
 }

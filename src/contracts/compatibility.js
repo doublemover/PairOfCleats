@@ -39,6 +39,17 @@ const VOLATILE_LANGUAGE_OPTION_KEYS = new Set([
 const sanitizeVolatileConfig = (value) => {
   if (Array.isArray(value)) return value.map((entry) => sanitizeVolatileConfig(entry));
   if (!value || typeof value !== 'object') return value;
+  if (value instanceof RegExp) {
+    return { __type: 'regexp', source: value.source, flags: value.flags };
+  }
+  // Respect the semantic serialization owned by configuration objects such as
+  // SafeRegex. Walking their runtime internals includes mutable matcher state
+  // (and, after use, circular RE2 caches) that is not configuration identity.
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null && typeof value.toJSON === 'function') {
+    const projected = value.toJSON();
+    if (projected !== value) return sanitizeVolatileConfig(projected);
+  }
   const out = {};
   for (const [key, entry] of Object.entries(value)) {
     if (VOLATILE_LANGUAGE_OPTION_KEYS.has(key)) continue;

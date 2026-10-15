@@ -1,3 +1,6 @@
+import { readRuntimeMemberJson, readRuntimeMemberBytes, openVerifiedRuntimeMember } from './verified-reads.js';
+import { withRuntimeDestinationWriter } from './ownership.js';
+import { closeRuntimeResources } from './close-resources.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertRuntimeClaims } from '../../../contracts/validators/runtime-claims.js';
@@ -36,6 +39,7 @@ const verifyCitations = async ({ destination, inputs, citations, repositoryNames
   for (const pin of inputs) {
     check();
     const family = await bounded(() => openRuntimeQueryFamily({ destination, generationId: pin.generationId, signal: check.signal }), check);
+    let citationError = null;
     try {
       if (family.manifestHash !== pin.manifestHash || family.capture.captureId !== pin.captureId
         || family.capture.repositoryNamespace !== repositoryNamespace || !same(family.capture.generation, generation)) fail('Claim input family scope or manifest changed.');
@@ -63,7 +67,8 @@ const verifyCitations = async ({ destination, inputs, citations, repositoryNames
         }
         records.set(row.evidenceId, row);
       }
-    } finally { await family.close(); }
+    } catch (error) { citationError = error; throw error; }
+    finally { await closeRuntimeResources([family], citationError); }
   }
   if (records.size !== citations.length) fail('Claim citation points outside the pinned family inventory.');
   return { records, diskReserveBytes };
@@ -88,8 +93,8 @@ const validateClaims = (claims, records) => {
 };
 
 /** Separate immutable derived family. Publishing never changes direct evidence or source index pointers. */
-export const persistRuntimeDerivedClaims = async ({ destination, repositoryNamespace, generation, inputs, citations, claims,
-  limits, signal = null }) => {
+const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespace, generation, inputs, citations, claims,
+  limits, signal = null, diskAccount }) => {
   const check = runtimeClaimsBudget(limits, signal); check();
   assertRuntimeClaims('request', { schemaVersion: 1, repositoryNamespace, generation, claimGeneration: '0'.repeat(64), limits, cursor: null });
   if (!claims.length || claims.length > 64 || citations.length > Math.min(128, limits.maxRecords)) fail('Claim inventory exceeds allowance.');
@@ -115,6 +120,9 @@ export const persistRuntimeDerivedClaims = async ({ destination, repositoryNames
   await fs.mkdir(path.join(destination, 'claims'), { recursive: true });
   const root = await resolveSemanticPartPath(destination, 'claims');
   await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: manifestBytes.length + byteLength + offsets.length });
+  const reservation = manifestBytes.length + evidence.length + offsets.length + 1024;
+  diskAccount.reserve(reservation);
+  let retained = false;
   const pending = await fs.mkdtemp(path.join(root, '.pending-'));
   const final = path.join(root, manifest.claimGeneration);
   const pointerTemporary = path.join(root, '.current-' + path.basename(pending));
@@ -126,10 +134,11 @@ export const persistRuntimeDerivedClaims = async ({ destination, repositoryNames
     }
     check();
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: 512 });
-    try { await fs.rename(pending, final); }
+    try { await fs.rename(pending, final); retained = true; }
     catch (error) {
       if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
-      const old = await fs.readFile(await resolveSemanticPartPath(root, manifest.claimGeneration + '/manifest.json'));
+      const old = (await readRuntimeMemberBytes({ root, relativePath: manifest.claimGeneration + '/manifest.json',
+        maxBytes: limits.maxBytes, signal })).buffer;
       if (!old.equals(manifestBytes)) fail('Existing immutable claim family differs.');
       await hashRuntimeFile({ filename: await resolveSemanticPartPath(root, manifest.claimGeneration + '/claims.jsonl'),
         expectedHash: manifest.evidenceHash, expectedBytes: byteLength, maxBytes: limits.maxBytes, signal });
@@ -144,6 +153,7 @@ export const persistRuntimeDerivedClaims = async ({ destination, repositoryNames
     return manifest.claimGeneration;
   } finally {
     await fs.rm(pending, { recursive: true, force: true }); await fs.rm(pointerTemporary, { force: true });
+    if (!retained) diskAccount.release(reservation);
     // A complete content-addressed family may already be reused by another publisher or pinned reader.
     // Keep it immutable even if this convenience-pointer update fails; only staging is owned here.
   }
@@ -153,9 +163,8 @@ const queryClaims = async ({ destination, request, signal = null }) => {
   assertRuntimeClaims('request', request);
   const check = runtimeClaimsBudget(request.limits, signal); check();
   const root = await resolveSemanticPartPath(destination, 'claims/' + request.claimGeneration);
-  const filename = await resolveSemanticPartPath(root, 'manifest.json');
-  if ((await fs.stat(filename)).size > 1048576) fail('Claim manifest exceeds allowance.');
-  const manifest = assertRuntimeClaims('manifest', JSON.parse(await fs.readFile(filename, 'utf8')));
+  const manifest = assertRuntimeClaims('manifest', (await readRuntimeMemberJson({ root,
+    relativePath: 'manifest.json', maxBytes: 1048576, signal: check.signal })).value);
   if (manifest.claimGeneration !== request.claimGeneration || semanticHash(domain, { ...manifest, claimGeneration: null }) !== request.claimGeneration) fail('Claim family hash mismatch.');
   if (manifest.repositoryNamespace !== request.repositoryNamespace || !same(manifest.generation, request.generation)) throw runtimeImportError('Derived family scope mismatch.', 'ERR_RUNTIME_QUERY_SCOPE');
   const queryId = semanticHash('pairofcleats.runtime.claim-query.v1', { ...request, cursor: null });
@@ -171,11 +180,8 @@ const queryClaims = async ({ destination, request, signal = null }) => {
     } catch { throw runtimeImportError('Claim cursor does not match the pinned request.', 'ERR_RUNTIME_QUERY_CURSOR'); }
   }
   const verified = await verifyCitations({ ...request, destination, inputs: manifest.inputs, citations: manifest.citations, signal, check });
-  const evidencePath = await resolveSemanticPartPath(root, 'claims.jsonl');
-  await bounded(() => hashRuntimeFile({ filename: evidencePath, expectedHash: manifest.evidenceHash, expectedBytes: manifest.byteLength, maxBytes: 1048576, signal: check.signal }), check);
-  const offsetsPath = await resolveSemanticPartPath(root, 'claims.offsets');
-  await bounded(() => hashRuntimeFile({ filename: offsetsPath, expectedHash: manifest.offsetsHash, expectedBytes: manifest.rows.length * 8, maxBytes: 512, signal: check.signal }), check);
-  const offsets = await fs.readFile(offsetsPath);
+  const offsets = (await bounded(() => readRuntimeMemberBytes({ root, relativePath: 'claims.offsets',
+    expectedHash: manifest.offsetsHash, expectedBytes: manifest.rows.length * 8, maxBytes: 512, signal: check.signal }), check)).buffer;
   let expectedStart = 0;
   for (let index = 0; index < manifest.rows.length; index++) {
     const row = manifest.rows[index];
@@ -183,7 +189,8 @@ const queryClaims = async ({ destination, request, signal = null }) => {
     expectedStart += row.byteLength;
   }
   if (expectedStart !== manifest.byteLength) fail('Claim row inventory length mismatch.');
-  const handle = await fs.open(evidencePath, 'r'), claims = [];
+  const handle = await bounded(() => openVerifiedRuntimeMember({ root, relativePath: 'claims.jsonl',
+      expectedHash: manifest.evidenceHash, expectedBytes: manifest.byteLength, maxBytes: 1048576, signal: check.signal }), check), claims = [];
   let outputBytes = 1024 + Buffer.byteLength(JSON.stringify(manifest.inputs));
   try {
     for (; ordinal < manifest.rows.length && claims.length < request.limits.maxRecords; ordinal++) {
@@ -216,4 +223,11 @@ export const queryRuntimeDerivedClaims = async options => {
     if (error.code === 'ENOENT') throw runtimeImportError('Pinned derived claim family or retained support is unavailable.', 'ERR_RUNTIME_FAMILY_UNAVAILABLE');
     throw error;
   }
+};
+
+/** Derived claims share destination ownership and the explicitly admitted total cap. */
+export const persistRuntimeDerivedClaims = async options => {
+  return withRuntimeDestinationWriter({ destination: options.destination, maxDiskWorkingSetBytes: null,
+    diskAccount: options.diskAccount, signal: options.signal }, ({ destination, account }) =>
+    persistRuntimeDerivedClaimsOwned({ ...options, destination, diskAccount: account }));
 };

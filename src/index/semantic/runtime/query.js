@@ -3,6 +3,7 @@ import { semanticHash, canonicalSemanticJson } from '../identity.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { runtimeImportError } from './raw-store.js';
 import { openRuntimeQueryFamily } from './query-store.js';
+import { closeRuntimeResources } from './close-resources.js';
 
 export const defaultRuntimeQuerySelectors = () => ({ captureIds: [], runtime: null, workload: null, scope: null,
   sources: [], records: [], codeVersions: [], evidenceIds: [], kinds: [], joinQualities: [] });
@@ -92,7 +93,7 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
     derivedCoverage: { state: 'unsupported', reason: 'current_saved_adapters_project_direct_observations_only' },
     status: 'complete', warnings: [], nextCursor: null,
     integrity: { manifest: 'verified', queryIndex: 'verified', returnedRows: 'verified', rawArtifacts: 'not-read' },
-    cost: { visitedRecords: 0, hydratedRecords: 0, elapsedMs: 0, responseBytes: 0 } };
+    cost: { visitedRecords: 0, hydratedRecords: 0, elapsedMs: 0, responseBytes: 0, familyOpens: 0, verificationBytes: 0 } };
   const deadlineReached = () => Date.now() >= deadline;
   if (request.selectors.kinds.includes('derivedClaim')) {
     result.status = 'partial'; result.warnings.push('derived_claim_projection_not_supported_by_current_offline_adapters');
@@ -100,7 +101,9 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
   const updateCursor = () => { result.nextCursor = position.familyIndex < request.familyGenerations.length ? cursorFor(queryId, position.familyIndex, position.ordinal) : null; };
   try {
     for (let familyIndex = 0; familyIndex < request.familyGenerations.length; familyIndex += 1) {
-      const family = await openRuntimeQueryFamily({ destination, generationId: request.familyGenerations[familyIndex], signal: child.signal });
+      result.cost.familyOpens += 1;
+      const family = await openRuntimeQueryFamily({ destination, generationId: request.familyGenerations[familyIndex], signal: child.signal, metrics: result.cost });
+      let familyError = null;
       try {
         const { capture, manifest } = family;
         if (capture.repositoryNamespace !== request.repositoryNamespace
@@ -149,7 +152,8 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
           } else { result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reason: 'row_byte_allowance' }); result.status = 'partial'; }
         }
         if (entries.length <= remaining && !deadlineReached()) position = { familyIndex: familyIndex + 1, ordinal: 0 };
-      } finally { await family.close(); }
+      } catch (error) { familyError = error; throw error; }
+      finally { await closeRuntimeResources([family], familyError); }
     }
     if (deadlineReached()) { result.status = 'partial'; result.warnings.push('query_time_allowance_exhausted'); }
     updateCursor();

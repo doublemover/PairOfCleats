@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { pipeline, env } from '@huggingface/transformers';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
+import { normalizeEmbeddingProvider, resolveOnnxConfig, resolveOnnxModelPath } from '../../src/shared/onnx-embeddings.js';
 import { isAbsolutePathNative } from '../../src/shared/file-paths.js';
 import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 
@@ -23,7 +23,7 @@ const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
 const modelConfig = getModelConfig(root, userConfig);
 const embeddingsConfig = userConfig.indexing?.embeddings || {};
 const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
-const embeddingOnnx = normalizeOnnxConfig(embeddingsConfig.onnx || {});
+const embeddingOnnx = resolveOnnxConfig(embeddingsConfig.onnx || {});
 const cacheDir = argv['cache-dir']
   ? path.resolve(argv['cache-dir'])
   : modelConfig.dir;

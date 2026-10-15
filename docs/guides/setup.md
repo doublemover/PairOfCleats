@@ -1,5 +1,13 @@
 # Unified Setup
 
+Bootstrap evidence separates package loadability, per-language parser activation,
+provider initialization, and project qualification. Required registered native
+grammars activate in isolated bounded processes using the production binding
+resolver and a tiny language-specific sample. The readiness receipt records
+language, package/version, Node version and ABI for activated routes. Parsing a
+sample does not certify a compiler/LSP project or full language semantics. A
+loadable grammar that fails `setLanguage` is not parser-activated.
+
 The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default.
 
 ## Usage

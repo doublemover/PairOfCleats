@@ -32,7 +32,9 @@ const createMockOnnx = (load, vectors = [Float32Array.from([1, 2, 3])]) => ({
   getEmbeddings: async () => { await load.promise; return vectors; },
   getEmbedding: async () => { await load.promise; return vectors[0]; },
   estimateTokens: async () => { await load.promise; return [3]; },
-  prewarm: async () => { await load.promise; }
+  prewarm: async () => { await load.promise; },
+  executionInfo: () => ({ provider: 'onnx', modelArtifact: null, effectiveSessionOptions: null,
+    effectiveNativeThreads: null, device: null, maxConcurrentInference: 1 })
 });
 try {
   const load = deferred();
