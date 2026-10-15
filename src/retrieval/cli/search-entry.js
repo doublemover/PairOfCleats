@@ -117,7 +117,7 @@ export async function runCli({
     return 1;
   }
 
-  const { search } = await import('../../integrations/core/index.js');
+  const { search } = await import('../../integrations/core/search.js');
   await search(null, { args, emitOutput: true, exitOnError: true });
   return 0;
 }
