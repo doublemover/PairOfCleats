@@ -21,10 +21,21 @@ export const createAjv = ({ dialect = 'default', ...options } = {}) => {
   return new AjvConstructor(options);
 };
 
-export const compileSchema = (ajv, schema, { clone = true } = {}) => {
+export const compileSchema = (ajv, schema, { clone = true, lazy = false } = {}) => {
   if (!ajv || typeof ajv.compile !== 'function') {
     throw new TypeError('compileSchema requires an Ajv instance');
   }
-  return ajv.compile(clone ? cloneJsonSchema(schema) : schema);
+  const ownedSchema = clone ? cloneJsonSchema(schema) : schema;
+  if (!lazy) return ajv.compile(ownedSchema);
+  let compiled = null;
+  const validator = function (...args) {
+    compiled ||= ajv.compile(ownedSchema);
+    return Reflect.apply(compiled, this, args);
+  };
+  Object.defineProperties(validator, {
+    errors: { get: () => compiled?.errors ?? null },
+    schema: { value: ownedSchema }
+  });
+  return validator;
 };
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-15T02:04:05.525Z",
+  "generatedAt": "2026-10-15T02:28:32.101Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3270,6 +3270,7 @@
         "tests/perf/baseline-artifacts.test.js",
         "tests/run.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
+        "tests/tooling/reports/parity-cold-build-cleanup.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/bench/ab-sweep.js",
         "tools/ci/run-suite.js",
@@ -4693,6 +4694,7 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/shared/runtime/embedding-plan-allowlist.test.js",
+        "tests/tooling/reports/parity-cold-build-cleanup.test.js",
         "tests/tooling/reports/parity-matrix-execution.test.js",
         "tools/ci/run-suite.js",
         "tools/config/inventory.js"

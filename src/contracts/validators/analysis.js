@@ -22,15 +22,15 @@ const ajv = createAjv({
 });
 
 const META_V2_VALIDATOR = compileSchema(ajv, METADATA_V2_SCHEMA);
-const RISK_RULES_VALIDATOR = compileSchema(ajv, RISK_RULES_BUNDLE_SCHEMA);
-const ANALYSIS_POLICY_VALIDATOR = compileSchema(ajv, ANALYSIS_POLICY_SCHEMA);
-const GRAPH_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, GRAPH_CONTEXT_PACK_SCHEMA);
-const GRAPH_IMPACT_VALIDATOR = compileSchema(ajv, GRAPH_IMPACT_SCHEMA);
-const RISK_DELTA_VALIDATOR = compileSchema(ajv, RISK_DELTA_SCHEMA);
-const COMPOSITE_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, COMPOSITE_CONTEXT_PACK_SCHEMA);
-const API_CONTRACTS_VALIDATOR = compileSchema(ajv, API_CONTRACTS_SCHEMA);
-const ARCHITECTURE_REPORT_VALIDATOR = compileSchema(ajv, ARCHITECTURE_REPORT_SCHEMA);
-const SUGGEST_TESTS_VALIDATOR = compileSchema(ajv, SUGGEST_TESTS_SCHEMA);
+const RISK_RULES_VALIDATOR = compileSchema(ajv, RISK_RULES_BUNDLE_SCHEMA, { lazy: true });
+const ANALYSIS_POLICY_VALIDATOR = compileSchema(ajv, ANALYSIS_POLICY_SCHEMA, { lazy: true });
+const GRAPH_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, GRAPH_CONTEXT_PACK_SCHEMA, { lazy: true });
+const GRAPH_IMPACT_VALIDATOR = compileSchema(ajv, GRAPH_IMPACT_SCHEMA, { lazy: true });
+const RISK_DELTA_VALIDATOR = compileSchema(ajv, RISK_DELTA_SCHEMA, { lazy: true });
+const COMPOSITE_CONTEXT_PACK_VALIDATOR = compileSchema(ajv, COMPOSITE_CONTEXT_PACK_SCHEMA, { lazy: true });
+const API_CONTRACTS_VALIDATOR = compileSchema(ajv, API_CONTRACTS_SCHEMA, { lazy: true });
+const ARCHITECTURE_REPORT_VALIDATOR = compileSchema(ajv, ARCHITECTURE_REPORT_SCHEMA, { lazy: true });
+const SUGGEST_TESTS_VALIDATOR = compileSchema(ajv, SUGGEST_TESTS_SCHEMA, { lazy: true });
 
 export function validateMetadataV2(payload) {
   const result = toValidationResult(META_V2_VALIDATOR, payload);
