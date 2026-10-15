@@ -1,4 +1,5 @@
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
+import { retainRepoCacheAccess, retainCachePathAccess } from './cache/repo-access.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,6 +55,7 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
     : null;
   const explicitIndexRoot = options.indexRoot ? path.resolve(options.indexRoot) : null;
   if (explicitIndexRoot) {
+    retainCachePathAccess(explicitIndexRoot);
     return {
       ok: true,
       root: explicitIndexRoot,
@@ -193,7 +195,9 @@ function findConfigRoot(startPath) {
 export function getRepoCacheRoot(repoRoot, userConfig = null, options = {}) {
   const { cacheRoot } = resolveCacheRootValue(repoRoot, userConfig, options);
   const repoId = getRepoId(repoRoot);
-  return path.join(cacheRoot, 'repos', repoId);
+  const root = path.join(cacheRoot, 'repos', repoId);
+  retainRepoCacheAccess(root);
+  return root;
 }
 
 export function getBuildsRoot(repoRoot, userConfig = null, options = {}) {

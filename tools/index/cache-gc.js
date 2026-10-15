@@ -32,6 +32,7 @@ import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
+import { inspectRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../../src/shared/cache/repo-access.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',
@@ -110,14 +111,18 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const repoPath = path.join(repoRoot, entry.name);
-    // Offline whole-repository cleanup must never knowingly remove active
-    // ownership. This guard is not an online reader-admission protocol.
+    const protectedBytes = needsSizeScan ? await sizeOfPath(repoPath) : null;
+    const owners = inspectRepoCacheAccess(repoPath);
+    if (owners.length) {
+      protectedRepos.push({ id: entry.name, reason: 'active-process-lease', bytes: protectedBytes, owners });
+      continue;
+    }
     const locks = await fs.readdir(path.join(repoPath, 'locks')).catch((error) => {
       if (error.code === 'ENOENT') return [];
       return ['unreadable-lock-directory'];
     });
     if (locks.length) {
-      protectedRepos.push({ id: entry.name, reason: 'lock-present', locks });
+      protectedRepos.push({ id: entry.name, reason: 'lock-present', bytes: protectedBytes, locks });
       continue;
     }
     const stat = await fs.stat(repoPath);
@@ -128,11 +133,12 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       mtimeMs: stat.mtimeMs
     };
     if (needsSizeScan) {
-      repo.bytes = await sizeOfPath(repoPath);
+      repo.bytes = protectedBytes;
     }
     repos.push(repo);
   }
 
+  const protectedBytes = protectedRepos.reduce((sum, repo) => sum + (repo.bytes || 0), 0);
   const removals = [];
   const keep = new Map(repos.map((repo) => [repo.path, repo]));
 
@@ -147,7 +153,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
   }
 
   if (maxBytes != null) {
-    let total = Array.from(keep.values()).reduce((sum, repo) => sum + repo.bytes, 0);
+    let total = protectedBytes + Array.from(keep.values()).reduce((sum, repo) => sum + repo.bytes, 0);
     if (total > maxBytes) {
       const sorted = Array.from(keep.values()).sort((a, b) => a.mtimeMs - b.mtimeMs);
       for (const repo of sorted) {
@@ -183,13 +189,19 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
         code: 'ERR_CACHE_IN_USE', message: 'Ownership appeared after planning; cache preserved.', attempts: 0 });
       continue;
     }
-    const deleteResult = await removePathWithRetry(repo.path, {
-      recursive: true,
-      force: true,
-      attempts: 20,
-      baseDelayMs: 40,
-      maxDelayMs: 1200
+    const cleanup = await withExclusiveRepoCacheCleanup(repo.path, async () => {
+      // Recheck legacy writer locks inside the admission barrier as well.
+      const locks = await fs.readdir(path.join(repo.path, 'locks')).catch((error) => (
+        error.code === 'ENOENT' ? [] : ['unreadable-lock-directory']
+      ));
+      if (locks.length) return { ok: false, error: { code: 'ERR_CACHE_IN_USE', message: 'Writer lock present.' }, attempts: 0 };
+      return removePathWithRetry(repo.path, {
+        recursive: true, force: true, attempts: 20, baseDelayMs: 40, maxDelayMs: 1200
+      });
     });
+    const deleteResult = cleanup.protected
+      ? { ok: false, error: { code: 'ERR_CACHE_IN_USE', message: cleanup.reason }, attempts: 0 }
+      : cleanup.result;
     if (!deleteResult.ok) {
       failedRemovals.push({
         id: repo.id,
@@ -202,9 +214,9 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
     }
   }
 
-  const hasSizeData = repos.some((repo) => Number.isFinite(repo.bytes));
+  const hasSizeData = needsSizeScan;
   const totalBytes = hasSizeData
-    ? repos.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
+    ? protectedBytes + repos.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
     : null;
   const freedBytes = removals.reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0);
   const payload = {
@@ -218,8 +230,9 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
       maxAgeDays: maxAgeDays ?? null
     },
     totals: {
-      repos: repos.length,
-      bytes: totalBytes
+      repos: repos.length + protectedRepos.length,
+      bytes: totalBytes,
+      protectedBytes: needsSizeScan ? protectedBytes : null
     },
     removals: removals.map((repo) => ({
       id: repo.id,
@@ -229,16 +242,20 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
     })),
     failedRemovals,
     protectedRepos,
-    coordination: 'offline-only',
+    coordination: 'process-leases-v1',
     plannedBytes: freedBytes,
     freedBytes: dryRun ? 0 : removals.filter((repo) => !failedRemovals.some((failure) => failure.id === repo.id))
       .reduce((sum, repo) => sum + (Number.isFinite(repo.bytes) ? repo.bytes : 0), 0)
   };
 
+  payload.remainingBytes = totalBytes == null ? null : totalBytes - payload.freedBytes;
+  payload.projectedRemainingBytes = totalBytes == null ? null : totalBytes - payload.plannedBytes;
+  payload.quotaSatisfied = maxBytes == null ? null : (dryRun ? payload.projectedRemainingBytes : payload.remainingBytes) <= maxBytes;
+
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
   } else {
-    console.error(`Cache GC: ${removals.length} repo(s) ${dryRun ? 'planned' : 'selected'}; ${dryRun ? 'planned' : 'freed'} ${formatBytes(payload.freedBytes || (dryRun ? payload.plannedBytes : 0))}; ${protectedRepos.length} protected by locks.`);
+    console.error(`Cache GC: ${removals.length} repo(s) ${dryRun ? 'planned' : 'selected'}; ${dryRun ? 'planned' : 'freed'} ${formatBytes(payload.freedBytes || (dryRun ? payload.plannedBytes : 0))}; ${protectedRepos.length} protected by process leases or locks.`);
     for (const repo of removals) {
       console.error(`- ${repo.id}: ${formatBytes(repo.bytes)} (${repo.reason})`);
     }

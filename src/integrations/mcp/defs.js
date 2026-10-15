@@ -453,7 +453,7 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'cache_gc',
-      description: 'Preview cache cleanup by default. Explicit dryRun=false applies deletion; legacy whole-repo cleanup requires offline sessions.',
+      description: 'Preview cache cleanup by default. Explicit dryRun=false applies deletion; whole-repo cleanup protects cooperating local sessions with process-lifetime leases.',
       inputSchema: {
         type: 'object',
         properties: {

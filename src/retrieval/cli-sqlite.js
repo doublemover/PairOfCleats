@@ -1,3 +1,4 @@
+import { retainCachePathAccess } from '../shared/cache/repo-access.js';
 import { assertSqliteIndexFormat } from '../storage/sqlite/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -241,6 +242,7 @@ export async function createSqliteBackend(options) {
   }
   const openSqlite = (mode) => {
     const dbPath = sqlitePathByMode[mode];
+    retainCachePathAccess(dbPath);
     const label = mode;
     if (openedByPath.has(dbPath)) {
       const record = openedByPath.get(dbPath);
@@ -423,6 +425,7 @@ export async function createSqliteBackend(options) {
  * @returns {Promise<number|null>}
  */
 export async function getSqliteChunkCount(dbPath, mode) {
+  retainCachePathAccess(dbPath);
   let Database;
   try {
     ({ default: Database } = await import('better-sqlite3'));
