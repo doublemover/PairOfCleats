@@ -78,7 +78,7 @@ jobs:
         node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
     - name: Upload quality artifacts
       if: always()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: nightly-quality-artifacts-${{ matrix.os }}
         path: |
@@ -92,7 +92,7 @@ jobs:
         compression-level: 0
     - name: Upload test artifacts
       if: failure()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: nightly-artifacts-${{ matrix.os }}
         path: |
