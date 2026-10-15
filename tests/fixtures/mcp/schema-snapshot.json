@@ -306,6 +306,11 @@
   "tools": [
     {
       "name": "semantic_find",
+      "required": [
+        "generation",
+        "repoRoot",
+        "selector"
+      ],
       "properties": [
         "backend",
         "compareTo",
@@ -314,15 +319,16 @@
         "limits",
         "repoRoot",
         "selector"
-      ],
-      "required": [
-        "generation",
-        "repoRoot",
-        "selector"
       ]
     },
     {
       "name": "semantic_explain",
+      "required": [
+        "direction",
+        "generation",
+        "repoRoot",
+        "seed"
+      ],
       "properties": [
         "backend",
         "cursor",
@@ -333,16 +339,15 @@
         "repoRoot",
         "seed",
         "slot"
-      ],
-      "required": [
-        "direction",
-        "generation",
-        "repoRoot",
-        "seed"
       ]
     },
     {
       "name": "semantic_enrichment",
+      "required": [
+        "generation",
+        "repoRoot",
+        "schemaVersion"
+      ],
       "properties": [
         "action",
         "generation",
@@ -350,22 +355,17 @@
         "repoRoot",
         "schemaVersion",
         "taskIds"
-      ],
-      "required": [
-        "generation",
-        "repoRoot",
-        "schemaVersion"
       ]
     },
     {
       "name": "runtime_evidence",
-      "properties": [
+      "required": [
         "destination",
         "repoRoot",
         "request",
         "schemaVersion"
       ],
-      "required": [
+      "properties": [
         "destination",
         "repoRoot",
         "request",
@@ -374,14 +374,14 @@
     },
     {
       "name": "runtime_families",
-      "properties": [
+      "required": [
         "cursor",
         "destination",
         "limits",
         "repoRoot",
         "schemaVersion"
       ],
-      "required": [
+      "properties": [
         "cursor",
         "destination",
         "limits",
@@ -391,13 +391,13 @@
     },
     {
       "name": "runtime_compare",
-      "properties": [
+      "required": [
         "destination",
         "repoRoot",
         "request",
         "schemaVersion"
       ],
-      "required": [
+      "properties": [
         "destination",
         "repoRoot",
         "request",
@@ -406,13 +406,13 @@
     },
     {
       "name": "runtime_claims",
-      "properties": [
+      "required": [
         "destination",
         "repoRoot",
         "request",
         "schemaVersion"
       ],
-      "required": [
+      "properties": [
         "destination",
         "repoRoot",
         "request",
@@ -421,6 +421,12 @@
     },
     {
       "name": "semantic_trace",
+      "required": [
+        "direction",
+        "generation",
+        "repoRoot",
+        "seed"
+      ],
       "properties": [
         "backend",
         "cursor",
@@ -431,16 +437,15 @@
         "repoRoot",
         "seed",
         "slot"
-      ],
-      "required": [
-        "direction",
-        "generation",
-        "repoRoot",
-        "seed"
       ]
     },
     {
       "name": "semantic_detail",
+      "required": [
+        "generation",
+        "refs",
+        "repoRoot"
+      ],
       "properties": [
         "cursor",
         "fields",
@@ -450,29 +455,25 @@
         "refs",
         "repoRoot",
         "typeQueries"
-      ],
-      "required": [
-        "generation",
-        "refs",
-        "repoRoot"
       ]
     },
     {
       "name": "index_status",
+      "required": [],
       "properties": [
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "config_status",
+      "required": [],
       "properties": [
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "build_index",
+      "required": [],
       "properties": [
         "artifactsDir",
         "incremental",
@@ -481,11 +482,11 @@
         "sqlite",
         "stubEmbeddings",
         "useArtifacts"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "search",
+      "required": [],
       "properties": [
         "alias",
         "allowSparseFallback",
@@ -549,11 +550,14 @@
         "uses",
         "visibility",
         "writes"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "context_pack",
+      "required": [
+        "hops",
+        "seed"
+      ],
       "properties": [
         "filters",
         "hops",
@@ -586,14 +590,13 @@
         "strictRisk",
         "workspaceId",
         "workspacePath"
-      ],
-      "required": [
-        "hops",
-        "seed"
       ]
     },
     {
       "name": "risk_explain",
+      "required": [
+        "chunk"
+      ],
       "properties": [
         "chunk",
         "filters",
@@ -601,13 +604,15 @@
         "max",
         "maxPartialFlows",
         "repoPath"
-      ],
-      "required": [
-        "chunk"
       ]
     },
     {
       "name": "risk_delta",
+      "required": [
+        "from",
+        "seed",
+        "to"
+      ],
       "properties": [
         "filters",
         "from",
@@ -615,15 +620,13 @@
         "repoPath",
         "seed",
         "to"
-      ],
-      "required": [
-        "from",
-        "seed",
-        "to"
       ]
     },
     {
       "name": "search_workspace",
+      "required": [
+        "workspacePath"
+      ],
       "properties": [
         "allowUnsafeMix",
         "cohort",
@@ -637,13 +640,14 @@
         "strict",
         "workspaceId",
         "workspacePath"
-      ],
-      "required": [
-        "workspacePath"
       ]
     },
     {
       "name": "triage_ingest",
+      "required": [
+        "inputPath",
+        "source"
+      ],
       "properties": [
         "buildIndex",
         "incremental",
@@ -653,14 +657,14 @@
         "source",
         "strict",
         "stubEmbeddings"
-      ],
-      "required": [
-        "inputPath",
-        "source"
       ]
     },
     {
       "name": "triage_decision",
+      "required": [
+        "finding",
+        "status"
+      ],
       "properties": [
         "codes",
         "evidence",
@@ -671,36 +675,33 @@
         "repoPath",
         "reviewer",
         "status"
-      ],
-      "required": [
-        "finding",
-        "status"
       ]
     },
     {
       "name": "triage_context_pack",
+      "required": [
+        "recordId"
+      ],
       "properties": [
         "ann",
         "outPath",
         "recordId",
         "repoPath",
         "stubEmbeddings"
-      ],
-      "required": [
-        "recordId"
       ]
     },
     {
       "name": "download_models",
+      "required": [],
       "properties": [
         "cacheDir",
         "model",
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "download_dictionaries",
+      "required": [],
       "properties": [
         "dir",
         "force",
@@ -708,20 +709,20 @@
         "repoPath",
         "update",
         "url"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "download_extensions",
+      "required": [],
       "properties": [
         "force",
         "repoPath",
         "update"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "verify_extensions",
+      "required": [],
       "properties": [
         "annMode",
         "column",
@@ -731,11 +732,11 @@
         "options",
         "repoPath",
         "table"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "build_sqlite_index",
+      "required": [],
       "properties": [
         "codeDir",
         "compact",
@@ -744,40 +745,40 @@
         "out",
         "proseDir",
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "compact_sqlite_index",
+      "required": [],
       "properties": [
         "dryRun",
         "keepBackup",
         "mode",
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "cache_gc",
+      "required": [],
       "properties": [
         "dryRun",
         "maxAgeDays",
         "maxBytes",
         "maxGb",
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "clean_artifacts",
+      "required": [],
       "properties": [
         "dryRun",
         "repoPath"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "bootstrap",
+      "required": [],
       "properties": [
         "incremental",
         "repoPath",
@@ -787,15 +788,14 @@
         "skipInstall",
         "skipTooling",
         "withSqlite"
-      ],
-      "required": []
+      ]
     },
     {
       "name": "report_artifacts",
+      "required": [],
       "properties": [
         "repoPath"
-      ],
-      "required": []
+      ]
     }
   ]
 }
