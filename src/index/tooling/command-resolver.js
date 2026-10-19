@@ -946,10 +946,12 @@ export const probeLspInitializeHandshake = async (input) => {
       cwd,
       successOnly: true
     });
+    const errorCode = err?.code;
     return {
       ok: false,
       latencyMs: Date.now() - startedAt,
-      errorCode: err?.code || null,
+      errorCode: typeof errorCode === 'string' ? errorCode || null
+        : Number.isFinite(errorCode) ? String(errorCode) : null,
       errorMessage: summarizeProbeText(err?.message || err, 240) || 'initialize handshake failed'
     };
   } finally {
