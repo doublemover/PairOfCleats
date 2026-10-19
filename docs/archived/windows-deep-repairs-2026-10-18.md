@@ -2,6 +2,56 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 follow-up to `d481d8980`: all hosted jobs are green, but raw attempts
+show one Windows compiler cancellation and one macOS YAML fallback before their
+retries pass. The Windows compiler's first attempt reaches the fixture's unchanged
+20-second cancellation guard; it is an AbortError, not a native crash. Broad CI
+runs two jobs. The strict Windows ownership step passes all three first attempts;
+orphan discovery exits zero, finds/kills its one child and takes 485 ms there and
+816 ms in the broad lane. The previous two orphan failures remain unattributed.
+All 44 exact-head authority cases also pass, with verified raw logs and readiness.
+
+Actual retained macOS compiler telemetry closes the memory-owner hypothesis:
+`availableBytes=3331997696`, `hostFreeBytes=847560704`, scheduler byte capacity
+`849747968`, and the unchanged `536870912` reservation is admitted with CPU/memory
+totals one. Its full compiler case passes first attempt in 15.836 seconds and
+the memory regression in 1.243 seconds. This is ordinary PR-merge CI context;
+the independent authority job verifies the exact PR head/tree. Raw logs and
+`hosted-d481-memory-verification.json` preserve that distinction.
+
+The CPU ownership fixture now uses two real TypeScript modules and ES5 ambient
+declarations, retaining the canonical 512 MiB policy, actual token/maxima one,
+adaptive admission, 20-second cancellation and 30-second runner limits. A task
+control passes every original assertion in 9.995 seconds with measured peak RSS
+415436800 bytes. The exact original scheduler owners, Git blobs
+`44810ee1d61c77493aa8a460ef68d70ae95222ff` and
+`ab4ba791b718f0640fd56a71b139d434bab041ab`, still fail under the same smaller
+project at 22.8 seconds. The normal fixture then passes in 10.2 seconds. AST
+comparison proves all 17 original assertions remain structurally identical and
+in order; five new assertions require a completed, matching measured execution
+receipt and a real imported call target in the other source. The earlier 256 MiB
+prototype remains rejected; this repair does not understate that measurement.
+
+The helper's default source/configuration is unchanged: actual writes of all
+four default files at one physical root have identical bytes before/after. Only
+the CPU caller selects smaller inputs. Full SSR/compiler-binding coverage remains
+and records two passes (29.4 seconds each) and an SSR incremental timeout at 30.4
+seconds in `cpu-retained-full-compiler-coverage-15.json`. That failure is open.
+An isolated diagnostic profile takes 29.5 seconds: import 2.75, cold/warm builds
+12.71/10.38, forward traces 1.60/1.55, cleanup 0.07 seconds. Each trace opens about
+1500 files and resolves over 2000 paths; no active handles remain besides pipes.
+Disabling the TypeScript provider removes required compiler contexts and fails
+the positive control, so that diagnostic is rejected without a source change.
+Further repair must retain the complete 115-record/136-edge witness and authority.
+
+Unfrozen service diagnostics pass all 120 service cases plus two parser cases,
+with first attempts and unchanged bounds. The first 80 take 637.1 seconds total
+(slowest 25.8); the remaining 40 plus parsers take 232.0 seconds (slowest 21.6).
+The only two warning lines belong to the existing fresh default-provider
+diagnostic assertions; the remaining run has none. Parser assertion messages now
+retain fallback reasons and metrics without relaxing expected results. No new
+whole-suite candidate has been frozen; none of these observations is borrowed.
+
 October 19 hosted follow-up at `f6b9f0a49`: the memory-owner repair passes
 the full-corpus single-token compiler case on macOS on its first attempt
 (16.862 seconds), and the effective-memory regression passes in 712 ms.

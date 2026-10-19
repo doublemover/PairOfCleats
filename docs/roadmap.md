@@ -13,18 +13,19 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 14 at `39703b3a3` remains partial: 332 required passes, 2649 pending;
-its 20 serial SQLite samples have p95 226.124 ms. The shared memory repair
-preserves zero-pressure and hard limits; at `f6b9f0a49`, macOS passes the real
-single-token compiler case on its first attempt in 16.9 seconds. Windows
-authority passes all 44 with real file symlinks and no retries/skips/crashes.
-Ordinary Windows CI instead fails detached-descendant cleanup in both attempts;
-the same fixture passes locally. Its actual discovery outcome is now captured.
-Successful CI uploads also retain raw attempts: the previous upload discarded
-compiler telemetry and two macOS first-failure logs masked by retries.
-These remain open until their actual causes and fresh results are verified.
-No next campaign is frozen; every required case must run on its final source.
-The Windows receipt preserves every partial campaign and repair proof.
+Candidate 14 remains partial: 332 required passes, 2649 pending. At `d481d8980`,
+all hosted jobs are green, but Windows compiler and macOS YAML retries remain
+visible in retained raw logs. Real macOS telemetry proves the memory repair:
+3.33 GB process availability versus 0.85 GB raw free, with the unchanged 512 MiB
+compiler reservation admitted. Strict Windows ownership passes three cases and
+authority passes all 44 first attempts. Earlier orphan failures remain unattributed.
+The CPU regression now uses two compiler modules: all 17 original assertions
+remain, five checks are added, and the old owner still deadlocks at 22.8 seconds.
+Its repaired owner passes in 10.2 seconds with the same budgets and deadlines.
+Default SSR inputs are byte-identical; their retained coverage finds another
+30.4-second timeout. Profiling shows repeated artifact reads, without leaked
+handles. No next campaign is frozen. Every required case must run on its final
+source; the Windows receipt preserves each partial campaign and open failure.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

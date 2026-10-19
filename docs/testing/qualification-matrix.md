@@ -61,13 +61,16 @@ OS × language × provider × backend cross-product to routine PR work.
    and real compiler/binding positives. macOS then exposes false global-byte
    pressure: raw free pages discard the process API's reclaimable availability.
    The shared memory owner is repaired while preserving zero-pressure and all
-   hard budget bounds. At `f6b9f0a49`, macOS passes the real compiler case on its
-   first attempt in 16.9 seconds; the successful artifact omitted its raw
-   telemetry. CI quality artifacts now preserve all attempt logs and failure
-   receipts, including failures subsequently masked by retries. Fresh telemetry
-   remains required. Ordinary Windows CI separately fails detached-descendant
-   cleanup twice, although its 44 strict authority cases pass; internal discovery
-   diagnostics retain the actual command result before attributing that fault.
+   hard budget bounds. Retained `d481d8980` macOS telemetry proves 3.33 GB process
+   availability versus 0.85 GB raw free and admission of the unchanged 512 MiB
+   request, first attempt in 15.8 seconds. Windows compiler and macOS YAML retries
+   remain visible; a green job is not zero-retry acceptance. The CPU fixture now
+   isolates two real compiler modules, preserves all 17 assertions and adds five
+   execution/cross-source checks. The old owner still fails at 22.8 seconds; the
+   repaired fixture passes in 10.2 seconds. All default SSR input bytes remain
+   unchanged. Their retained full coverage records a new 30.4-second timeout;
+   that lifecycle/read cost remains open. Windows cleanup passes first attempts
+   in both strict and broad lanes, but its earlier orphan failure is unattributed.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
    node-pty ConPTY capture owner with actual console-mode observations. Focused
