@@ -17,7 +17,7 @@ const text = ['notes: |', '  😀 text only', '  include: "block.fake"', 'quoted
   '  include: quoted.fake', '  last"', 'include: ["real.yaml", "comma,name.yaml"]',
   '"im\\u0070ort": "escaped.yaml"'].join('\r\n');
 const model = parseYamlStructure(text);
-assert.equal(model.parser, 'yaml-syntax-nodes');
+assert.equal(model.parser, 'yaml-syntax-nodes', JSON.stringify({ reason: model.reason, metrics: model.metrics }));
 assert.equal(model.coverage, 'partial');
 assert.equal(model.rangeSource, 'vendor-utf16-node');
 assert.equal(parseYamlStructure(text), model);

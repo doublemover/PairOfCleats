@@ -15,7 +15,7 @@ const text = ['description = """', '😀 documentation only', '[dependencies]',
   'include = [', ' "real.toml",', ' "comma,name.toml",', ']', '[dependencies]',
   'actual = { path = "../real" }', 'registry_only = "1.0"'].join('\r\n');
 const model = parseTomlStructure(text);
-assert.equal(model.parser, 'smol-toml-values+lexical');
+assert.equal(model.parser, 'smol-toml-values+lexical', JSON.stringify({ reason: model.reason, metrics: model.metrics }));
 assert.equal(model.coverage, 'partial');
 assert.equal(model.rangeSource, 'application-utf16-lexer');
 assert.equal(parseTomlStructure(text), model);
