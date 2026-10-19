@@ -2,6 +2,44 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 hosted follow-up at `f6b9f0a49`: the memory-owner repair passes
+the full-corpus single-token compiler case on macOS on its first attempt
+(16.862 seconds), and the effective-memory regression passes in 712 ms.
+The macOS selected suite reports 970 passes and one optional Tantivy exclusion.
+Two other language cases, TOML lexical boundaries and YAML syntax boundaries,
+pass only on retry; that green job is not zero-retry acceptance. The successful
+quality artifact retained summaries but discarded raw attempt logs, preventing
+inspection of those first failures and the compiler memory telemetry. All three
+OS quality uploads now retain raw logs and failure JSON on success as well as
+failure, with a workflow contract that fails against the previous upload policy.
+
+The same head's strict hosted Windows authority job passes all 44 first attempts,
+with a real file symlink, zero skips/timeouts/crashes and independently verified
+head/tree, executable, readiness hash and raw logs. Gate, Rust, Ubuntu and policy
+jobs pass. Ordinary Windows CI reports 967 passes, three declared exclusions and
+one failure: both attempts of `shared/subprocess/sync-timeout-kills-child-tree`
+leave the detached descendant alive after the direct parent exits. Original raw
+logs remain in `hosted-f6b9-windows-failure/`. The same source passes locally in
+8.63 seconds; this does not dismiss the hosted failure. The existing orphan
+discovery owner now retains its exit code, error code, elapsed time, bounded
+stderr and descendant count, and the fixture includes that internal evidence in
+its failure. Its deadlines, commands, positive reaping assertions and cleanup
+behavior remain unchanged while the hosted cause is unresolved. Three affected
+local lifecycle cases pass in 11.4 seconds after adding these diagnostics.
+Those same three real fixtures now run before broad Windows CI with one job,
+one thread, 30-second limits and zero retries/native redo. Their separate result
+and every raw attempt survive even if that early step blocks the broad suite.
+This makes the Windows ownership prerequisite bounded and exposes failures
+before the larger lane; it adds no new fixture or relaxed assertion.
+
+Additional unfrozen retrieval diagnostics pass 26 serial cases in 271.3 seconds
+(slowest 24.314 seconds, no warning/error lines) and 80 fast cases in 22.7 seconds.
+They retain one attempt, 30-second bounds and no native-status redo; they are not
+borrowed into a future frozen campaign. No candidate 15 has been frozen, and
+candidate 14 remains the previously recorded partial receipt below. Task-owned
+receipts named here are historical author-workspace evidence, not files promised
+in a clean checkout.
+
 Branch: `codex/pr557-audit-repairs-20261012`, base HEAD
 `ab00d918d77fd45c086831e9759d7596ac18a16d`, with the preceding uncommitted audit
 repairs preserved. The [original audit](deep-test-audit-2026-10-18.md) retains

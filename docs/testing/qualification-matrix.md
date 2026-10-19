@@ -12,6 +12,7 @@ Current execution evidence and unresolved failures belong to the
 | --- | --- | --- |
 | Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.10.0 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
 | Windows authority | `windows-authority` job: exact PR head, real file-symlink capability probe, explicit 44-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification. A configured job is not a passing receipt; all cases must pass with logs and source/dependency identity. |
+| Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
 | Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
 | Extended/performance | `.github/workflows/nightly.yml`: manual dispatch, three OS targets; `run-suite.js --mode nightly` adds storage, perf, soak, benchmark and script-coverage work | Extended campaign when actually invoked. The workflow currently has no nightly schedule. |
@@ -60,7 +61,13 @@ OS × language × provider × backend cross-product to routine PR work.
    and real compiler/binding positives. macOS then exposes false global-byte
    pressure: raw free pages discard the process API's reclaimable availability.
    The shared memory owner is repaired while preserving zero-pressure and all
-   hard budget bounds. Fresh hosted telemetry and execution remain required.
+   hard budget bounds. At `f6b9f0a49`, macOS passes the real compiler case on its
+   first attempt in 16.9 seconds; the successful artifact omitted its raw
+   telemetry. CI quality artifacts now preserve all attempt logs and failure
+   receipts, including failures subsequently masked by retries. Fresh telemetry
+   remains required. Ordinary Windows CI separately fails detached-descendant
+   cleanup twice, although its 44 strict authority cases pass; internal discovery
+   diagnostics retain the actual command result before attributing that fault.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
    node-pty ConPTY capture owner with actual console-mode observations. Focused

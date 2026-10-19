@@ -13,18 +13,18 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 14 at `39703b3a3` records 332 required Windows passes: 288 local and
-44 hosted authority cases with real file symlinks, zero failures, retries,
-skips or native crashes. Its serial SQLite p95 is 226.124 ms over 20 samples.
-The campaign stops at a cohort boundary for macOS CI's global-byte rejection;
-2649 required cases remain unexecuted. The shared memory owner discarded
-process-available reclaimable headroom by taking its minimum with raw free
-pages. Its regression now fails before and passes after repair, preserving
-zero-pressure, container and configured-limit guards. The original compiler
-corpus, 512 MiB ceiling, actual single-token limits and adaptive admission stay.
-The next complete campaign waits for hosted memory telemetry; all required
-cases must run on its frozen source. The Windows receipt retains every partial
-campaign and the reader, SSR, baseline, authority and lifecycle repair proofs.
+Candidate 14 at `39703b3a3` remains partial: 332 required passes, 2649 pending;
+its 20 serial SQLite samples have p95 226.124 ms. The shared memory repair
+preserves zero-pressure and hard limits; at `f6b9f0a49`, macOS passes the real
+single-token compiler case on its first attempt in 16.9 seconds. Windows
+authority passes all 44 with real file symlinks and no retries/skips/crashes.
+Ordinary Windows CI instead fails detached-descendant cleanup in both attempts;
+the same fixture passes locally. Its actual discovery outcome is now captured.
+Successful CI uploads also retain raw attempts: the previous upload discarded
+compiler telemetry and two macOS first-failure logs masked by retries.
+These remain open until their actual causes and fresh results are verified.
+No next campaign is frozen; every required case must run on its final source.
+The Windows receipt preserves every partial campaign and repair proof.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
