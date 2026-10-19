@@ -13,7 +13,10 @@ export const readEffectiveMemory = (input = {}) => {
   const rssBytes = Math.max(0, Number(input.rssBytes ?? process.memoryUsage().rss) || 0);
   const bounds = [hostTotalBytes, constrainedBytes, configuredLimitBytes].filter(value => value != null);
   const totalBytes = bounds.length ? Math.min(...bounds) : null;
-  const headrooms = [hostFreeBytes, availableBytes, totalBytes == null ? null : Math.max(0, totalBytes - rssBytes)]
+  // Process availability includes reclaimable pages on macOS and process
+  // constraints elsewhere. Raw host free pages are only a fallback; taking
+  // their minimum would discard that headroom. A reported zero stays pressure.
+  const headrooms = [availableBytes ?? hostFreeBytes, totalBytes == null ? null : Math.max(0, totalBytes - rssBytes)]
     .filter(value => value != null);
   const freeBytes = headrooms.length ? Math.max(0, Math.min(...headrooms)) : 0;
   return { totalBytes, freeBytes, rssBytes, hostTotalBytes, hostFreeBytes, constrainedBytes,

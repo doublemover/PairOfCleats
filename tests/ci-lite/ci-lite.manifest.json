@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 832,
+    "hero": 833,
     "matrix": 108,
     "meta": 29,
     "soak": 1,
@@ -5833,6 +5833,12 @@
     {
       "id": "storage/semantic/verified-piece-snapshot",
       "order": 970,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/effective-memory-and-retained-bytes",
+      "order": 971,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

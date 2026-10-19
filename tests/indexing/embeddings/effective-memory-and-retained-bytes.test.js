@@ -15,6 +15,21 @@ assert.equal(snapshot.freeBytes, 256 * MB);
 assert.equal(snapshot.constrained, true);
 assert.equal(readEffectiveMemory({ ...snapshot, availableBytes: 0 }).freeBytes, 0,
   'zero available memory is pressure rather than missing telemetry');
+// macOS process availability includes inactive/purgeable pages; raw host free
+// pages must not discard that authoritative headroom. Keep every hard bound.
+const reclaimable = { hostTotalBytes: 8 * 1024 * MB, hostFreeBytes: 256 * MB,
+  constrainedBytes: Number.NaN, configuredLimitBytes: 4 * 1024 * MB,
+  availableBytes: 3 * 1024 * MB, rssBytes: 512 * MB };
+assert.equal(readEffectiveMemory(reclaimable).freeBytes, 3 * 1024 * MB,
+  'process-available headroom includes memory the OS can reclaim');
+assert.equal(readEffectiveMemory({ ...reclaimable, availableBytes: Number.NaN }).freeBytes, 256 * MB,
+  'unknown process availability falls back to measured host free memory');
+assert.equal(readEffectiveMemory({ ...reclaimable, availableBytes: 0 }).freeBytes, 0);
+assert.equal(readEffectiveMemory({ ...reclaimable, availableBytes: 64 * MB }).freeBytes, 64 * MB,
+  'smaller process allowance still wins over optimistic host telemetry');
+assert.equal(readEffectiveMemory({ ...reclaimable, constrainedBytes: 1024 * MB,
+  configuredLimitBytes: 768 * MB, rssBytes: 256 * MB }).freeBytes, 512 * MB,
+'container/configured headroom still caps reclaimable availability');
 const policy = resolveRuntimeMemoryPolicy({ indexingConfig: {}, cpuConcurrency: 2, memorySnapshot: snapshot });
 assert.ok(policy.maxGlobalRssMb < 384, 'the old 2-GiB floor cannot override a constrained budget');
 assert.ok(policy.reserveRssMb < 128);

@@ -6,6 +6,7 @@ import { createPublishedSemanticWitness } from '../../helpers/published-semantic
 import { resolveSemanticPartPath } from '../../../src/semantic/artifact-store.js';
 import { DEFAULT_COMPILER_ADMISSION_POLICY } from '../../../src/index/semantic/compiler-admission.js';
 import { readRuntimeReceipt } from '../../../src/shared/runtime-envelope/read-receipt.js';
+import { readEffectiveMemory } from '../../../src/shared/effective-memory.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compiler-single-cpu-'));
 const controller = new AbortController();
@@ -14,6 +15,7 @@ const controller = new AbortController();
 const timer = setTimeout(() => controller.abort(Object.assign(new Error('Single-CPU compiler publication did not settle'),
   { code: 'ERR_SINGLE_CPU_COMPILER_DEADLINE' })), 20000);
 try {
+  const memoryBefore = readEffectiveMemory();
   // Exercise CPU ownership with the product's 512 MiB default reservation.
   // The larger SSR helper ceiling can correctly exceed macOS memory capacity.
   const fixture = await createPublishedSemanticWitness({ root, threads: 1, abortSignal: controller.signal,
@@ -41,6 +43,11 @@ try {
     admissionSummary.push({ admitted: decision.admitted, reason: decision.reason,
       closure: decision.closure, reservation: decision.reservation, request: decision.request });
   }
+  console.log(JSON.stringify({ measurement: 'single-token-compiler-memory', memoryBefore,
+    scheduler: completed.map(attempt => ({ maxInFlightBytes: attempt.runtime.scheduler.adaptive.maxInFlightBytes,
+      memoryPerTokenMb: attempt.runtime.scheduler.adaptive.memoryPerTokenMb,
+      cpu: attempt.runtime.scheduler.tokens.cpu.total, mem: attempt.runtime.scheduler.tokens.mem.total })),
+    admissions: admissionSummary }));
   assert.ok(fixture.manifest.contexts.length > 0,
     'the real TypeScript Program supplies compiler context: ' + JSON.stringify(admissionSummary));
   assert.ok(admissionSummary.length > 0, 'actual durable decisions explain compiler admission');
