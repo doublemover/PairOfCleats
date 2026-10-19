@@ -110,6 +110,18 @@ try {
   const standaloneEnv = applyManagedGoEnvironment({}, { toolingRoot, sdk });
   assert.ok(standaloneEnv.GOCACHE.startsWith(toolingRoot));
   assert.ok(standaloneEnv.GOPATH.startsWith(toolingRoot));
+  const relativeRoot = path.relative(process.cwd(), toolingRoot);
+  const relativeEnv = applyManagedGoEnvironment({}, { toolingRoot: relativeRoot, sdk });
+  assert.equal(relativeEnv.GOPATH, path.join(toolingRoot, 'go-cache', 'modules'),
+    'Go requires an absolute module cache even when the configured tooling root is relative');
+  assert.equal(relativeEnv.GOCACHE, path.join(toolingRoot, 'go-cache', 'build'),
+    'Go requires an absolute build cache even when the configured tooling root is relative');
+  const explicitCaches = { GOPATH: path.join(root, 'custom modules'), GOCACHE: path.join(root, 'custom build') };
+  const explicitEnv = applyManagedGoEnvironment(explicitCaches, { toolingRoot: relativeRoot, sdk });
+  assert.equal(explicitEnv.GOPATH, explicitCaches.GOPATH, 'explicit module-cache ownership remains active');
+  assert.equal(explicitEnv.GOCACHE, explicitCaches.GOCACHE, 'explicit build-cache ownership remains active');
+  assert.deepEqual(explicitCaches, { GOPATH: path.join(root, 'custom modules'), GOCACHE: path.join(root, 'custom build') },
+    'launch preparation must not mutate the caller environment');
   assert.equal((await fs.readdir(path.join(toolingRoot, 'sdk/go'))).some((entry) => entry.startsWith('.install-')), false);
 
   const beforeExtracts = extracts;

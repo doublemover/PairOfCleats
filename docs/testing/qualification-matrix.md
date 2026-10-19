@@ -93,6 +93,17 @@ OS × language × provider × backend cross-product to routine PR work.
    Simulated LSP fixtures establish protocol behavior, not installed-tool or
    cross-platform language precision.
 
+The post-acceptance setup-log audit finds a real managed-Go preparation defect:
+a relative tooling root produces relative `GOPATH`/`GOCACHE`, rejected by Go.
+Absolute default-cache resolution repairs it, preserving explicit user values.
+The same real Windows Go executable fails before and passes after the repair;
+22 affected installer/provider fixtures pass. Its existing SDK regression joins
+regular CI (976 cases); physical discovery remains 2999. The complete Windows
+deep run above still identifies its original frozen source. macOS optional
+Pyright installation separately emits npm's unreviewed `fsevents` lifecycle-policy
+warning; it is not an asserted negative-case warning or a clean setup receipt.
+No automatic lifecycle approval or machine security change supplies acceptance.
+
 ## Performance evidence to use
 
 The completed Windows deep campaign explicitly excludes these 17 whole cases. Their

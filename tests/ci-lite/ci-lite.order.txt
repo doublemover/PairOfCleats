@@ -473,6 +473,7 @@ tooling/lsp/configured-provider-rust-workspace-metadata-preflight-degraded
 indexing/postings/chargram-rolling-hash
 shared/hash/xxhash-backends
 tooling/install/tooling
+tooling/install/go-sdk-cache-recipe
 lang/typescript/typescript-contract-matrix
 retrieval/ann/lancedb-runtime-contract-matrix
 services/indexing/compressed-artifact-presence

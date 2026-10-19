@@ -211,6 +211,65 @@ acceptance has no remaining blocker. Dependency PRs #573–#583 remain separate
 reviews. No merge, release, debugger registration or security-setting change is
 part of this acceptance.
 
+## Post-acceptance managed-Go preparation repair, October 19
+
+Closeout head `25ef23f21bf2ea4275b14b9bf2520d936c94cb38` passes all seven
+PR checks (six jobs in CI run `39341409144` and adaptive policy). All downloaded
+975-case quality artifacts and raw logs are verified: Windows 972 passes/three
+declared exclusions, Ubuntu/macOS 974/one each, all first attempts and every
+case below 30 seconds. The five ordinary jobs' synthetic merge
+`258c9cd4ba814bdcab245b10ad2fb1d4c68c19d3` has the exact closeout Git tree
+`63a9dfbc416b03a2ee0237f46f4927e85f0f0ec1`. Strict authority separately verifies
+that head/tree and all 44 real file-symlink cases, without retries or skips;
+bootstrap receipt SHA-256 is
+`31ce5f17d759d8dd72a366829df7620f07fa1e6194523cf85583a089d355ca63`.
+All three separate strict Windows subprocess cases pass. All 15 hosted fixture
+warning/error lines retain exact asserted negative owners. This closeout changes
+three documentation files and the proved-stale documentation guard only; all
+5812 other non-documentation files match the full candidate-22 qualification.
+It passes format, governance refresh, native verification, config/environment,
+generated freshness, command/workflow contracts, all 39 front-gate cases
+(21.7 seconds), four final documentation/link/history cases and whitespace checks.
+
+The complete job-log audit nevertheless finds a genuine optional-tool preparation
+error on macOS: Go rejects `.ci-cache/pairofcleats/tooling/go-cache/modules` as
+a relative `GOPATH`. This is outside the fixture-warning inventory and must not
+be called a clean setup result. `applyManagedGoEnvironment` joins a relative
+tooling root for both default caches, although its SDK paths are already absolute.
+The repair uses absolute resolution for default `GOPATH` and `GOCACHE`. Existing
+explicit user values, serial toolchain policy, SDK provenance, authority and
+installation failure contracts remain unchanged. No semantic producer/format
+meaning changes; this is preparation of environment paths.
+
+The existing portable SDK fixture adds relative-root witnesses for both defaults,
+explicit cache preservation and caller-environment immutability. Its original
+provenance, reuse, checksum/layout rejection and cleanup assertions remain. The
+added regression fails before repair in 140 ms and passes afterward in 185 ms.
+All 22 selected installer/provider checks pass first attempts in 70.4 seconds,
+slowest 8.52 seconds. The existing regression joins CI-lite, growing its ordered
+inventory from 975 to 976; discovery remains 2999 with the same 17 exclusions.
+
+A separate same-input real-Go control proves the actual consumer contract:
+`go version go1.26.4 windows/amd64`, executable SHA-256
+`9b3239fee08fa24ec8280180789cd3fdcfc24f33dc19b3a1230fa6b0ae3c5aad`.
+With the old source's environment, `go env GOPATH GOCACHE` exits 2 and reports
+the relative-path error. The repaired source produces absolute task-owned paths;
+the identical executable/SDK/arguments/environment baseline exits 0, prints both
+expected paths and emits no stderr. It downloads no modules, builds no package
+and changes no global configuration. Historical local receipts are
+`go-relative-cache-before-24.json`, `go-relative-cache-after-24.json`,
+`go-relative-cache-focused-24.json` and `real-go-relative-cache-proof-24.json`
+under the task receipt root above.
+
+The macOS optional Pyright installer also emits npm's existing
+`fsevents@2.3.3` lifecycle-policy warning, present in both candidate-22 and
+closeout logs. This is not one of the asserted negative fixture warnings.
+Its installed-tool/script-policy qualification remains separate; no script
+approval or security-setting change is made to turn it into a quiet result.
+The complete deep-suite observation remains at candidate 22; this subsequent
+owner repair requires its own affected checks and publication CI, without
+inheriting a later-head whole-suite claim.
+
 ## Candidate 21: complete diagnostics and descriptor-zero fixture fidelity
 
 Candidate 21 has a complete first-pass diagnostic view: **2981 required passes

@@ -71,8 +71,8 @@ export const applyManagedGoEnvironment = (baseEnv, { toolingRoot, sdk = null } =
   // Keep preparation serial and forbid an implicit, unverified toolchain download.
   env.GOMAXPROCS = env.GOMAXPROCS || '1';
   env.GOTOOLCHAIN = env.GOTOOLCHAIN || 'local';
-  env.GOPATH = env.GOPATH || path.join(toolingRoot, 'go-cache', 'modules');
-  env.GOCACHE = env.GOCACHE || path.join(toolingRoot, 'go-cache', 'build');
+  env.GOPATH = env.GOPATH || path.resolve(toolingRoot, 'go-cache', 'modules');
+  env.GOCACHE = env.GOCACHE || path.resolve(toolingRoot, 'go-cache', 'build');
   if (!/(?:^|\s)-p(?:=|\s)/.test(env.GOFLAGS || '')) env.GOFLAGS = `${env.GOFLAGS || ''} -p=1`.trim();
   return env;
 };
