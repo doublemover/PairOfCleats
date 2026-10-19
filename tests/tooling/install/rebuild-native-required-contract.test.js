@@ -23,12 +23,15 @@ const required = parseStringArray('REQUIRED_NATIVE_PACKAGES');
 const optional = parseStringArray('OPTIONAL_NATIVE_PACKAGES');
 const directDeps = new Set([
   ...Object.keys(pkg.dependencies || {}),
-  ...Object.keys(pkg.optionalDependencies || {})
+  ...Object.keys(pkg.optionalDependencies || {}),
+  // Locked bootstrap includes dev dependencies, including the PTY qualifier.
+  ...Object.keys(pkg.devDependencies || {})
 ]);
 
 assert.equal(required.includes('sharp'), false, 'sharp must not be required for rebuild:native');
 assert.equal(optional.includes('sharp'), true, 'sharp should be optional for rebuild:native');
 assert.equal(required.includes('tree-sitter'), true, 'tree-sitter should be required for rebuild:native');
+assert.equal(required.includes('node-pty'), true, 'required terminal qualification must probe natural PTY disposal');
 
 for (const dep of required) {
   assert.equal(

@@ -184,7 +184,7 @@ export const applyPatches = (cwd = process.cwd(), { verifyOnly = false } = {}) =
         fs.writeFileSync(path.join(stage, 'target'), source.replace(/\r\n/g, '\n'));
         const forward = runGit(stage, patch.patch, ['--check']);
         if (verifyOnly && forward.status === 0) {
-          throw new Error(`Required patch ${name} has not been applied. Run npm run bootstrap.`);
+          throw new Error(`Required patch ${name} has not been applied. Run npm run bootstrap:ci.`);
         }
         if (forward.status !== 0) {
           const reverse = runGit(stage, patch.patch, ['--reverse', '--check']);

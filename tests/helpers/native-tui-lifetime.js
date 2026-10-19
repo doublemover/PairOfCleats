@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 
 export const verifyNativeTuiLifetime = async mode => {
+  if (process.platform === 'win32') {
+    const { verifyNativeTuiConpty } = await import('./native-tui-conpty.js');
+    return verifyNativeTuiConpty(mode);
+  }
   const root = fileURLToPath(new URL('../../', import.meta.url));
   const result = await spawnSubprocess('python3', [path.join(root, 'tests/fixtures/tui/native-lifetime-pty.py'),
     root, process.execPath, mode], { cwd: root, timeoutMs: 26000, maxOutputBytes: 65536 });

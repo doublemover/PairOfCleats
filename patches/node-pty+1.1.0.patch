@@ -1,0 +1,25 @@
+diff --git a/node_modules/node-pty/lib/windowsPtyAgent.js b/node_modules/node-pty/lib/windowsPtyAgent.js
+index a358ffb..19566a9 100644
+--- a/node_modules/node-pty/lib/windowsPtyAgent.js
++++ b/node_modules/node-pty/lib/windowsPtyAgent.js
+@@ -244,6 +244,8 @@
+         this._inSocket.readable = false;
+         this._outSocket.readable = false;
+         this._outSocket.destroy();
++        this._inSocket.destroy();
++        this._conoutSocketWorker.dispose();
+     };
+     return WindowsPtyAgent;
+ }());
+diff --git a/node_modules/node-pty/src/windowsPtyAgent.ts b/node_modules/node-pty/src/windowsPtyAgent.ts
+index d705444..31958af 100644
+--- a/node_modules/node-pty/src/windowsPtyAgent.ts
++++ b/node_modules/node-pty/src/windowsPtyAgent.ts
+@@ -247,5 +247,7 @@
+     this._inSocket.readable = false;
+     this._outSocket.readable = false;
+     this._outSocket.destroy();
++    this._inSocket.destroy();
++    this._conoutSocketWorker.dispose();
+   }
+ }

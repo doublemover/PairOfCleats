@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { recordBootstrapReadiness } from '../../src/shared/bootstrap-readiness.js';
 import { applyPatches } from './apply-patches.js';
-import { probeNativePackage } from '../../src/shared/native-package-probe.js';
+import { probeNativePackage, probeNodeRealmLifecycle } from '../../src/shared/native-package-probe.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnResolvedSubprocessSync } from '../../src/shared/subprocess/command-invocation.js';
@@ -13,6 +13,7 @@ const REQUIRED_NATIVE_PACKAGES = [
   'tree-sitter',
   ...listNativeTreeSitterGrammarModuleNames(),
   'better-sqlite3',
+  'node-pty',
   'hnswlib-node',
   'onnxruntime-node',
   '@lancedb/lancedb',
@@ -31,12 +32,18 @@ const TREE_SITTER_PERL_PATCH_VERSION = '1.1.1';
 const TREE_SITTER_PERL_PATCH_MARKERS = [
   'dynamic STRING queue in C',
   'clearStringQueue(scanner->heredoc.heredoc_identifier_queue);',
-  'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);'
+  'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);',
+  'if (scanner == NULL) return NULL;'
 ];
 
 const root = process.cwd();
 const verifyOnly = process.argv.includes('--verify');
 const repairOnly = process.argv.includes('--repair');
+const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
+if (nodeMajor !== 26 || nodeMinor < 10) {
+  console.error('[bootstrap] Node.js >=26.10.0 <27 is required for safe VM worker teardown.');
+  process.exit(1);
+}
 
 const resolveNodeModulesPath = (pkgName) => (
   path.join(root, 'node_modules', ...pkgName.split('/'))
@@ -142,10 +149,35 @@ const normalizePackageNameResult = (pkgName) => {
   return { ok: true, pkgName: normalizedPkgName };
 };
 
+// This grammar carries a patched C scanner. Build its binding from the patched
+// source directly: npm 11 warns about the legacy build-from-source config key,
+// and a prebuilt binding would not contain the scanner repair.
+const rebuildPatchedPerlFromSource = () => {
+  try {
+    const result = spawnResolvedSubprocessSync(process.execPath, [
+      path.join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild'
+    ], {
+      cwd: resolveNodeModulesPath(TREE_SITTER_PERL_PACKAGE),
+      stdio: 'inherit',
+      env: buildNpmEnv(),
+      rejectOnNonZeroExit: false
+    });
+    return { ok: result.exitCode === 0,
+      message: result.exitCode === 0 ? null
+        : formatSpawnFailureReason({ status: result.exitCode, signal: result.signal }) };
+  } catch (err) {
+    return { ok: false, message: err?.message || String(err) };
+  }
+};
+
 const rebuildPackage = (pkgName, { buildFromSource = false } = {}) => {
   const packageNameResult = normalizePackageNameResult(pkgName);
   if (!packageNameResult.ok) {
     return packageNameResult;
+  }
+
+  if (packageNameResult.pkgName === TREE_SITTER_PERL_PACKAGE && buildFromSource) {
+    return rebuildPatchedPerlFromSource();
   }
 
   if (packageNameResult.pkgName === 'better-sqlite3' && buildFromSource
@@ -237,6 +269,13 @@ const getRequiredPackageFailures = async ({ label = 'verify:native' } = {}) => {
 
 const verifyRequiredPackages = async () => {
   const failures = await getRequiredPackageFailures({ label: 'verify:native' });
+
+  const realmProbe = probeNodeRealmLifecycle(root);
+  if (!realmProbe.ok) {
+    console.error(`[verify:native] Node VM worker lifecycle failed: ${realmProbe.message}`);
+    failures.push({ pkgName: 'node:vm', missing: false,
+      message: realmProbe.message || 'worker lifecycle failed' });
+  }
 
   if (failures.length > 0) {
     console.error(`[verify:native] failed with ${failures.length} required package failure(s).`);

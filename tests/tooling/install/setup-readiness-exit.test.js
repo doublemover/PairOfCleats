@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
@@ -30,8 +31,9 @@ const baseArgs = [path.join(root, 'tools/setup/setup.js'), '--root', repo, '--no
   '--skip-install', '--skip-validate', '--skip-models', '--skip-extensions', '--skip-tooling',
   '--skip-index', '--skip-sqlite', '--skip-artifacts', '--json'];
 const run = (extra, inject = false) => {
-  const result = runNode([...(inject ? ['--import', shim] : []), ...baseArgs, ...extra],
+  const result = runNode([...(inject ? ['--import', pathToFileURL(shim).href] : []), ...baseArgs, ...extra],
     'setup readiness fixture', root, env, { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
+  assert.ok(result.stdout.trim(), result.stderr || result.error?.message || 'setup must emit readiness JSON');
   return { result, payload: JSON.parse(result.stdout) };
 };
 const optional = run([], true);

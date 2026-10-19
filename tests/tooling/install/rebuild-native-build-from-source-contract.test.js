@@ -15,8 +15,15 @@ assert.match(
 assert.match(
   source,
   /env\.npm_config_build_from_source\s*=\s*'true';/,
-  'expected buildNpmEnv to force npm_config_build_from_source when requested'
+  'other source-recovery paths still pass their explicit build request'
 );
+
+assert.match(source,
+  /const\s+rebuildPatchedPerlFromSource\s*=\s*\(\)\s*=>[\s\S]*?node-gyp', 'bin', 'node-gyp\.js'\), 'rebuild'[\s\S]*?cwd:\s*resolveNodeModulesPath\(TREE_SITTER_PERL_PACKAGE\)/,
+  'patched Perl scanner must compile from source without npm 11 unknown-config warnings');
+assert.match(source,
+  /packageNameResult\.pkgName === TREE_SITTER_PERL_PACKAGE && buildFromSource\)[\s\S]*?return rebuildPatchedPerlFromSource\(\);/,
+  'Perl source rebuild must use the direct node-gyp owner');
 
 assert.match(
   source,
@@ -45,6 +52,11 @@ assert.match(
 );
 assert.match(
   source,
+  /await probeNativePackage\(root, pkgName,/,
+  'verification must use the shared native activation owner'
+);
+assert.match(
+  fs.readFileSync(path.join(root, 'src/shared/native-package-probe.js'), 'utf8'),
   /if \(pkgName === 'better-sqlite3'\) return probeSqliteNative\(root\);/,
   'SQLite verify and repair must probe the database rather than just importing the module'
 );

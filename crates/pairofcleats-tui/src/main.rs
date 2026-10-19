@@ -3309,9 +3309,11 @@ fn main() -> anyhow::Result<()> {
             }
 
             append_runtime_metrics(&mut model);
-            if supervisor.try_wait()?.is_some() {
+            if let Some(status) = supervisor.try_wait()? {
                 model.push_log("supervisor exited; draining owned process family".to_string());
-                break;
+                return Err(anyhow::anyhow!(
+                    "supervisor exited before TUI shutdown: {status}"
+                ));
             }
 
             if model.dirty && last_frame.elapsed() >= FRAME_INTERVAL {
@@ -3480,6 +3482,17 @@ fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod redraw_tests {
     use super::*;
+
+    #[test]
+    fn tail_window_ranges_are_bounded_and_deterministic() {
+        let items: Vec<_> = (0..10).collect();
+        assert_eq!(tail_window_slice(&items, 0, 3), vec![7, 8, 9]);
+        assert_eq!(tail_window_slice(&items, 2, 3), vec![5, 6, 7]);
+        assert_eq!(tail_window_slice(&items, 0, 0), vec![9]);
+        assert_eq!(tail_window_slice(&items, 0, usize::MAX), items);
+        assert!(tail_window_slice(&items, usize::MAX, 3).is_empty());
+        assert!(tail_window_slice::<u8>(&[], 0, 3).is_empty());
+    }
 
     fn model() -> AppModel {
         AppModel::new(

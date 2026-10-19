@@ -33,6 +33,51 @@ export const probeSqliteNative = (root, nativeBinding = null) => {
   };
 };
 
+/** Bounded Node VM wrapper lifecycle; activation of native packages is separate. */
+export const probeNodeRealmLifecycle = (root) => {
+  const script = `
+    const { Worker } = require('node:worker_threads');
+    const source = \`
+      const { parentPort, workerData } = require('node:worker_threads');
+      const { Script } = require('node:vm');
+      for (let i = 0; i < 128; i++) new Script('1 + 1');
+      for (let i = 0; i < 16; i++) Buffer.allocUnsafe(1024 * 1024);
+      parentPort.postMessage('ready');
+      if (workerData.keepAlive) setInterval(() => {}, 1000);
+    \`;
+    (async () => {
+      for (const mode of ['natural', 'terminate']) {
+        const worker = new Worker(source, { eval: true,
+          workerData: { keepAlive: mode === 'terminate' } });
+        const exited = new Promise((resolve, reject) => {
+          worker.once('exit', resolve);
+          worker.once('error', reject);
+        });
+        const ready = new Promise((resolve, reject) => {
+          worker.once('message', resolve);
+          worker.once('error', reject);
+          worker.once('exit', code => reject(Error('worker exited before ready: ' + code)));
+        });
+        if (await ready !== 'ready') throw Error('VM worker did not initialize');
+        if (mode === 'terminate') {
+          const code = await worker.terminate();
+          if (code !== 1) throw Error('terminated worker returned ' + code);
+        } else {
+          const code = await exited;
+          if (code !== 0) throw Error('VM worker returned ' + code);
+        }
+      }
+      process.stdout.write('VM_REALM_LIFECYCLE_OK');
+    })().catch(error => { console.error(error.message); process.exitCode = 1; });
+  `;
+  const result = spawnSync(process.execPath, ['-e', script], {
+    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+  });
+  return { ok: result.status === 0 && result.stdout === 'VM_REALM_LIFECYCLE_OK',
+    message: result.status === 0 && result.stdout === 'VM_REALM_LIFECYCLE_OK' ? null
+      : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
+};
+
 /** Isolated parser activation using the same binding owner as production. */
 export const probeNativeGrammarRoutes = (root, routes) => {
   const script = `
@@ -74,6 +119,30 @@ export const probeNativeGrammarRoutes = (root, routes) => {
 export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } = {}) => {
   if (grammarRoutes.length) return probeNativeGrammarRoutes(root, grammarRoutes);
   if (pkgName === 'better-sqlite3') return probeSqliteNative(root);
+  if (pkgName === 'node-pty') {
+    // Natural probe exit proves that ConPTY closes its connection worker too.
+    // An unconditional process.exit would hide a leaked native/session owner.
+    const script = `
+      const pty = require('node-pty');
+      const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write("PTY_PROBE_OK")'], {
+        cols: 80, rows: 24, cwd: process.cwd(), env: process.env, useConpty: true
+      });
+      let output = '';
+      const timeout = setTimeout(() => { console.error('PTY child exceeded deadline'); process.exitCode = 1; terminal.kill(); }, 6000);
+      terminal.onData(data => { output += data; });
+      terminal.onExit(event => {
+        clearTimeout(timeout);
+        if (event.exitCode !== 0 || !output.includes('PTY_PROBE_OK')) {
+          console.error('PTY operation returned an unexpected status or output'); process.exitCode = 1;
+        }
+      });
+    `;
+    const result = spawnSync(process.execPath, ['-e', script], {
+      cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+    });
+    return { ok: result.status === 0, message: result.status === 0 ? null
+      : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
+  }
   /**
    * `npm ci --ignore-scripts` can leave tree-sitter core loadable but not
    * actually usable with rebuilt grammars. Probe parser activation explicitly

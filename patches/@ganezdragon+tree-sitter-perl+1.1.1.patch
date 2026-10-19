@@ -271,7 +271,7 @@ index 58b5c40..ca82475 100644
      dequeueBoolQueue(scanner->heredoc.heredoc_allows_interpolation);
      return true;
    }
-@@ -1013,28 +1016,23 @@ static inline bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symb
+@@ -1013,32 +1016,28 @@ static inline bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symb
  }
  
  static unsigned serialize(Scanner *scanner, char *buffer) {
@@ -309,3 +309,8 @@ index 58b5c40..ca82475 100644
  }
  
  void *tree_sitter_perl_external_scanner_create() {
+   Scanner *scanner = malloc(sizeof(Scanner));
++  if (scanner == NULL) return NULL;
+   scanner->heredoc = heredoc_new();
+   return scanner;
+ }

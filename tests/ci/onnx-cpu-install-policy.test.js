@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { spawnSync } from 'node:child_process';
+
 import { parse } from 'yaml';
 
 const root = process.cwd();
@@ -44,8 +45,7 @@ try {
   const forbidNetwork = path.join(temp, 'forbid-network.cjs');
   await fs.writeFile(forbidNetwork, "require('node:net').Socket.prototype.connect = function () { throw new Error('Unexpected ONNX installer network access'); };\n");
   const env = { ...process.env, ONNXRUNTIME_NODE_INSTALL: 'skip' };
-  const install = spawnSync(process.execPath, ['--require', forbidNetwork, path.join(packageRoot, 'script/install.js')],
-    { cwd: temp, env, encoding: 'utf8', timeout: 5000 });
+  const install = runNodeFixture(['--require', forbidNetwork, path.join(packageRoot, 'script/install.js')], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { cwd: temp, env, encoding: 'utf8', timeout: 5000 } });
   assert.equal(install.error, undefined, install.error?.message);
   assert.equal(install.status, 0, install.stderr);
   assert.doesNotMatch(`${install.stdout}${install.stderr}`, /Downloading|Unexpected ONNX installer network access/);

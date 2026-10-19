@@ -16,6 +16,10 @@ const INPUTS = ['package.json', 'package-lock.json', '.nvmrc',
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const runtime = () => ({ node: process.version, abi: process.versions.modules,
   platform: process.platform, arch: process.arch });
+const supportedNodeRuntime = () => {
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  return major === 26 && minor >= 10;
+};
 const readiness = (ready, reason = null) => ({
   ...buildReadinessReceipt({ items: [{ id: 'bootstrap', required: true,
     state: ready ? 'available-and-verified' : 'unverified', reason,
@@ -53,12 +57,13 @@ const safeFile = (root, relative) => {
  * succeed. A receipt records evidence, not a substitute for current readiness.
  */
 export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [] } = {}) => {
+  if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.10.0 <27.');
   root = fs.realpathSync(root);
   const pkg = JSON.parse(readBounded(path.join(root, 'package.json')));
   const declared = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).sort();
   for (const name of declared) {
     if (!fs.existsSync(path.join(root, 'node_modules', name, 'package.json'))) {
-      throw new Error(`Required checkout dependency is missing: ${name}. Run npm run bootstrap.`);
+      throw new Error(`Required checkout dependency is missing: ${name}. Run npm run bootstrap:ci.`);
     }
   }
   const artifacts = [], pending = ['node_modules'];
@@ -101,7 +106,7 @@ export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabil
 export const inspectBootstrapReadiness = async ({ root = ROOT } = {}) => {
   try {
     root = fs.realpathSync(root);
-    if (Number(process.versions.node.split('.')[0]) !== 26) throw new Error('This checkout requires Node.js 26.x.');
+    if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.10.0 <27.');
     const file = path.join(root, BOOTSTRAP_RECEIPT);
     if (!fs.existsSync(file)) throw new Error('Verified bootstrap receipt is missing; installation is incomplete or has not been verified.');
     const receipt = JSON.parse(readBounded(file));
@@ -130,9 +135,9 @@ export const formatBootstrapRequired = (reason, root = ROOT) => [
   '', '======================================================================',
   'PAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED',
   '======================================================================', reason,
-  `In the PairOfCleats checkout (${root}), run:`, '', '  npm run bootstrap', '',
-  'For a clean, lockfile-pinned CI install: npm run bootstrap:ci',
-  'Use Node.js 26.x. Bootstrap installs dependencies, applies required patches',
+  `In the PairOfCleats checkout (${root}), run:`, '', '  npm run bootstrap:ci', '',
+  'For intentional dependency-resolution changes only: npm run bootstrap',
+  'Use Node.js >=26.10.0 <27. Bootstrap installs dependencies, applies required patches',
   'and rebuilds/verifies native modules. Nothing was installed automatically.',
   '======================================================================', ''
 ].join('\n');

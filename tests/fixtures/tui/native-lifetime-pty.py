@@ -84,6 +84,9 @@ with tempfile.TemporaryDirectory(prefix='poc-native-lifetime-') as directory:
         code = child.wait()
         if mode == 'quit':
             assert code == 0, child.stderr.read().decode()
+        elif mode == 'supervisor-error':
+            assert code != 0, 'unexpected supervisor failure must propagate to the native exit status'
+            assert 'supervisor exited before TUI shutdown' in child.stderr.read().decode()
         elif mode == 'terminal-error':
             assert code != 0, 'closed real output terminal must exercise the error return'
         assert termios.tcgetattr(input_slave) == original, 'raw terminal settings must be restored'

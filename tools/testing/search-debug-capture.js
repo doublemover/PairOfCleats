@@ -424,7 +424,9 @@ export const captureCommandTerminalRun = async ({
   trackedEnvKeys = [],
   outputSuffix = null,
   cols = null,
-  rows = null
+  rows = null,
+  onSpawn = null,
+  timeoutMs = 30000
 } = {}) => {
   if (typeof command !== 'string' || !command.trim()) {
     throw new Error('command is required');
@@ -481,7 +483,9 @@ export const captureCommandTerminalRun = async ({
     eventIndex += 1;
   });
 
-  const childResult = await new Promise((resolve) => {
+  let timedOut = false;
+  let timeout = null;
+  const exit = new Promise((resolve) => {
     child.onExit((event) => {
       resolve({
         exitCode: Number.isInteger(event?.exitCode) ? event.exitCode : null,
@@ -489,6 +493,20 @@ export const captureCommandTerminalRun = async ({
       });
     });
   });
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+    timeout = setTimeout(() => { timedOut = true; child.kill(); }, timeoutMs);
+  }
+  let childResult;
+  try {
+    if (typeof onSpawn === 'function') await onSpawn(child);
+    childResult = await exit;
+  } catch (error) {
+    child.kill();
+    await exit;
+    throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
   const wallMs = Math.max(0, Date.now() - startedAt);
 
   const files = {
@@ -535,7 +553,7 @@ export const captureCommandTerminalRun = async ({
     envOverrides
   }));
 
-  const status = childResult.exitCode === 0 && !childResult.signal ? 'passed' : 'failed';
+  const status = childResult.exitCode === 0 && !childResult.signal && !timedOut ? 'passed' : 'failed';
   const meta = {
     label: toSafeLabel(label, 'search'),
     mode: 'pty',
@@ -559,6 +577,7 @@ export const captureCommandTerminalRun = async ({
     finishedAt: new Date(startedAt + wallMs).toISOString(),
     wallMs,
     status,
+    timedOut,
     exitCode: childResult.exitCode,
     signal: childResult.signal,
     files,
