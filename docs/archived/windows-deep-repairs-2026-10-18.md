@@ -1071,13 +1071,60 @@ with no warning/error lines and retains 37 required packages / 33 language
 routes. Generated CI-lite membership is 968; the two new fixtures increase
 physical discovery to an expected 2996 before the next candidate freeze.
 
+### Hosted canonical-path fixture repair
+
+The summary/authority batch is committed and pushed as
+`f07fae95f6e723667bc72948fd4def6b4f07ea89`; PR #572's description and remote
+head are read back. Candidate 11 freezes source SHA-256
+`1badcfddfce57a58cbad91d6c27a4538afad4114742ba57968921c4a1745d55c`
+over 5809 non-document paths and documentation SHA-256
+`e18ac847df8df0f14f6f32103fffed2813359aca85d1a6e1a4196d5df46dc65e`.
+Discovery maps 2996 fixtures / 2979 required / 17 exclusions / 47 cohorts.
+The first 80 storage cases pass in 231.2 s, including the fresh-byte and native
+storage checks. The campaign stops cleanly between cohorts, with both frozen
+identities verified and 2899 required fixtures still pending.
+
+Hosted strict authority run `39224703113`, job `117968572369`, proves real file
+symlink creation on Windows Server 2025 / x64 / Node 26.10.0 / ABI 147. Exact
+head/tree identity and official Node executable hash match; fresh verification
+records 37 required packages and 33 parser routes without warning/error lines.
+Two fixtures pass, then `indexing/build-state/runtime-receipt` fails in 525 ms.
+Fail-fast leaves 41 cases unexecuted; those skips are not accepted coverage.
+The raw job log and complete `windows-authority-qualification` artifact remain
+in the historical author task receipts.
+
+The filesystem observation correctly expands the existing ancestor from
+`C:\Users\RUNNER~1\...` to `C:\Users\runneradmin\...`; the fixture incorrectly
+expects its lexical temp root to be canonical. The owner explicitly preserves
+selected/absolute paths separately from realpath observations. The fixture now
+derives the expected canonical ancestor with real `fs.realpath`, and additionally
+asserts selected spelling, absolute spelling, missing state and the
+`existing-ancestor` observation method. No producer or authority contract changes.
+
+A task-owned real directory-link alias reproduces the same assertion mismatch
+before the repair (`.testLogs/run-1792399720595-wguvdg`, 488 ms), then passes
+afterward (`run-1792399760028-lrhm83`, 590 ms), with normal execution also passing
+(`run-1792399762812-eehou5`, 486 ms). Both controls confirm the actual alias and
+empty fixture root after cleanup. This directory-alias control tests canonical
+observation; it is not substituted for any file-symlink authority qualification.
+An initial malformed preload URL fails before executing the fixture and is
+retained separately as an ineffective control, not before-fix evidence.
+The real disk-full publication negative now counts injected rename attempts
+and asserts its one exact warning through the existing progress logger;
+missing or additional diagnostics fail. Degraded persistence, running lifecycle,
+durability, redaction, bounded history and legacy/corrupt receipt assertions remain.
+The repair's complete front gate passes, including formatting, all preceding
+governance checks and 39 gate cases (`receipt-alias-*-01` historical receipts).
+The 80 completed candidate 11 storage logs contain zero warning/error matches;
+they remain earlier-candidate evidence and must be rerun after this change.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. Historical capable Windows file-symlink and
 safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
-candidate 10 stopped cleanly to close the strict hosted authority gap, and its
-regular Windows CI later exposes the inner summary timeout. The current repairs
+candidate 11 stopped cleanly after its strict hosted job exposed a short-path
+fixture assumption. The summary ownership and canonical expectation repairs
 require the complete front gate and every required cohort on a new frozen
 candidate, including all 44 cases in the strict hosted Windows authority job.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
