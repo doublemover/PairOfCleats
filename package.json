@@ -75,7 +75,7 @@
     "execa": "^9.6.1",
     "fdir": "6.5.0",
     "fflate": "^0.8.3",
-    "file-type": "^22.1.1",
+    "file-type": "^22.2.0",
     "graphology": "^0.26.0",
     "graphology-types": "^0.24.8",
     "graphql": "^16.12.0",
