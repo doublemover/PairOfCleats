@@ -1337,6 +1337,143 @@ all positive binding/completion checks. Resource refusal is a hypothesis until
 that evidence identifies the reason; no scheduler bypass or lowered positive
 assertion is an accepted repair.
 
+### Foreign-generation fixture input ownership
+
+The two-build authority fixture now explicitly selects one thread, excludes
+only indexed `tsconfig.json` metadata and hydrates its consumed syntax facts.
+Both original compiler executions and real whole-generation publications stay
+enabled. Four independently bounded before/after build processes, each within
+30 seconds, use the same physical paths for revisions zero and one. They retain
+identical source/config bytes, both complete typed-source manifests, all 334
+typed syntax rows with every field and the exact originally selected function
+reference per revision. Each build still has one compiler context and three
+completed tasks. Comparison sorts whole canonical rows to account for parallel
+cross-file completion order; no fields or provenance are removed. The original
+order-sensitive comparison failure remains with the raw packets; the successful
+content comparison is `foreign-reference-scope-content-comparison.json`.
+
+The removed hydration covered unused compiler rows and unrelated JSON syntax;
+the selected real function and all typed syntax remain byte-for-byte equivalent.
+Compiler facts remain covered by the single-CPU publication, compiler-binding,
+SSR witness and production-slice fixtures. The generation-authority fixture
+additionally proves its original function is authorized by its own pinned
+generation, then retains the original rejection against the other real
+generation. Normal execution passes at 28.4 s with zero retries under the
+unchanged deadline (`run-1792406651088-mpg7yi`). The original 31.2 s timeout and
+the separately instrumented 30.4 s timeout are preserved as failed observations.
+
+The root-directory recheck also finds a missing compatibility ignore for
+repository-local `.cache/`: the current root does not exist, while `tests/.cache/`
+and the other old cache roots are already ignored. The existing development-path
+contract, extended to that exact root, fails before the ignore repair and passes
+afterward (`root-cache-ignore-before.json` / `root-cache-ignore-after.json`).
+The new root-anchored ignore preserves nested source fixtures; all current
+development owners still use `temp/dev/`. The old promotion false-pass root is
+moved reversibly into the ignored task proof archive only after checking its
+exact marker, resolved source, non-link identity and destination containment;
+`promotion-old-false-pass-archive.json` preserves its original path/provenance.
+No user/product cache or unrelated temporary root is removed.
+
+The October 19 live GitHub recheck still has zero open issues, but now has
+11 Dependabot PRs in addition to repair PR #572: #573 LMDB, #574 tinybench,
+#575 acorn, #576 file-type, #577 ripgrep, #578 Linguist, #579 lru-cache,
+#580 LanceDB, #581 Babel parser, #582 micromark and #583 serde_json. Their
+titles, source branches and `main` bases remain in the historical task inventory
+`open-prs-reader-batch.json`. They are separate dependency-update reviews,
+including Babel's major-version jump and the LanceDB version jump; the approved crash repair preserves
+the qualified lockfile except for demonstrated defects. No bot PR is merged or
+folded into this runtime acceptance candidate.
+
+### macOS admission attribution and actual single-token proof
+
+At `b44b5761eaa65cafd9c2195fab16fde623ac0e3a`, strict hosted Windows again
+passes all 44 cases on the first attempt within 30 seconds. Run `39238867044`,
+job `118016916246`, preserves tree `9a04e0a979e274b05082a477421283c04c1dc700`,
+the actual file-symlink probe, all 44 raw logs, the official Node executable and
+37-package / 33-route verification. The downloaded readiness hash is
+`610f1a6127092f12524f78fb0924804a55a8a7a26a9d46523f83bbd4cf5e5f9f`;
+native verification has no warning/error lines. The only warning is the promotion
+case's exactly asserted malformed-pointer recovery. The verified summary and
+transparent remote-to-downloaded log mappings remain in
+`hosted-b44b5761e-authority-verified-summary.json`. This is still historical
+evidence for that head, not a future-candidate pass.
+
+The macOS job `118016916380` now explains its compiler-context failure through
+the actual durable decision: `scheduler_memory_capacity_exceeded`. The helper
+requests 1 GiB, or two 768 MiB memory tokens; the scheduler correctly refuses it.
+The real closure has 194 files / 4,897,162 bytes / one project. Both original CI
+attempts and the job log are retained in `hosted-b44b5761e-macos-failure/` and
+`hosted-b44b5761e-macos-job.log`; neither retry counts as acceptance.
+
+Only the CPU-ownership fixture now selects the canonical product-default
+512 MiB compiler policy. The shared helper's other callers keep their original
+1 GiB ceiling. This makes the test's memory budget stricter; no production budget,
+admission rule, compiler backend or positive assertion is weakened. A diagnostic
+control restricts the actual scheduler to one memory token while keeping adaptive
+admission enabled: the old request fails at 11.4 s with the same refusal, and the
+default-sized request passes at 16.8 s. Normal execution also passes at 16.9 s.
+
+That control additionally reveals why an indexing-thread count is insufficient
+proof of scheduler CPU capacity: a one-thread launch initially allocates two
+CPU tokens through existing scheduler defaults. The strengthened fixture uses
+existing environment controls to cap both CPU and memory totals and maxima at
+one. It reads the persisted successful runtime receipt and asserts all four
+limits plus adaptive admission remaining enabled. Every original compiler
+context, task, binding and two-source coverage assertion stays. Normal execution
+passes at 17.0 s (`run-1792407980524-55s5cx`). Loading the original two Git
+relations owners against those same strict limits reproduces the nested
+reservation deadlock: its unchanged 20-second cancellation guard fails at
+22.8 s (`run-1792408064956-ju0ewz`), below the runner deadline. This is stronger
+ownership evidence than the earlier thread-count hint. Hosted validation of the
+new fixture remains required.
+
+### Baseline prerequisites and corrupt-required-SQLite false pass
+
+The four exploratory portable cohorts pass 306 cases, and the serial portable
+cohort passes another 54 (`run-1792406906609-ansief`, 396.8 s; slowest 24.6 s).
+They are explicitly selected, unfrozen observations, not future acceptance.
+Their warning audit discovers that `smoke/baseline` merely inspects an author's
+optional dictionaries/indexes and prints six unasserted warnings. A real corrupt
+code/prose database pair then proves a correctness defect: the original
+`--require-sqlite` command warns that table inspection was skipped but exits zero
+and prints success. The preserved command reproduces that false pass at 520 ms
+(`baseline-corruption-before.json`), and the repair exits one at 508 ms on the
+same files (`baseline-corruption-after.json`).
+
+The default discovered smoke case now owns a fresh disposable prerequisite
+fixture. It copies the actual checkout entry files, uses the production SQLite
+schema and asserts healthy output without warnings. Explicit `--require-index`,
+`--require-sqlite` and `--require-dicts` retain standalone diagnostic behavior.
+Required SQLite inspection failures now fail; each opened database closes in
+`finally`. The duplicated table-name array is replaced by its authoritative
+`REQUIRED_TABLES`; the retained parity proof shows identical 14 names and order.
+Dictionary inspection disables the existing test-only shared-cache fallback so
+an author's unrelated cache cannot authorize missing fixture prerequisites.
+
+Actual child commands cover fresh optional and required absence, restored
+health, corrupt databases, a missing required table, legacy database rejection
+and final restored health. Every optional warning is asserted exactly; stderr
+must be empty for success or contain only the required failure count. Child
+operations have at most five seconds inside one 20-second aggregate budget.
+An isolated old-catch control makes the new regression fail at 2.83 s
+(`run-1792407652277-kj071v`); normal repaired runs pass at 5.75 / 5.82 s.
+Every mutation/deletion stays inside the canonical disposable root, which is
+cleaned on both success and failure. No new public option, test entrypoint
+removal or actual-index/query coverage reduction is involved.
+
+The complete publication front gate passes again after this batch: formatting,
+generated refresh/freshness, configuration budget, environment usage, command and
+workflow contracts, all 39 gate fixtures (20.7 s) and whitespace checks.
+`qualification-publication-*-14` retains these task-local receipts. Fresh native
+verification again exits zero without warning/error lines (37 packages / 33
+routes, Node 26.10.0 / Windows x64 / ABI 147). Generated config inventory changes
+only the existing environment controls' consumer lists; no public knob or budget
+is added or relaxed. Final source acceptance still requires the next campaign.
+All four changed fixtures pass after formatting, in 44.6 s total with one job,
+zero retries, skips or timeouts (`run-1792408355616-i8jomz`): actual single-token
+publication 13.7 s, baseline prerequisites 5.52 s, both real foreign-generation
+builds 25.2 s and development-path/ignore authority 126 ms.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
@@ -1347,8 +1484,8 @@ fixture failure. Subsequent focused repairs and the all-44 hosted pass above
 do not replace that failed receipt. The verified-reader, SSR fixture-scope,
 promotion and admission-diagnostic batch requires the complete front gate and
 every required cohort on a new frozen candidate, including a fresh strict
-44-case Windows authority run. The foreign-generation fixture deadline and
-macOS CI failure remain unresolved.
+44-case Windows authority run. The foreign-generation, actual single-token and
+baseline-prerequisite repairs also require that campaign and hosted macOS CI.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain

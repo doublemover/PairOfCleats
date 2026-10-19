@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T08:37:41.210Z",
+  "generatedAt": "2026-10-19T11:10:29.170Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3495,6 +3495,7 @@
       "name": "PAIROFCLEATS_DICT_DIR",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/helpers/baseline-prerequisites.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
         "tests/perf/bench/language-prerequisite-runtime.test.js",
         "tests/tooling/install/setup-readiness-exit.test.js",
@@ -4000,6 +4001,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tests/shared/runtime/embedding-plan-allowlist.test.js",
         "tools/bench/ab-sweep.js",
@@ -4029,6 +4031,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4045,6 +4048,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4053,6 +4057,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
         "tests/perf/indexing/embeddings/scheduler-backpressure.test.js",
         "tools/bench/ab-sweep.js",
         "tools/config/inventory.js"

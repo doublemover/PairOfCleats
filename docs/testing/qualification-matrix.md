@@ -40,7 +40,7 @@ OS × language × provider × backend cross-product to routine PR work.
    18 task-local elevated Windows launch created a real file symlink. Candidate
    08 passes all 44 capable-token cases with zero skips; ordinary medium-token
    runs still return EPERM. The elevated launch did not alter system security
-   settings. At `8c069726c`, the strict hosted Windows job passes all 44 at the
+   settings. At `b44b5761e`, the strict hosted Windows job passes all 44 at the
    audit deadline, preserving capability, commit/tree, Node/native readiness and
    every result/log. All attempts are one, with zero skips or native crashes.
    Its guard is in regular `ci-lite`; omission, skips, retries, late success and
@@ -55,9 +55,11 @@ OS × language × provider × backend cross-product to routine PR work.
    A real one-CPU TypeScript publication regression additionally covers scheduler
    ownership: compiler work must acquire its own reservation without a parent
    retaining the sole CPU token. Local before/after failure/pass evidence is in
-   the Windows receipt. Windows and Ubuntu CI pass this case at `8c069726c`;
-   macOS fails its positive compiler-context assertion. Admission diagnostics
-   are being added; no admission bypass or weakened positive counts as repair.
+   the Windows receipt. The macOS failure at `b44b5761e` is a proved two-token
+   reservation exceeding capacity. The fixture now uses the stricter 512 MiB
+   product default, asserts persisted CPU/memory totals and maxima of one, and
+   keeps adaptive admission and real compiler/binding positives. Fresh hosted
+   execution of that repair remains required.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
    node-pty ConPTY capture owner with actual console-mode observations. Focused

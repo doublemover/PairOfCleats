@@ -7,24 +7,23 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Repository maintenance audit, October 18
 
-The authorized branch is `codex/pr557-audit-repairs-20261012`. Its clean local
-checkout was 33 commits behind its configured upstream and was fast-forwarded
-from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that source.
+Work continues on `codex/pr557-audit-repairs-20261012` from audited base
+`ab00d918d`; the archive retains the original upstream reconciliation.
 
-The October 18 inventory had zero open issues and one open PR
-[#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-At `8c069726c`, hosted Windows passes all 44 strict authority cases, including
-real file-symlink capability, with zero retries, skips or deadline failures.
-Ubuntu and ordinary Windows CI also pass; macOS exposes a compiler-admission
-failure in the new single-CPU regression. Its diagnostic now retains the actual
-admission reason. A verified-reader repair closes a demonstrated hash-to-decode
-mutation gap and drains pending I/O before disposal. Both original incremental
-SSR cases pass at 28.5 / 27.6 s; all 115 full records and 136 edges match the
-preserved baseline. Promotion safety now requires its link branch and asserts
-the expected recovery warning. These repairs need a new frozen-candidate
-campaign; historical passes do not qualify it. The Windows receipt records the
-before/after proofs and remaining qualification. The two-build foreign-generation
-authority fixture also exceeds 30 seconds and remains open.
+The October 19 live inventory has zero open issues, repair PR
+[#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
+11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
+At `b44b5761e`, hosted Windows passes all 44 strict authority cases with real
+file symlinks, zero retries, skips, crashes or deadline failures. The reader
+repair closes a demonstrated hash-to-decode mutation gap and drains I/O before
+disposal. Both incremental SSR cases pass at 28.5 / 27.6 s with exact full-graph
+parity; the two-build generation-authority case passes at 28.4 s after proved
+input scoping. macOS correctly rejects the CPU fixture's two-token reservation;
+it now uses the stricter 512 MiB product default and proves real one-CPU/one-memory
+limits with adaptive admission enabled. The baseline smoke fixture also rejects
+corrupt required SQLite databases and asserts fresh/missing/stale prerequisites.
+These repairs still need one frozen-candidate campaign and hosted revalidation;
+historical passes do not qualify the new tree. The Windows receipt retains proof.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
