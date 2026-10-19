@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createPublishedSemanticWitness } from '../../helpers/published-semantic-witness.js';
+import { resolveSemanticPartPath } from '../../../src/semantic/artifact-store.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compiler-single-cpu-'));
 const controller = new AbortController();
@@ -13,7 +14,17 @@ const timer = setTimeout(() => controller.abort(Object.assign(new Error('Single-
 try {
   const fixture = await createPublishedSemanticWitness({ root, threads: 1, abortSignal: controller.signal });
   assert.equal(controller.signal.aborted, false);
-  assert.ok(fixture.manifest.contexts.length > 0, 'the real TypeScript Program supplies compiler context');
+  const admissionSummary = [];
+  if (!fixture.manifest.contexts.length) {
+    for (const admission of fixture.manifest.compilerAdmissions || []) {
+      const filename = await resolveSemanticPartPath(path.join(fixture.indexDir, 'semantic'), admission.decisionRef);
+      const decision = JSON.parse(await fs.readFile(filename, 'utf8'));
+      admissionSummary.push({ admitted: decision.admitted, reason: decision.reason,
+        closure: decision.closure, reservation: decision.reservation, request: decision.request });
+    }
+  }
+  assert.ok(fixture.manifest.contexts.length > 0,
+    'the real TypeScript Program supplies compiler context: ' + JSON.stringify(admissionSummary));
   assert.ok(fixture.manifest.completedTasks.length > 0, 'admitted compiler work publishes completion receipts');
   assert.ok(fixture.records.some(row => row.kind === 'binding'), 'the compiler emits actual pinned binding facts');
   const expectedSources = new Set([...fixture.sources.values()]

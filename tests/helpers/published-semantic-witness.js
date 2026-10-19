@@ -28,7 +28,7 @@ firstRun();secondRun();
  * This helper only executes when an authorized acceptance fixture invokes it.
  */
 export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
-  abortSignal = null, recordPartitionFilter = null, threads = undefined } = {}) => {
+  abortSignal = null, recordPartitionFilter = null, threads = undefined, extraIgnore = undefined } = {}) => {
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
@@ -37,13 +37,15 @@ export const createPublishedSemanticWitness = async ({ root, revision = 0, incre
   }, include: ['*.ts'] }));
   await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({ type: 'module' }));
   for (const [file, text] of Object.entries(SEMANTIC_WITNESS_SOURCES)) await fs.writeFile(path.join(repoRoot, file), text + '// source revision ' + revision + '\n');
-  applyTestEnv({ cacheRoot, embeddings: 'stub', testConfig: { indexing: {
-    workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich',
-      execution: { compilerAdmission: { maxResidentBytes: 1024 * 1024 * 1024 } },
-      enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } },
-    embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
-    riskAnalysis: false, treeSitter: { enabled: false }
-  } } });
+  applyTestEnv({ cacheRoot, embeddings: 'stub', testConfig: {
+    ...(extraIgnore === undefined ? {} : { extraIgnore }),
+    indexing: {
+      workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich',
+        execution: { compilerAdmission: { maxResidentBytes: 1024 * 1024 * 1024 } },
+        enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } },
+      embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
+      riskAnalysis: false, treeSitter: { enabled: false }
+    } } });
   await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal,
     ...(threads === undefined ? {} : { threads }),
     'stub-embeddings': true, 'scm-provider': 'none' });

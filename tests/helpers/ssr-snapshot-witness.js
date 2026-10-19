@@ -8,6 +8,7 @@ import { canonicalSemanticJson } from '../../src/index/semantic/identity.js';
 const key = canonicalSemanticJson;
 
 export const createSsrWitness = (root, incremental = false) => createPublishedSemanticWitness({ root, incremental,
+  threads: 1, extraIgnore: ['tsconfig.json'],
   recordPartitionFilter: partition => partition.partitionId.startsWith('sy1:') });
 
 export const inspectSsrWitness = async (fixture, { backendParity = true, forwardOnly = false } = {}) => {
