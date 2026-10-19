@@ -27,7 +27,7 @@ assert.equal(resolveTestCachePath(root, 'fixture'),
 
 const generated = ['temp/dev/tests/cache/probe.js', 'temp/dev/tests/coverage/probe.json',
   'temp/dev/benchmarks/probe.json', '.testLogs/probe.log', '.tmp/probe.tmp',
-  '.testCache/probe.js', '.benchCache/probe.js', '.c8/probe.json', 'tests/.cache/probe.js',
+  '.cache/probe.js', '.testCache/probe.js', '.benchCache/probe.js', '.c8/probe.json', 'tests/.cache/probe.js',
   '.ci-cache/probe.json', '.ci-home/probe.json'];
 const ignored = spawnSync('git', ['check-ignore', '--stdin'], {
   cwd: root, input: generated.join('\n') + '\n', encoding: 'utf8'
