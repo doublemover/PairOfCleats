@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 835,
+    "hero": 836,
     "matrix": 108,
     "meta": 29,
     "soak": 1,
@@ -5851,6 +5851,12 @@
     {
       "id": "storage/semantic/working-set-file-identity",
       "order": 973,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/io/append-writer-flush-after-close",
+      "order": 974,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

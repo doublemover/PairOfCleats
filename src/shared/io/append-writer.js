@@ -35,7 +35,7 @@ export const createQueuedAppendWriter = ({
   };
 
   const ensureHandle = () => {
-    if (closed || closePromise) return Promise.resolve(null);
+    if (closed) return Promise.resolve(null);
     if (handlePromise) return handlePromise;
     handlePromise = (async () => {
       try {
@@ -52,21 +52,37 @@ export const createQueuedAppendWriter = ({
     return handlePromise;
   };
 
+  // Batch only records already waiting on this serialization chain.
+  let queuedBatch = null;
+  const maxBatchBytes = 64 * 1024;
   const enqueue = (text) => {
     if (!acceptingWrites || closed || closePromise || typeof text !== 'string' || text.length === 0) {
       return Promise.resolve();
     }
-    writeChain = writeChain.then(async () => {
-      if (closed || closePromise) return;
-      const handle = await ensureHandle();
-      if (!handle || closed) return;
-      try {
-        await handle.write(text);
-      } catch (err) {
-        reportError('write', err);
-      }
-    });
-    return writeChain;
+    // Preserve per-call UTF-8 encoding, including isolated surrogate code units.
+    const encoded = Buffer.from(text);
+    const bytes = encoded.length;
+    if (!queuedBatch || queuedBatch.bytes + bytes > maxBatchBytes) {
+      const batch = { parts: [], bytes: 0, promise: null };
+      queuedBatch = batch;
+      writeChain = writeChain.then(async () => {
+        if (queuedBatch === batch) queuedBatch = null;
+        if (closed) return;
+        const handle = await ensureHandle();
+        if (!handle || closed) return;
+        try {
+          await handle.writeFile(Buffer.concat(batch.parts, batch.bytes));
+        } catch (err) {
+          reportError('write', err);
+        } finally {
+          batch.parts = [];
+        }
+      });
+      batch.promise = writeChain;
+    }
+    queuedBatch.parts.push(encoded);
+    queuedBatch.bytes += bytes;
+    return queuedBatch.promise;
   };
 
   const flush = async () => {
