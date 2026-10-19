@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -103,16 +104,13 @@ await fsPromises.rm(chunkMetaColdParts, { recursive: true, force: true });
 const manifestPath = path.join(repoCacheRoot, 'incremental', 'code', 'manifest.json');
 await fsPromises.rm(manifestPath, { force: true });
 
-let sqliteFailed = false;
-try {
-  await runSqliteBuild(repoRoot, { mode: 'code' });
-} catch {
-  sqliteFailed = true;
-}
-if (!sqliteFailed) {
-  console.error('Expected sqlite build to fail with missing artifacts.');
-  process.exit(1);
-}
+await assert.rejects(runSqliteBuild(repoRoot, { mode: 'code' }), error => {
+  assert.equal(error.code, 'ERR_SQLITE_INPUT_PIECES_LOAD_FAILED');
+  assert.equal(error.failureClass, 'input_pieces_load_failed');
+  assert.equal(error.exitCode, 1);
+  assert.match(error.message, /Failed to load index pieces for code: \[sqlite\] chunk_meta parts missing:/);
+  return true;
+}, 'missing artifacts must fail for their specific cause, before checking the recorded failed state');
 
 const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
 if (!state?.sqlite) {
