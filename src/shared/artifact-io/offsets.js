@@ -13,48 +13,6 @@ const OFFSET_BYTES = 8;
 const MAX_OFFSETS_SPAN_BYTES = 4 * 1024 * 1024;
 const JSONL_ROWS_AT_MAX_BATCH_BYTES = 8 * 1024 * 1024;
 const OFFSETS_VALIDATION_WINDOW_BYTES = 64 * 1024;
-const OFFSETS_VALIDATION_CACHE = new Map();
-const OFFSETS_VALIDATION_CACHE_MAX = 256;
-
-const buildValidationCacheKey = (jsonlPath, offsetsPath) => `${jsonlPath}::${offsetsPath}`;
-
-const getCachedOffsetsValidation = (key, jsonlStat, offsetsStat) => {
-  if (!key) return null;
-  const cached = OFFSETS_VALIDATION_CACHE.get(key);
-  if (!cached) return null;
-  if (
-    cached.jsonlSize !== jsonlStat.size
-    || cached.jsonlMtimeMs !== jsonlStat.mtimeMs
-    || cached.jsonlCtimeMs !== jsonlStat.ctimeMs
-    || cached.offsetsSize !== offsetsStat.size
-    || cached.offsetsMtimeMs !== offsetsStat.mtimeMs
-    || cached.offsetsCtimeMs !== offsetsStat.ctimeMs
-  ) {
-    OFFSETS_VALIDATION_CACHE.delete(key);
-    return null;
-  }
-  OFFSETS_VALIDATION_CACHE.delete(key);
-  OFFSETS_VALIDATION_CACHE.set(key, cached);
-  return cached;
-};
-
-const setCachedOffsetsValidation = (key, jsonlStat, offsetsStat) => {
-  if (!key) return;
-  OFFSETS_VALIDATION_CACHE.set(key, {
-    jsonlSize: jsonlStat.size,
-    jsonlMtimeMs: jsonlStat.mtimeMs,
-    jsonlCtimeMs: jsonlStat.ctimeMs,
-    offsetsSize: offsetsStat.size,
-    offsetsMtimeMs: offsetsStat.mtimeMs,
-    offsetsCtimeMs: offsetsStat.ctimeMs
-  });
-  while (OFFSETS_VALIDATION_CACHE.size > OFFSETS_VALIDATION_CACHE_MAX) {
-    const oldest = OFFSETS_VALIDATION_CACHE.keys().next().value;
-    if (oldest === undefined) break;
-    OFFSETS_VALIDATION_CACHE.delete(oldest);
-  }
-};
-
 const readOffsetValue = (buffer, index) => {
   const value = buffer.readBigUInt64LE(index * OFFSET_BYTES);
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
@@ -211,6 +169,20 @@ export const resolveOffsetsCount = async (
   return resolveOffsetCountFromSize(size, offsetsPath);
 };
 
+// Both opens can finish independently. A rejected peer must not strand the
+// successful handle, including when it resolves after the rejection.
+const openJsonlHandles = async (jsonlPath, offsetsPath) => {
+  const pending = [fs.open(jsonlPath, 'r'), fs.open(offsetsPath, 'r')];
+  try {
+    return await Promise.all(pending);
+  } catch (error) {
+    const settled = await Promise.allSettled(pending);
+    await Promise.allSettled(settled.filter(result => result.status === 'fulfilled')
+      .map(result => result.value.close()));
+    throw error;
+  }
+};
+
 /**
  * Read one JSONL row by index using its offsets sidecar.
  * @param {string} jsonlPath
@@ -231,10 +203,7 @@ export const readJsonlRowAt = async (
 ) => {
   const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowAt');
   if (!Number.isFinite(index) || index < 0) return null;
-  const [jsonlHandle, offsetsHandle] = await Promise.all([
-    fs.open(jsonlPath, 'r'),
-    fs.open(offsetsPath, 'r')
-  ]);
+  const [jsonlHandle, offsetsHandle] = await openJsonlHandles(jsonlPath, offsetsPath);
   try {
     const [offsetCount, jsonlStat, offsets] = await Promise.all([
       resolveOffsetsCount(offsetsPath, { handle: offsetsHandle }),
@@ -305,10 +274,7 @@ export const readJsonlRowsAt = async (
     uniqueNeeded.add(index);
     uniqueNeeded.add(index + 1);
   }
-  const [jsonlHandle, offsetsHandle] = await Promise.all([
-    fs.open(jsonlPath, 'r'),
-    fs.open(offsetsPath, 'r')
-  ]);
+  const [jsonlHandle, offsetsHandle] = await openJsonlHandles(jsonlPath, offsetsPath);
   try {
     const [offsetsStat, jsonlStat] = await Promise.all([
       offsetsHandle.stat(),
@@ -414,8 +380,6 @@ export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath, { signa
   throwIfAborted(signal);
   const [jsonlStat, offsetsStat] = await Promise.all([fs.stat(jsonlPath), fs.stat(offsetsPath)]);
   throwIfAborted(signal);
-  const cacheKey = buildValidationCacheKey(jsonlPath, offsetsPath);
-  if (getCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat)) return true;
   const count = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
   const fileSize = jsonlStat.size;
   const offsetsHandle = await fs.open(offsetsPath, 'r');
@@ -470,6 +434,5 @@ export const validateOffsetsAgainstFile = async (jsonlPath, offsetsPath, { signa
     await Promise.allSettled([offsetsHandle.close(), jsonlHandle?.close()]);
   }
   throwIfAborted(signal);
-  setCachedOffsetsValidation(cacheKey, jsonlStat, offsetsStat);
   return true;
 };

@@ -42,6 +42,33 @@ const batch = await readJsonlRowsAt(jsonlPath, offsetsPath, [2, 0, 1], { maxByte
 assert.deepEqual(batch.map((entry) => entry?.id ?? null), [3, 1, 2]);
 await validateOffsetsAgainstFile(jsonlPath, offsetsPath);
 
+// Keep real file handles observable when either peer open fails. A successful
+// open may resolve after its peer rejects; rejection must await its disposal.
+const originalOpen = fs.open;
+const missingPath = path.join(cacheRoot, 'missing.jsonl');
+for (const read of [
+  (data, offsets) => readJsonlRowAt(data, offsets, 0),
+  (data, offsets) => readJsonlRowsAt(data, offsets, [0])
+]) {
+  for (const [data, offsets] of [[missingPath, offsetsPath], [jsonlPath, missingPath]]) {
+    const handles = [], pending = [];
+    fs.open = (...args) => {
+      const open = originalOpen(...args);
+      pending.push(open);
+      return open.then(handle => { handles.push(handle); return handle; });
+    };
+    try {
+      await assert.rejects(() => read(data, offsets), { code: 'ENOENT' });
+      await Promise.allSettled(pending);
+      assert.equal(handles.length, 1, 'the valid peer opened a real file');
+      assert.ok(handles.every(handle => handle.fd === -1), 'partial-open rejection closes its successful peer');
+    } finally {
+      fs.open = originalOpen;
+      await Promise.allSettled(handles.map(handle => handle.close()));
+    }
+  }
+}
+
 const encodeOffsets = (values) => {
   const buffer = Buffer.alloc(values.length * 8);
   for (let i = 0; i < values.length; i += 1) {

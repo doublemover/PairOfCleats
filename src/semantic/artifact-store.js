@@ -19,31 +19,45 @@ const FAMILY = {
   semantic_ownership: 'ownership', semantic_coverage: 'coverage', semantic_frontier: 'frontier'
 };
 const error = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
+const CONTENT_BOUNDARY_VALIDATIONS = new Map();
+const MAX_CONTENT_BOUNDARY_VALIDATIONS = 256;
 
-/** Resolve a validated immutable part without following a link outside its root. */
-export const resolveSemanticPartPath = async (root, relativePath) => {
+const assertSemanticPartPath = (relativePath) => {
   if (typeof relativePath !== 'string' || relativePath.includes('\\') || relativePath.includes(':')
     || relativePath.startsWith('/') || relativePath.split('/').some((part) => !part || part === '.' || part === '..')) {
     throw error('Invalid semantic part path.');
   }
-  const absoluteRoot = await fs.realpath(root);
+};
+
+const resolvePhysicalPartPath = async (absoluteRoot, relativePath) => {
   const absolute = await fs.realpath(path.join(absoluteRoot, relativePath));
   const relative = path.relative(absoluteRoot, absolute);
   if (relative.startsWith('..') || path.isAbsolute(relative)) throw error('Semantic part escapes staging root.');
   return absolute;
 };
 
-const hashFile = async (filePath, signal) => {
+/** Resolve a validated immutable part without following a link outside its root. */
+export const resolveSemanticPartPath = async (root, relativePath) => {
+  assertSemanticPartPath(relativePath);
+  return resolvePhysicalPartPath(await fs.realpath(root), relativePath);
+};
+
+const hashFile = async (filePath, expectedBytes, signal) => {
   const handle = await fs.open(filePath, 'r');
   const hash = createHash('sha256');
   try {
-    const buffer = Buffer.allocUnsafe(64 * 1024);
+    const buffer = Buffer.allocUnsafe(Math.max(1, Math.min(expectedBytes, 64 * 1024)));
+    let bytes = 0;
     for (;;) {
       throwIfAborted(signal);
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
+      const length = Math.min(buffer.length, expectedBytes - bytes + 1);
+      const { bytesRead } = await handle.read(buffer, 0, length, null);
       if (!bytesRead) break;
+      bytes += bytesRead;
+      if (bytes > expectedBytes) throw error('Semantic part grew while hashing.');
       hash.update(buffer.subarray(0, bytesRead));
     }
+    if (bytes !== expectedBytes) throw error('Semantic part changed size while hashing.');
   } finally { await handle.close(); }
   return hash.digest('hex');
 };
@@ -70,19 +84,35 @@ export const createArtifactSemanticStore = ({
   }
   const validated = new Map();
   const validatePiece = async (piece, signal) => {
+    assertSemanticPartPath(piece.path);
+    assertSemanticPartPath(piece.offsetsPath);
+    const absoluteRoot = await fs.realpath(root);
     const [dataPath, offsetsPath] = await Promise.all([
-      resolveSemanticPartPath(root, piece.path), resolveSemanticPartPath(root, piece.offsetsPath)
+      resolvePhysicalPartPath(absoluteRoot, piece.path), resolvePhysicalPartPath(absoluteRoot, piece.offsetsPath)
     ]);
     const [dataStat, offsetsStat] = await Promise.all([fs.stat(dataPath), fs.stat(offsetsPath)]);
     const key = dataPath + ':' + piece.hash + ':' + piece.offsetsHash;
-    const signature = [dataStat.size, dataStat.mtimeMs, dataStat.ctimeMs,
-      offsetsStat.size, offsetsStat.mtimeMs, offsetsStat.ctimeMs].join(':');
-    if (validated.get(key) !== signature) {
-      if (dataStat.size !== piece.bytes || offsetsStat.size !== piece.count * 8
-        || await hashFile(dataPath, signal) !== piece.hash
-        || await hashFile(offsetsPath, signal) !== piece.offsetsHash) throw error('Semantic part hash/size mismatch.');
-      await validateOffsetsAgainstFile(dataPath, offsetsPath, { signal });
-      validated.set(key, signature);
+    if (dataStat.size !== piece.bytes || offsetsStat.size !== piece.count * 8) throw error('Semantic part hash/size mismatch.');
+    const [dataHash, offsetsHash] = await Promise.all([
+      hashFile(dataPath, piece.bytes, signal), hashFile(offsetsPath, piece.count * 8, signal)
+    ]);
+    if (dataHash !== piece.hash || offsetsHash !== piece.offsetsHash) throw error('Semantic part hash/size mismatch.');
+    // Reuse boundary-validation metadata only after rehashing the current bytes.
+    // Equal timestamps cannot prove an unchanged part on supported filesystems.
+    if (!validated.has(key)) {
+      // Publication and projection create several readers for the same parts.
+      // Reuse successful boundary checks across those readers only after the
+      // current operation has proved both content hashes above.
+      if (!CONTENT_BOUNDARY_VALIDATIONS.has(key)) {
+        await validateOffsetsAgainstFile(dataPath, offsetsPath, { signal });
+      } else {
+        CONTENT_BOUNDARY_VALIDATIONS.delete(key);
+      }
+      CONTENT_BOUNDARY_VALIDATIONS.set(key, true);
+      while (CONTENT_BOUNDARY_VALIDATIONS.size > MAX_CONTENT_BOUNDARY_VALIDATIONS) {
+        CONTENT_BOUNDARY_VALIDATIONS.delete(CONTENT_BOUNDARY_VALIDATIONS.keys().next().value);
+      }
+      validated.set(key, true);
       while (validated.size > validationCacheEntries) validated.delete(validated.keys().next().value);
     }
     return { dataPath, offsetsPath };
