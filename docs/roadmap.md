@@ -120,8 +120,9 @@ with a relocation manifest. `.testLogs` retains original receipts. See the
 repair tree passed the front gate and fresh native/patch verification; a final
 rerun and complete Windows cohort remain required for the newer source.
 Candidate 05 stopped between cohorts for publication: 723 passes, two assertion
-failures, no timeouts, native crashes or skips. The inventory failure is repaired;
-watch-state persistence and the remaining final-candidate cohorts stay open.
+failures, no timeouts, native crashes or skips. The inventory failure and watch
+fixture's disk synchronization are repaired; all 25 watch cases pass. The
+remaining final-candidate cohorts stay open.
 
 Execution order for remaining work:
 

@@ -544,6 +544,33 @@ does not imply that the unfinished deep or platform cohorts passed.
 
 ## Remaining acceptance work
 
+### Watch persistence follow-up
+
+The watch consistency failure is a stale fixture synchronization assumption.
+`emitWatchState` publishes memory and callbacks before adding the disk write to
+its persistence chain; shutdown already joins that chain. The fixture read the
+file immediately after observing memory, so a valid queued write could still
+leave `catching-up` on disk. A task-local hook delaying consistent-generation
+writes by 250 ms reproduces the original assertion before repair
+(`watch-consistency-fail-before.log`). The fixture now observes live disk
+convergence within the existing five-second condition bound, retaining all
+memory, backlog, generation and persisted-state assertions. The watch remains
+running during the disk check. The shared condition helper awaits asynchronous
+predicates instead of treating any returned Promise as true.
+
+The same delayed-write control passes afterward
+(`watch-consistency-delayed-pass-after.log`). A second control suppressing all
+consistent-generation writes still fails at the five-second bound
+(`watch-consistency-stale-negative.log`), proving that permanently stale
+persistence is rejected. Those diagnostic logs are task-local historical
+evidence, not discovered suite cases. All 25 watch fixtures pass normally with
+zero retries, skips or timeouts (`.testLogs/run-1792373022960-e5ev5p`). No
+production behavior, state schema, condition deadline or public option changed.
+The complete front gate also passes for this follow-up, including all 39 cases
+(`.testLogs/run-1792373141842-gcoagt`) and every preceding required check.
+
+### Final campaign
+
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. The capable Windows symlink launch and safe
 uninstall prerequisite are now satisfied. Full Windows-suite acceptance is still
