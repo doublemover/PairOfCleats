@@ -22,7 +22,9 @@ const logs = [];
 const { ctx, document, target } = fixture.contextFor(logs);
 const preflightLockPath = resolveSourcekitPreflightLockPath(ctx.repoRoot);
 ctx.toolingConfig = {
+  ...ctx.toolingConfig,
   sourcekit: {
+    ...ctx.toolingConfig.sourcekit,
     preflightLockWaitMs: 0,
     preflightLockPollMs: 25
   }
