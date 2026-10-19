@@ -43,6 +43,14 @@ cache authority checks, formats, producer meaning and deadlines are unchanged.
 These `.testLogs`/task receipts belong to the author workspace; the next complete
 candidate must execute every required case again.
 
+The command-profile contract matrix has the same unnecessary shared-cache
+dependency: an owned-cache control passes every original case in 2.80 s versus
+22.0 s with the author cache. It now owns its probe cache and asserts that actual
+persistent probe files are produced. AST comparison preserves every original
+assertion in order, adding only that ownership witness
+(`doctor-cache-retention-proof-17.json`). Probe arguments, timeout bounds,
+persistent-cache behavior and all negative contracts remain unchanged.
+
 October 19 candidate 15 is closed with a recorded failure. Exact published head
 `02ad003c8384cbe10e1c0980da78263cde426881` freezes source SHA-256
 `8864e8957011870b0e9ddfabec7d05112525181721a91ae214b57792123bba66`

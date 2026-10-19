@@ -16,7 +16,7 @@ import { redactDiagnosticText } from '../../../src/shared/diagnostic-text.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const testRoot = resolveTestCachePath(root, `tooling-doctor-command-profile-contract-${process.pid}-${Date.now()}`);
@@ -607,23 +607,30 @@ const runProviderOverrideCase = async () => {
 
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(testRoot, { recursive: true });
-const restoreExecution = grantFixtureRepositoryExecution(testRoot);
-
 try {
-  runTimeoutTierCases();
-  runMissingDetectionCases();
-  runProbeDiagnosticCases();
-  await runCommandResolutionCases();
-  await runToolingDirPrecedenceCase();
-  await runDirectProbeCases();
-  await runPyrightOverrideCases();
-  await runProbeTimeoutCase();
-  await runLuaManagedLayoutValidationCase();
-  await runProviderOverrideCase();
-  console.log('tooling doctor command profile contract matrix test passed');
+  await withTemporaryEnv(applyTestEnv({ cacheRoot: path.join(testRoot, 'probe-cache'), syncProcess: false }), async () => {
+    const restoreExecution = grantFixtureRepositoryExecution(testRoot);
+    try {
+      runTimeoutTierCases();
+      runMissingDetectionCases();
+      runProbeDiagnosticCases();
+      await runCommandResolutionCases();
+      await runToolingDirPrecedenceCase();
+      await runDirectProbeCases();
+      await runPyrightOverrideCases();
+      await runProbeTimeoutCase();
+      await runLuaManagedLayoutValidationCase();
+      await runProviderOverrideCase();
+      const ownedProbes = await fs.readdir(path.join(testRoot, 'probe-cache', 'cache', 'tooling', 'command-probes'));
+      assert.ok(ownedProbes.some(name => /^[a-f0-9]{40}\.json$/.test(name)),
+        'the matrix exercises persistent probes in its owned cache');
+      console.log('tooling doctor command profile contract matrix test passed');
+    } finally {
+      restoreExecution();
+      __resetToolingCommandProbeCacheForTests();
+    }
+  });
 } finally {
-  restoreExecution();
-  __resetToolingCommandProbeCacheForTests();
   await restorePath();
   await fs.rm(testRoot, { recursive: true, force: true });
 }
