@@ -8,7 +8,7 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { readJsonlRowsAt, validateOffsetsAgainstFile } from '../shared/artifact-io/offsets.js';
+import { openJsonlRowReader, readJsonlRowsAt, validateOffsetsAgainstFile } from '../shared/artifact-io/offsets.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
@@ -93,9 +93,12 @@ export const createArtifactSemanticStore = ({
     const [dataStat, offsetsStat] = await Promise.all([fs.stat(dataPath), fs.stat(offsetsPath)]);
     const key = dataPath + ':' + piece.hash + ':' + piece.offsetsHash;
     if (dataStat.size !== piece.bytes || offsetsStat.size !== piece.count * 8) throw error('Semantic part hash/size mismatch.');
-    const [dataHash, offsetsHash] = await Promise.all([
+    const hashes = await Promise.allSettled([
       hashFile(dataPath, piece.bytes, signal), hashFile(offsetsPath, piece.count * 8, signal)
     ]);
+    const failedHash = hashes.find(result => result.status === 'rejected');
+    if (failedHash) throw failedHash.reason;
+    const [dataHash, offsetsHash] = hashes.map(result => result.value);
     if (dataHash !== piece.hash || offsetsHash !== piece.offsetsHash) throw error('Semantic part hash/size mismatch.');
     // Reuse boundary-validation metadata only after rehashing the current bytes.
     // Equal timestamps cannot prove an unchanged part on supported filesystems.
@@ -298,7 +301,7 @@ export const createArtifactSemanticStore = ({
     if (next !== queryIndex.rowCount) throw error('Query index count mismatch.');
     checkedQueryIndex = true;
   };
-  const readQueryIndexRow = async (ordinal, signal, metrics, verifiedPieces) => {
+  const readQueryIndexRow = async (ordinal, signal, metrics, verifiedPieces, readers) => {
     const pieces = queryIndex.pieces;
     let low = 0, high = pieces.length - 1, piece = null;
     while (low <= high) {
@@ -313,7 +316,16 @@ export const createArtifactSemanticStore = ({
     // hydration groups reads by piece. The next request validates it afresh.
     if (!verifiedPieces.has(piece)) verifiedPieces.set(piece, validatePiece(piece, signal));
     const { dataPath, offsetsPath } = await verifiedPieces.get(piece);
-    const [row] = await readJsonlRowsAt(dataPath, offsetsPath, [ordinal - piece.firstRow], { maxBytes: maxRecordBytes, metrics });
+    // Binary-search probes share at most four handle pairs within this request.
+    // Overflow pieces use the ordinary short-lived reader. No handle or row
+    // survives the request, and its next invocation revalidates current bytes.
+    if (!readers.has(piece) && readers.size < 4) {
+      readers.set(piece, openJsonlRowReader(dataPath, offsetsPath));
+    }
+    const indexes = [ordinal - piece.firstRow], options = { maxBytes: maxRecordBytes, metrics };
+    const [row] = readers.has(piece)
+      ? await (await readers.get(piece)).readRows(indexes, options)
+      : await readJsonlRowsAt(dataPath, offsetsPath, indexes, options);
     assertQueryIndexRow(row);
     if (compareQueryIndexRows(row, piece.firstKey) < 0 || compareQueryIndexRows(row, piece.lastKey) > 0) throw error('Query index key range mismatch.');
     return row;
@@ -324,55 +336,65 @@ export const createArtifactSemanticStore = ({
     if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
       || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records', 'semantic_edges'].includes(member)
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
-    const verifiedPieces = new Map(), queryRows = new Map();
-    const readRow = ordinal => {
-      if (!queryRows.has(ordinal)) queryRows.set(ordinal,
-        readQueryIndexRow(ordinal, signal, metrics, verifiedPieces));
-      return queryRows.get(ordinal);
-    };
-    const bound = async (upper) => {
-      let low = 0, high = queryIndex.rowCount;
-      while (low < high) {
-        throwIfAborted(signal);
-        const middle = Math.floor((low + high) / 2);
-        const row = await readRow(middle);
-        const compare = queryIndexOwnerCompare(row, ref, member);
-        if (compare < 0 || (upper && compare === 0)) low = middle + 1;
-        else high = middle;
+    const verifiedPieces = new Map(), queryRows = new Map(), readers = new Map();
+    try {
+      const readRow = ordinal => {
+        if (!queryRows.has(ordinal)) queryRows.set(ordinal,
+          readQueryIndexRow(ordinal, signal, metrics, verifiedPieces, readers));
+        return queryRows.get(ordinal);
+      };
+      const bound = async (upper) => {
+        let low = 0, high = queryIndex.rowCount;
+        while (low < high) {
+          throwIfAborted(signal);
+          const middle = Math.floor((low + high) / 2);
+          const row = await readRow(middle);
+          const compare = queryIndexOwnerCompare(row, ref, member);
+          if (compare < 0 || (upper && compare === 0)) low = middle + 1;
+          else high = middle;
+        }
+        return low;
+      };
+      // Await both searches on failure too, before disposing their shared files.
+      const bounds = await Promise.allSettled([bound(false), bound(true)]);
+      const failed = bounds.find(result => result.status === 'rejected');
+      if (failed) throw failed.reason;
+      const [start, end] = bounds.map(result => result.value);
+      if (offset > end - start) throw error('Related semantic cursor exceeds member rows.');
+      const selected = [];
+      for (let ordinal = start + offset; ordinal < Math.min(end, start + offset + limit); ordinal += 1) {
+        const row = await readRow(ordinal);
+        if (queryIndexOwnerCompare(row, ref, member) !== 0) throw error('Query index owner mismatch.');
+        selected.push(row);
       }
-      return low;
-    };
-    const [start, end] = await Promise.all([bound(false), bound(true)]);
-    if (offset > end - start) throw error('Related semantic cursor exceeds member rows.');
-    const selected = [];
-    for (let ordinal = start + offset; ordinal < Math.min(end, start + offset + limit); ordinal += 1) {
-      const row = await readRow(ordinal);
-      if (queryIndexOwnerCompare(row, ref, member) !== 0) throw error('Query index owner mismatch.');
-      selected.push(row);
-    }
-    const rows = [];
-    const work = new Map();
-    for (let i = 0; i < selected.length; i += 1) {
-      const entry = selected[i];
-      if (!work.has(entry.partitionId)) work.set(entry.partitionId, []);
-      work.get(entry.partitionId).push({ entry, index: i });
-    }
-    for (const [partitionId, entries] of work) {
-      const hydrated = await readMemberRows(partitionId, member, entries.map(({ entry }) => entry.rowOrdinal), { signal, metrics });
-      for (let i = 0; i < entries.length; i += 1) {
-        const row = hydrated[i];
-        const owner = member === 'semantic_records' ? row.data.expression : member === 'semantic_operands' ? row.parent : member === 'semantic_ownership' ? row.recordRef
-          : { partitionId, localId: row.id };
-        const matches = member === 'semantic_edges'
-          ? [row.from, row.to].some(endpoint => canonicalSemanticJson(endpoint) === canonicalSemanticJson(ref))
-          : canonicalSemanticJson(owner) === canonicalSemanticJson(ref);
-        if (!matches) throw error('Query index points to a different owner.');
-        rows[entries[i].index] = member === 'semantic_lookup' ? { partitionId, id: row.id, value: row.value }
-          : member === 'semantic_records' ? { ...row, ref: { partitionId, localId: row.id },
-            availableFieldGroups: ['span', 'scope', 'data'], omittedFieldGroups: [] } : row;
+      const rows = [];
+      const work = new Map();
+      for (let i = 0; i < selected.length; i += 1) {
+        const entry = selected[i];
+        if (!work.has(entry.partitionId)) work.set(entry.partitionId, []);
+        work.get(entry.partitionId).push({ entry, index: i });
       }
+      for (const [partitionId, entries] of work) {
+        const hydrated = await readMemberRows(partitionId, member, entries.map(({ entry }) => entry.rowOrdinal), { signal, metrics });
+        for (let i = 0; i < entries.length; i += 1) {
+          const row = hydrated[i];
+          const owner = member === 'semantic_records' ? row.data.expression : member === 'semantic_operands' ? row.parent : member === 'semantic_ownership' ? row.recordRef
+            : { partitionId, localId: row.id };
+          const matches = member === 'semantic_edges'
+            ? [row.from, row.to].some(endpoint => canonicalSemanticJson(endpoint) === canonicalSemanticJson(ref))
+            : canonicalSemanticJson(owner) === canonicalSemanticJson(ref);
+          if (!matches) throw error('Query index points to a different owner.');
+          rows[entries[i].index] = member === 'semantic_lookup' ? { partitionId, id: row.id, value: row.value }
+            : member === 'semantic_records' ? { ...row, ref: { partitionId, localId: row.id },
+              availableFieldGroups: ['span', 'scope', 'data'], omittedFieldGroups: [] } : row;
+        }
+      }
+      return { rows, offset: offset + rows.length, done: start + offset + rows.length === end };
+    } finally {
+      const opened = await Promise.allSettled(readers.values());
+      await Promise.allSettled(opened.filter(result => result.status === 'fulfilled')
+        .map(result => result.value.close()));
     }
-    return { rows, offset: offset + rows.length, done: start + offset + rows.length === end };
   };
   const verifySource = async (source, { signal = null } = {}) => {
     const file = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');

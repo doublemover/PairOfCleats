@@ -7,6 +7,7 @@ import {
   OFFSETS_COMPRESSION,
   OFFSETS_FORMAT,
   OFFSETS_FORMAT_VERSION,
+  openJsonlRowReader,
   readJsonlRowAt,
   readJsonlRowsAt,
   resolveOffsetsCount,
@@ -48,7 +49,8 @@ const originalOpen = fs.open;
 const missingPath = path.join(cacheRoot, 'missing.jsonl');
 for (const read of [
   (data, offsets) => readJsonlRowAt(data, offsets, 0),
-  (data, offsets) => readJsonlRowsAt(data, offsets, [0])
+  (data, offsets) => readJsonlRowsAt(data, offsets, [0]),
+  (data, offsets) => openJsonlRowReader(data, offsets)
 ]) {
   for (const [data, offsets] of [[missingPath, offsetsPath], [jsonlPath, missingPath]]) {
     const handles = [], pending = [];
@@ -68,6 +70,31 @@ for (const read of [
     }
   }
 }
+
+const opened = [];
+fs.open = async (...args) => {
+  const handle = await originalOpen(...args);
+  opened.push(handle);
+  return handle;
+};
+let scoped;
+try {
+  scoped = await openJsonlRowReader(jsonlPath, offsetsPath);
+  const [first, second] = await Promise.all([
+    scoped.readRows([2, 0, 2], { maxBytes: 1024 }),
+    scoped.readRows([1], { maxBytes: 1024 })
+  ]);
+  assert.deepEqual(first, [rows[2], rows[0], rows[2]]);
+  assert.deepEqual(second, [rows[1]]);
+  await assert.rejects(() => scoped.readRows([0], { maxBytes: 1 }), { code: 'ERR_JSON_TOO_LARGE' });
+  assert.equal(opened.length, 2, 'positioned probes share just one handle pair');
+} finally {
+  fs.open = originalOpen;
+  await scoped?.close();
+}
+assert.ok(opened.every(handle => handle.fd === -1), 'scoped readers dispose both files after failed reads');
+await scoped.close();
+assert.throws(() => scoped.readRows([0]), /reader is closed/);
 
 const encodeOffsets = (values) => {
   const buffer = Buffer.alloc(values.length * 8);

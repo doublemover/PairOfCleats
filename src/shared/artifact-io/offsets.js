@@ -251,7 +251,7 @@ export const readJsonlRowAt = async (
  * @param {{maxBytes?:number,requiredKeys?:string[]|null,metrics?:object|null}} [options]
  * @returns {Promise<Array<object|null>>}
  */
-export const readJsonlRowsAt = async (
+const readJsonlRowsAtWithHandles = async (
   jsonlPath,
   offsetsPath,
   indexes,
@@ -259,7 +259,8 @@ export const readJsonlRowsAt = async (
     maxBytes = MAX_JSON_BYTES,
     requiredKeys = null,
     metrics = null
-  } = {}
+  },
+  [jsonlHandle, offsetsHandle]
 ) => {
   const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowsAt');
   if (!Array.isArray(indexes) || indexes.length === 0) return [];
@@ -274,99 +275,124 @@ export const readJsonlRowsAt = async (
     uniqueNeeded.add(index);
     uniqueNeeded.add(index + 1);
   }
-  const [jsonlHandle, offsetsHandle] = await openJsonlHandles(jsonlPath, offsetsPath);
-  try {
-    const [offsetsStat, jsonlStat] = await Promise.all([
-      offsetsHandle.stat(),
-      jsonlHandle.stat()
-    ]);
-    const offsetCount = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
-    const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
-    const rowByIndex = new Map();
-    const rowSpecs = [];
-    for (const index of uniqueIndexes) {
-      if (index >= offsetCount) {
-        rowByIndex.set(index, null);
-        continue;
-      }
-      const start = offsetValues.get(index);
-      const next = index + 1 < offsetCount ? offsetValues.get(index + 1) : null;
-      if (!Number.isFinite(start)) {
-        rowByIndex.set(index, null);
-        continue;
-      }
-      const end = Number.isFinite(next) ? next : jsonlStat.size;
-      if (end < start) {
-        throw new Error(`Invalid offsets: end (${end}) < start (${start}) for ${jsonlPath}`);
-      }
-      const length = end - start;
-      if (length === 0) {
-        rowByIndex.set(index, null);
-        continue;
-      }
-      if (metrics && typeof metrics === 'object') {
-        const currentRequested = Number.isFinite(metrics.bytesRequested) ? metrics.bytesRequested : 0;
-        metrics.bytesRequested = currentRequested + length;
-      }
-      if (length > resolvedMaxBytes) {
-        throw toJsonTooLargeError(jsonlPath, length);
-      }
-      rowSpecs.push({ index, start, end });
+  const [offsetsStat, jsonlStat] = await Promise.all([
+    offsetsHandle.stat(),
+    jsonlHandle.stat()
+  ]);
+  const offsetCount = resolveOffsetCountFromSize(offsetsStat.size, offsetsPath);
+  const offsetValues = await readOffsetsAtWithHandle(offsetsHandle, [...uniqueNeeded]);
+  const rowByIndex = new Map();
+  const rowSpecs = [];
+  for (const index of uniqueIndexes) {
+    if (index >= offsetCount) {
+      rowByIndex.set(index, null);
+      continue;
     }
-    const ranges = [];
-    let currentRange = null;
-    for (const spec of rowSpecs) {
-      if (!currentRange) {
-        currentRange = {
-          start: spec.start,
-          end: spec.end,
-          rows: [spec]
-        };
-        continue;
-      }
-      const contiguous = spec.start === currentRange.end;
-      const mergedBytes = spec.end - currentRange.start;
-      if (contiguous && mergedBytes <= JSONL_ROWS_AT_MAX_BATCH_BYTES) {
-        currentRange.end = spec.end;
-        currentRange.rows.push(spec);
-        continue;
-      }
-      ranges.push(currentRange);
+    const start = offsetValues.get(index);
+    const next = index + 1 < offsetCount ? offsetValues.get(index + 1) : null;
+    if (!Number.isFinite(start)) {
+      rowByIndex.set(index, null);
+      continue;
+    }
+    const end = Number.isFinite(next) ? next : jsonlStat.size;
+    if (end < start) {
+      throw new Error(`Invalid offsets: end (${end}) < start (${start}) for ${jsonlPath}`);
+    }
+    const length = end - start;
+    if (length === 0) {
+      rowByIndex.set(index, null);
+      continue;
+    }
+    if (metrics && typeof metrics === 'object') {
+      const currentRequested = Number.isFinite(metrics.bytesRequested) ? metrics.bytesRequested : 0;
+      metrics.bytesRequested = currentRequested + length;
+    }
+    if (length > resolvedMaxBytes) {
+      throw toJsonTooLargeError(jsonlPath, length);
+    }
+    rowSpecs.push({ index, start, end });
+  }
+  const ranges = [];
+  let currentRange = null;
+  for (const spec of rowSpecs) {
+    if (!currentRange) {
       currentRange = {
         start: spec.start,
         end: spec.end,
         rows: [spec]
       };
+      continue;
     }
-    if (currentRange) ranges.push(currentRange);
-    for (const range of ranges) {
-      const length = range.end - range.start;
-      if (length <= 0) continue;
-      const buffer = Buffer.allocUnsafe(length);
-      const { bytesRead } = await jsonlHandle.read(buffer, 0, length, range.start);
-      assertExactRead(bytesRead, length, `JSONL row short read for ${jsonlPath}`);
-      if (metrics && typeof metrics === 'object') {
-        const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
-        metrics.bytesRead = currentRead + bytesRead;
-      }
-      for (const spec of range.rows) {
-        const start = spec.start - range.start;
-        const end = spec.end - range.start;
-        const line = buffer.slice(start, end).toString('utf8');
-        rowByIndex.set(
-          spec.index,
-          parseJsonlLine(line, jsonlPath, spec.index + 1, resolvedMaxBytes, requiredKeys)
-        );
-      }
+    const contiguous = spec.start === currentRange.end;
+    const mergedBytes = spec.end - currentRange.start;
+    if (contiguous && mergedBytes <= JSONL_ROWS_AT_MAX_BATCH_BYTES) {
+      currentRange.end = spec.end;
+      currentRange.rows.push(spec);
+      continue;
     }
-    if (metrics && typeof metrics === 'object') {
-      const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;
-      metrics.rowsRead = currentRows + uniqueIndexes.length;
-    }
-    return normalized.map((index) => (index >= 0 ? (rowByIndex.get(index) ?? null) : null));
-  } finally {
-    await Promise.allSettled([jsonlHandle.close(), offsetsHandle.close()]);
+    ranges.push(currentRange);
+    currentRange = {
+      start: spec.start,
+      end: spec.end,
+      rows: [spec]
+    };
   }
+  if (currentRange) ranges.push(currentRange);
+  for (const range of ranges) {
+    const length = range.end - range.start;
+    if (length <= 0) continue;
+    const buffer = Buffer.allocUnsafe(length);
+    const { bytesRead } = await jsonlHandle.read(buffer, 0, length, range.start);
+    assertExactRead(bytesRead, length, `JSONL row short read for ${jsonlPath}`);
+    if (metrics && typeof metrics === 'object') {
+      const currentRead = Number.isFinite(metrics.bytesRead) ? metrics.bytesRead : 0;
+      metrics.bytesRead = currentRead + bytesRead;
+    }
+    for (const spec of range.rows) {
+      const start = spec.start - range.start;
+      const end = spec.end - range.start;
+      const line = buffer.slice(start, end).toString('utf8');
+      rowByIndex.set(
+        spec.index,
+        parseJsonlLine(line, jsonlPath, spec.index + 1, resolvedMaxBytes, requiredKeys)
+      );
+    }
+  }
+  if (metrics && typeof metrics === 'object') {
+    const currentRows = Number.isFinite(metrics.rowsRead) ? metrics.rowsRead : 0;
+    metrics.rowsRead = currentRows + uniqueIndexes.length;
+  }
+  return normalized.map((index) => (index >= 0 ? (rowByIndex.get(index) ?? null) : null));
+};
+
+/** Open one operation-scoped row reader. The caller owns close(), including on
+ * cancellation or failure. Positioned reads retain the existing byte bounds.
+ */
+export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
+  const handles = await openJsonlHandles(jsonlPath, offsetsPath);
+  let closed = false;
+  return {
+    readRows(indexes, options = {}) {
+      if (closed) throw new Error('JSONL row reader is closed.');
+      return readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, handles);
+    },
+    async close() {
+      if (closed) return;
+      closed = true;
+      await Promise.allSettled(handles.map(handle => handle.close()));
+    }
+  };
+};
+
+/** Read selected rows and dispose both files before resolving or rejecting. */
+export const readJsonlRowsAt = async (jsonlPath, offsetsPath, indexes, options = {}) => {
+  const { maxBytes = MAX_JSON_BYTES } = options;
+  resolveValidatedMaxBytes(maxBytes, 'readJsonlRowsAt');
+  if (!Array.isArray(indexes) || !indexes.some(value => Number.isFinite(value) && value >= 0)) return [];
+  const reader = await openJsonlRowReader(jsonlPath, offsetsPath);
+  try {
+    return await reader.readRows(indexes, options);
+  } finally { await reader.close(); }
 };
 
 /**

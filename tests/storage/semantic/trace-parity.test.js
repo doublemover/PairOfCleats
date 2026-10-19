@@ -50,8 +50,26 @@ try {
   const index = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, operationIndex, queryIndex: index });
-  const related = () => artifact.getRelatedPage(refs[0], 'semantic_edges', { limit: 1 });
+  const related = async (options = {}) => {
+    const originalOpen = fs.open, opened = [];
+    let peakHandles = 0;
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      opened.push(handle);
+      peakHandles = Math.max(peakHandles, opened.filter(value => value.fd !== -1).length);
+      return handle;
+    };
+    try { return await artifact.getRelatedPage(refs[0], 'semantic_edges', { limit: 1, ...options }); }
+    finally {
+      fs.open = originalOpen;
+      assert.ok(peakHandles <= 16, 'four reader pairs plus bounded concurrent validation/probes');
+      assert.ok(opened.every(handle => handle.fd === -1), 'related requests dispose every handle before settling');
+    }
+  };
   assert.equal((await related()).rows.length, 1);
+  await assert.rejects(related({ offset: 10000 }), /cursor exceeds member rows/);
+  const cancelledRelated = new AbortController(); cancelledRelated.abort();
+  await assert.rejects(related({ signal: cancelledRelated.signal }), { name: 'AbortError' });
   let ownerPiece = null;
   for (const piece of index.pieces) {
     const rows = (await fs.readFile(path.join(fixture.stagingRoot, piece.path), 'utf8')).trim().split('\n').map(row => JSON.parse(row));
