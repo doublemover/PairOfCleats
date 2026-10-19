@@ -11,7 +11,9 @@ const fixture = await createRuntimeImportFixture();
 try {
   const options = fixture.options(), imported = await importRuntimeEvidence(options);
   const manifest = (await verifyRuntimeFamily({ destination: options.destination, pointer: imported.pointer })).manifest;
-  const root = path.join(options.destination, 'generations', imported.pointer.generationId);
+  // Query-family admission opens canonical paths, including expanded Windows
+  // DOS temp aliases. Fault hooks must target that actual opened spelling.
+  const root = await fs.realpath(path.join(options.destination, 'generations', imported.pointer.generationId));
   const capturePath = path.join(root, 'capture.json'), original = await fs.readFile(capturePath);
   const request = { schemaVersion: 1, repositoryNamespace: fixture.capture.repositoryNamespace, generation: fixture.capture.generation,
     familyGenerations: [imported.pointer.generationId], selectors: defaultRuntimeQuerySelectors(),
@@ -59,7 +61,10 @@ try {
     };
     try {
       await assert.rejects(queryRuntimeEvidence({ destination: options.destination, request, signal: controller.signal }),
-        mode === 'cancellation' ? { code: 'ABORT_ERR' } : { code: 'ERR_RUNTIME_IMPORT_INTEGRITY' });
+        mode === 'cancellation' ? { code: 'ABORT_ERR' } : { code: 'ERR_RUNTIME_IMPORT_INTEGRITY' },
+        `${mode}: the real opened-member control must reject`);
+      assert.equal(injected, !(mode === 'symlink' && process.platform === 'win32'),
+        `${mode}: mutate the actual member, or reject the Windows symlink before its read`);
       assert.equal(handles.size, 0, 'all opened members close on integrity or cancellation failure');
     } finally {
       fs.open = originalOpen;
