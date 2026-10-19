@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-10-18. Source contracts and workflow definitions describe required
+Audited: 2026-10-19. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
@@ -31,17 +31,21 @@ The cheap front gate, a broad discovered selection, and release qualification
 must be reported separately. Ordered lanes and physical discovery differ; list
 the intended selection before interpreting its result.
 
-Candidate 21 supplies complete first-pass diagnostics: 2981 required passes and
-one descriptor-zero fixture failure, no timeout or native crash. Its adapter
-drops stat options and returns Number identities for a BigInt request. Forwarding
-those options repairs the fixture; original excerpt/close assertions remain,
-with both stat representations and owned cleanup covered. Five focused cases
-pass. All seven PR checks pass on candidate 21, but it remains a failed candidate.
-The five ordinary CI jobs use a synthetic merge with an identical Git tree;
-strict authority separately verifies the exact PR head. Windows object-cache
-isolation takes 31.482 seconds in broad CI and 13.4 seconds in its fresh local
-strict run. The broad timing is not 30-second qualification. The repaired
-candidate still requires complete fresh acceptance and the serial supplement.
+Candidate 22 at `ffde426be` completes Windows acceptance: 2982 required
+first-attempt passes across 48 cohorts, 17 explicit exclusions out of 2999
+discovered cases, zero failures/timeouts/native crashes/retries/unexpected skips.
+All 16 serial supplementary checks, 51 native/TUI cases and 101 serial performance
+fixtures pass. The slowest required case is 24.094 seconds. All 65 original
+failure entries, including 27 timeouts, have current coverage mappings in the
+[durable Windows receipt](../archived/windows-deep-repairs-2026-10-18.md).
+All seven PR checks pass. Five ordinary CI jobs use a synthetic merge whose
+entire Git tree equals the frozen head; strict authority checks out that head
+explicitly and passes all 44 real file-symlink cases. Broad CI contains 975 cases:
+Windows passes 972 with three declared exclusions; Ubuntu/macOS pass 974 with one
+optional exclusion each. All are first attempts. Windows map-cache isolation takes
+39.669 seconds under the broad CI deadline, versus 17.171 seconds in its local
+strict run. The broad timing is not a 30-second pass. These counts do not qualify
+Linux/macOS full deep execution or release-wide readiness.
 
 ## Useful required coverage
 
@@ -52,121 +56,37 @@ OS × language × provider × backend cross-product to routine PR work.
    regressions, discovery completeness and format rejection. Keep helper tests
    discoverable and retain newly split assertions in the corresponding ordered
    lane. No retries or native-status redo count as acceptance for this audit.
-2. **Each supported OS:** CLI/API/MCP entrypoints; subprocess argument quoting,
-   cancellation and descendant reaping; path identity/case handling; atomic
-   publication and recovery; cache admission/cleanup; editor package/install.
-   File-symlink authority tests need a runner with that capability. The October
-   18 task-local elevated Windows launch created a real file symlink. Candidate
-   08 passes all 44 capable-token cases with zero skips; ordinary medium-token
-   runs still return EPERM. The elevated launch did not alter system security
-   settings. At `39703b3a3`, the strict hosted Windows job passes all 44 at the
-   audit deadline, preserving capability, commit/tree, Node/native readiness and
-   every result/log. All attempts are one, with zero skips or native crashes.
-   Its guard is in regular `ci-lite`; omission, skips, retries, late success and
-   missing capability fail qualification. Subsequent repairs require a new run.
+2. **Each supported OS:** CLI/API/MCP entrypoints; subprocess quoting,
+   cancellation and descendant reaping; exact path/file identity; atomic
+   publication/recovery; cache admission; editor install/uninstall. Candidate 22
+   passes all Windows-applicable cases. Its hosted strict authority job proves
+   real file-symlink capability at the exact head/tree: 44 first-attempt passes,
+   no skips, retries or late successes. Three separate strict Windows subprocess
+   owners pass. No machine security policy changed. Ubuntu/macOS bounded CI passes
+   are distinct from their still-unexecuted full deep campaigns.
 3. **Native Node backends:** prepared SQLite, LMDB, HNSW, LanceDB and parser
-   activation plus a bounded real build/query/teardown route on each shipped
-   platform. Stub vectors exercise deterministic ANN integration, not real model
-   execution. The captured Windows worker-teardown crash is attributed to Node
-   26.8.1 and its original routes pass on the clean 26.10.0 candidate; full
-   Windows-suite acceptance still requires the remaining cohorts. Do not replace
-   native lifecycle coverage with a backend switch or retry.
-   A real one-CPU TypeScript publication regression additionally covers scheduler
-   ownership: compiler work must acquire its own reservation without a parent
-   retaining the sole CPU token. Local before/after failure/pass evidence is in
-   the Windows receipt. The fixture uses the 512 MiB product default, asserts
-   persisted CPU/memory totals and maxima of one, and keeps adaptive admission
-   and real compiler/binding positives. macOS then exposes false global-byte
-   pressure: raw free pages discard the process API's reclaimable availability.
-   The shared memory owner is repaired while preserving zero-pressure and all
-   hard budget bounds. Retained `d481d8980` macOS telemetry proves 3.33 GB process
-   availability versus 0.85 GB raw free and admission of the unchanged 512 MiB
-   request, first attempt in 15.8 seconds. Windows compiler and macOS YAML retries
-   remain visible; a green job is not zero-retry acceptance. The CPU fixture now
-   isolates two real compiler modules, preserves all 17 assertions and adds five
-   execution/cross-source checks. The old owner still fails at 22.8 seconds; the
-   repaired fixture passes in 10.2 seconds. All default SSR input bytes remain
-   unchanged. Their retained full coverage records a 30.4-second timeout. Bounded
-   common-probe reuse passes both in 26.9/26.2 seconds, with complete same-root
-   record/edge equivalence. Six integrity/service checks and six SQLite/report
-   checks pass. Candidate 15 then records SSR incremental timing out at 30.355 s;
-   it closes with 46 required passes, including 44 verified exact-head hosted
-   authority cases, and four fail-fast omissions. Profiling identifies repeated
-   compiler dependency probes. Host-owned TypeScript caches and context-bounded
-   preflight deduplication pass the full SSR pair in 27.392/26.820 s, preserving
-   all input bytes and complete graph fields. Fresh-host package changes and
-   sealed unknown/changed probes remain checked. Final-source acceptance still
-   requires every cohort. Candidate 16 closes with 1250 required passes, one
-   SourceKit abort failure, 60 fail-fast omissions and 1670 unobserved cases.
-   Profiling proves a shared-cache sweep delays cancellation before package
-   resolution starts. Owned fixture caches/commands and actual child witnesses
-   now retain the original two-second bound, passing fresh/stale cases in
-   782/705 ms; all 15 SourceKit checks pass. Candidate 17 then stops after 212
-   required passes on a stale Doctor handshake fixture. Explicit commands and
-   controlled negative cases expose a numeric diagnostic-code producer bug;
-   its original string assertion fails before repair and passes afterward,
-   including RPC zero. Candidate 18 then exposes a cold-probe fixture reading
-   shared author state. Its owned cache now proves real persistence and
-   invalidation across memory resets; all six related checks pass. Map-cache
-   isolation passes locally in 18.3 s under the original 30-second bound.
-   Candidate 19 then records 2980 required passes and one retained-disk accounting
-   failure across complete first-pass diagnostics. Real NTFS IDs collide after
-   Number conversion, reproducing an extra 53-byte receipt charge and a wrong
-   descriptor/path admission. Exact integer identities repair both owners;
-   same-physical-input and portable regressions pass. All six hosted jobs and
-   44 strict file-symlink cases pass on candidate 19, but the repaired source
-   still needs every final-source cohort and its own authority receipt.
-   Candidate 20 stops at 940 required passes with 2042 pending. All six hosted
-   jobs succeed, but Windows summary/report passes only after a deadline retry;
-   that result is not clean qualification. The append owner now drains accepted
-   records and reduces queued I/O, preserving each string's UTF-8 encoding,
-   complete trace content and all original summary inputs and deadlines. An
-   injected disk-delay control fails before repair and passes afterward. Normal
-   local profiles do not establish an elapsed-time improvement; a fresh hosted
-   run and complete final-source campaign remain required.
-   The SQLite
-   helper uses the identical builder through its narrow owner: its import graph
-   falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
-   At `2dfab0536`, CPU checks pass first attempt on Windows/macOS in 14.9/11.9 s;
-   a Windows report setup retry remains recorded pending the new helper's hosted
-   qualification. Windows cleanup passes first attempts
-   in both strict and broad lanes, but its earlier orphan failure is unattributed.
-4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
-   release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
-   node-pty ConPTY capture owner with actual console-mode observations. Focused
-   Windows quit, supervisor-error and broken-output checks pass with descendant
-   reaping and terminal restoration; see the
-   [Windows repair receipt](../archived/windows-deep-repairs-2026-10-18.md).
-   Linux execution and final-candidate acceptance remain separate. Windows
-   TypeScript VFS aliases now retain root spelling while canonicalizing lookups;
-   bounded root/preflight/import/compiler-binding checks pass. MCP queue,
-   cancellation, duplicate-ID, progress, timeout and isolated-cache search-filter
-   checks pass as separate Windows fixtures. These focused results still require
-   final-candidate cohort execution. The repo-self eval now requires every
-   original query to retrieve its expected source; its fenced Markdown host
-   prose and extracted-prose cases pass on a disposable source corpus. The
-   default index excludes `tools/`, so that specific fixture explicitly
-   unignores only the copied tool source. This does not qualify a full-repository
-   index. The explicit original-failure follow-up cohort found a nested test
-   cache under `sample`; default discovery and report fixture copies now exclude
-   `.testCache`/`.testLogs`, with positive source discovery retained. The four
-   affected report cases pass after that repair. Incremental SSR witnesses now
-   retain request-local query-index read deduplication, the full output digest
-   and between-request tamper rejection. Both exceed 30 seconds in candidate
-   07. Scoped JSONL readers pass both at 26.0 / 25.5 seconds on frozen candidate
-   08. That campaign stops with 539 passes and one semantic-detail timeout;
-   the API format checks now have three bounded cases retaining both real builds
-   and every original surface assertion. Final-candidate qualification remains
-   serial for native lifecycle and performance.
-   Candidate 09 then stops with 277 required passes and one format-fidelity
-   timeout. The metadata-only repair retains all 16 assertions and exact
-   56-code/9-prose row and file-map parity; it needs a new frozen-source campaign.
-   Script coverage retains every action in explicit discovered process cases;
-   its first complete cohort passed 211 cases, timed out once and reported two
-   optional/helper exclusions. The repaired tokenization comparisons and
-   corrected nightly dispatch still require final-candidate qualification.
-   Disposable contributor caches
-   now use `temp/dev/`; receipt paths remain under `.testLogs/`.
+   activation plus bounded real build/query/disposal routes. Clean verification
+   reports 37 packages/33 routes on Node 26.10.0, Windows x64, ABI 147, without
+   warning/error lines. Activation alone is not full runtime qualification. The
+   original Node 26.8.1 worker-teardown access violation has matching-symbol CDB
+   attribution and an upstream ASAN fail-before/pass-after regression. Ten explicit
+   fresh compiler/embedded-source controls pass after the repair, and every
+   original crashing route passes again in candidate 22 with normal production
+   settings. The local reduced VM control did not crash the old runtime; it is
+   not represented as a local deterministic fail-before proof. Stub vectors do
+   not qualify real models. CPU-token ownership, process-available memory, strict
+   BigInt file identity, append-close draining and host-owned compiler caches
+   retain demonstrated regressions and complete semantic content comparisons.
+   Earlier candidate failures, retries and inconclusive controls remain in the
+   Windows receipt; none supplies acceptance for the frozen candidate.
+4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks per supported
+   release target. Candidate 22 passes all 51 serial native/TUI cases. The real
+   node-pty ConPTY quit, supervisor-error and terminal-error cases take
+   4.230/3.764/4.302 seconds, asserting status, descendant reaping, terminal
+   restoration and final job states. Linux POSIX lifetime execution and native
+   release-target qualification remain separate. Portable provider/MCP/cache
+   fixtures retain explicit trust, fresh cache authority and actual child-start
+   witnesses. Developer caches now use `temp/dev/`; logs remain historical.
 5. **Provider or model claims:** separately qualify the exact installed tool,
    trusted workspace, model revision/digest and backend that the claim needs.
    Real C/ELF authority fixtures need their supported native toolchain route.
@@ -175,7 +95,7 @@ OS × language × provider × backend cross-product to routine PR work.
 
 ## Performance evidence to use
 
-The next Windows deep campaign explicitly excludes these 17 whole cases. Their
+The completed Windows deep campaign explicitly excludes these 17 whole cases. Their
 original assertions remain in place; an unsupported or disabled case is not a
 passing observation. Required dependency absence is not an additional exclusion.
 
@@ -193,9 +113,11 @@ passing observation. Required dependency absence is not an additional exclusion.
 | `perf/bench/scenarios/matrix` | Opt-in repository workload scenarios; bounded default harness: `perf/bench/run`. Scenario-specific workload acceptance remains separate. |
 | `smoke/tantivy`, `tooling/script-coverage/storage/tantivy-smoke-test` | Optional Tantivy positive qualification. The wrapper invokes the same smoke fixture with no additional inputs or assertions. Both retain status 77 when disabled. Candidate 07 omitted the wrapper from its exclusion inventory; that unexpected skip remains recorded. |
 
-The five later-discovered opt-outs use status 77. The campaign selects required
-cases explicitly, records actual partial optional omissions, and keeps a
-capable-token cohort for real file-symlink assertions.
+Three excluded script wrappers execute and return declared status 77; the other
+14 excluded cases are not directly scheduled. Every required case and every
+portable/platform replacement owner passes. The four harness-only children remain
+covered through their parent fixtures. Optional sqlite-vec/Tantivy and Bash/jq
+positives remain unqualified, with no replacement claim.
 
 Run bounded checks on one idle representative CPU host first. Use a second OS
 only for a changed platform-sensitive path or a release claim. Record candidate
@@ -234,15 +156,14 @@ node tests/run.js --lane all --match /^perf\// --jobs 1 --pairofcleats-threads 1
 
 The October 18 audit uses that deadline and records failures/timeouts without
 relaxation. Author-workspace `.testLogs` and `temp/` receipts are historical local
-evidence; clean checkouts are not expected to contain them. Restore broad
-correctness and the native teardown qualification before expanding expensive
-benchmark or release campaigns.
+evidence; clean checkouts are not expected to contain them. Keep broad correctness
+and native teardown qualification current before expanding expensive benchmark or
+release campaigns.
 
-The SQLite latency fixture now requires source hits before accepting a sample.
-This exposed an empty result for `answer`; the earlier fast timing remains
-diagnostic history. Exported-value extraction is repaired and a focused serial
-run now retrieves both original queries before passing the unchanged latency
-threshold. Candidate 14 repeats both original queries over 20 serial warm
-samples: p95 226.124 ms, unchanged Windows threshold 7500 ms. It is a partial
-candidate; the subsequent memory-owner repair still needs a full frozen-source
-campaign and a new serial measurement.
+The SQLite latency fixture requires source hits before accepting a sample.
+The original missing `answer` hit is repaired without changing either query.
+Candidate 22 retrieves the expected indexed source for both `greet` and `answer`
+before collecting 20 chronological warm samples. p95 is 170.7213 ms against the
+unchanged 7500 ms Windows threshold. Raw samples and complete source identity
+remain in the Windows receipt; the former empty-hit timing is diagnostic history.
+All 101 serial performance fixtures and the 16-case serial supplement pass.

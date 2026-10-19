@@ -565,8 +565,23 @@ const expandSimpleBraceAlternates = (value) => {
     /former approval-lock process is archived.*not a release blocker/);
   assert.match(byName.get('Shared-module reduction')['Remaining / next'],
     /October 18 direct\/transitive import-budget failures without raising baselines/);
-  assert.match(roadmapText, /suite is \*\*not green\*\*/,
-    'the current failing audit must not be represented as a suite pass');
+  const windowsQualification = roadmapText.match(
+    /The Windows deep suite is \*\*green\*\* at `([a-f0-9]{9,40})`/
+  );
+  assert.ok(windowsQualification, 'scope Windows acceptance to an immutable candidate');
+  const windowsReceipt = await fsPromises.readFile(
+    path.join(root, 'docs', 'archived', 'windows-deep-repairs-2026-10-18.md'), 'utf8'
+  );
+  const qualifiedHead = windowsReceipt.match(/\| Exact committed\/pushed head \| `([a-f0-9]{40})` \|/);
+  assert.ok(qualifiedHead?.[1].startsWith(windowsQualification[1]),
+    'the active status must identify the exact head in the durable qualification receipt');
+  assert.match(windowsReceipt, /All \*\*2982 required cases pass first attempt\*\*/,
+    'retain complete required-case acceptance rather than a latest-observation aggregate');
+  assert.match(windowsReceipt, /Candidate 21[\s\S]*?2981 required passes[\s\S]*?one failure/,
+    'the later qualified candidate must preserve the preceding failed candidate');
+  assert.match(roadmapText,
+    /Linux\/macOS full deep execution,[\s\S]*?release qualification remain separate\./,
+    'Windows acceptance must not imply cross-platform, optional-backend or release qualification');
   const deepAudit = await fsPromises.readFile(
     path.join(root, 'docs', 'archived', 'deep-test-audit-2026-10-18.md'), 'utf8'
   );

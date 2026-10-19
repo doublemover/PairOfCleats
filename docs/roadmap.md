@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-18
+Last audited: 2026-10-19
 Last reconciled: 2026-10-19
 Canonical for: initiative status, execution order, and remaining work
 
@@ -13,17 +13,14 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 21 at `393b4d457` has complete first-pass diagnostics: 2981 required
-passes and one descriptor-zero fixture failure, with no timeout or native crash.
-The fixture drops requested BigInt stat options; forwarding them repairs its
-inconsistent metadata while preserving strict authority and numeric public stats.
-Original excerpt/close assertions remain, with two stat-contract witnesses and
-owned scratch cleanup. All five focused checks pass; the fixture joins CI-lite
-(975 cases). All seven PR checks pass on the failed source, with verified checkout
-trees and actual file symlinks; these do not supply complete deep acceptance.
-NTFS identity and append ownership repairs retain their fail-before/pass-after
-proofs. Every required case and the 16-case serial supplement still needs the
-repaired candidate. The Windows receipt preserves every partial result and limit.
+Windows acceptance is complete at frozen candidate `ffde426be`: all 2982
+required cases pass across 48 explicit cohorts, with 17 enumerated exclusions.
+There are no failures, timeouts, native crashes, retries or unexpected skips.
+All 16 serial supplementary checks and all seven PR checks pass. The receipt
+maps all 65 original failures, including 27 timeouts, to their current coverage.
+Earlier failed candidates remain historical; their green observations are not
+inherited. The closeout updates documentation and its status guard separately
+from the frozen product qualification.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
@@ -46,103 +43,61 @@ test-audit repairs below and do not qualify their final working tree.
 
 ## Deep test audit, October 18
 
-The [deep audit receipt](archived/deep-test-audit-2026-10-18.md) records bounded
-execution across physical discovery, preserved failures, repairs and removal proof.
-The [qualification matrix](testing/qualification-matrix.md) separates the existing
-CI/release surfaces from useful required platform and performance evidence.
-The suite is **not green**. Its latest-observation inventory combines exploratory
-cohorts and focused repairs; it is not an immutable final-candidate suite pass.
+The [original audit](archived/deep-test-audit-2026-10-18.md) preserves failures,
+timeouts and removal proof. The [Windows repair receipt](archived/windows-deep-repairs-2026-10-18.md)
+records immutable candidate identities, all original-failure coverage mappings,
+dependency verification, crash attribution, raw-receipt provenance and limits.
+The [qualification matrix](testing/qualification-matrix.md) separates required
+platform behavior, structural budgets and measured performance.
 
-Delivered: pure read-only path resolution with reader admission retained; matching
-embedding intent; strict vector-source manifest authority; missing-index versus
-unsupported-format errors; complete filter enumeration; stable hashes excluding
-only invocation identity; and native Windows trust-path canonicalization.
-Fixture identities/codecs and subprocess/resource ownership are repaired.
-Nine helper tests and three direct long-lane assignments were restored to discovery.
-CLI partitions retain meaningful assertions. Only two demonstrably unused private
-test helpers were removed; no test or production entrypoint was deleted.
+The Windows deep suite is **green** at `ffde426be`: 2982 required cases pass
+first attempt within 30 seconds, with zero retries/native redo. All 2999
+discovered cases have an explicit disposition; the 17 platform/helper/optional
+exclusions retain coverage owners and original assertions. Three excluded script
+wrappers return declared status 77; no required case is skipped. The slowest
+required case is 24.094 seconds. The 16-case serial supplement also passes.
+Linux/macOS full deep execution, optional sqlite-vec/Tantivy, Bash/jq helpers,
+representative workloads, real models and release qualification remain separate.
 
-In the original audit, 104 of 105 performance fixtures had passing latest
-observations. The strengthened SQLite latency check then failed because
-`answer` returned no source hit; its earlier fast timing was not useful
-acceptance. The separate import/coupling budget also failed. Rust 1.88.0
-fmt/check/eight unit tests/clippy and Windows TUI build/frame/headless checks pass.
-The POSIX lifetime fixture cannot qualify Windows ConPTY behavior.
+The original access violation is a Node 26.8.1 worker-teardown use-after-free,
+identified from a matching-symbol CDB dump and the upstream ASAN regression.
+Node 26.10.0 fixes the demonstrated owner; the pin, engine floor, lockfile,
+bootstrap and bounded VM lifecycle probe agree. The original installation and
+dump remain preserved. Ten explicit fresh-process compiler/embedded-source
+controls pass after repair; every original crash route passes again in the
+complete frozen campaign with normal production settings. Clean verification
+reports 37 packages/33 routes, without warning/error lines. Activation is distinct
+from runtime lifecycle qualification.
 
-The subsequent [Windows repair receipt](archived/windows-deep-repairs-2026-10-18.md)
-records passing focused fixes for exported-value extraction, lazy FTS eligibility,
-API fixture authority and coupling budgets. The strengthened SQLite latency case
-now retrieves both original queries and passes its unchanged threshold. Real
-Windows ConPTY quit/failure/restoration/reaping checks pass after repairing a
-node-pty natural-exit leak and native supervisor exit-status propagation. Setup
-verification passes with a bounded PTY disposal probe. A matching-symbol CDB
-dump from the original compiler fixture identifies a freed-Realm write during
-Node worker teardown, matching the upstream fix in Node 26.10.0. The pin,
-engine floor, locked bootstrap and a VM worker lifecycle probe now reflect that
-fix. The final bootstrap had no warning or error lines; ten separate fresh
-compiler/embedded-source runs and every other original crash route pass with
-normal production settings. The original reporting wrapper now has bounded
-mode/cache partitions. A privileged task-local Windows launch now passes real
-file-symlink authority checks without changing system policy. The safe uninstall
-fixture passes against marked disposable roots. Semantic trace pagination,
-SSR cold, extraction-cache policy, API trust startup and
-ordered-completion lifetime cases have bounded passing repairs documented in
-the receipt. The TypeScript Windows VFS casing defect and diagnostic-rendering
-timeout are repaired with versioned compiler/provider meaning. MCP robustness
-is five bounded server cases, and search default/type/risk assertions now use
-the same cache authority with the risk-bearing source pair isolated. The API
-trace fixture passes; semantic-detail needs bounded cases. Incremental SSR forward-witness and
-parity most recently both pass in 26.1 seconds with scoped JSONL handles;
-candidate 07's preceding timeouts remain recorded. The identical
-115-record/136-edge witness digest and fresh-request tamper rejection remain.
-The API trace case has little timing margin. Seven dedicated LSP multifile providers now have
-bounded cases with explicit trusted fixture commands and no skips. Remaining
-explicit final Windows cohorts keep
-the whole suite open. The original fixture-parity watchdog is fixed by passing
-its built repository into the equivalence check. Split fixture-eval cases now
-fail on missed expectations; the repo-self showcase revealed and closed a
-Markdown fenced-code bug that dropped host prose, plus an extracted-prose eval
-mode omission. Its ten original queries pass against a disposable corpus of
-the named production sources. Per-file signature version 8 rejects old bundles.
-An explicit 83-fixture original-failure selection exposed a nested task-created
-cache under `sample`; default indexing and report fixture copying now exclude
-test caches, with a source-only ignore regression. The affected report cases
-pass individually. The cohort's Linux-only ELF fixtures are excluded from
-Windows qualification, while the serial compiler/API follow-up passes. The
-first 214 script cases produced 211 passes, one timeout and two documented
-optional/helper exclusions. The tokenization timeout is now three bounded
-comparisons with every assertion and ordered-lane assignment retained. Two
-exact npm checks replace partial-command coverage claims, yielding 218 cases.
-Nightly dispatch now uses those discovered cases. Stage-4 publication and
-latest SQLite search retain each mode's pinned generation. Independent CLI
-cases retain explicit index prerequisites. Final cohorts remain pending.
-The first ordinary campaign exposed a risk-parity aggregate timeout and stale
-fixture-health admission after forced termination. Four bounded parity cases
-and cold/warm/manifest/data tamper regressions now pass; missing positive risk
-evidence fails explicitly. Their ordered CI membership is retained.
-Disposable test caches, coverage
-and benchmark scratch now share `temp/dev/`; old caches were reversibly archived
-with a relocation manifest. `.testLogs` retains original receipts. See the
-[workspace layout](guides/setup.md#contributor-workspace-files). The preceding
-repair tree passed the front gate and fresh native/patch verification; a final
-rerun and complete Windows cohort remain required for the newer source.
-Candidates 05–10 are historical partial campaigns in the Windows receipt;
-none is final acceptance. The 17 explicit whole-case exclusions and their
-coverage owners remain in the qualification matrix.
+All 51 serial native/TUI cases pass, including real ConPTY quit, supervisor error,
+terminal transport error, descendant reaping and terminal restoration. The strict
+hosted Windows job passes all 44 real file-symlink authority cases at the exact
+head/tree, without security-setting changes. All three separate Windows subprocess
+ownership cases pass. All 101 serial performance fixtures pass; both SQLite
+queries retrieve the expected source before 20 warm samples, p95 170.7213 ms
+below the unchanged 7500 ms bound. The original coupling budgets pass unchanged.
+Map-cache isolation passes locally in 17.171 seconds; broad Windows CI takes
+39.669 seconds under its separate 600-second deadline, not strict qualification.
+All diagnostic warning/error lines have asserted owners; none is unexplained.
 
-Execution order for remaining work:
+Meaningful content, authority and invalid-request assertions remain. Only two
+proved-unused private test helpers were removed; no test or production entrypoint
+was deleted. Split wrappers retain their assertions, script claims and ordered
+membership. Exact NTFS identities, append-close draining and the descriptor-zero
+fixture have retained before/after proofs. Contributor caches and coverage use
+`temp/dev/`; original logs stay under ignored `.testLogs/`, and old caches
+were reversibly archived. See the [workspace layout](guides/setup.md#contributor-workspace-files).
 
-1. Preserve the CDB attribution, original failing receipts and clean Node 26.10.0
-   bootstrap while closing the remaining Windows correctness and timeout cases.
-2. Qualify the summary and authority repairs, then run every remaining Windows
-   cohort on one frozen source. Preserve negatives and real installed-tool proof.
-3. Retain the now-passing original coupling budgets. Partition slow aggregate
-   wrappers with explicit coverage ownership; do not raise the 30-second audit
-   deadline.
-4. Execute all 44 file-link cases in the strict hosted Windows job; retain real
-   ConPTY lifetime checks. Linux/macOS qualification remains separate.
-5. Run hosted acceptance against the actual integrated head, then representative
-   corpus/model, retained-heap and release campaigns where those claims are needed.
+Remaining execution order:
+
+1. Preserve the qualified Windows source and its negative/lifecycle regressions.
+   Rerun affected checks whenever owners change; do not inherit a whole-suite pass.
+2. Qualify Linux/macOS full deep behavior and supported native release targets.
+   Keep Linux ELF positives distinct from Windows unsupported-platform coverage.
+3. Run optional backends, installed providers/models and representative corpus,
+   edit-to-search, retained-heap and release campaigns only for the claims needed.
+4. Review dependency-upgrade PRs separately; retain original import budgets and
+   measured samples instead of increasing thresholds to accommodate failures.
 
 ## Delivered product follow-up
 
@@ -213,7 +168,7 @@ power-loss and unrelated build-writer/global disk quotas remain separate.
 | Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | Snapshot and IndexRef contracts include historical/cache-boundary corrections. | Refresh cross-platform and end-to-end snapshot acceptance before release. |
 | Lexicon, relation boosts, chargram enrichment, and ANN candidate safety | `implemented` | Lexicon/chargram controls, ANN filtering and semantic constraints are implemented. | Measure representative search quality and optional native backends before release. |
 | USR consolidated contract and rollout program | `implemented` | Language/framework matrices, canonical schemas and conformance surfaces are present. | Refresh technical acceptance; the former approval-lock process is archived and is not a release blocker. |
-| Shared-module reduction | `coupling audit open` | Six ownership batches retain their backlog; current inventory omissions are reconciled explicitly. | Review the October 18 direct/transitive import-budget failures without raising baselines. |
+| Shared-module reduction | `coupling audit open` | Six ownership batches retain their backlog; current inventory omissions are reconciled explicitly. | Retain fixes for the October 18 direct/transitive import-budget failures without raising baselines; measure remaining startup/coupling work separately. |
 | Duplicate-code reduction | `checkpoint clean` | The May refresh found no current fragments among 212 saved candidates. | A future intentional full audit refresh, not ad hoc rework of stale saved-report entries, establishes a new repository-wide baseline. |
 | Production readiness | `deferred validation` | Release tooling and bounded platform/security receipts remain revision-specific. | Run production verification and release-readiness evidence against the final candidate; later security changes require their own merge and rescan. |
 | Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change. |
@@ -222,7 +177,7 @@ power-loss and unrelated build-writer/global disk quotas remain separate.
 
 ## Current Validation Boundary
 
-Current reconciliation, 2026-10-18: the prior 45-item implementation audit retains
+Current reconciliation, 2026-10-19: the prior 45-item implementation audit retains
 39 bounded-verified and six qualification-limited classifications. This
 maintenance run refreshes selected product/governance checks; it does not repeat
 every item's qualification.

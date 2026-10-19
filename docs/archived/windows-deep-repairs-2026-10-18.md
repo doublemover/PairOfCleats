@@ -1,6 +1,215 @@
 # Windows deep-suite repairs, October 18
 
-Status: in progress; this is a repair receipt, not final acceptance.
+Status: Windows required deep acceptance complete on October 19 at candidate 22.
+Full Linux/macOS deep execution and external qualifications remain separate.
+
+## Candidate 22: complete Windows acceptance
+
+All **2982 required cases pass first attempt** across 48 explicit cohorts. There
+are **zero failures, timeouts, native crashes, retries, unexpected skips or
+unexplained warning/error lines**. All 2999 discovered cases have a disposition:
+2982 required and the same 17 explicit exclusions documented in the
+[qualification matrix](../testing/qualification-matrix.md). The 2938 ordinary-token
+passes and 44 exact-head hosted file-symlink passes are combined only after source,
+dependency, complete selection and raw-log verification. Three excluded script
+wrappers return declared status 77; the other 14 exclusions are not scheduled
+directly. Every platform/portable replacement owner passes; optional positives
+remain unqualified. All 16 planned serial supplementary cases also pass in
+16.8 seconds, with no retry. No main-campaign result was inherited from an earlier
+candidate. Source and documentation hashes remain unchanged between every cohort
+and before/after the serial supplement. The slowest required case is
+`tooling/script-coverage/embeddings/embeddings-cache-identity-test`, 24.094 seconds.
+
+| Frozen identity | Value |
+| --- | --- |
+| Branch | `codex/pr557-audit-repairs-20261012` |
+| Exact committed/pushed head | `ffde426be54d76b2c8d9f04af999cc9cf8da5d06` |
+| Git tree | `174aefd182d492bb6a92b6575d7d90d422b7c71f` |
+| Non-documentation physical source SHA-256 (5813 paths) | `e79eb028bd4f1ed26ae2b9584e552d808df7aea04f237b0acd8eed133aeefe1c` |
+| Documentation SHA-256 at freeze | `5fda48389a6718fe930c59da0547cea0b335c440745412049fb93102aa2e0e7e` |
+| Runtime | Official Node 26.10.0, Windows x64, ABI 147, libuv 1.52.1 |
+| Node executable SHA-256 | `cea6ac365f9bb9586dafd2084d996e092e7d3e7d07ab52d1f76bf53d1fca9bc4` |
+| Local bootstrap receipt SHA-256 | `b7b0a009b09504e1cbd76035d3d7f772bcc96d96973a32acd1d4e741d8ed99d5` |
+| Hosted authority bootstrap receipt SHA-256 | `85b3451e4f1e80161a8179f692de7c96c99979eb9107061e8d32ba9d862fd6fd` |
+
+Locked dependencies, required patches and fresh native verification are valid:
+37 required packages and 33 language routes, exit zero without warning/error
+lines. Task-owned PATH selects the official pinned runtime; the machine-wide
+Node installation is unchanged. Activation is separate from the full lifecycle
+evidence below. No backend switch, crash-status redo, deadline increase or public
+contract relaxation supplies acceptance. Cohorts use one or two correctness jobs,
+one indexing-thread hint, 30-second deadlines and zero retries. Native/performance
+cohorts and the supplement run serially. Fixtures intentionally testing concurrency
+may explicitly override the thread hint; it is not a claim of one worker everywhere.
+
+### Native crash, terminal lifetime and useful performance
+
+The original 0xC0000005 is a freed-Realm CppGC write during Node 26.8.1 worker
+teardown, established by the preserved access-violation dump, matching PDB,
+exception context/all-thread stack and upstream Node fix/ASAN regression. The
+crashing installation's versions, 241 native hashes, patches, commands, environment,
+fixtures and cleanup traces were preserved before rebuilding. The upstream
+`CppgcTest.VmScriptCollectedBeforeFreeEnvironmentSweptAfter` regression fails before
+the fix; the local reduced pure-VM control did not crash the old executable and
+is not claimed as a deterministic local fail-before. Node 26.10.0 contains the
+demonstrated repair; pin, engine floor, lockfile, CI, bootstrap and bounded real VM
+worker/disposal probe agree. Ten explicitly recorded fresh-process compiler and
+embedded-source cases pass after repair. Every original crashing route passes
+again with normal production settings in this complete campaign, including stub
+embedding cache (17.2 seconds), compiler bindings, embedded source, reporting,
+observability and code-map routes. Detailed hashes, upstream attribution and
+controls remain in the chronological sections below.
+
+All 51 native/TUI cases pass. Real ConPTY quit, supervisor error and terminal
+transport error take 4.230/3.764/4.302 seconds and assert exit status, descendant
+reaping, terminal restoration and final job states. The hosted exact-head strict
+authority job proves real Windows file-symlink capability and passes all 44 cases
+without skips. All three separate strict Windows subprocess owners pass. Linux
+ELF positive assertions are retained separately; Windows unsupported-platform
+and portable authority assertions pass. The uninstall fixture passes only against
+verified, marked disposable roots.
+
+All 101 serial performance fixtures pass. Both original SQLite queries,
+`greet` and `answer`, retrieve the expected indexed `index.js` before 20
+chronological warm samples. p95 is **170.7213 ms**, below the unchanged **7500 ms**
+Windows threshold. Raw samples are retained. The additional 16 serial cases
+separate measured replay latency from cleanup/scheduler/resource bounds; two
+10000-item guard timings are informational. The original import/coupling budgets
+pass unchanged. These small workload results do not establish production capacity,
+real-model quality or retained-heap/release performance.
+
+### Hosted evidence and diagnostics
+
+All seven PR checks pass: six jobs in CI run `39326401484` plus adaptive policy.
+Raw checkout logs and fetched objects prove the ordinary gate/Rust/Windows/Ubuntu/
+macOS synthetic merge `7e54aed8b572a39f2f1481a80085451f682b438a` has the identical
+entire tree `174aefd182d492bb6a92b6575d7d90d422b7c71f`. Authority job
+`118313964257` separately checks out the exact PR head. Remote physical checkout
+bytes are not inferred from the local physical-source digest. Every quality ID
+and raw log is verified: Windows 972 passes/three declared exclusions, Ubuntu and
+macOS 974/one optional exclusion each, all first attempts with no timeout, retry
+or crash. The descriptor-zero regression passes on all three OS targets.
+
+Windows map-cache isolation takes 39.669 seconds under CI's existing 600-second
+deadline; its fresh local strict pass takes 17.171 seconds. The broad timing is
+not a 30-second pass. Earlier unexplained intermittent hosted timings/orphan
+observations remain historical limitations; a green run does not attribute them.
+
+All 15 main-campaign diagnostic lines have frozen-source asserted owners:
+promotion-state corruption (one), lock-hook failures (two), corrupt-query-cache
+quarantine (two), missing SQLite artifacts/failure recovery (one), unsafe archive
+rejections (four), and fresh optional-provider/trust diagnostics (four). The
+fifteenth line is the static deprecated-option help label, not a runtime
+deprecation warning. The supplement emits only
+its two asserted lock-hook warnings. The three hosted quality artifacts contain
+15 exact asserted negative-case warning/error lines in total. Fresh provider
+diagnostics require a current report, healthy required Pyright, actual requests,
+and zero crashes/timeouts/protocol errors. Unknown warnings are not filtered away.
+
+Original failure receipts, failed candidates and inconclusive controls remain
+unchanged below. Author-workspace raw evidence is historical and ignored, under
+`temp/tasks/windows-deep-repairs-20261018/` and `.testLogs/`; clean checkouts
+are not expected to contain it. Principal local receipts are
+`final-acceptance-proof-22.json`, `acceptance-cohort-results-22.jsonl`,
+`complete-warning-ownership-22.json`, `native-qualification-receipt-22.json`,
+`sqlite-latency-receipt-candidate-22.json`,
+`supplementary-serial-qualification-report-22.json`,
+`hosted-ffde426be-checkout-provenance.json` and the per-cohort reports/logs.
+The durable identity, scope and complete original-failure mapping are retained
+here. The closeout's documentation/status-guard edits are qualified separately;
+they do not relabel this frozen execution as a whole-suite run at a later head.
+The former documentation assertion required the literal current status "not
+green". Against the truthful completed Windows receipt it fails in 295 ms at
+that exact assertion. Its replacement checks the immutable Windows head against
+this receipt, full required-case acceptance, preserved candidate-21 failure and
+the remaining cross-platform/optional/release boundary. Original audit/failure
+history guards remain. All four documentation/link/history checks then pass
+first attempt in 980 ms. No product source changes in the closeout batch.
+
+### All 65 original failure entries and current coverage
+
+There are 27 original timeouts. A required replacement must pass first attempt;
+an explicit platform/optional exclusion is reported with its coverage owner,
+not relabeled as a positive pass. Split replacements retain the original inputs,
+assertions, script claims and ordered-lane membership documented below.
+
+| Original fixture | Original outcome | Candidate 22 replacement observations |
+| --- | --- | --- |
+| `indexing/embeddings/stub-fastpath-cache-contract-matrix` | failed | `indexing/embeddings/stub-fastpath-cache-contract-matrix`: passed (17178 ms, attempt 1) |
+| `indexing/extracted-prose/document-extraction-cache-policy-key` | timeout | `indexing/extracted-prose/document-extraction-cache-policy-key`: passed (18449 ms, attempt 1) |
+| `indexing/map/code-map-contract-matrix` | failed | `indexing/map/code-map-contract-matrix`: passed (10145 ms, attempt 1) |
+| `indexing/ordering/ordered-completion-tracker` | timeout | `indexing/ordering/ordered-completion-tracker`: passed (2383 ms, attempt 1) |
+| `indexing/semantic/compiler-bindings` | failed | `indexing/semantic/compiler-bindings`: passed (21512 ms, attempt 1) |
+| `indexing/semantic/embedded-cache` | failed | `indexing/semantic/embedded-cache`: passed (1838 ms, attempt 1) |
+| `indexing/semantic/embedded-source` | failed | `indexing/semantic/embedded-source`: passed (14026 ms, attempt 1) |
+| `indexing/semantic/native-deferred-production` | failed | `indexing/semantic/native-deferred-production`: explicit platform/optional exclusion; owner `indexing/semantic/native-toolchain-platform` passed |
+| `indexing/semantic/native-task-authority` | failed | `indexing/semantic/native-task-authority`: explicit platform/optional exclusion; owner `indexing/semantic/native-toolchain-platform` passed |
+| `indexing/semantic/ordered-aggregate-flow` | failed | `indexing/semantic/ordered-aggregate-flow`: passed (6127 ms, attempt 1) |
+| `indexing/semantic/ordered-snapshot-flow` | timeout | `indexing/semantic/ordered-snapshot-flow`: passed (7059 ms, attempt 1) |
+| `indexing/semantic/production-slice` | failed | `indexing/semantic/production-slice`: passed (13896 ms, attempt 1) |
+| `indexing/semantic/rest-call-context` | failed | `indexing/semantic/rest-call-context`: passed (3102 ms, attempt 1) |
+| `indexing/semantic/ssr-snapshot-witness` | timeout | `indexing/semantic/ssr-snapshot-witness`: passed (13408 ms, attempt 1) |
+| `indexing/shards/shard-merge` | failed | `indexing/shards/shard-merge`: passed (16057 ms, attempt 1) |
+| `lang/contracts/managed-heuristic-adapters` | failed | `lang/contracts/managed-heuristic-adapters`: passed (539 ms, attempt 1) |
+| `perf/sqlite-p95-latency` | failed | `perf/sqlite-p95-latency`: passed (9952 ms, attempt 1) |
+| `retrieval/output/explain-includes-routing-and-fts-match` | failed | `retrieval/output/explain-includes-routing-and-fts-match`: passed (2188 ms, attempt 1) |
+| `security/editor-tui-authority` | failed | `security/editor-tui-authority`: passed (355 ms, attempt 1) |
+| `security/repository-authority` | failed | `security/repository-authority`: passed (581 ms, attempt 1) |
+| `services/advanced-surface-goldens` | timeout | `services/advanced-surface-goldens`: passed (15836 ms, attempt 1) |
+| `services/api-search-asof` | failed | `services/api-search-asof`: passed (6838 ms, attempt 1) |
+| `services/api/risk-pack-metrics` | failed | `services/api/risk-pack-metrics`: passed (1450 ms, attempt 1) |
+| `services/api/runtime-claims` | failed | `services/api/runtime-claims`: passed (18660 ms, attempt 1) |
+| `services/api/semantic-detail` | timeout | `services/api/semantic-detail`: passed (19571 ms, attempt 1) |
+| `services/api/semantic-trace` | timeout | `services/api/semantic-trace`: passed (21655 ms, attempt 1) |
+| `services/api/trust-boundary-matrix` | timeout | `services/api/trust-boundary-matrix`: passed (5504 ms, attempt 1) |
+| `services/core-observability` | failed | `services/core-observability`: passed (13854 ms, attempt 1) |
+| `services/indexer/quarantine-cli` | timeout | `services/indexer/quarantine-cli`: passed (17251 ms, attempt 1) |
+| `services/mcp/robustness` | timeout | `services/mcp/robustness`: passed (6096 ms, attempt 1) |
+| `services/mcp/tool-search-defaults-and-filters` | timeout | `services/mcp/tool-search-defaults-and-filters`: passed (16954 ms, attempt 1) |
+| `shared/subprocess/quoting` | failed | `shared/subprocess/quoting`: passed (17222 ms, attempt 1) |
+| `storage/semantic/runtime-opened-byte-integrity` | failed | `storage/semantic/runtime-opened-byte-integrity`: passed (2287 ms, attempt 1) |
+| `storage/semantic/runtime-source-reference-authority` | timeout | `storage/semantic/runtime-source-reference-authority`: passed (20064 ms, attempt 1) |
+| `storage/sqlite/incremental/bundle-partial-chunk-fallback` | timeout | `storage/sqlite/incremental/bundle-partial-chunk-fallback`: passed (19565 ms, attempt 1) |
+| `storage/sqlite/index-state-fail-closed` | timeout | `storage/sqlite/index-state-fail-closed`: passed (15090 ms, attempt 1) |
+| `tooling/doctor/generic-preset-matrix` | failed | `tooling/doctor/generic-preset-matrix`: passed (7339 ms, attempt 1) |
+| `tooling/doctor/zls-zig-compatibility` | failed | `tooling/doctor/zls-zig-compatibility`: passed (2680 ms, attempt 1) |
+| `tooling/eval/risk-pack-quality` | failed | `tooling/eval/risk-pack-quality`: passed (3326 ms, attempt 1) |
+| `tooling/fixtures/fixture-eval` | timeout | `tooling/fixtures/fixture-eval`: passed (18570 ms, attempt 1) |
+| `tooling/fixtures/fixture-parity` | timeout | `tooling/fixtures/fixture-parity`: passed (18675 ms, attempt 1) |
+| `tooling/install/tooling-missing-requirement-exitcode` | timeout | `tooling/install/tooling-missing-requirement-exitcode`: passed (794 ms, attempt 1) |
+| `tooling/lsp/configured-provider-gopls-preset-profile` | failed | `tooling/lsp/configured-provider-gopls-preset-profile`: passed (3267 ms, attempt 1) |
+| `tooling/lsp/configured-provider-gopls-profile` | failed | `tooling/lsp/configured-provider-gopls-profile`: passed (2555 ms, attempt 1) |
+| `tooling/lsp/configured-provider-lua-broken-layout-preflight` | failed | `tooling/lsp/configured-provider-lua-broken-layout-preflight`: passed (2488 ms, attempt 1) |
+| `tooling/lsp/dedicated-providers-abrupt-failure-cleanup` | failed | `tooling/lsp/dedicated-providers-abrupt-failure-cleanup`: passed (11191 ms, attempt 1) |
+| `tooling/lsp/dedicated-providers-multifile-session-reuse` | timeout | `tooling/lsp/dedicated-providers-multifile-session-reuse`: passed (10805 ms, attempt 1) |
+| `tooling/lsp/go-workspace-managed-go-resolution` | failed | `tooling/lsp/go-workspace-managed-go-resolution`: passed (4696 ms, attempt 1) |
+| `tooling/lsp/provider-quarantine-recovery` | failed | `tooling/lsp/provider-quarantine-recovery`: passed (10394 ms, attempt 1) |
+| `tooling/release/verify-surface-mcp-smoke-runtime` | failed | `tooling/release/verify-surface-mcp-smoke-runtime`: passed (15848 ms, attempt 1) |
+| `tooling/reports/summary/report` | failed | `tooling/reports/summary/report`: passed (8966 ms, attempt 1) |
+| `tooling/script-coverage/core` | failed | `tooling/script-coverage/core/capabilities-report-test`: passed (972 ms, attempt 1)<br>`tooling/script-coverage/core/clean-artifacts-test`: passed (1731 ms, attempt 1)<br>`tooling/script-coverage/core/detect-and-plan-contract-matrix-test`: passed (9676 ms, attempt 1)<br>`tooling/script-coverage/core/download-dicts-test`: passed (903 ms, attempt 1)<br>`tooling/script-coverage/core/download-extensions-test`: passed (4095 ms, attempt 1)<br>`tooling/script-coverage/core/safe-regex-contract-matrix-test`: passed (392 ms, attempt 1)<br>`tooling/script-coverage/core/tooling-install-test`: passed (920 ms, attempt 1)<br>`tooling/script-coverage/core/uninstall-test`: passed (1283 ms, attempt 1)<br>`tooling/script-coverage/core/vector-extension-contract-matrix-test`: passed (880 ms, attempt 1)<br>`tooling/script-coverage/core/xxhash-backends-test`: passed (989 ms, attempt 1) |
+| `tooling/script-coverage/embeddings` | timeout | `tooling/script-coverage/embeddings/build-embeddings-cache-test`: passed (7447 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embedding-autotune-profile-test`: passed (380 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embedding-batch-policy-matrix-test`: passed (3813 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-cache-identity-test`: passed (24094 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-cache-index-contract-matrix-test`: passed (723 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-dims-validation-test`: passed (502 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-identity-test`: passed (427 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-sqlite-dense-test`: passed (807 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-stub-fastpath-cache-contract-matrix-test`: passed (19092 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-validate-test`: passed (11470 ms, attempt 1) |
+| `tooling/script-coverage/fixtures` | failed | `tooling/script-coverage/fixtures/eval-quality-test`: passed (11154 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-empty`: passed (22648 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-eval`: passed (19978 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-parity`: passed (19482 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-smoke`: passed (1713 ms, attempt 1)<br>`tooling/script-coverage/fixtures/verify`: passed (6756 ms, attempt 1) |
+| `tooling/script-coverage/indexing` | timeout | `tooling/script-coverage/indexing/artifact-bak-recovery-test`: passed (542 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifact-formats-test`: passed (689 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifact-size-guardrails-test`: passed (14274 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifacts-file-meta-test`: passed (396 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifacts-token-mode-test`: passed (414 ms, attempt 1)<br>`tooling/script-coverage/indexing/call-graph-contract-matrix-test`: passed (1574 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunk-meta-jsonl-cleanup-test`: passed (847 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-guardrails-test`: passed (375 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-json-unit-test`: passed (823 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-limits-test`: passed (377 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-limits-unit-test`: passed (375 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-yaml-unit-test`: passed (784 ms, attempt 1)<br>`tooling/script-coverage/indexing/code-map-contract-matrix-test`: passed (10529 ms, attempt 1)<br>`tooling/script-coverage/indexing/e2e-smoke-test`: passed (10795 ms, attempt 1)<br>`tooling/script-coverage/indexing/encoding-contract-matrix-test`: passed (598 ms, attempt 1)<br>`tooling/script-coverage/indexing/encoding-fallback-test`: passed (8516 ms, attempt 1)<br>`tooling/script-coverage/indexing/external-docs-test`: passed (7739 ms, attempt 1)<br>`tooling/script-coverage/indexing/extracted-prose-test`: passed (9144 ms, attempt 1)<br>`tooling/script-coverage/indexing/file-caps-contract-matrix-test`: passed (13812 ms, attempt 1)<br>`tooling/script-coverage/indexing/file-processor-cached-bundle-test`: passed (1887 ms, attempt 1)<br>`tooling/script-coverage/indexing/file-processor-skip-test`: passed (1862 ms, attempt 1)<br>`tooling/script-coverage/indexing/git-blame-range-test`: passed (8036 ms, attempt 1)<br>`tooling/script-coverage/indexing/git-meta-test`: passed (959 ms, attempt 1)<br>`tooling/script-coverage/indexing/import-links-test`: passed (13363 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-cache-signature-test`: passed (20521 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-manifest-test`: passed (13247 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-reuse-test`: passed (1019 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-tokenization-cache-dictionary-config`: passed (13263 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-tokenization-cache-identical-config`: passed (14304 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-tokenization-cache-tokenization-config`: passed (14603 ms, attempt 1)<br>`tooling/script-coverage/indexing/index-lock-test`: passed (595 ms, attempt 1)<br>`tooling/script-coverage/indexing/indexer-incremental-contract-matrix-test`: passed (1016 ms, attempt 1)<br>`tooling/script-coverage/indexing/indexer-signatures-contract-matrix-test`: passed (621 ms, attempt 1)<br>`tooling/script-coverage/indexing/indexer-sort-determinism-test`: passed (349 ms, attempt 1)<br>`tooling/script-coverage/indexing/json-stream-test`: passed (575 ms, attempt 1)<br>`tooling/script-coverage/indexing/jsonl-utf8-test`: passed (523 ms, attempt 1)<br>`tooling/script-coverage/indexing/jsonl-validation-test`: passed (517 ms, attempt 1)<br>`tooling/script-coverage/indexing/metadata-v2-test`: passed (719 ms, attempt 1)<br>`tooling/script-coverage/indexing/minhash-parity-test`: passed (376 ms, attempt 1)<br>`tooling/script-coverage/indexing/piece-assembly-test`: passed (10692 ms, attempt 1)<br>`tooling/script-coverage/indexing/postings-quantize-test`: passed (510 ms, attempt 1)<br>`tooling/script-coverage/indexing/preprocess-files-test`: passed (1077 ms, attempt 1)<br>`tooling/script-coverage/indexing/prose-skip-imports-test`: passed (9969 ms, attempt 1)<br>`tooling/script-coverage/indexing/read-failure-skip-test`: passed (2434 ms, attempt 1)<br>`tooling/script-coverage/indexing/runtime-contract-matrix-test`: passed (14142 ms, attempt 1)<br>`tooling/script-coverage/indexing/segment-pipeline-test`: passed (1511 ms, attempt 1)<br>`tooling/script-coverage/indexing/shard-merge-test`: passed (16429 ms, attempt 1)<br>`tooling/script-coverage/indexing/shard-plan-test`: passed (936 ms, attempt 1)<br>`tooling/script-coverage/indexing/skip-minified-binary-test`: passed (6924 ms, attempt 1)<br>`tooling/script-coverage/indexing/tokenization-buffering-test`: passed (806 ms, attempt 1)<br>`tooling/script-coverage/indexing/tokenize-dictionary-test`: passed (389 ms, attempt 1)<br>`tooling/script-coverage/indexing/unicode-offset-test`: passed (7180 ms, attempt 1) |
+| `tooling/script-coverage/language` | timeout | `tooling/script-coverage/language/chunking-sql-lua-test`: passed (494 ms, attempt 1)<br>`tooling/script-coverage/language/chunking-yaml-test`: passed (819 ms, attempt 1)<br>`tooling/script-coverage/language/clike-doc-comments-test`: passed (481 ms, attempt 1)<br>`tooling/script-coverage/language/format-fidelity-test`: passed (15872 ms, attempt 1)<br>`tooling/script-coverage/language/ignore-contract-matrix-test`: passed (982 ms, attempt 1)<br>`tooling/script-coverage/language/import-resolution-policy-contract-matrix-test`: passed (1515 ms, attempt 1)<br>`tooling/script-coverage/language/javascript-contract-matrix-test`: passed (1220 ms, attempt 1)<br>`tooling/script-coverage/language/js-tree-sitter-maxbytes-test`: passed (6007 ms, attempt 1)<br>`tooling/script-coverage/language/kotlin-perf-guard-test`: passed (502 ms, attempt 1)<br>`tooling/script-coverage/language/language-fixture-contracts-test`: passed (1528 ms, attempt 1)<br>`tooling/script-coverage/language/language-registry-contract-matrix-test`: passed (951 ms, attempt 1)<br>`tooling/script-coverage/language/lsp-shutdown-test`: passed (1515 ms, attempt 1)<br>`tooling/script-coverage/language/php-methods-unique-test`: passed (475 ms, attempt 1)<br>`tooling/script-coverage/language/python-ast-worker-test`: passed (882 ms, attempt 1)<br>`tooling/script-coverage/language/python-contract-matrix-test`: passed (466 ms, attempt 1)<br>`tooling/script-coverage/language/ruby-end-comment-test`: passed (448 ms, attempt 1)<br>`tooling/script-coverage/language/tooling-lsp-test`: passed (399 ms, attempt 1)<br>`tooling/script-coverage/language/tree-sitter-chunks-test`: passed (438 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-clangd-provider-no-clangd`: passed (718 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-crossfile-go`: passed (7512 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-crossfile-test`: passed (8162 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-lsp-enrichment-test`: passed (14026 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-sourcekit-provider-no-sourcekit`: passed (791 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-typescript-provider-no-ts`: passed (547 ms, attempt 1)<br>`tooling/script-coverage/language/typescript-contract-matrix-test`: passed (1411 ms, attempt 1) |
+| `tooling/script-coverage/search` | timeout | `tooling/script-coverage/search/backend-contract-matrix-test`: passed (14414 ms, attempt 1)<br>`tooling/script-coverage/search/cli-search-contract-matrix-test`: passed (21000 ms, attempt 1)<br>`tooling/script-coverage/search/context-expansion-contract-matrix-test`: passed (361 ms, attempt 1)<br>`tooling/script-coverage/search/fielded-bm25-test`: passed (8678 ms, attempt 1)<br>`tooling/script-coverage/search/filter-index-artifact-test`: passed (21724 ms, attempt 1)<br>`tooling/script-coverage/search/query-cache-contract-matrix-test`: passed (11036 ms, attempt 1)<br>`tooling/script-coverage/search/query-contract-matrix-test`: passed (409 ms, attempt 1)<br>`tooling/script-coverage/search/search-filter-contract-matrix-test`: passed (3938 ms, attempt 1)<br>`tooling/script-coverage/search/search-symbol-boost-test`: passed (748 ms, attempt 1)<br>`tooling/script-coverage/search/structural-filters-test`: passed (6977 ms, attempt 1)<br>`tooling/script-coverage/search/structural-search-test`: passed (1111 ms, attempt 1) |
+| `tooling/script-coverage/services` | timeout | `tooling/script-coverage/services/api-server-stream-test`: passed (13313 ms, attempt 1)<br>`tooling/script-coverage/services/api-server-test`: passed (1926 ms, attempt 1)<br>`tooling/script-coverage/services/indexer-service-test`: passed (9437 ms, attempt 1)<br>`tooling/script-coverage/services/mcp-robustness-test`: passed (6083 ms, attempt 1)<br>`tooling/script-coverage/services/mcp-schema-test`: passed (6540 ms, attempt 1)<br>`tooling/script-coverage/services/mcp-server-test`: passed (5566 ms, attempt 1)<br>`tooling/script-coverage/services/service-queue-test`: passed (511 ms, attempt 1) |
+| `tooling/script-coverage/storage` | timeout | `tooling/script-coverage/storage/ann-backend-contract-matrix-test`: passed (440 ms, attempt 1)<br>`tooling/script-coverage/storage/compact-sqlite-index-help`: passed (891 ms, attempt 1)<br>`tooling/script-coverage/storage/hnsw-ann-test`: passed (17111 ms, attempt 1)<br>`tooling/script-coverage/storage/hnsw-atomic-test`: passed (9200 ms, attempt 1)<br>`tooling/script-coverage/storage/lancedb-ann-test`: passed (18828 ms, attempt 1)<br>`tooling/script-coverage/storage/lmdb-contract-matrix-test`: passed (11575 ms, attempt 1)<br>`tooling/script-coverage/storage/runtime-contract-matrix-test`: passed (695 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-ann-extension-test`: skipped (1594 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-delete-test`: passed (513 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-indexes-test`: passed (10385 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-manifest-test`: passed (540 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-vocab-test`: passed (524 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-bundle-missing-test`: passed (15114 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-cache-test`: passed (487 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-chunk-id-test`: passed (533 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-chunk-meta-streaming-test`: passed (1589 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-incremental-no-change-test`: passed (16166 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-incremental-test`: passed (14630 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-maintenance-contract-matrix-test`: passed (15735 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-search-backend-contract-matrix-test`: passed (16101 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-vec-candidate-set-test`: passed (567 ms, attempt 1)<br>`tooling/script-coverage/storage/tantivy-smoke-test`: skipped (371 ms, attempt 1); owner `smoke/tantivy` separately scoped |
+| `tooling/script-coverage/tools` | timeout | `tooling/script-coverage/tools/backend-policy-test`: passed (353 ms, attempt 1)<br>`tooling/script-coverage/tools/bench-micro-tiny-help`: passed (3206 ms, attempt 1)<br>`tooling/script-coverage/tools/bench-queries-help`: passed (948 ms, attempt 1)<br>`tooling/script-coverage/tools/bootstrap`: passed (791 ms, attempt 1)<br>`tooling/script-coverage/tools/build-index-all-test`: passed (18724 ms, attempt 1)<br>`tooling/script-coverage/tools/build-tantivy-index-help`: passed (767 ms, attempt 1)<br>`tooling/script-coverage/tools/cache-contract-matrix-test`: passed (736 ms, attempt 1)<br>`tooling/script-coverage/tools/cache-gc-test`: passed (1720 ms, attempt 1)<br>`tooling/script-coverage/tools/chargram-guardrails-test`: passed (812 ms, attempt 1)<br>`tooling/script-coverage/tools/ci-build`: passed (19221 ms, attempt 1)<br>`tooling/script-coverage/tools/ci-restore`: passed (20002 ms, attempt 1)<br>`tooling/script-coverage/tools/cli-test`: passed (16039 ms, attempt 1)<br>`tooling/script-coverage/tools/config-budget-check`: passed (4631 ms, attempt 1)<br>`tooling/script-coverage/tools/config-budget-help`: passed (3207 ms, attempt 1)<br>`tooling/script-coverage/tools/config-contract-matrix-dump-test`: passed (3565 ms, attempt 1)<br>`tooling/script-coverage/tools/config-dump-help`: passed (622 ms, attempt 1)<br>`tooling/script-coverage/tools/config-reset-help`: passed (591 ms, attempt 1)<br>`tooling/script-coverage/tools/config-validate-test`: passed (3507 ms, attempt 1)<br>`tooling/script-coverage/tools/core-api-test`: passed (13922 ms, attempt 1)<br>`tooling/script-coverage/tools/ctags-ingest-help`: passed (619 ms, attempt 1)<br>`tooling/script-coverage/tools/ctags-ingest-test`: passed (2727 ms, attempt 1)<br>`tooling/script-coverage/tools/dict-adaptive-test`: passed (477 ms, attempt 1)<br>`tooling/script-coverage/tools/discovery-contract-matrix-test`: passed (1501 ms, attempt 1)<br>`tooling/script-coverage/tools/env-check`: passed (1242 ms, attempt 1)<br>`tooling/script-coverage/tools/env-check-help`: passed (1193 ms, attempt 1)<br>`tooling/script-coverage/tools/eval-run-help`: passed (3046 ms, attempt 1)<br>`tooling/script-coverage/tools/generate-repo-dict`: passed (826 ms, attempt 1)<br>`tooling/script-coverage/tools/get-last-failure-help`: passed (408 ms, attempt 1)<br>`tooling/script-coverage/tools/gtags-ingest-help`: passed (589 ms, attempt 1)<br>`tooling/script-coverage/tools/gtags-ingest-test`: passed (3912 ms, attempt 1)<br>`tooling/script-coverage/tools/import-resolution-slo-gate-help`: passed (1524 ms, attempt 1)<br>`tooling/script-coverage/tools/index-cache-contract-matrix-test`: passed (1145 ms, attempt 1)<br>`tooling/script-coverage/tools/index-validate-test`: passed (15192 ms, attempt 1)<br>`tooling/script-coverage/tools/io-concurrency-cap-test`: passed (393 ms, attempt 1)<br>`tooling/script-coverage/tools/jsonrpc-parser-test`: passed (397 ms, attempt 1)<br>`tooling/script-coverage/tools/lsif-ingest-help`: passed (616 ms, attempt 1)<br>`tooling/script-coverage/tools/lsif-ingest-test`: passed (4044 ms, attempt 1)<br>`tooling/script-coverage/tools/map-iso-help`: passed (787 ms, attempt 1)<br>`tooling/script-coverage/tools/metrics-dashboard-test`: passed (1114 ms, attempt 1)<br>`tooling/script-coverage/tools/parity`: passed (17467 ms, attempt 1)<br>`tooling/script-coverage/tools/parity-matrix-help`: passed (620 ms, attempt 1)<br>`tooling/script-coverage/tools/release-check-breaking-help`: passed (498 ms, attempt 1)<br>`tooling/script-coverage/tools/release-check-help`: passed (482 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-code`: passed (18535 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-extracted-prose`: passed (10916 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-prose`: passed (16711 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-records`: passed (8334 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-root-test`: passed (10954 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-search`: passed (14866 ms, attempt 1)<br>`tooling/script-coverage/tools/report-artifacts`: passed (14689 ms, attempt 1)<br>`tooling/script-coverage/tools/scip-ingest-help`: passed (583 ms, attempt 1)<br>`tooling/script-coverage/tools/scip-ingest-test`: passed (4979 ms, attempt 1)<br>`tooling/script-coverage/tools/script-coverage-harness-test`: passed (512 ms, attempt 1)<br>`tooling/script-coverage/tools/setup-index-detection-test`: passed (4329 ms, attempt 1)<br>`tooling/script-coverage/tools/setup-test`: passed (1578 ms, attempt 1)<br>`tooling/script-coverage/tools/shard-census-help`: passed (1032 ms, attempt 1)<br>`tooling/script-coverage/tools/shared-runtime-contract-matrix-test`: passed (13105 ms, attempt 1)<br>`tooling/script-coverage/tools/shell-scripts`: skipped (2132 ms, attempt 1)<br>`tooling/script-coverage/tools/show-throughput-help`: passed (1591 ms, attempt 1)<br>`tooling/script-coverage/tools/structural-search-help`: passed (643 ms, attempt 1)<br>`tooling/script-coverage/tools/summary-report-test`: passed (9345 ms, attempt 1)<br>`tooling/script-coverage/tools/tool-root-test`: passed (8642 ms, attempt 1)<br>`tooling/script-coverage/tools/triage-test`: passed (14599 ms, attempt 1)<br>`tooling/script-coverage/tools/vscode-package-contract-matrix-test`: passed (842 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-backend-selection-test`: passed (3073 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-debounce-test`: passed (3244 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-filter-test`: passed (2804 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-stability-guard-test`: passed (3635 ms, attempt 1)<br>`tooling/script-coverage/tools/worker-pool-test`: passed (1453 ms, attempt 1)<br>`tooling/script-coverage/tools/worker-pool-windows-test`: passed (3219 ms, attempt 1) |
+| `tooling/shared-module-performance` | failed | `tooling/shared-module-performance`: passed (2839 ms, attempt 1) |
+| `tooling/testing/search-debug-capture` | timeout | `tooling/testing/search-debug-capture`: passed (5558 ms, attempt 1) |
+| `tooling/triage/context-pack` | failed | `tooling/triage/context-pack`: passed (12591 ms, attempt 1) |
+| `tooling/type-inference/tooling-diagnostic-retention` | failed | `tooling/type-inference/tooling-diagnostic-retention`: passed (796 ms, attempt 1) |
+| `tooling/typescript-root-aliases` | timeout | `tooling/typescript-root-aliases`: passed (602 ms, attempt 1) |
+
+### Remaining external qualifications
+
+Linux/macOS full deep execution, Linux ELF positive lifetimes, other native release
+targets, optional sqlite-vec/Tantivy, Bash/jq helpers, installed-provider/model
+precision, representative repository workloads, edit-to-search latency, retained
+heap and release/security qualification remain separate. Required Windows
+acceptance has no remaining blocker. Dependency PRs #573–#583 remain separate
+reviews. No merge, release, debugger registration or security-setting change is
+part of this acceptance.
 
 ## Candidate 21: complete diagnostics and descriptor-zero fixture fidelity
 
