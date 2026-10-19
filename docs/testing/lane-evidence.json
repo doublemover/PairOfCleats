@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T00:49:57.520Z",
+  "generatedAt": "2026-10-19T02:18:40.505Z",
   "summary": {
     "lanes": 5,
-    "tests": 1179,
+    "tests": 1181,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 306,
+    "families": 307,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1105
+      "missingTests": 1107
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 957,
+      "totalTests": 959,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 908
+        "missing": 910
       }
     },
     {
@@ -260,9 +260,9 @@
     },
     {
       "key": "indexing/postings",
-      "count": 21,
+      "count": 22,
       "knownDurationMs": 90,
-      "unknownDurationCount": 20
+      "unknownDurationCount": 21
     },
     {
       "key": "indexing/tokenization",
@@ -1405,6 +1405,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "services/advanced-surface-golden-required",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "services/api-search-asof",
       "count": 1,
       "knownDurationMs": 0,
@@ -1936,9 +1942,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 399,
+      "count": 400,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 358,
+      "unknownDurationCount": 359,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

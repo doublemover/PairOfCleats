@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 820,
+    "hero": 822,
     "matrix": 108,
     "meta": 28,
     "soak": 1,
@@ -5693,68 +5693,80 @@
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "retrieval/backend/absent-index-state",
+      "id": "indexing/postings/real-bench-failure-contract",
       "order": 947,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "security/repository-trust-identity",
+      "id": "services/advanced-surface-golden-required",
       "order": 948,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/fixture-index-risk-config",
+      "id": "retrieval/backend/absent-index-state",
       "order": 949,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/fixture-index-temporary-env",
+      "id": "security/repository-trust-identity",
       "order": 950,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/lane-default-cache-scope",
+      "id": "helpers/fixture-index-risk-config",
       "order": 951,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/lane-default-test-config",
+      "id": "helpers/fixture-index-temporary-env",
       "order": 952,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/process-lifecycle-force-timeout",
+      "id": "helpers/lane-default-cache-scope",
       "order": 953,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/search-lifecycle-env-isolation",
+      "id": "helpers/lane-default-test-config",
       "order": 954,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/temp-rmdir-enoent",
+      "id": "helpers/process-lifecycle-force-timeout",
       "order": 955,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/test-env-clear",
+      "id": "helpers/search-lifecycle-env-isolation",
       "order": 956,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/test-env-sync-option",
+      "id": "helpers/temp-rmdir-enoent",
       "order": 957,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/test-env-clear",
+      "order": 958,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/test-env-sync-option",
+      "order": 959,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

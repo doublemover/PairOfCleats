@@ -12,11 +12,14 @@ checkout was 33 commits behind its configured upstream and was fast-forwarded
 from `d6041226b` to `ab00d918d` before evaluation. Current tracking is reconciled
 against that source, rather than the stale October 12 checkout.
 
-The October 18 GitHub inventory has zero open issues, one open PR
+The original October 18 GitHub inventory had zero open issues, one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), and no inline review
 threads. Its base is `main` at `a8c19738e`; its head is `ab00d918d`. No workflow
 runs or commit statuses were returned for that exact head; its final two commits
-contain `[skip ci]`. Earlier hosted results are not final-head acceptance.
+contain `[skip ci]`. Subsequent publication is pushed through `7ca0759f8` on
+the same PR. Its gate, Rust TUI, Ubuntu and Windows CI pass; macOS bootstrap
+exposes a node-pty helper-mode defect corrected locally; hosted proof is pending.
+Earlier hosted results are not final-head acceptance.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
@@ -123,6 +126,10 @@ Candidate 05 stopped between cohorts for publication: 723 passes, two assertion
 failures, no timeouts, native crashes or skips. The inventory failure and watch
 fixture's disk synchronization are repaired; all 25 watch cases pass. The
 remaining final-candidate cohorts stay open.
+Candidate 06 stopped between cohorts after 810 runner passes; one is a proven
+POSIX opt-out, not Windows evidence. Timeout-to-success and missing-golden
+guards are repaired. The explicit whole-case exclusions now number 16; see
+the qualification matrix. A new committed candidate and full cohorts are pending.
 
 Execution order for remaining work:
 

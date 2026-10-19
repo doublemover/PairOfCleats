@@ -569,6 +569,79 @@ production behavior, state schema, condition deadline or public option changed.
 The complete front gate also passes for this follow-up, including all 39 cases
 (`.testLogs/run-1792373141842-gcoagt`) and every preceding required check.
 
+### False-green and macOS setup follow-up
+
+Watch repair `7ca0759f8ffc935501d4ceabced799153c88a560` was pushed and PR #572
+read back at that exact head. Candidate 06 froze 5794 non-document paths at
+`32d60c36174c332fa9b7d9d910bda2c1aadd55653c2b535f91dc4aa44c37ee01`, with
+documentation digest `f4a668a1e2ae1f17a11a64c50db42b83156a863bcc593e32dff470d64a72ee41`.
+Twelve cohorts reported 810 passes and no failures, timeouts or native crashes.
+The source audit found that one was a POSIX-only opt-out exiting zero; it is
+not Windows passing evidence. The campaign stopped deliberately between
+cohorts after `.testLogs/run-1792373592390-22g2nv`; no active fixture was killed.
+
+The AST audit records 54 actual zero-exit calls, excluding embedded child source
+strings, in task-local `zero-exit-source-audit.json`. Most are dependency guards,
+non-Windows guards or successful parent/child roles. Two branches could hide
+failures: the postings benchmark returned zero on `ETIMEDOUT`, and the advanced
+API golden fixture returned zero when its baseline was missing. The original
+real fixtures both return zero under bounded controlled fault injection
+(`postings-timeout-false-pass-before.log` and
+`advanced-golden-missing-false-pass-before.log`). The golden file was preserved.
+Postings now delegates timeout/nonzero handling to the existing `runNode` owner,
+which makes its old duplicate failure branch unnecessary. Its real baseline
+assertion and deadline remain. Golden admission fails before expensive setup;
+its content comparisons and nonzero missing-file diagnostic remain. New
+timeout/nonzero/success and missing-baseline controls pass
+(`.testLogs/run-1792374763468-68zsww`) and have explicit ordered CI membership.
+The first control attempt exposed Windows absolute `--import` URL handling;
+the controls now use file URLs. That failed attempt is retained separately.
+
+Five whole-case opt-outs now use canonical skip status 77 instead of success:
+three POSIX signal/leak cases, the opt-in repository benchmark scenario wrapper,
+and optional Tantivy smoke. Their code/assertions remain intact. The explicit
+Windows exclusion inventory grows from 11 to 16, with coverage owners and
+qualification limits in the matrix. A disabled opt-in wrapper is not measured
+performance evidence, and Windows shutdown coverage does not prove POSIX grace
+or signal-injection behavior.
+
+At the pushed candidate, hosted gate, Rust TUI, Ubuntu and Windows jobs pass. The macOS
+bootstrap job fails its real PTY probe with `posix_spawnp failed`
+([job receipt](https://github.com/doublemover/PairOfCleats/actions/runs/39185353401/job/117847983726)).
+The node-pty 1.1.0 archive exactly matches locked SHA-512 integrity and packages
+both Darwin spawn helpers at 0644 (`node-pty-darwin-helper-mode-proof.txt`).
+The production loader selects those prebuilds; its rebuild script previously
+checked only directory existence. This matches
+[upstream issue #850](https://github.com/microsoft/node-pty/issues/850).
+The dependency patch restores execute bits on the regular helper during rebuild,
+leaving verify-only probes read-only. Actual macOS spawn/disposal acceptance
+must pass in the next hosted run; no macOS closure is claimed from Windows.
+The first local migration bootstrap rejected the newly added patch section's
+missing index header. The second rebuilt and probed native packages, then
+correctly refused readiness because the append hunk could match again after
+application. The corrected hunk has explicit original context and an unambiguous
+final-line annotation. Applying, verifying and reapplying the exact locked input
+preserves identical bytes (`pty-helper-patch-idempotence-02.log`); the patched
+script Git blob is `6d96cb0d2c5d04407a7665a0161c22a91f20018a`.
+Both failed bootstrap attempts and the original archive remain preserved.
+
+The third `npm run bootstrap:ci` exits zero with no warning/error lines
+(`bootstrap-ci-helper-repair-03.log`). Fresh verify-only setup also exits zero
+without warnings/errors (`reporting-helper-native-verify.log`), verifying 37
+required packages and activating 33 language routes on Node 26.10.0, ABI 147,
+Windows x64. The refreshed readiness receipt SHA-256 is
+`06ad4ad4d0b499f02784d3a53caed4e0c847c803adaf34eb67f82c3be550b39a`.
+Thirteen focused cases pass, including the real benchmark/API positives, new
+guards, VM lifecycle, all three ConPTY lifetimes, discovery and coverage contracts
+(`.testLogs/run-1792376043964-fwwg5m`). Five separate declared-exclusion controls
+return exactly 77; they are not counted as required-case passes. The two cheap
+guard regressions belong to regular cross-platform `ci-lite` (959 cases), with
+the real benchmark retaining its medium-lane ownership. Generated inventories
+are refreshed. The final front gate passes every required command and all 39
+cases (`.testLogs/run-1792376369863-vwc3jc`). No host security policy,
+dependency version or public configuration surface changed. The resulting
+committed source still needs its complete Windows cohorts and hosted macOS probe.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused

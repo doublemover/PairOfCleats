@@ -946,6 +946,8 @@ cli/general/bench-runtime-boundary
 cli/general/ingest-report-option-rejections
 cli/general/lifecycle-workflow-option-rejections
 runner/discovery-complete-inventory
+indexing/postings/real-bench-failure-contract
+services/advanced-surface-golden-required
 retrieval/backend/absent-index-state
 security/repository-trust-identity
 helpers/fixture-index-risk-config

@@ -83,6 +83,28 @@ OS × language × provider × backend cross-product to routine PR work.
 
 ## Performance evidence to use
 
+The Windows deep campaign explicitly excludes these 16 whole cases. Their
+original assertions remain in place; an unsupported or disabled case is not a
+passing observation. Required dependency absence is not an additional exclusion.
+
+| Cases | Separate qualification and Windows coverage owner |
+| --- | --- |
+| `cli/general/signal-cleanup` | POSIX parent signals; Windows native ownership: `tui/native-quit-lifetime`. |
+| `shared/kill-tree.posix` | POSIX process groups; Windows: `shared/kill-tree.windows`. |
+| `indexing/embeddings/build/cli-signal-failure` | POSIX signal injection/promotion; Windows exit failure and cancellation: `indexing/embeddings/build/process-outcome`. |
+| `services/mcp/sdk-descendant-grace` | POSIX SIGTERM-resistant escalation; Windows SDK child ownership: `services/mcp/sdk-cancel-progress`. |
+| `shared/subprocess/tracked-leak-fails-process` | POSIX invalid-signal leak injection; Windows: `shared/subprocess/tracked-shutdown-cleanup`. The leak diagnostic itself remains POSIX-qualified. |
+| `indexing/semantic/native-deferred-production`, `indexing/semantic/native-task-authority` | Linux ELF positives; Windows unsupported-platform and portable authority: `indexing/semantic/native-toolchain-platform`. |
+| `runner/harness/redo-target`, `runner/harness/skip-target`, `runner/harness/timeout-target`, `runner/harness/timeout-pass-signal-target` | Four helper-only children; their parent contract matrix and timeout/tree-cleanup fixtures execute them. |
+| `storage/sqlite/ann/sqlite-extension`, `tooling/script-coverage/storage/sqlite-ann-extension-test` | Two optional sqlite-vec positives, outside this acceptance target. |
+| `tooling/script-coverage/tools/shell-scripts` | Bash/jq helper qualification under a capable shell, separately scoped. |
+| `perf/bench/scenarios/matrix` | Opt-in repository workload scenarios; bounded default harness: `perf/bench/run`. Scenario-specific workload acceptance remains separate. |
+| `smoke/tantivy` | Opt-in optional Tantivy positive qualification remains separate. |
+
+The five later-discovered opt-outs use status 77. The campaign selects required
+cases explicitly, records actual partial optional omissions, and keeps a
+capable-token cohort for real file-symlink assertions.
+
 Run bounded checks on one idle representative CPU host first. Use a second OS
 only for a changed platform-sensitive path or a release claim. Record candidate
 and dirty-worktree identity, OS/architecture, Node/ABI, backend/provider, corpus

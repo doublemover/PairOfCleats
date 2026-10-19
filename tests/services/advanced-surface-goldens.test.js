@@ -26,6 +26,7 @@ const root = process.cwd();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const goldenPath = path.join(__dirname, 'golden', 'advanced-surface-goldens.json');
+assert.ok(fs.existsSync(goldenPath), 'Missing checked-in advanced-surface golden baseline');
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
 const section = process.env.POC_ADVANCED_GOLDEN_SECTION === 'federated' ? 'federated' : 'api';
 const tempRoot = resolveTestCachePath(root, `advanced-surface-goldens-${section}`);
@@ -431,8 +432,9 @@ if (section === 'federated') {
 }
 
 if (!fs.existsSync(goldenPath)) {
+  console.error('Missing checked-in advanced-surface golden baseline');
   console.log(stableStringify(snapshot));
-  process.exit(0);
+  process.exit(1);
 }
 
 const expectedAll = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));
