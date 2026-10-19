@@ -18,6 +18,13 @@ check does not replace native TUI supervisor/process-family qualification. The
 worker-teardown access violation is attributed to Node 26.8.1 itself; see the
 [runtime policy](node-runtime.md).
 
+The same node-pty patch corrects the macOS prebuilt `spawn-helper` execute bits
+during its rebuild script. The locked 1.1.0 tarball ships both Darwin helpers at
+0644, so an import alone succeeds while a real PTY spawn fails. Setup requires
+a regular helper file before changing its executable bits; verify-only probes
+do not repair it. This changes the installed dependency artifact, not host
+security policy. A successful bounded spawn/disposal probe remains required.
+
 The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default.
 
 First prepare the source checkout with Node >=26.10.0 <27 and `npm run bootstrap:ci`.

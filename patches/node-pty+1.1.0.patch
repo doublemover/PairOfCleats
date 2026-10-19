@@ -23,3 +23,23 @@ index d705444..31958af 100644
 +    this._conoutSocketWorker.dispose();
    }
  }
+diff --git a/node_modules/node-pty/scripts/prebuild.js b/node_modules/node-pty/scripts/prebuild.js
+index 17f1d980e..6d96cb0d2 100644
+--- a/node_modules/node-pty/scripts/prebuild.js
++++ b/node_modules/node-pty/scripts/prebuild.js
+@@ -32,3 +32,13 @@
+ }
+-
+-process.exit(0);
++
++// The 1.1.0 tarball omits executable bits from its macOS spawn helpers.
++if (process.platform === 'darwin') {
++  const spawnHelper = path.join(PREBUILD_DIR, 'spawn-helper');
++  const helperStat = fs.lstatSync(spawnHelper);
++  if (!helperStat.isFile()) {
++    throw new Error('node-pty spawn-helper must be a regular file');
++  }
++  fs.chmodSync(spawnHelper, helperStat.mode | 0o111);
++}
++
++process.exit(0); // Prebuilt artifacts, including the helper, are ready.
