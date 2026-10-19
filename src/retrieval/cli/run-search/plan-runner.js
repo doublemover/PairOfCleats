@@ -1,6 +1,8 @@
 import { projectIndexFormatError } from '../../../shared/index-format-error.js';
 import path from 'node:path';
 import { getRepoRoot } from '../../../shared/repo-paths.js';
+import { getEnvConfig } from '../../../shared/env/runtime.js';
+import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import {
   applyAdaptiveDictConfig,
   DEFAULT_MODEL_ID,
@@ -388,7 +390,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     const modelConfig = getModelConfig(rootDir, userConfig);
     const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
-    const useStubEmbeddings = argv['stub-embeddings'] === true;
+    const { useStubEmbeddings } = resolveEmbeddingIntent({
+      argv,
+      embeddingsConfig: userConfig.indexing?.embeddings,
+      envConfig: getEnvConfig(),
+      execution: 'query'
+    });
     const topN = argv.n;
     const showStats = argv.stats === true;
     const showMatched = argv.matched === true;
@@ -430,21 +437,18 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const sqliteRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && sqliteRootSelection.mixed);
     const lmdbRootsMixed = Boolean(asOfContext?.strict && dbModeSelection.length > 1 && lmdbRootSelection.mixed);
 
-    const lmdbPaths = resolveLmdbPaths(
-      rootDir,
-      userConfig,
-      lmdbRootSelection.root ? { indexRoot: lmdbRootSelection.root } : {}
-    );
-    const lmdbCodePath = lmdbPaths.codePath;
-    const lmdbProsePath = lmdbPaths.prosePath;
-    const sqlitePaths = resolveSqlitePaths(
-      rootDir,
-      userConfig,
-      sqliteRootSelection.root ? { indexRoot: sqliteRootSelection.root } : {}
-    );
-    const sqliteCodePath = sqlitePaths.codePath;
-    const sqliteProsePath = sqlitePaths.prosePath;
-    const sqliteExtractedProsePath = sqlitePaths.extractedProsePath;
+    const backendPathsForMode = (resolvePaths, mode, selection) => {
+      // Latest pointers may pin each mode to a different published generation.
+      // Explicit as-of requests retain their single-root backend contract.
+      const indexRoot = !asOfContext?.strict && dbModeSelection.includes(mode)
+        ? path.dirname(resolveSearchIndexDir(mode)) : selection.root;
+      return resolvePaths(rootDir, userConfig, indexRoot ? { indexRoot } : {});
+    };
+    const lmdbCodePath = backendPathsForMode(resolveLmdbPaths, 'code', lmdbRootSelection).codePath;
+    const lmdbProsePath = backendPathsForMode(resolveLmdbPaths, 'prose', lmdbRootSelection).prosePath;
+    const sqliteCodePath = backendPathsForMode(resolveSqlitePaths, 'code', sqliteRootSelection).codePath;
+    const sqliteProsePath = backendPathsForMode(resolveSqlitePaths, 'prose', sqliteRootSelection).prosePath;
+    const sqliteExtractedProsePath = backendPathsForMode(resolveSqlitePaths, 'extracted-prose', sqliteRootSelection).extractedProsePath;
 
     const sqliteStateCode = needsCode
       ? loadIndexState(rootDir, userConfig, 'code', {

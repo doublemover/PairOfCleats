@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -25,7 +26,9 @@ const running = async pid => {
 try {
   assert.equal(resolveTypeScriptRuntimeHeapMb({ env: {}, execArgv: [] }), 4096);
   assert.equal(resolveTypeScriptRuntimeHeapMb({ env: { NODE_OPTIONS: '--max-old-space-size=16384' }, execArgv: [] }), 16384);
-  assert.equal(resolveTypeScriptRuntimeHeapMb({ env: { NODE_OPTIONS: '--max-old-space-size=16384' }, execArgv: ['--max-old-space-size', '2048'] }), 2048);
+  assert.equal(resolveTypeScriptRuntimeHeapMb({ env: { NODE_OPTIONS: '--max-old-space-size=16384' }, execArgv: ['--max-old-space-size=2048'] }), 2048);
+  assert.equal(resolveTypeScriptRuntimeHeapMb({ env: { NODE_OPTIONS: '--max-old-space-size=16384' }, execArgv: ['--max-old-space-size', '2048'] }), 4096,
+    'invalid spaced Node 26 startup flags cannot authorize a heap observation');
   assert.equal(resolveTypeScriptRuntimeHeapMb({ maxOldSpaceMb: 512, env: { NODE_OPTIONS: '--max-old-space-size=16384' }, execArgv: ['--max-old-space-size=2048'] }), 512);
   await fs.writeFile(path.join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { noLib: true, types: [] }, files: ['consumer.ts', 'shared.ts', 'ambient.d.ts'] }));
   await fs.writeFile(path.join(root, 'consumer.ts'), 'export function read() { return "stale physical snapshot"; }');
@@ -53,7 +56,7 @@ try {
   assert.match(isolated.byChunkUid['ck:runtime'].payload.returnType, /ready: boolean/);
   assert.ok(seen.includes('chunk') && seen.includes('complete'));
   assert.equal(getTrackedSubprocessCount('ts-runtime-parity'), 0);
-  const toolingCacheParent = path.join(process.cwd(), '.testCache');
+  const toolingCacheParent = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache');
   await fs.mkdir(toolingCacheParent, { recursive: true });
   toolingDir = await fs.mkdtemp(path.join(toolingCacheParent, 'typescript-runtime-relative-'));
   const cachedCompiler = path.join(toolingDir, 'node/node_modules/typescript/lib/typescript.js');

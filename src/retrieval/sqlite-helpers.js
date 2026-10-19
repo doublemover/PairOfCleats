@@ -642,47 +642,22 @@ export function createSqliteHelpers(options) {
       : '';
     const ftsQuery = explicitMatch || fallbackMatch;
     if (!ftsQuery) return [];
-    if (options.queryAst) {
-      const termRows = new Map();
-      const collect = node => {
-        if (!node) return;
-        if (node.type === 'term') {
-          const match = compileFtsMatchFromAst(node);
-          if (!termRows.has(match)) {
-            const rows = db.prepare(`SELECT rowid AS id FROM ${table} WHERE ${table} MATCH ?`).all(match);
-            termRows.set(match, new Set(rows.map(row => row.id)));
-          }
-        }
-        collect(node.left); collect(node.right); collect(node.child);
-      };
-      collect(options.queryAst);
-      const matcher = createQueryAstHelpers({
-        queryAst: options.queryAst,
-        termMatches: (node, id) => termRows.get(compileFtsMatchFromAst(node))?.has(id) === true
-      }).matchesQueryAst;
-      const eligible = new Set();
-      for (let id = 0; id < idx.chunkMeta.length; id++) {
-        const chunk = idx.chunkMeta[id];
-        if (chunk && (!allowedIds || allowedIds.has(id)) && matcher(idx, id, chunk)) eligible.add(id);
-      }
-      allowedIds = eligible;
-      options.onEligibility?.(matcher);
-      if (!eligible.size) return [];
-    }
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights, table);
     const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
     const canPushdown = Boolean(allowedList);
     const jsonPushdown = canPushdown && allowedList.length > SQLITE_IN_LIMIT;
+    // Constrain the ordinary table's key. The FTS rowid equality plan can
+    // misapply a bound singleton constraint when row zero is present.
     const allowedClause = canPushdown
-      ? jsonPushdown ? ` AND ${table}.rowid IN (SELECT value FROM json_each(?))`
-        : ` AND ${table}.rowid IN (${allowedList.map(() => '?').join(',')})`
+      ? jsonPushdown ? ' AND chunks.id IN (SELECT value FROM json_each(?))'
+        : ` AND chunks.id IN (${allowedList.map(() => '?').join(',')})`
       : '';
-    const fetchSql = (withOffset = false) => `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+    const fetchSql = () => `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
        FROM ${table}
        JOIN chunks ON chunks.id = ${table}.rowid
        WHERE ${table} MATCH ? AND chunks.mode = ?
        ${allowedClause}
-       ORDER BY score ASC, ${table}.rowid ASC LIMIT ?${withOffset ? ' OFFSET ?' : ''}`;
+       ORDER BY score ASC, ${table}.rowid ASC LIMIT ?`;
     let rows = [];
     const startedAt = Date.now();
     let rowsScanned = 0;
@@ -691,7 +666,7 @@ export function createSqliteHelpers(options) {
       const stmtKey = canPushdown
         ? `rankSqliteFtsPushdown:${table}:${allowedList.length}`
         : 'rankSqliteFts:'+table;
-      const stmt = getCachedStatement(db, stmtKey, fetchSql(false));
+      const stmt = getCachedStatement(db, stmtKey, fetchSql());
       const queryLimit = canPushdown
         ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
         : overfetchRowCap;
@@ -704,6 +679,36 @@ export function createSqliteHelpers(options) {
     } catch (error) {
       emitDiagnostic('query_failed', error);
       return [];
+    }
+    if (options.queryAst && rows.length) {
+      // Chunk metadata may be lazy. Apply literal/Boolean checks only after
+      // fetching bounded candidates; absent metadata is not a negative match.
+      const missing = rows.filter(row => !idx.chunkMeta[row.id]).map(row => row.id);
+      if (missing.length) loadChunkMetaByIds(mode, missing, idx.chunkMeta);
+      const candidateIds = JSON.stringify(rows.map(row => row.id));
+      const termRows = new Map();
+      const collect = node => {
+        if (!node) return;
+        if (node.type === 'term') {
+          const match = compileFtsMatchFromAst(node);
+          if (!termRows.has(match)) {
+            const matches = db.prepare(`SELECT rowid AS id FROM ${table}
+              WHERE ${table} MATCH ? AND rowid IN (SELECT value FROM json_each(?))`).all(match, candidateIds);
+            termRows.set(match, new Set(matches.map(row => row.id)));
+          }
+        }
+        collect(node.left); collect(node.right); collect(node.child);
+      };
+      collect(options.queryAst);
+      const matcher = createQueryAstHelpers({
+        queryAst: options.queryAst,
+        termMatches: (node, id) => termRows.get(compileFtsMatchFromAst(node))?.has(id) === true
+      }).matchesQueryAst;
+      options.onEligibility?.(matcher);
+      rows = rows.filter(row => {
+        const chunk = idx.chunkMeta[row.id];
+        return chunk && matcher(idx, row.id, chunk);
+      });
     }
     emitOverfetch({
       rowCap: overfetchRowCap,

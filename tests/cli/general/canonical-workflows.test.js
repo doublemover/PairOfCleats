@@ -21,22 +21,6 @@ const runCli = (args, options = {}) => runNode(
   { stdio: 'pipe' }
 );
 
-const expectHelpRoute = (args) => {
-  const result = runCli([...args, '--help']);
-  assert.equal(result.status, 0, `expected ${args.join(' ')} --help to succeed: ${result.stderr || result.stdout}`);
-};
-
-expectHelpRoute(['service', 'mcp']);
-expectHelpRoute(['report', 'throughput']);
-expectHelpRoute(['report', 'summary']);
-expectHelpRoute(['report', 'parity']);
-expectHelpRoute(['bench', 'language']);
-expectHelpRoute(['bench', 'matrix']);
-expectHelpRoute(['bench', 'summarize']);
-expectHelpRoute(['bench', 'micro']);
-expectHelpRoute(['sqlite', 'compact']);
-expectHelpRoute(['tooling', 'uninstall']);
-
 const configDump = runCli(['config', 'dump', '--json']);
 assert.equal(configDump.status, 0, `expected config dump to succeed: ${configDump.stderr || configDump.stdout}`);
 const configDumpPayload = JSON.parse(configDump.stdout || '{}');

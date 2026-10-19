@@ -4,13 +4,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { buildReportOutput } from '../../../tools/bench/language/report.js';
 import { getMetricsDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
-ensureTestingEnv(process.env);
+applyTestEnv({ extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 
 const testFilePath = fileURLToPath(import.meta.url);
 const root = path.resolve(path.join(path.dirname(testFilePath), '..', '..', '..'));

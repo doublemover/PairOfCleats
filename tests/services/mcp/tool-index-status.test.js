@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { resolveRepoPath } from '../../../tools/mcp/repo.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-index-status');
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'mcp-index-status');
 const sampleRepo = path.join(process.cwd(), 'tests', 'fixtures', 'sample');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;

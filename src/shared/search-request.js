@@ -1,4 +1,19 @@
-import { hasSearchFilterArgs } from '../retrieval/cli-args.js';
+export const SEARCH_FILTER_OPTION_NAMES = Object.freeze([
+  'filter', 'type', 'author', 'import', 'lang', 'ext', 'path', 'file',
+  'branches', 'loops', 'breaks', 'continues', 'churn', 'meta', 'meta-json',
+  'calls', 'uses', 'signature', 'param', 'decorator', 'inferred-type', 'return-type',
+  'throws', 'reads', 'writes', 'mutates', 'alias', 'lint', 'awaits', 'visibility',
+  'extends', 'async', 'generator', 'returns', 'chunk-author', 'modified-after',
+  'modified-since', 'risk', 'risk-tag', 'risk-source', 'risk-sink', 'risk-category',
+  'risk-flow', 'struct-pack', 'struct-rule', 'struct-tag'
+]);
+
+export const hasSearchFilterArgs = (argv) => SEARCH_FILTER_OPTION_NAMES.some((key) => {
+  const value = argv?.[key];
+  const values = Array.isArray(value) ? value : [value];
+  return values.some((entry) => entry === true || (typeof entry === 'string' && entry.trim().length > 0)
+    || (typeof entry === 'number' && Number.isFinite(entry)));
+});
 
 export const STRING_FLAG_FIELDS = Object.freeze([
   ['type', '--type'],

@@ -54,8 +54,7 @@ export const runCandidateStage = ({
   queryAst = null
 }) => {
   let sparseAllowedIds = allowedIdx;
-  const nativeFtsGate = sqliteEnabledForMode && sqliteFtsDesiredForMode
-    && sqliteFtsCompilation.variant !== 'unicode61';
+  const nativeFtsGate = sqliteEnabledForMode && sqliteFtsDesiredForMode;
   if (typeof matchesQueryAst === 'function' && !nativeFtsGate) {
     sparseAllowedIds = new Set();
     for (let id = 0; id < idx.chunkMeta.length; id++) {
@@ -170,14 +169,6 @@ export const runCandidateStage = ({
   }
 
   if (!bmHits.length && !wantsTantivy && !sparseDeniedByProfile) {
-    if (nativeFtsGate && typeof matchesQueryAst === 'function') {
-      sparseAllowedIds = new Set();
-      for (let id = 0; id < idx.chunkMeta.length; id++) {
-        const chunk = idx.chunkMeta[id];
-        if (chunk && (!allowedIdx || bitmapHas(allowedIdx, id)) && matchesQueryAst(idx, id, chunk, false)) sparseAllowedIds.add(id);
-      }
-      sparseAllowedCount = sparseAllowedIds.size;
-    }
     if (sparseMissingTables.length) {
       emitSparseUnavailable(sqliteFtsDiagnostics, 'missing_required_tables', mode, {
         provider: bm25Provider.id || 'js-bm25',
@@ -189,6 +180,23 @@ export const runCandidateStage = ({
         const tokenIndexOverride = sqliteEnabledForMode ? getTokenIndexForQuery(queryTokens, mode) : null;
         candidates = buildCandidateSet(idx, queryTokens, mode);
         trackReleaseSet(candidates);
+        if (nativeFtsGate && typeof matchesQueryAst === 'function') {
+          if (idx.loadChunkMetaByIds && tokenIndexOverride?.postings) {
+            const missing = new Set();
+            for (const posting of tokenIndexOverride.postings) {
+              for (const [id] of posting) {
+                if (!idx.chunkMeta[id] && (!allowedIdx || bitmapHas(allowedIdx, id))) missing.add(id);
+              }
+            }
+            if (missing.size) idx.loadChunkMetaByIds(mode, Array.from(missing), idx.chunkMeta);
+          }
+          sparseAllowedIds = new Set();
+          for (let id = 0; id < idx.chunkMeta.length; id++) {
+            const chunk = idx.chunkMeta[id];
+            if (chunk && (!allowedIdx || bitmapHas(allowedIdx, id)) && matchesQueryAst(idx, id, chunk, false)) sparseAllowedIds.add(id);
+          }
+          sparseAllowedCount = sparseAllowedIds.size;
+        }
         const bm25Result = bm25Provider.search({
           idx,
           queryTokens,

@@ -135,9 +135,9 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
     const key = file => ts.sys.useCaseSensitiveFileNames ? path.resolve(file) : path.resolve(file).toLowerCase();
     const vfs = new Map(), sourcePaths = new Map(), origins = new Map();
     for (const doc of docs) if (typeof doc.text === 'string') {
-      const virtual = key(path.resolve(repoRoot,doc.virtualPath)); vfs.set(virtual,doc.text);
+      const virtualPath = path.resolve(repoRoot,doc.virtualPath), virtual = key(virtualPath); vfs.set(virtual,doc.text);
       const container = path.resolve(repoRoot,doc.containerPath || doc.virtualPath); origins.set(virtual,container);
-      if (!doc.segmentUid) sourcePaths.set(virtual,container);
+      if (!doc.segmentUid) sourcePaths.set(virtualPath,container);
     }
     const rootNames = createTypeScriptRootNames({ configRootNames: parsed?.fileNames || [],
       virtualRootNames: roots, sourcePaths, useCaseSensitive: ts.sys.useCaseSensitiveFileNames });

@@ -1,5 +1,5 @@
 import { sanitizeRuntimeReceipt, observeRuntimePath } from './receipt.js';
-import { getCacheRoot, getRepoCacheRoot, getModelConfig } from '../dict-utils.js';
+import { getCacheRoot, resolveRepoCacheRootPath, getModelConfig } from '../dict-utils.js';
 import { getEnvConfig } from '../env/runtime.js';
 import { resolveEmbeddingIntent } from '../embedding-intent.js';
 
@@ -17,7 +17,7 @@ export const createRuntimePreview = async ({ repoRoot, userConfig, policy, envel
     embeddings: { selectedModel: argv.model || model.id, modelSource: argv.model ? 'cli' : userConfig.indexing?.embeddings?.model ? 'config.indexing.embeddings.model' : userConfig.models?.id ? 'config.models.id' : 'default', ...intent, observation: { state: 'not-started', provider: null, device: null } },
     paths: {
       repo: await observeRuntimePath(repoRoot), cache: await observeRuntimePath(cacheRoot),
-      repoCache: await observeRuntimePath(getRepoCacheRoot(repoRoot, userConfig)), models: await observeRuntimePath(model.dir)
+      repoCache: await observeRuntimePath(resolveRepoCacheRootPath(repoRoot, userConfig)), models: await observeRuntimePath(model.dir)
     }
   });
 };

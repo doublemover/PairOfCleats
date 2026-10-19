@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
@@ -125,6 +126,7 @@ try {
   await fsPromises.writeFile(
     path.join(cacheRoot, 'builds', 'current.json'),
     JSON.stringify({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId: 'build-a',
       buildRoot: externalBuild,
       activeRoot: externalBuild

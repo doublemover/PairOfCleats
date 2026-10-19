@@ -21,7 +21,7 @@ const collectMarkdownSegments = (text, config) => {
   let current = null;
   for (const [action, token] of events) {
     if (action === 'enter' && token.type === 'codeFenced') {
-      current = { info: null, valueStart: null, valueEnd: null };
+      current = { info: null, valueStart: null, valueEnd: null, start: token.start.offset };
       continue;
     }
     if (current) {
@@ -39,6 +39,8 @@ const collectMarkdownSegments = (text, config) => {
           blocks.push({
             start: current.valueStart,
             end: current.valueEnd,
+            containerStart: current.start,
+            containerEnd: token.end.offset,
             info: current.info || null
           });
         }
@@ -116,15 +118,30 @@ export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
       meta: { inlineCode: true }
     });
   }
-  if (!segments.length) {
+  let proseStart = frontmatter?.end || 0;
+  for (const block of fencedBlocks) {
+    if (block.containerStart > proseStart) {
+      segments.push({
+        type: 'prose',
+        languageId: 'markdown',
+        start: proseStart,
+        end: block.containerStart,
+        parentSegmentId: null,
+        embeddingContext: 'prose',
+        meta: { host: true }
+      });
+    }
+    proseStart = Math.max(proseStart, block.containerEnd);
+  }
+  if (proseStart < text.length) {
     segments.push({
-      type: CONFIG_LANGS.has(ext) ? 'config' : 'prose',
+      type: 'prose',
       languageId: ext === '.md' ? 'markdown' : null,
-      start: 0,
+      start: proseStart,
       end: text.length,
       parentSegmentId: null,
-      embeddingContext: CONFIG_LANGS.has(ext) ? 'config' : 'prose',
-      meta: null
+      embeddingContext: 'prose',
+      meta: proseStart === 0 && !segments.length ? null : { host: true }
     });
   }
   return finalizeSegments(segments, relPath);

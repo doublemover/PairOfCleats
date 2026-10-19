@@ -22,7 +22,9 @@ import { resolveLanguageLabelFromImporter, resolveRepoLabelFromReportPath } from
 import { isKnownReasonCode, isKnownResolverStage } from './reason-codes.js';
 import { summarizeResolverPipelineStageElapsedPercentiles } from './stage-pipeline-metrics.js';
 
-export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze(['.testCache', '.benchCache']);
+export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze([
+  'temp/dev/tests/cache', 'temp/dev/benchmarks', '.testCache', '.benchCache'
+]);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;
 
 const clampActionableCount = ({ unresolved, actionable }) => {

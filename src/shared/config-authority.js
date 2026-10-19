@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isPathWithinRoot } from './file-paths.js';
 
 const canonicalPath = (value) => {
-  try { return fs.realpathSync(path.resolve(value)); } catch { return null; }
+  try { return fs.realpathSync.native(path.resolve(value)); } catch { return null; }
 };
 
 /** Trust is granted by the launching user, never by repository configuration. */

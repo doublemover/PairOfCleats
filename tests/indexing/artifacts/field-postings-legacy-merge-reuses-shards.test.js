@@ -104,6 +104,7 @@ await writeIndexArtifacts({
     artifactWriteThroughputBytesPerSec: 64 * 1024
   },
   indexState: {
+    buildId: 'artifact-fixture',
     generatedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     counts: { files: 0, chunks: 0 },

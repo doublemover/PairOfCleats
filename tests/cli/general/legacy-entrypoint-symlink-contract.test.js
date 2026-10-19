@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -7,7 +8,7 @@ import { getCombinedOutput } from '../../helpers/stdio.js';
 import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
-const tempRoot = path.join(root, 'tests', '.cache', 'legacy-entrypoint-symlink-contract');
+const tempRoot = resolveDevelopmentArtifactPath(root, 'test-cache', 'legacy-entrypoint-symlink-contract');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

@@ -342,8 +342,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v4 isolates exact symbol/file ranking from previously cached results.
-    version: 4,
+    // v5 invalidates empty FTS responses produced before lazy AST hydration.
+    version: 5,
     payload
   });
   return { key: keyInfo.key, payload };

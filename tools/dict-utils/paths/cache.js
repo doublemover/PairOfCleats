@@ -4,7 +4,7 @@ import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { isTestingEnv } from '../../../src/shared/env/testing.js';
 import { getCacheRoot, loadUserConfig } from '../config.js';
 import { getCacheRootBase, getDefaultCacheRoot } from '../cache.js';
-import { getRepoCacheRoot } from './repo.js';
+import { resolveRepoCacheRootPath } from './repo.js';
 
 /**
  * Resolve runtime cache limits and TTLs for a repo.
@@ -243,7 +243,7 @@ export function getExtensionsDir(repoRoot, userConfig = null) {
  * @returns {string}
  */
 export function getMetricsDir(repoRoot, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'metrics');
+  return path.join(resolveRepoCacheRootPath(repoRoot, userConfig), 'metrics');
 }
 
 /**
@@ -253,5 +253,5 @@ export function getMetricsDir(repoRoot, userConfig = null) {
  * @returns {string}
  */
 export function getQueryCacheDir(repoRoot, userConfig = null) {
-  return path.join(getRepoCacheRoot(repoRoot, userConfig), 'query-cache');
+  return path.join(resolveRepoCacheRootPath(repoRoot, userConfig), 'query-cache');
 }

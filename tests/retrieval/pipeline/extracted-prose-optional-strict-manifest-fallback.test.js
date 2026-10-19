@@ -1,7 +1,7 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import {
-  assertOptionalExtractedProseDisabled,
   createOptionalExtractedProseRoot,
   loadOptionalExtractedProseIndexes,
   writeLegacyChunkMetaIndex,
@@ -18,14 +18,11 @@ await writeModeIndex(rootDir, 'code', compatibilityKey, { chunkMeta });
 
 // Create a legacy extracted-prose directory without a pieces manifest.
 // It is discoverable by hasIndexMeta (chunk_meta exists), but optional
-// comment-join loading must not fail strict runs for this legacy layout.
+// The format cutover rejects this layout even for optional comment joins.
 await writeLegacyChunkMetaIndex(rootDir, 'extracted-prose');
 
-const loaded = await loadOptionalExtractedProseIndexes(rootDir);
+await assert.rejects(loadOptionalExtractedProseIndexes(rootDir),
+  { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' },
+  'optional extracted prose cannot silently reuse a superseded manifestless index');
 
-assertOptionalExtractedProseDisabled(
-  loaded,
-  'expected strict optional extracted-prose load to skip legacy indexes without manifest'
-);
-
-console.log('optional extracted-prose strict manifest fallback test passed');
+console.log('optional extracted-prose strict manifest rejection test passed');

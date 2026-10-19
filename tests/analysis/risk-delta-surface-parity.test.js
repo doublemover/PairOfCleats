@@ -11,6 +11,7 @@ import { writeJsonFile } from '../../src/shared/json-file.js';
 import { createAnalysisSurfaceHarness } from '../helpers/analysis-surface-parity.js';
 import { applyTestEnv, withTemporaryEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 applyTestEnv();
 
@@ -50,7 +51,7 @@ const writePiecesManifest = async (indexDir, files) => {
   }
   await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), {
     version: 2,
-    artifactSurfaceVersion: '0.2.0',
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces
   });
 };

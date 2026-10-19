@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { loadFileMetaRows } from '../../shared/artifact-io/loaders/core-file-meta.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { checksumString } from '../../shared/hash.js';
@@ -8,6 +9,7 @@ export const compareIndexedFiles = async ({ repoRoot, indexDir, currentFiles = n
   const result = { status: 'compared', scope: 'indexed-files-only', checked: 0, unchanged: 0,
     changed: [], missing: [], unknown: [], added: [], truncated: false, newFilesChecked: false,
     discoveryStatus };
+  if (!fs.existsSync(indexDir)) return { ...result, status: 'unavailable', bytesRead: 0 };
   const indexed = new Set();
   let inventoryComplete = true;
   let bytes = 0;

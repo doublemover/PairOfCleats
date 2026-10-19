@@ -2,7 +2,7 @@ import { readRuntimeReceipt } from '../../shared/runtime-envelope/read-receipt.j
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
-import { getIndexDir, getRepoCacheRoot, getRepoRoot } from '../../shared/repo-paths.js';
+import { getIndexDir, resolveRepoCacheRootPath, getRepoRoot } from '../../shared/repo-paths.js';
 import { getCacheRoot, getDictConfig, getMetricsDir, loadUserConfig, resolveLmdbPaths, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../shared/artifact-io/manifest.js';
 import { getAtomicWriteDurabilityStatus } from '../../shared/io/atomic-write.js';
@@ -27,7 +27,7 @@ export async function getStatus(input = {}) {
   const userConfig = loadUserConfig(root);
   const cacheRoot = (userConfig.cache && userConfig.cache.root)
     || getCacheRoot();
-  const repoCacheRoot = getRepoCacheRoot(root, userConfig);
+  const repoCacheRoot = resolveRepoCacheRootPath(root, userConfig);
   const dictConfig = getDictConfig(root, userConfig);
   const dictDir = dictConfig.dir;
   const sqlitePaths = resolveSqlitePaths(root, userConfig);

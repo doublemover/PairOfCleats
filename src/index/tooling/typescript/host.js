@@ -26,6 +26,7 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
     const resolved = path.resolve(fileName);
     return useCaseSensitive ? resolved : resolved.toLowerCase();
   };
+  const canonicalOrigins = new Map([...moduleOrigins].map(([virtualPath, origin]) => [canonicalize(virtualPath), origin]));
   const virtualBySource = createTypeScriptVirtualBySource(sourcePaths, canonicalize);
   const getVfs = (fileName) => vfsMap.get(canonicalize(fileName));
 
@@ -45,7 +46,7 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
     if (typeof hit === 'string') {
       const filename = canonicalize(fileName), scriptKind = resolveScriptKind(ts, fileName);
       const reuseKey = reuse?.cache.identity({ ts, filename, text: hit, languageVersion, scriptKind,
-        options: compilerOptions, mapping: { origins: [...moduleOrigins].sort(), sources: [...sourcePaths].sort() } });
+        options: compilerOptions, mapping: { origins: [...canonicalOrigins].sort(), sources: [...sourcePaths].sort() } });
       // Dependency reads still happen above. A cache hit cannot bypass the
       // sealed resolver/system or a forced fresh SourceFile request.
       const cached = !shouldCreateNewSourceFile && reuseKey ? reuse.cache.get(reuseKey, filename, reuse.mode) : null;
@@ -61,7 +62,7 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
       // resolveModuleNameLiterals. Keep their physical container origin and
       // reuse exact whole-file VFS aliases just as module imports do.
       if (sourceFile.referencedFiles.length) {
-        const origin = moduleOrigins.get(canonicalize(fileName)) || fileName;
+        const origin = canonicalOrigins.get(canonicalize(fileName)) || fileName;
         sourceFile.referencedFiles = sourceFile.referencedFiles.map(reference => {
           const absolute = path.resolve(path.dirname(origin), reference.fileName);
           return { ...reference, fileName: virtualBySource.get(canonicalize(absolute)) || absolute };
@@ -75,7 +76,8 @@ export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePat
 
   const moduleHost = { ...baseHost, fileExists: filename => virtualBySource.has(canonicalize(filename)) || fileExists(filename),
     readFile: filename => getVfs(virtualBySource.get(canonicalize(filename)) || filename) ?? readFile(filename) };
-  const resolver = createModeAwareTypeScriptResolver(ts, compilerOptions, moduleHost, { canonicalize, moduleOrigins, virtualBySource });
+  const resolver = createModeAwareTypeScriptResolver(ts, compilerOptions, moduleHost,
+    { canonicalize, moduleOrigins: canonicalOrigins, virtualBySource });
   return {
     ...baseHost,
     resolveModuleNameLiterals: resolver.resolveModuleNameLiterals,

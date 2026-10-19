@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import { readRuntimeReceipt, listRuntimeReceipts, formatRuntimeReceiptSummary } from '../../src/shared/runtime-envelope/read-receipt.js';
-import { getRepoCacheRoot, getIndexDir } from '../../src/shared/repo-paths.js';
+import { resolveRepoCacheRootPath, getIndexDir } from '../../src/shared/repo-paths.js';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
@@ -48,7 +48,7 @@ if (argv.runtime || argv['index-root'] || argv.build || argv.attempt || argv.exp
     runtimeReport = { schemaVersion: 1, receipts: [await readRuntimeReceipt({ ...options, buildRoot: argv['index-root'] })], truncated: false };
   } else {
     const { repoRoot, userConfig: config } = resolveRepoConfig(argv.repo);
-    const repoCacheRoot = getRepoCacheRoot(repoRoot, config);
+    const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, config);
     if (argv.build) {
       if (!/^[^\\/]+$/u.test(argv.build) || argv.build === '.' || argv.build === '..') throw new Error('Invalid --build identifier.');
       runtimeReport = { schemaVersion: 1, receipts: [await readRuntimeReceipt({ ...options, buildRoot: path.join(repoCacheRoot, 'builds', argv.build), selection: 'explicit-build-id' })], truncated: false };

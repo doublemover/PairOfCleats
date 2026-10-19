@@ -61,6 +61,13 @@ const INDEX_STATE_NONDETERMINISTIC_FIELDS = Object.freeze([
     excludeFromStableHash: true
   },
   {
+    path: 'extensions.runtimeAttemptId',
+    category: 'run_identity',
+    reason: 'Runtime receipt attempt IDs identify an invocation, not indexed content.',
+    source: 'src/index/build/indexer/steps/write.js',
+    excludeFromStableHash: true
+  },
+  {
     path: 'stage',
     category: 'run_identity',
     reason: 'stage reflects current lifecycle and may vary by run mode.',

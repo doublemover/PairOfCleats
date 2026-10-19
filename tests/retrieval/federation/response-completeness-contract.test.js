@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,8 +8,11 @@ import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
+
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-response-completeness-'));
 const cacheRoot = path.join(tempRoot, 'cache');
+applyTestEnv({ cacheRoot });
 const repoComplete = path.join(tempRoot, 'repo-complete');
 const repoFail = path.join(tempRoot, 'repo-fail');
 const repoSkipped = path.join(tempRoot, 'repo-skipped');
@@ -23,6 +27,7 @@ const writeRepo = async (repoRoot, modes) => {
   const buildRoot = path.join(repoCacheRoot, 'builds', 'test-build');
   await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
   await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'test-build',
     buildRoot,
     modes
@@ -33,6 +38,7 @@ const writeRepo = async (repoRoot, modes) => {
     await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
     await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
     await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       compatibilityKey: `compat-${mode}`
     }, null, 2), 'utf8');
   }

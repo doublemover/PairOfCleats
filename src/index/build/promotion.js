@@ -26,6 +26,7 @@ export async function promoteBuild({
   buildRoot,
   stage,
   modes,
+  modeBuildRoots = null,
   configHash,
   repoProvenance,
   artifactSurfaceVersion = ARTIFACT_SURFACE_VERSION,
@@ -98,13 +99,36 @@ export async function promoteBuild({
     }
   }
   const promotedModes = Array.isArray(modes) ? modes.filter((mode) => typeof mode === 'string') : [];
-  await assertArtifactPublicationReady({
-    buildRoot: resolvedBuildRoot,
-    modes: promotedModes
-  });
+  const rootsByMode = new Map(promotedModes.map(mode => [mode, resolvedBuildRoot]));
+  if (modeBuildRoots !== null) {
+    if (typeof modeBuildRoots !== 'object' || Array.isArray(modeBuildRoots)
+      || Object.keys(modeBuildRoots).length !== rootsByMode.size
+      || Object.keys(modeBuildRoots).some(mode => !rootsByMode.has(mode))) {
+      throw new Error('Mode build roots must exactly match the promoted modes.');
+    }
+    for (const mode of rootsByMode.keys()) {
+      const value = modeBuildRoots[mode];
+      if (typeof value !== 'string' || !value.trim() || !normalizeRelativeRoot(value)) {
+        throw new Error(`Mode build root is invalid or escapes repo cache root: ${mode}`);
+      }
+      rootsByMode.set(mode, toRealPathSync(isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value)));
+    }
+    if (![...rootsByMode.values()].includes(resolvedBuildRoot)) {
+      throw new Error('Primary build root must own a promoted mode.');
+    }
+  }
+  const modesByRoot = new Map();
+  for (const [mode, root] of rootsByMode) {
+    if (!modesByRoot.has(root)) modesByRoot.set(root, []);
+    modesByRoot.get(root).push(mode);
+  }
+  if (!promotedModes.length) modesByRoot.set(resolvedBuildRoot, []);
+  for (const [root, rootModes] of modesByRoot) {
+    await assertArtifactPublicationReady({ buildRoot: root, modes: rootModes });
+  }
   const buildRootsByMode = { ...priorRoots };
   for (const mode of promotedModes) {
-    buildRootsByMode[mode] = relativeRoot;
+    buildRootsByMode[mode] = toPosix(path.relative(resolvedCacheRoot, rootsByMode.get(mode)));
   }
   const payload = withGeneratedArtifactMetadata({
     extensions: priorExtensions,
@@ -123,7 +147,8 @@ export async function promoteBuild({
   await fs.mkdir(buildsRoot, { recursive: true });
   await atomicWriteJson(currentPath, payload, { spaces: 0 });
   try {
-    await reconcilePublishedSemanticBindingWork({ repoRoot, userConfig, buildId, buildRoot: resolvedBuildRoot, modes: promotedModes });
+    await reconcilePublishedSemanticBindingWork({ repoRoot, userConfig, buildId, buildRoot: resolvedBuildRoot,
+      modes: modesByRoot.get(resolvedBuildRoot) || [] });
   } catch (error) {
     log('[build] warning: semantic task acknowledgement remains pending after publication: ' + (error.code || error.message));
   }

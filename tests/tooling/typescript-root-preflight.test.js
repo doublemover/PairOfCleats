@@ -49,12 +49,12 @@ try {
   const group = inventory.groups[0];
   assert.equal(group.configPath, appConfig);
   assert.deepEqual(group.rootNames, [path.join(root, virtualPath)], 'sealed roots must use the same canonical VFS identity as execution');
-  assert.equal(group.projectReferences[0].path, path.dirname(referencedConfig), 'reference configuration stays unchanged');
+  assert.equal(path.normalize(group.projectReferences[0].path), path.normalize(path.dirname(referencedConfig)), 'reference configuration stays unchanged');
   assert.ok(inventory.closure.files.some(file => file.path === development), 'development conditional export remains in the closure');
   assert.ok(inventory.closure.files.some(file => file.path === referencedConfig), 'referenced project configuration remains in the closure');
   assert.ok(!inventory.closure.files.some(file => file.path === physical), 'ordinary aliased root must not inflate the sealed closure');
   const { ts, system } = await verifyCompilerDependencyInventory({ inventory, repoRoot: root, toolingConfig });
-  const virtual = path.join(root, virtualPath), key = file => ts.sys.useCaseSensitiveFileNames ? file : file.toLowerCase();
+  const virtual = path.join(root, virtualPath), key = file => ts.sys.useCaseSensitiveFileNames ? path.normalize(file) : path.normalize(file).toLowerCase();
   const aliases = new Map([[key(virtual), physical]]);
   const host = createVirtualCompilerHost(ts, group.options, new Map([[key(virtual), text]]), aliases, aliases, system);
   const program = ts.createProgram({ rootNames: group.rootNames, options: group.options,

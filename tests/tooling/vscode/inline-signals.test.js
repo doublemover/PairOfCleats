@@ -77,6 +77,7 @@ const harness = createVsCodeRuntimeHarness({
   activeFile,
   activeEditor,
   configValues: {
+    cliPath: workspace.resolvePath('bin', 'pairofcleats.js'),
     cliArgs: ['--trace'],
     inlineHoverEnabled: true,
     inlineDiagnosticsEnabled: true,

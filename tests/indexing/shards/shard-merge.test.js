@@ -158,6 +158,14 @@ const generatedAtEquivalent = (left, right) => (
   stableStringify(normalizeGeneratedAt(left)) === stableStringify(normalizeGeneratedAt(right))
 );
 
+const semanticGenerationEquivalent = (left, right, leftBuildId, rightBuildId) => {
+  // The semantic family writer binds each envelope to its publication generation. Each
+  // independent build has a timestamp/nonce build ID, even for equal facts.
+  if (left?.generation?.baseBuildId !== leftBuildId || right?.generation?.baseBuildId !== rightBuildId) return false;
+  const normalize = value => ({ ...value, generation: { ...value.generation, baseBuildId: '__build__' } });
+  return stableStringify(normalize(left)) === stableStringify(normalize(right));
+};
+
 const normalizeRiskInterproceduralStats = (value) => {
   if (!value || typeof value !== 'object') return value;
   const copy = normalizeGeneratedAt(value);
@@ -190,6 +198,8 @@ const normalizeIndexState = (value) => {
     return next;
   };
   const copy = stripVolatile(JSON.parse(JSON.stringify(value)));
+  // Invocation receipt identity is explicitly excluded by the determinism contract.
+  if (copy.extensions) delete copy.extensions.runtimeAttemptId;
   delete copy.shards;
   delete copy.compatibilityKey;
   if (copy.embeddings && typeof copy.embeddings === 'object') {
@@ -401,6 +411,14 @@ for (const [piecePath, baselineEntry] of baselinePieces.entries()) {
       const base = await loadPieceJson(cacheRootA, piecePath);
       const shard = await loadPieceJson(cacheRootB, piecePath);
       if (base.json && shard.json && riskInterproceduralEquivalent(base.json, shard.json)) {
+        continue;
+      }
+    }
+    if (/^semantic_[a-z0-9_-]+\.json$/.test(piecePath)) {
+      const base = await loadPieceJson(cacheRootA, piecePath);
+      const shard = await loadPieceJson(cacheRootB, piecePath);
+      if (base.json && shard.json && semanticGenerationEquivalent(base.json, shard.json,
+        baselineManifest.buildId, shardedManifest.buildId)) {
         continue;
       }
     }

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
@@ -16,11 +17,11 @@ const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'diagnostics-report-risk');
 applyTestEnv({ cacheRoot: path.join(tempRoot, 'cache') });
 const repoRoot = path.join(tempRoot, 'repo');
+await fs.rm(tempRoot, { recursive: true, force: true });
+await fs.mkdir(repoRoot, { recursive: true });
 const indexDir = resolveIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
 const contextPackPath = path.join(tempRoot, 'context-pack.json');
 
-await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
 await fs.mkdir(indexDir, { recursive: true });
 
 await writeJsonObjectFile(path.join(indexDir, 'meta.json'), {
@@ -50,7 +51,7 @@ await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
 await writeJsonObjectFile(path.join(indexDir, 'pieces', 'manifest.json'), {
   fields: {
     version: 2,
-    artifactSurfaceVersion: 'test',
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey: 'compat-diagnostics-risk',
     generatedAt: '2026-03-19T00:00:00.000Z',
     mode: 'code',

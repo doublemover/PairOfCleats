@@ -33,7 +33,7 @@ const payload = {
   allowSparseFallback: true,
   allowUnsafeMix: true,
   top: 5,
-  context: 2,
+  context: 0,
   type: 'function',
   riskTag: 'command-exec',
   modifiedSince: 7,
@@ -52,6 +52,9 @@ assert.equal(apiResult.ok, true);
 const mcpArgs = buildMcpSearchArgs({ ...payload, repoPath: '/repo', output: 'compact' });
 const normalizedMcp = normalizeMcpArgs(mcpArgs);
 assert.deepEqual(normalizedMcp, apiResult.args, 'API and MCP search argv should match for shared fields');
+assert.equal(buildSearchParams('/repo', { ...payload, context: 2 }, 'compact').ok, false,
+  'removed context lines are rejected before dispatch');
+assert.throws(() => buildMcpSearchArgs({ ...payload, context: 2, repoPath: '/repo' }), /context/i);
 
 const apiPathAliasResult = buildSearchParams('/repo', {
   query: 'needle',

@@ -64,7 +64,7 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
       context: { mode }
     };
   }
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig, options);
+  const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig, options);
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   const buildInfo = options.buildInfo || getCurrentBuildInfo(repoRoot, userConfig, { ...options, mode });
   if (!buildInfo) {
@@ -192,10 +192,15 @@ function findConfigRoot(startPath) {
   );
 }
 
-export function getRepoCacheRoot(repoRoot, userConfig = null, options = {}) {
+/** Resolve a path for diagnostics; callers accessing data must acquire admission. */
+export function resolveRepoCacheRootPath(repoRoot, userConfig = null, options = {}) {
   const { cacheRoot } = resolveCacheRootValue(repoRoot, userConfig, options);
   const repoId = getRepoId(repoRoot);
-  const root = path.join(cacheRoot, 'repos', repoId);
+  return path.join(cacheRoot, 'repos', repoId);
+}
+
+export function getRepoCacheRoot(repoRoot, userConfig = null, options = {}) {
+  const root = resolveRepoCacheRootPath(repoRoot, userConfig, options);
   retainRepoCacheAccess(root);
   return root;
 }
@@ -205,10 +210,13 @@ export function getBuildsRoot(repoRoot, userConfig = null, options = {}) {
 }
 
 export function getCurrentBuildInfo(repoRoot, userConfig = null, options = {}) {
-  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig, options);
+  const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig, options);
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   const currentPath = path.join(buildsRoot, 'current.json');
   if (!fs.existsSync(currentPath)) return null;
+  // A missing pointer needs no cache access. Actual reads retain admission,
+  // including when cleanup wins the race after the existence probe.
+  retainRepoCacheAccess(repoCacheRoot);
   try {
     const data = JSON.parse(fs.readFileSync(currentPath, 'utf8')) || {};
     assertCurrentIndexFormat({ operation: 'resolve-index', component: 'build pointer',
@@ -253,7 +261,7 @@ export function resolveIndexRoot(repoRoot, userConfig = null, options = {}) {
   if (resolved.ok && resolved.root) {
     return resolved.root;
   }
-  return getRepoCacheRoot(repoRoot, userConfig, options);
+  return resolveRepoCacheRootPath(repoRoot, userConfig, options);
 }
 
 export function resolvePath(repoRoot, filePath) {

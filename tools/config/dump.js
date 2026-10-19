@@ -9,7 +9,7 @@ import { getRuntimeCapabilityManifest } from '../../src/shared/runtime-capabilit
 import {
   getCacheRoot,
   getAutoPolicy,
-  getRepoCacheRoot,
+  resolveRepoCacheRootPath,
   resolveRepoConfig
 } from '../shared/dict-utils.js';
 
@@ -42,7 +42,7 @@ const payload = sanitizeRuntimeReceipt({
   policy,
   derived: {
     cacheRoot,
-    repoCacheRoot: getRepoCacheRoot(repoRoot, userConfig),
+    repoCacheRoot: resolveRepoCacheRootPath(repoRoot, userConfig),
     mcp: {
       mode: mcpMode,
       modeSource: mcpModeSource,

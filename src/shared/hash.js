@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { hash64Stream, hashFileStream, resolveXxhashBackend } from './hash/xxhash-backend.js';
 
 let backendOverride = null;
 let backendName = null;
@@ -14,10 +13,8 @@ const getBackend = async () => {
   const next = resolveBackendName();
   if (backendPromise && backendName === next) return backendPromise;
   backendName = next;
-  backendPromise = resolveXxhashBackend({
-    backend: next,
-    verbose: false
-  });
+  backendPromise = import('./hash/xxhash-backend.js').then(({ resolveXxhashBackend }) =>
+    resolveXxhashBackend({ backend: next, verbose: false }));
   return backendPromise;
 };
 
@@ -52,6 +49,7 @@ export async function checksumString(input) {
 }
 
 export async function checksumFile(filePath) {
+  const { hash64Stream, hashFileStream } = await import('./hash/xxhash-backend.js');
   const backend = await getBackend();
   const stream = hashFileStream(filePath);
   const value = await hash64Stream(stream, backend);

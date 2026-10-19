@@ -389,6 +389,11 @@ export const runToolingPass = async ({
         const provider = providerPlans.find((plan) => plan.provider?.id === providerId)?.provider;
         const record = buildToolingDiagnosticRecord({ providerId, providerContractVersion: provider?.version, diagnostics: diag });
         if (providerLog.writeDiagnostic) await providerLog.writeDiagnostic(record);
+        if (!['cache', 'cache-suppressed'].includes(record.diagnosticsSource)) {
+          for (const check of record.checks.filter((entry) => ['warn', 'error'].includes(entry.status)).slice(0, 3)) {
+            log(`[tooling] ${record.providerId}: ${check.name}: ${check.message}`);
+          }
+        }
       }
     }
     if (providerLog && Array.isArray(result?.observations)) {

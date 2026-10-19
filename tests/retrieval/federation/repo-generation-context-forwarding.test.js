@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 
+import { applyTestEnv } from '../../helpers/test-env.js';
+
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-generation-context-'));
 const cacheRoot = path.join(tempRoot, 'cache');
+applyTestEnv({ cacheRoot });
 const repoRoot = path.join(tempRoot, 'repo');
 const workspacePath = path.join(tempRoot, '.pairofcleats-workspace.jsonc');
 
@@ -22,6 +26,7 @@ const indexDir = path.join(buildRoot, 'index-code');
 await fs.mkdir(indexDir, { recursive: true });
 await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
 await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId: 'build-ctx',
   buildRoot,
   buildRootsByMode: { code: buildRoot },
@@ -30,6 +35,7 @@ await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stri
 await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), '[]', 'utf8');
 await fs.writeFile(path.join(indexDir, 'token_postings.json'), '{}', 'utf8');
 await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   compatibilityKey: 'compat-code'
 }, null, 2), 'utf8');
 

@@ -2,8 +2,6 @@ import fs from 'node:fs/promises';
 
 import { decodeVarint64List, encodeVarint64, encodeVarint64List } from './varint.js';
 import { toArray } from '../iterables.js';
-import { createTempPath } from '../io/temp-path.js';
-import { replaceFile } from '../io/replace-file.js';
 
 const OFFSET_BYTES = 8;
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -147,6 +145,7 @@ const removeTempPathIfPresent = async (targetPath) => {
 };
 
 const replaceTempBinarySidecar = async (tempPath, targetPath) => {
+  const { replaceFile } = await import('../io/replace-file.js');
   try {
     await replaceFile(tempPath, targetPath, { keepBackup: false });
   } catch (error) {
@@ -170,6 +169,7 @@ export const writeBinaryRowFrames = async ({
   preallocateBytes = null,
   writeHints = null
 }) => {
+  const { createTempPath } = await import('../io/temp-path.js');
   const resolvedPreallocateBytes = toBoundedNonNegativeInt(
     preallocateBytes ?? writeHints?.preallocateBytes,
     MAX_BINARY_COLUMNAR_PREALLOCATE_BYTES

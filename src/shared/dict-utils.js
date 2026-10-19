@@ -39,6 +39,7 @@ export {
   getModelsDir,
   getQueryCacheDir,
   getRepoCacheRoot,
+  resolveRepoCacheRootPath,
   getRepoDictPath,
   getRuntimeConfig,
   getToolingConfig,

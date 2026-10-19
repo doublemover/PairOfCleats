@@ -9,6 +9,7 @@ import { checksumBundlePayloadLocal } from '../../../src/shared/bundle-io-checks
 import { BUNDLE_CHECKSUM_SCHEMA_VERSION, BUNDLE_FORMAT_TAG, BUNDLE_VERSION } from '../../../src/shared/bundle-io-constants.js';
 import { MAX_BUNDLE_CHECKSUM_BYTES } from '../../../src/shared/bundle-contract.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = resolveTestCachePath(process.cwd(), `bundle-codec-parity-${process.pid}-${Date.now()}`);
 await fs.mkdir(root, { recursive: true });
@@ -38,13 +39,14 @@ try {
       assert.equal(Object.hasOwn(read.bundle.chunks[0], 'optional'), false);
     }
   }
-  const legacyBuffer = { file: 'legacy.js', chunks: [{ embedding_u8: Buffer.from([4, 5]) }] };
+  const legacyBuffer = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+    file: 'legacy.js', chunks: [{ embedding_u8: Buffer.from([4, 5]) }] };
   assert.deepEqual(canonicalizeBundlePayloadForChecksum(legacyBuffer).chunks[0].embedding_u8,
     { type: 'Buffer', data: [4, 5] }, 'the established MessagePack checksum projection stays unchanged');
   const legacyChecksum = await checksumBundlePayloadLocal(legacyBuffer, { maxChecksumBytes: MAX_BUNDLE_CHECKSUM_BYTES });
   const legacyPath = path.join(root, 'legacy-buffer.mpk');
   await fs.writeFile(legacyPath, new Packr({ useRecords: false, structuredClone: true }).pack({
-    format: BUNDLE_FORMAT_TAG, version: BUNDLE_VERSION,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, format: BUNDLE_FORMAT_TAG, version: BUNDLE_VERSION,
     checksum: { schemaVersion: BUNDLE_CHECKSUM_SCHEMA_VERSION, ...legacyChecksum }, payload: legacyBuffer
   }));
   const legacyRead = await readBundleFile(legacyPath, { format: 'msgpack' });

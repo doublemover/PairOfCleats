@@ -1,4 +1,4 @@
-import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-args.js';
+import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-options.js';
 
 const entry = (id, commandPath, script, description, extras = {}) => Object.freeze({
   id,

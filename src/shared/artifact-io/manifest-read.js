@@ -1,4 +1,4 @@
-import { retainCachePathAccess } from '../cache/repo-access.js';
+import { retainCachePathAccess } from '../cache/repo-access-reader.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';

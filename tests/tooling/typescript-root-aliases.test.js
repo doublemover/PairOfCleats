@@ -15,6 +15,12 @@ const canonicalize = (filename, sensitive = ts.sys.useCaseSensitiveFileNames) =>
   const resolved = path.resolve(filename);
   return sensitive ? resolved : resolved.toLowerCase();
 };
+const allSourceDiagnostics = program => program.getSourceFiles().flatMap(sourceFile =>
+  program.getSemanticDiagnostics(sourceFile).map(diagnostic => ({
+    code: diagnostic.code,
+    file: diagnostic.file?.fileName || null,
+    message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')
+  })));
 
 try {
   const originalA = absolute('source-a.ts');
@@ -95,7 +101,7 @@ try {
     canonicalize(absolute(document.virtualPath)), document.text
   ]));
   const aliases = new Map(documents.map((document) => [
-    canonicalize(absolute(document.virtualPath)), absolute(document.containerPath)
+    absolute(document.virtualPath), absolute(document.containerPath)
   ]));
   const options = { ...createDefaultCompilerOptions(ts, {}), noLib: true, types: [] };
   const buildProgram = (rootNames) => ts.createProgram({
@@ -121,10 +127,12 @@ try {
       `physical source ${document.containerPath} must not duplicate its virtual snapshot`);
     assert.ok(deduplicatedProgram.getSourceFile(absolute(document.virtualPath)));
   }
-  assert.ok(duplicateProgram.getSemanticDiagnostics().some((diagnostic) => diagnostic.code === 2451),
+  assert.ok(allSourceDiagnostics(duplicateProgram).some((diagnostic) => diagnostic.code === 2451),
     'fixture must reproduce duplicate block-scoped globals in the old original-plus-virtual root set');
-  assert.deepEqual(deduplicatedProgram.getSemanticDiagnostics(), [],
+  assert.deepEqual(allSourceDiagnostics(deduplicatedProgram), [],
     'canonical roots must resolve imports and ambient globals without duplicate-global errors');
+  assert.deepEqual(deduplicatedProgram.getSourceFile(virtualRoots[2]).fileName, virtualRoots[2],
+    'resolved imports must reuse the exact virtual root spelling on Windows');
 
   const extract = (program) => {
     const checker = program.getTypeChecker();
@@ -195,8 +203,8 @@ try {
   await fs.writeFile(referencedGlobal, 'const referencedGlobal = { value: "stale-physical-copy" };\n');
   await fs.writeFile(referencedAmbient, 'declare const ambientFromReference: { status: "ready" };\n');
   const referenceAliases = new Map([
-    [canonicalize(virtualMain), referencedMain],
-    [canonicalize(virtualGlobal), referencedGlobal]
+    [virtualMain, referencedMain],
+    [virtualGlobal, referencedGlobal]
   ]);
   const referenceSources = new Map([
     [canonicalize(virtualMain), referenceText],
@@ -213,7 +221,7 @@ try {
     options,
     host: createVirtualCompilerHost(ts, options, referenceSources, referenceAliases)
   });
-  assert.deepEqual(referenceProgram.getSemanticDiagnostics(), [],
+  assert.deepEqual(allSourceDiagnostics(referenceProgram), [],
     'triple-slash path references must resolve from the physical source directory and use mapped virtual sources');
   assert.equal(referenceProgram.getSourceFiles().length, 3,
     'triple-slash references must add unmapped ambient files without duplicating mapped global sources');
@@ -262,7 +270,7 @@ try {
     await fs.writeFile(physicalPath, text);
     graphPhysicalRoots.push(physicalPath);
     graphVirtualRoots.push(virtualPath);
-    graphAliases.set(canonicalize(virtualPath), physicalPath);
+    graphAliases.set(virtualPath, physicalPath);
     graphSources.set(canonicalize(virtualPath), text);
   }
   const graphProgram = ts.createProgram({
@@ -275,7 +283,7 @@ try {
     options,
     host: createVirtualCompilerHost(ts, options, graphSources, graphAliases)
   });
-  assert.deepEqual(graphProgram.getSemanticDiagnostics(), [],
+  assert.deepEqual(allSourceDiagnostics(graphProgram), [],
     'circular imports, re-exports, and module augmentation must share the same canonical module identities');
   assert.equal(graphProgram.getSourceFiles().length, graphTexts.size,
     'a cyclic import graph must contain each virtual source exactly once');

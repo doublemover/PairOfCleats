@@ -62,6 +62,9 @@ try {
   assert.ok(bindings.every(row => row.data.status === 'resolved'));
   state.semanticFactsByFile.set('original.js#semantic-segment:' + owned[0].factsRef.sourceUnitId, createSemanticFactsRef({ source: embedded.sourceFacts[0].facts.source, partitions: [...owned[0].factsRef.partitions,...output.partitions], syntaxPartitionId: owned[0].factsRef.syntaxPartitionId, storage, coverage: [] }));
   assert.equal((await lsp.targetsForDocument(lspDoc)).length, 0, 'refresh compiler/provider binding inventory before requesting unresolved positions');
+  state.semanticFactsByFile.set('original.js#semantic-segment:' + owned[0].factsRef.sourceUnitId, owned[0].factsRef);
+  assert.equal((await lsp.targetsForDocument(lspDoc)).length, targets.length,
+    'removed analysis partitions must not leave stale resolved occurrences in the session inventory');
   const synthetic = await collectEmbeddedSemanticSources({ ...options, segments: [{ ...segment, segmentUid: 'synthetic-segment', text: 'const replacement = 1;' }] }); assert.equal(synthetic.sourceFacts[0].facts.source.mapping.quality, 'synthetic');
   const syntheticOwnership = await collectEmbeddedSemanticOwnership({ ...options, embedded: synthetic, chunks: [{ chunkUid: 'fixture-chunk',start: segment.start,end:segment.end, segment: { ...segment,segmentUid:'synthetic-segment' } }] });
   assert.equal(syntheticOwnership[0].factsRef.counts.semantic_ownership, 0);

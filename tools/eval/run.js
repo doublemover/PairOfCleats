@@ -115,6 +115,7 @@ const runSearch = async (query, mode) => {
   });
   if (mode === 'code') return payload.code || [];
   if (mode === 'prose') return payload.prose || [];
+  if (mode === 'extracted-prose') return payload.extractedProse || [];
   return [...(payload.code || []), ...(payload.prose || [])];
 };
 

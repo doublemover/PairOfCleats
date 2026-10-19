@@ -90,22 +90,30 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
         state.stage = 'edges'; state.offset = 0;
       }
       if (result.edges.length >= limits.edges) break;
-      const page = await store.getNeighbors(ref, request.direction, kinds, { offset: state.offset, limit: 1, signal });
-      if (page.edges.length) {
-        const edge = page.edges[0];
-        const context = advanceTraceContext(item.stack || [], edge, request.direction);
-        if (context.skip || context.frontier) {
+      const batched = store.getNeighbors.supportsPositions === true;
+      const page = await store.getNeighbors(ref, request.direction, kinds, {
+        offset: state.offset, limit: batched ? Math.min(64, limits.edges - result.edges.length) : 1, signal
+      });
+      const entries = batched ? page.entries : [{ edge: page.edges[0] || null, offset: page.offset }];
+      let paused = false;
+      for (const entry of entries) {
+        const edge = entry.edge;
+        if (edge) {
+          const context = advanceTraceContext(item.stack || [], edge, request.direction);
           if (context.frontier) { state.truncated = true; result.frontier.push({ ref, reason: context.frontier }); }
-          state.offset = page.offset; progressed = true; if (page.done) next(); continue;
+          if (!context.skip && !context.frontier) {
+            if (!admit('edges', edge)) { paused = true; break; }
+            enqueue(request.direction === 'downstream' ? edge.to : edge.from, item.depth + 1, true, context.stack);
+            if (edge.evidence) {
+              if (!result.evidenceRefs.some(value => refKey(value) === refKey(edge.evidence))) result.evidenceRefs.push(edge.evidence);
+              enqueue(edge.evidence, item.depth, false);
+            }
+          }
         }
-        if (!admit('edges', edge)) break;
-        enqueue(request.direction === 'downstream' ? edge.to : edge.from, item.depth + 1, true, context.stack);
-        if (edge.evidence) {
-          if (!result.evidenceRefs.some(value => refKey(value) === refKey(edge.evidence))) result.evidenceRefs.push(edge.evidence);
-          enqueue(edge.evidence, item.depth, false);
-        }
+        state.offset = entry.offset;
+        progressed = true;
       }
-      state.offset = page.offset; progressed = true;
+      if (paused) break;
       if (page.done) next();
     }
     const done = state.index === state.queue.length;

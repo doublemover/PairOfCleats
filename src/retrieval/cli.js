@@ -1,4 +1,3 @@
-import { projectIndexFormatError } from '../shared/index-format-error.js';
 import { isDirectExecution } from '../shared/direct-execution.js';
 import {
   resolveAnnActive,
@@ -24,7 +23,8 @@ export {
 };
 
 if (isDirectExecution(import.meta.url)) {
-  runSearchCli().catch((err) => {
+  runSearchCli().catch(async (err) => {
+    const { projectIndexFormatError } = await import('../shared/index-format-error.js');
     const format = projectIndexFormatError(err);
     if (!err?.emitted) console.error(format ? JSON.stringify({ ok: false, code: format.nativeCode, message: err.message, ...format, details: format }) : err?.message || err);
     process.exit(1);

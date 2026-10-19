@@ -117,4 +117,17 @@ await fs.mkdir(tempRoot, { recursive: true });
   assert.equal(overrideRels.includes('dist/deny.js'), false);
 }
 
+{
+  const caseRoot = path.join(tempRoot, 'task-caches');
+  for (const directory of ['src', '.testCache', '.testLogs']) {
+    await fs.mkdir(path.join(caseRoot, directory), { recursive: true });
+    await fs.writeFile(path.join(caseRoot, directory, 'source.js'), 'export const value = 1;\n');
+  }
+  const { ignoreMatcher } = await buildIgnoreMatcher({ root: caseRoot, userConfig: {} });
+  const discovered = await discoverFiles({ root: caseRoot, mode: 'code', ignoreMatcher,
+    skippedFiles: [], maxFileBytes: null });
+  assert.deepEqual(discovered.map((entry) => entry.rel), ['src/source.js'],
+    'task caches must not become index source inputs');
+}
+
 console.log('ignore contract matrix test passed');

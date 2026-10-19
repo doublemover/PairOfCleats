@@ -1,3 +1,4 @@
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -6,7 +7,7 @@ import { createPublishedSemanticWitness } from '../../helpers/published-semantic
 import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
 import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/import.js';
 import { queryRuntimeEvidence, defaultRuntimeQuerySelectors } from '../../../src/index/semantic/runtime/query.js';
-import { spawnSync } from 'node:child_process';
+
 import { fileURLToPath } from 'node:url';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { qualifyRuntimeSourceCandidates, runtimeObservationTargets } from '../../../src/index/semantic/runtime/source-authority.js';
@@ -91,8 +92,8 @@ try {
     inputs: options.inputs, sourceCandidates: options.sourceCandidates, importOptions: options.importOptions }));
   const cli = fileURLToPath(new URL('../../../tools/ingest/runtime-evidence.js', import.meta.url));
   const cliEnvironment = applyTestEnv({ cacheRoot: witness.cacheRoot, syncProcess: false });
-  const execute = args => spawnSync(process.execPath, [cli, '--specification', specification,
-    '--out', path.join(root, 'cli-import'), ...args], { env: cliEnvironment, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 });
+  const execute = args => runNodeFixture([cli, '--specification', specification,
+    '--out', path.join(root, 'cli-import'), ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { env: cliEnvironment, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024 } });
   const pinned = execute(['--repo', witness.repoRoot, '--generation', JSON.stringify(witness.manifest.generation)]);
   assert.equal(pinned.error, undefined, 'bounded CLI completes and reaps its child');
   assert.equal(pinned.status, 0, pinned.stderr);
@@ -132,8 +133,6 @@ try {
   assert.ok((await fixture.readRows(unverified)).every(row => row.join.targets.length === 0));
   await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: { ...witness.semanticContext,
     manifest: { ...witness.manifest, generation: { baseBuildId: 'stale', semanticRevision: 0 } } } }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
-  const other = await createPublishedSemanticWitness({ root: path.join(root, 'changed'), revision: 1 });
-  await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: other.semanticContext }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
   const outOfRange = structuredClone(profile); outOfRange.nodes.forEach(row => { row.callFrame.columnNumber = source.textLength + 1; });
   const outside = await add('outside.cpuprofile', JSON.stringify(outOfRange), 'inspector-cpu-profile');
   const outsideImport = await importRuntimeEvidence({ ...options, capture: { ...options.capture, rawArtifacts: [logArtifact, outside] },

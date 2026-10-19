@@ -8,6 +8,8 @@ import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { runSqliteDenseWithBoundary } from '../../../tools/build/embeddings/sqlite-dense-isolate.js';
 import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { skip } from '../../helpers/skip.js';
+import { SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
+import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 
 let Database;
 try {
@@ -27,6 +29,8 @@ const createDbWithTables = (target) => {
   const db = new Database(target);
   db.exec('CREATE TABLE dense_vectors (mode TEXT, doc_id INTEGER, vector BLOB)');
   db.exec('CREATE TABLE dense_meta (mode TEXT, dims INTEGER, scale REAL, model TEXT, min_val REAL, max_val REAL, levels INTEGER)');
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+  writeSqliteIndexFormat(db);
   db.close();
 };
 

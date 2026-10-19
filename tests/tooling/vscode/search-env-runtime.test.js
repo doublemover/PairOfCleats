@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { resolveEnvPath } from '../../../src/shared/env-path.js';
 
 import {
   createVsCodeRuntimeHarness,
@@ -41,7 +42,7 @@ try {
   await cliHarness.runCommand('pairofcleats.search');
 
   assert.equal(cliHarness.spawnCalls.length, 1, 'expected one CLI search spawn');
-  assert.equal(cliHarness.spawnCalls[0].options.env.PATH, 'process-path');
+  assert.equal(resolveEnvPath(cliHarness.spawnCalls[0].options.env), 'process-path');
   assert.equal(cliHarness.spawnCalls[0].options.env.PAIROFCLEATS_API_TOKEN, 'settings-token');
   assert.equal(cliHarness.spawnCalls[0].options.env.CUSTOM_NUMERIC_FLAG, '17');
   assert.equal(cliHarness.spawnCalls[0].options.env.CUSTOM_BOOL_FLAG, 'true');

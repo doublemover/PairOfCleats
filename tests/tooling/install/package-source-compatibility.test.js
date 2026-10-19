@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -6,7 +7,7 @@ import { getToolingRegistry } from '../../../tools/tooling/utils.js';
 
 const root = process.cwd();
 const metadata = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-const registry = getToolingRegistry(path.join(root, '.testCache', 'tooling-plan-only'), root);
+const registry = getToolingRegistry(resolveDevelopmentArtifactPath(root, 'test-cache', 'tooling-plan-only'), root);
 const typescript = registry.find((tool) => tool.id === 'tsserver');
 assert.ok(typescript);
 for (const scope of ['cache', 'user']) {

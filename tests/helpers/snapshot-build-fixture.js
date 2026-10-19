@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { replaceDir } from '../../src/shared/json-stream/atomic.js';
 import { createBaseIndex } from '../indexing/validate/helpers.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 const writeJson = async (filePath, value) => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -31,6 +32,7 @@ export const seedCodeSnapshotBuildRoot = async ({
   await fs.rm(path.join(buildRoot, '.index-root'), { recursive: true, force: true });
   await writeJson(path.join(buildRoot, 'build_state.json'), {
     schemaVersion: 1,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     configHash: `cfg-${buildId}`,
     tool: { version: '1.0.0' },
@@ -44,6 +46,7 @@ export const setCurrentCodeSnapshotBuild = async ({
   repoCacheRoot,
   buildId
 }) => writeJson(path.join(repoCacheRoot, 'builds', 'current.json'), {
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId,
   buildRoot: `builds/${buildId}`,
   buildRoots: {

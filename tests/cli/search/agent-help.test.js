@@ -1,5 +1,6 @@
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+
 import { getSearchHelp, SEARCH_OPTION_NAMES, parseSearchArgs } from '../../../src/retrieval/cli-args.js';
 import { runCli } from '../../../src/retrieval/cli/search-entry.js';
 const full = getSearchHelp({ full: true });
@@ -17,14 +18,13 @@ for (const args of [
   ['help', 'search', '--json'], ['help', '--json'], ['history', 'help', '--json'],
   ['history', 'help', '--all', '--json'], ['search', '--help', '--all', '--json']
 ]) {
-  const result = spawnSync(process.execPath, ['bin/pairofcleats.js', ...args], {
+  const result = runNodeFixture(['bin/pairofcleats.js', ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
     encoding: 'utf8', timeout: 10000, maxBuffer: 1048576, windowsHide: true
-  });
+  } });
   assert.equal(result.status, 0, result.stderr);
   assert.ok(JSON.parse(result.stdout).version);
 }
-const unknown = spawnSync(process.execPath, ['bin/pairofcleats.js', 'help', 'not-a-command', '--json'],
-  { encoding: 'utf8', timeout: 10000, windowsHide: true });
+const unknown = runNodeFixture(['bin/pairofcleats.js', 'help', 'not-a-command', '--json'], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { encoding: 'utf8', timeout: 10000, windowsHide: true } });
 assert.equal(unknown.status, 1);
 assert.equal(JSON.parse(unknown.stdout).ok, false);
 console.log('agent help discovery tests passed');

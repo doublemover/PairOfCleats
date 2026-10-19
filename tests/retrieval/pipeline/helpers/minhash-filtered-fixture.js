@@ -59,7 +59,8 @@ export const createFilteredMinhashPipelineFixture = ({
     annCandidateCap: 100,
     annCandidateMinDocCount: 3,
     minhashMaxDocs: 2,
-    stageTracker
+    stageTracker,
+    overrides: { annDiscovery: 'lexical-rerank' }
   });
 
   return {

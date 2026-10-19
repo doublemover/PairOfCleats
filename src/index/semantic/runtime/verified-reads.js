@@ -29,8 +29,9 @@ export const readRuntimeMemberJson = async options => {
 export const openVerifiedRuntimeMember = async ({ root, relativePath, expectedHash, expectedBytes,
   maxBytes, signal = null, metrics = null }) => {
   const filename = path.join(root, relativePath);
-  const handle = await openContainedFile(root, filename);
+  let handle;
   try {
+    handle = await openContainedFile(root, filename);
     const stat = await handle.stat();
     if (!stat.isFile() || stat.size !== expectedBytes || stat.size > maxBytes) throw runtimeImportError('Runtime member size exceeds its pinned allowance.');
     const hash = createHash('sha256'), buffer = Buffer.alloc(65536);

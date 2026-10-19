@@ -1,11 +1,11 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { MCP_PROTOCOL_VERSION } from '../../../src/integrations/mcp/protocol.js';
 import { MCP_SCHEMA_VERSION } from '../../../src/integrations/mcp/defs.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-protocol-init');
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'mcp-protocol-init');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const { send, readMessage, shutdown } = await startMcpServer({ cacheRoot });

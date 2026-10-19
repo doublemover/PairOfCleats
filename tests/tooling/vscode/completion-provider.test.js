@@ -13,7 +13,8 @@ const activeFile = workspace.resolvePath('src', 'app.ts');
 const harness = createVsCodeRuntimeHarness({
   repoRoot: workspace.root,
   workspaceFolders: [{ name: 'repo', path: workspace.root }],
-  activeFile
+  activeFile,
+  configValues: { cliPath: workspace.resolvePath('bin', 'pairofcleats.js') }
 });
 
 harness.activate();

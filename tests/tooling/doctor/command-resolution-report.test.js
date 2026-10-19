@@ -8,6 +8,9 @@ import { runToolingDoctor } from '../../../src/index/tooling/doctor.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv({ extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'tooling-doctor-command-resolution');

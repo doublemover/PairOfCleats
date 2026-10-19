@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadChunkMeta } from '../../../src/shared/artifact-io.js';
@@ -39,6 +40,7 @@ await fs.mkdir(path.join(tempRoot, 'pieces'), { recursive: true });
 await fs.writeFile(
   path.join(tempRoot, 'pieces', 'manifest.json'),
   JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces: [
       { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' }
     ]

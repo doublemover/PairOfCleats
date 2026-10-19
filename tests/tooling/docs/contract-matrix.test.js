@@ -545,7 +545,7 @@ const expandSimpleBraceAlternates = (value) => {
     ['Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval', 'implemented'],
     ['Lexicon, relation boosts, chargram enrichment, and ANN candidate safety', 'implemented'],
     ['USR consolidated contract and rollout program', 'implemented'],
-    ['Shared-module reduction', 'checkpoint clean'],
+    ['Shared-module reduction', 'coupling audit open'],
     ['Duplicate-code reduction', 'checkpoint clean'],
     ['Production readiness', 'deferred validation'],
     ['Phase 0.5 language/framework execution contract', 'implemented'],
@@ -564,7 +564,14 @@ const expandSimpleBraceAlternates = (value) => {
   assert.match(byName.get('USR consolidated contract and rollout program')['Remaining / next'],
     /former approval-lock process is archived.*not a release blocker/);
   assert.match(byName.get('Shared-module reduction')['Remaining / next'],
-    /No known shared-module implementation batch remains open.*concrete/);
+    /October 18 direct\/transitive import-budget failures without raising baselines/);
+  assert.match(roadmapText, /suite is \*\*not green\*\*/,
+    'the current failing audit must not be represented as a suite pass');
+  const deepAudit = await fsPromises.readFile(
+    path.join(root, 'docs', 'archived', 'deep-test-audit-2026-10-18.md'), 'utf8'
+  );
+  assert.match(deepAudit, /tooling\/shared-module-performance/,
+    'reopening the coupling audit must retain the concrete failing fixture');
   assert.match(byName.get('Duplicate-code reduction')['Remaining / next'], /future intentional full audit refresh/);
   const integrationArchive = await fsPromises.readFile(
     path.join(root, 'docs', 'archived', 'ordinary-integration-roadmap-2026-10-06.md'), 'utf8'

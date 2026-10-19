@@ -47,7 +47,7 @@ import { updateEnrichmentState } from '../enrichment-state.js';
 import { runEmbeddingsTool } from '../embeddings.js';
 import { PRIMARY_INDEX_MODES, areAllPrimaryModesRequested, filterPrimaryIndexModes } from './stages/modes.js';
 import { markFailedPhases, parseNonNegativeInt, toPhaseFailureDetail } from './stages/phase-failures.js';
-import { createSqliteDirResolver, resolveSqliteModeList } from './stages/sqlite-paths.js';
+import { createSqliteDirResolver, resolveSqliteModeList, resolveSqliteModePlan } from './stages/sqlite-paths.js';
 
 const DEFAULT_BUILD_INDEX_LOCK_WAIT_MS = 15000;
 const DEFAULT_BUILD_INDEX_LOCK_POLL_MS = 250;
@@ -530,8 +530,7 @@ export const runSqliteStage = async ({
       await markBuildPhase(runtime.buildRoot, 'stage4', 'running');
       stage4Running = true;
       let sqliteResult = null;
-      const sqliteModeList = resolveSqliteModeList(sqliteModes);
-      for (const mode of sqliteModeList) {
+      const modeRoots = sqliteModes.map(mode => {
         throwIfAborted(effectiveAbortSignal);
         const indexRootResolution = resolveCurrentBuildModeRoot(root, userConfig, {
           mode,
@@ -548,7 +547,10 @@ export const runSqliteStage = async ({
             indexRootResolution.context
           );
         }
-        const indexRoot = indexRootResolution.root;
+        return { mode, indexRoot: indexRootResolution.root };
+      });
+      for (const { mode, indexRoot } of resolveSqliteModePlan(modeRoots)) {
+        throwIfAborted(effectiveAbortSignal);
         const sqliteDirs = resolveSqliteDirs(indexRoot);
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
           mode,
@@ -589,6 +591,7 @@ export const runSqliteStage = async ({
           buildRoot: runtime.buildRoot,
           stage: 'stage4',
           modes: sqliteModes,
+          modeBuildRoots: Object.fromEntries(modeRoots.map(({ mode, indexRoot }) => [mode, indexRoot])),
           configHash: runtime.configHash,
           repoProvenance: runtime.repoProvenance,
           compatibilityKey: runtime.compatibilityKey || null

@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
 import {
   loadPiecesManifest,
@@ -49,6 +50,7 @@ export const buildShardOnlyManifest = (artifactBase, meta) => {
     .filter(Boolean);
   if (!parts.length) return null;
   return {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces: parts.map((partPath) => ({
       name: artifactBase,
       path: partPath,
@@ -76,17 +78,6 @@ const readVectorsPayload = (filePath) => {
     : (Array.isArray(data?.vectors) ? data.vectors : null);
 };
 
-const loadOptionalPiecesManifest = (dir) => {
-  try {
-    return loadPiecesManifest(dir, {
-      maxBytes: Number.POSITIVE_INFINITY,
-      strict: false
-    });
-  } catch {
-    return null;
-  }
-};
-
 const collectManifestNames = (manifest) => new Set(
   Array.isArray(manifest?.pieces)
     ? manifest.pieces
@@ -105,17 +96,15 @@ export const resolveVectorsSource = (vectorsPath, {
   const dir = path.dirname(vectorsPath);
   const base = path.basename(vectorsPath, path.extname(vectorsPath));
   const ext = path.extname(vectorsPath) || '.json';
-  const baseCandidates = resolveArtifactBaseCandidates(base, { includeCanonical: includeCanonicalBase });
   const manifestNames = requireManifestDeclaration
-    ? collectManifestNames(loadOptionalPiecesManifest(dir))
+    ? collectManifestNames(loadPiecesManifest(dir, { strict: false }))
     : new Set();
+  const baseCandidates = resolveArtifactBaseCandidates(base, { includeCanonical: includeCanonicalBase })
+    .filter(candidate => !requireManifestDeclaration
+      || resolveManifestAliasNames(candidate).some(name => manifestNames.has(name)));
+  if (!baseCandidates.length) return null;
 
   for (const artifactBase of baseCandidates) {
-    if (manifestNames.size) {
-      const aliases = resolveManifestAliasNames(artifactBase);
-      const declared = aliases.some((name) => manifestNames.has(name));
-      if (!declared) continue;
-    }
     const metaPath = path.join(dir, `${artifactBase}.meta.json`);
     const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
     if (!hasShardedMeta) continue;

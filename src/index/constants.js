@@ -21,6 +21,8 @@ export const SKIP_DIRS = new Set([
   '.pytest_cache',
   '.ruff_cache',
   '.svelte-kit',
+  '.testCache',
+  '.testLogs',
   '.turbo',
   '.tox',
   '.venv',

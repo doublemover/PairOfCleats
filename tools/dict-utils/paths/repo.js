@@ -6,6 +6,7 @@ import {
   getIndexDir as getIndexDirShared,
   getLegacyRepoId,
   getRepoCacheRoot as getRepoCacheRootShared,
+  resolveRepoCacheRootPath as resolveRepoCacheRootPathShared,
   getRepoId,
   getRepoRoot,
   resolveCurrentBuildModeRoot as resolveCurrentBuildModeRootShared,
@@ -39,6 +40,10 @@ export function resolveCurrentBuildModeRoot(repoRoot, userConfig = null, options
 
 export function getRepoCacheRoot(repoRoot, userConfig = null) {
   return getRepoCacheRootShared(repoRoot, userConfig, REPO_PATH_OPTIONS);
+}
+
+export function resolveRepoCacheRootPath(repoRoot, userConfig = null) {
+  return resolveRepoCacheRootPathShared(repoRoot, userConfig, REPO_PATH_OPTIONS);
 }
 
 export function getBuildsRoot(repoRoot, userConfig = null) {

@@ -336,94 +336,99 @@ export async function runNativeLanguageContractSuite({
   assert.ok(scheduler, 'expected scheduler lookup');
   assert.ok(scheduler.index instanceof Map, 'expected scheduler index map');
 
-  const rowsByFixture = new Map();
-  for (const virtualPath of scheduler.index.keys()) {
-    const row = await scheduler.loadRow(virtualPath);
-    if (!row) continue;
-    const key = `${row.containerPath}::${row.languageId}`;
-    if (!rowsByFixture.has(key)) rowsByFixture.set(key, row);
-  }
+  try {
+    const rowsByFixture = new Map();
+    for (const virtualPath of scheduler.index.keys()) {
+      const row = await scheduler.loadRow(virtualPath);
+      if (!row) continue;
+      const key = `${row.containerPath}::${row.languageId}`;
+      if (!rowsByFixture.has(key)) rowsByFixture.set(key, row);
+    }
 
-  for (const fixture of fixtures) {
-    const key = `${fixture.containerPath}::${fixture.languageId}`;
-    const row = rowsByFixture.get(key);
-    assert.ok(row, `missing scheduler row for ${fixture.languageId} (${fixture.file})`);
-    const actualCanonicalGrammarKey = toCanonicalGrammarKey(row.grammarKey);
-    assert.equal(
-      actualCanonicalGrammarKey,
-      fixture.grammarKey,
-      `unexpected grammar key for ${fixture.languageId} (${fixture.file})`
-    );
-    assert.equal(
-      row.languageId,
-      fixture.languageId,
-      `unexpected language id for ${fixture.file}`
-    );
-    assert.equal(
-      row.containerPath,
-      fixture.containerPath,
-      `unexpected containerPath for ${fixture.file}`
-    );
-    assert.ok(Array.isArray(row.chunks) && row.chunks.length > 0, `expected chunks for ${fixture.languageId}`);
-    const nonFileChunks = row.chunks.filter((chunk) => chunk?.kind !== 'File');
-    const fallbackOnly = nonFileChunks.length === 0;
-    for (const chunk of row.chunks) {
-      assert.ok(Number.isFinite(chunk?.start), `missing chunk.start for ${fixture.languageId}`);
-      assert.ok(Number.isFinite(chunk?.end), `missing chunk.end for ${fixture.languageId}`);
-      assert.ok(chunk.end > chunk.start, `invalid chunk range for ${fixture.languageId}`);
-      assert.equal(typeof chunk?.kind, 'string', `missing chunk.kind for ${fixture.languageId}`);
-      assert.ok(chunk.kind.trim().length > 0, `empty chunk.kind for ${fixture.languageId}`);
-      assert.equal(typeof chunk?.name, 'string', `missing chunk.name for ${fixture.languageId}`);
-      assert.ok(chunk.name.trim().length > 0, `empty chunk.name for ${fixture.languageId}`);
-      assert.ok(chunk.meta && typeof chunk.meta === 'object', `missing chunk.meta for ${fixture.languageId}`);
-      if (!fallbackOnly) {
-        assert.ok(
-          Number.isFinite(chunk.meta.startLine) && Number.isFinite(chunk.meta.endLine),
-          `missing chunk line metadata for ${fixture.languageId}`
-        );
-        assert.ok(
-          chunk.meta.endLine >= chunk.meta.startLine,
-          `invalid chunk line metadata for ${fixture.languageId}`
-        );
-        assert.equal(
-          typeof chunk.meta.signature,
-          'string',
-          `missing chunk signature metadata for ${fixture.languageId}`
-        );
-        assert.ok(
-          chunk.meta.signature.trim().length > 0,
-          `empty chunk signature metadata for ${fixture.languageId}`
-        );
-      } else {
-        assert.equal(chunk.kind, 'File', `expected fallback-only File chunk for ${fixture.languageId}`);
-      }
-      assert.ok(
-        chunk.meta.docstring == null || typeof chunk.meta.docstring === 'string',
-        `invalid chunk docstring metadata for ${fixture.languageId}`
+    for (const fixture of fixtures) {
+      const key = `${fixture.containerPath}::${fixture.languageId}`;
+      const row = rowsByFixture.get(key);
+      assert.ok(row, `missing scheduler row for ${fixture.languageId} (${fixture.file})`);
+      const actualCanonicalGrammarKey = toCanonicalGrammarKey(row.grammarKey);
+      assert.equal(
+        actualCanonicalGrammarKey,
+        fixture.grammarKey,
+        `unexpected grammar key for ${fixture.languageId} (${fixture.file})`
       );
-    }
-    if (!fallbackOnly) {
-      const names = new Set(row.chunks.map((chunk) => chunk.name));
-      for (const expectedName of fixture.expectedNames) {
-        assert.ok(names.has(expectedName), `missing expected chunk "${expectedName}" for ${fixture.languageId}`);
+      assert.equal(
+        row.languageId,
+        fixture.languageId,
+        `unexpected language id for ${fixture.file}`
+      );
+      assert.equal(
+        row.containerPath,
+        fixture.containerPath,
+        `unexpected containerPath for ${fixture.file}`
+      );
+      assert.ok(Array.isArray(row.chunks) && row.chunks.length > 0, `expected chunks for ${fixture.languageId}`);
+      const nonFileChunks = row.chunks.filter((chunk) => chunk?.kind !== 'File');
+      const fallbackOnly = nonFileChunks.length === 0;
+      for (const chunk of row.chunks) {
+        assert.ok(Number.isFinite(chunk?.start), `missing chunk.start for ${fixture.languageId}`);
+        assert.ok(Number.isFinite(chunk?.end), `missing chunk.end for ${fixture.languageId}`);
+        assert.ok(chunk.end > chunk.start, `invalid chunk range for ${fixture.languageId}`);
+        assert.equal(typeof chunk?.kind, 'string', `missing chunk.kind for ${fixture.languageId}`);
+        assert.ok(chunk.kind.trim().length > 0, `empty chunk.kind for ${fixture.languageId}`);
+        assert.equal(typeof chunk?.name, 'string', `missing chunk.name for ${fixture.languageId}`);
+        assert.ok(chunk.name.trim().length > 0, `empty chunk.name for ${fixture.languageId}`);
+        assert.ok(chunk.meta && typeof chunk.meta === 'object', `missing chunk.meta for ${fixture.languageId}`);
+        if (!fallbackOnly) {
+          assert.ok(
+            Number.isFinite(chunk.meta.startLine) && Number.isFinite(chunk.meta.endLine),
+            `missing chunk line metadata for ${fixture.languageId}`
+          );
+          assert.ok(
+            chunk.meta.endLine >= chunk.meta.startLine,
+            `invalid chunk line metadata for ${fixture.languageId}`
+          );
+          assert.equal(
+            typeof chunk.meta.signature,
+            'string',
+            `missing chunk signature metadata for ${fixture.languageId}`
+          );
+          assert.ok(
+            chunk.meta.signature.trim().length > 0,
+            `empty chunk signature metadata for ${fixture.languageId}`
+          );
+        } else {
+          assert.equal(chunk.kind, 'File', `expected fallback-only File chunk for ${fixture.languageId}`);
+        }
+        assert.ok(
+          chunk.meta.docstring == null || typeof chunk.meta.docstring === 'string',
+          `invalid chunk docstring metadata for ${fixture.languageId}`
+        );
+      }
+      if (!fallbackOnly) {
+        const names = new Set(row.chunks.map((chunk) => chunk.name));
+        for (const expectedName of fixture.expectedNames) {
+          assert.ok(names.has(expectedName), `missing expected chunk "${expectedName}" for ${fixture.languageId}`);
+        }
       }
     }
-  }
 
-  const expectedGrammarKeys = new Set(fixtures.map((fixture) => fixture.grammarKey));
-  const observedGrammarKeys = new Set();
-  for (const row of rowsByFixture.values()) {
-    const canonicalGrammarKey = toCanonicalGrammarKey(row?.grammarKey);
-    if (canonicalGrammarKey) observedGrammarKeys.add(canonicalGrammarKey);
-  }
-  for (const grammarKey of expectedGrammarKeys) {
-    assert.ok(observedGrammarKeys.has(grammarKey), `missing grammar key coverage for ${grammarKey}`);
-  }
+    const expectedGrammarKeys = new Set(fixtures.map((fixture) => fixture.grammarKey));
+    const observedGrammarKeys = new Set();
+    for (const row of rowsByFixture.values()) {
+      const canonicalGrammarKey = toCanonicalGrammarKey(row?.grammarKey);
+      if (canonicalGrammarKey) observedGrammarKeys.add(canonicalGrammarKey);
+    }
+    for (const grammarKey of expectedGrammarKeys) {
+      assert.ok(observedGrammarKeys.has(grammarKey), `missing grammar key coverage for ${grammarKey}`);
+    }
 
-  return {
-    fixturesCovered: fixtures.length,
-    grammarKeysCovered: observedGrammarKeys.size,
-    skipped: false,
-    unavailable: []
-  };
+    return {
+      fixturesCovered: fixtures.length,
+      grammarKeysCovered: observedGrammarKeys.size,
+      skipped: false,
+      unavailable: []
+    };
+  } finally {
+    await scheduler.close();
+    assert.equal(scheduler.stats().openReaders, 0, 'native contract fixture must close every scheduler result reader');
+  }
 }

@@ -14,10 +14,13 @@ import {
   toRealPathSync
 } from '../../tools/shared/dict-utils.js';
 import { hasIndexMeta } from '../../src/retrieval/cli/index-loader.js';
+import { SEMANTIC_OPERATION_INDEX_SCHEMA } from '../../src/contracts/schemas/semantic-operation-index.js';
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
   loadJsonArrayArtifactSync,
+  loadPiecesManifest,
+  resolveArtifactPresence,
   readCompatibilityKey
 } from '../../src/shared/artifact-io.js';
 import { runSearchCli } from '../../src/retrieval/cli.js';
@@ -36,6 +39,7 @@ import {
   resolveTestCachePath
 } from './test-cache.js';
 import { runNode } from './run-node.js';
+import { isWithinRoot } from '../../src/workspace/identity.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -45,7 +49,36 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 5;
+const FIXTURE_HEALTH_VERSION = 6;
+
+// Compatibility alone does not witness mutable fixture artifacts. A killed
+// negative test may leave a damaged manifest or data file behind its old stamp.
+const readHealthAuthority = async (modeDirs, requiredModes) => {
+  const authority = {};
+  for (const mode of requiredModes) {
+    try {
+      const dir = modeDirs[mode];
+      const hash = crypto.createHash('sha256').update(toRealPathSync(dir));
+      hash.update(await fsPromises.readFile(path.join(dir, 'pieces/manifest.json')));
+      const manifest = loadPiecesManifest(dir, { strict: true });
+      for (const name of ['chunk_meta', 'file_meta', ...(mode === 'code' ? ['risk_flows'] : [])]) {
+        const presence = resolveArtifactPresence(dir, name, { manifest, strict: false });
+        const paths = [...(presence.paths || [])].sort();
+        hash.update(`${name}\0${paths.length}\0`);
+        for (const file of paths) {
+          if (!isWithinRoot(toRealPathSync(file), toRealPathSync(dir))) throw new Error('Health artifact escapes index root');
+          if ((await fsPromises.stat(file)).size > MAX_JSON_BYTES) throw new Error('Health artifact exceeds reader limit');
+          hash.update(path.relative(dir, file));
+          hash.update(await fsPromises.readFile(file));
+        }
+      }
+      authority[mode] = hash.digest('hex');
+    } catch {
+      authority[mode] = null;
+    }
+  }
+  return authority;
+};
 
 const resolveCacheName = (baseName, { cacheScope = 'isolated' } = {}) => {
   const MAX_CACHE_NAME_LENGTH = 64;
@@ -277,6 +310,17 @@ const getCompatibilityStatus = ({ modeDirs, requiredModes }) => {
     if (!dir || !hasChunkMeta(dir)) {
       return { compatible: false, keyByMode: {}, baseline: null };
     }
+    const operationPath = path.join(dir, 'semantic_operation_index.json');
+    if (fs.existsSync(operationPath)) {
+      try {
+        const operation = JSON.parse(fs.readFileSync(operationPath, 'utf8'));
+        if (operation.schemaVersion !== SEMANTIC_OPERATION_INDEX_SCHEMA.properties.schemaVersion.const) {
+          return { compatible: false, keyByMode: {}, baseline: null };
+        }
+      } catch {
+        return { compatible: false, keyByMode: {}, baseline: null };
+      }
+    }
     const key = readIndexCompatibilityKey(dir);
     keyByMode[mode] = key || null;
     keys.push(key);
@@ -339,6 +383,7 @@ const writeFixtureHealthStamp = async (
   {
     requiredModes,
     compatibilityKeyByMode,
+    authorityByMode,
     hasRiskTags,
     hasRiskWatchByStep,
     hasSqlDialectMetadata
@@ -348,6 +393,8 @@ const writeFixtureHealthStamp = async (
   const existingModes = Array.isArray(existing?.modes) ? existing.modes : [];
   const mergedModes = [...new Set([...existingModes, ...requiredModes])];
   const mergedCompatibility = { ...(existing?.compatibilityKeyByMode || {}) };
+  const sameCodeAuthority = Boolean(authorityByMode?.code
+    && existing?.authorityByMode?.code === authorityByMode.code);
   for (const mode of requiredModes) {
     mergedCompatibility[mode] = compatibilityKeyByMode?.[mode] || null;
   }
@@ -356,8 +403,9 @@ const writeFixtureHealthStamp = async (
     checkedAt: new Date().toISOString(),
     modes: mergedModes,
     compatibilityKeyByMode: mergedCompatibility,
-    hasRiskTags: Boolean(existing?.hasRiskTags || hasRiskTags),
-    hasRiskWatchByStep: Boolean(existing?.hasRiskWatchByStep || hasRiskWatchByStep),
+    authorityByMode: { ...(existing?.authorityByMode || {}), ...authorityByMode },
+    hasRiskTags: Boolean((sameCodeAuthority && existing?.hasRiskTags) || hasRiskTags),
+    hasRiskWatchByStep: Boolean((sameCodeAuthority && existing?.hasRiskWatchByStep) || hasRiskWatchByStep),
     hasSqlDialectMetadata: Boolean(hasSqlDialectMetadata)
   };
   await fsPromises.writeFile(stampPath, JSON.stringify(payload), 'utf8');
@@ -377,7 +425,8 @@ const canUseFixtureHealthStamp = (
     requireRiskTags,
     requireRiskWatchByStep,
     requireSqlDialectMetadata,
-    compatibilityKeyByMode
+    compatibilityKeyByMode,
+    authorityByMode
   }
 ) => {
   if (!stamp || typeof stamp !== 'object') return false;
@@ -389,6 +438,7 @@ const canUseFixtureHealthStamp = (
   if (requireSqlDialectMetadata && stamp.hasSqlDialectMetadata !== true) return false;
   const stampedKeys = stamp.compatibilityKeyByMode || {};
   for (const mode of requiredModes) {
+    if (!authorityByMode?.[mode] || stamp.authorityByMode?.[mode] !== authorityByMode[mode]) return false;
     if ((stampedKeys[mode] || null) !== (compatibilityKeyByMode?.[mode] || null)) {
       return false;
     }
@@ -477,11 +527,13 @@ export const ensureFixtureIndex = async ({
       };
     }
     const healthStamp = await readFixtureHealthStamp(healthStampPath);
+    const authorityByMode = await readHealthAuthority(modeDirs, normalizedRequiredModes);
     if (canUseFixtureHealthStamp(healthStamp, {
       requiredModes: normalizedRequiredModes,
       requireRiskTags: requireCodeRiskTags,
       requireRiskWatchByStep: requireCodeRiskWatchByStep,
       requireSqlDialectMetadata,
+      authorityByMode,
       compatibilityKeyByMode: compatibility.keyByMode
     })) {
       return {
@@ -506,6 +558,7 @@ export const ensureFixtureIndex = async ({
     if (!needsRiskTags && !missingRiskWatchByStep && !missingChunkUids && !missingSqlDialects) {
       await writeFixtureHealthStamp(healthStampPath, {
         requiredModes: normalizedRequiredModes,
+        authorityByMode,
         compatibilityKeyByMode: compatibility.keyByMode,
         hasRiskTags: requireCodeRiskTags,
         hasRiskWatchByStep: requireCodeRiskWatchByStep,

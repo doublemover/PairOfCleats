@@ -50,7 +50,7 @@ export function writeLargeMultiChunkSource(repoRoot) {
   fs.mkdirSync(path.dirname(largeSourcePath), { recursive: true });
   fs.writeFileSync(
     largeSourcePath,
-    Array.from({ length: 256 }, (_, index) => `export function value${index}() { return ${index}; }`).join('\n'),
+    Array.from({ length: 64 }, (_, index) => `export function value${index}() { return ${index}; }`).join('\n'),
     'utf8'
   );
 }

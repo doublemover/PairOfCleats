@@ -152,7 +152,8 @@ try {
     }
   }
 
-  // Existing schema-12 stores with no metadata table keep full-width behavior.
+  // A current-schema store with no optional metadata retains full-width behavior.
+  // This does not authorize loading a superseded SQLite schema.
   const legacy = new Database(':memory:');
   try {
     initializeSqlite(legacy);
@@ -166,7 +167,7 @@ try {
     assert.deepEqual(rankMinhash(loaded, words, 1, new Set([1])), [], 'old sampled rows require metadata/rebuild, never guessed indices');
     await ingestor(legacy).ingestMinhash({ signatures, sampling }, 'code');
     assertSelf(helpers.loadIndexFromSqlite('code', sqliteOptions).minhash);
-    assert.equal(legacy.pragma('user_version', { simple: true }), 12);
+    assert.equal(legacy.pragma('user_version', { simple: true }), SCHEMA_VERSION);
   } finally {
     legacy.close();
   }

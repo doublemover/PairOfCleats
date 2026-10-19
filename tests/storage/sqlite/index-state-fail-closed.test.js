@@ -57,6 +57,9 @@ const run = (args, label) => {
 run([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--stage',
+  'stage2',
+  '--no-sqlite',
   '--mode',
   'code',
   '--repo',
@@ -124,6 +127,9 @@ if (state.sqlite.status !== 'failed') {
 run([
   path.join(root, 'build_index.js'),
   '--stub-embeddings',
+  '--stage',
+  'stage2',
+  '--no-sqlite',
   '--mode',
   'code',
   '--repo',

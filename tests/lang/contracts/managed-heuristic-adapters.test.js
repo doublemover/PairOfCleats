@@ -23,6 +23,7 @@ const CASES = [
   },
   {
     id: 'groovy',
+    expectedCapabilityState: 'partial',
     source: [
       'import groovy.json.JsonSlurper',
       'class WidgetService {',

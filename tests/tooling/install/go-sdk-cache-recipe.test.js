@@ -50,7 +50,7 @@ const createDependencies = (overrides = {}) => ({
   },
   probe: async (command, options) => {
     probes += 1;
-    assert.ok(command.endsWith('/go/bin/go'));
+    assert.equal(command.endsWith(path.join('go', 'bin', 'go')), true);
     assert.equal(options.cwd, root);
     assert.equal(options.env.GOENV, 'off');
     assert.equal(options.env.GOWORK, 'off');

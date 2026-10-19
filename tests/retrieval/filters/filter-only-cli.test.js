@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -40,9 +41,8 @@ try {
   assert.deepEqual(reads.code.map((hit) => hit.id), ids);
   assert.deepEqual(writes.code.map((hit) => hit.id), numbers.code.map((hit) => hit.id));
   await assert.rejects(search(['alpha', '--return-type', 'number', '--cursor', 'bad']), /filter-only/);
-  const spawned = spawnSync(process.execPath, ['bin/pairofcleats.js', 'search', '--repo', root, '--mode', 'code',
-    '--backend', 'memory', '--json', '--compact', '--no-comments', '--return-type', 'boolean', '--top', '2'],
-  { encoding: 'utf8', timeout: 10000 });
+  const spawned = runNodeFixture(['bin/pairofcleats.js', 'search', '--repo', root, '--mode', 'code',
+    '--backend', 'memory', '--json', '--compact', '--no-comments', '--return-type', 'boolean', '--top', '2'], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { encoding: 'utf8', timeout: 10000 } });
   assert.equal(spawned.status, 0, spawned.stderr || spawned.stdout);
   const wrapped = JSON.parse(spawned.stdout);
   assert.equal(wrapped.pagination.total, 8);

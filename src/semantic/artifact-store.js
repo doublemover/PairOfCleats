@@ -268,7 +268,7 @@ export const createArtifactSemanticStore = ({
     if (next !== queryIndex.rowCount) throw error('Query index count mismatch.');
     checkedQueryIndex = true;
   };
-  const readQueryIndexRow = async (ordinal, signal, metrics) => {
+  const readQueryIndexRow = async (ordinal, signal, metrics, verifiedPieces) => {
     const pieces = queryIndex.pieces;
     let low = 0, high = pieces.length - 1, piece = null;
     while (low <= high) {
@@ -278,7 +278,11 @@ export const createArtifactSemanticStore = ({
       else { piece = candidate; break; }
     }
     if (!piece) throw error('Query index row out of range.');
-    const { dataPath, offsetsPath } = await validatePiece(piece, signal);
+    // A bounded related-page request may probe the same immutable piece many
+    // times. Share its validation only within this call, just as member-row
+    // hydration groups reads by piece. The next request validates it afresh.
+    if (!verifiedPieces.has(piece)) verifiedPieces.set(piece, validatePiece(piece, signal));
+    const { dataPath, offsetsPath } = await verifiedPieces.get(piece);
     const [row] = await readJsonlRowsAt(dataPath, offsetsPath, [ordinal - piece.firstRow], { maxBytes: maxRecordBytes, metrics });
     assertQueryIndexRow(row);
     if (compareQueryIndexRows(row, piece.firstKey) < 0 || compareQueryIndexRows(row, piece.lastKey) > 0) throw error('Query index key range mismatch.');
@@ -290,23 +294,29 @@ export const createArtifactSemanticStore = ({
     if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
       || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records', 'semantic_edges'].includes(member)
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
+    const verifiedPieces = new Map(), queryRows = new Map();
+    const readRow = ordinal => {
+      if (!queryRows.has(ordinal)) queryRows.set(ordinal,
+        readQueryIndexRow(ordinal, signal, metrics, verifiedPieces));
+      return queryRows.get(ordinal);
+    };
     const bound = async (upper) => {
       let low = 0, high = queryIndex.rowCount;
       while (low < high) {
         throwIfAborted(signal);
         const middle = Math.floor((low + high) / 2);
-        const row = await readQueryIndexRow(middle, signal, metrics);
+        const row = await readRow(middle);
         const compare = queryIndexOwnerCompare(row, ref, member);
         if (compare < 0 || (upper && compare === 0)) low = middle + 1;
         else high = middle;
       }
       return low;
     };
-    const start = await bound(false), end = await bound(true);
+    const [start, end] = await Promise.all([bound(false), bound(true)]);
     if (offset > end - start) throw error('Related semantic cursor exceeds member rows.');
     const selected = [];
     for (let ordinal = start + offset; ordinal < Math.min(end, start + offset + limit); ordinal += 1) {
-      const row = await readQueryIndexRow(ordinal, signal, metrics);
+      const row = await readRow(ordinal);
       if (queryIndexOwnerCompare(row, ref, member) !== 0) throw error('Query index owner mismatch.');
       selected.push(row);
     }

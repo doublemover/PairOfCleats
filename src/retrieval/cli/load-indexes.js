@@ -64,6 +64,7 @@ export async function loadSearchIndexes({
   explicitRef = false
 }) {
   const metadata = await resolveSearchIndexMetadata({
+    filterOnly,
     rootDir,
     userConfig,
     searchMode,

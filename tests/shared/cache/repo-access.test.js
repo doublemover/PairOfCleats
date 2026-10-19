@@ -8,6 +8,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { once } from 'node:events';
 import { inspectRepoCacheAccess, repoAccessPaths, withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
+import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-repo-access-'));
 const children = new Set();
@@ -30,6 +31,10 @@ const runGc = () => {
   return JSON.parse(run.stdout);
 };
 try {
+  const previewRoot = resolveRepoCacheRootPath(path.join(temporary, 'repo'),
+    { cache: { root: path.join(temporary, 'cache') } });
+  assert.ok(previewRoot.endsWith(path.join('repos', path.basename(previewRoot))));
+  assert.deepEqual(await fs.readdir(temporary), [], 'path-only resolution cannot acquire a lease or create a cache');
   const reader = await start();
   const root = reader.message.root;
   assert.ok(root);

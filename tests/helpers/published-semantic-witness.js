@@ -27,7 +27,8 @@ firstRun();secondRun();
 /** Real whole-generation publication, shared by semantic/runtime/browser tests.
  * This helper only executes when an authorized acceptance fixture invokes it.
  */
-export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false, abortSignal = null } = {}) => {
+export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
+  abortSignal = null, recordPartitionFilter = null } = {}) => {
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
@@ -43,12 +44,16 @@ export const createPublishedSemanticWitness = async ({ root, revision = 0, incre
     embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
     riskAnalysis: false, treeSitter: { enabled: false }
   } } });
-  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal, 'stub-embeddings': true, 'scm-provider': 'none' });
+  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal,
+    'stub-embeddings': true, 'scm-provider': 'none' });
   const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const { store, manifest } = await openPublishedSemanticStore({ repoRoot, indexDir });
   const sources = new Map(), records = [];
   for (const partition of manifest.partitions) {
-    for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources')) sources.set(source.sourceUnitId, source);
+    if (!sources.has(partition.sourceUnitId)) {
+      for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources')) sources.set(source.sourceUnitId, source);
+    }
+    if (recordPartitionFilter && !recordPartitionFilter(partition)) continue;
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.push({ ...row,
       ref: { partitionId: partition.partitionId, localId: row.id }, sourceUnitId: partition.sourceUnitId });
   }

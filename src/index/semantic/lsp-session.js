@@ -115,6 +115,7 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
       const current = state.semanticFactsByFile.get(item.file);
       if (current && current.canonicalHash !== item.facts.canonicalHash) {
         const refreshed = createArtifactSemanticStore({ root: item.root, repoRoot: runtime.root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, generation: current.storage.generation, partitions: current.partitions });
+        item.resolved.clear();
         for (const partition of current.partitions) if (partition.partitionId !== item.syntax.partitionId) for await (const row of refreshed.iterateRows(partition.partitionId, 'semantic_records', { signal })) if (row.kind === 'binding' && row.data.status === 'resolved') item.resolved.add(refKey(row.data.occurrence));
         item.facts = current;
       }
@@ -124,7 +125,9 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
         if (!semanticTargetMatchesRecord(item.policy, item.syntax.partitionId, row, selectedScopes)) continue;
         const ref = { partitionId: item.syntax.partitionId, localId: row.id };
         const invocation=item.invocationFor(row.data.expression);
-        if (!item.resolved.has(refKey(invocation?.ref||ref))) targets.push({ ref, invocation, span: row.span, scope: row.scope, roles: row.data.roles, name: item.text.slice(...row.span) });
+        if (!item.resolved.has(refKey(ref)) && (!invocation || !item.resolved.has(refKey(invocation.ref)))) {
+          targets.push({ ref, invocation, span: row.span, scope: row.scope, roles: row.data.roles, name: item.text.slice(...row.span) });
+        }
       }
       return targets;
     },

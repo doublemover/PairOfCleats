@@ -26,6 +26,7 @@ applyTestEnv();
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'context-pack-federated-risk');
 const cacheRoot = path.join(tempRoot, 'cache');
+applyTestEnv({ cacheRoot });
 const workspaceDir = path.join(tempRoot, 'workspace');
 const workspacePath = path.join(workspaceDir, '.pairofcleats-workspace.jsonc');
 const repoA = path.join(tempRoot, 'repo-a');

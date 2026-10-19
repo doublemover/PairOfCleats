@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { spawn } from 'node:child_process';
 import fsPromises from 'node:fs/promises';
@@ -12,7 +13,7 @@ if (!caps?.mcp?.sdk) {
   skip('Skipping SDK MCP test; @modelcontextprotocol/sdk not available.');
 }
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-sdk-mode');
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'mcp-sdk-mode');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const serverPath = path.join(process.cwd(), 'tools', 'mcp', 'server.js');

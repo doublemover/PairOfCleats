@@ -40,8 +40,9 @@ try {
   sourceEdit[0] = 'X'.charCodeAt(0);
   await fs.writeFile(sourcePath, sourceEdit);
   await assert.rejects(store.getSourceSpans([ref]), { code: 'ERR_SEMANTIC_INTEGRITY' });
-  await assert.rejects(fixture.write(), /Conflicting semantic source blob/,
+  await assert.rejects(fixture.write(), { code: 'ERR_SEMANTIC_INTEGRITY' },
     'retry cannot overwrite an existing content-addressed source with conflicting bytes');
+  assert.deepEqual(await fs.readFile(sourcePath), sourceEdit, 'rejected retry preserves the conflicting bytes for diagnosis');
   assert.deepEqual(await fs.readFile(fixture.original), fixture.bytes);
   await fs.writeFile(sourcePath, fixture.bytes);
   await validateSemanticPartitions({ store, partitions: [descriptor] });

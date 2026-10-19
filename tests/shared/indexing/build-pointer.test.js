@@ -14,6 +14,7 @@ import {
 } from '../../../src/shared/indexing/build-pointer.js';
 import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const normalizePath = (value) => normalizeIdentityPath(path.resolve(value));
 
@@ -128,6 +129,7 @@ assert.equal(
 );
 
 await fs.writeFile(currentJsonPath, JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   buildId: '20260211T000000Z-valid',
   buildRoot: validRoot
 }, null, 2), 'utf8');

@@ -50,6 +50,25 @@ try {
   const index = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, operationIndex, queryIndex: index });
+  const related = () => artifact.getRelatedPage(refs[0], 'semantic_edges', { limit: 1 });
+  assert.equal((await related()).rows.length, 1);
+  let ownerPiece = null;
+  for (const piece of index.pieces) {
+    const rows = (await fs.readFile(path.join(fixture.stagingRoot, piece.path), 'utf8')).trim().split('\n').map(row => JSON.parse(row));
+    if (rows.some(row => row.member === 'semantic_edges' && row.owner.partitionId === refs[0].partitionId
+      && row.owner.localId === refs[0].localId)) { ownerPiece = piece; break; }
+  }
+  assert.ok(ownerPiece, 'the queried owner has a physical index piece');
+  for (const relative of [ownerPiece.path, ownerPiece.offsetsPath]) {
+    const filename = path.join(fixture.stagingRoot, relative), original = await fs.readFile(filename);
+    const changed = Buffer.from(original); changed[0] ^= 1;
+    await fs.writeFile(filename, changed);
+    try {
+      await assert.rejects(related(), { code: 'ERR_SEMANTIC_INTEGRITY' },
+        'a subsequent related-page request revalidates same-size data and offset edits');
+    } finally { await fs.writeFile(filename, original); }
+    assert.equal((await related()).rows.length, 1, 'restored query parts are independently revalidated');
+  }
   db = new Database(':memory:'); db.pragma('user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
   db.exec('BEGIN'); for (const descriptor of partitions) await ingestSemanticPartition({ db, store: base, descriptor }); db.exec('COMMIT');
   db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(fixture.generation));

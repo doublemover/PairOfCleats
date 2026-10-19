@@ -5,7 +5,7 @@ import { SEMANTIC_ENRICHMENT_REQUEST_SCHEMA } from '../../contracts/schemas/sema
 import { RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_SERVICE_REQUEST_SCHEMA } from '../../contracts/schemas/runtime-query.js';
 import { RUNTIME_COMPARE_SERVICE_SCHEMA, RUNTIME_CLAIMS_SERVICE_SCHEMA } from '../../contracts/schemas/runtime-claims.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
-import { getToolVersion } from '../../shared/dict-utils.js';
+import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
 export const MCP_SCHEMA_VERSION = '1.7.0';
