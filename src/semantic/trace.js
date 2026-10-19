@@ -14,7 +14,7 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
   for (const [key, hard] of Object.entries({ records: 128, edges: 512, depth: 64, bytes: 65536, workMs: 250 })) if (!Number.isSafeInteger(maxima[key]) || maxima[key] < 1 || maxima[key] > hard) throw new TypeError('Invalid semantic trace ' + key + ' limit.');
   if (!Number.isSafeInteger(maxContinuations) || maxContinuations < 1 || maxContinuations > 4096 || !Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > 86400000) throw new TypeError('Invalid semantic trace continuation bounds.');
   const continuations = new Map();
-  return async ({ store, request, signal = null }) => {
+  const trace = async ({ store, request, signal = null }) => {
     assertSemanticTrace('request', request);
     throwIfAborted(signal);
     if (canonicalSemanticJson(request.generation) !== canonicalSemanticJson(store.generation)) throw fail('ERR_SEMANTIC_GENERATION_MISMATCH', 'Requested trace generation differs from pinned store.');
@@ -134,4 +134,8 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
     if (Buffer.byteLength(JSON.stringify(result)) > limits.bytes) throw fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Trace response exceeds byte budget.');
     return assertSemanticTrace('result', result);
   };
+  // A continuation owns only refs/offsets; each page opens a fresh bounded read
+  // scope and disposes its verified owners before returning or throwing.
+  return args => typeof args.store?.withReadScope === 'function'
+    ? args.store.withReadScope(() => trace(args)) : trace(args);
 };

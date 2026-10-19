@@ -8,6 +8,7 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { openJsonlRowReader } from '../shared/artifact-io/offsets.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
@@ -21,6 +22,7 @@ const FAMILY = {
 const error = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_INTEGRITY' });
 const CONTENT_BOUNDARY_VALIDATIONS = new Map();
 const MAX_CONTENT_BOUNDARY_VALIDATIONS = 256;
+const READ_SCOPES = new AsyncLocalStorage();
 
 const assertSemanticPartPath = (relativePath) => {
   if (typeof relativePath !== 'string' || relativePath.includes('\\') || relativePath.includes(':')
@@ -44,7 +46,9 @@ export const resolveSemanticPartPath = async (root, relativePath) => {
 
 /**
  * Artifact backend for completed staging/published descriptors. Publication must
- * validate all parts first. Cache only bounded validation metadata, never nodes.
+ * validate all parts first. Persistent caches contain validation metadata only.
+ * A logical read scope retains the common query-index probe; related-page reads
+ * retain three additional owners within the existing four-pair bound.
  */
 export const createArtifactSemanticStore = ({
   root, repoRoot, artifactSurfaceVersion, generation, partitions, completedTasks = [],
@@ -63,6 +67,20 @@ export const createArtifactSemanticStore = ({
     inventory.set(partition.partitionId, partition);
   }
   const validated = new Map();
+  const scopeOwner = Symbol('semantic-store-read-scope');
+  const currentReadScope = () => {
+    const scope = READ_SCOPES.getStore();
+    if (scope?.owner !== scopeOwner) return null;
+    if (scope?.closed) throw error('Semantic read scope has already settled.');
+    return scope;
+  };
+  const closeReaders = async readers => {
+    const pending = [...readers.values()];
+    readers.clear();
+    const opened = await Promise.allSettled(pending);
+    await Promise.allSettled(opened.filter(result => result.status === 'fulfilled')
+      .map(result => result.value.close()));
+  };
   const pieceReadError = caught => caught.code === 'ERR_JSONL_CONTENT_INTEGRITY'
     ? error('Semantic part hash/size mismatch.') : caught;
   const openVerifiedPieceReader = async (piece, signal) => {
@@ -112,6 +130,14 @@ export const createArtifactSemanticStore = ({
     const reader = await openVerifiedPieceReader(piece, signal);
     try { return await reader.readRows(indexes, { ...options, signal }); }
     finally { await reader.close(); }
+  };
+  const withReadScope = async run => {
+    const scope = { owner: scopeOwner, readers: new Map(), closed: false };
+    try { return await READ_SCOPES.run(scope, run); }
+    finally {
+      scope.closed = true;
+      await closeReaders(scope.readers);
+    }
   };
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null, metrics = null } = {}) => {
     if (!Array.isArray(refs) || refs.length > maxRecords) throw error('Semantic record request exceeds its limit.');
@@ -295,7 +321,7 @@ export const createArtifactSemanticStore = ({
     if (next !== queryIndex.rowCount) throw error('Query index count mismatch.');
     checkedQueryIndex = true;
   };
-  const readQueryIndexRow = async (ordinal, signal, metrics, readers) => {
+  const readQueryIndexRow = async (ordinal, signal, metrics, readers, scope) => {
     const pieces = queryIndex.pieces;
     let low = 0, high = pieces.length - 1, piece = null;
     while (low <= high) {
@@ -305,15 +331,17 @@ export const createArtifactSemanticStore = ({
       else { piece = candidate; break; }
     }
     if (!piece) throw error('Query index row out of range.');
-    // Binary-search probes share at most four handle pairs within this request.
-    // Overflow pieces use the ordinary short-lived reader. No handle or row
-    // survives the request, and its next invocation revalidates current bytes.
-    if (!readers.has(piece) && readers.size < 4) {
-      readers.set(piece, openVerifiedPieceReader(piece, signal));
+    // The first midpoint is shared by every binary search on this page. Keep
+    // that one owner for the logical query; other probes remain local so an
+    // earlier owner's range does not displace a later owner's useful probes.
+    if (scope && !scope.readers.size) scope.readers.set(piece, openVerifiedPieceReader(piece, signal));
+    const owners = scope?.readers.has(piece) ? scope.readers : readers;
+    if (!owners.has(piece) && owners.size < (scope ? 3 : 4)) {
+      owners.set(piece, openVerifiedPieceReader(piece, signal));
     }
     const indexes = [ordinal - piece.firstRow], options = { maxBytes: maxRecordBytes, metrics, signal };
-    const [row] = readers.has(piece)
-      ? await (await readers.get(piece)).readRows(indexes, options)
+    const [row] = owners.has(piece)
+      ? await (await owners.get(piece)).readRows(indexes, options)
       : await readPieceRows(piece, indexes, { ...options, signal });
     assertQueryIndexRow(row);
     if (compareQueryIndexRows(row, piece.firstKey) < 0 || compareQueryIndexRows(row, piece.lastKey) > 0) throw error('Query index key range mismatch.');
@@ -325,11 +353,12 @@ export const createArtifactSemanticStore = ({
     if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
       || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records', 'semantic_edges'].includes(member)
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
+    const scope = currentReadScope();
     const queryRows = new Map(), readers = new Map();
     try {
       const readRow = ordinal => {
         if (!queryRows.has(ordinal)) queryRows.set(ordinal,
-          readQueryIndexRow(ordinal, signal, metrics, readers));
+          readQueryIndexRow(ordinal, signal, metrics, readers, scope));
         return queryRows.get(ordinal);
       };
       const bound = async (upper) => {
@@ -380,9 +409,7 @@ export const createArtifactSemanticStore = ({
       }
       return { rows, offset: offset + rows.length, done: start + offset + rows.length === end };
     } finally {
-      const opened = await Promise.allSettled(readers.values());
-      await Promise.allSettled(opened.filter(result => result.status === 'fulfilled')
-        .map(result => result.value.close()));
+      await closeReaders(readers);
     }
   };
   const verifySource = async (source, { signal = null } = {}) => {
@@ -404,6 +431,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { withReadScope, findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };
