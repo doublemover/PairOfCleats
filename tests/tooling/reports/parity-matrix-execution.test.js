@@ -60,6 +60,16 @@ try {
   const pathsModule = pathToFileURL(path.join(root, 'tools/shared/dict-utils.js')).href;
   const sqliteModule = pathToFileURL(path.join(root, 'tests/helpers/sqlite-builder.js')).href;
   const versionModule = pathToFileURL(path.join(root, 'src/contracts/versioning.js')).href;
+  const setupGuard = path.join(temp, 'sqlite-setup-import-guard.mjs');
+  await fs.writeFile(setupGuard, `
+    import { registerHooks } from 'node:module';
+    registerHooks({ load(url, context, nextLoad) {
+      if (url.endsWith('/src/index/build/indexer.js')) {
+        throw new Error('SQLite artifact setup must not load the source-indexing pipeline');
+      }
+      return nextLoad(url, context);
+    } });
+  `);
   const buildScript = `import fs from 'node:fs/promises';
     import path from 'node:path';
     import { createBaseIndex } from ${JSON.stringify(fixtureModule)};
@@ -95,7 +105,9 @@ try {
     await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId,
       buildRoot: 'builds/' + buildId, buildRoots: roots }));
     for (const mode of Object.keys(roots)) await runSqliteBuild(repo, { mode });`;
-  const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo);
+  const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo, {
+    ...env, NODE_OPTIONS: `${env.NODE_OPTIONS || ''} --import=${pathToFileURL(setupGuard).href}`.trim()
+  });
   assert.equal(build.exitCode, 0, `${build.signal || ''}\n${build.stderr}`);
 
   // Ready indexes must not load the indexing pipeline in the report child.
