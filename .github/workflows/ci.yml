@@ -222,6 +222,8 @@ jobs:
             .diagnostics/test-profile.json
             .diagnostics/coverage/**
             .testLogs/junit.xml
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0
@@ -299,6 +301,10 @@ jobs:
           }
           exit 0
 
+      - name: Windows subprocess ownership
+        run: |
+          node tests/run.js --lane all --match '/^shared\/kill-tree\.windows$/' --match '/^shared\/kill-tree\.windows-orphan-descendant-fallback$/' --match '/^shared\/subprocess\/sync-timeout-kills-child-tree$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/windows-subprocess-ownership.json
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -309,11 +315,14 @@ jobs:
         with:
           name: ci-quality-artifacts-windows
           path: |
+            .diagnostics/windows-subprocess-ownership.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
             .diagnostics/coverage/**
             .testLogs/junit.xml
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0
@@ -469,6 +478,8 @@ jobs:
             .diagnostics/test-profile.json
             .diagnostics/coverage/**
             .testLogs/junit.xml
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0

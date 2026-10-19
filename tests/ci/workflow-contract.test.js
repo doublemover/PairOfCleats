@@ -385,6 +385,27 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
 }
 
 const ciWorkflow = readWorkflow('ci.yml');
+const windowsJob = parse(ciWorkflow).jobs.windows;
+const ownershipStepIndex = windowsJob.steps.findIndex(step => step.name === 'Windows subprocess ownership');
+const ownershipCommand = windowsJob.steps[ownershipStepIndex]?.run || '';
+if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(step => step.name === 'CI Suite')
+  || !ownershipCommand.includes('shared\\/kill-tree\\.windows$')
+  || !ownershipCommand.includes('shared\\/kill-tree\\.windows-orphan-descendant-fallback$')
+  || !ownershipCommand.includes('shared\\/subprocess\\/sync-timeout-kills-child-tree$')
+  || !ownershipCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')) {
+  throw new Error('Windows subprocess ownership must run all three real lifecycle fixtures before the broad suite with strict bounds and zero retries.');
+}
+for (const platform of ['ubuntu', 'windows', 'macos']) {
+  const upload = parse(ciWorkflow).jobs[platform].steps.find(step => step.name === 'Upload quality artifacts');
+  const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
+  if (upload?.if !== 'always()' || !paths.includes('.testLogs/**/*.log')
+    || !paths.includes('.testLogs/**/*.failure.json')) {
+    throw new Error(`${platform}: quality artifacts must preserve every raw attempt and failure receipt, including retry-masked failures.`);
+  }
+  if (platform === 'windows' && !paths.includes('.diagnostics/windows-subprocess-ownership.json')) {
+    throw new Error('Windows quality artifacts must retain the early ownership result even when the broad suite does not run.');
+  }
+}
 const gateJob = parse(ciWorkflow).jobs.gate;
 const gateCommand = gateJob.steps.find((step) => step.name === 'Gate lane')?.run || '';
 if (/--allow-timeouts/.test(gateCommand) || !/--timeout-ms 30000/.test(gateCommand)
