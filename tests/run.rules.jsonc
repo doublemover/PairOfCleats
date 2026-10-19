@@ -1,6 +1,5 @@
 {
   "excludedDirs": [
-    "helpers",
     ".testLogs",
     ".testCache",
     ".logs",
@@ -64,6 +63,7 @@
       "lane": "unit",
       "match": [
         "^unit/",
+        "^helpers/",
         "^shared/",
         "^tooling/",
         "^lang/",
@@ -116,7 +116,7 @@
       "tag": "DelayedUntilPhase7_8",
       "match": ["^storage/lmdb/"]
     },
-    { "tag": "destructive", "match": ["(^|/)uninstall$"] }
+    { "tag": "destructive", "match": ["(^|/)uninstall$", "^tooling/script-coverage/core/uninstall-test$"] }
   ],
   "outputIgnorePatterns": ["^\\[ignore\\]\\s+read-failed\\b"]
 }

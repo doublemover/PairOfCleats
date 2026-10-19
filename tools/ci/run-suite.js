@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../shared/dev-artifacts.js');
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,8 +18,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const DEFAULT_DIAGNOSTICS = path.join(ROOT, '.diagnostics');
 const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
-const DEFAULT_CACHE_ROOT = path.join(ROOT, '.ci-cache', 'pairofcleats');
-const DEFAULT_HOME_ROOT = path.join(ROOT, '.ci-home', 'pairofcleats');
+const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
+const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
@@ -387,7 +388,9 @@ const main = async () => {
       ? SCRIPT_COVERAGE_GROUPS.map((group) => ({
         label: `Script coverage (${group})`,
         command: process.execPath,
-        args: [`tests/tooling/script-coverage/script-coverage-${group}.test.js`]
+        args: ['tests/run.js', '--lane', 'all', '--match', `/^tooling\\/script-coverage\\/${group}\\//`,
+          '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000',
+          '--retries', '0', '--native-status-redo=false']
       }))
       : [])
   ];

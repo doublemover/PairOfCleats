@@ -144,11 +144,12 @@ export const buildIndexingActions = ({ root, runNode }) => [
     run: () => runNode('encoding-fallback-test', path.join(root, 'tests', 'shared', 'encoding', 'fallback.test.js')),
     covers: ['encoding-fallback-test']
   },
-  {
-    label: 'incremental-tokenization-cache-test',
-    run: () => runNode('incremental-tokenization-cache-test', path.join(root, 'tests', 'indexing', 'incremental', 'tokenization-cache.test.js')),
+  ...['identical-config', 'tokenization-config', 'dictionary-config'].map(caseId => ({
+    label: `incremental-tokenization-cache-${caseId}`,
+    run: () => runNode(`incremental-tokenization-cache-${caseId}`,
+      path.join(root, 'tests', 'indexing', 'incremental', 'tokenization-cache.test.js'), ['--case', caseId]),
     covers: ['incremental-tokenization-cache-test']
-  },
+  })),
   {
     label: 'tokenization-buffering-test',
     run: () => runNode('tokenization-buffering-test', path.join(root, 'tests', 'indexing', 'tokenization', 'buffering.test.js')),

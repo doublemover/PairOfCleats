@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -13,7 +14,7 @@ const count = Number(args.count) || 10000;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
-const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-jsonl-streaming');
+const tempRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'sqlite-jsonl-streaming');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 

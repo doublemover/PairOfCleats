@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "mcp-server-test",
+    "mcp-schema-test",
+    "mcp-robustness-test",
+    "api-server-test",
+    "api-server-stream-test",
+    "indexer-service-test",
+    "service-queue-test"
+  ]
+}

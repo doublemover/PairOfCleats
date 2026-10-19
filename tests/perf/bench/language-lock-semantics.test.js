@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { checkIndexLock } from '../../../tools/bench/language/locks.js';
 
-const root = path.join(process.cwd(), 'tests', '.cache', 'bench-language-lock-semantics');
+const root = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'bench-language-lock-semantics');
 const locksDir = path.join(root, 'locks');
 const lockPath = path.join(locksDir, 'index.lock');
 

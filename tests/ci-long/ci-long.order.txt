@@ -1,6 +1,8 @@
 retrieval/ranking/fielded-bm25
 storage/sqlite/index-state-fail-closed
-indexing/incremental/tokenization-cache
+indexing/incremental/tokenization-cache/identical-config
+indexing/incremental/tokenization-cache/tokenization-config
+indexing/incremental/tokenization-cache/dictionary-config
 services/api-search-asof
 storage/sqlite/search-backend-contract-matrix
 indexing/shards/shard-merge

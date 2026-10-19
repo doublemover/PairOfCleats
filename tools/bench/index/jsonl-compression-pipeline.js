@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -14,7 +15,7 @@ const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLow
   ? String(args.mode).toLowerCase()
   : 'compare';
 
-const benchRoot = path.join(process.cwd(), '.benchCache', 'jsonl-compression-pipeline');
+const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'jsonl-compression-pipeline');
 await fs.mkdir(benchRoot, { recursive: true });
 
 const buildRows = () => {

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { BOOTSTRAP_RECEIPT, inspectBootstrapReadiness, recordBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
 
 // Intentionally dependency-free: this diagnostic must run in an unbootstrapped
@@ -20,9 +21,21 @@ const inputs = ['.nvmrc', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-n
   'src/lang/tree-sitter/native-grammar-binding.js',
   'tools/setup/rebuild-native-exit.js'];
 const entries = ['bin/pairofcleats.js', 'tests/run.js', 'tools/bench/bench-runner.js', 'tools/bench/micro/hash.js'];
-const execute = entry => spawnSync(process.execPath, [path.join(root, entry)], {
+// Every guarded cache-path consumer must reject an incomplete checkout before
+// linking even its lightweight repository helpers.
+entries.push('tools/ci/run-suite.js');
+for (const directory of ['tools/bench/index', 'tools/bench/sqlite']) {
+  for (const name of fs.readdirSync(path.join(sourceRoot, directory)).sort()) {
+    if (!name.endsWith('.js')) continue;
+    const entry = `${directory}/${name}`;
+    if (fs.readFileSync(path.join(sourceRoot, entry), 'utf8').includes('await guardBootstrapEntry(import.meta.url);')) {
+      entries.push(entry);
+    }
+  }
+}
+const execute = entry => runNodeFixture([path.join(root, entry)], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
   cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
-});
+} });
 try {
   write('package.json', JSON.stringify({ type: 'module', dependencies: Object.fromEntries(required.map(name => [name, '1.0.0'])) }));
   write('package-lock.json', '{}');
@@ -32,7 +45,7 @@ try {
     const result = execute(entry);
     assert.equal(result.status, 1, entry);
     assert.match(result.stderr, /BOOTSTRAP REQUIRED/);
-    assert.match(result.stderr, /npm run bootstrap/);
+    assert.match(result.stderr, /npm run bootstrap:ci/);
     assert.doesNotMatch(result.stderr, /ERR_MODULE_NOT_FOUND/, 'gate precedes dependency-heavy module linking');
     assert.equal(result.stdout, '', 'no benchmark/test/normal workload has started');
   }

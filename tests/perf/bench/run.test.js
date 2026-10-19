@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -57,7 +58,7 @@ if (testingDefaultsEnabled) {
 }
 if (testingDefaultsEnabled) {
   applyTestEnv({
-    cacheRoot: path.join(root, '.testCache', 'bench-run'),
+    cacheRoot: resolveDevelopmentArtifactPath(root, 'test-cache', 'bench-run'),
     embeddings: 'stub',
     testConfig: createFastIndexingTestConfig()
   });

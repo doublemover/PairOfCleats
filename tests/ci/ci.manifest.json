@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 108,
+    "hero": 121,
     "matrix": 27,
     "meta": 4,
     "soak": 0,
@@ -59,794 +59,872 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/config-inventory/schema-scan",
+      "id": "indexing/fixtures/health-authority/manifest",
       "order": 8,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/filter-index/metrics",
+      "id": "indexing/fixtures/health-authority/flow-data",
       "order": 9,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/file-processor/skip-minified-binary",
+      "id": "tooling/config-inventory/schema-scan",
       "order": 10,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/config-inventory/report-format",
-      "order": 11,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "indexing/shards/shard-progress-determinism",
+      "id": "indexing/filter-index/metrics",
+      "order": 11,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/skip-minified-binary",
       "order": 12,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/harness/contract-matrix",
+      "id": "tooling/config-inventory/report-format",
       "order": 13,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "indexing/metrics/index-options",
+      "id": "indexing/shards/shard-progress-determinism",
       "order": 14,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/real-bench-contract",
+      "id": "runner/harness/contract-matrix",
       "order": 15,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "cli/search/code-contract-matrix",
-      "order": 16,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "cli/search/non-result-surfaces",
+      "id": "indexing/metrics/index-options",
+      "order": 16,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/postings/real-bench-contract",
       "order": 17,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/provider-runtime-contract-matrix",
+      "id": "cli/search/code-contract-matrix",
       "order": 18,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "shared/encoding/unicode-offset",
+      "id": "cli/search/non-result-surfaces",
       "order": 19,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/sourcekit-package-preflight-cache-resolved-invalidation",
+      "id": "tooling/lsp/provider-runtime-contract-matrix",
       "order": 20,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "services/risk-explain-adapter-matrix",
-      "order": 21,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/git/blame-range",
+      "id": "shared/encoding/unicode-offset",
+      "order": 21,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/sourcekit-package-preflight-cache-resolved-invalidation",
       "order": 22,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/metadata/external-docs",
+      "id": "services/risk-explain-adapter-matrix",
       "order": 23,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/type-inference/crossfile/output.integration",
+      "id": "indexing/git/blame-range",
       "order": 24,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/structural/filters",
+      "id": "indexing/metadata/external-docs",
       "order": 25,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/detect-and-plan-contract-matrix",
+      "id": "indexing/type-inference/crossfile/output.integration",
       "order": 26,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/structural/filters",
+      "order": 27,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/detect-and-plan-contract-matrix",
+      "order": 28,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/postings/vector-only-policy-contract-matrix",
-      "order": 27,
+      "order": 29,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
       "id": "indexing/extracted-prose/extraction-report",
-      "order": 28,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "indexing/embeddings/build/embeddings-cache",
-      "order": 29,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/lsp/dedicated-providers-abrupt-failure-cleanup",
       "order": 30,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/fs/atomic-replace-contract-matrix",
+      "id": "indexing/embeddings/build/embeddings-cache",
       "order": 31,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "smoke/embeddings",
+      "id": "tooling/lsp/dedicated-providers-abrupt-failure-cleanup",
       "order": 32,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/session-pool-lifecycle-matrix",
+      "id": "tooling/lsp/dedicated-providers-abrupt-csharp-ls",
       "order": 33,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/doctor/scm-none-annotate-disabled",
+      "id": "tooling/lsp/dedicated-providers-abrupt-elixir-ls",
       "order": 34,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/rust/prose-exclusion",
+      "id": "tooling/lsp/dedicated-providers-abrupt-solargraph",
       "order": 35,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "smoke/services",
+      "id": "tooling/lsp/dedicated-providers-abrupt-phpactor",
       "order": 36,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "ci/import-resolution-slo-gate.smoke",
-      "order": 37,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
-    },
-    {
-      "id": "services/indexer/service",
-      "order": 38,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/doctor/report-emission-contract-matrix",
+      "id": "shared/fs/atomic-replace-contract-matrix",
+      "order": 37,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "smoke/embeddings",
+      "order": 38,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/lsp/session-pool-lifecycle-matrix",
       "order": 39,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/imports/prose-skip",
+      "id": "tooling/doctor/scm-none-annotate-disabled",
       "order": 40,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/startup-profiler",
+      "id": "lang/rust/prose-exclusion",
       "order": 41,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/protocol-fail-open-matrix",
+      "id": "smoke/services",
       "order": 42,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/config-inventory/inventory-sync",
+      "id": "ci/import-resolution-slo-gate.smoke",
       "order": 43,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "indexing/scm/index-build-git-provider",
+      "id": "services/indexer/service",
       "order": 44,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/records/exclusion",
+      "id": "tooling/doctor/report-emission-contract-matrix",
       "order": 45,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/imports/import-links",
+      "id": "indexing/imports/prose-skip",
       "order": 46,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/tool-root",
+      "id": "cli/search/startup-profiler",
       "order": 47,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexer/metav2/contract-matrix",
+      "id": "tooling/lsp/protocol-fail-open-matrix",
       "order": 48,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "storage/sqlite/build-indexes",
+      "id": "tooling/config-inventory/inventory-sync",
       "order": 49,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "indexing/build/stage4-explicit-index-root-no-promotion",
+      "id": "indexing/scm/index-build-git-provider",
       "order": 50,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/adaptive-timeout-matrix",
+      "id": "indexing/records/exclusion",
       "order": 51,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/manifest-pieces",
+      "id": "indexing/imports/import-links",
       "order": 52,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/lifecycle/index-contract",
+      "id": "tooling/install/tool-root",
       "order": 53,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "cli/build-index/all",
+      "id": "indexer/metav2/contract-matrix",
       "order": 54,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/type-inference/providers/type-inference-lsp-enrichment",
+      "id": "storage/sqlite/build-indexes",
       "order": 55,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/contracts/golden-surface-suite",
+      "id": "indexing/build/stage4-explicit-index-root-no-promotion",
       "order": 56,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/risk-filters-parity",
+      "id": "tooling/lsp/adaptive-timeout-matrix",
       "order": 57,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "shared/runtime/runtime-contract-matrix",
-      "order": 58,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/postings/chunk-meta-determinism",
+      "id": "indexing/embeddings/manifest-pieces",
+      "order": 58,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/lifecycle/index-contract",
       "order": 59,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/api/core",
+      "id": "cli/build-index/all",
       "order": 60,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/scm/no-build-id",
+      "id": "indexing/type-inference/providers/type-inference-lsp-enrichment",
       "order": 61,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/extracted-prose/low-yield-history-warmup-reduction",
+      "id": "indexing/contracts/golden-surface-suite",
       "order": 62,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "smoke/e2e",
+      "id": "context-pack/risk-filters-parity/filters-and-aliases",
       "order": 63,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ann/hnsw",
+      "id": "context-pack/risk-filters-parity/empty-results",
       "order": 64,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/validate/index",
+      "id": "context-pack/risk-filters-parity/degraded-artifact",
       "order": 65,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/extracted-prose/low-yield-history-disable",
+      "id": "context-pack/risk-filters-parity/invalid-request",
       "order": 66,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "smoke/sqlite",
+      "id": "shared/runtime/runtime-contract-matrix",
       "order": 67,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "storage/sqlite/incremental/manifest-normalization",
+      "id": "indexing/postings/chunk-meta-determinism",
       "order": 68,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/determinism/symbol-artifact",
+      "id": "services/api/core",
       "order": 69,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/migrations/schema-mismatch-rebuild",
+      "id": "indexing/scm/no-build-id",
       "order": 70,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental/bundle-coverage-metadata-fallback",
+      "id": "indexing/extracted-prose/low-yield-history-warmup-reduction",
       "order": 71,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/snapshot-ref-contract-matrix",
+      "id": "smoke/e2e",
       "order": 72,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "cli/search/determinism",
+      "id": "retrieval/ann/hnsw",
       "order": 73,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/sqlite-build-snapshot",
+      "id": "indexing/validate/index",
       "order": 74,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "smoke/api-core-health",
+      "id": "indexing/extracted-prose/low-yield-history-disable",
       "order": 75,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "indexing/embeddings/determinism",
-      "order": 76,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/cache-identity",
+      "id": "smoke/sqlite",
+      "order": 76,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "storage/sqlite/incremental/manifest-normalization",
       "order": 77,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/bundle-missing",
+      "id": "indexing/determinism/symbol-artifact",
       "order": 78,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental/bundle-partial-embeddings-fallback",
+      "id": "storage/sqlite/migrations/schema-mismatch-rebuild",
       "order": 79,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/file-caps/contract-matrix",
+      "id": "storage/sqlite/incremental/bundle-coverage-metadata-fallback",
       "order": 80,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
-    },
-    {
-      "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
-      "order": 81,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental/bundle-embeddings-stage3-refresh",
+      "id": "services/snapshot-ref-contract-matrix",
+      "order": 81,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "cli/search/determinism",
       "order": 82,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/semantic-filter-contract-matrix",
+      "id": "services/sqlite-build-snapshot",
       "order": 83,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "smoke/retrieval",
+      "id": "smoke/api-core-health",
       "order": 84,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "services/api/repo-authorization",
+      "id": "indexing/embeddings/determinism",
       "order": 85,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/context-pack",
+      "id": "indexing/embeddings/cache-identity",
       "order": 86,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/api/server-stream",
+      "id": "storage/sqlite/bundle-missing",
       "order": 87,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/filter-index-artifact",
+      "id": "storage/sqlite/incremental/bundle-partial-embeddings-fallback",
       "order": 88,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/manifest",
+      "id": "indexing/file-caps/contract-matrix",
       "order": 89,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/extracted-prose/core",
+      "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
       "order": 90,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/cache-signature",
+      "id": "storage/sqlite/incremental/bundle-embeddings-stage3-refresh",
       "order": 91,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/chunking/formats/format-fidelity",
+      "id": "retrieval/filters/semantic-filter-contract-matrix",
       "order": 92,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "map/build-contract-matrix",
-      "order": 93,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "tooling/eval/quality",
+      "id": "smoke/retrieval",
+      "order": 93,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "services/api/repo-authorization",
       "order": 94,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental-no-change",
+      "id": "tooling/triage/context-pack",
       "order": 95,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/summary/report-compare-memory",
+      "id": "services/api/server-stream",
       "order": 96,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/summary/report-compare-sqlite",
+      "id": "retrieval/filters/filter-index-artifact",
       "order": 97,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
+      "id": "indexing/incremental/manifest",
       "order": 98,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/validate",
+      "id": "indexing/extracted-prose/core",
       "order": 99,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/ann-rrf-contract",
+      "id": "indexing/incremental/cache-signature",
       "order": 100,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/filters/file-and-token/selector-contract-matrix",
+      "id": "indexing/chunking/formats/format-fidelity",
       "order": 101,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/api/search-contract-matrix",
+      "id": "map/build-contract-matrix",
       "order": 102,
       "suiteCategory": "matrix",
       "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "storage/sqlite/ann/sqlite-fallback",
+      "id": "tooling/eval/quality",
       "order": 103,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/subprocess/quoting",
+      "id": "storage/sqlite/incremental-no-change",
       "order": 104,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/encoding/fallback",
+      "id": "tooling/reports/summary/report-compare-memory",
       "order": 105,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/map/code-map-contract-matrix",
+      "id": "tooling/reports/summary/report-compare-sqlite",
       "order": 106,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/artifact-size-guardrails",
+      "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
       "order": 107,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/runtime/two-stage-state",
+      "id": "indexing/embeddings/validate",
       "order": 108,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental/file-manifest-updates",
+      "id": "cli/search/ann-rrf-contract",
       "order": 109,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/incremental/manifest-hash-fill",
+      "id": "retrieval/filters/file-and-token/selector-contract-matrix",
       "order": 110,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "retrieval/ann/hnsw-atomic",
+      "id": "services/api/search-contract-matrix",
       "order": 111,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "storage/sqlite/incremental/doc-id-reuse",
+      "id": "storage/sqlite/ann/sqlite-fallback",
       "order": 112,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/general/repo-root",
+      "id": "shared/subprocess/quoting",
       "order": 113,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexer/call-sites/contract-matrix",
+      "id": "shared/encoding/fallback",
       "order": 114,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
-    },
-    {
-      "id": "retrieval/ann/lancedb",
-      "order": 115,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/triage/records-index-and-search",
+      "id": "indexing/map/code-map-contract-matrix",
+      "order": 115,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "indexing/artifacts/artifact-size-guardrails",
       "order": 116,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/lmdb/contract-matrix",
+      "id": "indexing/runtime/two-stage-state",
       "order": 117,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/ann/sqlite-extension",
+      "id": "storage/sqlite/incremental/file-manifest-updates",
       "order": 118,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/sublime/package-harness",
+      "id": "storage/sqlite/incremental/manifest-hash-fill",
       "order": 119,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/stub-fastpath-cache-contract-matrix",
+      "id": "retrieval/ann/hnsw-atomic",
       "order": 120,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/contracts/compact-json",
+      "id": "storage/sqlite/incremental/doc-id-reuse",
       "order": 121,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/stage-checkpoint-build",
+      "id": "cli/general/repo-root",
       "order": 122,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/state/patch-queue-overlapping-flush-lifecycle",
+      "id": "indexer/call-sites/contract-matrix",
       "order": 123,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "tooling/typescript-root-aliases",
+      "id": "retrieval/ann/lancedb",
       "order": 124,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-root-preflight",
+      "id": "tooling/triage/records-index-and-search",
       "order": 125,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/symbolic-types-build-publication",
+      "id": "storage/lmdb/contract-matrix",
       "order": 126,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "indexing/artifacts/symbolic-types-roundtrip",
+      "id": "storage/sqlite/ann/sqlite-extension",
       "order": 127,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/config/typescript-representation",
+      "id": "tooling/sublime/package-harness",
       "order": 128,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/providers/required-computation-fail-closed",
+      "id": "indexing/embeddings/stub-fastpath-cache-contract-matrix",
       "order": 129,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
     },
     {
-      "id": "tooling/providers/symbolic-type-payload-roundtrip",
+      "id": "retrieval/contracts/compact-json",
       "order": 130,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-runtime-protocol",
+      "id": "indexing/incremental/stage-checkpoint-build",
       "order": 131,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-runtime-subprocess",
+      "id": "indexing/state/patch-queue-overlapping-flush-lifecycle",
       "order": 132,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-symbolic-frontend",
+      "id": "tooling/typescript-root-aliases",
       "order": 133,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-symbolic-provider",
+      "id": "tooling/typescript-root-preflight",
       "order": 134,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-type-ir-boundaries",
+      "id": "indexing/artifacts/symbolic-types-build-publication",
       "order": 135,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-type-ir-compact",
+      "id": "indexing/artifacts/symbolic-types-roundtrip",
       "order": 136,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-type-ir-exact",
+      "id": "tooling/config/typescript-representation",
       "order": 137,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/stable-json-null-prototype",
+      "id": "tooling/providers/required-computation-fail-closed",
       "order": 138,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/imports/import-resolution-typescript-runtime-extensions",
+      "id": "tooling/providers/symbolic-type-payload-roundtrip",
       "order": 139,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-runtime-protocol",
+      "order": 140,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-runtime-subprocess",
+      "order": 141,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-symbolic-frontend",
+      "order": 142,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-symbolic-provider",
+      "order": 143,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-type-ir-boundaries",
+      "order": 144,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-type-ir-compact",
+      "order": 145,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-type-ir-exact",
+      "order": 146,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/stable-json-null-prototype",
+      "order": 147,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/imports/import-resolution-typescript-runtime-extensions",
+      "order": 148,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-1",
+      "order": 149,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-2",
+      "order": 150,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-3",
+      "order": 151,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/search/missing-value-flags-4",
+      "order": 152,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

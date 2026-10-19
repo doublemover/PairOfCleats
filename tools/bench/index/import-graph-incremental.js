@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -16,7 +17,7 @@ const seed = Number(args.seed) || 1337;
 const mode = resolveCompareMode(args.mode);
 
 const rng = createSeededRng(seed);
-const benchRoot = path.join(process.cwd(), '.benchCache', 'import-graph-incremental');
+const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'import-graph-incremental');
 await fs.mkdir(benchRoot, { recursive: true });
 
 const root = path.join(benchRoot, 'repo');

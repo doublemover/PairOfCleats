@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../tools/shared/dev-artifacts.js');
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 const { isAbsolutePathNative } = await import('../src/shared/file-paths.js');
@@ -550,11 +551,11 @@ const main = async () => {
     || Boolean(argv['coverage-merge'])
     || Boolean(argv['coverage-changed'])
   );
-  const coverageDir = path.join(ROOT, '.c8', `run-${runId}`);
+  const coverageDir = resolveDevelopmentArtifactPath(ROOT, 'test-coverage', `run-${runId}`);
   const coverageOutputPath = (() => {
     const raw = typeof argv.coverage === 'string' ? argv.coverage.trim() : '';
     if (raw) return isAbsolutePathNative(raw) ? raw : path.resolve(ROOT, raw);
-    return path.join(ROOT, '.c8', `coverage-${runId}.json`);
+    return resolveDevelopmentArtifactPath(ROOT, 'test-coverage', `coverage-${runId}.json`);
   })();
   const coverageMergePath = typeof argv['coverage-merge'] === 'string' && argv['coverage-merge'].trim()
     ? path.resolve(ROOT, argv['coverage-merge'].trim())

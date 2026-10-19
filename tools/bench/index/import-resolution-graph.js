@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 const { resolveImportLinks } = await import('../../../src/index/build/import-resolution.js');
@@ -15,7 +16,7 @@ const seed = Number(args.seed) || 1337;
 const mode = resolveCompareMode(args.mode);
 
 const rng = createSeededRng(seed);
-const benchRoot = path.join(process.cwd(), '.benchCache', 'import-resolution-graph');
+const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'import-resolution-graph');
 const root = path.join(benchRoot, 'repo');
 
 const files = Array.from({ length: fileCount }, (_, index) => `src/module-${index}.ts`);

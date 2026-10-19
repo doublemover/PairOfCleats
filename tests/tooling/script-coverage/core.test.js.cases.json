@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "download-dicts-test",
+    "download-extensions-test",
+    "vector-extension-contract-matrix-test",
+    "xxhash-backends-test",
+    "safe-regex-contract-matrix-test",
+    "detect-and-plan-contract-matrix-test",
+    "tooling-install-test",
+    "capabilities-report-test",
+    "clean-artifacts-test",
+    "uninstall-test"
+  ]
+}

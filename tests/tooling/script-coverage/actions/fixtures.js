@@ -4,7 +4,7 @@ export const buildFixtureActions = ({ root, runNode }) => [
   {
     label: 'verify',
     run: () => runNode('verify', path.join(root, 'tests', 'smoke', 'baseline.test.js')),
-    covers: ['verify']
+    covers: []
   },
   {
     label: 'fixture-smoke',

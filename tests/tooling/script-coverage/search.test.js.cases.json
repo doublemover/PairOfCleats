@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "search-filter-contract-matrix-test",
+    "backend-contract-matrix-test",
+    "structural-search-test",
+    "structural-filters-test",
+    "filter-index-artifact-test",
+    "search-symbol-boost-test",
+    "cli-search-contract-matrix-test",
+    "query-contract-matrix-test",
+    "context-expansion-contract-matrix-test",
+    "query-cache-contract-matrix-test",
+    "fielded-bm25-test"
+  ]
+}

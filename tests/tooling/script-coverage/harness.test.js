@@ -5,6 +5,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { applyActionCoverage, createCoverageState, finalizeCoverage, reportCoverage } from './report.js';
 import { repoRoot } from '../../helpers/root.js';
+import { createCommandRunner, resolveRetries } from './runner.js';
 import {
   collectUnknownActionCovers,
   createScriptCoverageActionsFixture
@@ -28,6 +29,15 @@ assert.equal(tierOverrideSummary.missingTierB.length, 0, 'expected tier B overri
 assert.equal(tierOverrideSummary.coveredTierB.length, 1, 'expected tier B override to mark covered');
 
 const root = repoRoot();
+assert.equal(resolveRetries({ argvRetries: 0, defaultRetries: 2 }), 0,
+  'an explicit audit retry count must reach the nested runner unchanged');
+const boundedRunner = createCommandRunner({ retries: 0, failureLogRoot: root });
+assert.equal((await boundedRunner.run('positive-control', process.execPath, ['-e', 'process.exit(0)'])).status, 'passed');
+const optional = await boundedRunner.run('optional-control', process.execPath,
+  ['-e', 'console.log("wrapper preamble"); console.log("SKIP_REASON: optional capability missing"); process.exit(77)']);
+assert.equal(optional.status, 'skipped',
+  'a nested optional skip must not become passing action coverage');
+assert.equal(optional.reason, 'optional capability missing');
 const { actions, scriptNames, cleanup } = await createScriptCoverageActionsFixture();
 const unknown = collectUnknownActionCovers(actions, scriptNames);
 await cleanup();

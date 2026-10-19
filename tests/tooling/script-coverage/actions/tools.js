@@ -96,11 +96,12 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     run: () => runNode('worker-pool-windows-test', path.join(root, 'tests', 'indexing', 'workers', 'worker-pool-windows.test.js')),
     covers: ['worker-pool-windows-test']
   },
-  {
-    label: 'repo-build-index',
-    run: () => runNode('build-index', path.join(root, 'build_index.js'), ['--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+  ...['code', 'prose', 'extracted-prose', 'records'].map(mode => ({
+    label: `repo-build-index-${mode}`,
+    run: () => runNode(`build-index-${mode}`, path.join(root, 'build_index.js'),
+      ['--mode', mode, '--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
     covers: ['build-index']
-  },
+  })),
   {
     label: 'build-index-all-test',
     run: () => runNode('build-index-all-test', path.join(root, 'tests', 'cli', 'build-index', 'all.test.js')),
@@ -111,7 +112,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     run: () => runNode(
       'parity',
       path.join(root, 'tests', 'retrieval', 'parity', 'equivalence.test.js'),
-      ['--search', path.join(root, 'search.js'), '--no-ann'],
+      ['--search', path.join(root, 'search.js'), '--no-ann', '--repo', fixtureRoot],
       { cwd: fixtureRoot, env: repoEnv }
     ),
     covers: ['parity']
@@ -184,7 +185,7 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
       ['--skip-install', '--skip-dicts', '--skip-index', '--skip-artifacts', '--skip-tooling', '--repo', fixtureRoot],
       { cwd: fixtureRoot, env: repoEnv }
     ),
-    covers: ['bootstrap']
+    covers: []
   },
   {
     label: 'setup-test',
@@ -234,11 +235,21 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   {
     label: 'config-budget-help',
     run: () => runNode('config:budget', path.join(root, 'tools', 'config', 'inventory.js'), ['--help']),
-    covers: ['config:budget']
+    covers: []
   },
   {
     label: 'env-check-help',
     run: () => runNode('env:check', path.join(root, 'tools', 'ci', 'check-env-usage.js'), ['--help']),
+    covers: []
+  },
+  {
+    label: 'config-budget-check',
+    run: () => runNode('config:budget', path.join(root, 'tools/config/inventory.js'), ['--check']),
+    covers: ['config:budget']
+  },
+  {
+    label: 'env-check',
+    run: () => runNode('env:check', path.join(root, 'tools/ci/check-env-usage.js')),
     covers: ['env:check']
   },
   {

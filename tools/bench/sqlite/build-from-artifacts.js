@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
+const { resolveDevelopmentArtifactPath } = await import('../../shared/dev-artifacts.js');
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -28,7 +29,7 @@ const chunkCount = Number(args.chunks) || 100000;
 const mode = ['baseline', 'current', 'compare'].includes(String(args.mode).toLowerCase())
   ? String(args.mode).toLowerCase()
   : 'compare';
-const tempRoot = path.join(process.cwd(), '.benchCache', 'sqlite-build-from-artifacts');
+const tempRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'sqlite-build-from-artifacts');
 const generatedIndexDir = path.join(tempRoot, 'index-code');
 const baselineIndexDir = path.join(tempRoot, 'index-baseline');
 const outPathBaseline = path.join(tempRoot, 'index-code-baseline.db');

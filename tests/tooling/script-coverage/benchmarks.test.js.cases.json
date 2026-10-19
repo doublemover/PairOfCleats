@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "bench-language-repos-test",
+    "bench-language-lock-test",
+    "bench-language-progress-parse-test",
+    "bench-language-lock-semantics-test",
+    "bench-progress-format-test"
+  ]
+}

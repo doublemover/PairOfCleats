@@ -5,6 +5,7 @@ import path from 'node:path';
 import { buildActions, SCRIPT_COVERAGE_GROUPS } from './actions.js';
 import { repoRoot } from '../../helpers/root.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { buildScriptCoverageCaseInventories } from './case-inventory.js';
 
 const root = repoRoot();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -15,6 +16,7 @@ await fsPromises.mkdir(mergeDir, { recursive: true });
 const scripts = JSON.parse(await fsPromises.readFile(path.join(root, 'package.json'), 'utf8')).scripts || {};
 const scriptNames = new Set(Object.keys(scripts));
 const groups = new Set(SCRIPT_COVERAGE_GROUPS);
+const invocations = [];
 
 const actions = await buildActions({
   root,
@@ -22,11 +24,17 @@ const actions = await buildActions({
   repoEnv: { ...process.env },
   baseCacheRoot,
   mergeDir,
-  runNode: () => {},
+  runNode: (label, script, args = []) => invocations.push({ label, script, args }),
   scriptNames
 });
+for (const [group, expected] of Object.entries(buildScriptCoverageCaseInventories(actions))) {
+  const filename = path.join(root, 'tests/tooling/script-coverage', `${group}.test.js.cases.json`);
+  assert.deepEqual(JSON.parse(await fsPromises.readFile(filename, 'utf8')), expected,
+    `every ${group} action retains its own discovered process boundary`);
+}
 
 const unknown = new Set();
+const commandMismatches = [];
 let hasHarnessAction = false;
 for (const action of actions) {
   assert.ok(groups.has(action.group), `unexpected script-coverage group: ${action.group}`);
@@ -37,9 +45,21 @@ for (const action of actions) {
       if (!scriptNames.has(name)) unknown.add(name);
     }
   }
+  const claims = [...new Set([...(action.covers || []), ...(action.coversTierB || [])])];
+  if (claims.length) {
+    invocations.length = 0;
+    await action.run();
+    const actual = invocations.length === 1
+      ? ['node', path.relative(root, invocations[0].script).replace(/\\/g, '/'), ...invocations[0].args].join(' ')
+      : `${invocations.length} separate invocations`;
+    for (const name of claims) if (scripts[name] !== actual) {
+      commandMismatches.push({ action: action.label, claim: name, expected: scripts[name], actual });
+    }
+  }
 }
 
 await rmDirRecursive(baseCacheRoot);
+assert.deepEqual(commandMismatches, [], 'a partial smoke command must not claim execution of a different npm command');
 assert.equal(unknown.size, 0, `expected covers to align with package scripts (unknown: ${Array.from(unknown).join(', ')})`);
 assert.equal(hasHarnessAction, true, 'expected dedicated script-coverage harness action');
 

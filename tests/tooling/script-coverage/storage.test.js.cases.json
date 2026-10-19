@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "sqlite-incremental-test",
+    "sqlite-incremental-no-change-test",
+    "sqlite-bundle-missing-test",
+    "compact-sqlite-index-help",
+    "sqlite-maintenance-contract-matrix-test",
+    "sqlite-ann-extension-test",
+    "sqlite-vec-candidate-set-test",
+    "sqlite-build-manifest-test",
+    "sqlite-build-vocab-test",
+    "sqlite-build-delete-test",
+    "hnsw-ann-test",
+    "lancedb-ann-test",
+    "tantivy-smoke-test",
+    "hnsw-atomic-test",
+    "ann-backend-contract-matrix-test",
+    "sqlite-chunk-id-test",
+    "sqlite-search-backend-contract-matrix-test",
+    "sqlite-cache-test",
+    "sqlite-build-indexes-test",
+    "sqlite-chunk-meta-streaming-test",
+    "lmdb-contract-matrix-test",
+    "runtime-contract-matrix-test"
+  ]
+}

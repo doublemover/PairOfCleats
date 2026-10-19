@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 806,
+    "hero": 820,
     "matrix": 108,
-    "meta": 27,
+    "meta": 28,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -5665,6 +5665,96 @@
     {
       "id": "indexing/embeddings/transformers-tokenizer-options",
       "order": 942,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/bench-runtime-boundary",
+      "order": 943,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/ingest-report-option-rejections",
+      "order": 944,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "cli/general/lifecycle-workflow-option-rejections",
+      "order": 945,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "runner/discovery-complete-inventory",
+      "order": 946,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "retrieval/backend/absent-index-state",
+      "order": 947,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "security/repository-trust-identity",
+      "order": 948,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/fixture-index-risk-config",
+      "order": 949,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/fixture-index-temporary-env",
+      "order": 950,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/lane-default-cache-scope",
+      "order": 951,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/lane-default-test-config",
+      "order": 952,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/process-lifecycle-force-timeout",
+      "order": 953,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/search-lifecycle-env-isolation",
+      "order": 954,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/temp-rmdir-enoent",
+      "order": 955,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/test-env-clear",
+      "order": 956,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "helpers/test-env-sync-option",
+      "order": 957,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

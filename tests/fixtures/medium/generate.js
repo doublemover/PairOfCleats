@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -20,7 +21,7 @@ const argv = createCli({
 
 const outRoot = argv.out
   ? path.resolve(argv.out)
-  : path.join(repoRoot, 'tests', '.cache', 'fixtures', 'medium');
+  : resolveDevelopmentArtifactPath(repoRoot, 'test-cache', 'fixtures', 'medium');
 const fileCount = Number.isFinite(argv.count)
   ? Math.max(1, Math.floor(argv.count))
   : 5000;

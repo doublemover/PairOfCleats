@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,7 +18,7 @@ const seed = Number(args.seed) || 2024;
 const mode = resolveCompareMode(args.mode);
 const benchRoot = args.root
   ? path.resolve(String(args.root))
-  : path.join(process.cwd(), '.benchCache', 'minhash-packed');
+  : resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'minhash-packed');
 
 const buildSignatures = () => {
   const rng = createSeededRng(seed);

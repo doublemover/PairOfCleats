@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { createCli } from '../../../src/shared/cli.js';
 import { buildActions, SCRIPT_COVERAGE_GROUPS } from './actions.js';
 import { loadPackageScripts, resolveScriptCoveragePaths } from './paths.js';
@@ -39,6 +40,7 @@ const argv = createCli({
     retries: { type: 'number', default: 2 },
     'log-dir': { type: 'string', default: '' },
     groups: { type: 'string', default: '' },
+    action: { type: 'string', default: '' },
     'list-groups': { type: 'boolean', default: false },
     'shard-count': { type: 'number', default: 0 },
     'shard-index': { type: 'number', default: 0 },
@@ -137,14 +139,20 @@ if (shardCount > 0 && (shardIndex < 1 || shardIndex > shardCount)) {
 }
 
 let selectedActions = actions;
+if (argv.action && selectedGroups.size !== 1) {
+  console.error('An individual action requires exactly one script coverage group.');
+  process.exit(1);
+}
 if (selectedGroups.size) {
   selectedActions = selectedActions.filter((action) => selectedGroups.has(action.group));
 }
+const shellOnly = argv.action === 'shell-scripts' && selectedGroups.size === 1 && selectedGroups.has('tools');
+if (argv.action) selectedActions = selectedActions.filter(action => action.label === argv.action);
 if (shardCount > 1) {
   const zeroIndex = shardIndex - 1;
   selectedActions = selectedActions.filter((_, idx) => (idx % shardCount) === zeroIndex);
 }
-if (!selectedActions.length) {
+if (!selectedActions.length && !shellOnly) {
   console.error('No script coverage actions selected.');
   process.exit(1);
 }
@@ -156,14 +164,33 @@ const coverageState = createCoverageState({
   enforceTierB: !shardMode
 });
 
+// Aggregate execution historically built the sample before these actions.
+// Discovered cases own fresh caches, so retain that prerequisite explicitly.
+if (argv.action && ['repo-search', 'report-artifacts', 'ci-build', 'ci-restore'].includes(argv.action)) {
+  await runNode('prepare-sample-index', path.join(root, 'build_index.js'),
+    ['--stage', 'stage1', '--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv });
+  if (argv.action === 'ci-restore') await actions.find(action => action.label === 'ci-build').run();
+}
+
 for (const action of selectedActions) {
   console.log(`[script-coverage] ${action.label}`);
-  action.run();
+  const result = await action.run();
+  if (result?.status === 'skipped') {
+    if (argv.action) {
+      console.log(`SKIP_REASON: ${result.reason}`);
+      process.exit(77);
+    }
+    continue;
+  }
   applyActionCoverage(coverageState, action);
 }
 
-if (!shardMode || selectedGroups.has('tools')) {
-  await runShellScripts({ root, baseCacheRoot, run });
+if (shellOnly || (!argv.action && (!shardMode || selectedGroups.has('tools')))) {
+  const result = await runShellScripts({ root, baseCacheRoot, run });
+  if (shellOnly && result.status === 'skipped') {
+    console.log(`SKIP_REASON: ${result.reason}`);
+    process.exit(77);
+  }
 }
 
 applyDefaultSkips(coverageState);

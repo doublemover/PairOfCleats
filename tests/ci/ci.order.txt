@@ -5,6 +5,8 @@ retrieval/federation/selection-contract-matrix
 services/api/router-contract-matrix
 retrieval/federation/cache-failure-contract-matrix
 indexing/config/index-dump
+indexing/fixtures/health-authority/manifest
+indexing/fixtures/health-authority/flow-data
 tooling/config-inventory/schema-scan
 indexing/filter-index/metrics
 indexing/file-processor/skip-minified-binary
@@ -28,6 +30,10 @@ indexing/postings/vector-only-policy-contract-matrix
 indexing/extracted-prose/extraction-report
 indexing/embeddings/build/embeddings-cache
 tooling/lsp/dedicated-providers-abrupt-failure-cleanup
+tooling/lsp/dedicated-providers-abrupt-csharp-ls
+tooling/lsp/dedicated-providers-abrupt-elixir-ls
+tooling/lsp/dedicated-providers-abrupt-solargraph
+tooling/lsp/dedicated-providers-abrupt-phpactor
 shared/fs/atomic-replace-contract-matrix
 smoke/embeddings
 tooling/lsp/session-pool-lifecycle-matrix
@@ -54,7 +60,10 @@ indexing/lifecycle/index-contract
 cli/build-index/all
 indexing/type-inference/providers/type-inference-lsp-enrichment
 indexing/contracts/golden-surface-suite
-context-pack/risk-filters-parity
+context-pack/risk-filters-parity/filters-and-aliases
+context-pack/risk-filters-parity/empty-results
+context-pack/risk-filters-parity/degraded-artifact
+context-pack/risk-filters-parity/invalid-request
 shared/runtime/runtime-contract-matrix
 indexing/postings/chunk-meta-determinism
 services/api/core
@@ -138,3 +147,7 @@ tooling/typescript-type-ir-compact
 tooling/typescript-type-ir-exact
 shared/stable-json-null-prototype
 indexing/imports/import-resolution-typescript-runtime-extensions
+cli/search/missing-value-flags-1
+cli/search/missing-value-flags-2
+cli/search/missing-value-flags-3
+cli/search/missing-value-flags-4

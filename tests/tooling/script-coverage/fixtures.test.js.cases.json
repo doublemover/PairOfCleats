@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "verify",
+    "fixture-smoke",
+    "fixture-parity",
+    "fixture-empty",
+    "fixture-eval",
+    "eval-quality-test"
+  ]
+}
