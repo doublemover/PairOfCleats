@@ -61,7 +61,8 @@ Inventories require schema version 1 and unique nonempty simple case IDs;
 invalid inventories fail discovery. Script coverage generates these sidecars
 from its action definitions and checks freshness in `harness-parity`. The 210
 original actions remain covered; the full sample build has four mode boundaries,
-and shell checks have their own boundary (214 cases total). There is no aggregate
+tokenization has three comparisons, and exact lint/format and shell checks have
+their own boundaries (218 cases total). There is no aggregate
 30-second wrapper around their execution.
 
 ## Options

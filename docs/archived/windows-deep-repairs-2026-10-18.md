@@ -817,14 +817,98 @@ usage, generated freshness, command/workflow contracts, all 39 gate fixtures
 and whitespace checks (`.testLogs/run-1792389070227-cakuue`). Full frozen-source
 Windows cohorts and capable-token authority qualification remain outstanding.
 
+### Candidate 08 and bounded semantic format coverage
+
+Frozen head `354c58e8eb1cfa6f2576661f7071e7d8a44a63c9` has source SHA-256
+`9084276241edfdab74f1e9505a606aa433649442012491dc86fa07e3224adfbb` across
+5802 non-document paths; documentation was separately frozen at
+`36b8effb6d537114dac0c17337dc58d8f5b33eeeee67f9caee6d7fd8fb994d72`.
+All six hosted jobs passed at this exact head. The explicit discovery maps
+2991 cases: 2974 required and 17 declared exclusions, across 47 cohorts.
+The campaign stopped after the services cohort: 539 required passes, one
+30-second semantic-detail timeout, 2434 unexecuted required cases, zero native
+crashes and zero unexpected skips. Source identity was verified unchanged after
+the stop. These partial results do not qualify a later repair tree.
+
+All 44 real file-symlink fixtures pass on candidate 08 under the task-local
+administrator launch, including all three link-dependent resource fixtures.
+The launch first creates and reads an actual file symlink; it does not substitute
+a junction or change security settings. All 101 ordinary-token performance cases
+also pass serially, and the full original SSR witnesses pass in 26.0 / 25.5
+seconds. For SQLite search, both `greet` and `answer` retrieve `index.js` before
+and during every warm sample. Its 20 raw warm search-path times in milliseconds
+are:
+
+```json
+[234.3272,225.4949,234.9633,243.065,226.1739,235.1671,225.9879,247.6965,232.519,226.5571,222.712,236.1106,226.6837,213.6665,216.5498,225.9823,236.3114,235.5209,216.6796,222.0153]
+```
+
+The observed p95 is 243.065 ms against the unchanged 7500 ms Windows threshold.
+This measures a tiny-fixture warm search path using SQLite, not an isolated SQL
+statement or representative repository load. The raw owner log is historical
+`.testLogs/run-1792390183352-phzhva/perf_sqlite-p95-latency.attempt-1.log`.
+
+The original semantic-detail aggregate completed at 31.1 seconds with exit zero;
+it remains a timeout (`.testLogs/run-1792390620153-mi6k9y`). A bounded diagnostic
+reproduces the deadline while doing work: imports complete at 6.30 s, builds
+take 8.05 / 5.85 s, the first three CLI calls take 2.37 / 2.07 / 1.93 s, and the
+fourth starts at 29.21 s (`.testLogs/run-1792391442078-az4vgn`). Build teardown
+has completed; this does not attribute the failure to a leaked shutdown handle.
+
+The positive test retains its original ID, HTTP/MCP pagination and invalid
+generation/include/cursor checks, real CLI all-pages comparison and retained
+generation after a second real build. Three independently discovered
+`services/api/semantic-detail-format-compatibility/{missing,legacy,future}`
+cases retain the original version inputs and every HTTP/MCP/CLI diagnostic
+field comparison, plus semantic-manifest rejection. Every case still performs
+two real builds and corrupts the retained requested generation after the
+current pointer has moved. Shared fixture setup asserts that retained generation
+is readable before corruption and closes the real server/router and scratch
+root. Each process keeps the original 30-second limit and zero retries. The
+original fixture had no ordered-lane or script action membership; its ID and
+both API/services rule memberships remain, and the new cases inherit both.
+No production contract or format admission changes.
+
+Two warning-owner controls also expose false positive tests. The old download
+fixture passes when valid ZIP/TAR downloads succeed but both malicious archive
+requests return unrelated HTTP 404 errors (two verified injections,
+`.testLogs/run-1792391494681-6syl33`). The old SQLite fixture passes after its
+real missing-pieces rejection is replaced by an unrelated error while preserving
+the failed state (one verified injection,
+`.testLogs/run-1792391611424-8ppo78`). An earlier SQLite injection targeted an
+unused error route and recorded zero substitutions; it is retained as an
+ineffective control, not proof. The repaired fixtures reject these same faults
+in `.testLogs/run-1792391661478-22imzt` and
+`.testLogs/run-1792391667119-q46nnm`. Download rejection now requires status 1,
+no signal and the specific unsafe-entry/missing-binary cause through the existing
+bounded subprocess owner. SQLite requires its authoritative
+`ERR_SQLITE_INPUT_PIECES_LOAD_FAILED` classification and missing-chunk message.
+Binary bytes, archive hashes, manifests, outside-root absence, failed-state
+recording, real rebuild and ready-state assertions remain intact.
+
+All seven affected normal cases pass in
+`.testLogs/run-1792391700099-qw8cou`: original semantic-detail 23.5 s, format
+future / legacy / missing 22.1 / 22.8 / 23.0 s, SQLite recovery 17.9 s, direct
+download 4.49 s and its exact script action 4.61 s. There are zero failures,
+timeouts or skips. These are focused results; the next complete candidate must
+repeat them. The generated governance audit reports zero missing IDs,
+duplicates, manifest mismatches or timing overruns; ordered `ci-lite` remains
+966 cases.
+
+The repair batch's full front gate passes formatting, configuration budget,
+environment usage, generated freshness, command/workflow contracts, all 39 gate
+cases and whitespace checks (`.testLogs/run-1792391918975-dn2yfy`). This gate
+does not stand in for the complete Windows campaign.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. The capable Windows symlink launch and safe
 uninstall prerequisite are now satisfied. Full Windows-suite acceptance is still
-open: the focused SSR/provider repairs require a new complete front gate,
-explicit discovered cohorts and all 44 capable-token fixtures on one frozen
-candidate. The two C/clangd ELF-positive fixtures are Linux-owned; Windows
+open: candidate 08 stopped on the semantic-detail timeout. The bounded cases
+and strengthened negative fixtures require the complete front gate and every
+required cohort on a new frozen candidate, including all 44 capable-token
+fixtures. The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain
 outside this Windows target. No security settings, debugger registration or

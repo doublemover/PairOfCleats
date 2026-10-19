@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T05:47:53.212Z",
+  "generatedAt": "2026-10-19T06:37:48.414Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4445,6 +4445,7 @@
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/runner/run-execution.js",
+        "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",

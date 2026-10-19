@@ -13,14 +13,14 @@ from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that sou
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-Publication through `3469c6228` passes
-all six hosted jobs, including the repaired macOS PTY bootstrap. Candidate 07's
-complete ordinary-token campaign records 2920 required passes, eight failures
-and one undeclared optional-wrapper skip; 44 file-link cases remain pending.
-All 101 ordinary-token performance cases pass serially. The next repair batch
-fixes stale digest admission, partial-open leaks and fixture boundaries. Scoped
-readers now pass both SSR witnesses; DOCX warning and null-control repairs need
-final-candidate qualification. See the detailed Windows receipt.
+Publication through `354c58e8e` passes all six hosted jobs. Frozen candidate 08
+stopped with 539 required passes and one semantic-detail timeout; 2434 cases
+remain unexecuted. All 44 real file-symlink cases and 101 ordinary-token
+performance cases pass on that source, including both SSR witnesses. Three
+independent format cases retain the timed-out wrapper's assertions and
+two-build authority boundary. Download and SQLite negatives reject unrelated
+failure causes. See the detailed Windows receipt for controls and remaining
+qualification.
 Earlier hosted results are not final-head acceptance.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
@@ -89,7 +89,7 @@ the receipt. The TypeScript Windows VFS casing defect and diagnostic-rendering
 timeout are repaired with versioned compiler/provider meaning. MCP robustness
 is five bounded server cases, and search default/type/risk assertions now use
 the same cache authority with the risk-bearing source pair isolated. The API
-semantic-detail and trace fixtures pass. Incremental SSR forward-witness and
+trace fixture passes; semantic-detail needs bounded cases. Incremental SSR forward-witness and
 parity most recently both pass in 26.1 seconds with scoped JSONL handles;
 candidate 07's preceding timeouts remain recorded. The identical
 115-record/136-edge witness digest and fresh-request tamper rejection remain.

@@ -36,9 +36,9 @@ OS × language × provider × backend cross-product to routine PR work.
    cancellation and descendant reaping; path identity/case handling; atomic
    publication and recovery; cache admission/cleanup; editor package/install.
    File-symlink authority tests need a runner with that capability. The October
-   18 task-local elevated Windows launch created a real file symlink and passed
-   both security authority fixtures plus the runtime opened-byte fixture with
-   zero skips; ordinary medium-token runs still return EPERM. The elevated
+   18 task-local elevated Windows launch created a real file symlink. Candidate
+   08 passes all 44 capable-token cases with zero skips; ordinary medium-token
+   runs still return EPERM. The elevated
    launch did not alter system security settings.
 3. **Native Node backends:** prepared SQLite, LMDB, HNSW, LanceDB and parser
    activation plus a bounded real build/query/teardown route on each shipped
@@ -69,8 +69,11 @@ OS × language × provider × backend cross-product to routine PR work.
    affected report cases pass after that repair. Incremental SSR witnesses now
    retain request-local query-index read deduplication, the full output digest
    and between-request tamper rejection. Both exceed 30 seconds in candidate
-   07. Scoped JSONL readers subsequently pass both at 26.1 seconds on the
-   current batch; final-candidate qualification remains serial.
+   07. Scoped JSONL readers pass both at 26.0 / 25.5 seconds on frozen candidate
+   08. That campaign stops with 539 passes and one semantic-detail timeout;
+   the API format checks now have three bounded cases retaining both real builds
+   and every original surface assertion. Final-candidate qualification remains
+   serial for native lifecycle and performance.
    Script coverage retains every action in explicit discovered process cases;
    its first complete cohort passed 211 cases, timed out once and reported two
    optional/helper exclusions. The repaired tokenization comparisons and
