@@ -13,14 +13,14 @@ from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that sou
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-At `f07fae95f`, the strict hosted Windows job proves file-symlink capability,
-then exposes a receipt-fixture assumption about DOS short temp paths. A real
-directory-alias control fails before and passes after the canonical expectation
-repair. Candidate 11 stops cleanly after 80 storage passes; every required case
-must run on the next frozen tree. The preceding summary repair retains exact
-artifact/SQLite content and the 20-second bound, and closes a proven cleanup leak.
-The strict 44-case job replaces dependence on local elevation; all-case execution
-is pending. Historical candidate 08 file-link,
+At `46aab0dc8`, strict hosted Windows passes 34 authority cases, then exposes
+a real cache-opener bug mixing lexical roots with canonical targets. A local
+alias regression fails before and passes after the owner repair, preserving
+complete result identity and rejection of linked bundle roots. Candidate 12
+stops cleanly after 51 SQLite passes; every required case must run on the next
+frozen tree. The summary repair retains exact content, its 20-second bound and
+failure cleanup. The strict 44-case job replaces dependence on local elevation;
+all-case execution is pending. Historical candidate 08 file-link,
 performance and SSR passes do not qualify the new tree. The Windows receipt
 records proof and remaining qualification.
 Earlier hosted results are not final-head acceptance.

@@ -1118,13 +1118,76 @@ governance checks and 39 gate cases (`receipt-alias-*-01` historical receipts).
 The 80 completed candidate 11 storage logs contain zero warning/error matches;
 they remain earlier-candidate evidence and must be rerun after this change.
 
+### Semantic cache admission through an aliased ancestor
+
+The canonical receipt expectation repair is pushed as
+`46aab0dc8c816f6434c653e944f4c7ac47928ed1`, with remote and PR description
+readback. Candidate 12 freezes source SHA-256
+`b626060df31ef78ffd3f6a82d928a7db1aab4e53677084748413447676123f3e`
+over 5809 non-document paths and documentation SHA-256
+`6a6bf9504fd4fca9b075fc1efc5035ff58b5f6f791f0549059557af17bf4bb72`.
+Its 51-case second storage cohort passes in 330.7 s, slowest 20.3 s, zero
+failures/timeouts/skips. The campaign stops between cohorts and verifies both
+frozen identities before edits; 2928 required cases remain unexecuted locally.
+
+Strict hosted run `39225817534`, job `117972458709`, passes 34 authority cases,
+including the repaired receipt case, then fails
+`storage/semantic/retained-cache-cleanup` in 1.690 s. Its nine fail-fast omissions
+are unqualified. Capability, exact head/tree, official runtime and 37-package /
+33-route native verification receipts remain in the complete downloaded artifact
+and raw job log. No native crash, retry or raised fixture deadline is involved.
+
+This time the producer-side cache opener is responsible. The semantic resolver
+returns a physical descriptor path with Windows short-name ancestors expanded,
+but `openSemanticCacheEntry` supplies that target to the strict verified reader
+with its original lexical bundle root. The reader correctly rejects inconsistent
+lexical containment, and completion admission becomes a cache miss. Cleanup did
+not prove the retained data obsolete. The repair passes a target constructed
+within the original root's lexical frame to the existing reader. Its physical
+resolution, per-component no-link checks, opened-handle identity, bounded byte
+read and expected checksum remain unchanged. The strict shared containment owner
+is not relaxed. This changes path admission, not semantic facts or identities;
+no semantic producer version changes.
+
+The retained-cache fixture now creates a real ancestor alias. Before the owner
+repair its new positive assertion fails in 1.30 s
+(`.testLogs/run-1792400404459-gg2sn3`). Afterward the entire completion result
+deep-equals the original, and an additional negative rejects a bundle root that
+is itself a link. Normal first-stage completion and the strengthened retained
+case pass in `run-1792400430465-y8uxrq` (1.91 / 1.31 s). Existing Stage1/Stage2
+pins, exact descriptor bytes, deferred garbage collection, linked-garbage
+rejection, reclaimed disk credits and repeat-sweep zero-work checks remain.
+The directory alias models canonical ancestor expansion; actual file-symlink
+authority stays with the strict hosted cohort.
+
+All 29 locally applicable semantic-cache regressions pass in
+`.testLogs/run-1792400541803-qfswz7`, zero failures/timeouts/skips; the slowest
+retained-generation reference check is 26.0 s. The real-file-link runtime-byte
+integrity case remains required in the capable hosted cohort. An intermediate
+30-case local launch incorrectly retains a stale trusted-config override:
+four cases correctly reject it, and that file-link case reports EPERM. Its
+25 passes / five failures are preserved separately; no product or test contracts
+are changed to accept that bad environment. The corrected launch removes only
+the inherited override, as the documented campaign already does.
+An additional actual-reader probe records `ERR_UNSAFE_FILE_PATH` for the original
+mixed-frame arguments, then verifies all 3244 pinned descriptor bytes with the
+consistent lexical pair (`semantic-cache-path-frame-proof.json`). Their SHA-256
+is `2bd52b607376dc0a115239d7eed76d6f4869aba88c9d3e8dc7a74244673c02e2`.
+The preserved original owner file hashes to Git blob
+`a1bfc06ff1c2d48da70dcb213e75ab04847e0dd6`.
+The complete front gate passes after this owner repair: formatting, configuration
+budget, environment usage, generated freshness, command/workflow contracts,
+39 gate cases and whitespace checks (`semantic-cache-alias-*-01` receipts).
+All 29 corrected-launch semantic logs contain zero warning/error matches.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. Historical capable Windows file-symlink and
 safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
-candidate 11 stopped cleanly after its strict hosted job exposed a short-path
-fixture assumption. The summary ownership and canonical expectation repairs
+candidate 12 stopped cleanly after its strict hosted job exposed a real cache
+admission path mismatch. The summary ownership, canonical expectation and cache
+admission repairs
 require the complete front gate and every required cohort on a new frozen
 candidate, including all 44 cases in the strict hosted Windows authority job.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
