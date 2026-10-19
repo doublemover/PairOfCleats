@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T11:52:40.792Z",
+  "generatedAt": "2026-10-19T18:20:34.833Z",
   "summary": {
     "lanes": 5,
-    "tests": 1193,
+    "tests": 1195,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 312,
+    "families": 313,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1119
+      "missingTests": 1121
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 971,
+      "totalTests": 973,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 922
+        "missing": 924
       }
     },
     {
@@ -577,6 +577,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "storage/semantic",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "tooling/fixtures",
       "count": 3,
       "knownDurationMs": 0,
@@ -674,12 +680,6 @@
     },
     {
       "key": "storage/lmdb",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "storage/semantic",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1544,6 +1544,12 @@
     },
     {
       "key": "shared/config",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/contained-file-verified-read",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

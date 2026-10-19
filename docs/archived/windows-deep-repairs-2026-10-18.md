@@ -2,6 +2,72 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 candidate 19 has a complete first-pass diagnostic view: **2980 required
+passes and one failure**, with no timeout or native crash. Exact pushed head is
+`1de1e25a82e130d7aefa3c26662377f6ca5480ed`, source SHA-256
+`11eb2f84051209143d2311f288583c31f298a535b976f0f0485619b425e7f2d0`,
+documentation SHA-256
+`19cba6e1fe2b299cd3961cf5273e3332081744b6ea2b10fc38deda677d999bde`.
+The acceptance controller stops after 1981 passes when runtime import reingestion
+charges 53 extra bytes despite preserving the generation identity. Its 60
+fail-fast omissions and 939 unobserved cases then receive their first execution
+in a separate frozen-source diagnostic tail: all 999 pass. The failed case is
+not rerun as acceptance. All original failure receipts remain. This complete
+diagnostic view is a failed candidate, never a final-tree pass.
+
+The cause is a genuine physical-file accounting defect: Number-valued NTFS file
+IDs lose integer precision. A bounded real-file reuse probe produces distinct IDs
+`9007199261073524` and `9007199261073525`, both represented by the same Number.
+The old inventory counts two physical objects and three real hard links as one
+object: 53 bytes instead of 70. A second minimal lifecycle reproduces the exact
+53-byte discrepancy: the unchanged budget receipt collides with the removed
+writer lease, so its first retained charge is zero and the next charge is 53.
+Ten separately recorded instrumented reingestions happen to pass without a
+collision; those inconclusive controls do not erase or repair the failure.
+
+The same real pair exposes a descriptor-authority bug: a handle for one physical
+file is accepted as the other path because the rounded IDs compare equal.
+Both owners now compare exact integer identities. Disk sizes still pass through
+the existing safe-number accounting checks, and verified reads retain their
+public numeric stat representation. No byte cap, authority rule, public schema,
+producer meaning or version pin changes. Matching objects and real hard links
+remain valid; distinct objects with identical bytes must be rejected.
+
+All three minimized probes fail before repair and pass afterward on the same
+preserved physical files, using actual source without hooks. Retained inventory
+is now 70 bytes/two objects, a 69-byte cap rejects it, and the same receipt charges
+53 then 53. Portable regressions also fail on the old owners and pass after
+repair, covering wide device/inode IDs, hard links, overlapping roots, missing
+paths, zero-inode fallback, cancellation, exact caps, and matching/mismatched
+descriptor authority. All eight focused storage/read checks pass first attempts
+in 9.56 s. Both regressions join regular CI through the existing ordered lane.
+Their deterministic metadata controls supplement the real NTFS proofs; they do
+not require a symlink privilege or relax the existing symlink checks.
+
+Candidate 19's partial qualification is retained separately: all six hosted jobs
+pass in run `39283621630`. Windows/Ubuntu/macOS quality reports have 968/970/970
+first-attempt passes plus only three/one/one declared exclusions; every observed
+duration is below 30 seconds. Exact-head/tree Windows authority passes all 44
+strict cases with actual file symlinks, verified raw logs, official Node and
+37-package/33-route bootstrap hash
+`73f44205ab7b6394852ce3d2850db72700b4c77b423b4604203664bc8330b7bc`.
+All 51 serial native/TUI cases pass, including real ConPTY quit, supervisor-error
+and terminal-error lifetimes at 4.27/3.75/4.03 s. All 101 performance cases pass;
+the 20 raw SQLite warm samples have p95 189.1042 ms under the unchanged Windows
+7500 ms bound, after both original queries retrieve the expected source. These
+results remain tied to the failed candidate. The repaired source requires its
+own complete acceptance. Stopwatch assertions outside `perf/` also have an
+explicit 16-case serial supplement; parallel correctness observations alone do
+not qualify those measurements. Resource/ordering bounds remain distinct from
+actual latency benchmarks.
+
+All `.testLogs` and task proof receipts above belong to the author workspace.
+Their names and provenance are retained; clean checkouts do not contain them.
+The exact same-object proofs are `reused-ntfs-file-id-proof-before-20.json`,
+`runtime-receipt-recharge-before-20.json`, and
+`contained-wide-file-id-before-20.log`; actual-source after-repair receipts use
+the `applied-after-20` suffix. Child-only prototype receipts remain diagnostic.
+
 October 19 candidate 18 at `26f2b959e790e3657c9375dcf30b37996c6e447a`
 stops after one pass, one failure and 19 fail-fast omissions; 2960 required cases
 remain unobserved. Frozen source SHA-256 is

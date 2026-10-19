@@ -14,6 +14,7 @@ Current execution evidence and unresolved failures belong to the
 | Windows authority | `windows-authority` job: exact PR head, real file-symlink capability probe, explicit 44-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification. A configured job is not a passing receipt; all cases must pass with logs and source/dependency identity. |
 | Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
 | Semantic read ownership | Real trace/index reads, cancellation after opening, later errors, overlapping requests, same-size data/offset edits and cursor continuation | One common verified index owner per page plus three local probes preserves the four-pair bound. Every following page/request revalidates bytes and every scope closes before settling. Full 115-record/136-edge content equivalence is separate from timing. |
+| Physical file identity | Exact device/inode identities, real hard links, overlapping roots, wide-ID collisions, retained disk charges and descriptor/path matching | Real NTFS IDs above Number precision must stay distinct. Portable controls supplement actual same-file fail-before/pass-after proofs; safe byte limits and public stat types remain unchanged. |
 | Simulated provider fixtures | Explicit fixture command/trust, owned caches through setup and teardown, fresh/stale admission, actual child-start/cancellation/reaping witnesses | Shared author caches and cancellation before the intended operation starts cannot establish a lifecycle pass. SourceKit retains its original two-second bound and five-second workload. Doctor distinguishes missing commands from inconclusive probes; real initialization failures retain string error codes, including numeric zero. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
 | Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
@@ -93,7 +94,13 @@ OS × language × provider × backend cross-product to routine PR work.
    shared author state. Its owned cache now proves real persistence and
    invalidation across memory resets; all six related checks pass. Map-cache
    isolation passes locally in 18.3 s under the original 30-second bound.
-   Remaining cohorts still need final-source execution.
+   Candidate 19 then records 2980 required passes and one retained-disk accounting
+   failure across complete first-pass diagnostics. Real NTFS IDs collide after
+   Number conversion, reproducing an extra 53-byte receipt charge and a wrong
+   descriptor/path admission. Exact integer identities repair both owners;
+   same-physical-input and portable regressions pass. All six hosted jobs and
+   44 strict file-symlink cases pass on candidate 19, but the repaired source
+   still needs every final-source cohort and its own authority receipt.
    The SQLite
    helper uses the identical builder through its narrow owner: its import graph
    falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
