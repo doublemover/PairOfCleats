@@ -11,6 +11,7 @@ Current execution evidence and unresolved failures belong to the
 | Surface | Checked-in qualification | What it establishes |
 | --- | --- | --- |
 | Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.10.0 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
+| Windows authority | `windows-authority` job: exact PR head, real file-symlink capability probe, explicit 44-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification. A configured job is not a passing receipt; all cases must pass with logs and source/dependency identity. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
 | Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
 | Extended/performance | `.github/workflows/nightly.yml`: manual dispatch, three OS targets; `run-suite.js --mode nightly` adds storage, perf, soak, benchmark and script-coverage work | Extended campaign when actually invoked. The workflow currently has no nightly schedule. |
@@ -38,8 +39,12 @@ OS × language × provider × backend cross-product to routine PR work.
    File-symlink authority tests need a runner with that capability. The October
    18 task-local elevated Windows launch created a real file symlink. Candidate
    08 passes all 44 capable-token cases with zero skips; ordinary medium-token
-   runs still return EPERM. The elevated
-   launch did not alter system security settings.
+   runs still return EPERM. The elevated launch did not alter system security
+   settings. Hosted Windows receipts prove 22 of these cases already pass there
+   without skips; the new strict job schedules all 44 at the audit deadline and
+   keeps capability, commit/tree, Node/native readiness and every result/log.
+   Its guard is in regular `ci-lite`; omission, skips, retries, late success and
+   missing capability fail qualification. Current-head execution is still pending.
 3. **Native Node backends:** prepared SQLite, LMDB, HNSW, LanceDB and parser
    activation plus a bounded real build/query/teardown route on each shipped
    platform. Stub vectors exercise deterministic ANN integration, not real model

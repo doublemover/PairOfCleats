@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 829,
+    "hero": 830,
     "matrix": 108,
-    "meta": 28,
+    "meta": 29,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -5809,6 +5809,18 @@
     {
       "id": "tooling/lsp/lifecycle-health",
       "order": 966,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/windows-authority-cohort",
+      "order": 967,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/reports/summary/index-lifecycle",
+      "order": 968,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

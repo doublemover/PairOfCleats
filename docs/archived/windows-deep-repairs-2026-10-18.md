@@ -967,14 +967,119 @@ launch remains pending; it has produced no child PID, token receipt or test
 result. Candidate 08's 44 capable-token passes remain valid historical evidence,
 not candidate 09 acceptance. No policy or security-setting change is attempted.
 
+### Candidate 10, hosted authority and summary ownership
+
+The format repair was committed and pushed as
+`cad3825c4865104a2a8754d8def18dfd50ee1562`; the remote SHA and PR #572 description
+were read back. Candidate 10 freezes source SHA-256
+`53ce6ba8354479078c48b21614d99cf4929aaa14a45a5e09189fe6d0d835306a` across 5805
+non-document paths and documentation SHA-256
+`da73aeaba0e729d82cab1eaed4d8e6e3061ef416b1c7b25218076bf8abb7f4b9`. Discovery
+remains 2994 cases / 2977 required / 17 exclusions / 47 cohorts. The campaign
+stops between completed cohorts to close the hosted authority gap, with 236
+required passes, zero failures/timeouts/crashes, one declared Bash/jq helper
+skip, zero unexpected skips and 2741 unexecuted required cases. Both frozen
+hashes remain unchanged after the stop. All 51 serial native/TUI cases pass,
+including real quit, supervisor-error and terminal-error lifetimes at
+4.43 / 4.13 / 4.39 s. Both serial tooling cohorts pass all 128 cases, including
+all seven preserved provider/session routes, normal coupling thresholds,
+Sublime behavior/package checks and report partitions.
+
+The delayed candidate-09 local elevated launch eventually returns PID 25540.
+Its source guard rejects the changed Git head before any fixture executes
+(`windows-file-links-candidate-09.log`, exit 1). This is a stale launch, not a
+native crash or current-candidate test observation. No additional local
+elevation request or security-setting change is needed for the hosted route.
+
+Hosted Windows already provides the required capability: run
+`39211200961` at `cb1ecbc0c` has 22 of the 44 link-dependent cases passing, zero
+skips, including the strict file-symlink security fixtures. The downloaded raw
+quality artifact is preserved; its slowest linked case is 11.239 s. Those
+ordinary CI observations use the existing 600-second lane and are capability
+evidence, not strict audit acceptance. The complete cohort now has a dedicated
+`windows-authority` job. It checks out and verifies the exact PR head, uses the
+exact Node pin and canonical bootstrap/native verification, proves an actual
+file symlink, and invokes the canonical runner for 44 explicit IDs at one job,
+30-second deadlines, zero retries and native-status redo disabled. It rejects
+incomplete/duplicate/mismatched results, skips, late success, nonzero exits,
+signals and extra attempts. Source head/cleanliness and dependency receipt
+identity are checked after execution. Source/tree, OS, Node/ABI/executable hash,
+native readiness, capability, full results and logs are always uploaded.
+
+`tests/ci/windows-authority-fixtures.json` owns the cohort. The new regular-CI
+guard checks it against direct link-fixture discovery, preserves the declared
+POSIX/helper/Linux-ELF boundaries, and tests fail-closed result/capability
+handling. Its focused fixture passes in 1.32 s. Adding this real bootstrap job
+correctly breaks the old ONNX job-count assertion, 17 versus 16
+(`.testLogs/run-1792396687892-gn72zr`). The updated exact count retains every
+per-job CPU/no-GPU assertion, the network-forbidden real vendor installer and
+real native CPU inference/release checks; it passes in 369 ms
+(`.testLogs/run-1792396736739-3x6bov`). No product CLI/configuration surface or
+backend contract changes. The actual new hosted cohort remains unexecuted at
+this checkpoint; the guard test does not claim a Windows authority pass.
+
+Separately, hosted Windows fails at `cad3825c4` in
+[run 39215761784](https://github.com/doublemover/PairOfCleats/actions/runs/39215761784),
+while the other five jobs pass. Both `summary/report` attempts hit the existing
+20-second child deadline; the CI lane itself runs two jobs with coverage.
+The scan completes in 13 ms, and later indexing work is interrupted. Raw
+failure and quality artifacts are preserved under the historical task root.
+The local covered original fixture passes in 16.5 s, so that serial run is
+explicitly not a local reproduction of the hosted timeout. No retry is closure.
+
+A real negative control also proves a cleanup defect: forcing the original
+CLI child to fail once bypasses the helper's `finally` through `process.exit`,
+leaving its scratch root present (`summary-cleanup-control-before.json`,
+`.testLogs/run-1792397578194-fj3ef5`). CLI failures now return to the caller and
+throw with the full bounded child output; the same single injected failure
+reaches cleanup and removes the root (`summary-cleanup-control-after.json`).
+No failure is converted to success. An added lifecycle regression checks
+rejection, cancellation settlement before disposal, environment restoration
+and scratch cleanup. Private diagnostic budgets can only tighten the original
+20-second limit, never raise it.
+
+The one regular-CI repo/code summary fixture now reuses the existing core
+index owner for its asserted code/prose inputs, under an explicit CPU limit and
+the same 20-second abort budget. It avoids a duplicate CLI startup and two
+unconsumed mode builds. All original artifact-presence and SQLite-count
+assertions remain. Seven other sample/model CLI boundaries and the dedicated
+all-mode CLI integration remain unchanged. A covered cold-cache comparison
+uses the same physical input files and timestamps and clears the cache between
+drivers: every input, all 26 code rows, three prose rows, complete file metadata
+and all 26 SQLite rows/columns match exactly, with no provenance suppression.
+The complete-code/prose/SQLite SHA-256 values are respectively
+`45f1d6ffecc70bac66abf7bc9ffbf16b8eb87b32e6a8e58307656ccf8d95a546`,
+`28275bd34849c13cd2c9aa22ba5b3392b361f3f2a8231a3238aeb8688229ba55` and
+`b6ecf799580a332202250516c9b94ce31eefbd9fcd21bf05878cdee5f89e8119`.
+The diagnostic index operation falls from 14.545 to 6.819 s; whole fixture
+observations including proof capture are 19.4 / 10.9 s. These small local
+observations establish equivalent consumer content and removed fixture work,
+not representative production throughput or a precise hosted scheduling cause.
+
+All 18 normal summary/report and exact script cases pass in
+`.testLogs/run-1792398241020-oxga0g`, zero failures/timeouts/skips. The main case
+is 9.04 s, its wrapper 9.62 s, seven original CLI cases 14.4–17.3 s, and the
+new lifecycle guard 2.63 s. Hosted Windows must validate the repair on the next
+published source. These focused results do not close the full deep campaign.
+
+The complete publication front gate passes for this repair batch: formatting,
+configuration budget, environment usage, generated freshness, command and
+workflow contracts, all 39 gate cases and whitespace checks. The post-format
+authority, ONNX policy and summary lifecycle cases pass in
+`.testLogs/run-1792399240529-q0dp0v`. Fresh native/patch verification exits zero
+with no warning/error lines and retains 37 required packages / 33 language
+routes. Generated CI-lite membership is 968; the two new fixtures increase
+physical discovery to an expected 2996 before the next candidate freeze.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
-post-fix closure above is complete. The capable Windows symlink launch and safe
-uninstall prerequisite are now satisfied. Full Windows-suite acceptance is still
-open: candidate 09 stopped on the format-fidelity wrapper timeout. The proven
-metadata-scope repair requires the complete front gate and every required
-cohort on a new frozen candidate, including all 44 capable-token fixtures.
+post-fix closure above is complete. Historical capable Windows file-symlink and
+safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
+candidate 10 stopped cleanly to close the strict hosted authority gap, and its
+regular Windows CI later exposes the inner summary timeout. The current repairs
+require the complete front gate and every required cohort on a new frozen
+candidate, including all 44 cases in the strict hosted Windows authority job.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain

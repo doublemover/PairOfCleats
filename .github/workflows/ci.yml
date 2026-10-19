@@ -330,6 +330,70 @@ jobs:
           include-hidden-files: true
           compression-level: 0
 
+  windows-authority:
+    name: windows-authority
+    runs-on: windows-latest
+    needs: gate
+    timeout-minutes: 20
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+    steps:
+      - name: Checkout qualification commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.10.0'
+          cache: npm
+
+      - name: Verify qualification commit
+        shell: pwsh
+        run: |
+          $expected = '${{ github.event.pull_request.head.sha || github.sha }}'
+          $actual = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne $expected) {
+            throw "Expected checkout $expected; got $actual"
+          }
+
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.10.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+
+      - name: Prepare and verify required dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .diagnostics/windows-authority -Force | Out-Null
+          if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
+            npm run bootstrap:ci 2>&1 | Tee-Object -FilePath .diagnostics/windows-authority/bootstrap.log
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          node tools/setup/rebuild-native.js --verify 2>&1 | Tee-Object -FilePath .diagnostics/windows-authority/native-verify.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Select-String -LiteralPath .diagnostics/windows-authority/native-verify.log -Pattern '(?i)warn|error') {
+            throw 'Native verification emitted unexpected diagnostics.'
+          }
+
+      - name: Strict Windows authority cohort
+        run: node tools/ci/run-windows-authority.js
+
+      - name: Upload authority qualification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-authority-qualification
+          path: |
+            .diagnostics/windows-authority/**
+            .testLogs/windows-authority/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
   macos:
     name: macos
     runs-on: macos-latest

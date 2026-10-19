@@ -13,13 +13,14 @@ from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that sou
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-Publication `cb1ecbc0c` passes all six hosted jobs. Candidate 09 stopped with
-277 required passes, one format-fidelity timeout and 2699 unexecuted cases.
-The semantic API repairs pass. Format fidelity retains every assertion and exact
-56-code/9-prose metadata parity after removing unused downstream work. Candidate
-08's 44 file-symlink, 101 serial performance and two SSR passes remain historical.
-The current token gets EPERM for file symlinks; the elevated launch is pending.
-The Windows receipt records controls and remaining qualification.
+At `cad3825c4`, five hosted jobs pass; Windows fails a 20-second inner summary
+build. Candidate 10's local run stopped cleanly with 236 required passes and
+2741 unexecuted cases. The scoped summary repair retains exact artifact/SQLite
+content and the 20-second bound, and closes a proven failure-cleanup leak.
+A strict 44-case hosted Windows authority job now replaces dependence on local
+elevation; its execution is pending. Historical candidate 08 file-link,
+performance and SSR passes do not qualify the new tree. The Windows receipt
+records proof and remaining qualification.
 Earlier hosted results are not final-head acceptance.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
@@ -123,27 +124,21 @@ with a relocation manifest. `.testLogs` retains original receipts. See the
 [workspace layout](guides/setup.md#contributor-workspace-files). The preceding
 repair tree passed the front gate and fresh native/patch verification; a final
 rerun and complete Windows cohort remain required for the newer source.
-Candidate 05 stopped between cohorts for publication: 723 passes, two assertion
-failures, no timeouts, native crashes or skips. The inventory failure and watch
-fixture's disk synchronization are repaired; all 25 watch cases pass. The
-remaining final-candidate cohorts stay open.
-Candidate 06 stopped between cohorts after 810 runner passes; one is a proven
-POSIX opt-out, not Windows evidence. Timeout-to-success and missing-golden
-guards are repaired. The explicit whole-case exclusions now number 16; see
-the qualification matrix. A new committed candidate and full cohorts are pending.
+Candidates 05–10 are historical partial campaigns in the Windows receipt;
+none is final acceptance. The 17 explicit whole-case exclusions and their
+coverage owners remain in the qualification matrix.
 
 Execution order for remaining work:
 
 1. Preserve the CDB attribution, original failing receipts and clean Node 26.10.0
    bootstrap while closing the remaining Windows correctness and timeout cases.
-2. Resolve the retained semantic, API and provider/preflight
-   assertion failures catalogued in the receipt. Preserve negatives and validate
-   real installed-tool routes before making provider/platform claims.
+2. Qualify the summary and authority repairs, then run every remaining Windows
+   cohort on one frozen source. Preserve negatives and real installed-tool proof.
 3. Retain the now-passing original coupling budgets. Partition slow aggregate
    wrappers with explicit coverage ownership; do not raise the 30-second audit
    deadline.
-4. Retain the passing elevated Windows file-symlink and ConPTY lifetime receipts.
-   Run required Linux/macOS native routes separately on those platforms.
+4. Execute all 44 file-link cases in the strict hosted Windows job; retain real
+   ConPTY lifetime checks. Linux/macOS qualification remains separate.
 5. Run hosted acceptance against the actual integrated head, then representative
    corpus/model, retained-heap and release campaigns where those claims are needed.
 

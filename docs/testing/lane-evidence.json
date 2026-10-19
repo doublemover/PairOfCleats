@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T05:47:49.572Z",
+  "generatedAt": "2026-10-19T08:37:35.650Z",
   "summary": {
     "lanes": 5,
-    "tests": 1188,
+    "tests": 1190,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 310,
+    "families": 311,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1114
+      "missingTests": 1116
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 966,
+      "totalTests": 968,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 917
+        "missing": 919
       }
     },
     {
@@ -230,9 +230,9 @@
     },
     {
       "key": "tooling/reports",
-      "count": 9,
+      "count": 10,
       "knownDurationMs": 510,
-      "unknownDurationCount": 7
+      "unknownDurationCount": 8
     },
     {
       "key": "shared/hash",
@@ -800,6 +800,12 @@
     },
     {
       "key": "ci/tooling-lsp-slo-gate.smoke",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/windows-authority-cohort",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

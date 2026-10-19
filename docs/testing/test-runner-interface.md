@@ -44,6 +44,14 @@ coverage, ordered CI selections, native/platform acceptance and measured
 performance. `all` discovery includes helper regressions and tests assigned
 directly to aggregate lane labels; analyzed fixture inputs remain excluded.
 
+The internal `tools/ci/run-windows-authority.js` owner runs the explicit
+`tests/ci/windows-authority-fixtures.json` cohort on a capable Windows launch.
+Its regular-CI guard checks inventory freshness and rejects omissions, retries,
+skips and results beyond 30 seconds. The Windows workflow checks out the exact
+PR head and always retains `.diagnostics/windows-authority/` and
+`.testLogs/windows-authority/`, including actual file-symlink capability and
+native readiness. Ordinary-token EPERM is a failed qualification, never a skip.
+
 ## Command synopsis
 
 ```text

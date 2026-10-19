@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T06:37:48.414Z",
+  "generatedAt": "2026-10-19T08:37:41.210Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4784,6 +4784,7 @@
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js",
         "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
         "tests/tooling/reports/bench-language-stage-timing-report.test.js",
+        "tests/tooling/reports/summary/index-lifecycle.test.js",
         "tests/tooling/reports/summary/report-all-mode-integration.test.js",
         "tests/tooling/reports/summary/report-json-error-contract.test.js",
         "tests/tooling/reports/summary/summary-build-case-helpers.js",
