@@ -1,10 +1,17 @@
-import { parse as parseAstro } from '@astrojs/compiler/sync';
-import { parse as parseSvelte } from 'svelte/compiler';
-import { parse as parseVue } from '@vue/compiler-sfc';
+import { createRequire } from 'node:module';
 import { normalizeLanguageHint } from './config.js';
 import { finalizeSegments } from './finalize.js';
 
+const require = createRequire(import.meta.url);
+let parseAstro = null, parseSvelte = null, parseVue = null;
+const loadParser = (name) => {
+  const parser = require(name).parse;
+  if (typeof parser !== 'function') throw new Error(`Required framework parser has no parse export: ${name}`);
+  return parser;
+};
+
 export const segmentVue = ({ text, relPath }) => {
+  parseVue ||= loadParser('@vue/compiler-sfc');
   let descriptor = null;
   try {
     ({ descriptor } = parseVue(text, { sourceMap: false }));
@@ -39,6 +46,7 @@ export const segmentVue = ({ text, relPath }) => {
 };
 
 export const segmentSvelte = ({ text, relPath }) => {
+  parseSvelte ||= loadParser('svelte/compiler');
   let ast = null;
   try {
     ast = parseSvelte(text);
@@ -117,6 +125,7 @@ export const segmentSvelte = ({ text, relPath }) => {
 };
 
 export const segmentAstro = ({ text, relPath }) => {
+  parseAstro ||= loadParser('@astrojs/compiler/sync');
   let ast = null;
   try {
     const result = parseAstro(text);

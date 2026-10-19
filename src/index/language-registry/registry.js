@@ -1,73 +1,14 @@
 import path from 'node:path';
-import * as linguistLanguages from 'linguist-languages';
+import { LINGUIST_LANGUAGES } from './linguist-data.js';
+import { buildLinguistRoutingMaps, normalizeLinguistName } from './linguist-routing.js';
 import { toArray } from '../../shared/iterables.js';
 import { normalizeImportSpecifiers } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 import { normalizeCollectorHint } from './import-collectors/utils.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
-const normalizeLinguistName = (value) => String(value || '').trim().toLowerCase();
-const LINGUIST_NAME_TO_ID = new Map([
-  ['c', 'clike'],
-  ['c++', 'clike'],
-  ['objective-c', 'clike'],
-  ['objective-c++', 'clike'],
-  ['c#', 'csharp'],
-  ['csharp', 'csharp'],
-  ['go', 'go'],
-  ['java', 'java'],
-  ['javascript', 'javascript'],
-  ['typescript', 'typescript'],
-  ['tsx', 'typescript'],
-  ['python', 'python'],
-  ['ruby', 'ruby'],
-  ['php', 'php'],
-  ['html', 'html'],
-  ['css', 'css'],
-  ['lua', 'lua'],
-  ['sql', 'sql'],
-  ['shell', 'shell'],
-  ['bash', 'shell'],
-  ['zsh', 'shell'],
-  ['makefile', 'makefile'],
-  ['dockerfile', 'dockerfile'],
-  ['cmake', 'cmake'],
-  ['starlark', 'starlark'],
-  ['bazel', 'starlark'],
-  ['nix', 'nix'],
-  ['dart', 'dart'],
-  ['scala', 'scala'],
-  ['groovy', 'groovy'],
-  ['r', 'r'],
-  ['julia', 'julia'],
-  ['handlebars', 'handlebars'],
-  ['mustache', 'mustache'],
-  ['jinja', 'jinja'],
-  ['jinja2', 'jinja'],
-  ['django', 'jinja'],
-  ['razor', 'razor'],
-  ['protobuf', 'proto'],
-  ['protocol buffer', 'proto'],
-  ['protocol buffers', 'proto'],
-  ['proto', 'proto'],
-  ['graphql', 'graphql'],
-  ['kotlin', 'kotlin'],
-  ['swift', 'swift'],
-  ['rust', 'rust'],
-  ['perl', 'perl']
-]);
-
-const resolveLinguistId = (name, entry) => {
-  const candidates = [name, ...toArray(entry?.aliases)];
-  for (const candidate of candidates) {
-    const normalized = normalizeLinguistName(candidate);
-    if (LINGUIST_NAME_TO_ID.has(normalized)) return LINGUIST_NAME_TO_ID.get(normalized);
-  }
-  return null;
-};
-
-const LINGUIST_EXTENSION_MAP = new Map();
-const LINGUIST_FILENAME_MAP = new Map();
+const { extensions: LINGUIST_EXTENSION_MAP, filenames: LINGUIST_FILENAME_MAP }
+  = buildLinguistRoutingMaps(LINGUIST_LANGUAGES, LANGUAGE_BY_ID);
 const DESCRIPTOR_EXTENSION_MAP = new Map();
 const DESCRIPTOR_FILENAME_MAP = new Map();
 const DESCRIPTOR_PREFIX_MAP = [];
@@ -91,23 +32,6 @@ for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
     const key = String(prefix || '').toLowerCase();
     if (key) {
       DESCRIPTOR_PREFIX_MAP.push({ prefix: key, languageId });
-    }
-  }
-}
-
-for (const [name, entry] of Object.entries(linguistLanguages || {})) {
-  const languageId = resolveLinguistId(name, entry);
-  if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
-  for (const ext of toArray(entry?.extensions)) {
-    const key = String(ext || '').toLowerCase();
-    if (key && !LINGUIST_EXTENSION_MAP.has(key)) {
-      LINGUIST_EXTENSION_MAP.set(key, languageId);
-    }
-  }
-  for (const filename of toArray(entry?.filenames)) {
-    const key = String(filename || '').toLowerCase();
-    if (key && !LINGUIST_FILENAME_MAP.has(key)) {
-      LINGUIST_FILENAME_MAP.set(key, languageId);
     }
   }
 }
