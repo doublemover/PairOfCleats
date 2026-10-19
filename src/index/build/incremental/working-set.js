@@ -18,8 +18,9 @@ export const reopenSemanticDiskAccount = async ({ limit, roots, signal = null })
     const filename = pending.pop();
     if (seenPaths.has(filename)) continue;
     seenPaths.add(filename);
+    // NTFS file IDs exceed Number precision; distinct objects must stay distinct.
     let stat;
-    try { stat = await fs.lstat(filename); }
+    try { stat = await fs.lstat(filename, { bigint: true }); }
     catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     if (stat.isSymbolicLink()) throw Object.assign(new Error('Semantic working-set roots cannot contain symbolic links: ' + filename), { code: 'ERR_SEMANTIC_INTEGRITY' });
     if (stat.isDirectory()) {
@@ -29,7 +30,7 @@ export const reopenSemanticDiskAccount = async ({ limit, roots, signal = null })
       const key = stat.ino ? stat.dev + ':' + stat.ino : filename;
       if (seenFiles.has(key)) continue;
       seenFiles.add(key);
-      account.reserve(stat.size);
+      account.reserve(Number(stat.size));
       files += 1;
     }
   }

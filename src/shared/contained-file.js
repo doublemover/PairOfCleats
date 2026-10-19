@@ -34,8 +34,8 @@ export const assertNoSymlinkPath = (root, target, { allowMissing = false } = {})
 
 const verifyHandle = (fd, root, target) => {
   assertNoSymlinkPath(root, target);
-  const opened = fs.fstatSync(fd);
-  const current = fs.statSync(target);
+  const opened = fs.fstatSync(fd, { bigint: true });
+  const current = fs.statSync(target, { bigint: true });
   if (opened.isDirectory()) {
     throw Object.assign(new Error('Repository path is a directory.'), { code: 'EISDIR' });
   }
