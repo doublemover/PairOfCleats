@@ -2,6 +2,106 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+## Candidate 20: incomplete campaign and append-writer repair
+
+Candidate 20 is closed at a completed cohort boundary: **940 required passes,
+2042 pending**, no local failure, timeout, unexpected skip or native crash.
+Exact pushed head is `a4c92cbedbd09e4d17c3465abe9b093572f4804d`, source SHA-256
+`2124ef0597e1c207d61c33f7cad86d022c4144eed656986a8ac71903e2583723`,
+documentation SHA-256
+`32bf157c237974f22d1a834cb4dfe5a44118030cedb87d17634e08bc0aa916c1`.
+Both identities were verified before the next repair. No running fixture was
+interrupted. Its 2999 discovered entries comprise 2982 required cases and the
+same 17 documented platform/helper/optional exclusions.
+
+All six hosted jobs succeed in run `39301958318`, but the Windows quality
+artifact exposes **two attempts** for `tooling/reports/summary/report`. The first
+fails its existing internal 20-second index deadline, after writing the 26 code
+and three prose SQLite rows; the outer runner does not time out and there is no
+native crash. The second passes. The original failure, cleanup trace and both
+attempts remain preserved. This green job is not first-attempt qualification.
+Ubuntu/macOS have 972 passes and one declared exclusion each, all first attempts.
+Windows has 970 final passes and three declared exclusions, with that retry.
+
+The independent exact-head/tree Windows authority job passes all 44 strict cases
+with actual file symlinks and first attempts under 30 seconds. Its tree is
+`ddc0f78c08713a874a645d3bc76721ce7dcdb708`, and bootstrap receipt SHA-256 is
+`50e9947dec5007606ef604534821e7d3f04f72ec31488471606f840eee212ede`.
+Official Node 26.10.0, 37 native/patch packages and 33 language routes are verified.
+All 51 serial native/TUI and 101 performance cases pass locally; real ConPTY quit,
+supervisor failure and transport failure take 4.239/3.799/4.275 seconds. SQLite
+retains both original positive queries and all 20 warm samples: p95 231.2628 ms
+under the unchanged 7500 ms Windows bound. These remain partial candidate-20
+receipts, not acceptance for the following repair.
+
+A separate minimized lifecycle demonstrates a real append-writer defect:
+enqueue eight records and immediately close. All 296 accepted bytes disappear
+because close marks its promise before queued jobs reach the descriptor owner;
+those jobs then refuse to run. The same actual-source case writes all 296 bytes
+after repair. New enqueues remain rejected once close starts, while already
+accepted work drains before synchronization and the single descriptor close.
+
+The owner also batches queued records up to 64 KiB, keeping an oversized record
+whole. Each string is encoded before batching so adjacent unpaired UTF-16
+surrogates retain their original per-call UTF-8 bytes. Complete-buffer writes
+preserve byte order and avoid a separate I/O operation for each record. No timer,
+dependency, public knob, backend switch or deadline change is introduced. The
+existing regression retains its original assertions and adds immediate and
+concurrent close, late-write rejection, durable-close order, descriptor disposal,
+5003 exact-byte chunks including an 80 KB record and split surrogates, and a
+bound of at most 16 aggregate writes. The operation bound
+is new coverage, not an increase to an existing latency threshold. This existing
+fixture joins regular CI: CI-lite grows from 973 to 974 entries, while physical
+discovery stays at 2999.
+
+Task-local profiling preserves all 13 original summary input files byte for byte
+and all 532 trace events, fields and occurrence counts. Only the crash owner's
+wall-clock timestamp and `file-processor.js`'s measured per-file duration are
+invocation-dependent; full measured values remain in the receipts. Concurrent
+file interleaving is compared as a complete multiset, while queue byte ordering
+has a separate exact-byte assertion. Trace writes fall from 532 individual writes
+to 21 normal-run aggregate writes. Ordinary local profiles are about 10 seconds
+and do not establish an elapsed-time improvement.
+
+A controlled 45 ms delay per real trace write reproduces the deadline failure
+with the old owner (25.239 seconds including cleanup, internal `ETIMEDOUT`, no
+outer timeout or crash). The actual repaired owner passes in 10.1 seconds with
+the same delay, workload and 20/30-second deadlines, retaining all 532 events and
+all input bytes. This identifies an excessive-I/O failure class; original hosted
+per-operation latency was not measured, so it does not prove the exact cause of
+that hosted timing. Fresh Windows CI must pass its first attempt before closure.
+
+The broad CI and nightly test commands now explicitly pass zero retries and
+disable native-status redo. Their existing 600-second runner deadline stays
+unchanged; this audit still requires 30 seconds. The existing smoke fixture
+asserts those flags on each actual emitted lane command. The contract fails
+before repair and passes afterward. All 13 affected logging, ledger, summary
+lifecycle and command-contract checks pass first attempts in 9.50 seconds.
+An earlier launch with an inherited missing trusted-config path and a rejected
+overlong selector are preserved as launch errors, not product failures or passing
+observations. Corrected launches clear only the task shell's invalid variable
+and use bounded selectors.
+
+The repair batch passes format, governance regeneration, config budget,
+environment usage, generated freshness, command surface, workflow contract,
+all 39 front-gate cases (21.0 seconds), and whitespace checks. Fresh native/patch
+verification exits zero without warnings or errors: 37 packages and 33 routes.
+Both changed fixture contracts pass again after formatting (1.79 seconds).
+
+These proof receipts are author-workspace history under
+`temp/tasks/windows-deep-repairs-20261018`, including
+`append-close-drain-before-21.json`, `append-close-drain-applied-after-21.log`,
+`summary-slow-trace-original-21.json`,
+`summary-slow-trace-applied-buffer-21.json`,
+`summary-trace-retention-applied-buffer-proof-21.json`, and
+`append-consumers-focused-corrected-selection-21.json`. Prototype-only receipts
+remain diagnostic; actual-source controls use the applied suffix. All original
+failure logs remain under `.testLogs`. Clean checkouts do not promise these files.
+Every required case, strict hosted authority and the 16-case serial supplement
+still requires a fresh frozen-source campaign after this repair.
+
+## Candidate 19: exact NTFS identities
+
 October 19 candidate 19 has a complete first-pass diagnostic view: **2980 required
 passes and one failure**, with no timeout or native crash. Exact pushed head is
 `1de1e25a82e130d7aefa3c26662377f6ca5480ed`, source SHA-256

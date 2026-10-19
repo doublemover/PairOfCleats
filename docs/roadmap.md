@@ -13,17 +13,17 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 19 at `1de1e25a8` records 2980 required passes and one accounting failure
-across complete first-pass diagnostics, with no timeout or native crash. Real
-NTFS proofs expose rounded file IDs losing a 53-byte receipt charge and accepting
-a mismatched descriptor/path. Exact identity repairs pass the same physical
-probes and eight focused checks, retaining hard links, byte caps and public types.
-Portable regressions join regular CI; every required case still needs execution
-on the repaired candidate. Earlier Doctor/SourceKit fixture repairs remain proven.
-All six hosted jobs, 44 actual-symlink cases and 51 native/TUI cases pass on
-candidate 19; SQLite p95 is 189.1042 ms under the unchanged bound. Those are partial
-receipts from the failed tree. Earlier intermittent failures remain unattributed.
-No next candidate is frozen. The Windows receipt retains identities and limits.
+Candidate 20 at `a4c92cbed` closes incomplete: 940 required passes, 2042 pending,
+no local failure, timeout or native crash. All six hosted jobs succeed, but the
+Windows summary fixture retries an internal deadline failure. That is not clean
+acceptance. Exact NTFS identity repairs retain byte caps, hard links and public
+types. The append writer now drains accepted records before close and batches
+queued bytes without changing per-call UTF-8 encoding. Fail-before/pass-after
+controls retain every summary input and trace event under the original limits.
+CI now explicitly disables retries/native redo. All 13 affected checks pass;
+the new candidate still requires every cohort and fresh hosted qualification.
+Earlier intermittent timings remain unattributed. The Windows receipt preserves
+all partial results, raw failures and the separate 16-case serial supplement.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

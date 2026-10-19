@@ -15,6 +15,7 @@ Current execution evidence and unresolved failures belong to the
 | Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
 | Semantic read ownership | Real trace/index reads, cancellation after opening, later errors, overlapping requests, same-size data/offset edits and cursor continuation | One common verified index owner per page plus three local probes preserves the four-pair bound. Every following page/request revalidates bytes and every scope closes before settling. Full 115-record/136-edge content equivalence is separate from timing. |
 | Physical file identity | Exact device/inode identities, real hard links, overlapping roots, wide-ID collisions, retained disk charges and descriptor/path matching | Real NTFS IDs above Number precision must stay distinct. Portable controls supplement actual same-file fail-before/pass-after proofs; safe byte limits and public stat types remain unchanged. |
+| Append-writer lifecycle | Immediate/concurrent close, accepted UTF-8 bytes and order, descriptor reuse, synchronization before close, bounded queued batches and ignored late writes | Closing must drain accepted records. An I/O operation-count bound and a controlled disk-delay experiment are separate from ordinary elapsed-time qualification. |
 | Simulated provider fixtures | Explicit fixture command/trust, owned caches through setup and teardown, fresh/stale admission, actual child-start/cancellation/reaping witnesses | Shared author caches and cancellation before the intended operation starts cannot establish a lifecycle pass. SourceKit retains its original two-second bound and five-second workload. Doctor distinguishes missing commands from inconclusive probes; real initialization failures retain string error codes, including numeric zero. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
 | Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
@@ -22,7 +23,8 @@ Current execution evidence and unresolved failures belong to the
 | Release | `.github/workflows/release.yml`, [release matrix](../guides/release-matrix.md) | Target-specific packaging, native TUI build/install and shipped-surface verification. Only receipts for the candidate establish acceptance. |
 | Performance checks | `tests/perf/`, shared-module import/command budgets, benchmark harnesses and SLO tools | Mixed evidence: correctness contracts, structural coupling budgets, small latency checks and larger workload experiments. The `perf` label alone does not identify measured performance. |
 
-`tools/ci/run-suite.js` currently supplies a 600-second runner deadline. That
+`tools/ci/run-suite.js` supplies a 600-second runner deadline and explicitly sets
+zero retries and no native-status redo for both CI and nightly test lanes. That
 extended campaign setting does not override this audit's 30-second fixture limit.
 The cheap front gate, a broad discovered selection, and release qualification
 must be reported separately. Ordered lanes and physical discovery differ; list
@@ -101,6 +103,14 @@ OS × language × provider × backend cross-product to routine PR work.
    same-physical-input and portable regressions pass. All six hosted jobs and
    44 strict file-symlink cases pass on candidate 19, but the repaired source
    still needs every final-source cohort and its own authority receipt.
+   Candidate 20 stops at 940 required passes with 2042 pending. All six hosted
+   jobs succeed, but Windows summary/report passes only after a deadline retry;
+   that result is not clean qualification. The append owner now drains accepted
+   records and reduces queued I/O, preserving each string's UTF-8 encoding,
+   complete trace content and all original summary inputs and deadlines. An
+   injected disk-delay control fails before repair and passes afterward. Normal
+   local profiles do not establish an elapsed-time improvement; a fresh hosted
+   run and complete final-source campaign remain required.
    The SQLite
    helper uses the identical builder through its narrow owner: its import graph
    falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
