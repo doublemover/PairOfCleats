@@ -13,17 +13,17 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 17 at `feddbe691` closes after 212 required passes, one Doctor handshake
-failure, 62 fail-fast omissions and 2706 unobserved cases. The stale fixture mixes
-installed tools with stubs and mistakes inconclusive probes for missing commands.
-Explicit healthy/missing/inconclusive/failing fixtures also expose numeric error
-codes in a documented string field. The producer now preserves numeric codes as
-strings, including zero; all eight outcomes and three affected checks pass.
+Candidate 18 at `26f2b959e` stops after one pass on a cold-probe fixture reading
+shared persistent author state. It now owns its cache and proves real disk
+write/read/invalidation across memory resets; all six related cases pass.
+Candidate 17's Doctor failure exposes stale probe expectations and a numeric
+error-code bug. Explicit healthy/missing/inconclusive/failing cases now pass;
+the producer preserves its string contract, including numeric zero.
 SourceKit's actual child cancellation/reaping passes fresh/stale cases within
 its original two-second bound. Prior graph equivalence preserves every field in
 115 records/136 edges. Native, latency and 44 real-symlink receipts remain partial.
-A 30.558 s older CI map-cache case still needs strict local qualification, and
-earlier intermittent CI failures remain unattributed. Unexecuted cohorts are
+The older slow CI map-cache case passes locally in 18.3 s; its earlier timing
+and intermittent CI failures remain unattributed. Unexecuted cohorts are
 prioritized; every required case must run fresh on its final source. No next
 candidate is frozen. See the Windows receipt for exact identities and limits.
 

@@ -2,6 +2,26 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 candidate 18 at `26f2b959e790e3657c9375dcf30b37996c6e447a`
+stops after one pass, one failure and 19 fail-fast omissions; 2960 required cases
+remain unobserved. Frozen source SHA-256 is
+`6bdd3120c5a6c30aa51ed93f38ca5792ba049b3b5659d5f21bd8e91fc20cb6a3`,
+documentation SHA-256
+`c709c2566b87308a59bb76408122daea7b83f791d9360b37414a9a191c06949c`.
+The initialization-failure invalidation fixture resets process memory but uses
+the shared persistent author cache. Its original cold-probe assertion fails
+because an earlier process has already written the exact command identity.
+The failure is preserved in `serial-repair-regressions-1-candidate-18.json`.
+
+The fixture now owns a unique cache for its lifetime and restores the environment
+afterward. All original assertions remain. New witnesses prove a real persistent
+write, a disk hit after clearing process memory, and a miss after initialization
+failure followed by another memory reset. Persistence is neither disabled nor
+flushed outside the owned fixture root. All six cache-family cases pass first
+attempts in 13.5 s; the separately focused map-cache isolation case passes in
+18.3 s with its unchanged 30-second runner bound. These repair observations do
+not complete acceptance or attribute the earlier hosted map-cache timing.
+
 October 19 candidate 17 is closed after 212 required passes, one failure, 62
 fail-fast omissions and 2706 unobserved cases. Exact head is
 `feddbe691291473b53bf422b3a1b5b4992fc2ebf`, source SHA-256

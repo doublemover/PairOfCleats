@@ -89,7 +89,11 @@ OS × language × provider × backend cross-product to routine PR work.
    required passes on a stale Doctor handshake fixture. Explicit commands and
    controlled negative cases expose a numeric diagnostic-code producer bug;
    its original string assertion fails before repair and passes afterward,
-   including RPC zero. Remaining cohorts still need final-source execution.
+   including RPC zero. Candidate 18 then exposes a cold-probe fixture reading
+   shared author state. Its owned cache now proves real persistence and
+   invalidation across memory resets; all six related checks pass. Map-cache
+   isolation passes locally in 18.3 s under the original 30-second bound.
+   Remaining cohorts still need final-source execution.
    The SQLite
    helper uses the identical builder through its narrow owner: its import graph
    falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
