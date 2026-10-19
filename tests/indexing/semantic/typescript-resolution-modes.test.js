@@ -60,5 +60,39 @@ try {
   const embeddedResult=preflightTypeScriptSource(ts,mapped,embedded,options);
   assert.equal(embeddedResult.modules[0].resolution.resolvedModule.resolvedFileName,key(virtual),'exact original source resolution remaps to existing virtual target');
   assert.equal(embeddedResult.modules[0].mode,ts.ModuleKind.ESNext,'embedded mode uses original container package with virtual language extension');
+  const packageFile = path.join(root, 'package.json');
+  const modeFile = path.join(root, 'mode.ts');
+  const modeSource = ts.createSourceFile(modeFile, 'import value from "dual";', options.target, true);
+  const modeLiteral = modeSource.statements[0].moduleSpecifier;
+  let packageReads = 0;
+  let filesystemProbes = 0;
+  const observedSystem = { ...ts.sys, readFile(filename, ...args) {
+    filesystemProbes += 1;
+    if (key(filename) === key(packageFile)) packageReads += 1;
+    return ts.sys.readFile(filename, ...args);
+  }, fileExists(...args) { filesystemProbes += 1; return ts.sys.fileExists(...args); },
+  directoryExists(...args) { filesystemProbes += 1; return ts.sys.directoryExists(...args); } };
+  const modeHost = () => createVirtualCompilerHost(ts, options, new Map(), new Map(), new Map(), observedSystem);
+  const scoped = modeHost();
+  for (let index = 0; index < 4; index += 1) assert.equal(
+    scoped.semanticResolution.modeForModule(modeLiteral, modeFile, modeSource, options), ts.ModuleKind.ESNext);
+  assert.equal(packageReads, 1, 'one compiler host reads package mode authority once across repeated occurrences');
+  const resolveModule = () => scoped.resolveModuleNameLiterals([modeLiteral], modeFile, undefined, options, modeSource)[0];
+  const resolvedModule = resolveModule();
+  assert.ok(resolvedModule.resolvedModule.resolvedFileName.endsWith('esm.d.mts'));
+  const moduleProbes = filesystemProbes;
+  for (let index = 0; index < 4; index += 1) assert.deepEqual(resolveModule(), resolvedModule);
+  assert.equal(filesystemProbes, moduleProbes, 'repeated module resolution uses its mode-aware host cache');
+  const resolveType = () => scoped.resolveTypeReferenceDirectiveReferences(
+    [preflight.types[0].reference], modeFile, undefined, options, modeSource)[0];
+  const resolvedType = resolveType();
+  assert.ok(resolvedType.resolvedTypeReferenceDirective.resolvedFileName.endsWith('cjs.d.cts'));
+  const typeProbes = filesystemProbes;
+  for (let index = 0; index < 4; index += 1) assert.deepEqual(resolveType(), resolvedType);
+  assert.equal(filesystemProbes, typeProbes, 'repeated type resolution uses its mode-aware host cache');
+  await fs.writeFile(packageFile, JSON.stringify({ type: 'commonjs' }));
+  assert.equal(modeHost().semanticResolution.modeForModule(modeLiteral, modeFile, modeSource, options), ts.ModuleKind.CommonJS,
+    'a new compiler host must observe changed package authority');
+  assert.equal(packageReads, 2, 'package mode admission cannot persist into another compiler host');
   console.log('TypeScript NodeNext import/require/import-type/type-reference/condition/project-option/VFS construction cases passed');
 } finally { await fs.rm(root,{recursive:true,force:true}); }

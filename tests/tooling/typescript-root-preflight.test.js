@@ -79,6 +79,11 @@ try {
     assert.ok(messages.some(message => message.includes('phase=' + phase) && message.includes('heapUsedBytes=') && message.includes('rssBytes=')),
       'execution must expose bounded phase evidence for ' + phase);
   }
+  assert.throws(() => system.fileExists(path.join(root, 'unsealed.ts')),
+    { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' }, 'resolver caches cannot authorize unknown filesystem probes');
+  await put('package.json', { type: 'commonjs' });
+  await assert.rejects(verifyCompilerDependencyInventory({ inventory, repoRoot: root, toolingConfig }),
+    { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' }, 'the next authority verification must reject changed package contents');
   console.log('TypeScript canonical roots preserve sealed closure, project references, conditional exports and phase evidence.');
 } finally {
   await fs.rm(root, { recursive: true, force: true });

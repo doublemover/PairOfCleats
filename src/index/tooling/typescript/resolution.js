@@ -2,12 +2,21 @@ import path from 'node:path';
 const unavailable = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
 const assertApis = ts => {
   for (const name of ['getModeForUsageLocation', 'getImpliedNodeFormatForFile', 'getDefaultResolutionModeForFileWorker',
-    'getSetExternalModuleIndicator', 'isSourceFileJS', 'getIsolatedModules', 'getJSXRuntimeImport', 'getJSXImplicitImportBase', 'forEachDynamicImportOrRequireCall'])
+    'getSetExternalModuleIndicator', 'isSourceFileJS', 'getIsolatedModules', 'getJSXRuntimeImport', 'getJSXImplicitImportBase', 'forEachDynamicImportOrRequireCall', 'createModuleResolutionCache', 'createTypeReferenceDirectiveResolutionCache'])
     if (typeof ts[name] !== 'function') throw unavailable('TypeScript resolution API unavailable: ' + name);
 };
 /** Same compiler resolver and occurrence modes for execution and dependency preflight. */
 export const createModeAwareTypeScriptResolver = (ts, defaultOptions, moduleHost, { canonicalize, moduleOrigins, virtualBySource }) => {
   assertApis(ts);
+  // TypeScript's package cache belongs to this compiler host only. Occurrence
+  // mode queries otherwise re-read the same package scope for every import.
+  // Preflight and execution each create fresh hosts backed by their sealed
+  // systems; this cache cannot admit package authority into a later invocation.
+  const moduleCache = ts.createModuleResolutionCache(process.cwd(), canonicalize, defaultOptions);
+  const packageJsonInfoCache = moduleCache.getPackageJsonInfoCache();
+  const typeCache = ts.createTypeReferenceDirectiveResolutionCache(process.cwd(), canonicalize, defaultOptions, packageJsonInfoCache);
+  const impliedNodeFormatForFile = (fileName, options) =>
+    ts.getImpliedNodeFormatForFile(fileName, packageJsonInfoCache, moduleHost, options);
   const optionsFor = (options, redirectedReference) => redirectedReference?.commandLine.options || options || defaultOptions;
   const originFor = file => moduleOrigins.get(canonicalize(file)) || file;
   const modeFileName = file => {
@@ -16,7 +25,7 @@ export const createModeAwareTypeScriptResolver = (ts, defaultOptions, moduleHost
     return path.extname(origin).toLowerCase() === path.extname(file).toLowerCase() ? origin : origin + path.extname(file);
   };
   const modeSource = (file, containingFile, options) => file ? { ...file,
-    impliedNodeFormat: ts.getImpliedNodeFormatForFile(modeFileName(containingFile), undefined, moduleHost, options) } : undefined;
+    impliedNodeFormat: impliedNodeFormatForFile(modeFileName(containingFile), options) } : undefined;
   const modeForModule = (literal, containingFile, sourceFile, options = defaultOptions, redirectedReference) => {
     if (!sourceFile) throw unavailable('TypeScript module occurrence requires its containing SourceFile.');
     return ts.getModeForUsageLocation(modeSource(sourceFile, containingFile, optionsFor(options, redirectedReference)), literal, optionsFor(options, redirectedReference));
@@ -32,15 +41,15 @@ export const createModeAwareTypeScriptResolver = (ts, defaultOptions, moduleHost
   const resolveModuleNameLiterals = (literals, containingFile, redirectedReference, options, containingSourceFile) => {
     const effective = optionsFor(options, redirectedReference);
     return literals.map(literal => remap(ts.resolveModuleName(literal.text, originFor(containingFile), effective, moduleHost,
-      undefined, redirectedReference, modeForModule(literal, containingFile, containingSourceFile, effective, redirectedReference)), 'resolvedModule'));
+      moduleCache, redirectedReference, modeForModule(literal, containingFile, containingSourceFile, effective, redirectedReference)), 'resolvedModule'));
   };
   const resolveTypeReferenceDirectiveReferences = (references, containingFile, redirectedReference, options, containingSourceFile) => {
     const effective = optionsFor(options, redirectedReference);
     return references.map(reference => remap(ts.resolveTypeReferenceDirective(typeof reference === 'string' ? reference : reference.fileName,
-      containingFile ? originFor(containingFile) : undefined, effective, moduleHost, redirectedReference, undefined,
+      containingFile ? originFor(containingFile) : undefined, effective, moduleHost, redirectedReference, typeCache,
       modeForType(reference, containingFile, containingSourceFile, effective, redirectedReference)), 'resolvedTypeReferenceDirective'));
   };
-  return { modeFileName, modeForModule, modeForType, resolveModuleNameLiterals, resolveTypeReferenceDirectiveReferences };
+  return { modeFileName, modeForModule, modeForType, impliedNodeFormatForFile, resolveModuleNameLiterals, resolveTypeReferenceDirectiveReferences };
 };
 
 /** Explicit compiler child adapters, retaining import-type and JS JSDoc resolution-mode attributes. */
@@ -77,7 +86,7 @@ export const preflightTypeScriptSource = (ts, host, fileName, options, redirecte
     throw unavailable('Mode-aware TypeScript host callbacks unavailable.');
   const effective = redirectedReference?.commandLine.options || options;
   const sourceFile = host.getSourceFile(fileName, { languageVersion: effective.target ?? ts.ScriptTarget.Latest,
-    impliedNodeFormat: ts.getImpliedNodeFormatForFile(fileName, undefined, host, effective),
+    impliedNodeFormat: host.semanticResolution.impliedNodeFormatForFile(fileName, effective),
     setExternalModuleIndicator: ts.getSetExternalModuleIndicator(effective), jsDocParsingMode: ts.JSDocParsingMode.ParseAll });
   if (!sourceFile) return { sourceFile: null, modules: [], types: [], referencedFiles: [], libReferenceDirectives: [] };
   const literals = scanTypeScriptResolutionReferences(ts, sourceFile, effective);

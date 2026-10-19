@@ -170,8 +170,11 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
       const host = createVirtualCompilerHost(ts, effectiveOptions, vfs, sourcePaths, origins, system,
         sourceReuse ? { cache: sourceReuse, mode: 'prepare' } : null);
       const queue = [...context.rootNames], seen = new Set();
+      const packageDirectories = new Set(), libraries = new Set();
       const libDirectory = path.dirname(ts.getDefaultLibFilePath(effectiveOptions));
       const addLib = lib => {
+        if (libraries.has(lib)) return;
+        libraries.add(lib);
         if (!ts.resolveLibrary || !ts.getLibraryNameFromLibFileName || !ts.getInferredLibraryNameResolveFrom) throw fail('Compiler library preflight API unavailable.');
         const resolved = ts.resolveLibrary(ts.getLibraryNameFromLibFileName(lib), ts.getInferredLibraryNameResolveFrom(effectiveOptions, process.cwd(), lib), effectiveOptions, host).resolvedModule;
         queue.push(resolved?.resolvedFileName || path.join(libDirectory, lib));
@@ -189,9 +192,12 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
         seen.add(key(file));
         if (closureFiles.size >= 50000) throw fail('Compiler source closure exceeds its preflight allowance.');
         for (let directory = path.dirname(file);;) {
+          const directoryKey = key(directory);
+          if (packageDirectories.has(directoryKey)) break;
           system.directoryExists(directory);
           const packageFile = path.join(directory, 'package.json');
           if (system.fileExists(packageFile)) system.readFile(packageFile);
+          packageDirectories.add(directoryKey);
           const parent = path.dirname(directory); if (parent === directory) break; directory = parent;
         }
         host.fileExists(file);
@@ -214,7 +220,7 @@ export const collectCompilerDependencyInventory = async ({ repoRoot, toolingConf
   const inventory = { schemaVersion: 1, compilerVersion: ts.version, compilerFile, compilerReceipt, repoRoot: path.resolve(repoRoot),
     virtualInputs: rootDocs.map(doc => doc.authority).sort((a,b) => a.virtualPath < b.virtualPath ? -1 : a.virtualPath > b.virtualPath ? 1 : 0),
     sourceInputs: [...sourceInputs].sort((a,b) => a.path.localeCompare(b.path)), toolingHash: semanticHash('semantic.compiler.tooling.v1', toolingConfig), files: [...new Set(files)].sort(), groups, closure,
-    observations: [...observations.values()].sort((a, b) => argsKey(a.method, a.args).localeCompare(argsKey(b.method, b.args))) };
+    observations: [...observations.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, row]) => row) };
   if (Buffer.byteLength(canonicalSemanticJson(inventory)) > 24 * 1024 * 1024) throw fail('Compiler dependency descriptor exceeds its allowance.');
   return assertCompilerDependencyInventory(inventory);
 };
