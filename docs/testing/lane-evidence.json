@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T09:32:54.502Z",
+  "generatedAt": "2026-10-19T10:36:22.272Z",
   "summary": {
     "lanes": 5,
-    "tests": 1191,
+    "tests": 1192,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 312,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1117
+      "missingTests": 1118
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 969,
+      "totalTests": 970,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 920
+        "missing": 921
       }
     },
     {
@@ -674,6 +674,12 @@
     },
     {
       "key": "storage/lmdb",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "storage/semantic",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1814,12 +1820,6 @@
     },
     {
       "key": "storage/embeddings",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "storage/semantic",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

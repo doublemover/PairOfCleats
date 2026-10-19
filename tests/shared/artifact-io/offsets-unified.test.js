@@ -96,6 +96,43 @@ assert.ok(opened.every(handle => handle.fd === -1), 'scoped readers dispose both
 await scoped.close();
 assert.throws(() => scoped.readRows([0]), /reader is closed/);
 
+// Disposal must drain an already-started read instead of closing its files
+// while that read is still using them. Gate actual I/O, rather than a timer.
+const readStarted = Promise.withResolvers(), releaseRead = Promise.withResolvers();
+const pendingHandles = [];
+let closeCalls = 0, pendingReader, reading, closing;
+fs.open = async (...args) => {
+  const handle = await originalOpen(...args);
+  pendingHandles.push(handle);
+  const read = handle.read.bind(handle), close = handle.close.bind(handle);
+  handle.read = async (...readArgs) => {
+    const result = await read(...readArgs);
+    readStarted.resolve();
+    await releaseRead.promise;
+    return result;
+  };
+  handle.close = async () => { closeCalls += 1; return close(); };
+  return handle;
+};
+try {
+  pendingReader = await openJsonlRowReader(jsonlPath, offsetsPath);
+  reading = pendingReader.readRows([1]);
+  await readStarted.promise;
+  closing = pendingReader.close();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(closeCalls, 0, 'close must wait for outstanding positioned reads');
+  releaseRead.resolve();
+  assert.deepEqual(await reading, [rows[1]]);
+  await closing;
+  assert.equal(closeCalls, 2);
+  assert.ok(pendingHandles.every(handle => handle.fd === -1));
+} finally {
+  fs.open = originalOpen;
+  releaseRead.resolve();
+  await Promise.allSettled([reading, closing]);
+  await pendingReader?.close();
+}
+
 const encodeOffsets = (values) => {
   const buffer = Buffer.alloc(values.length * 8);
   for (let i = 0; i < values.length; i += 1) {

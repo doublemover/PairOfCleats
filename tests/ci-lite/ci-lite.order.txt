@@ -969,3 +969,4 @@ tooling/lsp/lifecycle-health
 ci/windows-authority-cohort
 tooling/reports/summary/index-lifecycle
 indexing/semantic/compiler-single-cpu-lifecycle
+storage/semantic/verified-piece-snapshot

@@ -1,14 +1,13 @@
 import { assertSemanticOperationIndex } from '../contracts/validators/semantic-operation-index.js';
 import { canonicalSemanticJson } from '../index/semantic/identity.js';
 import { compareOperationIndexRows, OPERATION_INDEX_FIELDS } from './operation-index.js';
-import { readJsonlRowsAt } from '../shared/artifact-io/offsets.js';
 import { throwIfAborted } from '../shared/abort.js';
 export const validateOperationSelector = (selector, offset, limit) => {
   if (!selector || Object.keys(selector).sort().join(',') !== 'field,value' || !OPERATION_INDEX_FIELDS.includes(selector.field)
     || typeof selector.value !== 'string' || !selector.value.length || selector.value.length > 4096
     || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 128) throw new TypeError('Invalid operation selector or page allowance.');
 };
-export const createArtifactOperationReader = ({ index, inventory, generation, validatePiece }) => {
+export const createArtifactOperationReader = ({ index, inventory, generation, readPieceRows }) => {
   let checked = false;
   return async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
     validateOperationSelector(selector, offset, limit); throwIfAborted(signal);
@@ -30,8 +29,7 @@ export const createArtifactOperationReader = ({ index, inventory, generation, va
       while (low <= high) { const mid = (low+high) >>> 1, candidate=index.pieces[mid];
         if (ordinal < candidate.firstRow) high=mid-1; else if (ordinal >= candidate.firstRow+candidate.count) low=mid+1; else { piece=candidate; break; } }
       if (!piece) throw new Error('Operation index row out of range.');
-      const {dataPath,offsetsPath}=await validatePiece(piece,signal);
-      const [row]=await readJsonlRowsAt(dataPath,offsetsPath,[ordinal-piece.firstRow],{maxBytes:1048576});
+      const [row]=await readPieceRows(piece,[ordinal-piece.firstRow],{maxBytes:1048576,signal});
       assertSemanticOperationIndex(row,{rowOnly:true});
       if (compareOperationIndexRows(row,piece.firstKey)<0 || compareOperationIndexRows(row,piece.lastKey)>0) throw new Error('Operation index key mismatch.');
       return row;

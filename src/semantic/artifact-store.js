@@ -8,7 +8,7 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { openJsonlRowReader, readJsonlRowsAt, validateOffsetsAgainstFile } from '../shared/artifact-io/offsets.js';
+import { openJsonlRowReader } from '../shared/artifact-io/offsets.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
@@ -42,26 +42,6 @@ export const resolveSemanticPartPath = async (root, relativePath) => {
   return resolvePhysicalPartPath(await fs.realpath(root), relativePath);
 };
 
-const hashFile = async (filePath, expectedBytes, signal) => {
-  const handle = await fs.open(filePath, 'r');
-  const hash = createHash('sha256');
-  try {
-    const buffer = Buffer.allocUnsafe(Math.max(1, Math.min(expectedBytes, 64 * 1024)));
-    let bytes = 0;
-    for (;;) {
-      throwIfAborted(signal);
-      const length = Math.min(buffer.length, expectedBytes - bytes + 1);
-      const { bytesRead } = await handle.read(buffer, 0, length, null);
-      if (!bytesRead) break;
-      bytes += bytesRead;
-      if (bytes > expectedBytes) throw error('Semantic part grew while hashing.');
-      hash.update(buffer.subarray(0, bytesRead));
-    }
-    if (bytes !== expectedBytes) throw error('Semantic part changed size while hashing.');
-  } finally { await handle.close(); }
-  return hash.digest('hex');
-};
-
 /**
  * Artifact backend for completed staging/published descriptors. Publication must
  * validate all parts first. Cache only bounded validation metadata, never nodes.
@@ -83,42 +63,55 @@ export const createArtifactSemanticStore = ({
     inventory.set(partition.partitionId, partition);
   }
   const validated = new Map();
-  const validatePiece = async (piece, signal) => {
+  const pieceReadError = caught => caught.code === 'ERR_JSONL_CONTENT_INTEGRITY'
+    ? error('Semantic part hash/size mismatch.') : caught;
+  const openVerifiedPieceReader = async (piece, signal) => {
+    throwIfAborted(signal);
     assertSemanticPartPath(piece.path);
     assertSemanticPartPath(piece.offsetsPath);
     const absoluteRoot = await fs.realpath(root);
     const [dataPath, offsetsPath] = await Promise.all([
       resolvePhysicalPartPath(absoluteRoot, piece.path), resolvePhysicalPartPath(absoluteRoot, piece.offsetsPath)
     ]);
-    const [dataStat, offsetsStat] = await Promise.all([fs.stat(dataPath), fs.stat(offsetsPath)]);
     const key = dataPath + ':' + piece.hash + ':' + piece.offsetsHash;
-    if (dataStat.size !== piece.bytes || offsetsStat.size !== piece.count * 8) throw error('Semantic part hash/size mismatch.');
-    const hashes = await Promise.allSettled([
-      hashFile(dataPath, piece.bytes, signal), hashFile(offsetsPath, piece.count * 8, signal)
-    ]);
-    const failedHash = hashes.find(result => result.status === 'rejected');
-    if (failedHash) throw failedHash.reason;
-    const [dataHash, offsetsHash] = hashes.map(result => result.value);
-    if (dataHash !== piece.hash || offsetsHash !== piece.offsetsHash) throw error('Semantic part hash/size mismatch.');
-    // Reuse boundary-validation metadata only after rehashing the current bytes.
-    // Equal timestamps cannot prove an unchanged part on supported filesystems.
-    if (!validated.has(key)) {
-      // Publication and projection create several readers for the same parts.
-      // Reuse successful boundary checks across those readers only after the
-      // current operation has proved both content hashes above.
-      if (!CONTENT_BOUNDARY_VALIDATIONS.has(key)) {
-        await validateOffsetsAgainstFile(dataPath, offsetsPath, { signal });
-      } else {
-        CONTENT_BOUNDARY_VALIDATIONS.delete(key);
+    const reader = await openJsonlRowReader(dataPath, offsetsPath);
+    try {
+      await reader.verify({ jsonlBytes: piece.bytes, offsetsBytes: piece.count * 8,
+        jsonlHash: piece.hash, offsetsHash: piece.offsetsHash, signal });
+      // Reuse boundary-validation metadata only after rehashing the current bytes.
+      // Equal timestamps cannot prove an unchanged part on supported filesystems.
+      if (!validated.has(key)) {
+        // Publication and projection create several readers for the same parts.
+        // Reuse successful boundary checks across those readers only after the
+        // current operation has proved both content hashes above.
+        if (!CONTENT_BOUNDARY_VALIDATIONS.has(key)) {
+          await reader.validateOffsets({ signal });
+        } else {
+          CONTENT_BOUNDARY_VALIDATIONS.delete(key);
+        }
+        CONTENT_BOUNDARY_VALIDATIONS.set(key, true);
+        while (CONTENT_BOUNDARY_VALIDATIONS.size > MAX_CONTENT_BOUNDARY_VALIDATIONS) {
+          CONTENT_BOUNDARY_VALIDATIONS.delete(CONTENT_BOUNDARY_VALIDATIONS.keys().next().value);
+        }
+        validated.set(key, true);
+        while (validated.size > validationCacheEntries) validated.delete(validated.keys().next().value);
       }
-      CONTENT_BOUNDARY_VALIDATIONS.set(key, true);
-      while (CONTENT_BOUNDARY_VALIDATIONS.size > MAX_CONTENT_BOUNDARY_VALIDATIONS) {
-        CONTENT_BOUNDARY_VALIDATIONS.delete(CONTENT_BOUNDARY_VALIDATIONS.keys().next().value);
-      }
-      validated.set(key, true);
-      while (validated.size > validationCacheEntries) validated.delete(validated.keys().next().value);
+      return {
+        async readRows(indexes, options) {
+          try { return await reader.readRows(indexes, options); }
+          catch (caught) { throw pieceReadError(caught); }
+        },
+        close: () => reader.close()
+      };
+    } catch (caught) {
+      await reader.close();
+      throw pieceReadError(caught);
     }
-    return { dataPath, offsetsPath };
+  };
+  const readPieceRows = async (piece, indexes, { signal = null, ...options } = {}) => {
+    const reader = await openVerifiedPieceReader(piece, signal);
+    try { return await reader.readRows(indexes, { ...options, signal }); }
+    finally { await reader.close(); }
   };
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null, metrics = null } = {}) => {
     if (!Array.isArray(refs) || refs.length > maxRecords) throw error('Semantic record request exceeds its limit.');
@@ -151,9 +144,8 @@ export const createArtifactSemanticStore = ({
     }
     for (const [piece, selected] of work) {
       throwIfAborted(signal);
-      const { dataPath, offsetsPath } = await validatePiece(piece, signal);
-      const rows = await readJsonlRowsAt(dataPath, offsetsPath,
-        selected.map(({ ref }) => ref.localId - piece.firstRow), { maxBytes: maxRecordBytes, metrics });
+      const rows = await readPieceRows(piece,
+        selected.map(({ ref }) => ref.localId - piece.firstRow), { maxBytes: maxRecordBytes, metrics, signal });
       for (let i = 0; i < rows.length; i += 1) {
         const row = rows[i];
         const { ref, index } = selected[i];
@@ -175,18 +167,20 @@ export const createArtifactSemanticStore = ({
     if (!partition || !Object.hasOwn(partition.members, member)) throw error('Unknown semantic partition/member.');
     if (!Number.isSafeInteger(batchRows) || batchRows <= 0 || batchRows > maxRecords) throw error('Invalid hydration batch.');
     for (const piece of partition.members[member]) {
-      const { dataPath, offsetsPath } = await validatePiece(piece, signal);
-      for (let start = 0; start < piece.count; start += batchRows) {
-        throwIfAborted(signal);
-        const indexes = Array.from({ length: Math.min(batchRows, piece.count - start) }, (_, i) => start + i);
-        const rows = await readJsonlRowsAt(dataPath, offsetsPath, indexes, { maxBytes: maxRecordBytes });
-        for (const row of rows) {
-          if (FAMILY[member] && !validateSemanticRecord(FAMILY[member], row,
-            { structuralSlots: partition.structuralSlots }).ok) throw error('Invalid semantic member row.');
-          if (member === 'semantic_sources') assertSemanticEnvelope('source', row);
-          yield row;
+      const reader = await openVerifiedPieceReader(piece, signal);
+      try {
+        for (let start = 0; start < piece.count; start += batchRows) {
+          throwIfAborted(signal);
+          const indexes = Array.from({ length: Math.min(batchRows, piece.count - start) }, (_, i) => start + i);
+          const rows = await reader.readRows(indexes, { maxBytes: maxRecordBytes, signal });
+          for (const row of rows) {
+            if (FAMILY[member] && !validateSemanticRecord(FAMILY[member], row,
+              { structuralSlots: partition.structuralSlots }).ok) throw error('Invalid semantic member row.');
+            if (member === 'semantic_sources') assertSemanticEnvelope('source', row);
+            yield row;
+          }
         }
-      }
+      } finally { await reader.close(); }
     }
   };
   const getSourceSpans = async (refs, { signal = null, maxBytes = 65536 } = {}) => {
@@ -272,8 +266,8 @@ export const createArtifactSemanticStore = ({
     }
     for (const [piece, selected] of work) {
       throwIfAborted(signal);
-      const { dataPath, offsetsPath } = await validatePiece(piece, signal);
-      const rows = await readJsonlRowsAt(dataPath, offsetsPath, selected.map(({ ordinal }) => ordinal - piece.firstRow), { maxBytes: maxRecordBytes, metrics });
+      const rows = await readPieceRows(piece, selected.map(({ ordinal }) => ordinal - piece.firstRow),
+        { maxBytes: maxRecordBytes, metrics, signal });
       for (let i = 0; i < rows.length; i += 1) {
         if (!validateSemanticRecord(FAMILY[member], rows[i], { structuralSlots: partition.structuralSlots }).ok) throw error('Invalid hydrated semantic member.');
         results[selected[i].index] = rows[i];
@@ -301,7 +295,7 @@ export const createArtifactSemanticStore = ({
     if (next !== queryIndex.rowCount) throw error('Query index count mismatch.');
     checkedQueryIndex = true;
   };
-  const readQueryIndexRow = async (ordinal, signal, metrics, verifiedPieces, readers) => {
+  const readQueryIndexRow = async (ordinal, signal, metrics, readers) => {
     const pieces = queryIndex.pieces;
     let low = 0, high = pieces.length - 1, piece = null;
     while (low <= high) {
@@ -311,21 +305,16 @@ export const createArtifactSemanticStore = ({
       else { piece = candidate; break; }
     }
     if (!piece) throw error('Query index row out of range.');
-    // A bounded related-page request may probe the same immutable piece many
-    // times. Share its validation only within this call, just as member-row
-    // hydration groups reads by piece. The next request validates it afresh.
-    if (!verifiedPieces.has(piece)) verifiedPieces.set(piece, validatePiece(piece, signal));
-    const { dataPath, offsetsPath } = await verifiedPieces.get(piece);
     // Binary-search probes share at most four handle pairs within this request.
     // Overflow pieces use the ordinary short-lived reader. No handle or row
     // survives the request, and its next invocation revalidates current bytes.
     if (!readers.has(piece) && readers.size < 4) {
-      readers.set(piece, openJsonlRowReader(dataPath, offsetsPath));
+      readers.set(piece, openVerifiedPieceReader(piece, signal));
     }
-    const indexes = [ordinal - piece.firstRow], options = { maxBytes: maxRecordBytes, metrics };
+    const indexes = [ordinal - piece.firstRow], options = { maxBytes: maxRecordBytes, metrics, signal };
     const [row] = readers.has(piece)
       ? await (await readers.get(piece)).readRows(indexes, options)
-      : await readJsonlRowsAt(dataPath, offsetsPath, indexes, options);
+      : await readPieceRows(piece, indexes, { ...options, signal });
     assertQueryIndexRow(row);
     if (compareQueryIndexRows(row, piece.firstKey) < 0 || compareQueryIndexRows(row, piece.lastKey) > 0) throw error('Query index key range mismatch.');
     return row;
@@ -336,11 +325,11 @@ export const createArtifactSemanticStore = ({
     if (!validateSemanticRecord('recordRef', ref).ok || !inventory.has(ref.partitionId)
       || !['semantic_operands', 'semantic_ownership', 'semantic_lookup', 'semantic_records', 'semantic_edges'].includes(member)
       || !Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw error('Invalid related semantic request.');
-    const verifiedPieces = new Map(), queryRows = new Map(), readers = new Map();
+    const queryRows = new Map(), readers = new Map();
     try {
       const readRow = ordinal => {
         if (!queryRows.has(ordinal)) queryRows.set(ordinal,
-          readQueryIndexRow(ordinal, signal, metrics, verifiedPieces, readers));
+          readQueryIndexRow(ordinal, signal, metrics, readers));
         return queryRows.get(ordinal);
       };
       const bound = async (upper) => {
@@ -415,6 +404,6 @@ export const createArtifactSemanticStore = ({
       throw error('Retained semantic source hash or length mismatch.');
     }
   };
-  return { findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, validatePiece }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { findOperations: createArtifactOperationReader({ index: operationIndex, inventory, generation, readPieceRows }), backend: 'artifact', storeId: root, cursorScope: semanticHash('semantic.store-inventory.v1', [...inventory.values()].map(({partitionId, canonicalHash}) => ({partitionId, canonicalHash})).sort((a,b) => a.partitionId < b.partitionId ? -1 : a.partitionId > b.partitionId ? 1 : 0)), verifySource, repoRoot, generation: { ...generation }, getRecords, getSourceSpans, getCoverage, iterateRows, readMemberRows, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 
 };
