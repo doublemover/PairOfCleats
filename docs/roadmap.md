@@ -13,18 +13,19 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 15 at `02ad003c8` closes after SSR incremental times out at 30.355 s:
-46 required passes, including 44 verified hosted authority checks with real file
-symlinks; four fail-fast omissions; 2930 other cases pending. Profiling identifies
-repeated compiler dependency probes. Host-owned TypeScript caches and preflight
-deduplication now pass both full SSR cases in 27.392/26.820 s. Fresh hosts observe
-package changes; unknown probes and changed sealed inputs still fail. All four
-inputs and every field in 115 records/136 edges remain equal at one physical root.
-Reader disposal and fresh cursor/request validation remain checked. The SQLite
-helper loads the identical builder through 753 files instead of 2293. CPU ownership
-keeps all assertions and the 512 MiB policy; macOS telemetry proves the memory fix.
-Earlier orphan failures remain unattributed. No next campaign is frozen. Every
-required case must run on its final source; the Windows receipt retains details.
+Candidate 16 at `a2a3c3fd2` closes after 1250 required passes: SourceKit abort
+exceeds its two-second bound at 2003 ms; 60 fail-fast omissions and 1670 other
+cases remain unpassed. Profiling shows shared author-cache maintenance blocks the
+timer before Swift resolution even starts. The fixture now owns cache/command
+authority and proves real child cancellation/reaping, retaining the same inputs,
+five-second work and two-second bound. Fresh/stale cases pass in 782/705 ms.
+All 15 SourceKit checks pass. Prior compiler/read-owner repairs retain every field
+in 115 records/136 edges; source, cursor and cache authority stay strict.
+All six current hosted jobs pass, all quality attempts are first attempts, and
+44 exact-head authority cases use real file symlinks. A 30.558 s CI map-cache case
+still needs strict local qualification. Native/performance receipts are partial;
+SQLite p95 is 232.442 ms. Earlier intermittent CI failures remain unattributed.
+No next candidate is frozen. Every required case must run on its final source.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

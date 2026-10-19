@@ -14,6 +14,7 @@ Current execution evidence and unresolved failures belong to the
 | Windows authority | `windows-authority` job: exact PR head, real file-symlink capability probe, explicit 44-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification. A configured job is not a passing receipt; all cases must pass with logs and source/dependency identity. |
 | Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
 | Semantic read ownership | Real trace/index reads, cancellation after opening, later errors, overlapping requests, same-size data/offset edits and cursor continuation | One common verified index owner per page plus three local probes preserves the four-pair bound. Every following page/request revalidates bytes and every scope closes before settling. Full 115-record/136-edge content equivalence is separate from timing. |
+| Simulated provider fixtures | Explicit fixture command/trust, owned caches through setup and teardown, fresh/stale admission, actual child-start/cancellation/reaping witnesses | Shared author caches and cancellation before the intended operation starts cannot establish a lifecycle pass. SourceKit retains its original two-second bound and five-second workload. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
 | Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
 | Extended/performance | `.github/workflows/nightly.yml`: manual dispatch, three OS targets; `run-suite.js --mode nightly` adds storage, perf, soak, benchmark and script-coverage work | Extended campaign when actually invoked. The workflow currently has no nightly schedule. |
@@ -79,7 +80,12 @@ OS × language × provider × backend cross-product to routine PR work.
    preflight deduplication pass the full SSR pair in 27.392/26.820 s, preserving
    all input bytes and complete graph fields. Fresh-host package changes and
    sealed unknown/changed probes remain checked. Final-source acceptance still
-   requires every cohort. The SQLite
+   requires every cohort. Candidate 16 closes with 1250 required passes, one
+   SourceKit abort failure, 60 fail-fast omissions and 1670 unobserved cases.
+   Profiling proves a shared-cache sweep delays cancellation before package
+   resolution starts. Owned fixture caches/commands and actual child witnesses
+   now retain the original two-second bound, passing fresh/stale cases in
+   782/705 ms; all 15 SourceKit checks pass. The SQLite
    helper uses the identical builder through its narrow owner: its import graph
    falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
    At `2dfab0536`, CPU checks pass first attempt on Windows/macOS in 14.9/11.9 s;

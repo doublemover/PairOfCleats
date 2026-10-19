@@ -2,6 +2,47 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 candidate 16 is closed after 1250 required passes and one failure.
+Exact published head is `a2a3c3fd2909988ea6efa36a62c5ae6331e97193`, source SHA-256
+`1746119b48ec6dd41f2e051d9c8556eec0f3964f2f63ddfa9a67bfc95fc8dc73`,
+documentation SHA-256
+`4c99135476cf49cb463cd3f84c04b077878be6dd1f65eda05616a01bbe95c528`.
+SourceKit preflight abort exceeds its unchanged two-second assertion at 2003 ms.
+The controller preserves that failure, 60 fail-fast omissions and 1670 unobserved
+cases. None of the omissions count as passes. The completed native, performance,
+storage, semantic, retrieval, shared and service cohorts remain partial receipts.
+All six hosted jobs pass; all three quality reports have first attempts only.
+Windows map-cache isolation takes 30.558 s under CI's broader timeout, so that
+observation is not strict 30-second acceptance. Exact-head authority passes all
+44 first attempts with real file symlinks, verified raw logs, official Node and
+37-package/33-route bootstrap hash
+`e4c26b734694f120d4e6427db3d853355ebbf71504cb767b054b0c404b2ec067`.
+Twenty serial SQLite warm samples have p95 232.442 ms under the unchanged 7500 ms
+bound; every query first retrieves its expected indexed source.
+
+The SourceKit fixture previously selected commands implicitly and used the shared
+author command-probe cache. A CPU profile attributes 1929 ms to persistent-cache
+maintenance, chiefly contained-path realpath/lstat checks. The 75 ms cancellation
+timer cannot run while that synchronous work blocks the event loop. No Swift
+package-resolution child starts, even in a diagnostic run that passes at 1990 ms.
+Adding a real-operation witness fails before repair because the start marker is
+absent. This exposes false coverage rather than a native crash. The failed
+campaign and all diagnostic controls remain; no cache was flushed to obtain a pass.
+
+Shared SourceKit fixtures now own cache selection for their entire lifetime,
+including lock setup, and explicitly select fixture commands and fixture-root
+trust. Cleanup restores the prior environment. The abort case retains the same
+package and Swift-source bytes, original abort/error assertions, five-second
+resolver workload and total two-second bound. It waits for an actual child-start
+witness before scheduling the same 75 ms cancellation, then requires descendant
+reaping, one resolve attempt and no completion. Fresh and stale prior markers
+pass in 782/705 ms. Fifteen SourceKit checks pass in 36.5 s total; command-profile,
+persistent-cache and strengthened cancellation checks pass in 24.9 s total.
+The retention proof is `sourcekit-fixture-retention-proof-17.json`. Product runtime,
+cache authority checks, formats, producer meaning and deadlines are unchanged.
+These `.testLogs`/task receipts belong to the author workspace; the next complete
+candidate must execute every required case again.
+
 October 19 candidate 15 is closed with a recorded failure. Exact published head
 `02ad003c8384cbe10e1c0980da78263cde426881` freezes source SHA-256
 `8864e8957011870b0e9ddfabec7d05112525181721a91ae214b57792123bba66`
