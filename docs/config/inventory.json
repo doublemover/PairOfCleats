@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T15:29:09.010Z",
+  "generatedAt": "2026-10-19T16:02:06.859Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4781,6 +4781,7 @@
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/source-metadata.test.js",
         "tests/tooling/doctor/command-resolution-report.test.js",
+        "tests/tooling/doctor/dedicated-provider-handshake-fixtures.test.js",
         "tests/tooling/doctor/generic-preset-matrix.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
         "tests/tooling/install/tooling-install-test-helper.js",

@@ -2,6 +2,38 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 candidate 17 is closed after 212 required passes, one failure, 62
+fail-fast omissions and 2706 unobserved cases. Exact head is
+`feddbe691291473b53bf422b3a1b5b4992fc2ebf`, source SHA-256
+`0d53daddef00c99e68190d7411e7b8ded873fceeb3df1e173467c573b3347e31`,
+documentation SHA-256
+`1684f3d3c7d964d4b179867f490dd0bd0a65ea746941aad2a06224f0d11f7ee1`.
+The 17 repair regressions and three fast tooling cohorts pass. Prioritizing
+unexecuted work exposes the next failure before repeating the longer known
+cohorts. No earlier candidate's pass is inherited. Superseded queued CI requests
+are cancelled; they provide no new-head qualification.
+
+The dedicated-provider handshake fixture implicitly selects a machine Solargraph
+command through WindowsApps while Java/C# use repository fixtures. Its assertion
+that every unsuccessful version probe prevents initialization contradicts the
+existing Doctor owner: definitely missing commands are blocked, while inconclusive
+probes still attempt a real handshake. Explicit fixture commands now require all
+three healthy handshakes, preserving boolean-status and failure-code checks.
+Controlled missing, inconclusive, RPC-error and abrupt-exit cases replace the
+optional real-toolchain skip paths; no required positive can pass through a skip.
+
+Those controls expose a real result-producer bug: `probeLspInitializeHandshake`
+returns numeric error codes despite its documented nullable-string contract.
+The old producer returns numeric -32098 and loses numeric zero as null; both
+controls fail the retained nonempty-string assertion. The repaired owner preserves
+numeric codes as strings, including `"0"`, retaining existing string/null behavior.
+Eight provider outcomes across six scenarios pass, together with initialization
+failure/cache invalidation and report-emission checks: three cases pass first
+attempts in 24.3 s, slowest 12.2 s, under unchanged 750 ms handshake and 30-second
+runner bounds. Probe/handshake policy, authority and public schemas are unchanged;
+the diagnostic type repair does not change semantic producer meaning. The new
+candidate must still run every Windows-applicable required fixture fresh.
+
 October 19 candidate 16 is closed after 1250 required passes and one failure.
 Exact published head is `a2a3c3fd2909988ea6efa36a62c5ae6331e97193`, source SHA-256
 `1746119b48ec6dd41f2e051d9c8556eec0f3964f2f63ddfa9a67bfc95fc8dc73`,

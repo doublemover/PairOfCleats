@@ -13,19 +13,19 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 16 at `a2a3c3fd2` closes after 1250 required passes: SourceKit abort
-exceeds its two-second bound at 2003 ms; 60 fail-fast omissions and 1670 other
-cases remain unpassed. Profiling shows shared author-cache maintenance blocks the
-timer before Swift resolution even starts. The fixture now owns cache/command
-authority and proves real child cancellation/reaping, retaining the same inputs,
-five-second work and two-second bound. Fresh/stale cases pass in 782/705 ms.
-All 15 SourceKit checks pass. Prior compiler/read-owner repairs retain every field
-in 115 records/136 edges; source, cursor and cache authority stay strict.
-All six current hosted jobs pass, all quality attempts are first attempts, and
-44 exact-head authority cases use real file symlinks. A 30.558 s CI map-cache case
-still needs strict local qualification. Native/performance receipts are partial;
-SQLite p95 is 232.442 ms. Earlier intermittent CI failures remain unattributed.
-No next candidate is frozen. Every required case must run on its final source.
+Candidate 17 at `feddbe691` closes after 212 required passes, one Doctor handshake
+failure, 62 fail-fast omissions and 2706 unobserved cases. The stale fixture mixes
+installed tools with stubs and mistakes inconclusive probes for missing commands.
+Explicit healthy/missing/inconclusive/failing fixtures also expose numeric error
+codes in a documented string field. The producer now preserves numeric codes as
+strings, including zero; all eight outcomes and three affected checks pass.
+SourceKit's actual child cancellation/reaping passes fresh/stale cases within
+its original two-second bound. Prior graph equivalence preserves every field in
+115 records/136 edges. Native, latency and 44 real-symlink receipts remain partial.
+A 30.558 s older CI map-cache case still needs strict local qualification, and
+earlier intermittent CI failures remain unattributed. Unexecuted cohorts are
+prioritized; every required case must run fresh on its final source. No next
+candidate is frozen. See the Windows receipt for exact identities and limits.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
