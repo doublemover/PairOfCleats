@@ -134,6 +134,14 @@ conversion/error cases under `--throw-deprecation`, and verify first/repeated
 patch application plus version/partial-patch rejection. Do not accept npm's
 suggested Mammoth downgrade or restore sprintf-js.
 
+On Node 26, the locked DOCX fixture generator's bundled browser deprecation
+helper accessed the experimental localStorage getter in both official Node
+exports. `patches/docx+9.5.3.patch` uses Node's deprecation process flags in those
+two exports and leaves browser behavior intact. Fresh ESM/CommonJS processes
+must generate real documents with no warnings and no browser-storage access;
+the Mammoth migration fixture also rejects parent-process runtime warnings.
+This compatibility repair changes no package version or lockfile resolution.
+
 The [additional regression baseline](../../tests/fixtures/security/dependency-advisories-2026-10-06.json)
 records the five advisory ranges with official links. The historical October 2
 baseline and live `npm audit --audit-level=low` gate remain active. Native package

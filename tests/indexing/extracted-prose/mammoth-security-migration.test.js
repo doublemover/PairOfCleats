@@ -4,12 +4,18 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { Bookmark, Document, ImageRun, ImportedXmlComponent, Packer, Paragraph, TextRun } from 'docx';
 import { extractDocx, loadDocxExtractorRuntime } from '../../../src/index/extractors/docx.js';
 import { applyPatches } from '../../../tools/setup/apply-patches.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+
+const warnings = [];
+const onWarning = warning => warnings.push({ name: warning.name, message: warning.message });
+process.on('warning', onWarning);
+const { Bookmark, Document, ImageRun, ImportedXmlComponent, Packer, Paragraph, TextRun } = await import('docx');
+await new Promise(resolve => setImmediate(resolve));
+assert.deepEqual(warnings, [], 'the real DOCX generator loads without runtime warnings');
 
 // Use real documents and the installed vendor CLI: an available fallback
 // extractor or a parser mock would conceal a broken dependency migration.
@@ -272,7 +278,10 @@ try {
   assert.equal(await fs.readFile(fixtureCli, 'utf8'), partialSource, 'a partial patch fails without changing source');
   assert.equal(await fs.readFile(mammothCli, 'utf8'), installedSource, 'fixture checks never modify installed Mammoth');
 
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(warnings, [], 'real DOCX generation and extraction emit no runtime warnings');
   console.log('Mammoth security migration preserves real DOCX extraction and CLI conversion, images, and argument errors.');
 } finally {
+  process.off('warning', onWarning);
   await rmDirRecursive(root);
 }

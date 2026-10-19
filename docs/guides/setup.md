@@ -18,6 +18,12 @@ check does not replace native TUI supervisor/process-family qualification. The
 worker-teardown access violation is attributed to Node 26.8.1 itself; see the
 [runtime policy](node-runtime.md).
 
+The required `docx` 9.5.3 patch keeps its bundled deprecation helper on Node's
+process flags instead of reading browser localStorage. Both official Node
+exports generate real DOCX documents without the experimental-storage warning;
+the browser distribution retains its existing behavior. Locked bootstrap applies
+and verifies this patch alongside the native dependency patches.
+
 The same node-pty patch corrects the macOS prebuilt `spawn-helper` execute bits
 during its rebuild script. The locked 1.1.0 tarball ships both Darwin helpers at
 0644, so an import alone succeeds while a real PTY spawn fails. Setup requires
