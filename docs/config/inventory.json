@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T11:10:29.170Z",
+  "generatedAt": "2026-10-19T15:29:09.010Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3357,6 +3357,7 @@
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
         "tests/tooling/install/uninstall.test.js",
+        "tests/tooling/lsp/sourcekit-package-preflight-abort.test.js",
         "tests/tooling/script-coverage/actions/tools.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tests/tooling/triage/records-index-and-search.test.js",
@@ -4770,6 +4771,7 @@
       "name": "PAIROFCLEATS_TRUSTED_CONFIG",
       "files": [
         "src/shared/config-authority.js",
+        "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
@@ -4803,6 +4805,7 @@
       "files": [
         "src/shared/config-authority.js",
         "tests/helpers/execution-authority.js",
+        "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/perf/bench/language-resource-roots.test.js",
         "tests/security/java-workspace-execution-authority.test.js",
         "tests/security/nested-repository-command-authority.test.js",
