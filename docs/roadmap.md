@@ -13,19 +13,19 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 14 remains partial: 332 required passes, 2649 pending. At `d481d8980`,
-all hosted jobs are green, but Windows compiler and macOS YAML retries remain
-visible in retained raw logs. Real macOS telemetry proves the memory repair:
-3.33 GB process availability versus 0.85 GB raw free, with the unchanged 512 MiB
-compiler reservation admitted. Strict Windows ownership passes three cases and
-authority passes all 44 first attempts. Earlier orphan failures remain unattributed.
-The CPU regression now uses two compiler modules: all 17 original assertions
-remain, five checks are added, and the old owner still deadlocks at 22.8 seconds.
-Its repaired owner passes in 10.2 seconds with the same budgets and deadlines.
-Default SSR inputs are byte-identical; their retained coverage finds another
-30.4-second timeout. Profiling shows repeated artifact reads, without leaked
-handles. No next campaign is frozen. Every required case must run on its final
-source; the Windows receipt preserves each partial campaign and open failure.
+Candidate 14 remains partial: 332 required passes, 2649 pending. At `2dfab0536`,
+the bounded CPU regression passes first attempt on Windows/macOS in 14.9/11.9
+seconds, retaining all 17 original assertions, five added checks and the 512 MiB
+policy. Real macOS telemetry proves the shared memory repair. Earlier orphan
+failures remain unattributed; current strict ownership and authority checks pass.
+A Windows report setup retry exposes an eager helper dependency; the same SQLite
+builder now loads 753 files instead of 2293, with all three modes retained.
+Full SSR inputs remain byte-identical. Their 30.4-second timeout is preserved;
+bounded reuse of the common verified index probe now passes both cases in
+26.9/26.2 seconds. All 115 records/136 edges match every field at one physical
+root. Fresh validation across requests/cursors and reader cleanup remain checked.
+No next campaign is frozen. Every required case must run on its final source;
+the Windows receipt preserves each partial campaign and qualification limit.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

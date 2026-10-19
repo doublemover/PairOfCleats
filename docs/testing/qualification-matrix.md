@@ -13,6 +13,7 @@ Current execution evidence and unresolved failures belong to the
 | Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.10.0 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
 | Windows authority | `windows-authority` job: exact PR head, real file-symlink capability probe, explicit 44-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification. A configured job is not a passing receipt; all cases must pass with logs and source/dependency identity. |
 | Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
+| Semantic read ownership | Real trace/index reads, cancellation after opening, later errors, overlapping requests, same-size data/offset edits and cursor continuation | One common verified index owner per page plus three local probes preserves the four-pair bound. Every following page/request revalidates bytes and every scope closes before settling. Full 115-record/136-edge content equivalence is separate from timing. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
 | Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
 | Extended/performance | `.github/workflows/nightly.yml`: manual dispatch, three OS targets; `run-suite.js --mode nightly` adds storage, perf, soak, benchmark and script-coverage work | Extended campaign when actually invoked. The workflow currently has no nightly schedule. |
@@ -68,8 +69,15 @@ OS × language × provider × backend cross-product to routine PR work.
    isolates two real compiler modules, preserves all 17 assertions and adds five
    execution/cross-source checks. The old owner still fails at 22.8 seconds; the
    repaired fixture passes in 10.2 seconds. All default SSR input bytes remain
-   unchanged. Their retained full coverage records a new 30.4-second timeout;
-   that lifecycle/read cost remains open. Windows cleanup passes first attempts
+   unchanged. Their retained full coverage records a 30.4-second timeout. Bounded
+   common-probe reuse passes both in 26.9/26.2 seconds, with complete same-root
+   record/edge equivalence. Six integrity/service checks and six SQLite/report
+   checks pass; final-source acceptance still requires every cohort. The SQLite
+   helper uses the identical builder through its narrow owner: its import graph
+   falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
+   At `2dfab0536`, CPU checks pass first attempt on Windows/macOS in 14.9/11.9 s;
+   a Windows report setup retry remains recorded pending the new helper's hosted
+   qualification. Windows cleanup passes first attempts
    in both strict and broad lanes, but its earlier orphan failure is unattributed.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing

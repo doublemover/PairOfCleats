@@ -2,6 +2,61 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 common-probe/read-owner repair: the complete SSR fixtures retain both
+real compiler builds, full Node declarations, original traces and all positive
+and negative assertions. The 30.4-second failures remain preserved. Profiling
+shows about 1500 opens per drained trace. A broad four-piece cache was rejected
+after it increased opens and still timed out. The narrowed owner instead shares
+only the first midpoint piece that every query-index binary search probes on one
+logical trace page. Each related-page request retains three additional local
+readers, preserving the existing four-pair bound. Node/member reads remain fresh.
+The shared owner closes before the page returns or throws; cursors retain refs
+and offsets, with no open file or hash admission carried into the next request.
+The async context is module-owned and isolates each store with its own identity.
+
+The real trace regression fails before repair in 2.17 seconds because the same
+index piece opens four times instead of once. Afterward it checks one open,
+the unchanged 16-handle probe bound and complete closure. Cancellation after
+the real query open, a later query error, overlapping logical pages, same-size
+data/offset corruption on the next query, and corruption between actual cursor
+pages are covered. Restoring the bytes resumes the original valid continuation.
+Existing related-page, resource, cursor, SQLite parity, small-snapshot and large
+streaming mutation/disposal assertions remain. Six affected checks pass in 36.3
+seconds total, slowest API semantic trace 24.8 seconds, with no warning/error
+lines (`trace-root-scope-contracts-15.json`). The full SSR cases pass first attempts
+in 26.9/26.2 seconds (`ssr-root-probe-scope-normal-15.json`).
+
+Complete graph equivalence uses the same physical root
+`poc-ssr-tooling-scope-8a2ac5e5`: all four input files and every field in all
+115 records/136 edges compare equal, with one compiler context and three
+completed tasks. No field is normalized or omitted. Both graphs have SHA-256
+`6e0d88f7e7ff6608652054df6dfc4e0f7f56f24f21709815afbaf6fdb5b11e8c`.
+`ssr-root-probe-full-graph-equivalence-15.json` retains the before/after mapping.
+These are read-lifetime changes; no semantic producer meaning, wire format,
+configuration surface, query limit or deadline changes.
+
+At published `2dfab0536`, all hosted jobs are green. The CPU regression passes
+first attempt on Windows/macOS in 14.873/11.855 seconds; macOS's selected suite
+has no retries. Windows still records a first-attempt parity-matrix setup timeout
+inside the original 20-second child deadline, then a passing retry. Its raw log
+shows code SQLite completion and prose SQLite startup before timeout. This is
+not accepted through the retry. The shared SQLite test helper unnecessarily
+imports the entire core API facade to reach a builder already exported by a
+narrow owner. Actual strict function equality proves the exports are identical.
+Changing that single import reduces loaded files from 2293 to 753 (1540 fewer);
+sampled cold import time falls from 2623 to 934 ms. No bootstrap guard is removed.
+
+All three actual SQLite fixture modes, default report arguments, queries,
+memory/SQLite hits, exact overlap and existing 20/26/30-second bounds remain.
+The original report fixture passes first attempt in 8.15 seconds after the import
+repair. A new setup boundary rejects loading the source-indexing pipeline for
+already seeded SQLite artifacts. Injecting the old facade route fails for that
+specific guard in 802 ms; the normal guarded case passes in 8.01 seconds. Six
+affected report/SQLite/retrieval checks pass in 47.2 seconds total, including
+cold descendant cleanup and specific failed-state recovery. The earlier hosted
+failure and both fault-control receipts remain. Final current-source hosted and
+whole-suite acceptance are still required; no candidate 15 is frozen.
+
 October 19 follow-up to `d481d8980`: all hosted jobs are green, but raw attempts
 show one Windows compiler cancellation and one macOS YAML fallback before their
 retries pass. The Windows compiler's first attempt reaches the fixture's unchanged
