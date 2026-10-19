@@ -134,6 +134,10 @@ their own boundaries (218 cases total). There is no aggregate
   - Inject `--max-old-space-size` into `NODE_OPTIONS`.
 - `--pairofcleats-threads <n>`
   - Overrides `PAIROFCLEATS_THREADS` for child processes.
+  - Configuration and auto-policy retain their documented higher precedence.
+    A fixture requiring an exact CPU concurrency uses the existing build CLI
+    `--threads` option and checks the effective limit; this environment hint
+    does not cap an independently configured native worker pool.
 
 - `--fail-fast`
   - Stop on first failure.

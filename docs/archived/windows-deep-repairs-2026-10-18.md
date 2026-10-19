@@ -900,15 +900,82 @@ environment usage, generated freshness, command/workflow contracts, all 39 gate
 cases and whitespace checks (`.testLogs/run-1792391918975-dn2yfy`). This gate
 does not stand in for the complete Windows campaign.
 
+### Candidate 09 and format-fidelity build scope
+
+Two granular commits, `94b6c578c` and `cb1ecbc0c`, were pushed and the remote
+head verified as `cb1ecbc0ced2091c24d48a26501bd43b03d8efe9`. PR #572 was updated
+and read back at that head; all six hosted jobs passed. Candidate 09 freezes
+5805 non-document paths at source SHA-256
+`fdad840e66e2bd99c66c980a612e26695fdef0941bdb18e8b646776129b2e410`, and verifies
+documentation SHA-256
+`1240b67462fb614b1f0baa1df63d50cea054e56845e3bac0f069f44aa0159ca1` too, including
+runtime schemas. Discovery maps 2994 cases: 2977 required, 17 exclusions and 47
+cohorts. Both service cohorts pass all 120 cases. The original semantic-detail
+case passes in 23.1 s, its future / legacy / missing versions in 21.6 / 21.8 /
+22.1 s, and semantic trace in 27.2 s. These are candidate observations, not
+earlier focused results combined into a whole-tree pass.
+
+After two script cohorts the campaign stops with 277 required passes, one
+format-fidelity timeout, two declared optional skips, zero unexpected skips or
+native crashes, and 2699 unexecuted required cases. Both frozen hashes were
+verified unchanged after stopping. The original receipt is
+`.testLogs/run-1792393567952-fla3m8/tooling_script-coverage_language_format-fidelity-test.attempt-1.failure.json`.
+The exact wrapper reproduces the 30.4 s timeout in a bounded phase diagnostic
+(`.testLogs/run-1792394158675-s6b74s`); it is still doing downstream build work.
+The first failure's 303 cache files (10.6 MB) and their SHA-256 inventory are
+preserved before its fixture clears that cache.
+
+The fixture's 16 positive content assertions read only code/prose `chunk_meta`
+and `file_meta` artifacts. A task-only control stops the same real CLI build at
+stage2, keeping every assertion and fixture input. It passes in 16.1 s. Every
+decoded field and row order exactly matches the original completed build: 56
+code rows, nine prose rows and both complete file maps. Nothing is suppressed
+as provenance. Stable-object-key hashes of the complete row arrays are
+`c46df4a906a1c3c10cbbb8e4f490b8577fe74257a33ba7e60295ee2a9a953fab` (code) and
+`eda2c14bdc7e598226dde4efec1f8d566c52193028cac414866c8a9d4e8fd88e` (prose).
+The control reports metadata loaded at 15.700 s, assertions done at 15.702 s and
+natural process exit immediately afterward, with only output pipes remaining.
+This demonstrates an oversized build scope rather than a shutdown deadlock.
+
+The actual fixture now requests stage2 with no SQLite build and retains its
+original ID, ordered CI assignment, exact package-script coverage action and
+all 16 assertions. Full embedding/SQLite behavior retains its original owners;
+candidate 09's real full-build wrapper passes in 22.4 s, with SQLite build,
+incremental, maintenance and search contract cases also passing. No production
+backend, public contract or timeout threshold changes.
+
+Thread tracing also confirms the existing documented precedence: configuration
+and auto-policy outrank `PAIROFCLEATS_THREADS`. The runner's `--pairofcleats-threads
+1` sets that environment hint; it does not prove that every nested runtime uses
+one CPU slot. The focused format fixture therefore uses the existing build CLI
+`--threads 1`, observes `cpu=1` and retains the normal auto native pool capacity
+of 16. Both final direct and exact script fixtures pass in 18.3 / 19.5 s
+(`.testLogs/run-1792394362653-xtlgzq`). The complete 65-row/file-map comparison
+still matches exactly after that explicit cap. The earlier 14.6 / 15.3 s
+metadata-only runs without the CLI cap remain separate diagnostic history.
+
+Formatting and the generated governance audit pass with unchanged lane counts
+and no missing IDs, duplicates, manifest mismatches or timing overruns. The full
+repair-batch front gate passes configuration/environment checks, generated
+freshness, command/workflow contracts, all 39 gate cases and whitespace checks
+(`.testLogs/run-1792394584520-e89o4b`). Fresh native/patch verification also exits
+zero without warning/error lines (`format-fidelity-native-verify-01.log`).
+
+The current ordinary token again fails an actual file-symlink probe with EPERM
+and lacks `SeCreateSymbolicLinkPrivilege`. Candidate 09's task-local elevated
+launch remains pending; it has produced no child PID, token receipt or test
+result. Candidate 08's 44 capable-token passes remain valid historical evidence,
+not candidate 09 acceptance. No policy or security-setting change is attempted.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. The capable Windows symlink launch and safe
 uninstall prerequisite are now satisfied. Full Windows-suite acceptance is still
-open: candidate 08 stopped on the semantic-detail timeout. The bounded cases
-and strengthened negative fixtures require the complete front gate and every
-required cohort on a new frozen candidate, including all 44 capable-token
-fixtures. The two C/clangd ELF-positive fixtures are Linux-owned; Windows
+open: candidate 09 stopped on the format-fidelity wrapper timeout. The proven
+metadata-scope repair requires the complete front gate and every required
+cohort on a new frozen candidate, including all 44 capable-token fixtures.
+The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain
 outside this Windows target. No security settings, debugger registration or

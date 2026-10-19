@@ -13,14 +13,13 @@ from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that sou
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-Publication through `354c58e8e` passes all six hosted jobs. Frozen candidate 08
-stopped with 539 required passes and one semantic-detail timeout; 2434 cases
-remain unexecuted. All 44 real file-symlink cases and 101 ordinary-token
-performance cases pass on that source, including both SSR witnesses. Three
-independent format cases retain the timed-out wrapper's assertions and
-two-build authority boundary. Download and SQLite negatives reject unrelated
-failure causes. See the detailed Windows receipt for controls and remaining
-qualification.
+Publication `cb1ecbc0c` passes all six hosted jobs. Candidate 09 stopped with
+277 required passes, one format-fidelity timeout and 2699 unexecuted cases.
+The semantic API repairs pass. Format fidelity retains every assertion and exact
+56-code/9-prose metadata parity after removing unused downstream work. Candidate
+08's 44 file-symlink, 101 serial performance and two SSR passes remain historical.
+The current token gets EPERM for file symlinks; the elevated launch is pending.
+The Windows receipt records controls and remaining qualification.
 Earlier hosted results are not final-head acceptance.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the

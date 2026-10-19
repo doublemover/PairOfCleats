@@ -74,6 +74,9 @@ OS × language × provider × backend cross-product to routine PR work.
    the API format checks now have three bounded cases retaining both real builds
    and every original surface assertion. Final-candidate qualification remains
    serial for native lifecycle and performance.
+   Candidate 09 then stops with 277 required passes and one format-fidelity
+   timeout. The metadata-only repair retains all 16 assertions and exact
+   56-code/9-prose row and file-map parity; it needs a new frozen-source campaign.
    Script coverage retains every action in explicit discovered process cases;
    its first complete cohort passed 211 cases, timed out once and reported two
    optional/helper exclusions. The repaired tokenization comparisons and
@@ -114,6 +117,8 @@ Run bounded checks on one idle representative CPU host first. Use a second OS
 only for a changed platform-sensitive path or a release claim. Record candidate
 and dirty-worktree identity, OS/architecture, Node/ABI, backend/provider, corpus
 revision, cache state, concurrency and actual executed query/build counts.
+Record effective CPU queue and native worker limits too: configuration and
+auto-policy can outrank the runner's `PAIROFCLEATS_THREADS` environment hint.
 
 Use these layers independently:
 
