@@ -72,11 +72,12 @@ const discoverWindowsDescendantPidsSync = (rootPid) => {
     '}',
     '$out | ConvertTo-Json -Compress'
   ].join('; ');
+  const startedAt = Date.now();
   const result = runSyncCommandWithTimeout(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-Command', script],
     {
-      stdio: ['ignore', 'pipe', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
       timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS,
       env: {
@@ -85,8 +86,15 @@ const discoverWindowsDescendantPidsSync = (rootPid) => {
       }
     }
   );
-  if (toSyncCommandExitCode(result) !== 0) return [];
-  return parseWindowsPidList(result.stdout);
+  const exitCode = toSyncCommandExitCode(result);
+  const pids = exitCode === 0 ? parseWindowsPidList(result.stdout) : [];
+  return { pids, diagnostic: {
+    exitCode,
+    errorCode: result?.error?.code || null,
+    durationMs: Date.now() - startedAt,
+    discoveredCount: pids.length,
+    stderr: String(result?.stderr || '').slice(-2048)
+  } };
 };
 
 const killWindowsOrphanDescendantsSync = (
@@ -99,9 +107,10 @@ const killWindowsOrphanDescendantsSync = (
   const resolvedBudgetMs = Number.isFinite(Number(budgetMs))
     ? Math.max(0, Math.floor(Number(budgetMs)))
     : WINDOWS_DESCENDANT_KILL_BUDGET_MS;
-  const descendants = discoverWindowsDescendantPidsSync(rootPid).slice(0, WINDOWS_DESCENDANT_KILL_LIMIT);
+  const discovery = discoverWindowsDescendantPidsSync(rootPid);
+  const descendants = discovery.pids.slice(0, WINDOWS_DESCENDANT_KILL_LIMIT);
   if (!descendants.length) {
-    return { attempted: false, terminatedCount: 0 };
+    return { attempted: false, terminatedCount: 0, discovery: discovery.diagnostic };
   }
   const startedAtMs = Date.now();
   let terminatedCount = 0;
@@ -122,7 +131,8 @@ const killWindowsOrphanDescendantsSync = (
   }
   return {
     attempted: true,
-    terminatedCount
+    terminatedCount,
+    discovery: discovery.diagnostic
   };
 };
 
@@ -131,6 +141,7 @@ const applyWindowsFallbackKill = (pid, state) => {
   const fallback = killWindowsOrphanDescendantsSync(pid);
   state.fallbackAttempted = fallback.attempted;
   state.fallbackTerminated = fallback.terminatedCount;
+  state.fallbackDiscovery = fallback.discovery;
   if (fallback.terminatedCount > 0) {
     state.terminated = true;
     state.forced = true;
