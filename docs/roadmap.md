@@ -13,17 +13,17 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 20 at `a4c92cbed` closes incomplete: 940 required passes, 2042 pending,
-no local failure, timeout or native crash. All six hosted jobs succeed, but the
-Windows summary fixture retries an internal deadline failure. That is not clean
-acceptance. Exact NTFS identity repairs retain byte caps, hard links and public
-types. The append writer now drains accepted records before close and batches
-queued bytes without changing per-call UTF-8 encoding. Fail-before/pass-after
-controls retain every summary input and trace event under the original limits.
-CI now explicitly disables retries/native redo. All 13 affected checks pass;
-the new candidate still requires every cohort and fresh hosted qualification.
-Earlier intermittent timings remain unattributed. The Windows receipt preserves
-all partial results, raw failures and the separate 16-case serial supplement.
+Candidate 21 at `393b4d457` has complete first-pass diagnostics: 2981 required
+passes and one descriptor-zero fixture failure, with no timeout or native crash.
+The fixture drops requested BigInt stat options; forwarding them repairs its
+inconsistent metadata while preserving strict authority and numeric public stats.
+Original excerpt/close assertions remain, with two stat-contract witnesses and
+owned scratch cleanup. All five focused checks pass; the fixture joins CI-lite
+(975 cases). All seven PR checks pass on the failed source, with verified checkout
+trees and actual file symlinks; these do not supply complete deep acceptance.
+NTFS identity and append ownership repairs retain their fail-before/pass-after
+proofs. Every required case and the 16-case serial supplement still needs the
+repaired candidate. The Windows receipt preserves every partial result and limit.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

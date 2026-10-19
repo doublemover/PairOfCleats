@@ -15,6 +15,7 @@ Current execution evidence and unresolved failures belong to the
 | Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
 | Semantic read ownership | Real trace/index reads, cancellation after opening, later errors, overlapping requests, same-size data/offset edits and cursor continuation | One common verified index owner per page plus three local probes preserves the four-pair bound. Every following page/request revalidates bytes and every scope closes before settling. Full 115-record/136-edge content equivalence is separate from timing. |
 | Physical file identity | Exact device/inode identities, real hard links, overlapping roots, wide-ID collisions, retained disk charges and descriptor/path matching | Real NTFS IDs above Number precision must stay distinct. Portable controls supplement actual same-file fail-before/pass-after proofs; safe byte limits and public stat types remain unchanged. |
+| Descriptor-fixture fidelity | Descriptor-zero excerpt/close assertions, requested BigInt identities and ordinary numeric stats | Stat adapters must forward options. A malformed Number-valued fixture must not force the authority owner to coerce exact identities. A real inherited-descriptor control supplements the fixture; Windows stdin invalidation is not inferred from a close call. |
 | Append-writer lifecycle | Immediate/concurrent close, accepted UTF-8 bytes and order, descriptor reuse, synchronization before close, bounded queued batches and ignored late writes | Closing must drain accepted records. An I/O operation-count bound and a controlled disk-delay experiment are separate from ordinary elapsed-time qualification. |
 | Simulated provider fixtures | Explicit fixture command/trust, owned caches through setup and teardown, fresh/stale admission, actual child-start/cancellation/reaping witnesses | Shared author caches and cancellation before the intended operation starts cannot establish a lifecycle pass. SourceKit retains its original two-second bound and five-second workload. Doctor distinguishes missing commands from inconclusive probes; real initialization failures retain string error codes, including numeric zero. |
 | Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
@@ -29,6 +30,18 @@ extended campaign setting does not override this audit's 30-second fixture limit
 The cheap front gate, a broad discovered selection, and release qualification
 must be reported separately. Ordered lanes and physical discovery differ; list
 the intended selection before interpreting its result.
+
+Candidate 21 supplies complete first-pass diagnostics: 2981 required passes and
+one descriptor-zero fixture failure, no timeout or native crash. Its adapter
+drops stat options and returns Number identities for a BigInt request. Forwarding
+those options repairs the fixture; original excerpt/close assertions remain,
+with both stat representations and owned cleanup covered. Five focused cases
+pass. All seven PR checks pass on candidate 21, but it remains a failed candidate.
+The five ordinary CI jobs use a synthetic merge with an identical Git tree;
+strict authority separately verifies the exact PR head. Windows object-cache
+isolation takes 31.482 seconds in broad CI and 13.4 seconds in its fresh local
+strict run. The broad timing is not 30-second qualification. The repaired
+candidate still requires complete fresh acceptance and the serial supplement.
 
 ## Useful required coverage
 

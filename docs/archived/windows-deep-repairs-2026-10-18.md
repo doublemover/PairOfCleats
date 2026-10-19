@@ -2,6 +2,101 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+## Candidate 21: complete diagnostics and descriptor-zero fixture fidelity
+
+Candidate 21 has a complete first-pass diagnostic view: **2981 required passes
+and one failure**, no timeout or native crash. Exact pushed head is
+`393b4d45786e3614ade975ef18dd0c8ff29b9699`, source SHA-256
+`93f32679893aacc6554ce9ee6fd13cc00c31fdb7aa710c37157ae31bf5c18e6a`,
+documentation SHA-256
+`beccd5191a52785f2e18c9483492659f04e5790b50f103228623133a48671414`.
+The main campaign stops after 1827 required passes and a 274 ms assertion failure
+in `context-pack/fd-zero-close`, leaving 36 fail-fast omissions and 1118
+unobserved required cases. Those 1154 receive their first execution in a separate
+frozen-source diagnostic tail: every case passes. The known failure is not rerun
+as acceptance. Source and documentation hashes remain unchanged throughout both
+runs. This is a failed candidate, not a final-tree pass.
+
+The descriptor-fixture repair batch passes format, governance regeneration,
+config/environment checks, generated freshness, command/workflow contracts,
+all 39 front-gate cases (20.6 seconds), and whitespace checks. Native/patch
+verification exits zero without warning/error lines: 37 packages and 33 routes.
+The descriptor-zero and contained-read contracts pass again after formatting
+in 379 ms. These focused checks precede the next complete candidate campaign.
+
+The descriptor-zero fixture's `fstatSync` adapter accepts options but discards
+them when substituting `statSync`. The hardened reader requests exact BigInt
+device/inode identities; the adapter returns Numbers. The path-side stat returns
+BigInts, so the strict authority check correctly rejects inconsistent metadata
+and the excerpt is empty. A direct stat-contract control proves both types and
+their strict mismatch. The repair forwards arguments unchanged, retaining the
+original ten-byte excerpt and descriptor-zero close assertions. Two additional
+witnesses cover requested BigInt identities and ordinary numeric byte/stat
+reads. The fixture also removes its owned temporary directory in `finally`.
+Production authority, byte bounds, schemas and stat representations are unchanged.
+All five focused context/contained-read checks pass first attempts in 1.96 seconds;
+the repaired descriptor-zero case takes 277 ms. Its existing test joins regular
+CI-lite, growing the ordered inventory from 974 to 975. Physical discovery stays
+2999, with 2982 required cases and the same 17 declared exclusions.
+
+An independent child inherits a real file behind descriptor zero. On unchanged
+production source it passes real identity checks, reads the expected bytes and
+calls through the actual close API; only the open seam hands over that already
+owned descriptor. No metadata or read operation is faked. This supports the
+fixture diagnosis, but does not prove Windows stdin invalidation: `fstat(0)`
+remains usable after close in that control. An earlier expectation of EBADF is
+retained as an inconclusive assertion. A separate attempt to obtain descriptor
+zero by closing stdin and opening a file receives descriptor three on Windows;
+it does not prove descriptor-zero coverage obsolete. The portable regression
+remains. Its two original assertions retain their exact content and order.
+An initial prototype's CRLF replacement did not alter the shim and still failed;
+the corrected prototype and actual applied fixture both pass. None of these
+diagnostic attempts changes the original candidate's failed outcome.
+
+All seven PR checks pass: six jobs in CI run `39309189662` and the separate
+adaptive-policy check. Raw checkout logs for gate, Rust, Windows, Ubuntu and macOS
+identify synthetic merge `71161d28d767ade1e1824f5a1436a75d8ac80e92`. Fetched Git
+objects prove its entire tree `61dbb26653ebeb0d30240bcdcc034c3436bec5d9` is identical
+to the frozen PR head. The strict authority job independently checks out the
+exact head/tree. Remote physical checkout bytes are not inferred from the local
+source hash. Downloaded quality artifacts verify every selected ID and raw log:
+Windows has 971 first-attempt passes/three declared exclusions, Ubuntu/macOS have
+973/one each. There are no retries, timeouts or native crashes. Windows summary
+passes first attempt in 11.734 seconds. Object-cache isolation takes 31.482 seconds
+under the existing broad CI deadline, then passes its first local strict case in
+13.4 seconds. The broader timing remains diagnostic, not a 30-second pass.
+
+Strict hosted Windows authority passes all 44 cases with real file symlinks,
+37 verified packages/33 routes and bootstrap receipt SHA-256
+`f295bfe2666a669a5cdb1ccfd26a1f6ae13c6086ee0854a6e738ed893760ea7d`.
+All three separate strict Windows subprocess cases pass, including orphan
+fallback and synchronous timeout tree cleanup. All 51 serial native/TUI cases
+pass; real ConPTY quit, supervisor error and terminal error take
+4.315/3.824/4.149 seconds. All 101 serial performance fixtures pass. Both original
+SQLite queries retrieve their indexed source before 20 warm samples, with p95
+210.5798 ms below the unchanged 7500 ms Windows threshold. All original native
+crash routes pass in the complete diagnostic view. These are qualification
+receipts from a failed source, not inherited evidence for the next candidate.
+
+All 15 warning/error lines in the three hosted quality artifacts are exact
+asserted negative cases: malformed promotion state, two failing lock hooks and
+two unsafe archive rejections per OS. Local diagnostics additionally retain
+asserted corrupt-cache eviction, missing-artifact failure/recovery and fresh
+default-tooling degraded-state warnings. Their owners check codes, causes and
+state; raw logs are retained. Complete final-candidate warning ownership still
+requires its own inventory.
+
+Author-workspace receipts include `complete-first-observation-summary-21.json`,
+the two candidate-21 ledgers, `fd-zero-fixture-contract-proof-22.json`,
+`fd-zero-assertion-retention-proof-22.json`,
+`real-inherited-fd-zero-close-observation-22.log`,
+`fd-zero-focused-applied-22.json`, and
+`hosted-393b4d457-checkout-provenance.json`, under
+`temp/tasks/windows-deep-repairs-20261018`. Original failure logs remain in
+`.testLogs`. Clean checkouts do not promise these files. The next candidate
+requires every required case fresh, new hosted artifacts and the separate
+16-case serial supplement before complete Windows acceptance.
+
 ## Candidate 20: incomplete campaign and append-writer repair
 
 Candidate 20 is closed at a completed cohort boundary: **940 required passes,
