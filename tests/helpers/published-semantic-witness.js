@@ -29,15 +29,17 @@ firstRun();secondRun();
  */
 export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
   abortSignal = null, recordPartitionFilter = null, threads = undefined, extraIgnore = undefined,
-  compilerAdmission = { maxResidentBytes: 1024 * 1024 * 1024 }, extraEnv = undefined } = {}) => {
+  compilerAdmission = { maxResidentBytes: 1024 * 1024 * 1024 }, extraEnv = undefined,
+  sourceFiles = SEMANTIC_WITNESS_SOURCES, compilerOptions = {} } = {}) => {
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
   await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: {
-    types: ['node'], typeRoots: [path.resolve('node_modules/@types')], target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext'
+    types: ['node'], typeRoots: [path.resolve('node_modules/@types')], target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+    ...compilerOptions
   }, include: ['*.ts'] }));
   await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({ type: 'module' }));
-  for (const [file, text] of Object.entries(SEMANTIC_WITNESS_SOURCES)) await fs.writeFile(path.join(repoRoot, file), text + '// source revision ' + revision + '\n');
+  for (const [file, text] of Object.entries(sourceFiles)) await fs.writeFile(path.join(repoRoot, file), text + '// source revision ' + revision + '\n');
   applyTestEnv({ cacheRoot, embeddings: 'stub', extraEnv, testConfig: {
     ...(extraIgnore === undefined ? {} : { extraIgnore }),
     indexing: {

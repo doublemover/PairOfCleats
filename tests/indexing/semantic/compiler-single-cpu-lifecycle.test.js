@@ -16,9 +16,14 @@ const timer = setTimeout(() => controller.abort(Object.assign(new Error('Single-
   { code: 'ERR_SINGLE_CPU_COMPILER_DEADLINE' })), 20000);
 try {
   const memoryBefore = readEffectiveMemory();
-  // Exercise CPU ownership with the product's 512 MiB default reservation.
-  // The larger SSR helper ceiling can correctly exceed macOS memory capacity.
+  // CPU ownership needs real cross-source compiler work. Full Node/SSR graph
+  // semantics remain in the dedicated witnesses; keep the 512 MiB product policy.
   const fixture = await createPublishedSemanticWitness({ root, threads: 1, abortSignal: controller.signal,
+    sourceFiles: {
+      'snapshot.ts': 'export function double(value: number) { return value * 2; }\n',
+      'host.ts': "import {double} from './snapshot.js';\nexport const answer = double(21);\n"
+    },
+    compilerOptions: { types: [], lib: ['ES5'] },
     compilerAdmission: DEFAULT_COMPILER_ADMISSION_POLICY, extraEnv: {
       PAIROFCLEATS_SCHEDULER_CPU: 1, PAIROFCLEATS_SCHEDULER_MAX_CPU: 1,
       PAIROFCLEATS_SCHEDULER_MEM: 1, PAIROFCLEATS_SCHEDULER_MAX_MEM: 1
@@ -40,8 +45,14 @@ try {
   for (const admission of fixture.manifest.compilerAdmissions || []) {
     const filename = await resolveSemanticPartPath(path.join(fixture.indexDir, 'semantic'), admission.decisionRef);
     const decision = JSON.parse(await fs.readFile(filename, 'utf8'));
+    assert.ok(admission.receiptRef, 'admitted compiler work retains its actual execution measurement');
+    const receiptPath = await resolveSemanticPartPath(path.join(fixture.indexDir, 'semantic'), admission.receiptRef);
+    const measurement = JSON.parse(await fs.readFile(receiptPath, 'utf8'));
+    assert.equal(measurement.complete, true);
+    assert.equal(measurement.inputHash, decision.inputHash);
+    assert.ok(measurement.peakRssBytes > 0);
     admissionSummary.push({ admitted: decision.admitted, reason: decision.reason,
-      closure: decision.closure, reservation: decision.reservation, request: decision.request });
+      closure: decision.closure, reservation: decision.reservation, request: decision.request, measurement });
   }
   console.log(JSON.stringify({ measurement: 'single-token-compiler-memory', memoryBefore,
     scheduler: completed.map(attempt => ({ maxInFlightBytes: attempt.runtime.scheduler.adaptive.maxInFlightBytes,
@@ -63,15 +74,21 @@ try {
     .filter(source => source.language === 'typescript').map(source => source.sourceUnitId));
   assert.equal(expectedSources.size, 2);
   const completedSources = new Set();
+  let crossSourceCalls = 0;
   for (const partition of fixture.manifest.partitions) {
     for await (const row of fixture.store.iterateRows(partition.partitionId, 'semantic_coverage')) {
       if (row.phase === 'bindings' && ['complete', 'partial'].includes(row.state) && row.completedCount > 0) {
         completedSources.add(row.scope.sourceUnitId);
       }
     }
+    for await (const edge of fixture.store.iterateRows(partition.partitionId, 'semantic_edges')) {
+      if (edge.kind === 'callTarget' && fixture.sourceFor(edge.from)?.path === 'host.ts'
+        && fixture.sourceFor(edge.to)?.path === 'snapshot.ts') crossSourceCalls += 1;
+    }
   }
   assert.deepEqual(completedSources, expectedSources,
     'both TypeScript sources retain real completed binding work under their declared coverage with one CPU token');
+  assert.ok(crossSourceCalls > 0, 'the checker resolves the imported call to its other source, rather than merely publishing an inventory');
   console.log('Single-CPU semantic admission completes real compiler work and durable publication');
 } finally {
   clearTimeout(timer);
