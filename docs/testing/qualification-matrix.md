@@ -69,7 +69,8 @@ OS × language × provider × backend cross-product to routine PR work.
    affected report cases pass after that repair. Incremental SSR witnesses now
    retain request-local query-index read deduplication, the full output digest
    and between-request tamper rejection. Both exceed 30 seconds in candidate
-   07; earlier focused passes do not close these failures.
+   07. Scoped JSONL readers subsequently pass both at 26.1 seconds on the
+   current batch; final-candidate qualification remains serial.
    Script coverage retains every action in explicit discovered process cases;
    its first complete cohort passed 211 cases, timed out once and reported two
    optional/helper exclusions. The repaired tokenization comparisons and

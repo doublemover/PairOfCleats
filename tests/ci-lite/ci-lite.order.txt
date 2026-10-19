@@ -964,3 +964,5 @@ storage/semantic/tamper-recovery
 shared/artifact-io/offsets-validation-windowed
 tooling/release/shipped-surface-registry
 indexing/language-registry/linguist-metadata-parity
+tooling/install/docx-node-compatibility
+tooling/lsp/lifecycle-health

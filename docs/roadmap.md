@@ -2,25 +2,25 @@
 
 Status: Active
 Last audited: 2026-10-18
-Last reconciled: 2026-10-18
+Last reconciled: 2026-10-19
 Canonical for: initiative status, execution order, and remaining work
 
 ## Repository maintenance audit, October 18
 
 The authorized branch is `codex/pr557-audit-repairs-20261012`. Its clean local
 checkout was 33 commits behind its configured upstream and was fast-forwarded
-from `d6041226b` to `ab00d918d` before evaluation. Current tracking is reconciled
-against that source, rather than the stale October 12 checkout.
+from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that source.
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-Publication through `6ccc3034f` passes
+Publication through `3469c6228` passes
 all six hosted jobs, including the repaired macOS PTY bootstrap. Candidate 07's
 complete ordinary-token campaign records 2920 required passes, eight failures
 and one undeclared optional-wrapper skip; 44 file-link cases remain pending.
 All 101 ordinary-token performance cases pass serially. The next repair batch
-fixes stale digest admission, partial-open leaks and fixture boundaries; the
-two SSR witnesses still time out. See the detailed Windows receipt.
+fixes stale digest admission, partial-open leaks and fixture boundaries. Scoped
+readers now pass both SSR witnesses; DOCX warning and null-control repairs need
+final-candidate qualification. See the detailed Windows receipt.
 Earlier hosted results are not final-head acceptance.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
@@ -90,8 +90,8 @@ timeout are repaired with versioned compiler/provider meaning. MCP robustness
 is five bounded server cases, and search default/type/risk assertions now use
 the same cache authority with the risk-bearing source pair isolated. The API
 semantic-detail and trace fixtures pass. Incremental SSR forward-witness and
-parity now pass in 25.3 and 28.2 seconds after eliminating repeated query-index
-validation/reads within each bounded related-page request. The identical
+parity most recently both pass in 26.1 seconds with scoped JSONL handles;
+candidate 07's preceding timeouts remain recorded. The identical
 115-record/136-edge witness digest and fresh-request tamper rejection remain.
 The API trace case has little timing margin. Seven dedicated LSP multifile providers now have
 bounded cases with explicit trusted fixture commands and no skips. Remaining

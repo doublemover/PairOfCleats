@@ -30,6 +30,7 @@ const EMPTY_CROSS_FILE_STATS = Object.freeze({
  * @returns {number}
  */
 const normalizeConfigInteger = ({ value, fallback, min }) => {
+  if (value == null || (typeof value === 'string' && !value.trim())) return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.floor(parsed));

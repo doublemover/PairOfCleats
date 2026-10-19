@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T05:19:01.505Z",
+  "generatedAt": "2026-10-19T05:47:49.572Z",
   "summary": {
     "lanes": 5,
-    "tests": 1186,
+    "tests": 1188,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 310,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1112
+      "missingTests": 1114
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 964,
+      "totalTests": 966,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 915
+        "missing": 917
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 16,
+      "count": 17,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 11
+      "unknownDurationCount": 12
     },
     {
       "key": "indexing/type-inference",
@@ -296,9 +296,9 @@
     },
     {
       "key": "tooling/lsp",
-      "count": 95,
+      "count": 96,
       "knownDurationMs": 0,
-      "unknownDurationCount": 95
+      "unknownDurationCount": 96
     },
     {
       "key": "integrations/inference-history",
@@ -1995,9 +1995,9 @@
     },
     {
       "key": "lsp-bootstrap",
-      "count": 95,
+      "count": 96,
       "knownDurationMs": 0,
-      "unknownDurationCount": 95,
+      "unknownDurationCount": 96,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 827,
+    "hero": 829,
     "matrix": 108,
     "meta": 28,
     "soak": 1,
@@ -5797,6 +5797,18 @@
     {
       "id": "indexing/language-registry/linguist-metadata-parity",
       "order": 964,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/docx-node-compatibility",
+      "order": 965,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/lsp/lifecycle-health",
+      "order": 966,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -89,9 +89,9 @@ export function getToolingConfig(repoRoot, userConfig = null) {
   const dart = tooling.dart && typeof tooling.dart === 'object' ? tooling.dart : {};
   const lifecycle = tooling.lifecycle && typeof tooling.lifecycle === 'object' ? tooling.lifecycle : null;
   const toolingCache = tooling.cache || {};
-  const timeoutMs = Number(tooling.timeoutMs);
-  const maxRetries = Number(tooling.maxRetries);
-  const breakerThreshold = Number(tooling.circuitBreakerThreshold);
+  const timeoutMs = tooling.timeoutMs == null ? NaN : Number(tooling.timeoutMs);
+  const maxRetries = tooling.maxRetries == null ? NaN : Number(tooling.maxRetries);
+  const breakerThreshold = tooling.circuitBreakerThreshold == null ? NaN : Number(tooling.circuitBreakerThreshold);
   const logDir = getEnvConfig().toolingLogDir || (typeof tooling.logDir === 'string' ? tooling.logDir : '');
   const installScope = (tooling.installScope || 'cache').toLowerCase();
   const normalizeOrder = (value) => {

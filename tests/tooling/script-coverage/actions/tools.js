@@ -98,8 +98,23 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
   },
   ...['code', 'prose', 'extracted-prose', 'records'].map(mode => ({
     label: `repo-build-index-${mode}`,
-    run: () => runNode(`build-index-${mode}`, path.join(root, 'build_index.js'),
-      ['--mode', mode, '--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv }),
+    run: async () => {
+      const startedAt = Date.now();
+      const result = await runNode(`build-index-${mode}`, path.join(root, 'build_index.js'),
+        ['--mode', mode, '--stub-embeddings', '--repo', fixtureRoot], { cwd: fixtureRoot, env: repoEnv });
+      // Inventory-only harnesses record the invocation without executing it.
+      if (mode === 'code' && result?.status === 'passed') {
+        const { withTemporaryEnv } = await import('../../../helpers/test-env.js');
+        const { assertDefaultToolingDiagnostics } = await import('../../../helpers/default-tooling-diagnostics.js');
+        const { getRepoCacheRoot } = await import('../../../../src/shared/repo-paths.js');
+        const { loadUserConfig } = await import('../../../../tools/shared/dict-utils.js');
+        await withTemporaryEnv({ PAIROFCLEATS_CACHE_ROOT: repoEnv.PAIROFCLEATS_CACHE_ROOT,
+          PAIROFCLEATS_TEST_CONFIG: repoEnv.PAIROFCLEATS_TEST_CONFIG }, async () => {
+          await assertDefaultToolingDiagnostics({ repoCacheRoot: getRepoCacheRoot(fixtureRoot, loadUserConfig(fixtureRoot)), startedAt });
+        });
+      }
+      return result;
+    },
     covers: ['build-index']
   })),
   {

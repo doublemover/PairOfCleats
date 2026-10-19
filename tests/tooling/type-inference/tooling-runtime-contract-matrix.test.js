@@ -18,6 +18,7 @@ import {
 } from '../../../src/index/type-inference-crossfile/tooling.js';
 import { registerToolingProvider, TOOLING_PROVIDERS } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { getToolingConfig } from '../../../src/shared/dict-utils.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, `tooling-runtime-contract-matrix-${process.pid}-${Date.now()}`);
@@ -331,6 +332,47 @@ const runToolingPassCases = async () => {
 
 
 
+const runPropagationDefaultsCases = async () => {
+  const caseRoot = path.join(tempRoot, 'propagation-defaults');
+  await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
+  const text = 'function sample() { return 1; }\n';
+  await fs.writeFile(path.join(caseRoot, 'src/sample.js'), text);
+  const observed = [];
+  registerToolingProvider({ id: 'propagation-defaults-fixture', version: '1.0.0', kinds: ['types'],
+    capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
+    getConfigHash: () => 'propagation-defaults-fixture-v1',
+    async run(ctx) {
+      observed.push([ctx.toolingConfig.timeoutMs, ctx.toolingConfig.maxRetries, ctx.toolingConfig.circuitBreakerThreshold]);
+      return { byChunkUid: { 'defaults-chunk': { payload: { returnType: 'number' } } } };
+    }
+  });
+  for (const [settings, expected] of [
+    [{}, [60000, 2, 3]],
+    [{ timeoutMs: 1500, maxRetries: 0, circuitBreakerThreshold: 1 }, [1500, 0, 1]]
+  ]) {
+    await fs.writeFile(path.join(caseRoot, '.pairofcleats.json'), JSON.stringify({ tooling: {
+      enabledTools: ['propagation-defaults-fixture'], cache: { enabled: false }, ...settings
+    } }));
+    if (!Object.hasOwn(settings, 'timeoutMs')) {
+      const config = getToolingConfig(caseRoot);
+      assert.deepEqual([config.timeoutMs, config.maxRetries, config.circuitBreakerThreshold], [null, null, null],
+        'the config owner uses internal null sentinels for omitted controls');
+    }
+    const chunks = [{ file: 'src/sample.js', name: 'sample', kind: 'function', lang: 'javascript',
+      chunkUid: 'defaults-chunk', start: 0, end: text.length, docmeta: {}, codeRelations: {} }];
+    const count = observed.length;
+    await applyCrossFileInference({ rootDir: caseRoot, buildRoot: caseRoot, chunks, enabled: true,
+      useTooling: true, cacheEnabled: false, log: () => {} });
+    assert.equal(observed.length, count + 1, 'the actual propagation pipeline invokes its selected provider');
+    assert.deepEqual(observed.at(-1), expected, 'unset/null controls preserve defaults and explicit controls remain exact');
+    assert.equal(chunks[0].docmeta.returnType, 'number', 'the selected provider still contributes meaningful output');
+  }
+  await fs.writeFile(path.join(caseRoot, '.pairofcleats.json'), JSON.stringify({ tooling: { timeoutMs: null } }));
+  await assert.rejects(applyCrossFileInference({ rootDir: caseRoot, buildRoot: caseRoot, chunks: [], enabled: true,
+    useTooling: true, cacheEnabled: false }), /Config errors.*[\s\S]*timeoutMs/,
+  'internal unset sentinels do not relax the public configuration schema');
+};
+
 const runDegradedWarningCases = async () => {
   assert.equal(__summarizeToolingDegradationWarningForTests([]), null);
   const summary = __summarizeToolingDegradationWarningForTests([
@@ -406,6 +448,7 @@ try {
   await runFailOpenRuntimeCase();
   await runBudgetCase();
   await runToolingPassCases();
+  await runPropagationDefaultsCases();
   await runDegradedWarningCases();
   console.log('tooling runtime contract matrix test passed');
 } finally {

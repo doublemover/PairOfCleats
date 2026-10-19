@@ -6,6 +6,10 @@ import path from 'node:path';
 import { buildIndex, search } from '../../src/integrations/core/index.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
 import { withTemporaryEnv } from '../helpers/test-env.js';
+import { getRepoCacheRoot } from '../../src/shared/repo-paths.js';
+import { loadUserConfig } from '../../tools/shared/dict-utils.js';
+import { getRecentLogEvents } from '../../src/shared/progress-runtime.js';
+import { assertDefaultToolingDiagnostics } from '../helpers/default-tooling-diagnostics.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
@@ -17,9 +21,11 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 await withTemporaryEnv({
   PAIROFCLEATS_TESTING: '1',
   PAIROFCLEATS_CACHE_ROOT: cacheRoot,
-  PAIROFCLEATS_EMBEDDINGS: 'stub'
+  PAIROFCLEATS_EMBEDDINGS: 'stub',
+  PAIROFCLEATS_TEST_CONFIG: null
 }, async () => {
   const buildCorrelationId = 'core-build-correlation';
+  const startedAt = Date.now();
   const buildResult = await buildIndex(fixtureRoot, {
     stage: 'stage2',
     mode: 'code',
@@ -40,6 +46,8 @@ await withTemporaryEnv({
   );
   assert.equal(buildResult?.observability?.surface, 'build');
   assert.equal(buildResult?.observability?.operation, 'build_index');
+  await assertDefaultToolingDiagnostics({ repoCacheRoot: getRepoCacheRoot(fixtureRoot, loadUserConfig(fixtureRoot)), startedAt,
+    messages: getRecentLogEvents().map(event => event.msg) });
 
   const searchCorrelationId = 'core-search-correlation';
   const searchResult = await search(fixtureRoot, {

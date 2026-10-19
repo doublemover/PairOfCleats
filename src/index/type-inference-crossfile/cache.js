@@ -10,6 +10,7 @@ import { writeJsonValue } from '../../shared/json-stream/encode.js';
 import { withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
 import { mergeSymbolicTypeGraphs, validateTypeExpressionReferences } from '../../shared/symbolic-types.js';
 import { isRequiredToolingComputationError } from '../tooling/required-computation.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 
 export const CROSS_FILE_CACHE_SCHEMA_VERSION = 3;
 export const CROSS_FILE_CACHE_DIRNAME = 'cross-file-inference-format-' + ARTIFACT_SURFACE_VERSION;
@@ -299,6 +300,7 @@ export const buildCrossFileFingerprint = ({
     enableTypeInference: enableTypeInference === true,
     enableRiskCorrelation: enableRiskCorrelation === true,
     useTooling: useTooling === true,
+    ...(useTooling ? { toolingProducerVersion: SEMANTIC_ANALYSIS_VERSIONS.lspBindings } : {}),
     inferenceLite: inferenceLite === true,
     inferenceLiteHighSignalOnly: inferenceLiteHighSignalOnly !== false,
     chunks: chunkSignatures,

@@ -729,13 +729,101 @@ workflow contracts, all 39 gate cases, and whitespace checks
 (`.testLogs/run-1792387219213-ur264f`). This is checkpoint validation; both SSR
 timeouts remain open.
 
+### Scoped reads, DOCX compatibility and default provider controls
+
+The checkpoint was committed as `b5f674fad`, `6a96beb19` and `3469c6228`,
+pushed through `3469c6228cdd5583251e99e7da1758d4dba46380`, and PR #572 read
+back at that head with updated scope and remaining failures. All six hosted
+jobs subsequently passed at that exact head.
+
+Graph queries now share at most four JSONL handle pairs within one related-page
+request. Overflow pieces use the existing bounded reader. Both concurrent bound
+searches settle before cleanup, including on rejection; no handle or row cache
+survives the request. Content hashes and physical path authority are checked
+again for the next request. Concurrent positioned reads retain byte limits,
+ordering and duplicate ordinals. The strengthened fixtures assert disposal on
+success, invalid cursors, cancellation, tampering, failed reads and either peer
+open failure; related-page peak handles remain bounded. Parallel semantic hashes
+also settle both owned operations before propagating a failure.
+
+On the retained published fixture, the complete forward/reverse artifact/SQLite
+graph remains exactly equal at the preceding 115-record / 136-edge digest.
+Serial diagnostic time changed from 2888 ms to 2549 ms
+(`retained-ssr-before-scoped-readers-02.json`,
+`retained-ssr-after-scoped-readers-01.json`). The unchanged original SSR cases
+then pass in 29.9 and 29.1 seconds, zero retries, no native redo
+(`.testLogs/run-1792387517463-khf74c`). This small margin is recorded explicitly;
+it is a focused observation, not whole-suite or representative-load acceptance.
+
+The actual warning stack in docx 9.5.3 reaches bundled browser `util-deprecate`
+through Node's unconfigured experimental localStorage getter. ESM and CommonJS
+both reproduce it. Original bundles and SHA-256/Git-blob identities are retained
+in `docx-patch-source-proof-01.json`; the reviewed 1482-byte patch changes only
+their Node flag lookup. Browser distributions remain intact. Disposable locked
+copies pass apply, verify-only and repeat application
+(`docx-patch-idempotence-01.log`). Both strict regressions fail before the repair
+in `.testLogs/run-1792387671259-f7rlua`. Afterward, fresh processes using both
+official exports generate real DOCX files with no warnings or browser-storage
+access. The existing real Mammoth extraction/conversion/image/argument suite
+passes with parent warnings asserted, retaining all original comparisons.
+
+The new locked bootstrap completes (`bootstrap-ci-docx-compat-01.log`). Its
+launch used obsolete `npm_config_devdir`, producing npm configuration warnings;
+that attempt is preserved and is not a warning-free setup receipt. Subsequent
+verification uses the supported `npm_package_config_node_gyp_devdir`, exits zero
+and contains no warning/error lines (`native-verify-docx-compat-01.log`). It
+verifies 37 required packages and activates 33 language routes on Node 26.10.0,
+Windows x64, ABI 147. The readiness receipt SHA-256 is
+`b7b0a009b09504e1cbd76035d3d7f772bcc96d96973a32acd1d4e741d8ed99d5`.
+This is activation and bounded-operation evidence, separate from full lifecycle
+and platform qualification. No dependency version or lock resolution changed.
+
+Fresh API/provider diagnostics now reject unrecognized warnings, missing routes,
+old snapshots, crashes, protocol failures and request timeouts. Six task-local
+fault controls reject their initiating defects. The real API, observability and
+build-script routes retain default worker/provider selection and expect only
+the documented optional-command or Rust trust diagnostics. Pyright must report
+healthy real requests, with zero failed or timed-out methods; unavailable
+providers cannot claim live execution. Installed Graphviz executes the actual
+SVG assertions in both direct and script-coverage smoke fixtures.
+
+These assertions expose a previously tolerated fresh Pyright documentSymbol
+timeout (`.testLogs/run-1792388257993-hie47v`: 12 passes, one failure). The
+cross-file pipeline coerced its config owner's internal null sentinels to zero,
+then clamped them to a 1000 ms deadline, zero retries and a one-failure breaker.
+The declared omitted defaults are 60000 ms, two retries and a three-failure
+breaker. Two regressions fail before repair
+(`.testLogs/run-1792388514831-ysglbt`). Null lifecycle options also incorrectly
+selected minimum values instead of 60000 ms / six restarts / 1500 ms backoff.
+Both owners now preserve their existing defaults; explicit controls remain
+exact and invalid public null configuration remains rejected. No fixture
+deadline was increased. LSP producer version 10 and its cross-file fingerprint
+invalidate derived results from the old behavior while preserving syntax reuse.
+The fresh real API and observability cases then pass without request failures.
+The initial added propagation case used a flat provider result; it now uses the
+authoritative payload envelope and retains its positive contribution assertion.
+Its invalid-public-null control remains part of the regression.
+All five final focused provider/default cases pass in
+`.testLogs/run-1792388743260-8g8rx0`, including both real API wrappers and the
+build-code script action. The separate producer/cache/lifecycle/metrics checks
+pass in `.testLogs/run-1792388648420-pr82hd`; that run's initially invalid public
+null fixture remains a recorded failure, corrected to an asserted rejection.
+After formatting and the producer update, both original SSR cases pass in
+26.1 seconds in fresh processes, with unchanged inputs and zero retries
+(`.testLogs/run-1792388974518-vn4m30`). The latest ordered `ci-lite` inventory
+contains 966 cases, adding the DOCX compatibility and null-lifecycle guards.
+The complete batch front gate passes formatting, config budget, environment
+usage, generated freshness, command/workflow contracts, all 39 gate fixtures
+and whitespace checks (`.testLogs/run-1792389070227-cakuue`). Full frozen-source
+Windows cohorts and capable-token authority qualification remain outstanding.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. The capable Windows symlink launch and safe
 uninstall prerequisite are now satisfied. Full Windows-suite acceptance is still
-open: the two SSR timeouts and the remaining warnings need closure, followed by
-new explicit discovered cohorts and all 44 capable-token fixtures on one frozen
+open: the focused SSR/provider repairs require a new complete front gate,
+explicit discovered cohorts and all 44 capable-token fixtures on one frozen
 candidate. The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain
