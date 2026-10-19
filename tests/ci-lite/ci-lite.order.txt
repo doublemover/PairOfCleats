@@ -959,3 +959,8 @@ helpers/search-lifecycle-env-isolation
 helpers/temp-rmdir-enoent
 helpers/test-env-clear
 helpers/test-env-sync-option
+tooling/install/managed-tool-file-evidence
+storage/semantic/tamper-recovery
+shared/artifact-io/offsets-validation-windowed
+tooling/release/shipped-surface-registry
+indexing/language-registry/linguist-metadata-parity

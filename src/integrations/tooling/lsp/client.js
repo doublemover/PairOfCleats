@@ -99,9 +99,12 @@ const mergeInitializeCapabilities = (value) => {
         ? general.positionEncodings
         : DEFAULT_LSP_POSITION_ENCODINGS
     },
-    offsetEncoding: Array.isArray(source.offsetEncoding) && source.offsetEncoding.length
-      ? source.offsetEncoding
-      : DEFAULT_LSP_POSITION_ENCODINGS,
+    // Modern servers negotiate the standard capability above. Keep the legacy
+    // extension available when a caller explicitly selects it.
+    ...(Object.hasOwn(source, 'offsetEncoding') ? {
+      offsetEncoding: Array.isArray(source.offsetEncoding) && source.offsetEncoding.length
+        ? source.offsetEncoding : DEFAULT_LSP_POSITION_ENCODINGS
+    } : {}),
     textDocument: {
       ...textDocument,
       documentSymbol: {

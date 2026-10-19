@@ -18,6 +18,9 @@ const { dir: tempRoot } = await prepareIsolatedTestCacheDir('file-lock-contract'
 const lockPath = path.join(tempRoot, 'contract.lock');
 
 resetFileLockRuntimeMetricsForTests();
+const warnings = [];
+const onWarning = warning => warnings.push(warning);
+process.on('warning', onWarning);
 
 const lock = await acquireFileLock({ lockPath });
 assert.ok(lock, 'expected lock to be acquired');
@@ -293,33 +296,41 @@ await assert.rejects(
 await fsPromises.rm(lockPath, { force: true });
 
 const raceLockPath = path.join(tempRoot, 'race-parent', 'race.lock');
-let observedParentMissingRetry = false;
-for (let attempt = 0; attempt < 8 && !observedParentMissingRetry; attempt += 1) {
-  let keepDeleting = true;
-  const disruptor = (async () => {
-    const endAt = Date.now() + 120;
-    while (keepDeleting && Date.now() < endAt) {
-      await fsPromises.rm(path.dirname(raceLockPath), { recursive: true, force: true }).catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 2));
-    }
-  })();
+await fsPromises.mkdir(path.dirname(raceLockPath), { recursive: true });
+const parentRetriesBefore = Number(getFileLockRuntimeMetrics().parentMissingRetries || 0);
+const originalOpen = fsPromises.open;
+let removedParent = false;
+fsPromises.open = async (filename, flags, ...args) => {
+  const samePath = process.platform === 'win32'
+    ? path.resolve(filename).toLowerCase() === raceLockPath.toLowerCase()
+    : path.resolve(filename) === raceLockPath;
+  const exclusive = typeof flags === 'number' ? Boolean(flags & fs.constants.O_EXCL) : String(flags).includes('x');
+  if (samePath && exclusive && !removedParent) {
+    removedParent = true;
+    // Delete once after parent creation and before the actual exclusive open.
+    // The filesystem supplies ENOENT; the owner must recreate and retry it.
+    await fsPromises.rm(path.dirname(raceLockPath), { recursive: true, force: true });
+  }
+  return originalOpen(filename, flags, ...args);
+};
+try {
   const lockWithRace = await acquireFileLock({
     lockPath: raceLockPath,
     waitMs: 1000,
     pollMs: 5
   });
-  keepDeleting = false;
-  await disruptor;
   assert.ok(lockWithRace, 'expected lock acquisition to survive parent directory deletion race');
-  observedParentMissingRetry = Number(lockWithRace?.diagnostics?.parentMissingRetries || 0) > 0;
-  await lockWithRace.release();
-}
-if (!observedParentMissingRetry) {
-  console.warn('[file-lock-contract] parent-missing retry race did not reproduce; continuing.');
+  try {
+    assert.equal(removedParent, true, 'the exclusive-open boundary was exercised');
+    assert.ok(Number(lockWithRace.diagnostics.parentMissingRetries) >= 1,
+      'the lock must report its observed parent-missing retry');
+  } finally { await lockWithRace.release(); }
+} finally {
+  fsPromises.open = originalOpen;
 }
 assert.ok(
-  Number(getFileLockRuntimeMetrics().parentMissingRetries) >= 0,
-  'expected runtime metrics to expose parent-missing retry counter'
+  Number(getFileLockRuntimeMetrics().parentMissingRetries) >= parentRetriesBefore + 1,
+  'runtime metrics must account for the controlled parent-missing retry'
 );
 
 const noWaitParentLockPath = path.join(tempRoot, 'missing-parent-no-wait', 'contract.lock');
@@ -335,4 +346,9 @@ assert.ok(
 await noWaitParentLock.release();
 
 await fsPromises.rm(lockPath, { force: true });
+await new Promise(resolve => setImmediate(resolve));
+process.off('warning', onWarning);
+assert.deepEqual(warnings.map(warning => warning.code), ['LOCK_HOOK_ERROR', 'LOCK_HOOK_ERROR']);
+assert.ok(warnings.some(warning => warning.message.includes('intentional stale hook failure')));
+assert.ok(warnings.some(warning => warning.message.includes('intentional busy hook failure')));
 console.log('file-lock contract ok.');

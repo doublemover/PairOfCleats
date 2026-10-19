@@ -9,7 +9,7 @@
 - Process-lifetime repository cache leases and safe cleanup previews.
 
 ### Changed
-- Require Node.js 26.x and align CI/release setup with the 26.8.1 pin.
+- Require Node.js 26.10.0 or newer within 26.x and align CI/release setup with the 26.10.0 pin.
 - Prefer exact symbol and filename matches in lexical search.
 - Improve readable terminal results with bounded, query-centered source previews.
 - Load MCP indexing dependencies when the corresponding tool is requested.

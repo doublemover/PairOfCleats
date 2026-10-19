@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T02:18:40.505Z",
+  "generatedAt": "2026-10-19T05:19:01.505Z",
   "summary": {
     "lanes": 5,
-    "tests": 1181,
+    "tests": 1186,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 307,
+    "families": 310,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1107
+      "missingTests": 1112
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 959,
+      "totalTests": 964,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 910
+        "missing": 915
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 15,
+      "count": 16,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 10
+      "unknownDurationCount": 11
     },
     {
       "key": "indexing/type-inference",
@@ -338,9 +338,9 @@
     },
     {
       "key": "shared/artifact-io",
-      "count": 17,
+      "count": 18,
       "knownDurationMs": 0,
-      "unknownDurationCount": 17
+      "unknownDurationCount": 18
     },
     {
       "key": "tooling/vscode",
@@ -1165,6 +1165,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "indexing/language-registry",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "indexing/metrics",
       "count": 1,
       "knownDurationMs": 0,
@@ -1801,6 +1807,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "storage/semantic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "storage/vector-extension",
       "count": 1,
       "knownDurationMs": 0,
@@ -1844,6 +1856,12 @@
     },
     {
       "key": "tooling/logging",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/release",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1942,9 +1960,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 400,
+      "count": 401,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 359,
+      "unknownDurationCount": 360,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

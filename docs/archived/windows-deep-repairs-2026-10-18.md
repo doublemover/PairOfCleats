@@ -642,14 +642,101 @@ cases (`.testLogs/run-1792376369863-vwc3jc`). No host security policy,
 dependency version or public configuration surface changed. The resulting
 committed source still needs its complete Windows cohorts and hosted macOS probe.
 
+### Candidate 07 and the following repair batch
+
+Candidate 07 froze commit `6ccc3034fc264c891ee14b1df61d43b18a523234`,
+5796 non-document paths at SHA-256
+`d05f02285257f98016fe59b7864aa078b0a813fc066b491cc751c88ec077ecb9`.
+Its 44 ordinary-token cohorts completed: 2920 required passes, eight failure
+receipts, three skips, no native crashes, and 44 capable-token cases pending.
+One skip was unexpected: the optional Tantivy script-coverage wrapper was
+missing from the 16-case exclusion inventory. Its exact smoke action is now
+mapped alongside the direct fixture, increasing the next inventory to 17.
+The original inventory and failure receipts remain unchanged. All 101
+ordinary-token performance fixtures passed serially; three file-link-dependent
+performance fixtures remain in the capable-token cohort.
+
+Three TUI failures were missing Cargo from the task's inherited PATH. Cargo and
+rustc 1.93.1 were installed; selecting their existing directory made the exact
+build, frame-capture and headless fixtures pass at their original deadlines
+(`tui-cargo-corrected-07.json`). The task PATH now also selects installed Graphviz
+for its real SVG checks. This changes no machine configuration. The completed
+script-coverage cohort passed 215 cases and reported its three explicit optional
+or helper skips. All six hosted jobs pass at `6ccc3034f`, including macOS.
+
+The next source batch repairs three demonstrated correctness defects:
+
+- Managed-tool digests could reuse stale bytes after same-size timestamp
+  collisions. Of 64 real Windows controls, 51 collided and returned the stale
+  digest. Hashing now always reads current bytes with the existing bounded
+  buffer, file-size and opened-file identity checks. A deterministic regression
+  fixes metadata while changing the actual file contents.
+- Generic offset validation also admitted timestamp-only cache hits. It now
+  checks current boundaries with the original fixed 64 KiB scratch and sparse
+  reads. Its old zero-read warm-cache assertion is retired because it required
+  unsafe admission; the existing bounded-read assertions remain. Semantic
+  readers freshly hash data and offsets before reusing bounded boundary-check
+  metadata. Same-size, fixed-stat tampering and forged offset checksums fail.
+- Either JSONL peer open could fail while leaking the other successful handle.
+  Rejection now awaits both opens and closes every successful peer; four actual
+  file-handle controls cover both APIs and both failing paths.
+
+The API allowlist fixture now derives the real consolidated implicit-cache root,
+tests a positive inside it, and chooses its rejected path outside every admitted
+root. Production admission and its invalid-ID/cache/workspace negatives remain.
+Six shipped runtime targets and the current changelog now match the existing
+Node 26.10 floor. LSP initialization negotiates standard position encodings by
+default and sends the deprecated extension only for an explicit caller; wire
+tests retain both routes. Sublime uses timezone-aware UTC and its Python
+scenarios reject deprecation warnings. Cache-corruption and lock-hook warnings
+are asserted; the lock's missing-parent race is injected deterministically and
+must increment recovery counters. Suppressing that injection fails the control.
+
+The language registry now loads the 38 vendor entries used by its routing policy
+instead of all 801. Every ordered extension route (195) and filename route (106)
+matches the original catalog, and the regular CI fixture compares against that
+complete catalog. Vue, Svelte and Astro parsers load on actual use; four original
+fixture outputs match exactly and load failures still propagate. A diagnostic
+fresh import fell from 3658 modules / 3861 ms to 2308 / 2692 ms; these are local
+observations, not a new latency threshold. No vendor entries or language routes
+were removed, and semantic output meaning did not change.
+
+Ten actual-source correctness fixtures pass in
+`.testLogs/run-1792385339043-1rvqdh`; tamper recovery and trace parity also pass
+after content-keyed boundary reuse in `.testLogs/run-1792386814861-cgr614`.
+The retained SSR graph still exactly matches 115 records / 136 edges and digest
+`f58f587a9ad0d9b0c24e64062b540f396b70629ceab805f68d0b6c83da96fb31`.
+Both full SSR witnesses still exceed 30 seconds. Isolated phase diagnostics
+show repeated build and graph-reader I/O, with immediate exit after cleanup;
+they do not attribute these timeouts to leaked teardown. Their original inputs,
+two builds, content comparisons and deadlines remain. No final-tree suite pass
+is claimed from the exploratory or focused observations.
+
+Remaining warning owners include docx's bundled browser deprecation helper
+touching Node's experimental localStorage getter, expected unavailable/untrusted
+provider diagnostics, and actual Graphviz execution after correcting PATH. Both
+official docx Node entry formats reproduce the warning; changing import syntax
+does not fix it. Those qualifications and the full final-candidate campaign
+remain open.
+
+The actual Sublime harness and three language-routing/segmentation fixtures
+pass (`.testLogs/run-1792387088894-n9iv7k`); Python scenarios emit no deprecated
+UTC warnings. Five cheap regression owners now have explicit regular CI
+membership, bringing `ci-lite` to 964. Generated lane evidence and the release
+guide are refreshed through their owners. The checkpoint front gate passes
+formatting, config budget, environment usage, generated freshness, command and
+workflow contracts, all 39 gate cases, and whitespace checks
+(`.testLogs/run-1792387219213-ur264f`). This is checkpoint validation; both SSR
+timeouts remain open.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. The capable Windows symlink launch and safe
 uninstall prerequisite are now satisfied. Full Windows-suite acceptance is still
-open: several original service/storage/script-coverage wrappers and timeouts
-have not passed on the final tree; explicit discovered cohorts, serial measured
-performance and candidate freeze remain. The two C/clangd ELF-positive fixtures are Linux-owned; Windows
+open: the two SSR timeouts and the remaining warnings need closure, followed by
+new explicit discovered cohorts and all 44 capable-token fixtures on one frozen
+candidate. The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain
 outside this Windows target. No security settings, debugger registration or

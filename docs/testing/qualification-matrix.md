@@ -67,8 +67,9 @@ OS × language × provider × backend cross-product to routine PR work.
    cache under `sample`; default discovery and report fixture copies now exclude
    `.testCache`/`.testLogs`, with positive source discovery retained. The four
    affected report cases pass after that repair. Incremental SSR witnesses now
-   pass within 30 seconds after request-local query-index read deduplication;
-   the full output digest and between-request tamper rejection are retained.
+   retain request-local query-index read deduplication, the full output digest
+   and between-request tamper rejection. Both exceed 30 seconds in candidate
+   07; earlier focused passes do not close these failures.
    Script coverage retains every action in explicit discovered process cases;
    its first complete cohort passed 211 cases, timed out once and reported two
    optional/helper exclusions. The repaired tokenization comparisons and
@@ -83,7 +84,7 @@ OS × language × provider × backend cross-product to routine PR work.
 
 ## Performance evidence to use
 
-The Windows deep campaign explicitly excludes these 16 whole cases. Their
+The next Windows deep campaign explicitly excludes these 17 whole cases. Their
 original assertions remain in place; an unsupported or disabled case is not a
 passing observation. Required dependency absence is not an additional exclusion.
 
@@ -99,7 +100,7 @@ passing observation. Required dependency absence is not an additional exclusion.
 | `storage/sqlite/ann/sqlite-extension`, `tooling/script-coverage/storage/sqlite-ann-extension-test` | Two optional sqlite-vec positives, outside this acceptance target. |
 | `tooling/script-coverage/tools/shell-scripts` | Bash/jq helper qualification under a capable shell, separately scoped. |
 | `perf/bench/scenarios/matrix` | Opt-in repository workload scenarios; bounded default harness: `perf/bench/run`. Scenario-specific workload acceptance remains separate. |
-| `smoke/tantivy` | Opt-in optional Tantivy positive qualification remains separate. |
+| `smoke/tantivy`, `tooling/script-coverage/storage/tantivy-smoke-test` | Optional Tantivy positive qualification. The wrapper invokes the same smoke fixture with no additional inputs or assertions. Both retain status 77 when disabled. Candidate 07 omitted the wrapper from its exclusion inventory; that unexpected skip remains recorded. |
 
 The five later-discovered opt-outs use status 77. The campaign selects required
 cases explicitly, records actual partial optional omissions, and keeps a

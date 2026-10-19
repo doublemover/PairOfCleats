@@ -10,7 +10,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.10.0 <27"
       ],
       "platforms": [
         "windows",
@@ -103,7 +103,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.10.0 <27"
       ],
       "platforms": [
         "windows",
@@ -176,7 +176,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.10.0 <27"
       ],
       "platforms": [
         "windows",
@@ -248,7 +248,7 @@
       "publishBoundary": "repo-package",
       "versionSource": "package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27"
+        "node>=26.10.0 <27"
       ],
       "platforms": [
         "windows",
@@ -296,7 +296,7 @@
       "publishBoundary": "vsix-artifact",
       "versionSource": "extensions/vscode/package.json#version",
       "runtimeTargets": [
-        "node>=26.0.0 <27",
+        "node>=26.10.0 <27",
         "vscode-extension-host"
       ],
       "platforms": [
@@ -447,7 +447,7 @@
       "versionSource": "package.json#version",
       "runtimeTargets": [
         "rust-target-artifact",
-        "node>=26.0.0 <27"
+        "node>=26.10.0 <27"
       ],
       "platforms": [
         "windows",

@@ -12,13 +12,15 @@ checkout was 33 commits behind its configured upstream and was fast-forwarded
 from `d6041226b` to `ab00d918d` before evaluation. Current tracking is reconciled
 against that source, rather than the stale October 12 checkout.
 
-The original October 18 GitHub inventory had zero open issues, one open PR
-[#572](https://github.com/doublemover/PairOfCleats/pull/572), and no inline review
-threads. Its base is `main` at `a8c19738e`; its head is `ab00d918d`. No workflow
-runs or commit statuses were returned for that exact head; its final two commits
-contain `[skip ci]`. Subsequent publication is pushed through `7ca0759f8` on
-the same PR. Its gate, Rust TUI, Ubuntu and Windows CI pass; macOS bootstrap
-exposes a node-pty helper-mode defect corrected locally; hosted proof is pending.
+The October 18 inventory had zero open issues and one open PR
+[#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
+Publication through `6ccc3034f` passes
+all six hosted jobs, including the repaired macOS PTY bootstrap. Candidate 07's
+complete ordinary-token campaign records 2920 required passes, eight failures
+and one undeclared optional-wrapper skip; 44 file-link cases remain pending.
+All 101 ordinary-token performance cases pass serially. The next repair batch
+fixes stale digest admission, partial-open leaks and fixture boundaries; the
+two SSR witnesses still time out. See the detailed Windows receipt.
 Earlier hosted results are not final-head acceptance.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
