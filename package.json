@@ -87,7 +87,7 @@
     "istextorbinary": "^9.5.0",
     "jsdoc-type-pratt-parser": "^7.0.0",
     "jsonc-parser": "^3.3.1",
-    "linguist-languages": "^9.2.0",
+    "linguist-languages": "^9.5.0",
     "lmdb": "^3.4.4",
     "lru-cache": "11.2.6",
     "mammoth": "1.13.0",
