@@ -974,3 +974,4 @@ indexing/embeddings/effective-memory-and-retained-bytes
 shared/contained-file-verified-read
 storage/semantic/working-set-file-identity
 shared/io/append-writer-flush-after-close
+context-pack/fd-zero-close
