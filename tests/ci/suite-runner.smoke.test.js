@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import { getCombinedOutput } from '../helpers/stdio.js';
 import { runNode } from '../helpers/run-node.js';
 import { applyTestEnv } from '../helpers/test-env.js';
@@ -63,4 +64,11 @@ assertRequired(nightlyOutput, [
   /tools[\\/]bench[\\/]bench-runner\.js --suite sweet16-ci/
 ], 'nightly');
 
-console.log('suite runner smoke test passed');
+for (const [mode, output] of [['ci', ciOutput], ['nightly', nightlyOutput]]) {
+  const lane = output.split(/\r?\n/).filter(line => line.startsWith('[dry-run] CI test lane:'));
+  assert.equal(lane.length, 1, `${mode}: expected the actual broad test command`);
+  assert.match(lane[0], /--retries 0(?:\s|$)/, `${mode}: a failed first attempt must fail CI`);
+  assert.match(lane[0], /--native-status-redo=false(?:\s|$)/, `${mode}: native crashes cannot be redone by CI`);
+}
+
+console.log('suite runner smoke and zero-retry command contracts passed');
