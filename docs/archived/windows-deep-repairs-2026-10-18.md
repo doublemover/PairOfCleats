@@ -1254,16 +1254,101 @@ check, two CI policy guards and all 39 gate cases. Generated CI-lite membership
 is 969. The two SSR deadline failures still require repair and final-candidate
 qualification; this batch does not declare the deep suite green.
 
+### Verified piece ownership and hosted qualification follow-up
+
+At `8c069726c319d17d32fcc0a1ff6b623469988205`, the strict hosted Windows
+job passes all 44 fixtures on their first attempts within 30 seconds, with zero
+skips, timeouts or native crashes. Run `39231450262`, job `117990659609`, checks
+tree `6b0ab846e5b094ce25452938aa6f3814ea1fe66a`, a real file-symlink probe,
+the official Node 26.10.0 executable, ABI 147, 37 required packages and 33 routes.
+Native verification exits zero without warning/error lines. The downloaded
+readiness receipt matches its recorded hash
+`fff07802ac1d2cd7d2c318642abcdb39146f374a9171dccdba7d022d45ae92ea`.
+The raw artifact and `hosted-8c069726c-authority-verified-summary.json` remain
+historical task receipts. Subsequent repairs still need their own strict run.
+
+The only authority-run warning is intentional malformed-pointer recovery in
+`indexing/watch/promotion/safety`. That fixture now asserts the exact warning
+and metadata, requires its existing directory-link branch and cleans its fresh
+root in `finally`. A child-scoped, one-shot EACCES injection proves the former
+catch-and-continue fixture falsely passed and leaked its root
+(`run-1792403083591-4li19d`). The same injection now fails and leaves no root;
+normal execution passes at 1.61 s (`run-1792403123584-kmhfp2`). This fixture's
+directory-link assertion is separate from the strict job's actual file probe.
+
+Heavy I/O profiling identifies separate hash handles followed by decoder
+reopens. A valid, same-length semantic-row mutation exactly after the data hash
+handle closes makes the original reader return unverified data. The new
+`storage/semantic/verified-piece-snapshot` regression fails before the repair
+(`run-1792404678212-3qk1kp`). Verification, offset-boundary checks and decoding
+now share one owner. If both files are at most 64 KiB, it retains only the exact
+hashed buffers within that reader and closes the pair early. Larger files keep
+the same opened pair through decoding and check descriptor identity around
+reads. No rows or hash decisions survive a request. Every new request still
+hashes both files; the existing four-reader request bound and bounded scratch
+space remain. Operation-index hydration uses this same owner, replacing its
+separate validate/reopen sequence. The retired private hash helper has no
+remaining consumers; its sole owner and the operation-reader callback's sole
+production caller were checked before replacement. No entrypoint or assertion
+is removed and semantic meaning does not change.
+
+The mutation regression covers small snapshots, large streaming, an in-place
+write to a future row, fresh-request rejection, cancellation and complete
+disposal. Another regression gates actual outstanding positioned I/O: the old
+reader closes both files too soon and fails (`run-1792405888677-3bzzh4`);
+the repaired reader drains it before closing. Both regressions and windowed
+offset validation pass (`run-1792405891251-9r01wu`). The same physical witness
+retains every source/config byte and all 115 full records / 136 edges, matching
+the baseline SHA-256 `1211c0438c4f53911fdde04e63834c2c020fdc5b1a91c0ebc3266fc8d742b6bc`;
+no field or provenance is suppressed (`relations-reader-proof.json`).
+
+The SSR fixture also explicitly uses one indexing thread and excludes only
+`tsconfig.json` from indexing. The real compiler still reads that unchanged
+file and the actual Node declarations; a separate same-root comparison proves
+the identical full graph (`relations-index-scope-proof.json`). All original
+cold/warm, backend-parity and witness assertions remain. With the reader repair,
+both original incremental cases pass normally at 28.5 / 27.6 s, zero retries,
+under the unchanged 30-second limit (`run-1792405610835-bjjlqo`). These focused
+passes do not establish full frozen-candidate acceptance.
+
+The subsequent 35-case affected cohort records 34 passes and one timeout, zero
+skips or native crashes (`run-1792405958600-od6mkb`). The separate
+`storage/semantic/runtime-source-reference-foreign-generation` case completes
+its assertions after two real builds but closes at 31.2 s and remains failed
+under the unchanged 30-second bound. Its raw receipt retains
+`timed_out_after_pass`; this is not acceptance or a reason to raise the deadline.
+The other authority case passes at 27.6 s. Both retain their original queries,
+positive references and generation/coordinate negatives.
+
+The complete publication front gate passes for this batch: formatting,
+configuration budget, environment usage, refreshed generated inventories and
+freshness, command/workflow contracts, all 39 gate fixtures (21.8 s) and whitespace
+checks. CI-lite now contains 970 fixtures. Fresh native/patch verification exits
+zero without warning/error lines, verifying 37 required packages and 33 routes
+on Node 26.10.0 / Windows x64 / ABI 147. These activation and focused receipts
+remain separate from the uncompleted deep-suite campaign.
+
+The same hosted run passes ordinary Windows, Ubuntu, gate, policy and Rust TUI
+jobs. macOS fails the new single-CPU fixture's real compiler-context assertion
+at 7.53 s, not its deadline. Both original CI-attempt logs are retained in
+`hosted-8c069726c-macos-failure/`. The next fixture revision reads the actual
+durable compiler-admission decision into that assertion's diagnostic, retaining
+all positive binding/completion checks. Resource refusal is a hypothesis until
+that evidence identifies the reason; no scheduler bypass or lowered positive
+assertion is an accepted repair.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. Historical capable Windows file-symlink and
 safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
 candidate 13 stops on two real SSR deadline failures and a hosted fault-targeting
-fixture failure. The summary, cache admission, canonical expectation, integrity
-hook and one-CPU ownership repairs
-require the complete front gate and every required cohort on a new frozen
-candidate, including all 44 cases in the strict hosted Windows authority job.
+fixture failure. Subsequent focused repairs and the all-44 hosted pass above
+do not replace that failed receipt. The verified-reader, SSR fixture-scope,
+promotion and admission-diagnostic batch requires the complete front gate and
+every required cohort on a new frozen candidate, including a fresh strict
+44-case Windows authority run. The foreign-generation fixture deadline and
+macOS CI failure remain unresolved.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain

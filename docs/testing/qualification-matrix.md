@@ -40,11 +40,11 @@ OS × language × provider × backend cross-product to routine PR work.
    18 task-local elevated Windows launch created a real file symlink. Candidate
    08 passes all 44 capable-token cases with zero skips; ordinary medium-token
    runs still return EPERM. The elevated launch did not alter system security
-   settings. Hosted Windows receipts prove 22 of these cases already pass there
-   without skips; the new strict job schedules all 44 at the audit deadline and
-   keeps capability, commit/tree, Node/native readiness and every result/log.
+   settings. At `8c069726c`, the strict hosted Windows job passes all 44 at the
+   audit deadline, preserving capability, commit/tree, Node/native readiness and
+   every result/log. All attempts are one, with zero skips or native crashes.
    Its guard is in regular `ci-lite`; omission, skips, retries, late success and
-   missing capability fail qualification. Current-head execution is still pending.
+   missing capability fail qualification. Subsequent repairs require a new run.
 3. **Native Node backends:** prepared SQLite, LMDB, HNSW, LanceDB and parser
    activation plus a bounded real build/query/teardown route on each shipped
    platform. Stub vectors exercise deterministic ANN integration, not real model
@@ -55,7 +55,9 @@ OS × language × provider × backend cross-product to routine PR work.
    A real one-CPU TypeScript publication regression additionally covers scheduler
    ownership: compiler work must acquire its own reservation without a parent
    retaining the sole CPU token. Local before/after failure/pass evidence is in
-   the Windows receipt; current-head hosted execution remains required.
+   the Windows receipt. Windows and Ubuntu CI pass this case at `8c069726c`;
+   macOS fails its positive compiler-context assertion. Admission diagnostics
+   are being added; no admission bypass or weakened positive counts as repair.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
    node-pty ConPTY capture owner with actual console-mode observations. Focused

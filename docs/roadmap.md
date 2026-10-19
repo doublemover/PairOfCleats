@@ -13,17 +13,18 @@ from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that sou
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-At `5c9b1fddc`, 67 semantic cases pass and two SSR incremental cases time out.
-Hosted Windows passes 35 authority cases, including the cache-opener repair,
-then exposes a fault hook targeting an aliased path instead of the actual open.
-The hook is corrected with injection counters. A one-CPU control additionally
-proves nested scheduler admission deadlock; its real publication regression now
-fails before and passes after the ownership repair. The strict 44-case job
-replaces dependence on local elevation; full current-tree acceptance and SSR
-deadline repairs remain pending. Historical candidate 08 file-link,
-performance and SSR passes do not qualify the new tree. The Windows receipt
-records proof and remaining qualification.
-Earlier hosted results are not final-head acceptance.
+At `8c069726c`, hosted Windows passes all 44 strict authority cases, including
+real file-symlink capability, with zero retries, skips or deadline failures.
+Ubuntu and ordinary Windows CI also pass; macOS exposes a compiler-admission
+failure in the new single-CPU regression. Its diagnostic now retains the actual
+admission reason. A verified-reader repair closes a demonstrated hash-to-decode
+mutation gap and drains pending I/O before disposal. Both original incremental
+SSR cases pass at 28.5 / 27.6 s; all 115 full records and 136 edges match the
+preserved baseline. Promotion safety now requires its link branch and asserts
+the expected recovery warning. These repairs need a new frozen-candidate
+campaign; historical passes do not qualify it. The Windows receipt records the
+before/after proofs and remaining qualification. The two-build foreign-generation
+authority fixture also exceeds 30 seconds and remains open.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
