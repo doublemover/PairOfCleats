@@ -13,17 +13,18 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-At `b44b5761e`, hosted Windows passes all 44 strict authority cases with real
-file symlinks, zero retries, skips, crashes or deadline failures. The reader
-repair closes a demonstrated hash-to-decode mutation gap and drains I/O before
-disposal. Both incremental SSR cases pass at 28.5 / 27.6 s with exact full-graph
-parity; the two-build generation-authority case passes at 28.4 s after proved
-input scoping. macOS correctly rejects the CPU fixture's two-token reservation;
-it now uses the stricter 512 MiB product default and proves real one-CPU/one-memory
-limits with adaptive admission enabled. The baseline smoke fixture also rejects
-corrupt required SQLite databases and asserts fresh/missing/stale prerequisites.
-These repairs still need one frozen-candidate campaign and hosted revalidation;
-historical passes do not qualify the new tree. The Windows receipt retains proof.
+Candidate 14 at `39703b3a3` records 332 required Windows passes: 288 local and
+44 hosted authority cases with real file symlinks, zero failures, retries,
+skips or native crashes. Its serial SQLite p95 is 226.124 ms over 20 samples.
+The campaign stops at a cohort boundary for macOS CI's global-byte rejection;
+2649 required cases remain unexecuted. The shared memory owner discarded
+process-available reclaimable headroom by taking its minimum with raw free
+pages. Its regression now fails before and passes after repair, preserving
+zero-pressure, container and configured-limit guards. The original compiler
+corpus, 512 MiB ceiling, actual single-token limits and adaptive admission stay.
+The next complete campaign waits for hosted memory telemetry; all required
+cases must run on its frozen source. The Windows receipt retains every partial
+campaign and the reader, SSR, baseline, authority and lifecycle repair proofs.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

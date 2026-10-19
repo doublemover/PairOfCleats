@@ -1474,18 +1474,98 @@ zero retries, skips or timeouts (`run-1792408355616-i8jomz`): actual single-toke
 publication 13.7 s, baseline prerequisites 5.52 s, both real foreign-generation
 builds 25.2 s and development-path/ignore authority 126 ms.
 
+### Candidate 14 and process-available memory authority
+
+Candidate `39703b3a34f275e784022a7dba4b2561999fd777` freezes source SHA-256
+`d0f4ab25e635639fd29c5d65258e60120d56ed88cfd9955500112b74fef73113`,
+documentation `338edd5998c86e462726575f8316068614de1b0b3ddc328f217ab44003da8bda`,
+5812 source paths, 2998 discovered fixtures, 2981 required and 17 explicit
+exclusions in 48 cohorts. Six critical regressions, all 51 native/TUI cases,
+101 serial performance/harness checks and 130 storage cases pass locally:
+288 required passes, zero failures, timeouts, retries, skips or native crashes.
+Both original incremental SSR cases pass at 26.0 / 26.3 s, foreign-generation
+authority at 26.6 s and actual single-token publication at 14.2 s. This is the
+first candidate in this follow-up to finish those six critical cases together.
+
+Strict hosted Windows adds 44 independently verified passes on the exact head
+and tree `27a884d1bba5eef649c98165e87558085dfcde66`, run `39243286754`, job
+`118029512658`. The actual file-symlink probe, 37-package / 33-route readiness,
+official Node executable, ABI 147 and all 44 original logs are verified. The
+downloaded bootstrap receipt matches
+`115bd6de265238a6e65fa2f14fd7a4a7f8d636c0117e91ea69efe363671c66bf`;
+native verification has no warning/error lines. The sole promotion warning is
+exactly asserted. The mapped local report preserves original host paths and
+explicit external provenance; it does not fabricate a remote physical-byte
+source hash. In total 332 required cases pass and 2649 remain unexecuted.
+
+All 20 raw SQLite samples are retained in `sqlite-latency-candidate-14.json`:
+warm p95 226.124 ms against the unchanged Windows 7500 ms limit. Both `greet`
+and `answer` must retrieve the expected indexed `index.js` before and during
+measurement. Only one measured operation runs at a time. The 101-case performance
+cohorts include resource/correctness bounds and harness contracts; they are not
+101 representative latency benchmarks.
+
+Hosted macOS job `118029512761` still rejects the 512 MiB request, now with
+`scheduler_global_bytes_exceeded`, against the original full 194-file / 4.9 MB
+compiler closure. Both attempt logs remain in
+`hosted-39703b3a3-macos-failure/`, with the raw job log separately retained.
+The local controller stops after the active storage cohort, interrupting no
+fixture. Source and documentation identities are verified unchanged before
+editing. All candidate 14 receipts remain failed/incomplete campaign history;
+their green observations cannot qualify a later tree.
+
+A task-only smaller-program diagnostic runs six compiler inputs / 233,346 bytes
+in 9.62 s, but its actual completed production measurement records 403,841,024
+bytes peak process RSS against a proposed 268,435,456-byte reservation. That
+proposal is rejected: no smaller corpus or arbitrary 256 MiB workaround is
+adopted. The original compiler corpus, canonical 512 MiB policy and every
+positive assertion remain intact.
+
+Inspection finds a genuine shared memory-accounting defect. In
+[Node 26.10's bundled Darwin libuv implementation](https://github.com/nodejs/node/blob/v26.10.0/deps/uv/src/unix/darwin.c#L92),
+raw free memory counts free pages, while process availability also includes
+inactive and purgeable pages. The runtime is verified as libuv 1.52.1.
+`readEffectiveMemory` takes the minimum of both readings, discarding the more
+complete process allowance before applying scheduler byte limits. The repair
+uses reported process availability, with raw host free memory as fallback,
+then applies the same effective host/container/configured budget minus RSS.
+Reported zero remains actual pressure; unknown telemetry still falls back
+conservatively. The scheduler's 25% fraction and every configured threshold
+remain unchanged. No semantic fact producer or public format/option changes.
+
+The existing memory regression models 3 GiB process availability with 256 MiB
+raw free pages. It fails before at 863 ms (`run-1792410152552-b787zn`) and passes
+after at 859 ms (`run-1792410213671-oz3c53`). Added checks retain zero availability,
+unknown availability, lower process allowance and container/configured headroom
+bounds, alongside every previous retained-byte, worker-budget and cancellation
+assertion. All 16 focused memory/resource/scheduler/compiler cases pass at one
+job in 28.3 s (`run-1792410336893-ckae1z`), including full compiler publication
+at 15.4 s. The memory regression joins regular CI-lite. The compiler fixture now
+reports the actual pre-build memory readings, persisted scheduler capacity and
+durable admission decisions on success and failure, so hosted macOS closure can
+be verified from evidence. The next candidate will not be frozen before that
+hosted validation is read back.
+
+The memory-owner publication batch passes the complete front gate: formatting,
+generated refresh/freshness, configuration/environment guards, command/workflow
+contracts, all 39 gate cases (21.3 s) and whitespace checks. Native/patch
+verification exits zero with no warning/error lines, again verifying 37 packages
+and 33 routes on Node 26.10.0 / Windows x64 / ABI 147. CI-lite membership is 971.
+After formatting, the memory regression and unchanged full compiler fixture
+both pass (`run-1792411196824-tsal8f`): 912 ms and 13.2 s, one attempt each.
+Actual macOS capacity telemetry and the full next-source campaign remain open.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. Historical capable Windows file-symlink and
 safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
-candidate 13 stops on two real SSR deadline failures and a hosted fault-targeting
-fixture failure. Subsequent focused repairs and the all-44 hosted pass above
-do not replace that failed receipt. The verified-reader, SSR fixture-scope,
-promotion and admission-diagnostic batch requires the complete front gate and
-every required cohort on a new frozen candidate, including a fresh strict
-44-case Windows authority run. The foreign-generation, actual single-token and
-baseline-prerequisite repairs also require that campaign and hosted macOS CI.
+candidate 14 closes with 332 required passes and 2649 unexecuted cases after
+hosted macOS exposes the memory-owner defect above. Its source/documentation
+identities and all earlier failed receipts remain preserved. The memory repair
+requires the complete front gate, actual hosted telemetry and every required
+cohort on a new frozen candidate, including a fresh strict 44-case Windows
+authority run. No partial campaign is promoted to final acceptance.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
 unsupported-platform and portable authority coverage pass separately. Optional
 sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain

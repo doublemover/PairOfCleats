@@ -40,7 +40,7 @@ OS × language × provider × backend cross-product to routine PR work.
    18 task-local elevated Windows launch created a real file symlink. Candidate
    08 passes all 44 capable-token cases with zero skips; ordinary medium-token
    runs still return EPERM. The elevated launch did not alter system security
-   settings. At `b44b5761e`, the strict hosted Windows job passes all 44 at the
+   settings. At `39703b3a3`, the strict hosted Windows job passes all 44 at the
    audit deadline, preserving capability, commit/tree, Node/native readiness and
    every result/log. All attempts are one, with zero skips or native crashes.
    Its guard is in regular `ci-lite`; omission, skips, retries, late success and
@@ -55,11 +55,12 @@ OS × language × provider × backend cross-product to routine PR work.
    A real one-CPU TypeScript publication regression additionally covers scheduler
    ownership: compiler work must acquire its own reservation without a parent
    retaining the sole CPU token. Local before/after failure/pass evidence is in
-   the Windows receipt. The macOS failure at `b44b5761e` is a proved two-token
-   reservation exceeding capacity. The fixture now uses the stricter 512 MiB
-   product default, asserts persisted CPU/memory totals and maxima of one, and
-   keeps adaptive admission and real compiler/binding positives. Fresh hosted
-   execution of that repair remains required.
+   the Windows receipt. The fixture uses the 512 MiB product default, asserts
+   persisted CPU/memory totals and maxima of one, and keeps adaptive admission
+   and real compiler/binding positives. macOS then exposes false global-byte
+   pressure: raw free pages discard the process API's reclaimable availability.
+   The shared memory owner is repaired while preserving zero-pressure and all
+   hard budget bounds. Fresh hosted telemetry and execution remain required.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
    node-pty ConPTY capture owner with actual console-mode observations. Focused
@@ -171,4 +172,7 @@ The SQLite latency fixture now requires source hits before accepting a sample.
 This exposed an empty result for `answer`; the earlier fast timing remains
 diagnostic history. Exported-value extraction is repaired and a focused serial
 run now retrieves both original queries before passing the unchanged latency
-threshold. Final candidate qualification must repeat the affected measurement.
+threshold. Candidate 14 repeats both original queries over 20 serial warm
+samples: p95 226.124 ms, unchanged Windows threshold 7500 ms. It is a partial
+candidate; the subsequent memory-owner repair still needs a full frozen-source
+campaign and a new serial measurement.
