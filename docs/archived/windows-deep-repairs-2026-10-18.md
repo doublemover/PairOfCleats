@@ -2,6 +2,45 @@
 
 Status: in progress; this is a repair receipt, not final acceptance.
 
+October 19 candidate 15 is closed with a recorded failure. Exact published head
+`02ad003c8384cbe10e1c0980da78263cde426881` freezes source SHA-256
+`8864e8957011870b0e9ddfabec7d05112525181721a91ae214b57792123bba66`
+and documentation SHA-256
+`6456a935ccff4e242ee5432a8bdc2f072f25eb699538065d0958f959107f9393`.
+Its first cohort passes two cases, then SSR incremental times out at 30.355 s;
+four fail-fast omissions are recorded and count as unexecuted. Independently
+downloaded exact-head Windows authority evidence adds 44 first-attempt passes
+with real file symlinks, the official Node executable, actual bootstrap hash
+`0cbbf4a23aedb611247daaebb60e09d61cebaa594390a3f9de7bd54c46f5add6`,
+37 packages/33 routes and all 44 raw logs verified. Its only warning is the
+asserted promotion-recovery warning. Candidate 15 therefore has 46 required
+passes, one timeout, four fail-fast omissions and 2930 remaining unpassed cases;
+it is not whole-suite acceptance. Its source, ledger, logs and failure remain.
+
+A bounded task-only CPU profile attributes 8.864 seconds of the first 27 seconds
+to compiler dependency discovery, including repeated synchronous filesystem
+probes. TypeScript occurrence modes previously reread package authority for each
+import. The regression fails before repair with four reads instead of one.
+TypeScript's own package/module/type-resolution caches now belong to one compiler
+host. Import/require modes, conditions, project redirects and embedded origins
+remain compiler-owned. A new host sees changed package mode; sealed verification
+still rejects changed package bytes and unknown filesystem probes. Fault controls
+that remove only the module or type cache fail for repeated filesystem probes
+(43 versus 11 and 93 versus 25). No cache survives into a later compiler host.
+
+Preflight also avoids repeating ancestor package walks and library requests
+within one compiler context. Observation sorting reuses its already canonical
+keys. Current-byte verification, all source/configuration inputs and admission
+limits remain. Four focused checks pass first attempts in 55.3 seconds total;
+the full two-build SSR cases take 27.392/26.820 seconds, still subject to final
+acceptance under the unchanged 30-second bound. The same physical root and all
+four input files compare exactly to the earlier full witness: every field in
+115 records/136 edges, one compiler context and three completed tasks is equal.
+The graph digest remains
+`6e0d88f7e7ff6608652054df6dfc4e0f7f56f24f21709815afbaf6fdb5b11e8c`.
+No field is normalized or omitted (`compiler-cache-full-graph-equivalence-16.json`).
+These changes affect execution cost rather than semantic producer meaning.
+
 October 19 common-probe/read-owner repair: the complete SSR fixtures retain both
 real compiler builds, full Node declarations, original traces and all positive
 and negative assertions. The 30.4-second failures remain preserved. Profiling

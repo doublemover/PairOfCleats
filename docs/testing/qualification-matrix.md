@@ -72,7 +72,14 @@ OS × language × provider × backend cross-product to routine PR work.
    unchanged. Their retained full coverage records a 30.4-second timeout. Bounded
    common-probe reuse passes both in 26.9/26.2 seconds, with complete same-root
    record/edge equivalence. Six integrity/service checks and six SQLite/report
-   checks pass; final-source acceptance still requires every cohort. The SQLite
+   checks pass. Candidate 15 then records SSR incremental timing out at 30.355 s;
+   it closes with 46 required passes, including 44 verified exact-head hosted
+   authority cases, and four fail-fast omissions. Profiling identifies repeated
+   compiler dependency probes. Host-owned TypeScript caches and context-bounded
+   preflight deduplication pass the full SSR pair in 27.392/26.820 s, preserving
+   all input bytes and complete graph fields. Fresh-host package changes and
+   sealed unknown/changed probes remain checked. Final-source acceptance still
+   requires every cohort. The SQLite
    helper uses the identical builder through its narrow owner: its import graph
    falls from 2293 to 753 files, retaining all three fixture modes and deadlines.
    At `2dfab0536`, CPU checks pass first attempt on Windows/macOS in 14.9/11.9 s;

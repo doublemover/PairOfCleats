@@ -13,19 +13,18 @@ Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 The October 19 live inventory has zero open issues, repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
-Candidate 14 remains partial: 332 required passes, 2649 pending. At `2dfab0536`,
-the bounded CPU regression passes first attempt on Windows/macOS in 14.9/11.9
-seconds, retaining all 17 original assertions, five added checks and the 512 MiB
-policy. Real macOS telemetry proves the shared memory repair. Earlier orphan
-failures remain unattributed; current strict ownership and authority checks pass.
-A Windows report setup retry exposes an eager helper dependency; the same SQLite
-builder now loads 753 files instead of 2293, with all three modes retained.
-Full SSR inputs remain byte-identical. Their 30.4-second timeout is preserved;
-bounded reuse of the common verified index probe now passes both cases in
-26.9/26.2 seconds. All 115 records/136 edges match every field at one physical
-root. Fresh validation across requests/cursors and reader cleanup remain checked.
-No next campaign is frozen. Every required case must run on its final source;
-the Windows receipt preserves each partial campaign and qualification limit.
+Candidate 15 at `02ad003c8` closes after SSR incremental times out at 30.355 s:
+46 required passes, including 44 verified hosted authority checks with real file
+symlinks; four fail-fast omissions; 2930 other cases pending. Profiling identifies
+repeated compiler dependency probes. Host-owned TypeScript caches and preflight
+deduplication now pass both full SSR cases in 27.392/26.820 s. Fresh hosts observe
+package changes; unknown probes and changed sealed inputs still fail. All four
+inputs and every field in 115 records/136 edges remain equal at one physical root.
+Reader disposal and fresh cursor/request validation remain checked. The SQLite
+helper loads the identical builder through 753 files instead of 2293. CPU ownership
+keeps all assertions and the 512 MiB policy; macOS telemetry proves the memory fix.
+Earlier orphan failures remain unattributed. No next campaign is frozen. Every
+required case must run on its final source; the Windows receipt retains details.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
