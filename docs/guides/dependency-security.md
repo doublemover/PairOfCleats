@@ -1,5 +1,14 @@
 # Dependency security and compatibility
 
+## Current checkout baseline
+
+The checkout now requires Node >=26.10.0 <27 and pins 26.10.0 in `.nvmrc` and workflows.
+Use `npm run bootstrap:ci` for locked setup; see the
+[runtime policy](node-runtime.md). The dated Node 24 and advisory inventories
+below retain their original provenance. Current acceptance belongs in the
+[roadmap](../roadmap.md); neither those inventories nor an offline contract
+establish a fresh hosted security scan.
+
 ## October 7 hosted checkpoint
 
 The completion and dependency proposals through PR540 are merged or specifically

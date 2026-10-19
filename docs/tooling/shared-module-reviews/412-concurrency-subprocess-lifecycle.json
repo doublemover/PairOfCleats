@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared concurrency, queue, subprocess, lifecycle, lock, worker, and progress helpers assigned to #412 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 61,
+    "ownedFileCount": 63,
     "overallAssessment": "This shared surface contains several of the repo's most correctness-critical runtime helpers. The main risks are not duplication alone; they are policy and mechanism being entangled inside lock ownership, tracked subprocess cleanup, adaptive scheduling, and progress/logging helpers. The strongest cleanup opportunities are splitting the correctness-critical large files while preserving stable facades and removing a few root-level wrappers that are too caller-specific.",
     "runtimeRisks": [
       {
@@ -79,7 +79,8 @@
         "action": "removed",
         "reason": "The generic src/shared queue alias has been removed; tools/service/queue.js remains the canonical service queue owner."
       }
-    ]
+    ],
+    "originalReviewedFileCount": 61
   },
   "entries": [
     {
@@ -752,6 +753,36 @@
       ],
       "consumerNotes": "Worker entrypoint used indirectly by bundle-io offload paths.",
       "recommendation": "Keep as a worker-target module and document its ownership under bundle IO."
+    },
+    {
+      "path": "src/shared/concurrency/weighted-batches.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/build/shards.js, src/index/build/tree-sitter-scheduler/runner/task-scheduler.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/workers/heap-contract.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/build/workers/indexer-worker.js, src/index/build/workers/pool.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
     }
-  ]
+  ],
+  "inventoryReconciliation": {
+    "date": "2026-10-18",
+    "scope": "Current ownership and static consumer census only. Original reviewDate and prior recommendations remain historical; behavior and platform acceptance are recorded separately.",
+    "addedPaths": [
+      "src/shared/concurrency/weighted-batches.js",
+      "src/shared/workers/heap-contract.js"
+    ]
+  }
 }

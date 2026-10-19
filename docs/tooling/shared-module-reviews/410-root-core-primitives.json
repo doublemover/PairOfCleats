@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-25",
   "scope": "Primary ownership for root-level src/shared helpers and root contracts assigned to #410 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 78,
+    "ownedFileCount": 122,
     "overallAssessment": "The root shared surface is mostly useful, but it is still carrying too many neighboring responsibilities in a few high-consumer files. The biggest remaining cleanup opportunities are env/runtime policy composition, numeric normalization overlap, keeping the new helper leaf splits from collapsing back into broad buckets, and continuing the metrics and ops family deflation work.",
     "clusterFindings": [
       {
@@ -98,7 +98,8 @@
         "action": "keep",
         "reason": "New narrow shared helpers like search-request.js and repo-paths.js should stay explicit and should not be reabsorbed into broad root utility modules."
       }
-    ]
+    ],
+    "originalReviewedFileCount": 78
   },
   "entries": [
     {
@@ -950,6 +951,540 @@
       ],
       "consumerNotes": "Ledger-owned shared module in src/shared/root with 1 direct consumer(s).",
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "src/shared/application-parser-loader.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 8 direct consumers, including src/shared/dockerfile-ast.js, src/shared/graphql-ast.js, src/shared/handlebars-ast.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/bootstrap-readiness.js",
+      "consumerCount": 89,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 89 direct consumers, including bin/pairofcleats-tui.js, bin/pairofcleats.js, tools/api/server.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/bundle-source-key.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 8 direct consumers, including src/index/build/incremental/bundle-snapshot.js, src/index/build/incremental/manifest-codec.js, src/index/build/incremental/paths.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/cache-deletion.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/index/cache-gc.js, tools/index/clean-artifacts.js, tools/tooling/uninstall.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/config-authority.js",
+      "consumerCount": 9,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 9 direct consumers, including src/index/tooling/command-resolver.js, src/index/tooling/lsp-provider/normalize.js, src/index/tooling/typescript/load.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/contained-file.js",
+      "consumerCount": 27,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 27 direct consumers, including src/context-pack/excerpt-cache.js, src/index/build/file-processor.js, src/index/build/file-processor/pre-cpu-content.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/diagnostic-text.js",
+      "consumerCount": 9,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 9 direct consumers, including src/index/build/runtime/receipt.js, src/index/scm/metadata-diagnostics.js, src/index/tooling/command-resolver.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/dictionary-identifiers.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/integrations/inference-history/lexical-analyzer.js, src/integrations/inference-history/lexical-vocabulary.js, tools/dicts/generate-repo-dict.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/dockerfile-ast.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/dockerfile.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/effective-memory.js",
+      "consumerCount": 12,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 12 direct consumers, including src/index/build/runtime/runtime.js, src/index/build/runtime/workers.js, src/index/build/workers/config.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-artifact-identity.js",
+      "consumerCount": 6,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 6 direct consumers, including src/index/build/runtime/embeddings.js, src/retrieval/cli/run-search-session/embedding-cache.js, src/shared/embedding-adapter.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-execution-plan.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/index/build/indexer/embedding-queue.js, src/integrations/core/build-index/stages.js, tools/build/embeddings/cli.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-intent.js",
+      "consumerCount": 7,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 7 direct consumers, including src/index/build/runtime/embeddings.js, src/index/build/runtime/runtime.js, src/integrations/core/embeddings.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-model-profile.js",
+      "consumerCount": 10,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 10 direct consumers, including src/index/build/runtime/embeddings.js, src/integrations/inference-history/embedding-runtime.js, src/retrieval/embedding.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/embedding-prepared.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/integrations/inference-history/embedding-runtime.js, src/shared/embedding-adapter.js, tools/history/eg2-qualify-run.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the shared embedding policy/identity owner. Build and query consumers must resolve the same intent and preserve digest/revision rejection; stub integration does not qualify real model execution.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/extraction-quality.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/bench/language/quality-summary.js, tools/bench/language/verdict.js, tools/index/report-artifacts/scan-profile.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact-cache.js",
+      "consumerCount": 15,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 15 direct consumers, including src/index/build/import-resolution-cache.js, src/index/build/runtime/learned-auto-profile.js, src/index/build/runtime/scheduler-autotune-profile.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact-core.js",
+      "consumerCount": 17,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 17 direct consumers, including src/index/build/artifacts-write/family-dispatch.js, src/index/build/artifacts-write/index.js, src/index/build/artifacts/checksums.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact-prefix.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/shared/generated-artifact-cache.js, src/shared/generated-artifact-core.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/generated-artifact.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/index/build/discover.js, src/index/build/file-processor/pre-cpu-content.js, src/index/build/runtime/hash.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/graphql-ast.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/schema-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/graphql.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/handlebars-ast.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/handlebars.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/index-format-error.js",
+      "consumerCount": 15,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 15 direct consumers, including bin/pairofcleats.js, src/integrations/mcp/protocol.js, src/integrations/tooling/runtime-evidence.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/jinja-template-structure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/jinja.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/json-reference-policy.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/language-registry/import-collectors/json.js, src/shared/jsonc-structure.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/jsonc-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/json.js, src/index/language-registry/import-collectors/json.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/managed-clangd.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/shared/tooling-bin-dirs.js, tools/tooling/install-clangd.js, tools/tooling/utils.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/managed-go.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 4 direct consumers, including src/shared/toolchain-env.js, src/shared/tooling-bin-dirs.js, tools/tooling/install-go-sdk.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/managed-tool-file.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/shared/managed-clangd.js, src/shared/managed-go.js, tools/tooling/install-clangd.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/mustache-structure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/heuristic-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/mustache.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/native-package-probe.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/shared/bootstrap-readiness.js, tools/setup/rebuild-native-sqlite.js, tools/setup/rebuild-native.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/proto-structure.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/chunking/dispatch/schema-chunkers.js, src/index/language-registry/adapters/heuristic.js, src/index/language-registry/import-collectors/proto.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/provider-thread-observation.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 1 direct consumers, including tools/bench/embeddings/embedding-batch-throughput.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/runtime-envelope/observe.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 4 direct consumers, including src/index/build/workers/indexer-process-child.js, src/shared/runtime-envelope/receipt.js, src/shared/runtime-envelope/resolve-current-process-envelope.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/runtime-envelope/preview.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 1 direct consumers, including tools/config/dump.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/runtime-envelope/read-receipt.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/index/build/runtime/receipt.js, src/index/build/runtime/runtime.js, src/integrations/core/status.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/runtime-envelope/receipt.js",
+      "consumerCount": 8,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 8 direct consumers, including src/index/build/build-state.js, src/index/build/build-state/runtime.js, src/index/build/build-state/store.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/symbolic-types.js",
+      "consumerCount": 13,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 13 direct consumers, including src/index/build/artifacts/writers/chunk-meta/shared.js, src/index/build/artifacts/writers/symbolic-types.js, src/index/build/indexer/steps/relations/cross-file-runner.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/system-cache-alias.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/tooling/cache-storage.js, src/shared/cache-deletion.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/text-analyzer.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including src/index/build/file-processor/process-chunks/token-flow.js, src/index/build/indexer/signatures.js, src/retrieval/query.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/toml-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/ini-toml.js, src/index/language-registry/import-collectors/toml.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/workspace-execution-authority.js",
+      "consumerCount": 9,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 9 direct consumers, including src/index/tooling/command-resolver.js, src/index/tooling/dedicated-lsp-provider.js, src/index/tooling/doctor.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the launch authority, preparation or verified-tool owner. Preserve fail-closed admission and real native activation; fixture success does not certify every platform/provider.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/xml-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/xml.js, src/index/language-registry/import-collectors/xml.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/yaml-structure.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/index/chunking/formats/yaml.js, src/index/language-registry/import-collectors/yaml.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this format-specific parser/structure owner and its active producer consumers. Keep language contracts and native activation checks; no absence of imports or replacement proof supports deletion.",
+      "inventoryReviewDate": "2026-10-18"
     }
-  ]
+  ],
+  "inventoryReconciliation": {
+    "date": "2026-10-18",
+    "scope": "Current ownership and static consumer census only. Original reviewDate and prior recommendations remain historical; behavior and platform acceptance are recorded separately.",
+    "addedPaths": [
+      "src/shared/application-parser-loader.js",
+      "src/shared/bootstrap-readiness.js",
+      "src/shared/bundle-source-key.js",
+      "src/shared/cache-deletion.js",
+      "src/shared/config-authority.js",
+      "src/shared/contained-file.js",
+      "src/shared/diagnostic-text.js",
+      "src/shared/dictionary-identifiers.js",
+      "src/shared/dockerfile-ast.js",
+      "src/shared/effective-memory.js",
+      "src/shared/embedding-artifact-identity.js",
+      "src/shared/embedding-execution-plan.js",
+      "src/shared/embedding-intent.js",
+      "src/shared/embedding-model-profile.js",
+      "src/shared/embedding-prepared.js",
+      "src/shared/extraction-quality.js",
+      "src/shared/generated-artifact-cache.js",
+      "src/shared/generated-artifact-core.js",
+      "src/shared/generated-artifact-prefix.js",
+      "src/shared/generated-artifact.js",
+      "src/shared/graphql-ast.js",
+      "src/shared/handlebars-ast.js",
+      "src/shared/index-format-error.js",
+      "src/shared/jinja-template-structure.js",
+      "src/shared/json-reference-policy.js",
+      "src/shared/jsonc-structure.js",
+      "src/shared/managed-clangd.js",
+      "src/shared/managed-go.js",
+      "src/shared/managed-tool-file.js",
+      "src/shared/mustache-structure.js",
+      "src/shared/native-package-probe.js",
+      "src/shared/proto-structure.js",
+      "src/shared/provider-thread-observation.js",
+      "src/shared/runtime-envelope/observe.js",
+      "src/shared/runtime-envelope/preview.js",
+      "src/shared/runtime-envelope/read-receipt.js",
+      "src/shared/runtime-envelope/receipt.js",
+      "src/shared/symbolic-types.js",
+      "src/shared/system-cache-alias.js",
+      "src/shared/text-analyzer.js",
+      "src/shared/toml-structure.js",
+      "src/shared/workspace-execution-authority.js",
+      "src/shared/xml-structure.js",
+      "src/shared/yaml-structure.js"
+    ]
+  }
 }

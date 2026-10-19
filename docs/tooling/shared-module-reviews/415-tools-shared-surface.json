@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-25",
   "scope": "Primary ownership for every file under tools/shared/** assigned to #415 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 15,
+    "ownedFileCount": 17,
     "overallAssessment": "tools/shared is doing three jobs at once: it houses real tool-local adapters, generic helpers that should probably live under src/shared, and a few one-off report or compatibility shims that are not strong shared modules at all. The main cleanup goal is to make those three categories explicit so the bucket stops growing ambiguously, while preserving the hard cutovers that already moved runtime-grade helpers out.",
     "clusterFindings": [
       {
@@ -86,7 +86,8 @@
         "action": "deprecate",
         "reason": "This is only shared by one report consumer and should either move to that surface or be generalized more convincingly."
       }
-    ]
+    ],
+    "originalReviewedFileCount": 15
   },
   "entries": [
     {
@@ -257,6 +258,37 @@
       ],
       "consumerNotes": "Bench and CI gate scripts use it for doctor report resolution and gate result emission.",
       "recommendation": "Keep it tool-local as the gate/reporting helper surface, but ensure generic JSON persistence stays delegated to the lower-level JSON helper family."
+    },
+    {
+      "path": "tools/shared/dev-artifacts.js",
+      "consumerCount": 28,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "The static census has 28 direct production consumers across benchmark and CI tools. Test helpers also use the owner to place disposable development artifacts beneath temp/dev; they are outside this production consumer count.",
+      "recommendation": "Keep the category-to-path mapping private and lightweight. Preserve unknown-category and lexical traversal rejection, readiness admission ordering and stable .testLogs/.diagnostics interfaces. Path construction does not establish deletion authority; destructive callers must still validate real disposable roots.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "tools/shared/archive-extraction.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/download/extensions.js, tools/tooling/install-clangd.js, tools/tooling/install-go-sdk.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
     }
-  ]
+  ],
+  "inventoryReconciliation": {
+    "date": "2026-10-18",
+    "scope": "Current ownership and static consumer census only. Original reviewDate and prior recommendations remain historical; behavior and platform acceptance are recorded separately.",
+    "addedPaths": [
+      "tools/shared/archive-extraction.js",
+      "tools/shared/dev-artifacts.js"
+    ]
+  }
 }

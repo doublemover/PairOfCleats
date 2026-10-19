@@ -4,9 +4,10 @@ This project has two layers of benchmarking:
 - Microbenchmarks for fast component-level timing.
 - Language benchmarks for full-size repo comparisons.
 
-For the planned pinned Node 24/26 macOS experiment, use the
-[matched runtime comparison](node-runtime-comparison.md). It is a recipe,
-not a recorded performance result.
+Use the [qualification matrix](../testing/qualification-matrix.md) to distinguish
+portable contracts, measured regressions and representative workload acceptance.
+The [Node 24/26 comparison](node-runtime-comparison.md) is a deprecated historical
+proposal, not a current runtime qualification or recorded performance result.
 
 For bounded CPU sampling, timeline traces and CPU/I/O diagnosis, see the
 [performance profiling guide](profiling.md).

@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared artifact, cache, IO, bundle, and serialization helpers assigned to #411 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 91,
+    "ownedFileCount": 99,
     "overallAssessment": "This shared surface is broadly useful and already owns many of the repo's right low-level seams, but it must stay deliberately layered. Recent work made manifest.js and bundle-io.js facade-oriented, moved manifest entry selection and columnar rows into narrow artifact owners, split bundle behavior, separated generic binary-columnar frame reading from the async chunk_meta adapter, and kept sync token_postings binary decode local to preserve the sync API. The remaining cleanup opportunities are the larger loader cores, the deleted files facade handoff, atomic persistence, cache layering documentation, and generic JSON-stream boundaries; compression pooling and byte accounting now have their own JSON-stream owners, binary-columnar JSON row decode has its own loader leaf, and core streaming row dispatch has its own loader leaf.",
     "clusterFindings": [
       {
@@ -106,7 +106,8 @@
         "action": "keep",
         "reason": "The root cache facade has been removed; keep cache layer descriptions, byte estimation, LRU, and reporting behavior in narrow cache owners."
       }
-    ]
+    ],
+    "originalReviewedFileCount": 91
   },
   "entries": [
     {
@@ -1152,6 +1153,61 @@
       ],
       "consumerNotes": "Many cache, bundle, artifact, and signature paths rely on it for deterministic JSON serialization.",
       "recommendation": "Keep as the canonical deterministic JSON primitive and document when to use stableStringify versus stableStringifyForSignature."
+    },
+    {
+      "path": "src/shared/cache/fifo-budget.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 1 direct consumers, including src/shared/cache-key.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/cache/repo-access.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/retrieval/cli-lmdb.js, src/retrieval/cli-sqlite.js, src/shared/artifact-io/manifest-read.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/cache/repo-access-reader.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Manifest reads and the asynchronous repo-access owner share this narrow process-lifetime reader admission primitive. The static census has 2 direct production consumers; cache authority and lifecycle fixtures qualify its behavior separately.",
+      "recommendation": "Keep reader admission before opening cache data and retain leases until process exit. Preserve collector-lock exclusion, dead-owner recovery and containment tests. Path-only diagnostics must not acquire reader leases, and this leaf must not import the asynchronous cleanup owner.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/json-stream/buffer-transfer.js",
+      "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/shared/json-stream/jsonl-compress-worker.js, src/shared/json-stream/jsonl-compression-pool.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
     }
-  ]
+  ],
+  "inventoryReconciliation": {
+    "date": "2026-10-18",
+    "scope": "Current ownership and static consumer census only. Original reviewDate and prior recommendations remain historical; behavior and platform acceptance are recorded separately.",
+    "addedPaths": [
+      "src/shared/cache/fifo-budget.js",
+      "src/shared/cache/repo-access.js",
+      "src/shared/cache/repo-access-reader.js",
+      "src/shared/json-stream/buffer-transfer.js"
+    ]
+  }
 }

@@ -41,8 +41,10 @@ source mismatch.
 
 ## Install and validate deliberately
 
-Use Node.js 24.15.0 or newer and a source-checkout install with development
-dependencies; required patch tooling and native rebuilds are part of that path.
+Use Node.js 26.x (`.nvmrc` pins the CI version) and run `npm run bootstrap:ci`
+for a source-checkout install with development dependencies, required patches
+and verified native rebuilds. Reserve `npm run bootstrap` for intentional
+dependency-resolution changes.
 Use the [first-search guide](guides/first-search.md) for a modest first run.
 
 - Read [AGENTS.md](../AGENTS.md) for ESM/style/format/test requirements.

@@ -589,7 +589,7 @@ validation storage with scripts disabled. Its 127,415-byte registry tarball
 independently matches the project's SHA-512 integrity; no dependency/default
 version changes are needed. The official parser's public ESM import works, but
 its advertised require export fails because CommonJS .js files inherit the
-package's module type. On the project's supported Node >=24.15.0, an
+package's module type. On that checkpoint's Node >=24.15.0 baseline, an
 application-owned import.meta.resolve of the public import export plus synchronous
 ESM loading works without editing vendor files or guessing private entry paths.
 Missing or async-only/unsupported loading explicitly falls back to heuristics.

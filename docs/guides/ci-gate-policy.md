@@ -1,7 +1,7 @@
 # CI Gate Policy
 
 Status: Active guide v1.1
-Last audited: 2026-10-05 (Node runtime pins)
+Last audited: 2026-10-18 (checked-in runtime and workflow contracts)
 
 ## Purpose
 
@@ -18,10 +18,11 @@ Define required and advisory CI jobs and enforce a single blocking policy for re
    lint, config budget, env usage guardrail, generated-surface freshness,
    command-surface audit, and the `gate` lane. The bootstrap/runtime step runs
    the dependency-security, duplicate-scanner, workflow and three postinstall
-   contract tests directly, without changing broad lane membership.
-2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 24.21.0.
+   contract tests plus the ONNX CPU install-policy check directly, without changing
+   broad lane membership.
+2. CI platform jobs: `ubuntu`, `windows`, and `macos`, each running `node tools/ci/run-suite.js --mode ci --skip-prechecks` under Node 26.10.0.
 3. CI TUI job: Rust formatting, check, test, and clippy for the Rust TUI package.
-4. CI Long job: `node tools/ci/run-suite.js --mode ci --lane ci-long` under Node 24.21.0.
+4. CI Long job: `node tools/ci/run-suite.js --mode ci --lane ci-long` under Node 26.10.0.
 5. Required targeted suites for touched areas, using `node tests/run.js '<selector>' --lane=all --timeout-ms 30000`.
 6. Deterministic release-check, release-surface verification, release bundle, trust-material, and readiness-gate jobs on release candidates.
 7. Contract/docs drift checks, generated-surface freshness, USR technical contract guards, and release evidence shape checks.

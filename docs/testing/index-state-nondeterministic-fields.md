@@ -32,6 +32,10 @@ This removes ad hoc nondeterminism filtering in tests and keeps exclusions expli
 ## Build/run identity and stage fields (run invocation dependent)
 - `buildId` (timestamp + git short SHA + config hash). Computed in:
   - `src/index/build/runtime/runtime.js` (`formatBuildTimestamp(new Date())`)
+- `extensions.runtimeAttemptId` identifies the invocation's runtime receipt,
+  written by `src/index/build/indexer/steps/write.js`. It remains available in
+  the state but is excluded from the content hash; generated-artifact protocol
+  metadata and other content fields remain bound by the hash.
 - `stage` (stage1/stage2/stage3/stage4) and `enrichment.pending` / `enrichment.stage`:
   - Set in `src/index/build/indexer/steps/write.js`
   - Updated in `tools/build/embeddings/runner.js` (clears pending, sets stage)

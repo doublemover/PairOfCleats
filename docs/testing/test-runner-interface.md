@@ -39,6 +39,11 @@ Then remove `--list` to execute that selection, choosing explicit `--jobs` and
 selection behavior, so use the list metadata rather than assume every lane
 includes a new test.
 
+The [qualification matrix](qualification-matrix.md) distinguishes discovered
+coverage, ordered CI selections, native/platform acceptance and measured
+performance. `all` discovery includes helper regressions and tests assigned
+directly to aggregate lane labels; analyzed fixture inputs remain excluded.
+
 ## Command synopsis
 
 ```text
@@ -47,6 +52,17 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
 
 - **selectors**: one or more match strings (same rules as `--match`) applied to test ids and paths. If omitted, the default lane is executed (`ci`).
 - `--` terminates runner flags; anything after is passed to selected tests.
+
+Fixtures with a `<filename>.cases.json` sidecar expose one discovered ID per
+case (`<physical-test-id>/<case-id>`). Each case gets its own process, timeout,
+retry count, cache suffix and failure receipt; the physical script selects its
+case from `PAIROFCLEATS_TEST_ID`. A group prefix selects all its cases.
+Inventories require schema version 1 and unique nonempty simple case IDs;
+invalid inventories fail discovery. Script coverage generates these sidecars
+from its action definitions and checks freshness in `harness-parity`. The 210
+original actions remain covered; the full sample build has four mode boundaries,
+and shell checks have their own boundary (214 cases total). There is no aggregate
+30-second wrapper around their execution.
 
 ## Options
 
@@ -163,7 +179,7 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
 The runner sets or normalizes these env vars for child tests:
 
 - `PAIROFCLEATS_TESTING=1`
-- `PAIROFCLEATS_CACHE_ROOT` defaults to `.testCache` if unset.
+- `PAIROFCLEATS_CACHE_ROOT` defaults to `temp/dev/tests/cache` if unset.
 - `PAIROFCLEATS_TEST_TIMEOUT_MS` is set to the resolved timeout unless already set and no CLI override is provided.
 - `PAIROFCLEATS_TEST_RETRIES` is set to the resolved retry count unless already set and no CLI override is provided.
 - `PAIROFCLEATS_TEST_LOG_DIR` is set to the run-specific log dir when `--log-dir` is provided or the env var was previously unset.

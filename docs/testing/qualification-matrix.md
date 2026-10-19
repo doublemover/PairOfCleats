@@ -1,0 +1,129 @@
+# Platform and performance qualification
+
+Audited: 2026-10-18. Source contracts and workflow definitions describe required
+behavior; a configured job is not evidence that the current candidate passed it.
+Current execution evidence and unresolved failures belong to the
+[deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
+[active roadmap](../roadmap.md).
+
+## What exists
+
+| Surface | Checked-in qualification | What it establishes |
+| --- | --- | --- |
+| Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.10.0 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
+| Rust TUI | CI on Ubuntu: Rust 1.88.0 fmt/check/test/clippy | Rust build, unit behavior and lint on that target. JavaScript source-string checks do not replace compilation. |
+| Extended correctness | `.github/workflows/ci-long.yml`: Ubuntu, manually dispatched or release tags | Ordered long lane. It does not run on every PR. |
+| Extended/performance | `.github/workflows/nightly.yml`: manual dispatch, three OS targets; `run-suite.js --mode nightly` adds storage, perf, soak, benchmark and script-coverage work | Extended campaign when actually invoked. The workflow currently has no nightly schedule. |
+| Release | `.github/workflows/release.yml`, [release matrix](../guides/release-matrix.md) | Target-specific packaging, native TUI build/install and shipped-surface verification. Only receipts for the candidate establish acceptance. |
+| Performance checks | `tests/perf/`, shared-module import/command budgets, benchmark harnesses and SLO tools | Mixed evidence: correctness contracts, structural coupling budgets, small latency checks and larger workload experiments. The `perf` label alone does not identify measured performance. |
+
+`tools/ci/run-suite.js` currently supplies a 600-second runner deadline. That
+extended campaign setting does not override this audit's 30-second fixture limit.
+The cheap front gate, a broad discovered selection, and release qualification
+must be reported separately. Ordered lanes and physical discovery differ; list
+the intended selection before interpreting its result.
+
+## Useful required coverage
+
+Keep one supported Node major and the three supported OS families. Do not add an
+OS × language × provider × backend cross-product to routine PR work.
+
+1. **Every candidate:** bootstrap/native activation, front gate, changed-area
+   regressions, discovery completeness and format rejection. Keep helper tests
+   discoverable and retain newly split assertions in the corresponding ordered
+   lane. No retries or native-status redo count as acceptance for this audit.
+2. **Each supported OS:** CLI/API/MCP entrypoints; subprocess argument quoting,
+   cancellation and descendant reaping; path identity/case handling; atomic
+   publication and recovery; cache admission/cleanup; editor package/install.
+   File-symlink authority tests need a runner with that capability. The October
+   18 task-local elevated Windows launch created a real file symlink and passed
+   both security authority fixtures plus the runtime opened-byte fixture with
+   zero skips; ordinary medium-token runs still return EPERM. The elevated
+   launch did not alter system security settings.
+3. **Native Node backends:** prepared SQLite, LMDB, HNSW, LanceDB and parser
+   activation plus a bounded real build/query/teardown route on each shipped
+   platform. Stub vectors exercise deterministic ANN integration, not real model
+   execution. The captured Windows worker-teardown crash is attributed to Node
+   26.8.1 and its original routes pass on the clean 26.10.0 candidate; full
+   Windows-suite acceptance still requires the remaining cohorts. Do not replace
+   native lifecycle coverage with a backend switch or retry.
+4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
+   release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
+   node-pty ConPTY capture owner with actual console-mode observations. Focused
+   Windows quit, supervisor-error and broken-output checks pass with descendant
+   reaping and terminal restoration; see the
+   [Windows repair receipt](../archived/windows-deep-repairs-2026-10-18.md).
+   Linux execution and final-candidate acceptance remain separate. Windows
+   TypeScript VFS aliases now retain root spelling while canonicalizing lookups;
+   bounded root/preflight/import/compiler-binding checks pass. MCP queue,
+   cancellation, duplicate-ID, progress, timeout and isolated-cache search-filter
+   checks pass as separate Windows fixtures. These focused results still require
+   final-candidate cohort execution. The repo-self eval now requires every
+   original query to retrieve its expected source; its fenced Markdown host
+   prose and extracted-prose cases pass on a disposable source corpus. The
+   default index excludes `tools/`, so that specific fixture explicitly
+   unignores only the copied tool source. This does not qualify a full-repository
+   index. The explicit original-failure follow-up cohort found a nested test
+   cache under `sample`; default discovery and report fixture copies now exclude
+   `.testCache`/`.testLogs`, with positive source discovery retained. The four
+   affected report cases pass after that repair. Incremental SSR witnesses now
+   pass within 30 seconds after request-local query-index read deduplication;
+   the full output digest and between-request tamper rejection are retained.
+   Script coverage retains every action in explicit discovered process cases;
+   its first complete cohort passed 211 cases, timed out once and reported two
+   optional/helper exclusions. The repaired tokenization comparisons and
+   corrected nightly dispatch still require final-candidate qualification.
+   Disposable contributor caches
+   now use `temp/dev/`; receipt paths remain under `.testLogs/`.
+5. **Provider or model claims:** separately qualify the exact installed tool,
+   trusted workspace, model revision/digest and backend that the claim needs.
+   Real C/ELF authority fixtures need their supported native toolchain route.
+   Simulated LSP fixtures establish protocol behavior, not installed-tool or
+   cross-platform language precision.
+
+## Performance evidence to use
+
+Run bounded checks on one idle representative CPU host first. Use a second OS
+only for a changed platform-sensitive path or a release claim. Record candidate
+and dirty-worktree identity, OS/architecture, Node/ABI, backend/provider, corpus
+revision, cache state, concurrency and actual executed query/build counts.
+
+Use these layers independently:
+
+- **Correctness and deterministic resource bounds:** scheduler fairness,
+  cancellation, writer pressure, cache caps and vector-result provenance. Most
+  `perf` fixtures belong here. They can run in ordinary correctness lanes.
+- **Small measured regressions:** isolated SQLite query latency, cold/warm graph
+  operations, command startup and bounded memory retention. Preserve the raw
+  samples and existing thresholds. Parallel audit timings are diagnostic only.
+- **Representative workload acceptance:** fixed repositories and queries,
+  observed extraction quality and retrieval relevance, cold/warm indexing,
+  incremental edit-to-search latency, p50/p95, peak RSS and retained heap after
+  repeated operations. Real embeddings require verified model assets and an
+  observed provider. This is separately scoped work; small fixtures do not prove
+  production capacity or relevance.
+
+Do not increase a baseline merely because it fails. The shared-module budget is
+primarily an import-count/coupling gate, not a latency measurement. Review its
+reported dependency growth separately from measured startup. A warm/cold speed
+ordering assertion needs an isolated run and enough retained observations before
+it can support a performance claim.
+
+For a bounded local cohort, list first and then execute with explicit limits:
+
+```text
+node tests/run.js --lane all --match /^perf\// --list
+node tests/run.js --lane all --match /^perf\// --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file temp/tasks/perf-report.json --timings-file temp/tasks/perf-timings.json
+```
+
+The October 18 audit uses that deadline and records failures/timeouts without
+relaxation. Author-workspace `.testLogs` and `temp/` receipts are historical local
+evidence; clean checkouts are not expected to contain them. Restore broad
+correctness and the native teardown qualification before expanding expensive
+benchmark or release campaigns.
+
+The SQLite latency fixture now requires source hits before accepting a sample.
+This exposed an empty result for `answer`; the earlier fast timing remains
+diagnostic history. Exported-value extraction is repaired and a focused serial
+run now retrieves both original queries before passing the unchanged latency
+threshold. Final candidate qualification must repeat the affected measurement.

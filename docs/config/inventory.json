@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-15T02:28:32.101Z",
+  "generatedAt": "2026-10-19T00:50:02.595Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -270,6 +270,7 @@
       "PAIROFCLEATS_TUI_MOUSE",
       "PAIROFCLEATS_TUI_NODE",
       "PAIROFCLEATS_TUI_RUN_ID",
+      "PAIROFCLEATS_TUI_SNAPSHOT_PATH",
       "PAIROFCLEATS_TUI_SUPERVISOR",
       "PAIROFCLEATS_TUI_UNICODE",
       "PAIROFCLEATS_TUI_WORKSPACE_ROOT",
@@ -3199,7 +3200,7 @@
         "src/shared/env/runtime.js",
         "tests/retrieval/filters/filter-core-contract-matrix.test.js",
         "tests/security/editor-tui-authority.test.js",
-        "tests/services/api/trust-boundary-matrix.test.js",
+        "tests/services/api/trust-boundary-rejections.test.js",
         "tests/shared/runtime/embedding-plan-allowlist.test.js",
         "tests/tooling/vscode/search-env-runtime.test.js",
         "tools/api/trust-boundary.js",
@@ -3355,9 +3356,8 @@
         "tests/tooling/dict-utils/repo-current-case-insensitive.test.js",
         "tests/tooling/doctor/command-profile-contract-matrix.test.js",
         "tests/tooling/doctor/command-profile-probe-cache-disabled.test.js",
-        "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/install/setup-index-detection.test.js",
-        "tests/tooling/reports/summary/summary-report-helpers.js",
+        "tests/tooling/install/uninstall.test.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tests/tooling/triage/records-index-and-search.test.js",
         "tests/tui/install-layout-default-root.test.js",
@@ -3515,7 +3515,7 @@
     {
       "name": "PAIROFCLEATS_DISPATCH_STRICT",
       "files": [
-        "src/retrieval/cli-args.js",
+        "src/retrieval/cli-options.js",
         "src/shared/env/runtime.js",
         "tests/cli/general/cli.test.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
@@ -3572,8 +3572,6 @@
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/smoke/api-core-health.test.js",
         "tests/storage/sqlite/bundle-missing.test.js",
-        "tests/tooling/fixtures/fixture-eval.test.js",
-        "tests/tooling/reports/summary/summary-report-helpers.js",
         "tests/tooling/script-coverage/script-coverage.runner.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/ci/run-suite.js",
@@ -3650,6 +3648,7 @@
         "tests/perf/bench/language-resource-roots.test.js",
         "tests/services/mcp/sdk-mode.test.js",
         "tests/shared/cache/contract-matrix.test.js",
+        "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/install/tooling-post-install-verification.test.js",
         "tools/bench/language/prerequisite-runtime.js",
         "tools/bench/language/resource-roots.js",
@@ -3795,7 +3794,7 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/services/mcp/lane-reservation-fairness.test.js",
-        "tests/services/mcp/robustness.test.js",
+        "tests/services/mcp/robustness-cases.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3803,7 +3802,7 @@
       "name": "PAIROFCLEATS_MCP_TOOL_TIMEOUT_MS",
       "files": [
         "src/shared/env/runtime.js",
-        "tests/services/mcp/robustness.test.js",
+        "tests/services/mcp/robustness-cases.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3817,7 +3816,7 @@
     {
       "name": "PAIROFCLEATS_MODEL",
       "files": [
-        "tests/tooling/reports/summary/summary-report-helpers.js",
+        "tests/tooling/reports/summary/summary-build-case-helpers.js",
         "tools/bench/embeddings/model-bakeoff.js",
         "tools/config/inventory.js",
         "tools/reports/compare-models.js"
@@ -4354,6 +4353,7 @@
         "tests/runner/run-execution.js",
         "tests/services/api/fixture-api-server-cohort.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
+        "tests/services/mcp/tool-search-risk-filter.test.js",
         "tests/storage/sqlite/ann/sqlite-fallback.test.js",
         "tests/tooling/script-coverage/runner.js",
         "tools/config/inventory.js"
@@ -4386,6 +4386,7 @@
         "tests/indexing/contracts/golden-surface-suite.test.js",
         "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/embeddings/sqlite-dense-isolate.test.js",
+        "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/indexing/postings/helpers/vector-only-cleanup-fixture.js",
         "tests/ops/failure-injection/retrieval-hotpath.test.js",
@@ -4395,6 +4396,7 @@
         "tests/services/mcp/mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/smoke/api-core-health.test.js",
         "tests/tooling/config/source-metadata.test.js",
         "tests/tooling/fixtures/prewarm-languages.test.js",
         "tests/tooling/fixtures/prewarm-shared-indexes.test.js",
@@ -4437,8 +4439,14 @@
     {
       "name": "PAIROFCLEATS_TEST_ID",
       "files": [
+        "tests/context-pack/risk-filters-parity.test.js",
         "tests/helpers/test-env.js",
+        "tests/indexing/fixtures/health-authority.test.js",
+        "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/runner/run-execution.js",
+        "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/script-coverage/group-runner.js",
+        "tests/tooling/script-coverage/runner.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4498,7 +4506,7 @@
         "tests/services/mcp/fairness.test.js",
         "tests/services/mcp/lane-reservation-fairness.test.js",
         "tests/services/mcp/observability-correlation.test.js",
-        "tests/services/mcp/robustness.test.js",
+        "tests/services/mcp/robustness-cases.js",
         "tests/services/mcp/tool-cancel-response.test.js",
         "tools/config/inventory.js"
       ]
@@ -4509,7 +4517,7 @@
         "src/shared/env/testing.js",
         "tests/services/mcp/fairness.test.js",
         "tests/services/mcp/lane-reservation-fairness.test.js",
-        "tests/services/mcp/robustness.test.js",
+        "tests/services/mcp/robustness-cases.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4655,6 +4663,7 @@
         "tests/services/core-observability.test.js",
         "tests/services/mcp/repo-path-resolution.test.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/smoke/api-core-health.test.js",
         "tests/storage/sqlite/build-indexes.test.js",
         "tests/tooling/ci/lsp-embeddings-gates-testing-env.test.js",
         "tests/tooling/ci/run-suite-path-normalization.test.js",
@@ -4756,10 +4765,26 @@
         "src/shared/config-authority.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
+        "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
+        "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/source-metadata.test.js",
+        "tests/tooling/doctor/command-resolution-report.test.js",
+        "tests/tooling/doctor/generic-preset-matrix.test.js",
+        "tests/tooling/doctor/zls-zig-compatibility.test.js",
+        "tests/tooling/install/tooling-install-test-helper.js",
+        "tests/tooling/install/uninstall.test.js",
+        "tests/tooling/lsp/configured-provider-gopls-preset-profile.test.js",
+        "tests/tooling/lsp/configured-provider-gopls-profile.test.js",
+        "tests/tooling/lsp/configured-provider-lua-broken-layout-preflight.test.js",
+        "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js",
+        "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
+        "tests/tooling/reports/bench-language-stage-timing-report.test.js",
+        "tests/tooling/reports/summary/report-all-mode-integration.test.js",
+        "tests/tooling/reports/summary/report-json-error-contract.test.js",
+        "tests/tooling/reports/summary/summary-build-case-helpers.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
         "tools/config/inventory.js",
         "tools/service/indexer-service-helpers.js"
@@ -4774,12 +4799,22 @@
         "tests/security/java-workspace-execution-authority.test.js",
         "tests/security/nested-repository-command-authority.test.js",
         "tests/security/repository-authority.test.js",
+        "tests/security/repository-trust-identity.test.js",
         "tests/security/rust-workspace-execution-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
         "tests/security/zig-workspace-execution-authority.test.js",
+        "tests/services/mcp/repo-path-resolution.test.js",
         "tests/tooling/config/loader-schema-contract.test.js",
-        "tests/tooling/lsp/dedicated-providers-multifile-session-reuse.test.js",
+        "tests/tooling/doctor/generic-preset-matrix.test.js",
+        "tests/tooling/doctor/zls-zig-compatibility.test.js",
+        "tests/tooling/install/uninstall.test.js",
+        "tests/tooling/lsp/configured-provider-gopls-preset-profile.test.js",
+        "tests/tooling/lsp/configured-provider-gopls-profile.test.js",
+        "tests/tooling/lsp/configured-provider-lua-broken-layout-preflight.test.js",
+        "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js",
+        "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
+        "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
         "tools/config/inventory.js",
         "tools/service/indexer-service-helpers.js"
@@ -4835,7 +4870,9 @@
       "files": [
         "bin/tui-wrapper-env.js",
         "src/shared/env/tui.js",
+        "tests/cli/general/lifecycle-workflow-option-rejections.test.js",
         "tests/cli/general/unknown-workflow-options.test.js",
+        "tests/helpers/native-tui-conpty.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tui/observability/supervisor-fixture.js",
         "tools/config/inventory.js"
@@ -4865,6 +4902,7 @@
       "name": "PAIROFCLEATS_TUI_NODE",
       "files": [
         "bin/tui-wrapper-env.js",
+        "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
         "tools/config/inventory.js"
       ]
@@ -4880,9 +4918,17 @@
       ]
     },
     {
+      "name": "PAIROFCLEATS_TUI_SNAPSHOT_PATH",
+      "files": [
+        "tests/helpers/native-tui-conpty.js",
+        "tools/config/inventory.js"
+      ]
+    },
+    {
       "name": "PAIROFCLEATS_TUI_SUPERVISOR",
       "files": [
         "bin/tui-wrapper-env.js",
+        "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
         "tools/config/inventory.js"
       ]
@@ -5007,6 +5053,7 @@
         "tests/retrieval/cache/query-retrieval-knobs-invalidation.test.js",
         "tests/retrieval/ranking/fielded-bm25.test.js",
         "tests/run.js",
+        "tests/services/advanced-surface-goldens.test.js",
         "tests/services/api-search-asof.test.js",
         "tests/services/snapshot-ref-contract-matrix.test.js",
         "tests/services/soak/operational-recovery.test.js",
@@ -5070,7 +5117,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 497,
+    "totalFlags": 498,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5150,6 +5197,7 @@
       "workspaceId"
     ],
     "internalFlags": [
+      "action",
       "actionable-unresolved-rate-max",
       "additionalProperties",
       "adversarial-ratio",
@@ -6181,6 +6229,7 @@
       {
         "file": "tests/tooling/script-coverage/script-coverage.runner.js",
         "flags": [
+          "action",
           "cache-root",
           "groups",
           "list-groups",
@@ -9474,6 +9523,7 @@
       "tests/storage/semantic/runtime-opened-byte-integrity.test.js",
       "tests/storage/semantic/runtime-query-integrity.test.js",
       "tests/storage/semantic/runtime-source-reference-authority.test.js",
+      "tests/storage/semantic/runtime-source-reference-foreign-generation.test.js",
       "tests/storage/sqlite/build-root-active-generation-plan.test.js",
       "tests/tooling/signature-parse/signature-contract-matrix.test.js",
       "tests/tooling/typescript-root-preflight.test.js",
