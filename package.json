@@ -46,7 +46,7 @@
     "@ganezdragon/tree-sitter-perl": "1.1.1",
     "@handlebars/parser": "^2.2.4",
     "@huggingface/transformers": "4.3.1",
-    "@lancedb/lancedb": "^0.26.2",
+    "@lancedb/lancedb": "^0.40.0",
     "@mdx-js/mdx": "^3.1.1",
     "@sengac/tree-sitter-dart": "1.1.6",
     "@swc/core": "^1.15.13",
