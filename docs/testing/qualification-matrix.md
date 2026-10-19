@@ -52,6 +52,10 @@ OS × language × provider × backend cross-product to routine PR work.
    26.8.1 and its original routes pass on the clean 26.10.0 candidate; full
    Windows-suite acceptance still requires the remaining cohorts. Do not replace
    native lifecycle coverage with a backend switch or retry.
+   A real one-CPU TypeScript publication regression additionally covers scheduler
+   ownership: compiler work must acquire its own reservation without a parent
+   retaining the sole CPU token. Local before/after failure/pass evidence is in
+   the Windows receipt; current-head hosted execution remains required.
 4. **TUI:** Rust fmt/check/test/clippy and package/wrapper checks for supported
    release targets. Linux uses its POSIX PTY fixture; Windows uses the existing
    node-pty ConPTY capture owner with actual console-mode observations. Focused

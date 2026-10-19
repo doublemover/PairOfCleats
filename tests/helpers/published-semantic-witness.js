@@ -28,7 +28,7 @@ firstRun();secondRun();
  * This helper only executes when an authorized acceptance fixture invokes it.
  */
 export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
-  abortSignal = null, recordPartitionFilter = null } = {}) => {
+  abortSignal = null, recordPartitionFilter = null, threads = undefined } = {}) => {
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
@@ -45,6 +45,7 @@ export const createPublishedSemanticWitness = async ({ root, revision = 0, incre
     riskAnalysis: false, treeSitter: { enabled: false }
   } } });
   await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal,
+    ...(threads === undefined ? {} : { threads }),
     'stub-embeddings': true, 'scm-provider': 'none' });
   const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const { store, manifest } = await openPublishedSemanticStore({ repoRoot, indexDir });

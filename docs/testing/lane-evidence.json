@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-19T08:37:35.650Z",
+  "generatedAt": "2026-10-19T09:32:54.502Z",
   "summary": {
     "lanes": 5,
-    "tests": 1190,
+    "tests": 1191,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 311,
+    "families": 312,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1116
+      "missingTests": 1117
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 968,
+      "totalTests": 969,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 919
+        "missing": 920
       }
     },
     {
@@ -1207,6 +1207,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "indexing/semantic",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "integrations/lsp",
       "count": 1,
       "knownDurationMs": 0,
@@ -1966,9 +1972,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 401,
+      "count": 402,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 360,
+      "unknownDurationCount": 361,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

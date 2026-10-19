@@ -13,14 +13,14 @@ from `d6041226b` to `ab00d918d` before evaluation. Tracking starts from that sou
 
 The October 18 inventory had zero open issues and one open PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572), based on `main`.
-At `46aab0dc8`, strict hosted Windows passes 34 authority cases, then exposes
-a real cache-opener bug mixing lexical roots with canonical targets. A local
-alias regression fails before and passes after the owner repair, preserving
-complete result identity and rejection of linked bundle roots. Candidate 12
-stops cleanly after 51 SQLite passes; every required case must run on the next
-frozen tree. The summary repair retains exact content, its 20-second bound and
-failure cleanup. The strict 44-case job replaces dependence on local elevation;
-all-case execution is pending. Historical candidate 08 file-link,
+At `5c9b1fddc`, 67 semantic cases pass and two SSR incremental cases time out.
+Hosted Windows passes 35 authority cases, including the cache-opener repair,
+then exposes a fault hook targeting an aliased path instead of the actual open.
+The hook is corrected with injection counters. A one-CPU control additionally
+proves nested scheduler admission deadlock; its real publication regression now
+fails before and passes after the ownership repair. The strict 44-case job
+replaces dependence on local elevation; full current-tree acceptance and SSR
+deadline repairs remain pending. Historical candidate 08 file-link,
 performance and SSR passes do not qualify the new tree. The Windows receipt
 records proof and remaining qualification.
 Earlier hosted results are not final-head acceptance.

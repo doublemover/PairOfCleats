@@ -1180,14 +1180,88 @@ budget, environment usage, generated freshness, command/workflow contracts,
 39 gate cases and whitespace checks (`semantic-cache-alias-*-01` receipts).
 All 29 corrected-launch semantic logs contain zero warning/error matches.
 
+### Candidate 13, real integrity hooks and single-CPU admission
+
+The cache admission repair is committed and pushed as
+`5c9b1fddcefa4621beade2b86f7f18009cfcbf57`, with PR/remote readback.
+Candidate 13 freezes source SHA-256
+`165634f93d467c1ca9ed56fe003e2220d81ab4e78040ff3f8f727f67ed983375`
+over 5809 non-document paths and documentation SHA-256
+`200f6dedcb846cc7baa8dcf8da3498f66845ee5fa886b76476e56979eff9ad74`.
+The 69-case semantic cohort stops with 67 passes and two 30.4-second watchdog
+timeouts, zero native crashes/skips. Compiler bindings (27.1 s), embedded cache
+(2.19 s), embedded source (19.9 s), ordered aggregate/snapshot flow, production
+slice and the cold SSR witness pass. Both incremental SSR cases time out;
+their original logs remain in `.testLogs/run-1792400917882-6mgfu7`. Frozen
+source/document identities are verified before edits. These 67 passes do not
+qualify the next source.
+
+Strict hosted run `39227678499`, job `117978349898`, passes 35 cases, including
+retained-cache cleanup. Runtime opened-byte integrity fails in 1.999 s; eight
+fail-fast omissions remain unqualified. Its fault hook compares a lexical DOS
+temp path with the canonical path used by query-family admission, so the expected
+mutation never happens. The fixture now derives its target from realpath and
+asserts injection for replacement/growth/cancellation and Unix live-link swaps;
+the Windows pre-open file-link negative must reject before its read. All actual
+file-link, paging, checksum, native-close-failure and FD-cleanup assertions stay.
+An independent actual-query alias probe records zero injections and an unchanged
+healthy result with the original spelling, then one injection and the expected
+integrity/abort error for all three canonical-target controls. All opened handles
+close. The full fixture still requires capable hosted execution.
+
+SSR profiling under the unchanged 30-second bound shows active work: startup
+2.730 s, cold build 12.285 s, incremental build 8.972 s, forward traces
+1.424 / 1.371 s, cleanup 68 ms, and only two standard pipe resources at exit.
+There are 12,394 opens, 7,970 realpath and 8,671 stat calls. The instrumented run
+passes at 27.1 s; this variable diagnostic pass does not close the original two
+timeouts. Their fixture scope/performance remains under repair.
+
+An explicit one-thread diagnostic reveals a separate real ownership bug:
+the orchestrator reserves one CPU for the whole relations step while that step
+awaits a compiler task requiring its own CPU reservation. At capacity one the
+parent waits for its blocked child. Node exits 13 with unsettled top-level await
+in 8.43 s (`run-1792401570566-81ya4r`); this is not an access violation.
+The durable regression uses a fresh real TypeScript publication, one CPU and a
+20-second cancellation guard within the runner deadline. It fails before the
+repair in 22.6 s including imports (`run-1792401936393-ir3rvy`).
+
+The relations step now budgets preparation and legacy work separately through
+the existing scheduler queue, releasing those reservations before the compiler
+or native task acquires its own existing admission. Legacy work, queue byte
+caps, cancellation and compiler authority remain enforced. No token increase,
+backend switch, public knob or semantic producer meaning changes. The corrected
+regression passes in 14.2 s, requiring real contexts, durable task receipts,
+binding records and completed binding work for both TypeScript sources under
+their authoritative complete/partial coverage contract. The package JSON source
+is not falsely required to have compiler bindings. Scheduler-cap negatives,
+legacy symbolic types and real stage-queue wiring also pass in
+`run-1792402123872-1h0s4s`. The first after-fix attempt reaches publication but
+exposes an overly strict new-test postcondition; that receipt is retained too.
+The new case joins regular CI-lite; original assertions are retained.
+
+An additional same-physical-input proof runs the original Git owner at 16 CPU
+tokens and the repaired owner at one, each through the existing bounded subprocess
+owner with a 30-second limit. Every source/config byte and every full record
+field and edge match: 115 records / 136 edges, SHA-256
+`1211c0438c4f53911fdde04e63834c2c020fdc5b1a91c0ebc3266fc8d742b6bc`.
+No fields or provenance are suppressed. The two proof processes take 16.55 /
+16.79 s; these are equivalence observations, not production performance claims.
+The fresh dedicated root and both raw graph snapshots remain in historical task
+receipts (`relations-owner-full-graph-comparison.json`); the earlier retained
+witness is preserved. The complete front gate passes after this repair,
+including formatting, generated refresh/freshness, every preceding governance
+check, two CI policy guards and all 39 gate cases. Generated CI-lite membership
+is 969. The two SSR deadline failures still require repair and final-candidate
+qualification; this batch does not declare the deep suite green.
+
 ### Final campaign
 
 The access violation is attributed to Node's freed-Realm cleanup and the focused
 post-fix closure above is complete. Historical capable Windows file-symlink and
 safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
-candidate 12 stopped cleanly after its strict hosted job exposed a real cache
-admission path mismatch. The summary ownership, canonical expectation and cache
-admission repairs
+candidate 13 stops on two real SSR deadline failures and a hosted fault-targeting
+fixture failure. The summary, cache admission, canonical expectation, integrity
+hook and one-CPU ownership repairs
 require the complete front gate and every required cohort on a new frozen
 candidate, including all 44 cases in the strict hosted Windows authority job.
 The two C/clangd ELF-positive fixtures are Linux-owned; Windows
