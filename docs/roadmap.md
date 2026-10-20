@@ -38,9 +38,9 @@ receipt. ANN generation/strict-error repairs and global interrupt pass all seven
 checks at `18179bb7f` (39451767657).
 Hosted `c4357abb3` exposes Windows pending-delete lock admission; its native
 regression now passes with bounded acquisition and preserved permission errors.
-At `3e4082c7a` the native lock cohort and Ubuntu pass; Windows parity setup
-times out and macOS XML content assertions fail. Smaller parity artifacts and
-separate XML content/serial real-clock controls pass locally; fresh CI is pending.
+At `3e4082c7a`, Windows parity and macOS XML fail; smaller artifacts and separate
+content/real-clock owners repair them. Tool probes now retain actual causes and
+bounded redacted failure excerpts; real optional-tool qualification remains active.
 At `7162061f4`, native Windows ownership and three platform correctness selections
 reach only one shared failure: the serial-plan fixture still expects four owners.
 At `7789dd3fc`, Ubuntu/macOS correctness and serial real-clock budgets pass;
