@@ -9,7 +9,7 @@ import { ensureTestingEnv } from '../../helpers/test-env.js';
 ensureTestingEnv(process.env);
 const dir = await fs.realpath(await makeTempDir('poc-history-linear-turn-'));
 const vaultRoot = path.join(dir, 'vault'), input = path.join(dir, 'task.zip');
-await fs.mkdir(vaultRoot);
+await fs.mkdir(vaultRoot, { mode: 0o700 });
 const count = 160;
 const task = { id: 'linear-task', title: 'Bounded task lookup', archived: false, turns: Array.from({ length: count }, (_, index) => ({
   id: `linear-turn-${index}`, role: 'user', input_items: [{ type: 'message',
