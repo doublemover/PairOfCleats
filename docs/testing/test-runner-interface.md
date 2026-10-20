@@ -44,6 +44,13 @@ coverage, ordered CI selections, native/platform acceptance and measured
 performance. `all` discovery includes helper regressions and tests assigned
 directly to aggregate lane labels; analyzed fixture inputs remain excluded.
 
+Script coverage retains `storage`, `fixtures` and `tools` groups for distinct
+command invocations. Argument-free wrappers and redundant tokenization selectors
+use their canonical discovered fixtures. The [retirement ledger](../archived/script-coverage-retirement-2026-10-20.json)
+records each replacement and input/assertion proof. Nightly validates disjoint
+selections and retains explicit owners outside its main lanes; platform, optional
+and destructive exclusions remain separate from successful execution.
+
 The internal `tools/ci/run-windows-authority.js` owner runs the explicit
 `tests/ci/windows-authority-fixtures.json` cohort on a capable Windows launch.
 Its regular-CI guard checks inventory freshness and rejects omissions, retries,
