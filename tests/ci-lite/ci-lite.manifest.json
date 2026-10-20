@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 904,
+    "hero": 906,
     "matrix": 108,
-    "meta": 33,
+    "meta": 34,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -6289,6 +6289,24 @@
     {
       "id": "tooling/ingest/gtags/command-contract",
       "order": 1046,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/gate-policy",
+      "order": 1047,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/release/publish-assets",
+      "order": 1048,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/release/readiness-gate-missing-workflow",
+      "order": 1049,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

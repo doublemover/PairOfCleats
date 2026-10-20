@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T11:13:39.527Z",
+  "generatedAt": "2026-10-20T11:21:57.753Z",
   "summary": {
     "lanes": 5,
-    "tests": 1268,
+    "tests": 1271,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 324,
+    "families": 325,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1194
+      "missingTests": 1197
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1046,
+      "totalTests": 1049,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 997
+        "missing": 1000
       }
     },
     {
@@ -631,6 +631,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "tooling/release",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "tooling/structural",
       "count": 3,
       "knownDurationMs": 0,
@@ -770,6 +776,12 @@
     },
     {
       "key": "ci/dependency-runtime-migration",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/gate-policy",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1940,12 +1952,6 @@
     },
     {
       "key": "tooling/logging",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "tooling/release",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

@@ -1046,3 +1046,6 @@ storage/sqlite/build/cancellation
 tooling/ingest/lsif/protocol
 tooling/ingest/gtags/protocol
 tooling/ingest/gtags/command-contract
+ci/gate-policy
+tooling/release/publish-assets
+tooling/release/readiness-gate-missing-workflow

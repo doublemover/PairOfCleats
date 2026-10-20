@@ -18,7 +18,8 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Fifty issues have repairs through source `39cf3939d` (sixteenth batch): GNU Global cxref ingestion
+Fifty-two issues have repairs through source `940f5c3d3` (seventeenth batch): release assets have
+unique staged names/checksum mappings and CI Long has explicit release-only scope. GNU Global cxref ingestion
 separates source text from encoded paths and owns valid query arguments; LSIF follows
 result-to-range direction and document/URI authority. MCP builds retain
 request cancellation through core, SQLite ingestion and publication. FTS applies query
@@ -40,7 +41,8 @@ remains historical without inferred attribution. Newer `4eca0d995` passes six
 checks but times out in CIM snapshot discovery before the broad Windows suite.
 At `e6996eaba`, production orphan cleanup passes in 1.46 seconds; an extra
 unsupported 32-bit helper probe fails. Native System32 selection and its unchanged
-two-second checks now follow the declared 64-bit Node 26 targets; fresh CI remains required.
+two-second checks follow 64-bit Node 26 targets. All native controls pass at `b6bc0612f`;
+its broad Windows run was cancelled by publication concurrency. Fresh CI remains required.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
