@@ -7,6 +7,8 @@ const MIN_MAX_OUTPUT_BYTES = 1024;
 const MAX_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 const toFiniteInt = (value) => {
+  if (value == null || (typeof value === 'string' && !value.trim())) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
   return Math.floor(parsed);
