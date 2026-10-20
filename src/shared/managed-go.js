@@ -25,8 +25,9 @@ export const resolveManagedGoSdk = (toolingRoot, targetOptions = {}) => {
   const target = resolveGoSdkTarget(targetOptions);
   if (!toolingRoot || !target) return null;
   try {
-    const physicalTooling = fs.realpathSync(toolingRoot);
-    const cache = path.join(toolingRoot, 'sdk', 'go');
+    const absoluteTooling = path.resolve(toolingRoot);
+    const physicalTooling = fs.realpathSync(absoluteTooling);
+    const cache = path.join(absoluteTooling, 'sdk', 'go');
     if (!within(physicalTooling, fs.realpathSync(cache))) return null;
     const receipt = JSON.parse(readManagedGoText(path.join(cache, 'current.json')));
     if (receipt?.schemaVersion !== 1 || receipt.indexUrl !== GO_RELEASE_INDEX_URL
@@ -66,8 +67,8 @@ export const applyManagedGoEnvironment = (baseEnv, { toolingRoot, sdk = null } =
   const env = { ...(baseEnv || {}) };
   if (!managed) return env;
   const pathInfo = normalizeEnvPathKeys(env);
-  env[pathInfo.key] = [managed.binDir, resolveEnvPath(env)].filter(Boolean).join(path.delimiter);
-  env.GOROOT = managed.goRoot;
+  env[pathInfo.key] = [path.resolve(managed.binDir), resolveEnvPath(env)].filter(Boolean).join(path.delimiter);
+  env.GOROOT = path.resolve(managed.goRoot);
   // Keep preparation serial and forbid an implicit, unverified toolchain download.
   env.GOMAXPROCS = env.GOMAXPROCS || '1';
   env.GOTOOLCHAIN = env.GOTOOLCHAIN || 'local';

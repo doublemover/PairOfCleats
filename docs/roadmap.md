@@ -21,10 +21,13 @@ maps all 65 original failures, including 27 timeouts, to their current coverage.
 Earlier failed candidates remain historical; their green observations are not
 inherited. The closeout and subsequent managed-Go cache-path repair have separate
 checks; they do not relabel the frozen run as a later-head whole-suite pass.
-The Go repair passes 22 affected cases and a same-executable real-Go control;
-its defaults now resolve absolute paths while explicit user caches remain active.
-The regression joins regular CI. macOS optional Pyright installation still emits
-an npm `fsevents` script-policy warning; that separate qualification remains open.
+Managed-Go cache defaults and reused SDK launch paths now resolve absolutely;
+explicit user caches remain active. Both path defects have real-Go before/after
+controls and 22 affected passing cases; the SDK regression joins regular CI.
+macOS optional-tool readiness still rejects missing PHP and unverified
+Pyright/C#/Ruby installations. Its npm `fsevents` script-policy warning also
+remains separate from clean Windows native setup; installed-tool qualification
+stays open rather than turning successful installer exits into readiness.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

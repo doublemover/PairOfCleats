@@ -211,6 +211,61 @@ acceptance has no remaining blocker. Dependency PRs #573–#583 remain separate
 reviews. No merge, release, debugger registration or security-setting change is
 part of this acceptance.
 
+## Post-acceptance managed-Go SDK launch-path repair, October 19
+
+The cache-default repair at `632dd7f40f10e93dcd6e46c6e997e022259ffaa1`
+removes the immediate relative-GOPATH error, but actual macOS setup still reports
+gopls failed. The verified cached Go 1.27.1 SDK returns a relative `GOROOT` and
+compiler path. After Go changes into package directories, its assembler path
+`.ci-cache/pairofcleats/tooling/sdk/go/go1.27.1-darwin-arm64/go/pkg/tool/darwin_arm64/asm`
+is no longer found. Raw setup logs show six same-build assembler errors; the
+installer result remains failed, despite the best-effort job continuing. The
+976-case macOS quality artifact separately has 975 first-attempt passes and one
+declared optional exclusion, all below 30 seconds. A green quality job is not
+evidence of successful real-tool installation.
+
+SDK discovery now joins paths from an absolute tooling root, retaining every
+physical containment, receipt identity, version, checksum and layout check.
+Launch preparation also resolves `GOROOT` and the SDK executable directory
+absolutely, including explicitly supplied internal SDK objects. The earlier
+absolute default-cache fix remains. Explicit user caches and resource limits
+remain active; no producer/schema meaning or public knob changes.
+
+Four new assertions cover relative SDK launch roots, descendant PATH ownership
+and absolute verified SDK/executable reuse. All 59 preceding assertions remain
+in order: 54 original plus five cache-default witnesses, now 63 total. The new
+GOROOT assertion fails before repair in 141 ms. An initial applied-fixture run
+then incorrectly assumes uppercase `PATH` on Windows; the environment owner
+correctly returns canonical `Path`. The new witness now reads the established
+`resolveEnvPath` API with the identical expected SDK directory. That prototype's
+138 ms failure remains preserved; it is not attributed to the product. The
+corrected fixture passes in 190 ms. All 22 affected installer/provider cases
+pass first attempts in 71.5 seconds, slowest 8.66 seconds. CI-lite stays at 976;
+no previous ordered entry or assertion is removed.
+
+A second real-Go control uses the identical Go 1.26.4 executable and assembler,
+the same relative SDK input and the same changed compiler working directory.
+The old environment returns a relative `GOTOOLDIR`; the actual assembler launch
+fails `ENOENT`. The repaired environment returns the absolute tool directory;
+the same assembler's `-V` operation exits zero and prints its expected version,
+without stderr. No package is compiled or downloaded. Go executable SHA-256
+remains `9b3239fee08fa24ec8280180789cd3fdcfc24f33dc19b3a1230fa6b0ae3c5aad`;
+assembler SHA-256 is
+`916baf770d693e62d58da84bbcc0f915b23e3ba641cb0e646681cb9c84302f2b`.
+Historical local receipts are `go-relative-sdk-before-25.json`,
+`go-relative-sdk-after-25.json`, `go-relative-sdk-after-corrected-25.json`,
+`go-relative-sdk-focused-25.json` and `real-go-relative-sdk-proof-25.json` under
+the task receipt root. The complete Windows deep execution remains candidate 22;
+this source-owner follow-up has separate affected checks and publication CI.
+
+The same macOS installer report truthfully rejects missing PHP and successful
+Pyright/C#/Ruby installer exits whose probes or layouts fail verification. Its
+readiness is blocked, not clean or complete. Those real installed-tool
+qualifications remain separate from the required Windows deep target. The
+existing npm `fsevents` script-policy warning also remains unqualified; no
+automatic lifecycle approval, blanket warning filter or readiness relaxation
+is used to turn this report into a pass.
+
 ## Post-acceptance managed-Go preparation repair, October 19
 
 Closeout head `25ef23f21bf2ea4275b14b9bf2520d936c94cb38` passes all seven

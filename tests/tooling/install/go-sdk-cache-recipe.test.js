@@ -13,6 +13,7 @@ import {
 } from '../../../src/shared/managed-go.js';
 import { resolveLocalToolingBinDirs } from '../../../src/shared/tooling-bin-dirs.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
+import { resolveEnvPath } from '../../../src/shared/env-path.js';
 
 process.env.PAIROFCLEATS_TESTING = '1';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-go-sdk-recipe-'));
@@ -116,6 +117,15 @@ try {
     'Go requires an absolute module cache even when the configured tooling root is relative');
   assert.equal(relativeEnv.GOCACHE, path.join(toolingRoot, 'go-cache', 'build'),
     'Go requires an absolute build cache even when the configured tooling root is relative');
+  const relativeSdkEnv = applyManagedGoEnvironment({}, { toolingRoot: relativeRoot,
+    sdk: { ...sdk, goRoot: path.relative(process.cwd(), sdk.goRoot), binDir: path.relative(process.cwd(), sdk.binDir) } });
+  assert.equal(relativeSdkEnv.GOROOT, sdk.goRoot,
+    'compiler subprocesses must retain an absolute SDK root after changing working directory');
+  assert.equal(resolveEnvPath(relativeSdkEnv).split(path.delimiter)[0], sdk.binDir,
+    'the managed SDK executable directory must remain absolute for descendant launches');
+  const relativeSdk = resolveManagedGoSdk(relativeRoot, { platform: 'linux', arch: 'x64' });
+  assert.equal(relativeSdk.command, sdk.command, 'cache reuse must return the absolute verified executable');
+  assert.equal(relativeSdk.goRoot, sdk.goRoot, 'cache reuse must return the absolute verified SDK root');
   const explicitCaches = { GOPATH: path.join(root, 'custom modules'), GOCACHE: path.join(root, 'custom build') };
   const explicitEnv = applyManagedGoEnvironment(explicitCaches, { toolingRoot: relativeRoot, sdk });
   assert.equal(explicitEnv.GOPATH, explicitCaches.GOPATH, 'explicit module-cache ownership remains active');

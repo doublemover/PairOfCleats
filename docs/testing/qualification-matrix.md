@@ -93,16 +93,22 @@ OS × language × provider × backend cross-product to routine PR work.
    Simulated LSP fixtures establish protocol behavior, not installed-tool or
    cross-platform language precision.
 
-The post-acceptance setup-log audit finds a real managed-Go preparation defect:
-a relative tooling root produces relative `GOPATH`/`GOCACHE`, rejected by Go.
-Absolute default-cache resolution repairs it, preserving explicit user values.
-The same real Windows Go executable fails before and passes after the repair;
-22 affected installer/provider fixtures pass. Its existing SDK regression joins
-regular CI (976 cases); physical discovery remains 2999. The complete Windows
-deep run above still identifies its original frozen source. macOS optional
-Pyright installation separately emits npm's unreviewed `fsevents` lifecycle-policy
-warning; it is not an asserted negative-case warning or a clean setup receipt.
-No automatic lifecycle approval or machine security change supplies acceptance.
+The post-acceptance setup-log audit finds two managed-Go path defects. Relative
+`GOPATH`/`GOCACHE` defaults are rejected immediately; a reused relative `GOROOT`
+then makes compiler/assembler paths disappear after a working-directory change.
+Defaults, SDK cache resolution and SDK launch paths now resolve absolutely while
+explicit user caches remain active. Same-executable real-Go controls fail before
+and pass after each repair; 22 affected installer/provider fixtures pass for each
+batch. The existing SDK fixture retains its original 54 assertions and adds nine
+path/ownership assertions. It joins regular CI (976 cases); discovery stays 2999.
+The complete Windows deep run above still identifies its original frozen source.
+macOS optional-tool preparation remains unqualified: PHP is missing and
+Pyright/C#/Ruby post-install probes/layout checks fail. The Go installer report
+on `632dd7f40` also remains failed at the demonstrated relative-assembler error;
+the subsequent SDK repair needs its own hosted result. Optional Pyright setup
+emits npm's unreviewed `fsevents` lifecycle-policy warning. These are not asserted
+negative fixture warnings or clean setup receipts. No script approval, weakened
+readiness rejection or machine security change supplies acceptance.
 
 ## Performance evidence to use
 
