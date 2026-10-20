@@ -1,4 +1,5 @@
 import { restoreIndexFormatError } from '../../../shared/index-format-error.js';
+import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,7 +25,8 @@ const resolveWorkerResourceLimits = (maxWorkers) => {
   return { maxOldGenerationSizeMb: oldGenMb };
 };
 
-export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = process.cwd() }) => {
+export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = process.cwd(), signal = null }) => {
+  throwIfAborted(signal);
   const bundleTaskTimeoutMs = 30_000;
   const useWorkers = Number.isFinite(bundleThreads) && bundleThreads > 1 && Boolean(workerPath);
   const pool = useWorkers && workerPath
@@ -61,7 +63,9 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
   };
 
   const loadBundleDirect = async (bundlePath, file) => {
+    throwIfAborted(signal);
     const result = await readBundleFile(bundlePath, { repoRoot });
+    throwIfAborted(signal);
     if (!result.ok) {
       return {
         file,
@@ -73,6 +77,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
   };
 
   const loadBundle = async ({ bundleDir, entry, file }) => {
+    throwIfAborted(signal);
     const bundleNameResult = resolveManifestBundleNamesResult(entry);
     const bundleNames = bundleNameResult.names;
     if (!bundleNames.length) {
@@ -84,6 +89,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
     }
     const loadedShards = [];
     for (let shardIndex = 0; shardIndex < bundleNames.length; shardIndex += 1) {
+      throwIfAborted(signal);
       const bundlePath = path.join(bundleDir, bundleNames[shardIndex]);
       if (!fsSync.existsSync(bundlePath)) {
         return { file, ok: false, reason: `bundle file missing (${bundlePath})` };
@@ -92,7 +98,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
         if (pool && workerAvailable) {
           try {
             const result = await runWithTimeout(
-              () => pool.run({ bundlePath, repoRoot }),
+              () => pool.run({ bundlePath, repoRoot }, { signal }),
               {
                 timeoutMs: bundleTaskTimeoutMs,
                 errorFactory: () => createTimeoutError({
@@ -110,6 +116,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
             loadedShards.push(result.bundle);
             continue;
           } catch (error) {
+            if (isAbortError(error) || signal?.aborted) { throwIfAborted(signal); throw error; }
             if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
             await disableWorkerPool();
           }
@@ -118,6 +125,7 @@ export const createBundleLoader = ({ bundleThreads, workerPath, repoRoot = proce
         if (!loaded.ok) return loaded;
         loadedShards.push(...loaded.bundleShards);
       } catch (err) {
+        if (isAbortError(err)) throw err;
         if (err?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw err;
         return { file, ok: false, reason: `bundle read failed (${bundlePath}): ${err?.message || err}` };
       }

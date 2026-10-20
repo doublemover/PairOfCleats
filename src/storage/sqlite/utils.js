@@ -23,6 +23,7 @@ import {
   normalizeDenseVectorMeta
 } from '../../shared/dense-vector-artifacts.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
+import { throwIfAborted, isAbortError } from '../../shared/abort.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -979,6 +980,7 @@ export async function removeSqliteSidecars(basePath, { swallowNonBenign = false,
  * @param {{keepBackup?:boolean,backupPath?:string}} [options]
  */
 export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {}) {
+  throwIfAborted(options.signal);
   const keepBackup = options.keepBackup === true;
   const backupPath = options.backupPath || `${finalDbPath}.bak`;
   const finalExists = fs.existsSync(finalDbPath);
@@ -1044,6 +1046,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
 
   await removeSqliteSidecars(tempDbPath, { logger: options.logger || null });
   await removeSqliteSidecars(finalDbPath, { logger: options.logger || null });
+  throwIfAborted(options.signal);
 
   let backupAvailable = fs.existsSync(backupPath);
   let backupFromCurrentFinal = false;
@@ -1057,12 +1060,14 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
     if (!backupAvailable) {
       try {
+        throwIfAborted(options.signal);
         await moveFileOrFailCrossDevice(finalDbPath, backupPath, {
           operation: 'move-final-to-backup'
         });
         backupAvailable = true;
         backupFromCurrentFinal = true;
       } catch (err) {
+        if (isAbortError(err)) throw err;
         if (err?.code === 'ERR_SQLITE_REPLACE_CROSS_DEVICE') {
           throw err;
         }
@@ -1095,6 +1100,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
 
   try {
     try {
+      throwIfAborted(options.signal);
       await moveFileOrFailCrossDevice(tempDbPath, finalDbPath, {
         operation: 'promote-temp-to-final'
       });
@@ -1105,6 +1111,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       if (!backupFromCurrentFinal) {
         throw err;
       }
+      throwIfAborted(options.signal);
       emit('[sqlite] Falling back to removing existing db before replace.');
       await removeFileWithDiagnostics(finalDbPath, {
         context: 'existing final db',

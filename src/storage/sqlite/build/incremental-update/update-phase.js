@@ -14,6 +14,7 @@ import { deleteDocIds, updateTokenStats } from '../delete.js';
 import { validateSqliteDatabase } from '../validate.js';
 import { applyCachedSemanticPlan } from '../../semantic/from-cache.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { setImmediate } from 'node:timers/promises';
 
 /**
  * Sentinel error used to convert transactional guard failures into
@@ -444,6 +445,7 @@ export const runIncrementalUpdatePhase = async ({
     applyDeletes();
     applyInserts();
     await applyCachedSemanticPlan({ db, plan: semanticPlan, signal });
+    if (signal) await setImmediate(undefined, { signal });
     throwIfAborted(signal);
     db.exec('COMMIT');
     ownsTransaction = false;

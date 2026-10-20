@@ -1,4 +1,5 @@
 import { normalizeFtsVariants } from '../../fts-variants.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -90,8 +91,10 @@ export const executeSqliteModeBuilds = async ({
   indexPieceErrors,
   compactMode,
   envConfig,
-  threadLimits
+  threadLimits,
+  signal = null
 }) => {
+  throwIfAborted(signal);
   const requestedFtsVariants = normalizeFtsVariants(argv['fts-variants'] ?? [
     ...(userConfig?.search?.sqliteFtsStemming === true ? ['porter'] : [])
   ]);
@@ -100,6 +103,7 @@ export const executeSqliteModeBuilds = async ({
   let done = 0;
 
   for (const mode of modeList) {
+    throwIfAborted(signal);
     const stageCheckpoints = createStageCheckpointRecorder({
       buildRoot: indexRoot,
       metricsDir,
@@ -143,56 +147,60 @@ export const executeSqliteModeBuilds = async ({
       emitOutput,
       logger: { log, error }
     });
-    const logDetails = [];
-
-    reporter.logBuildStart();
-    await reporter.setRunningState();
-
-    const modeIsZeroState = modeChunkCountHint === 0 && modeDenseCountHint === 0;
-    if (modeIsZeroState) {
-      const existingRows = outputExists
-        ? readSqliteModeCount({
-          repoRoot: root,
-          Database,
-          dbPath: outputPath,
-          mode
-        })
-        : 0;
-      if (!outputExists || existingRows === 0) {
-        const zeroStateManifestPath = await writeSqliteZeroStateManifest({
-          modeIndexDir,
-          mode,
-          outputPath,
-          chunkCount: modeChunkCountHint,
-          denseCount: modeDenseCountHint
-        });
-        await reporter.reportSkippedEmpty({
-          existingRows: outputExists ? 0 : null,
-          denseCount: modeDenseCountHint,
-          zeroStateManifestPath
-        });
-        done += 1;
-        buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
-        continue;
-      }
-    }
-
-    const incrementalData = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
-    const incrementalBundleDir = incrementalData?.bundleDir || null;
-    const incrementalFiles = incrementalData?.manifest?.files;
-    const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
-      ? Object.keys(incrementalFiles).length
-      : 0;
-    const bundleInventory = listIncrementalBundleFiles(incrementalBundleDir);
-    const incrementalBundleCount = bundleInventory.count;
-    const missingBundleCount = countMissingBundleFiles(incrementalData, bundleInventory.names);
-    let resolvedInput = null;
     let tempOutputPath = null;
-    let inputBytes = 0;
-    const sqliteStats = {};
-    const workTask = taskFactory('Build', { stage: 'sqlite', mode });
-
     try {
+      throwIfAborted(signal);
+      const logDetails = [];
+
+      reporter.logBuildStart();
+      await reporter.setRunningState();
+      throwIfAborted(signal);
+
+      const modeIsZeroState = modeChunkCountHint === 0 && modeDenseCountHint === 0;
+      if (modeIsZeroState) {
+        const existingRows = outputExists
+          ? readSqliteModeCount({
+            repoRoot: root,
+            Database,
+            dbPath: outputPath,
+            mode
+          })
+          : 0;
+        if (!outputExists || existingRows === 0) {
+          const zeroStateManifestPath = await writeSqliteZeroStateManifest({
+            modeIndexDir,
+            mode,
+            outputPath,
+            chunkCount: modeChunkCountHint,
+            denseCount: modeDenseCountHint
+          });
+          throwIfAborted(signal);
+          await reporter.reportSkippedEmpty({
+            existingRows: outputExists ? 0 : null,
+            denseCount: modeDenseCountHint,
+            zeroStateManifestPath
+          });
+          done += 1;
+          buildModeTask.set(done, modeList.length, { message: `${mode} skipped` });
+          continue;
+        }
+      }
+
+      const incrementalData = loadIncrementalManifest(repoCacheRoot, mode, { repoRoot: root });
+      const incrementalBundleDir = incrementalData?.bundleDir || null;
+      const incrementalFiles = incrementalData?.manifest?.files;
+      const incrementalFileCount = incrementalFiles && typeof incrementalFiles === 'object'
+        ? Object.keys(incrementalFiles).length
+        : 0;
+      const bundleInventory = listIncrementalBundleFiles(incrementalBundleDir);
+      const incrementalBundleCount = bundleInventory.count;
+      const missingBundleCount = countMissingBundleFiles(incrementalData, bundleInventory.names);
+      let resolvedInput = null;
+      let inputBytes = 0;
+      const sqliteStats = {};
+      const workTask = taskFactory('Build', { stage: 'sqlite', mode });
+
+      throwIfAborted(signal);
       await fs.mkdir(outDir, { recursive: true });
       const piecesLoadError = indexPieceErrors?.[mode];
       if (piecesLoadError) {
@@ -390,6 +398,7 @@ export const executeSqliteModeBuilds = async ({
         && recordsIncrementalSupported
       ) {
         const updateResult = await incrementalUpdateDatabase({
+          signal,
           repoRoot: root,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
@@ -477,6 +486,7 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite incremental`
         });
         const bundleResult = await buildDatabaseFromBundles({
+          signal,
           repoRoot: root,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
@@ -524,6 +534,7 @@ export const executeSqliteModeBuilds = async ({
             repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
           });
           await buildDatabaseFromArtifacts({
+            signal,
             repoRoot: root,
             ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
             Database,
@@ -554,6 +565,7 @@ export const executeSqliteModeBuilds = async ({
           label: `${mode} sqlite artifacts`
         });
         await buildDatabaseFromArtifacts({
+          signal,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
           index: pieces,
@@ -569,6 +581,7 @@ export const executeSqliteModeBuilds = async ({
           stats: sqliteStats
         });
       }
+      throwIfAborted(signal);
       const postImportValidation = validateSqliteRowLedgerPostImport({
         repoRoot: root,
         rowLedger: activeRowLedger,
@@ -606,7 +619,8 @@ export const executeSqliteModeBuilds = async ({
         });
         if (compacted) logDetails.push('compacted');
       }
-      await replaceSqliteDatabase(tempOutputPath, outputPath);
+      throwIfAborted(signal);
+      await replaceSqliteDatabase(tempOutputPath, outputPath, { signal });
       tempOutputPath = null;
       await removeSqliteSidecars(outputPath);
       const counts = readSqliteCounts({
@@ -651,6 +665,7 @@ export const executeSqliteModeBuilds = async ({
         try {
           await fs.rm(tempOutputPath, { force: true });
         } catch {}
+        await removeSqliteSidecars(tempOutputPath);
       }
       const errorMessage = err?.message || String(err);
       await reporter.reportFailure({ errorMessage, err });

@@ -1,4 +1,5 @@
 import fsSync from 'node:fs';
+import { throwIfAborted } from '../../../../shared/abort.js';
 import { resolveManifestBundleNames } from '../../../../shared/bundle-io-paths.js';
 import { readBundleFile } from '../../../../shared/bundle-io.js';
 import { toArray } from '../../../../shared/iterables.js';
@@ -138,7 +139,8 @@ export const resolveIncrementalChangePlan = ({
  *   {ok:false,reason:string}
  * >}
  */
-export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
+export const loadBundlesAndCollectState = async ({ changed, bundleDir, signal = null }) => {
+  throwIfAborted(signal);
   const bundles = new Map();
   const tokenValues = new Set();
   const phraseValues = new Set();
@@ -146,6 +148,7 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
   let incomingDims = null;
 
   for (const record of changed) {
+    throwIfAborted(signal);
     const fileKey = record.file;
     const normalizedFile = record.normalized;
     const entry = record.entry;
@@ -163,6 +166,7 @@ export const loadBundlesAndCollectState = async ({ changed, bundleDir }) => {
         return { ok: false, reason: `bundle missing for ${fileKey}` };
       }
       const result = await readBundleFile(bundlePath);
+      throwIfAborted(signal);
       if (!result.ok) {
         return { ok: false, reason: `invalid bundle for ${fileKey}` };
       }

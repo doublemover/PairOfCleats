@@ -180,6 +180,7 @@ export const resolveRunnerSelectionPlan = async ({
     'extracted-prose': extractedProseOutPath,
     records: recordsOutPath
   };
+  if (modeArg !== 'all' && outPath) modeOutputPaths[modeArg] = outPath;
   const {
     indexPieces,
     indexPieceErrors

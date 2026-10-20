@@ -99,6 +99,13 @@ Response:
 - Mode selection (precedence): `--mcp-mode` CLI → `MCP_MODE`/`PAIROFCLEATS_MCP_MODE` env (exception) → `mcp.mode` config.
 - `initialize` must return server info, capabilities, and tool schema versions.
 - `$/cancelRequest` aborts in-flight tool calls (including id `0`).
+- `build_index` and `build_sqlite_index` retain that request signal through core
+  work and SQLite ingestion. Cancellation is checked before restore/follow-on
+  stages and publication; restore subprocesses and parser workers settle before
+  execution capacity is released. SQLite cancellation is cooperative at phase
+  and batch boundaries; an individual synchronous SQL statement completes
+  before its next checkpoint. Aborted transactions roll back and prior output
+  remains authoritative. A completed atomic publication is not undone.
 - Tool errors return `isError: true` with a JSON payload in `content`.
 
 **Cutover policy:** legacy transport remains supported until SDK parity tests are green; there must be no silent fallback from `sdk` to `legacy` when SDK mode is explicitly requested.

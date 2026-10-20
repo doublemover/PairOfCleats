@@ -1,4 +1,5 @@
 import { assertSqliteIndexFormat } from '../index-format.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import { REQUIRED_TABLES } from '../schema.js';
@@ -120,6 +121,7 @@ export async function incrementalUpdateDatabase({
   signal = null,
   repoRoot = process.cwd()
 }) {
+  throwIfAborted(signal);
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -137,7 +139,7 @@ export async function incrementalUpdateDatabase({
   const denseClampStats = createUint8ClampStats();
   const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
   const batchStats = stats && typeof stats === 'object' ? stats : null;
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
+  const recordBatch = (key) => { throwIfAborted(signal); bumpSqliteBatchStat(batchStats, key); };
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
     batchStats.ingestPlan = {
@@ -312,7 +314,9 @@ export async function incrementalUpdateDatabase({
     );
     if (!changed.length && !deleted.length && !semanticPlan) {
       const updateTx = db.transaction(() => {
+        throwIfAborted(signal);
         for (const record of manifestUpdates) {
+          throwIfAborted(signal);
           const normalizedFile = record.normalized;
           const entry = record.entry || {};
           updateFileManifest.run(
@@ -323,6 +327,7 @@ export async function incrementalUpdateDatabase({
             normalizedFile
           );
         }
+        throwIfAborted(signal);
       });
       updateTx();
       try {
@@ -345,6 +350,7 @@ export async function incrementalUpdateDatabase({
     }
 
     const bundlePlan = await loadBundlesAndCollectState({
+      signal,
       changed,
       bundleDir: incrementalData.bundleDir
     });

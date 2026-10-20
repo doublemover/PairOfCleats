@@ -22,6 +22,7 @@ import { createInsertStatements } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
 import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
 import { getCacheTempRoot } from '../../../shared/cache-roots.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 const normalizeStatementStrategy = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -117,7 +118,8 @@ const openDatabaseWithFallback = (Database, outPath) => {
  * @param {{batchSize?:number,inputBytes?:number,statementStrategy?:string,stats?:object}} input
  * @returns {{resolvedBatchSize:number,batchStats:object|null,resolvedStatementStrategy:string,recordBatch:function,recordTable:function}}
  */
-export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats }) => {
+export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats, signal = null }) => {
+  throwIfAborted(signal);
   const ingestPlan = resolveSqliteIngestPlan({ batchSize, inputBytes });
   const resolvedBatchSize = ingestPlan.batchSize;
   const batchStats = stats && typeof stats === 'object' ? stats : null;
@@ -135,8 +137,9 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
     };
     recordSqlitePlanTelemetry(batchStats, ingestPlan);
   }
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
-  const recordTable = createSqliteTableStatRecorder(batchStats);
+  const recordBatch = (key) => { throwIfAborted(signal); bumpSqliteBatchStat(batchStats, key); };
+  const recordTableStat = createSqliteTableStatRecorder(batchStats);
+  const recordTable = (...args) => { throwIfAborted(signal); recordTableStat(...args); };
   return {
     resolvedBatchSize,
     ingestPlan,
@@ -407,6 +410,7 @@ export const closeSqliteBuildDatabase = async ({
   dbPath = outPath,
   promotePath = null,
   batchStats = null,
+  signal = null,
   warn
 }) => {
   const resolvedOutPath = toComparablePath(outPath);
@@ -448,7 +452,7 @@ export const closeSqliteBuildDatabase = async ({
   if (needsPromote) {
     try {
       await removeSqliteSidecars(outPath);
-      await replaceFile(dbPath, outPath);
+      await replaceFile(dbPath, outPath, { signal });
     } catch (err) {
       if (typeof warn === 'function') {
         try { warn(err); } catch {}
@@ -456,6 +460,7 @@ export const closeSqliteBuildDatabase = async ({
       throw err;
     } finally {
       await removeSqliteSidecars(dbPath);
+      if (fsSync.existsSync(dbPath)) fsSync.rmSync(dbPath, { force: true });
     }
   }
   if (!succeeded) {

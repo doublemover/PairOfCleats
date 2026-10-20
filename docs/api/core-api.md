@@ -14,7 +14,9 @@ PairOfCleats exposes a lightweight programmatic API for build/search/status. Imp
 - `buildSqliteIndex(repoRoot, options)`
   - Builds or updates SQLite indexes from file-backed artifacts or incremental bundles.
   - Options: `mode`, `incremental`, `compact`, `out`, `codeDir`, `proseDir`, `extractedProseDir`, `recordsDir`, `args`.
-  - Execution options: `emitOutput`, `exitOnError`, `logger`.
+  - Execution options: `emitOutput`, `exitOnError`, `logger`, `abortSignal`.
+    Cancellation cooperates at ingestion/worker/transaction boundaries, drains
+    owned resources and preserves prior output before atomic publication.
 - `search(repoRoot, params)`
   - Runs search and returns a JSON payload (same shape as `pairofcleats search --json`).
   - Params mapped to CLI flags: `query`, `mode`, `backend`, `ann`, `annBackend`, `cursor`, `n`, `case`, `caseFile`,

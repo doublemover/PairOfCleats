@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks';
+import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import {
   buildChunkRow,
   buildFileManifestRows,
@@ -87,6 +88,7 @@ export async function buildDatabaseFromBundles({
   signal = null,
   repoRoot = process.cwd()
 }) {
+  throwIfAborted(signal);
   const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (logger?.log) {
@@ -117,7 +119,7 @@ export async function buildDatabaseFromBundles({
     resolvedStatementStrategy,
     recordBatch,
     recordTable
-  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
+  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats, signal });
   const maxVocabLookupEntries = Number.isFinite(Number(vocabLookupCacheMaxEntries))
     && Number(vocabLookupCacheMaxEntries) > 0
     ? Math.max(1, Math.floor(Number(vocabLookupCacheMaxEntries)))
@@ -693,7 +695,7 @@ export async function buildDatabaseFromBundles({
     // then own the loader immediately so every later failure closes it.
     let bundleLoader = null;
     try {
-      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot });
+      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot, signal });
       const useBundleWorkers = bundleLoader.useWorkers;
       if (emitOutput && useBundleWorkers) {
         log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
@@ -703,6 +705,7 @@ export async function buildDatabaseFromBundles({
         : 1;
       const batchSize = maxInFlightBundles;
       for (let i = 0; i < manifestEntries.length; i += batchSize) {
+        throwIfAborted(signal);
         const batch = manifestEntries.slice(i, i + batchSize);
         const tasks = batch.map((record) => bundleLoader.loadBundle({
           bundleDir: incrementalData.bundleDir,
@@ -710,6 +713,7 @@ export async function buildDatabaseFromBundles({
           file: record.file
         }));
         const results = await Promise.all(tasks);
+        throwIfAborted(signal);
         for (const result of results) {
           processedFiles += 1;
           if (!result.ok) {
@@ -732,6 +736,7 @@ export async function buildDatabaseFromBundles({
               chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
             }
           } catch (err) {
+            if (isAbortError(err)) throw err;
             const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
             bundleFailures.push(reason);
             if (/dense vector dims mismatch/i.test(String(err?.message || ''))) {
@@ -881,6 +886,7 @@ export async function buildDatabaseFromBundles({
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
+    throwIfAborted(signal);
     commitSqliteBuildTransaction(db, batchStats, {
       dbPath,
       stage: 'bundle-build',
@@ -912,6 +918,7 @@ export async function buildDatabaseFromBundles({
       batchStats,
       dbPath,
       promotePath,
+      signal,
       outPath,
       warn: (err) => warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`)
     });

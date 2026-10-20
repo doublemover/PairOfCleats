@@ -7,6 +7,7 @@ import { executeSqliteModeBuilds } from './runner/execution-orchestration.js';
 import { createRunnerLogger } from './runner/logging.js';
 import { normalizeModeArg, normalizeValidateMode } from './runner/options.js';
 import { resolveRunnerSelectionPlan } from './runner/selection-planning.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 export { normalizeValidateMode } from './runner/options.js';
 
@@ -34,9 +35,11 @@ export { normalizeValidateMode } from './runner/options.js';
  * @param {object|null} [options.logger]
  * @param {boolean} [options.emitOutput]
  * @param {boolean} [options.exitOnError]
+ * @param {AbortSignal} [options.abortSignal]
  * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
  */
 export async function buildSqliteIndex(options = {}) {
+  throwIfAborted(options.abortSignal);
   const modeArg = normalizeModeArg(options.mode);
   const validateMode = normalizeValidateMode(options.validateMode ?? options.validate);
   const root = options.root || options.runtime?.root || null;
@@ -70,6 +73,7 @@ export async function buildSqliteIndex(options = {}) {
     rawArgs: Array.isArray(options.rawArgs) ? options.rawArgs : []
   };
   return runBuildSqliteIndexWithConfig(parsed, {
+    abortSignal: options.abortSignal || null,
     logger: options.logger || null,
     root,
     runtime: options.runtime || null,
@@ -105,6 +109,8 @@ try {
  * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
  */
 export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
+  const signal = options.abortSignal || null;
+  throwIfAborted(signal);
   const {
     argv,
     emitOutput,
@@ -157,6 +163,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       parsedRawArgs,
       options
     });
+    throwIfAborted(signal);
     if (selection.errorMessage) {
       return bail(selection.errorMessage);
     }
@@ -188,6 +195,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
     }
 
     await executeSqliteModeBuilds({
+      signal,
       Database,
       argv,
       validateMode,

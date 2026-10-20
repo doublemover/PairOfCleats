@@ -553,6 +553,7 @@ export const runSqliteStage = async ({
         throwIfAborted(effectiveAbortSignal);
         const sqliteDirs = resolveSqliteDirs(indexRoot);
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
+          abortSignal: effectiveAbortSignal,
           mode,
           incremental: argv.incremental === true,
           batchSize: argv['sqlite-batch-size'],
@@ -921,6 +922,7 @@ export const runStage = async (
         for (const mode of sqliteModeList) {
           throwIfAborted(effectiveAbortSignal);
           sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
+            abortSignal: effectiveAbortSignal,
             mode,
             incremental: stageArgv.incremental === true,
             batchSize: stageArgv['sqlite-batch-size'],
