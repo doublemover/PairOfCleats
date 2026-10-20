@@ -37,6 +37,12 @@ Runtime controls:
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
 
+Jobs and tasks scroll through their filtered rows with `[n]/[u]` and return with
+`[m]/[i]`; offsets clamp to the available window. Logs show the newest wrapped
+lines in chronological order. `[j]` moves toward older matching entries and `[k]`
+returns toward newer ones. Pause preserves that filtered position as logs arrive;
+resuming follow returns to the newest entry. History remains bounded by the ring.
+
 Quit and terminal errors request supervisor shutdown, drain final job events, and
 reap the supervisor within its ten-second grace. The native lifetime guard then
 contains any remaining owned descendants. Snapshots save the resulting final job

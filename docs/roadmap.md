@@ -18,12 +18,13 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-five issues have implemented repairs through the thirtieth batch.
+Sixty-six issues have implemented repairs through the thirty-first batch.
 ANN publication binds full embedding identity and exact vector/chunk generation;
 failed replacements cannot relabel retained native bytes. Global Ctrl+C now follows
 shutdown across overlays, with a real Windows terminal/reaping witness.
 Default TUI build/capture now select pinned Rust with locked dependencies;
 the actual Windows release binary passes four terminal-lifetime controls.
+Rendered job/task offsets and wrapped log tail/follow now have actual frame coverage.
 Code-map caches bind the selected canonical index and manifest generation.
 Sublime cancellation and folder watch now pass actual Python 3.3 controls.
 Its API requests use destination-bound user credentials and refuse authenticated redirects.
