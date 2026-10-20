@@ -17,12 +17,21 @@ const tempRoot = resolveTestCachePath(root, `kill-tree-windows-orphan-${process.
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 const childPidPath = path.join(tempRoot, 'child.pid');
+const grandchildPidPath = path.join(tempRoot, 'grandchild.pid');
+const descendantScript = [
+  "const { spawn } = require('node:child_process');",
+  "const fs = require('node:fs');",
+  "const grandchild = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 25000); setInterval(() => {}, 60000);'], { detached: true, windowsHide: true, stdio: 'ignore' });",
+  'grandchild.unref();',
+  'fs.writeFileSync(process.argv[1], String(grandchild.pid));',
+  'setTimeout(() => process.exit(0), 25000); setInterval(() => {}, 60000);'
+].join('\n');
 
 const parentScript = [
   "const { spawn } = require('node:child_process');",
   "const fs = require('node:fs');",
   "const pidPath = process.argv[1];",
-  "const child = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 25000); setInterval(() => {}, 60000);'], {",
+  `const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendantScript)}, process.argv[2]], {`,
   "  detached: true,",
   "  windowsHide: true,",
   "  stdio: 'ignore'",
@@ -32,7 +41,7 @@ const parentScript = [
   'process.exit(0);'
 ].join('\n');
 
-const parent = spawn(process.execPath, ['-e', parentScript, childPidPath], {
+const parent = spawn(process.execPath, ['-e', parentScript, childPidPath, grandchildPidPath], {
   stdio: 'ignore',
   detached: false
 });
@@ -46,20 +55,28 @@ await new Promise((resolve, reject) => {
   parent.once('exit', () => resolve());
 });
 
-let childPid = null;
+let childPid = null, grandchildPid = null;
 for (let attempt = 0; attempt < 50; attempt += 1) {
   try {
     const value = String(await fs.readFile(childPidPath, 'utf8')).trim();
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed > 0) {
       childPid = Math.floor(parsed);
-      break;
+      const grandchild = Number(String(await fs.readFile(grandchildPidPath, 'utf8')).trim());
+      if (Number.isSafeInteger(grandchild) && grandchild > 0) {
+        grandchildPid = grandchild;
+        break;
+      }
     }
   } catch {}
   await sleep(50);
 }
 
 assert.ok(Number.isFinite(childPid) && childPid > 0, 'expected spawned descendant child pid');
+assert.ok(Number.isSafeInteger(grandchildPid) && grandchildPid > 0, 'expected spawned grandchild pid');
+const unrelated = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 25000); setInterval(() => {}, 60000);'],
+  { windowsHide: true, stdio: 'ignore' });
+assert.ok(unrelated.pid > 0);
 
 const assertProcessAlive = (pid) => {
   try {
@@ -81,6 +98,8 @@ const assertProcessDead = (pid) => {
 
 try {
   assertProcessAlive(childPid);
+  assertProcessAlive(grandchildPid);
+  assertProcessAlive(unrelated.pid);
   assert.throws(() => assertProcessDead(childPid), /expected process .* to be terminated/,
     'a live child must fail the death assertion before cleanup');
   const result = await killProcessTree(parent.pid, {
@@ -100,15 +119,18 @@ try {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
       assertProcessDead(childPid);
+      assertProcessDead(grandchildPid);
       break;
     } catch (error) {
       if (attempt === 19) throw error;
       await sleep(50);
     }
   }
+  assertProcessAlive(unrelated.pid);
 } finally {
-  if (Number.isFinite(childPid) && childPid > 0) {
-    await killProcessTree(childPid, {
+  for (const pid of [childPid, grandchildPid, unrelated.pid]) {
+    if (!Number.isFinite(pid) || pid <= 0) continue;
+    await killProcessTree(pid, {
       killTree: true,
       detached: true,
       graceMs: 0
