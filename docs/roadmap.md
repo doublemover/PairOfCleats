@@ -18,8 +18,9 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty issues have implemented repairs through the twenty-third batch.
+Sixty-one issues have implemented repairs through the twenty-fourth batch.
 Code-map caches bind the selected canonical index and manifest generation.
+Sublime cancellation and folder watch now pass actual Python 3.3 controls.
 Equal-text VFS origins retain distinct compiler targets, imported types and diagnostics;
 ambiguous content-only tokens fail closed. Python AST relations, defaults and Unicode
 ranges, plus HTML summary metadata, survive registry/index paths.
