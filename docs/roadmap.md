@@ -18,9 +18,10 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-four issues have implemented repairs through the twenty-eighth batch.
+Sixty-five issues have implemented repairs through the twenty-ninth batch.
 ANN publication binds full embedding identity and exact vector/chunk generation;
-failed replacements cannot relabel retained native bytes. Final qualification follows.
+failed replacements cannot relabel retained native bytes. Global Ctrl+C now follows
+shutdown across overlays, with a real Windows terminal/reaping witness. Final qualification follows.
 Code-map caches bind the selected canonical index and manifest generation.
 Sublime cancellation and folder watch now pass actual Python 3.3 controls.
 Its API requests use destination-bound user credentials and refuse authenticated redirects.
@@ -42,7 +43,8 @@ their source identities in the issue receipt; the supported native System32 owne
 keeps its two-second bound. Newer `8a0511c09` passes all seven hosted checks (39436483363),
 including 46 Windows authority cases and all eight API cases. Earlier compiler/API
 deadline failures retain their receipts. Compiler resource qualification now has
-a serial owner with unchanged bounds. Fresh candidate qualification is required.
+a serial owner with unchanged bounds. Hosted 49b3189c9 CI failed the legacy ANN
+fallback fixture; its coherent-generation/strict-error repair awaits fresh checks.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
