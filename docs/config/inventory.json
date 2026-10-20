@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T17:52:21.121Z",
+  "generatedAt": "2026-10-20T18:56:16.391Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4839,6 +4839,8 @@
         "tests/tooling/typescript-compiler-compatibility.test.js",
         "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
+        "tests/tui/operator-settings-lifecycle.test.js",
+        "tests/tui/operator-settings.test.js",
         "tools/config/inventory.js",
         "tools/service/indexer-service-helpers.js"
       ]

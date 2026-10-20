@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 929,
+    "hero": 933,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6439,6 +6439,30 @@
     {
       "id": "perf/parsers/xml-cold-budget",
       "order": 1071,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-settings",
+      "order": 1072,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-settings-lifecycle",
+      "order": 1073,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-settings-request-contract",
+      "order": 1074,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-settings-authority",
+      "order": 1075,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T17:52:17.394Z",
+  "generatedAt": "2026-10-20T18:56:10.661Z",
   "summary": {
     "lanes": 5,
-    "tests": 1294,
+    "tests": 1298,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 328,
+    "families": 332,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1220
+      "missingTests": 1224
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1071,
+      "totalTests": 1075,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1022
+        "missing": 1026
       }
     },
     {
@@ -2048,6 +2048,30 @@
     },
     {
       "key": "tui/cargo-invocation-policy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-settings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-settings-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-settings-lifecycle",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-settings-request-contract",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
