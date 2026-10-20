@@ -168,10 +168,9 @@ const cases = [
       try {
         await fsPromises.writeFile(finalPath, 'before', 'utf8');
         await fsPromises.writeFile(tempPath, 'after', 'utf8');
-        fsPromises.rename = async () => {
-          const err = new Error('EXDEV');
-          err.code = 'EXDEV';
-          throw err;
+        fsPromises.rename = async (from, to) => {
+          if (from === tempPath) throw Object.assign(new Error('EXDEV'), { code: 'EXDEV' });
+          return originalRename(from, to);
         };
 
         await replaceJsonFile(tempPath, finalPath);
