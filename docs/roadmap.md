@@ -18,10 +18,11 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-two issues have implemented repairs through the twenty-fifth batch.
+Sixty-three issues have implemented repairs through the twenty-sixth batch.
 Code-map caches bind the selected canonical index and manifest generation.
 Sublime cancellation and folder watch now pass actual Python 3.3 controls.
 Its API requests use destination-bound user credentials and refuse authenticated redirects.
+VS Code JS/operator scripts select a validated external Node from user settings or PATH.
 Equal-text VFS origins retain distinct compiler targets, imported types and diagnostics;
 ambiguous content-only tokens fail closed. Python AST relations, defaults and Unicode
 ranges, plus HTML summary metadata, survive registry/index paths.
@@ -36,11 +37,10 @@ now reads Toolhelp snapshots, with native layout/failure and real descendant/iso
 All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
 and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
 their source identities in the issue receipt; the supported native System32 owner
-keeps its two-second bound. Later CI exposes a real preflight entry-alias bypass,
-now reproduced and repaired with the existing real-path owner. The authority inventory
-includes both new aliases; its drift check moves into the front gate. Windows API core
-also exceeds 30 seconds after real clangd takes 18.6 seconds; a local 20.1-second
-pass does not close that hosted timeout. Fresh hosted/candidate qualification remains required.
+keeps its two-second bound. Newer `2e83a841f` passes macOS, Ubuntu and all 46 Windows
+authority cases after the preflight alias repair. Windows compiler lifecycle hits
+its own cancellation bound; the preceding API core timeout also remains open.
+Authority inventory drift is now in the front gate. Fresh candidate qualification is required.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
