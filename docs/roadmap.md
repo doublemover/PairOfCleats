@@ -62,7 +62,9 @@ digests, with stale-context negatives and LSP producer 13 replay invalidation.
 C# 0.28.0 now completes real Windows startup/shutdown with selected .NET SDK
 10.0.113. CI binds an isolated SDK/root; fresh-process runtime qualification and
 the repaired Windows sync-timeout descendant owner retain failure controls.
-Remaining real-tool work includes fresh platform execution, Ruby/PHP installs
+PHPactor delivery now pins approved bytes and reports its native Windows POSIX
+limitation; an isolated WSL checkout bootstraps and installs the real package.
+Remaining tool work includes startup/platform qualification, Ruby installs
 and the macOS `fsevents` policy warning. Detection, startup and semantic precision
 remain separate evidence; no warning or failed readiness is suppressed.
 
@@ -77,13 +79,10 @@ hosted source-security scanning and release qualification.
 
 The preceding maintenance batch's local acceptance and scope are recorded in the
 [maintenance receipt](archived/repository-maintenance-audit-2026-10-18.md).
-The 50 recent-change regressions and 78 unique governance cases have passing
-acceptance. The stale taxonomy fixture and its original fail-fast result remain
-recorded; the repaired case and all previously unexecuted cases pass. The final
-front gate passes all 39 cases and every preceding required check. These runs
-and final documentation/release-metadata checks cover 168 distinct fixtures;
-the standalone workflow contract also passes. These results precede the deeper
-test-audit repairs below and do not qualify their final working tree.
+That earlier batch covers 168 distinct fixtures, including 50 recent-change
+regressions, 78 governance cases and a 39-case front gate. Its original taxonomy
+failure and repaired checks remain recorded. These results precede the deeper
+repairs below and do not qualify their final working tree.
 
 ## Deep test audit, October 18
 
