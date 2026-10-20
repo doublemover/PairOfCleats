@@ -6,6 +6,7 @@ import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capt
 import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../src/shared/kill-tree.js';
 import { prepareIsolatedTestCacheDir } from './test-cache.js';
+import { reconstructTerminalScreen } from '../../tools/testing/terminal-screen.js';
 
 export const verifyNativeTuiConpty = async mode => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -35,6 +36,22 @@ export const verifyNativeTuiConpty = async mode => {
           if (!sentRun && rows.some(row => row.supervisor)) { terminal.write('r'); sentRun = true; }
           if (rows.some(row => row.descendant)) {
             if (mode === 'quit') terminal.write('q');
+            if (mode === 'interrupt') {
+              let overlayOutput = '';
+              const subscription = terminal.onData(data => { overlayOutput = (overlayOutput + data).slice(-32768); });
+              try {
+                terminal.write('/');
+                const overlayDeadline = Date.now() + 2000;
+                const screen = () => reconstructTerminalScreen(overlayOutput, { columns: 140, rows: 40 }).text;
+                while (!screen().includes('Type to filter') && Date.now() < overlayDeadline) {
+                  await new Promise(resolve => setTimeout(resolve, 20));
+                }
+                await fs.writeFile(path.join(dir, 'search-overlay.ansi.log'), overlayOutput);
+                await fs.writeFile(path.join(dir, 'search-overlay-screen.txt'), screen());
+                assert.ok(screen().includes('Type to filter'), 'The real search overlay must render before Ctrl+C');
+                terminal.write('\x03\x03');
+              } finally { subscription.dispose(); }
+            }
             if (mode === 'terminal-error') await fs.writeFile(path.join(dir, 'break-output'), 'close output');
             return;
           }
@@ -48,8 +65,10 @@ export const verifyNativeTuiConpty = async mode => {
     const receipt = JSON.parse(await fs.readFile(path.join(dir, 'terminal-receipt.json'), 'utf8'));
     assert.equal(receipt.mode, mode);
     assert.equal(receipt.terminalRestored, true, JSON.stringify(receipt));
-    if (mode === 'quit') assert.equal(receipt.exitCode, 0, receipt.stderr);
-    if (mode === 'quit') assert.equal(receipt.stderr, '', 'clean quit must not emit warnings or errors');
+    if (mode === 'quit' || mode === 'interrupt') {
+      assert.equal(receipt.exitCode, 0, receipt.stderr);
+      assert.equal(receipt.stderr, '', 'clean shutdown must not emit warnings or errors');
+    }
     if (mode === 'supervisor-error') {
       assert.notEqual(receipt.exitCode, 0, 'unexpected supervisor failure must propagate to the native exit status');
       assert.match(receipt.stderr, /supervisor exited before TUI shutdown/);
@@ -59,6 +78,10 @@ export const verifyNativeTuiConpty = async mode => {
       assert.match(receipt.stderr, /os error (109|232)/, 'the deliberately closed pipe owns the expected diagnostic');
     }
     const rows = await readPids();
+    if (mode === 'interrupt') {
+      assert.equal(rows.filter(row => row.request === 'eof').length, 1, 'Ctrl+C uses the existing single graceful supervisor EOF');
+      assert.equal(rows.filter(row => row.request === 'job:cancel').length, 0, 'Ctrl+C cannot submit selected-job cancellation');
+    }
     const pids = [...new Set(rows.flatMap(row => ['native', 'proxy', 'supervisor', 'job', 'descendant']
       .map(key => row[key]).filter(Number.isInteger)))];
     assert.ok(pids.length >= 5, 'witness native, proxy, supervisor, job and detached descendant');

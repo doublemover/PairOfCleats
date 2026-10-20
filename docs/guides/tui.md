@@ -1,7 +1,7 @@
 # TUI Guide
 
 Status: active  
-Last updated: 2026-02-21T00:00:00Z
+Last updated: 2026-10-20T00:00:00Z
 
 ## Commands
 
@@ -22,6 +22,9 @@ Runtime controls:
 - `[r]` queue job run
 - `[c]` cancel selected job
 - `[q]` graceful shutdown
+- `[Ctrl+C]` global graceful shutdown, including help, palette and search overlays;
+  queued interactions are discarded before supervisor shutdown. Plain `[c]` retains
+  selected-job cancellation outside overlays.
 - `[Tab]` cycle focus between jobs, tasks, and logs
 - `[1]`, `[2]`, `[3]` focus jobs, tasks, or logs directly
 - `[f]` cycle the active panel filter
@@ -105,12 +108,16 @@ On failure, wrapper exits non-zero with repair hints.
 
 ## Local Rust verification
 
+Use the crate's exact Rust toolchain from the repository root. `--manifest-path`
+selects the manifest; the explicit toolchain selector keeps these checks on the
+same compiler as the declared MSRV and CI.
+
 For source-checkout validation of the TUI crate, run:
 
-- `cargo fmt --check --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
-- `cargo check --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
-- `cargo test --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
-- `cargo clippy --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml -- -D warnings`
+- `cargo +1.88.0 fmt --check --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo +1.88.0 check --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo +1.88.0 test --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml`
+- `cargo +1.88.0 clippy --locked --manifest-path .\crates\pairofcleats-tui\Cargo.toml -- -D warnings`
 
 ## Observability
 

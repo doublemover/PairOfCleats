@@ -10,7 +10,8 @@ use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEvent,
+    KeyEventKind, KeyModifiers,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -3088,6 +3089,81 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     model.push_log_entry(log_line, &log_level, &log_source);
 }
 
+fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
+    if key.kind == KeyEventKind::Release {
+        return;
+    }
+    if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('c' | 'C'))
+    {
+        // Interrupt is global and must not start queued interactions before
+        // entering the existing supervisor shutdown-and-drain owner.
+        if matches!(model.input_queue.front(), Some((_, InputCommand::Quit))) {
+            return;
+        }
+        model.input_queue.clear();
+        enqueue_input(model, InputCommand::Quit, "ctrl-c");
+        return;
+    }
+    match model.overlay {
+        OverlayMode::Help => match key.code {
+            KeyCode::Esc | KeyCode::Char('?') => {
+                enqueue_input(model, InputCommand::ToggleHelp, "help-close")
+            }
+            _ => {}
+        },
+        OverlayMode::Palette => match key.code {
+            KeyCode::Esc | KeyCode::Char(':') => {
+                enqueue_input(model, InputCommand::TogglePalette, "palette-close")
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                enqueue_input(model, InputCommand::PaletteDown, "palette-down")
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                enqueue_input(model, InputCommand::PaletteUp, "palette-up")
+            }
+            KeyCode::Enter => enqueue_input(model, InputCommand::PaletteSelect, "palette-select"),
+            _ => {}
+        },
+        OverlayMode::Search => match key.code {
+            KeyCode::Esc => enqueue_input(model, InputCommand::SearchCancel, "search-cancel"),
+            KeyCode::Enter => enqueue_input(model, InputCommand::SearchAccept, "search-accept"),
+            KeyCode::Backspace => {
+                enqueue_input(model, InputCommand::SearchBackspace, "search-backspace")
+            }
+            KeyCode::Char(ch) if !ch.is_control() => enqueue_input(
+                model,
+                InputCommand::SearchChar(ch),
+                &format!("search-char-{ch}"),
+            ),
+            _ => {}
+        },
+        OverlayMode::None => match key.code {
+            KeyCode::Char('q') => enqueue_input(model, InputCommand::Quit, "q"),
+            KeyCode::Char('r') => enqueue_input(model, InputCommand::RunJob, "r"),
+            KeyCode::Char('c') => enqueue_input(model, InputCommand::CancelSelected, "c"),
+            KeyCode::Char('j') => enqueue_input(model, InputCommand::LogsUp, "j"),
+            KeyCode::Char('k') => enqueue_input(model, InputCommand::LogsDown, "k"),
+            KeyCode::Char('n') => enqueue_input(model, InputCommand::JobsUp, "n"),
+            KeyCode::Char('m') => enqueue_input(model, InputCommand::JobsDown, "m"),
+            KeyCode::Char('u') => enqueue_input(model, InputCommand::TasksUp, "u"),
+            KeyCode::Char('i') => enqueue_input(model, InputCommand::TasksDown, "i"),
+            KeyCode::Tab => enqueue_input(model, InputCommand::FocusNext, "focus-next"),
+            KeyCode::Char('1') => enqueue_input(model, InputCommand::FocusJobs, "focus-jobs"),
+            KeyCode::Char('2') => enqueue_input(model, InputCommand::FocusTasks, "focus-tasks"),
+            KeyCode::Char('3') => enqueue_input(model, InputCommand::FocusLogs, "focus-logs"),
+            KeyCode::Char('f') => enqueue_input(model, InputCommand::CycleFilter, "cycle-filter"),
+            KeyCode::Char('p') => enqueue_input(model, InputCommand::ToggleFollow, "toggle-follow"),
+            KeyCode::Char('?') => enqueue_input(model, InputCommand::ToggleHelp, "toggle-help"),
+            KeyCode::Char(':') | KeyCode::Char('a') => {
+                enqueue_input(model, InputCommand::TogglePalette, "toggle-palette")
+            }
+            KeyCode::Char('/') => enqueue_input(model, InputCommand::SearchOpen, "search-open"),
+            KeyCode::Char('x') => enqueue_input(model, InputCommand::ClearSearch, "clear-search"),
+            _ => {}
+        },
+    }
+}
+
 fn dispatch_input(
     model: &mut AppModel,
     supervisor: &mut std::process::Child,
@@ -3344,123 +3420,7 @@ fn main() -> anyhow::Result<()> {
                     // An unchanged model still needs a new layout after SIGWINCH.
                     invalidate_frame(&mut model);
                 } else if let CEvent::Key(key) = terminal_event {
-                    if key.kind == KeyEventKind::Release {
-                        continue;
-                    }
-                    match model.overlay {
-                        OverlayMode::Help => match key.code {
-                            KeyCode::Esc | KeyCode::Char('?') => {
-                                enqueue_input(&mut model, InputCommand::ToggleHelp, "help-close")
-                            }
-                            _ => {}
-                        },
-                        OverlayMode::Palette => match key.code {
-                            KeyCode::Esc | KeyCode::Char(':') => enqueue_input(
-                                &mut model,
-                                InputCommand::TogglePalette,
-                                "palette-close",
-                            ),
-                            KeyCode::Char('j') | KeyCode::Down => {
-                                enqueue_input(&mut model, InputCommand::PaletteDown, "palette-down")
-                            }
-                            KeyCode::Char('k') | KeyCode::Up => {
-                                enqueue_input(&mut model, InputCommand::PaletteUp, "palette-up")
-                            }
-                            KeyCode::Enter => enqueue_input(
-                                &mut model,
-                                InputCommand::PaletteSelect,
-                                "palette-select",
-                            ),
-                            _ => {}
-                        },
-                        OverlayMode::Search => match key.code {
-                            KeyCode::Esc => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchCancel,
-                                "search-cancel",
-                            ),
-                            KeyCode::Enter => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchAccept,
-                                "search-accept",
-                            ),
-                            KeyCode::Backspace => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchBackspace,
-                                "search-backspace",
-                            ),
-                            KeyCode::Char(ch) if !ch.is_control() => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchChar(ch),
-                                &format!("search-char-{ch}"),
-                            ),
-                            _ => {}
-                        },
-                        OverlayMode::None => match key.code {
-                            KeyCode::Char('q') => {
-                                enqueue_input(&mut model, InputCommand::Quit, "q")
-                            }
-                            KeyCode::Char('r') => {
-                                enqueue_input(&mut model, InputCommand::RunJob, "r")
-                            }
-                            KeyCode::Char('c') => {
-                                enqueue_input(&mut model, InputCommand::CancelSelected, "c")
-                            }
-                            KeyCode::Char('j') => {
-                                enqueue_input(&mut model, InputCommand::LogsUp, "j")
-                            }
-                            KeyCode::Char('k') => {
-                                enqueue_input(&mut model, InputCommand::LogsDown, "k")
-                            }
-                            KeyCode::Char('n') => {
-                                enqueue_input(&mut model, InputCommand::JobsUp, "n")
-                            }
-                            KeyCode::Char('m') => {
-                                enqueue_input(&mut model, InputCommand::JobsDown, "m")
-                            }
-                            KeyCode::Char('u') => {
-                                enqueue_input(&mut model, InputCommand::TasksUp, "u")
-                            }
-                            KeyCode::Char('i') => {
-                                enqueue_input(&mut model, InputCommand::TasksDown, "i")
-                            }
-                            KeyCode::Tab => {
-                                enqueue_input(&mut model, InputCommand::FocusNext, "focus-next")
-                            }
-                            KeyCode::Char('1') => {
-                                enqueue_input(&mut model, InputCommand::FocusJobs, "focus-jobs")
-                            }
-                            KeyCode::Char('2') => {
-                                enqueue_input(&mut model, InputCommand::FocusTasks, "focus-tasks")
-                            }
-                            KeyCode::Char('3') => {
-                                enqueue_input(&mut model, InputCommand::FocusLogs, "focus-logs")
-                            }
-                            KeyCode::Char('f') => {
-                                enqueue_input(&mut model, InputCommand::CycleFilter, "cycle-filter")
-                            }
-                            KeyCode::Char('p') => enqueue_input(
-                                &mut model,
-                                InputCommand::ToggleFollow,
-                                "toggle-follow",
-                            ),
-                            KeyCode::Char('?') => {
-                                enqueue_input(&mut model, InputCommand::ToggleHelp, "toggle-help")
-                            }
-                            KeyCode::Char(':') | KeyCode::Char('a') => enqueue_input(
-                                &mut model,
-                                InputCommand::TogglePalette,
-                                "toggle-palette",
-                            ),
-                            KeyCode::Char('/') => {
-                                enqueue_input(&mut model, InputCommand::SearchOpen, "search-open")
-                            }
-                            KeyCode::Char('x') => {
-                                enqueue_input(&mut model, InputCommand::ClearSearch, "clear-search")
-                            }
-                            _ => {}
-                        },
-                    }
+                    enqueue_terminal_key(&mut model, key);
                 }
             }
 
@@ -3484,6 +3444,95 @@ fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod redraw_tests {
     use super::*;
+
+    #[test]
+    fn control_c_is_global_shutdown_in_every_overlay_and_job_state() {
+        for overlay in [
+            OverlayMode::None,
+            OverlayMode::Help,
+            OverlayMode::Palette,
+            OverlayMode::Search,
+        ] {
+            for active in [false, true] {
+                for (code, modifiers) in [
+                    (KeyCode::Char('c'), KeyModifiers::CONTROL),
+                    (
+                        KeyCode::Char('C'),
+                        KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+                    ),
+                ] {
+                    let mut model = model();
+                    model.overlay = overlay;
+                    model.search_draft = "preserve-search".into();
+                    if active {
+                        model.selected_job = Some("owned-active-job".into());
+                        model
+                            .job_status
+                            .insert("owned-active-job".into(), "running".into());
+                    }
+                    model.input_queue.push_back((0, InputCommand::RunJob));
+                    model
+                        .input_queue
+                        .push_back((1, InputCommand::SearchChar('x')));
+                    enqueue_terminal_key(&mut model, KeyEvent::new(code, modifiers));
+                    let queued_seq = model.next_input_seq;
+                    let mut repeated = KeyEvent::new(code, modifiers);
+                    repeated.kind = KeyEventKind::Repeat;
+                    enqueue_terminal_key(&mut model, repeated);
+                    assert_eq!(
+                        model.next_input_seq, queued_seq,
+                        "Repeated interrupt preserves the queued shutdown"
+                    );
+                    assert_eq!(model.input_queue.len(), 1);
+                    assert!(
+                        matches!(model.input_queue.front(), Some((_, InputCommand::Quit))),
+                        "Ctrl+C must request shutdown before overlay dispatch"
+                    );
+                    assert_eq!(model.search_draft, "preserve-search");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn plain_c_keeps_overlay_scope_and_release_never_submits_input() {
+        for overlay in [
+            OverlayMode::None,
+            OverlayMode::Help,
+            OverlayMode::Palette,
+            OverlayMode::Search,
+        ] {
+            for active in [false, true] {
+                let mut model = model();
+                model.overlay = overlay;
+                if active {
+                    model.selected_job = Some("owned-active-job".into());
+                    model
+                        .job_status
+                        .insert("owned-active-job".into(), "running".into());
+                }
+                let mut release = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+                release.kind = KeyEventKind::Release;
+                enqueue_terminal_key(&mut model, release);
+                assert!(model.input_queue.is_empty());
+                enqueue_terminal_key(
+                    &mut model,
+                    KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
+                );
+                match overlay {
+                    OverlayMode::None => assert!(matches!(
+                        model.input_queue.front(),
+                        Some((_, InputCommand::CancelSelected))
+                    )),
+                    OverlayMode::Search => assert!(matches!(
+                        model.input_queue.front(),
+                        Some((_, InputCommand::SearchChar('c')))
+                    )),
+                    _ => assert!(model.input_queue.is_empty()),
+                }
+            }
+        }
+    }
 
     #[test]
     fn tail_window_ranges_are_bounded_and_deterministic() {

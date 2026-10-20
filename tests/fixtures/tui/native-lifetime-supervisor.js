@@ -26,6 +26,7 @@ readline.createInterface({ input: supervisor.stdout }).on('line', line => {
 });
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const request = JSON.parse(line);
+  if (mode === 'interrupt') record({ request: request.op });
   if (request.op === 'job:run') {
     delete request.argv;
     request.command = process.execPath;
@@ -35,5 +36,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       child.unref();setInterval(()=>process.stdout.write('owned job alive\\n'),50);`];
   }
   supervisor.stdin.write(JSON.stringify(request) + '\n');
-}).on('close', () => supervisor.stdin.end());
+}).on('close', () => {
+  if (mode === 'interrupt') record({ request: 'eof' });
+  supervisor.stdin.end();
+});
 supervisor.on('close', code => process.exit(code ?? 1));
