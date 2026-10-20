@@ -78,6 +78,7 @@ The bundled VS Code extension lives in `extensions/vscode` and defines:
 Settings:
 
 - `pairofcleats.cliPath`
+- `pairofcleats.nodePath` (User Settings only; empty uses the editor process PATH)
 - `pairofcleats.cliArgs`
 - `pairofcleats.apiServerUrl`
 - `pairofcleats.apiTimeoutMs`

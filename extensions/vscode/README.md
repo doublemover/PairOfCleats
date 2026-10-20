@@ -39,11 +39,19 @@ Long-running workflows stream into the `PairOfCleats` output channel.
 
 ## Configuration
 
+Checkout JS commands require an external Node.js >=26.10.0 <27, independently
+of VS Code's embedded runtime. Set `pairofcleats.nodePath` to an absolute Node
+executable in User Settings, or leave it empty to use `node` from the editor
+process PATH. Workspace overrides and workspace environment values cannot select
+this runtime. Both configured JS CLI entrypoints and operator scripts use the
+same bounded version/identity check; an incompatible runtime fails with setup
+guidance. Executable CLI commands retain their own invocation behavior.
+
 The extension honors the `pairofcleats.*` VS Code settings documented in:
 
 - `docs/guides/editor-integration.md`
 
 For the CLI contract and packaging behavior, see:
 
-- `docs/tooling/editor-config-contract.json`
+- `src/contracts/editor-config-contract.json` (bundled with each editor package)
 - `docs/specs/editor-packaging-determinism.md`

@@ -74,8 +74,13 @@ function loadExtensionWithMocks({ fakeVscode, fakeChildProcess }) {
   }
 }
 
-function createFakeSpawn(spawnCalls, queuedResults, killCalls) {
+function createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, nodeProbeResult) {
   return {
+    spawnSync(command, args, options) {
+      nodeProbeCalls.push({ command, args, options });
+      return typeof nodeProbeResult === 'function' ? nodeProbeResult(command, args, options)
+        : nodeProbeResult || { status: 0, stdout: JSON.stringify({ version: '26.10.0', execPath: process.execPath }), stderr: '' };
+    },
     spawn(command, args, options) {
       const result = queuedResults.shift();
       if (result?.throw) {
@@ -231,6 +236,7 @@ export function createVsCodeRuntimeHarness({
   activeEditor = null,
   configValues = {},
   globalConfigValues = {},
+  nodeProbeResult = null,
   isTrusted = true,
   workspaceState = {},
   fetchImpl = null
@@ -275,6 +281,7 @@ export function createVsCodeRuntimeHarness({
   const registeredCommands = new Map();
   const executeCommandCalls = [];
   const spawnCalls = [];
+  const nodeProbeCalls = [];
   const killCalls = [];
   const queuedResults = [];
   const fetchCalls = [];
@@ -645,7 +652,7 @@ export function createVsCodeRuntimeHarness({
 
   const extension = loadExtensionWithMocks({
     fakeVscode,
-    fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls)
+    fakeChildProcess: createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, nodeProbeResult)
   });
 
   const context = {
@@ -672,6 +679,7 @@ export function createVsCodeRuntimeHarness({
     registeredCommands,
     executeCommandCalls,
     spawnCalls,
+    nodeProbeCalls,
     killCalls,
     queuedResults,
     fetchCalls,

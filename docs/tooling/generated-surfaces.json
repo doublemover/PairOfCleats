@@ -2,6 +2,21 @@
   "schemaVersion": "1.0.0",
   "surfaces": [
     {
+      "id": "vscode-editor-config-bundle",
+      "owner": "editor-integrations",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after authoritative editor config contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/editor-config-bundle.js --out {output:0}",
+        "outputs": [{ "format": "json" }]
+      },
+      "outputs": ["extensions/vscode/editor-config-contract.json"],
+      "refresh": { "command": "node tools/docs/editor-config-bundle.js" },
+      "audit": { "command": "node tools/docs/generated-surfaces.js --check-freshness --surface vscode-editor-config-bundle" }
+    },
+    {
       "id": "sublime-editor-config-bundle",
       "owner": "editor-integrations",
       "committed": true,

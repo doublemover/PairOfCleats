@@ -446,6 +446,12 @@
     "configuration": {
       "title": "PairOfCleats",
       "properties": {
+        "pairofcleats.nodePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "External Node.js >=26.10.0 <27 executable for checkout JS commands. User Settings only; empty resolves node from the editor process PATH. The embedded VS Code runtime is never used."
+        },
         "pairofcleats.cliPath": {
           "type": "string",
           "default": "",

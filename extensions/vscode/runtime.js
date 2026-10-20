@@ -3,6 +3,58 @@ const path = require('node:path');
 
 const DEFAULT_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
 const DEFAULT_API_TIMEOUT_MS = 5000;
+const MINIMUM_NODE_VERSION = require('./editor-config-contract.json').cli.minimumNodeVersion;
+const MAXIMUM_NODE_MAJOR = Number(MINIMUM_NODE_VERSION.split('.')[0]) + 1;
+
+function resolveExternalNodeRuntime({ configuredPath = '', probe = require('node:child_process').spawnSync,
+  env = process.env } = {}) {
+  const fail = (reason) => ({ ok: false, message: `PairOfCleats requires external Node.js >=${MINIMUM_NODE_VERSION} <${MAXIMUM_NODE_MAJOR}. ${reason}`,
+    detail: 'Install the supported Node runtime or set an absolute pairofcleats.nodePath in VS Code User Settings.' });
+  const selected = String(configuredPath || '').trim() || 'node';
+  if (!path.isAbsolute(selected) && isPathLike(selected)) return fail('The Node path must be absolute.');
+  let command = path.isAbsolute(selected) ? selected : null;
+  if (!command) {
+    const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path');
+    const suffixes = process.platform === 'win32' && !path.extname(selected) ? ['.exe'] : [''];
+    for (const raw of String(env[pathKey] || '').split(path.delimiter)) {
+      const directory = raw.trim().replace(/^"(.*)"$/, '$1');
+      // Never resolve an implicit workspace/current-directory executable.
+      if (!directory || !path.isAbsolute(directory)) continue;
+      command = suffixes.map(suffix => path.join(directory, selected + suffix)).find(candidate => {
+        try { return fs.statSync(candidate).isFile(); } catch { return false; }
+      }) || null;
+      if (command) break;
+    }
+  }
+  if (!command) return fail('No Node executable was found on the editor process PATH.');
+  let result;
+  try {
+    result = probe(command, ['-p', 'JSON.stringify({version:process.versions.node,execPath:process.execPath})'], {
+      cwd: path.dirname(command), env, encoding: 'utf8', shell: false,
+      windowsHide: true, timeout: 3000, maxBuffer: 8192
+    });
+  } catch (error) { return fail(`Runtime probe failed (${error.code || 'spawn failure'}).`); }
+  if (result.error || result.status !== 0 || String(result.stderr || '').trim()) {
+    return fail(`Runtime probe failed (${result.error?.code || (result.status === 0 ? 'unexpected diagnostics' : `exit ${result.status}`)}).`);
+  }
+  let evidence;
+  try { evidence = JSON.parse(String(result.stdout || '')); }
+  catch { return fail('Runtime probe did not return valid Node identity.'); }
+  const version = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(evidence?.version || ''));
+  const minimum = String(MINIMUM_NODE_VERSION).split('.').map(Number);
+  if (!version || Number(version[1]) !== minimum[0]
+    || Number(version[2]) < minimum[1]
+    || (Number(version[2]) === minimum[1] && Number(version[3]) < minimum[2])) {
+    return fail(`Selected runtime reports ${evidence?.version || 'an unknown version'}.`);
+  }
+  if (typeof evidence.execPath !== 'string' || !path.isAbsolute(evidence.execPath)) {
+    return fail('Runtime probe did not identify an absolute executable.');
+  }
+  try {
+    if (!fs.statSync(evidence.execPath).isFile()) return fail('The selected executable is not a file.');
+    return { ok: true, command: fs.realpathSync(evidence.execPath), version: evidence.version };
+  } catch { return fail('The selected executable is unavailable.'); }
+}
 
 function createChunkAccumulator(maxBytes = DEFAULT_MAX_BUFFER_BYTES) {
   const limit = Number.isFinite(Number(maxBytes)) ? Math.max(1, Number(maxBytes)) : DEFAULT_MAX_BUFFER_BYTES;
@@ -66,9 +118,12 @@ function resolveConfiguredCli(repoRoot, configuredPath, extraArgs = [], defaults
     };
   }
   if (resolvedPath.toLowerCase().endsWith(String(defaults.jsExtension || '.js').toLowerCase())) {
+    const node = typeof defaults.resolveNode === 'function'
+      ? defaults.resolveNode() : resolveExternalNodeRuntime({ configuredPath: defaults.nodePath });
+    if (!node.ok) return node;
     return {
       ok: true,
-      command: process.execPath,
+      command: node.command,
       argsPrefix: [resolvedPath, ...extraArgs]
     };
   }
@@ -515,6 +570,7 @@ module.exports = {
   DEFAULT_API_TIMEOUT_MS,
   createChunkAccumulator,
   resolveConfiguredCli,
+  resolveExternalNodeRuntime,
   parseJsonPayload,
   parseSearchPayload,
   normalizeApiBaseUrl,

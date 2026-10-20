@@ -180,6 +180,7 @@ for (const markdownPath of ['walkthroughs/first-search.md', 'walkthroughs/operat
 const settings = contract?.settings?.vscode || {};
 const keyMap = {
   cliPathKey: 'pairofcleats',
+  nodePathKey: 'pairofcleats',
   cliArgsKey: 'pairofcleats',
   apiServerUrlKey: 'pairofcleats',
   apiTimeoutKey: 'pairofcleats',

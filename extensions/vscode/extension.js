@@ -20,6 +20,7 @@ const {
   DEFAULT_API_TIMEOUT_MS,
   createChunkAccumulator,
   resolveConfiguredCli,
+  resolveExternalNodeRuntime,
   parseJsonPayload,
   parseSearchPayload,
   normalizeApiBaseUrl,
@@ -76,6 +77,7 @@ function readContract(pathParts, fallback) {
 const VSCODE_SETTINGS = Object.freeze({
   namespace: String(readContract(['settings', 'vscode', 'namespace'], DEFAULT_VSCODE_SETTINGS.namespace)),
   cliPathKey: String(readContract(['settings', 'vscode', 'cliPathKey'], DEFAULT_VSCODE_SETTINGS.cliPathKey)),
+  nodePathKey: String(readContract(['settings', 'vscode', 'nodePathKey'], DEFAULT_VSCODE_SETTINGS.nodePathKey)),
   cliArgsKey: String(readContract(['settings', 'vscode', 'cliArgsKey'], DEFAULT_VSCODE_SETTINGS.cliArgsKey)),
   apiServerUrlKey: String(readContract(
     ['settings', 'vscode', 'apiServerUrlKey'],
@@ -731,11 +733,23 @@ function resolveCli(repoRoot, config) {
   if (configuredPath) {
     return resolveConfiguredCli(repoRoot, configuredPath, extraArgs, {
       command: CLI_DEFAULT_COMMAND,
-      jsExtension: CLI_JS_EXTENSION
+      jsExtension: CLI_JS_EXTENSION,
+      resolveNode: () => resolveNodeRuntime(config)
     });
   }
 
   return { ok: true, command: CLI_DEFAULT_COMMAND, argsPrefix: extraArgs };
+}
+
+
+function resolveNodeRuntime(config) {
+  if (vscode.workspace.isTrusted !== true) return { ok: false, message: workspaceTrustError().message };
+  if (typeof cp.spawnSync !== 'function') return { ok: false, message: 'PairOfCleats cannot probe the external Node runtime.' };
+  return resolveExternalNodeRuntime({
+    configuredPath: config?.inspect?.(VSCODE_SETTINGS.nodePathKey)?.globalValue || '',
+    probe: cp.spawnSync,
+    env: process.env
+  });
 }
 
 /**
@@ -3170,7 +3184,7 @@ const MANAGED_STOP_COMMAND_SPECS = Object.freeze([
 
 const MANAGED_STOP_COMMANDS_BY_ID = new Map(MANAGED_STOP_COMMAND_SPECS.map((spec) => [spec.id, spec]));
 
-function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext) {
+function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext, config = getExtensionConfiguration()) {
   const repoRoot = repoContext.repoRoot;
   const extraArgs = typeof spec.buildArgs === 'function' ? spec.buildArgs(repoRoot, inputContext, repoContext) : [];
   if (spec.invocation === 'script') {
@@ -3182,9 +3196,11 @@ function resolveOperatorInvocation(spec, repoContext, cliResolution, inputContex
         detail: 'Open a PairOfCleats checkout or use the CLI directly for this workspace.'
       };
     }
+    const node = resolveNodeRuntime(config);
+    if (!node.ok) return node;
     return {
       ok: true,
-      command: process.execPath,
+      command: node.command,
       args: [scriptPath, ...extraArgs],
       inputContext
     };
@@ -3881,7 +3897,7 @@ async function runOperatorCommand(spec) {
     });
     return;
   }
-  const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext);
+  const invocation = resolveOperatorInvocation(spec, repoContext, cliResolution, inputContext, config);
   if (!invocation.ok) {
     const output = getOutputChannel();
     output.appendLine(invocation.detail || invocation.message);
