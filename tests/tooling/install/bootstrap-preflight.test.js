@@ -71,14 +71,18 @@ try {
     assert.equal(commands[1], `npm ${name === 'bootstrap:ci' ? 'ci' : 'install'} --include=dev --ignore-scripts`);
     assert.deepEqual(commands.slice(2), ['node tools/setup/apply-patches.js', 'node tools/setup/rebuild-native.js']);
   }
-  const preflight = path.join(root, 'preflight.js'), marker = path.join(root, 'installer-started');
+  const checkout = path.join(root, 'checkout');
+  const preflight = path.join(checkout, 'tools/setup/preflight.js'), marker = path.join(root, 'installer-started');
+  fs.mkdirSync(path.dirname(preflight), { recursive: true });
+  fs.mkdirSync(path.join(checkout, 'src/shared'), { recursive: true });
   fs.copyFileSync('tools/setup/preflight.js', preflight);
+  fs.copyFileSync('src/shared/direct-execution.js', path.join(checkout, 'src/shared/direct-execution.js'));
   fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
   // An empty PATH is not a portable proof that system tools are unavailable.
   // Select an explicit missing-command fixture runner in this dependency-free
   // child; the real CLI's dependency-free argument guard is checked separately.
   const fixtureEntry = path.join(root, 'explicit-missing-tool-fixture.mjs');
-  fs.writeFileSync(fixtureEntry, `import { runSetupPreflight } from './preflight.js';
+  fs.writeFileSync(fixtureEntry, `import { runSetupPreflight } from './checkout/tools/setup/preflight.js';
     try { runSetupPreflight({ run(command) {
       if (command !== 'git') throw new Error('Unexpected probe after missing Git');
       return { status: null, error: { code: 'ENOENT' } };
@@ -99,5 +103,15 @@ try {
   assert.equal(cli.status, 1);
   assert.match(cli.stderr, /accepts no arguments/);
   assert.doesNotMatch(cli.stderr, /ERR_MODULE_NOT_FOUND/);
+  // macOS /var -> /private/var and checkout directory links must execute the
+  // same prerequisite checks. This alias contains only this disposable copy.
+  const alias = path.join(root, 'checkout-alias');
+  fs.symlinkSync(checkout, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const aliased = runNode([path.join(alias, 'tools/setup/preflight.js'), '--unexpected'],
+    'dependency-free preflight through directory alias', root, env,
+    { stdio: 'pipe', allowFailure: true, timeoutMs: 5000 });
+  assert.equal(aliased.status, 1, 'directory alias must not bypass the actual CLI');
+  assert.match(aliased.stderr, /accepts no arguments/);
+  assert.doesNotMatch(aliased.stderr, /ERR_MODULE_NOT_FOUND/);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
 console.log('Bootstrap preflight rejects unsupported Node/missing tools before installation, discovers supported platform prerequisites and runs without dependencies.');

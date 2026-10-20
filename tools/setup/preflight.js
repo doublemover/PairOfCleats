@@ -3,8 +3,8 @@
 // installs anything; successful discovery is not native-build readiness.
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
 const listDirectories = directory => {
   try { return fs.readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name); }
@@ -111,7 +111,7 @@ export const runSetupPreflight = ({ nodeVersion = process.versions.node, platfor
   return { nodeVersion, platform, arch, git, python, toolchain };
 };
 
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+if (isDirectExecution(import.meta.url)) {
   try {
     if (process.argv.length > 2) fail('This prerequisite diagnostic accepts no arguments.');
     const report = runSetupPreflight();

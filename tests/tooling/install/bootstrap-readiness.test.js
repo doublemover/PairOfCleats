@@ -15,7 +15,7 @@ const write = (relative, text) => {
   fs.writeFileSync(file, text);
 };
 const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
-const inputs = ['.nvmrc', 'tools/setup/preflight.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
+const inputs = ['.nvmrc', 'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js',
@@ -90,6 +90,11 @@ try {
   write('tools/setup/preflight.js', `${preflight}\n// changed prerequisite policy\n`);
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed prerequisite policy invalidates setup evidence');
   write('tools/setup/preflight.js', preflight);
+  record();
+  const directExecution = fs.readFileSync(path.join(root, 'src/shared/direct-execution.js'), 'utf8');
+  write('src/shared/direct-execution.js', `${directExecution}\n// changed entry detection policy\n`);
+  assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed entry detection invalidates setup evidence');
+  write('src/shared/direct-execution.js', directExecution);
   record();
   fs.unlinkSync(path.join(root, 'node_modules/tree-sitter/fixture.node'));
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'missing native artifacts reject the receipt');
