@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
-import { createLockPayload } from '../locks/file-lock-info.js';
+import { createLockPayload, readLockInfoSync, isLocalProcessDefinitelyDead,
+  removeLockFileSyncIfOwned } from '../locks/file-lock-info.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 
 const held = new Map();
@@ -26,6 +27,13 @@ export const retainRepoCacheAccess = (repoCacheRoot) => {
   fs.writeFileSync(file, JSON.stringify(payload), { flag: 'wx' });
   // A collector creates its exclusion lock BEFORE inspecting leases. Therefore
   // either it observes our lease, or we observe its lock before touching data.
+  if (fs.existsSync(paths.lockPath)) {
+    const owner = readLockInfoSync(paths.lockPath);
+    if (owner?.hostname === os.hostname() && Number.isSafeInteger(owner.pid)
+      && owner.pid > 0 && isLocalProcessDefinitelyDead(owner.pid)) {
+      removeLockFileSyncIfOwned(paths.lockPath, owner);
+    }
+  }
   if (fs.existsSync(paths.lockPath)) {
     fs.rmSync(file, { force: true });
     throw Object.assign(new Error('Repository cache cleanup is in progress; retry after cleanup completes.'), {

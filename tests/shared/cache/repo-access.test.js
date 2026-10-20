@@ -61,6 +61,9 @@ try {
   const collector = await start(root, true);
   assert.equal(collector.message.locked, true);
   await stop(collector.child, true);
+  const recoveredReader = await start(path.join(root, 'builds', 'reader-recovery', 'index-code'));
+  assert.equal(recoveredReader.message.root, root, 'normal reader recovers a dead local collector without another GC');
+  await stop(recoveredReader.child);
   const recovered = await withExclusiveRepoCacheCleanup(root, () => 'recovered');
   assert.equal(recovered.result, 'recovered', 'a subsequent collector recovers a dead local owner');
   const resumed = await start(path.join(root, 'builds', 'explicit', 'index-code'));
@@ -76,6 +79,17 @@ try {
   const { leases, lockPath } = repoAccessPaths(root);
   await fs.writeFile(lockPath, JSON.stringify({ hostname: os.hostname(), pid: 'invalid' }));
   assert.equal((await withExclusiveRepoCacheCleanup(root, () => assert.fail('unknown collector must stay protected'))).protected, true);
+  const unknownReader = await start();
+  assert.equal(unknownReader.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY');
+  await stop(unknownReader.child);
+  await fs.writeFile(lockPath, JSON.stringify({ hostname: 'foreign-owner', pid: process.pid }));
+  const foreignReader = await start();
+  assert.equal(foreignReader.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY');
+  await stop(foreignReader.child);
+  await fs.writeFile(lockPath, '{invalid');
+  const unreadableReader = await start();
+  assert.equal(unreadableReader.message.code, 'ERR_REPO_CACHE_CLEANUP_BUSY');
+  await stop(unreadableReader.child);
   await fs.rm(lockPath);
   await fs.mkdir(leases, { recursive: true });
   await fs.writeFile(path.join(leases, 'unknown.json'), '{invalid');

@@ -17,6 +17,29 @@ const sanitizeLockMetadata = (metadata) => {
   return sanitized;
 };
 
+/** ESRCH proves local death; permission/unknown errors never authorize recovery. */
+export const isLocalProcessDefinitelyDead = (pid) => {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return false; }
+  catch (error) { return error?.code === 'ESRCH'; }
+};
+
+export const isOwnedBy = (info, owner) => {
+  if (!owner || typeof owner !== 'object') return false;
+  if (owner.lockId && info?.lockId) return owner.lockId === info.lockId;
+  if (Number.isFinite(owner.pid) && Number.isFinite(Number(info?.pid))) return Number(owner.pid) === Number(info.pid);
+  return false;
+};
+
+export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {}) => {
+  if (!lockPath) return false;
+  try {
+    if (!force && !isOwnedBy(readLockInfoSync(lockPath), owner)) return false;
+    fsSync.rmSync(lockPath, { force: true });
+    return true;
+  } catch { return false; }
+};
+
 export const createLockId = () => {
   try {
     return randomUUID();

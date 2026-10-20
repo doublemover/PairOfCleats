@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 import { DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS } from './file-lock-constants.js';
-import { readLockInfo, readLockInfoSync, resolveLockPid } from './file-lock-info.js';
+import { readLockInfo, resolveLockPid, isOwnedBy } from './file-lock-info.js';
+export { isOwnedBy, removeLockFileSyncIfOwned } from './file-lock-info.js';
 
 export const isProcessAlive = (pid) => {
   if (!Number.isFinite(pid) || pid <= 0) return false;
@@ -34,29 +34,6 @@ export const isProcessAlive = (pid) => {
     return Number.isFinite(parsedPid) ? parsedPid === pid : true;
   } catch {
     return true;
-  }
-};
-
-export const isOwnedBy = (info, owner) => {
-  if (!owner || typeof owner !== 'object') return false;
-  if (owner.lockId && info?.lockId) return owner.lockId === info.lockId;
-  if (Number.isFinite(owner.pid) && Number.isFinite(Number(info?.pid))) {
-    return Number(owner.pid) === Number(info.pid);
-  }
-  return false;
-};
-
-export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {}) => {
-  if (!lockPath) return false;
-  try {
-    if (!force) {
-      const info = readLockInfoSync(lockPath);
-      if (!isOwnedBy(info, owner)) return false;
-    }
-    fsSync.rmSync(lockPath, { force: true });
-    return true;
-  } catch {
-    return false;
   }
 };
 
