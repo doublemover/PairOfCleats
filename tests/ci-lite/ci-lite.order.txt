@@ -512,6 +512,10 @@ tooling/ci/lsp-runtime-qualification/observer-throw
 tooling/ci/lsp-runtime-qualification/untrusted-command
 tooling/ci/lsp-runtime-qualification/version-timeout
 tooling/ci/lsp-runtime-qualification/fixture-without-testing
+tooling/ci/lsp-runtime-qualification/phpactor-info
+tooling/ci/lsp-runtime-qualification/phpactor-unexpected-stderr
+tooling/ci/lsp-runtime-qualification/phpactor-duplicate-info
+tooling/ci/lsp-runtime-artifact-admission
 storage/sqlite/build-full-transaction
 tooling/providers/provider-registry-contract-matrix
 ci/tooling-lsp-slo-gate.smoke

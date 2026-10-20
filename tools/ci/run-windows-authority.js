@@ -14,6 +14,7 @@ const { isDirectExecution } = await import('../../src/shared/direct-execution.js
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const portableLinkExclusions = new Set([
   'tooling/install/bootstrap-readiness', // Its link branch is POSIX-only.
+  'tooling/ci/lsp-runtime-artifact-admission', // Stock PHPactor is POSIX-only; Windows asserts unsupported before opening bytes.
   'indexing/semantic/native-deferred-production', // Linux ELF qualification.
   'indexing/semantic/native-task-authority' // Linux ELF qualification.
 ]);

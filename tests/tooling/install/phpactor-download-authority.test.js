@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { PHPACTOR_POSIX_SHIM, PHPACTOR_WINDOWS_SHIM } from '../../../tools/tooling/approved-artifacts.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/install/phpactor-download-authority/')[1];
 const cases = ['same-origin', 'cross-origin-rejected', 'cross-origin-approved', 'checksum-mismatch',
@@ -58,6 +59,9 @@ try {
     assert.equal(receipt.sha256, digest);
     assert.equal(receipt.attempts.length, 1, 'redirect hops are one attempt with zero retries');
     assert.ok(entries.includes(process.platform === 'win32' ? 'phpactor.cmd' : 'phpactor'));
+    assert.equal(await fs.readFile(path.join(bin, process.platform === 'win32' ? 'phpactor.cmd' : 'phpactor'), 'utf8'),
+      process.platform === 'win32' ? PHPACTOR_WINDOWS_SHIM : PHPACTOR_POSIX_SHIM,
+      'the installed launcher is the same exact recipe admitted by runtime qualification');
   } else {
     const reason = { 'checksum-mismatch': 'checksum_mismatch', oversized: 'download_too_large',
       empty: 'download_empty_payload', 'mutable-url': 'immutable_url_required' }[selected] || 'download_network_error';

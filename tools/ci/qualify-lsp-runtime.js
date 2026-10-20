@@ -1,13 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+import { requireBootstrap } from '../../src/shared/bootstrap-readiness.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { resolveToolingCommandProfile, probeLspInitializeHandshake } from '../../src/index/tooling/command-resolver.js';
 import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { probeCommand } from '../shared/cli-utils.js';
 import { isTestingEnv } from '../../src/shared/env.js';
+import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
+import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM } from '../tooling/approved-artifacts.js';
 
 // Internal qualification recipes: no public CLI, configuration or execution grant.
 const recipes = {
@@ -16,8 +18,16 @@ const recipes = {
       'answer.go': 'package qualification\n\nfunc Answer() int { return 42 }\n' } },
   'csharp-ls': { command: 'csharp-ls', args: [], versionArgs: ['--version'], versionPrefix: 'csharp-ls, 0.28.0 ',
     files: { 'Qualification.csproj': '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>\n',
-      'Answer.cs': 'public static class Qualification { public static int Answer() => 42; }\n' } }
+      'Answer.cs': 'public static class Qualification { public static int Answer() => 42; }\n' } },
+  phpactor: { command: 'phpactor', args: ['language-server'], versionArgs: ['--version'],
+    versionPrefix: `Phpactor ${PHPACTOR_APPROVED_RELEASE.version}`, platforms: ['linux', 'darwin'],
+    files: { 'composer.json': '{"name":"poc/qualification"}\n',
+      'Answer.php': '<?php\nfinal class Answer { public function value(): int { return 42; } }\n' } }
 };
+
+// The pinned PHAR's lib/Extension/LanguageServer/Command/StartCommand.php:37
+// emits this one normal info line; repeated or different diagnostics still fail.
+const phpactorStartupInfo = 'Starting language server, use -vvv for verbose output';
 
 const expectedCsharpInfo = [
   /^\d{2}:\d{2}:\d{2}\.\d{3} info: (?:LifeCycle|Roslyn\.Solution)\[\d+\]$/u,
@@ -33,10 +43,35 @@ const expectedCsharpInfo = [
 ];
 
 export const runLspQualificationWorker = async input => {
+  await requireBootstrap();
   if (!Object.hasOwn(recipes, input.providerId)) throw new Error('Unknown internal LSP qualification recipe');
   const recipe = recipes[input.providerId];
   const fixture = input.fixture || null;
   if (fixture && !isTestingEnv()) throw new Error('Explicit fixture commands require the test environment');
+  const receipt = { schemaVersion: 1, providerId: input.providerId, source: process.env.GITHUB_SHA || null,
+    node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch,
+    evidence: fixture ? 'explicit-simulated-command' : 'installed-default-command',
+    stderr: [], events: [], truncated: false, metrics: null };
+  if (!fixture && recipe.platforms && !recipe.platforms.includes(process.platform)) {
+    return { ...receipt, ok: false, reason: 'unsupported_platform', supportedPlatforms: recipe.platforms };
+  }
+  if (!fixture && input.providerId === 'phpactor') {
+    const launcherPath = path.join(input.toolingConfig.dir, 'bin', 'phpactor');
+    receipt.launcher = { path: launcherPath,
+      expectedSha256: createHash('sha256').update(PHPACTOR_POSIX_SHIM).digest('hex') };
+    try { receipt.launcher.sha256 = hashManagedToolFile(launcherPath, 16 * 1024); }
+    catch (error) { receipt.launcher.error = redactDiagnosticText(error.message, 1024); }
+    if (receipt.launcher.sha256 !== receipt.launcher.expectedSha256) {
+      return { ...receipt, ok: false, reason: 'runtime_launcher_unproven' };
+    }
+    const artifactPath = path.join(input.toolingConfig.dir, 'bin', 'phpactor.phar');
+    receipt.artifact = { path: artifactPath, expectedSha256: PHPACTOR_APPROVED_RELEASE.sha256 };
+    try { receipt.artifact.sha256 = hashManagedToolFile(artifactPath, 32 * 1024 * 1024); }
+    catch (error) { receipt.artifact.error = redactDiagnosticText(error.message, 1024); }
+    if (receipt.artifact.sha256 !== PHPACTOR_APPROVED_RELEASE.sha256) {
+      return { ...receipt, ok: false, reason: 'runtime_artifact_unproven' };
+    }
+  }
   const workspace = path.join(path.resolve(input.diagnosticsDir), '.lsp-qualification', input.providerId);
   fs.mkdirSync(workspace, { recursive: true });
   const fixtureHashes = {};
@@ -44,19 +79,18 @@ export const runLspQualificationWorker = async input => {
     fs.writeFileSync(path.join(workspace, name), content);
     fixtureHashes[name] = createHash('sha256').update(content).digest('hex');
   }
-  const profile = resolveToolingCommandProfile({ providerId: input.providerId, cmd: fixture?.command || recipe.command,
+  const profile = resolveToolingCommandProfile({ providerId: input.providerId,
+    cmd: fixture?.command || receipt.launcher?.path || recipe.command,
     args: recipe.args, repoRoot: input.repoRoot, toolingConfig: input.toolingConfig });
-  const receipt = { schemaVersion: 1, providerId: input.providerId, source: process.env.GITHUB_SHA || null,
-    node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch,
-    evidence: fixture ? 'explicit-simulated-command' : 'installed-default-command',
-    profile, args: profile.resolved.args, workspace, fixtureHashes, stderr: [], events: [], truncated: false, metrics: null };
+  Object.assign(receipt, { profile, args: profile.resolved.args, workspace, fixtureHashes });
   if (!profile.probe.ok) return { ...receipt, ok: false, reason: 'command_probe_failed' };
   if (profile.probe.attempted?.some(attempt => attempt.errorCode || attempt.exitCode !== 0)) {
     return { ...receipt, ok: false, reason: 'command_probe_attempt_failed' };
   }
   const command = profile.probe.resolvedPath || profile.resolved.cmd;
   receipt.command = command;
-  receipt.binarySha256 = createHash('sha256').update(fs.readFileSync(command)).digest('hex');
+  receipt.commandRealpath = fs.realpathSync(command);
+  receipt.binarySha256 = hashManagedToolFile(receipt.commandRealpath);
   const version = probeCommand(command, recipe.versionArgs, { cwd: workspace, env: process.env,
     stdio: 'pipe', timeoutMs: 4000, maxOutputBytes: 16384 });
   receipt.version = { ...version, stdout: redactDiagnosticText(version.stdout, 16384),
@@ -85,8 +119,9 @@ export const runLspQualificationWorker = async input => {
   });
   receipt.reaped = receipt.events.filter(event => event.kind === 'start')
     .map(event => ({ pid: event.pid, alive: isProcessAlive(event.pid) }));
-  const unknownStderr = receipt.stderr.filter(line => input.providerId !== 'csharp-ls'
-    || !expectedCsharpInfo.some(pattern => pattern.test(line)));
+  const unknownStderr = receipt.stderr.filter((line, index) => input.providerId === 'csharp-ls'
+    ? !expectedCsharpInfo.some(pattern => pattern.test(line))
+    : input.providerId === 'phpactor' ? index !== 0 || line !== phpactorStartupInfo : true);
   const exit = receipt.events.find(event => event.kind === 'exit');
   const shutdown = receipt.metrics?.byMethod?.shutdown;
   const reasons = [];
@@ -96,6 +131,9 @@ export const runLspQualificationWorker = async input => {
   if (!receipt.reaped.length || receipt.reaped.some(item => item.alive)) reasons.push('server_not_reaped');
   if (unknownStderr.length) reasons.push('unexpected_stderr');
   if (receipt.truncated) reasons.push('diagnostics_truncated');
+  if (input.providerId === 'phpactor' && !fixture
+    && (receipt.result.serverInfo?.name !== 'phpactor/phpactor'
+      || receipt.result.serverInfo?.version !== PHPACTOR_APPROVED_RELEASE.version)) reasons.push('server_identity_unproven');
   if (input.providerId === 'csharp-ls' && !fixture) {
     const selectedRoot = process.env.DOTNET_ROOT;
     const reportedPaths = receipt.stderr.flatMap(line => {
@@ -115,7 +153,7 @@ export const runLspQualificationWorker = async input => {
 
 /** Require a fresh qualification worker to exit naturally within 30 seconds. */
 export const qualifyInstalledLspRuntime = async ({ providerId, repoRoot, toolingConfig, diagnosticsDir, fixture = null }) => {
-  await guardBootstrapEntry(import.meta.url);
+  await requireBootstrap();
   if (!Object.hasOwn(recipes, providerId)) throw new Error('Unknown internal LSP qualification recipe');
   const config = { providerId, repoRoot: path.resolve(repoRoot), diagnosticsDir: path.resolve(diagnosticsDir),
     toolingConfig: { dir: toolingConfig.dir, cache: toolingConfig.cache

@@ -442,6 +442,36 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   }
   const upload = steps.find(step => step.name === 'Upload quality artifacts');
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
+  const optional = steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)');
+  const phpSetup = steps.findIndex(step => step.name === 'Setup qualified PHP runtime');
+  const phpVerify = steps.findIndex(step => step.name === 'Verify selected PHP runtime');
+  const phpStartup = steps.findIndex(step => step.name === 'Qualify real PHPactor startup');
+  if (platform === 'windows') {
+    const declaration = steps.findIndex(step => step.name === 'Record PHPactor native platform limitation');
+    const selected = /--tools\s+([^\s]+)/.exec(steps[optional].run)?.[1].split(',') || [];
+    if (selected.includes('phpactor') || phpSetup !== -1 || phpStartup !== -1
+      || declaration <= optional || declaration >= steps.findIndex(step => step.name === 'CI Suite')
+      || !steps[declaration].run.includes('"unsupported_platform"')
+      || !steps[declaration].run.includes('tooling/install/phpactor-platform-contract')
+      || !paths.includes('.diagnostics/phpactor-platform.json')) {
+      throw new Error('Windows must declare the stock PHAR POSIX limitation and its actual guard owner, separately from supported-platform startup.');
+    }
+  } else {
+    const setup = steps[phpSetup];
+    if (phpSetup < 0 || phpVerify <= phpSetup || phpVerify >= optional
+      || setup.uses !== 'shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962'
+      || setup.with?.['php-version'] !== '8.4.26' || setup.with?.coverage !== 'none' || setup.with?.tools !== 'none'
+      || !String(setup.with?.extensions).split(/,\s*/).includes('posix')
+      || !steps[phpVerify].run.includes('get_loaded_extensions()')
+      || steps[optional].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'
+      || phpStartup <= optional || phpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+      || !steps[phpStartup].run.includes('qualifyInstalledLspRuntime')
+      || !steps[phpStartup].run.includes('providerId: "phpactor"')
+      || !steps[phpStartup].env?.XDG_CACHE_HOME?.startsWith('${{ runner.temp }}/')
+      || !paths.includes('.diagnostics/php-sdk.json') || !paths.includes('.diagnostics/phpactor-startup.json')) {
+      throw new Error(`${platform}: select and verify PHP/POSIX before delivery, scope the existing redirect approval to installation, and require real PHPactor shutdown/exit evidence.`);
+    }
+  }
   if (upload?.if !== 'always()' || !paths.includes('.testLogs/**/*.log')
     || !paths.includes('.testLogs/**/*.failure.json') || !paths.includes('.diagnostics/go-sdk.json')
     || !paths.includes('.diagnostics/gopls-startup.json') || !paths.includes('.diagnostics/serial-native-lifecycle.json')

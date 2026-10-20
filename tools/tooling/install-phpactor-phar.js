@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { fetchDownloadUrl } from '../download/shared-fetch.js';
-import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
+import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM, PHPACTOR_WINDOWS_SHIM } from './approved-artifacts.js';
 import {
   createInstallError,
   computeSha256,
@@ -62,13 +62,13 @@ const downloadPhar = async ({ url, timeoutMs }) => {
 const writeShims = async (binDir) => {
   if (process.platform === 'win32') {
     const cmdPath = path.join(binDir, 'phpactor.cmd');
-    await fs.writeFile(cmdPath, '@echo off\r\nphp "%~dp0phpactor.phar" %*\r\n', 'ascii');
+    await fs.writeFile(cmdPath, PHPACTOR_WINDOWS_SHIM, 'ascii');
     return;
   }
   const shimPath = path.join(binDir, 'phpactor');
   await fs.writeFile(
     shimPath,
-    '#!/usr/bin/env sh\nset -eu\nexec php "$(dirname "$0")/phpactor.phar" "$@"\n',
+    PHPACTOR_POSIX_SHIM,
     'utf8'
   );
   await fs.chmod(shimPath, 0o755);

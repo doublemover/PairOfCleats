@@ -16,6 +16,9 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'tests/ci/windows-au
 const required = findWindowsLinkFixtures(root, tests);
 const available = tests.map(test => test.id);
 const ids = validateAuthorityManifest(manifest, available, required);
+assert.ok(available.includes('tooling/ci/lsp-runtime-artifact-admission'), 'the ordinary cohort still owns stock runtime admission');
+assert.equal(ids.includes('tooling/ci/lsp-runtime-artifact-admission'), false,
+  'POSIX PHAR symlinks cannot be counted as native Windows link coverage; its Windows branch asserts unsupported');
 assert.ok(ids.includes('security/repository-authority') && ids.includes('storage/semantic/runtime-opened-byte-integrity'));
 assert.throws(() => validateAuthorityManifest({ ...manifest, ids: ids.slice(1) }, available, required), /inventory drift/);
 assert.throws(() => validateAuthorityManifest({ ...manifest, ids: [...ids, ids[0]] }, available, required), /duplicate/);

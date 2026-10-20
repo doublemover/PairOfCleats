@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T22:34:33.039Z",
+  "generatedAt": "2026-10-20T22:59:32.172Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3538,6 +3538,7 @@
       "name": "PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS",
       "files": [
         "src/shared/env/runtime.js",
+        "tests/ci/workflow-contract.test.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/tooling/download/shared-fetch-contract.test.js",
         "tests/tooling/install/phpactor-download-authority.test.js",

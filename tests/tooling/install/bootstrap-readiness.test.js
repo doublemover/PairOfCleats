@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { BOOTSTRAP_RECEIPT, inspectBootstrapReadiness, recordBootstrapReadiness } from '../../../src/shared/bootstrap-readiness.js';
 
@@ -41,6 +42,21 @@ try {
   write('package-lock.json', '{}');
   for (const relative of inputs) write(relative, fs.readFileSync(path.join(sourceRoot, relative), 'utf8'));
   for (const entry of entries) write(entry, fs.readFileSync(path.join(sourceRoot, entry), 'utf8'));
+  // Exercise the actual imported qualification API against this unprepared
+  // installation. Only its inert dependencies point to the prepared checkout;
+  // the copied bootstrap owner keeps this fixture's real installation root.
+  const qualification = fs.readFileSync(path.join(sourceRoot, 'tools/ci/qualify-lsp-runtime.js'), 'utf8')
+    .replace(/from\s+(['"])(\.{1,2}\/[^'"]+)\1/g, (match, quote, specifier) =>
+      specifier === '../../src/shared/bootstrap-readiness.js' ? match
+        : `from ${quote}${pathToFileURL(path.resolve(sourceRoot, 'tools/ci', specifier)).href}${quote}`);
+  write('tools/ci/qualify-lsp-runtime.js', qualification);
+  write('invoke-qualification.js', `import {qualifyInstalledLspRuntime} from './tools/ci/qualify-lsp-runtime.js';
+    await qualifyInstalledLspRuntime({providerId:'must-not-reach-recipe-admission'});`);
+  const library = execute('invoke-qualification.js');
+  assert.equal(library.status, 1);
+  assert.match(library.stderr, /BOOTSTRAP REQUIRED/, 'imported qualification must enforce readiness before workload admission');
+  assert.doesNotMatch(library.stderr, /Unknown internal LSP qualification recipe|ERR_MODULE_NOT_FOUND/);
+  assert.equal(library.stdout, '');
   for (const entry of entries) {
     const result = execute(entry);
     assert.equal(result.status, 1, entry);

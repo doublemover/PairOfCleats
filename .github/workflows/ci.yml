@@ -197,6 +197,38 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified PHP runtime
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4.26'
+          extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
+          coverage: none
+          tools: none
+
+      - name: Verify selected PHP runtime
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const code = "echo json_encode([\"version\"=>PHP_VERSION,\"binary\"=>PHP_BINARY,\"extensions\"=>get_loaded_extensions()]);";
+          const result = runCommand("php", ["-r", code], { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.version, "8.4.26");
+          assert.ok(path.isAbsolute(sdk.binary));
+          const extensions = sdk.extensions.map(name => name.toLowerCase());
+          for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
+          const command = fs.realpathSync(sdk.binary);
+          const receipt = { ...sdk, command, source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/php-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         env:
@@ -261,6 +293,8 @@ jobs:
 
       - name: Install optional LSP tools (best effort)
         shell: bash
+        env:
+          PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
           node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
@@ -304,6 +338,27 @@ jobs:
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
+      - name: Qualify real PHPactor startup
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
+          XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
+          XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -324,6 +379,8 @@ jobs:
           path: |
             .diagnostics/dotnet-sdk.json
             .diagnostics/csharp-ls-startup.json
+            .diagnostics/php-sdk.json
+            .diagnostics/phpactor-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
@@ -473,7 +530,7 @@ jobs:
       - name: Install optional LSP tools (best effort)
         shell: pwsh
         run: |
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph --json
           if ($LASTEXITCODE -ne 0) {
             Write-Host 'optional tooling install had non-fatal failures (continuing).'
           }
@@ -517,6 +574,22 @@ jobs:
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
+      - name: Record PHPactor native platform limitation
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { getToolingRegistry } from "./tools/tooling/utils.js";
+          const root = process.cwd();
+          const support = getToolingRegistry(getToolingConfig(root).dir, root).find(tool => tool.id === "phpactor").install;
+          assert.equal(support.platforms.includes(process.platform), false);
+          const receipt = { source: process.env.GITHUB_SHA, platform: process.platform, status: "unsupported", reason: "unsupported_platform", requirement: support.platformRequirement, coverageOwner: "tooling/install/phpactor-platform-contract" };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/phpactor-platform.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -529,6 +602,7 @@ jobs:
           path: |
             .diagnostics/dotnet-sdk.json
             .diagnostics/csharp-ls-startup.json
+            .diagnostics/phpactor-platform.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
@@ -675,6 +749,38 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified PHP runtime
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4.26'
+          extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
+          coverage: none
+          tools: none
+
+      - name: Verify selected PHP runtime
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const code = "echo json_encode([\"version\"=>PHP_VERSION,\"binary\"=>PHP_BINARY,\"extensions\"=>get_loaded_extensions()]);";
+          const result = runCommand("php", ["-r", code], { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.version, "8.4.26");
+          assert.ok(path.isAbsolute(sdk.binary));
+          const extensions = sdk.extensions.map(name => name.toLowerCase());
+          for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
+          const command = fs.realpathSync(sdk.binary);
+          const receipt = { ...sdk, command, source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/php-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
       - name: Setup qualified .NET SDK
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         env:
@@ -739,6 +845,8 @@ jobs:
 
       - name: Install optional LSP tools (best effort)
         shell: bash
+        env:
+          PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
           node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
@@ -782,6 +890,27 @@ jobs:
           assert.equal(receipt.result.capabilities.definition, true);
           '
 
+      - name: Qualify real PHPactor startup
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
+          XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
+          XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -794,6 +923,8 @@ jobs:
           path: |
             .diagnostics/dotnet-sdk.json
             .diagnostics/csharp-ls-startup.json
+            .diagnostics/php-sdk.json
+            .diagnostics/phpactor-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
