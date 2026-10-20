@@ -3,6 +3,7 @@ import {
   nullableString,
   semverString
 } from './primitives.js';
+import { CONTEXT_PACK_RISK_TRUNCATION_CAPS } from '../../context-pack-risk-contract.js';
 
 export const nodeRefSchema = {
   anyOf: [
@@ -107,11 +108,7 @@ export const truncationRecordSchema = {
         'maxEdgesExamined',
         'maxSuggestions',
         'maxSeeds',
-        'maxFlows',
-        'maxStepsPerFlow',
-        'maxCallSitesPerStep',
-        'maxRiskBytes',
-        'maxRiskTokens'
+        ...CONTEXT_PACK_RISK_TRUNCATION_CAPS
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },

@@ -2,6 +2,10 @@ import { ARTIFACT_SURFACE_VERSION, parseSemver } from './versioning.js';
 
 export const CONTEXT_PACK_RISK_SCHEMA_VERSION = 1;
 export const CONTEXT_PACK_RISK_CONTRACT_VERSION = '1.0.0';
+export const CONTEXT_PACK_RISK_TRUNCATION_CAPS = Object.freeze([
+  'maxFlows', 'maxStepsPerFlow', 'maxCallSitesPerStep', 'maxRiskBytes', 'maxRiskTokens',
+  'maxCallSiteExcerptBytes', 'maxCallSiteExcerptTokens', 'maxPartialFlows', 'maxPartialBytes', 'maxPartialTokens'
+]);
 export const CONTEXT_PACK_RISK_ACCEPTED_ARTIFACT_SURFACE_VERSIONS = Object.freeze([ARTIFACT_SURFACE_VERSION]);
 
 const isExactSemverMatch = (value, expected) => (
