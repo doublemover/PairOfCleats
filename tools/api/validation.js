@@ -140,11 +140,12 @@ const federatedDebugSchema = {
 const federatedSearchSchema = {
   type: 'object',
   additionalProperties: false,
-  required: ['query', 'workspacePath'],
+  required: ['workspacePath'],
   properties: {
     workspacePath: { type: 'string', minLength: 1 },
     workspaceId: { type: 'string', minLength: 1 },
-    query: { type: 'string', minLength: 1 },
+    query: { type: 'string' },
+    cursor: { type: 'string', minLength: 1 },
     search: { type: 'object' },
     select: federatedSelectionSchema,
     merge: federatedMergeSchema,
