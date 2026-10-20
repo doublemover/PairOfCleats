@@ -15,7 +15,7 @@ const normalizeSelection = (selection) => {
   const normalized = list
     .map((entry) => String(entry).trim())
     .filter(Boolean);
-  return normalized.length ? normalized : null;
+  return normalized;
 };
 
 /**

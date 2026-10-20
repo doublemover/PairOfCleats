@@ -63,7 +63,7 @@ export const normalizeEdgeFilter = (edgeFilters) => {
   const minConfidenceRaw = Number(edgeFilters?.minConfidence);
   const minConfidence = Number.isFinite(minConfidenceRaw) ? minConfidenceRaw : null;
   return {
-    graphs: graphs.length ? new Set(graphs) : null,
+    graphs: edgeFilters?.graphs != null ? new Set(graphs) : null,
     edgeTypes: edgeTypes.length ? new Set(edgeTypes) : null,
     minConfidence,
     unknownGraphs,

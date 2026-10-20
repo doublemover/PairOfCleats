@@ -155,7 +155,7 @@ export const buildGraphIndexCacheKey = ({
 } = {}) => {
   if (!indexSignature) return null;
   const graphList = normalizeGraphList(graphs);
-  const normalizedGraphs = graphList?.length
+  const normalizedGraphs = graphList != null
     ? graphList.map((entry) => String(entry)).sort()
     : null;
   return buildLocalCacheKey({
@@ -485,7 +485,7 @@ export const createGraphStore = ({
     const cached = getCachedGraphIndex(cacheKey, telemetry);
     if (cached) return cached;
     const graphList = normalizeGraphList(graphs);
-    const graphSet = graphList?.length ? new Set(graphList) : null;
+    const graphSet = graphList != null ? new Set(graphList) : null;
     const wantsGraphRelations = !graphSet
       || graphSet.has('callGraph')
       || graphSet.has('usageGraph')

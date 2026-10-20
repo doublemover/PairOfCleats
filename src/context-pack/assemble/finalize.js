@@ -30,7 +30,7 @@ const buildGraphFilters = ({ includeCallersCallees, includeUsages, includeImport
   if (includeCallersCallees) graphs.push('callGraph');
   if (includeUsages) graphs.push('usageGraph');
   if (includeImports) graphs.push('importGraph');
-  return graphs.length ? { graphs } : null;
+  return { graphs };
 };
 
 export const assembleCompositeContextPack = ({

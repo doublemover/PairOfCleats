@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["none", "calls", "usages", "imports", "calls-usages", "calls-imports", "usages-imports", "all", "unspecified"]
+}

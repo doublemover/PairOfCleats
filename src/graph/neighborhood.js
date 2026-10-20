@@ -372,7 +372,7 @@ export const buildGraphNeighborhood = ({
     return true;
   };
   const enabledGraphs = Array.from(GRAPH_NAMES).filter((entry) => includeGraph(entry));
-  if (graphFilter && enabledGraphs.length === 0) {
+  if (graphFilter?.size && enabledGraphs.length === 0) {
     warnings.push({
       code: 'GRAPH_EXCLUDED_BY_FILTERS',
       message: 'Requested graphs were excluded by filters.'
