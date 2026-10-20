@@ -34,7 +34,7 @@ import {
 import { dedupeSortedEdges, edgeKeyFromIndex, isEdgeBetter } from './neighborhood/edge-policy.js';
 import { formatEvidence, resolveNodeMeta, resolveSeedNodeRef } from './neighborhood/seed-meta.js';
 import { validateGraphCounts } from './neighborhood/validation.js';
-import { createGraphNeighborResolver, resolveSymbolNeighbors } from './neighborhood/walker.js';
+import { createDirectedGraphNeighborResolver, resolveSymbolNeighbors } from './neighborhood/walker.js';
 
 const TRAVERSAL_CACHE_MAX = 32;
 
@@ -378,7 +378,7 @@ export const buildGraphNeighborhood = ({
       message: 'Requested graphs were excluded by filters.'
     });
   }
-  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
+  const resolveGraphNeighbors = createDirectedGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
 
   const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {
@@ -419,12 +419,12 @@ export const buildGraphNeighborhood = ({
         callGraphAdjacency,
         'callGraph'
       );
-      for (const neighborId of neighbors) {
+      for (const { neighborId, fromId, toId } of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
         if (!allowEdge({ graph: 'callGraph', edgeType, confidence: null })) continue;
         if (!admitCandidate()) continue;
-        const toRef = { type: 'chunk', chunkUid: neighborId };
-        const fromRef = { type: 'chunk', chunkUid: currentRef.chunkUid };
+        const toRef = { type: 'chunk', chunkUid: toId };
+        const fromRef = { type: 'chunk', chunkUid: fromId };
         const evidence = formatEvidence(edgeType, fromRef, toRef, callSiteIndex);
         edgeCandidates.push({
           edge: {
@@ -435,7 +435,7 @@ export const buildGraphNeighborhood = ({
             confidence: null,
             evidence
           },
-          nextRef: toRef
+          nextRef: { type: 'chunk', chunkUid: neighborId }
         });
       }
     }
@@ -449,21 +449,21 @@ export const buildGraphNeighborhood = ({
         usageGraphAdjacency,
         'usageGraph'
       );
-      for (const neighborId of neighbors) {
+      for (const { neighborId, fromId, toId } of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
         if (!allowEdge({ graph: 'usageGraph', edgeType, confidence: null })) continue;
         if (!admitCandidate()) continue;
-        const toRef = { type: 'chunk', chunkUid: neighborId };
+        const toRef = { type: 'chunk', chunkUid: toId };
         edgeCandidates.push({
           edge: {
             edgeType,
             graph: 'usageGraph',
-            from: { type: 'chunk', chunkUid: currentRef.chunkUid },
+            from: { type: 'chunk', chunkUid: fromId },
             to: toRef,
             confidence: null,
             evidence: null
           },
-          nextRef: toRef
+          nextRef: { type: 'chunk', chunkUid: neighborId }
         });
       }
     }
@@ -482,23 +482,23 @@ export const buildGraphNeighborhood = ({
           importGraphAdjacency,
           'importGraph'
         );
-        for (const neighborId of neighbors) {
+        for (const { neighborId, fromId, toId } of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
           if (!allowEdge({ graph: 'importGraph', edgeType, confidence: null })) continue;
           if (!admitCandidate()) continue;
-          const toRef = { type: 'file', path: neighborId };
+          const endpoint = id => id === sourceId && currentRef.type === 'chunk'
+            ? currentRef : { type: 'file', path: id };
+          const toRef = endpoint(toId);
           edgeCandidates.push({
             edge: {
               edgeType,
               graph: 'importGraph',
-              from: currentRef.type === 'file'
-                ? { type: 'file', path: sourceId }
-                : { type: 'chunk', chunkUid: currentRef.chunkUid },
+              from: endpoint(fromId),
               to: toRef,
               confidence: null,
               evidence: null
             },
-            nextRef: toRef
+            nextRef: { type: 'file', path: neighborId }
           });
         }
       }

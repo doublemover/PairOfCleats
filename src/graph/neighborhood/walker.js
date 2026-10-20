@@ -51,6 +51,34 @@ export const createGraphNeighborResolver = ({ graphIndex, iterableCsr = false })
   };
 };
 
+/** Borrow sorted adjacency while retaining each recorded edge's orientation. */
+export const createDirectedGraphNeighborResolver = options => {
+  const resolve = createGraphNeighborResolver(options);
+  return function* (graphNodes, nodeId, dir, normalizeNeighborId, adjacencyIndex, graphName) {
+    const neighbors = direction => resolve(graphNodes, nodeId, direction, normalizeNeighborId, adjacencyIndex, graphName);
+    const edge = (neighborId, incoming) => ({ neighborId,
+      fromId: incoming ? neighborId : nodeId, toId: incoming ? nodeId : neighborId });
+    if (dir !== 'both') {
+      for (const neighborId of neighbors(dir)) yield edge(neighborId, dir === 'in');
+      return;
+    }
+    const outgoing = neighbors('out')[Symbol.iterator](), incoming = neighbors('in')[Symbol.iterator]();
+    let out = outgoing.next(), into = incoming.next();
+    while (!out.done || !into.done) {
+      if (into.done || !out.done && compareStrings(out.value, into.value) <= 0) {
+        const neighborId = out.value;
+        yield edge(neighborId, false);
+        out = outgoing.next();
+        // A self-loop appears in both rows but records only one directed edge.
+        if (!into.done && neighborId === nodeId && into.value === neighborId) into = incoming.next();
+      } else {
+        yield edge(into.value, true);
+        into = incoming.next();
+      }
+    }
+  };
+};
+
 export const resolveSymbolNeighbors = (hasSymbolEdges, symbolIndex, ref, dir) => {
   if (!hasSymbolEdges) return [];
   if (ref.type === 'chunk') {
