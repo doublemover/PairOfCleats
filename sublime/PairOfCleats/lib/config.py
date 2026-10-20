@@ -10,19 +10,16 @@ SETTINGS_FILE = 'PairOfCleats.sublime-settings'
 
 
 def _load_editor_config_contract():
-    contract_path = os.path.abspath(
-        os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            '..',
-            '..',
-            'src',
-            'contracts',
-            'editor-config-contract.json'
-        )
-    )
-    with open(contract_path, 'r', encoding='utf-8') as handle:
-        loaded = json.load(handle)
+    resource_loader = getattr(sublime, 'load_resource', None)
+    if callable(resource_loader):
+        loaded = json.loads(resource_loader(
+            'Packages/PairOfCleats/editor-config-contract.json'))
+    else:
+        # Standalone Python tools and copied packages share the bundled data.
+        contract_path = os.path.join(os.path.dirname(__file__), '..',
+                                     'editor-config-contract.json')
+        with open(contract_path, 'r', encoding='utf-8') as handle:
+            loaded = json.load(handle)
     if not isinstance(loaded, dict):
         raise ValueError('editor-config-contract.json must contain an object')
     return loaded
