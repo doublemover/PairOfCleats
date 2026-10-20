@@ -7,6 +7,59 @@ const WINDOWS_DESCENDANT_KILL_LIMIT = 2048;
 const WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_BUDGET_MS = 4000;
 
+// Toolhelp reads the native process snapshot without a WMI provider or C# compiler.
+// PROCESSENTRY32W layout: tlhelp32.h; reject anything except complete enumeration.
+export const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
+[Console]::Error.WriteLine('lineage:script-start')
+$assembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('PocProcessSnapshot'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
+$module = $assembly.DefineDynamicModule('Native')
+$builder = $module.DefineType('PocProcessSnapshot', [Reflection.TypeAttributes]'Public, Abstract, Sealed')
+$attributeType = [Runtime.InteropServices.DllImportAttribute]
+$constructor = $attributeType.GetConstructor([Type[]]@([string]))
+$fields = [Reflection.FieldInfo[]]@($attributeType.GetField('SetLastError'), $attributeType.GetField('ExactSpelling'))
+$attribute = [Reflection.Emit.CustomAttributeBuilder]::new($constructor, [object[]]@('kernel32.dll'), $fields, [object[]]@($true, $true))
+function Add-NativeMethod([string]$name, [Type]$returnType, [Type[]]$parameters) {
+  $method = $builder.DefineMethod($name, [Reflection.MethodAttributes]'Public, Static, PinvokeImpl', $returnType, $parameters)
+  $method.SetCustomAttribute($attribute)
+  $method.SetImplementationFlags([Reflection.MethodImplAttributes]::PreserveSig)
+}
+Add-NativeMethod 'CreateToolhelp32Snapshot' ([IntPtr]) ([Type[]]@([uint32], [uint32]))
+Add-NativeMethod 'Process32FirstW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
+Add-NativeMethod 'Process32NextW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
+Add-NativeMethod 'CloseHandle' ([bool]) ([Type[]]@([IntPtr]))
+$native = $builder.CreateType()
+[Console]::Error.WriteLine('lineage:interop-ready')
+$entrySize = if ([IntPtr]::Size -eq 8) { 568 } else { 556 }
+$parentOffset = if ([IntPtr]::Size -eq 8) { 32 } else { 24 }
+$buffer = [IntPtr]::Zero
+$snapshot = [IntPtr]::new(-1)
+$rows = [Text.StringBuilder]::new()
+try {
+  $buffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($entrySize)
+  [Runtime.InteropServices.Marshal]::WriteInt32($buffer, $entrySize)
+  $snapshot = $native::CreateToolhelp32Snapshot(2, 0)
+  if ($snapshot -eq [IntPtr]::new(-1)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
+  [Console]::Error.WriteLine('lineage:snapshot-ready')
+  $more = $native::Process32FirstW($snapshot, $buffer)
+  while ($more) {
+    $processId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, 8) -band 4294967295L
+    $parentId = [int64][Runtime.InteropServices.Marshal]::ReadInt32($buffer, $parentOffset) -band 4294967295L
+    [void]$rows.Append($processId).Append(' ').Append($parentId).AppendLine()
+    $more = $native::Process32NextW($snapshot, $buffer)
+  }
+  $lastError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+  if ($lastError -ne 18) { throw [ComponentModel.Win32Exception]::new($lastError) }
+} finally {
+  if ($buffer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($buffer) }
+  if ($snapshot -ne [IntPtr]::new(-1)) {
+    if (!$native::CloseHandle($snapshot)) { throw [ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()) }
+  }
+  [Console]::Error.WriteLine('lineage:resources-closed')
+}
+[Console]::Out.Write($rows.ToString())
+[Console]::Error.WriteLine('lineage:rows-written')
+`;
+
 /** Walk a complete lineage-only snapshot without per-process shell objects. */
 export const resolveWindowsDescendantPids = (value, rootPid) => {
   const children = new Map(), processIds = new Set();
@@ -58,20 +111,7 @@ export const isWindowsPidAlive = (pid) => {
 };
 
 const discoverWindowsDescendantPidsSync = (rootPid) => {
-  const script = [
-    '$ErrorActionPreference = "Stop"',
-    '[Console]::Error.WriteLine("lineage:script-start")',
-    // Only lineage is needed; do not retrieve every process property and then
-    // discard it through a second object projection pipeline.
-    '$procs = Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId',
-    '[Console]::Error.WriteLine("lineage:snapshot-ready")',
-    '$rows = [System.Text.StringBuilder]::new()',
-    'foreach ($p in $procs) {',
-    '  [void]$rows.Append([uint32]$p.ProcessId).Append(" ").Append([uint32]$p.ParentProcessId).AppendLine()',
-    '}',
-    '[Console]::Out.Write($rows.ToString())',
-    '[Console]::Error.WriteLine("lineage:rows-written")'
-  ].join('; ');
+  const script = WINDOWS_PROCESS_SNAPSHOT_SCRIPT;
   const startedAt = Date.now();
   const result = runSyncCommandWithTimeout(
     'powershell.exe',
@@ -79,6 +119,7 @@ const discoverWindowsDescendantPidsSync = (rootPid) => {
     {
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
+      windowsHide: true,
       timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS
     }
   );

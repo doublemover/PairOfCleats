@@ -391,9 +391,10 @@ const ownershipCommand = windowsJob.steps[ownershipStepIndex]?.run || '';
 if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(step => step.name === 'CI Suite')
   || !ownershipCommand.includes('shared\\/kill-tree\\.windows$')
   || !ownershipCommand.includes('shared\\/kill-tree\\.windows-orphan-descendant-fallback$')
+  || !ownershipCommand.includes('shared\\/kill-tree-windows-snapshot$')
   || !ownershipCommand.includes('shared\\/subprocess\\/sync-timeout-kills-child-tree$')
   || !ownershipCommand.includes('--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false')) {
-  throw new Error('Windows subprocess ownership must run all three real lifecycle fixtures before the broad suite with strict bounds and zero retries.');
+  throw new Error('Windows subprocess ownership must run its native snapshot and three real lifecycle fixtures before the broad suite with strict bounds and zero retries.');
 }
 for (const platform of ['ubuntu', 'windows', 'macos']) {
   const upload = parse(ciWorkflow).jobs[platform].steps.find(step => step.name === 'Upload quality artifacts');

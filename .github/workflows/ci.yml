@@ -310,7 +310,7 @@ jobs:
 
       - name: Windows subprocess ownership
         run: |
-          node tests/run.js --lane all --match '/^shared\/kill-tree\.windows$/' --match '/^shared\/kill-tree\.windows-orphan-descendant-fallback$/' --match '/^shared\/subprocess\/sync-timeout-kills-child-tree$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/windows-subprocess-ownership.json
+          node tests/run.js --lane all --match '/^shared\/kill-tree\.windows$/' --match '/^shared\/kill-tree\.windows-orphan-descendant-fallback$/' --match '/^shared\/kill-tree-windows-snapshot$/' --match '/^shared\/subprocess\/sync-timeout-kills-child-tree$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/windows-subprocess-ownership.json
 
       - name: CI Suite
         run: |
