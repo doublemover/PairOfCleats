@@ -47,7 +47,8 @@ checks at `18179bb7f` (39451767657).
 Hosted `c4357abb3` exposes Windows pending-delete lock admission; its native
 regression now passes with bounded acquisition and preserved permission errors.
 At `3e4082c7a` the native lock cohort and Ubuntu pass; Windows parity setup
-times out and macOS XML content assertions fail. These remain repair targets.
+times out and macOS XML content assertions fail. Smaller parity artifacts and
+separate XML content/serial real-clock controls pass locally; fresh CI is pending.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
