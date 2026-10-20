@@ -29,7 +29,7 @@ export const createSemanticCacheFixture = async () => {
   const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, version: 5,
     dependencySignatures, files: {} };
   const createFile = async ({ file = 'input.js', text = 'f(1);', zeroChunks = false,
-    nodeCount = 1, extraRows = [], analysisReason = null,
+    nodeCount = 1, extraRows = [], analysisReason = null, analysisRows = [],
     producerHash = 'a'.repeat(64), chunks: suppliedChunks = null } = {}) => {
     const bytes = Buffer.from(text);
     const source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: repoRoot, path: file, language: 'javascript' }).manifest;
@@ -57,7 +57,7 @@ export const createSemanticCacheFixture = async () => {
       const analysis = await createSemanticPartitionSink({ stagingRoot: path.join(buildRoot, storage.relativePath),
         source, sourceBytes: bytes, partitionId: analysisId, producerHash: 'c'.repeat(64),
         policyHash: semanticHash('fixture-policy', { analysisReason }), diskAccount: account });
-      await analysis.appendBatch(semanticBatch(analysisId, [{ family: 'coverage', row }]));
+      await analysis.appendBatch(semanticBatch(analysisId, [{ family: 'coverage', row }, ...analysisRows]));
       partitions.push(await analysis.finalizeSource());
       coverage.push(row);
     }
