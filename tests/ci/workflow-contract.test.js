@@ -425,7 +425,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
   if (upload?.if !== 'always()' || !paths.includes('.testLogs/**/*.log')
     || !paths.includes('.testLogs/**/*.failure.json') || !paths.includes('.diagnostics/go-sdk.json')
-    || !paths.includes('.diagnostics/gopls-startup.json')) {
+    || !paths.includes('.diagnostics/gopls-startup.json') || !paths.includes('.diagnostics/serial-native-lifecycle.json')) {
     throw new Error(`${platform}: quality artifacts must preserve every raw attempt and failure receipt, including retry-masked failures.`);
   }
   if (platform === 'windows' && !paths.includes('.diagnostics/windows-subprocess-ownership.json')) {

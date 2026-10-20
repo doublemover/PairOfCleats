@@ -78,6 +78,12 @@ for (const [mode, output] of [['ci', ciOutput], ['nightly', nightlyOutput]]) {
   assert.equal(serial.length, 1);
   assert.ok(serial[0].includes(xmlSelector), `${mode}: the actual XML default APIs retain execution coverage`);
   assert.match(serial[0], /--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false/);
+  const sqliteSelector = '/^storage\\/sqlite\\/build\\/cancellation$/';
+  assert.ok(lane[0].includes(sqliteSelector), `${mode}: native worker startup/disposal has a serial replacement owner`);
+  const native = output.split(/\r?\n/).filter(line => line.startsWith('[dry-run] Serial native lifecycle:'));
+  assert.equal(native.length, 1);
+  assert.ok(native[0].includes(sqliteSelector));
+  assert.match(native[0], /--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false/);
 }
 
 console.log('suite runner smoke and zero-retry command contracts passed');

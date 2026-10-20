@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { registerHooks } from 'node:module';
 import Database from 'better-sqlite3';
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -18,8 +19,15 @@ const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-sqli
 applyTestEnv({ cacheRoot: path.join(root, 'cache'), embeddings: 'off' });
 let controller, when = 'success';
 let handles = [], writes = 0, rollbacks = 0, commits = 0;
+const workerTrace = [];
+let workerStart;
+const markWorker = phase => {
+  if (workerTrace.length < 16) workerTrace.push({ phase, elapsedMs: Math.round(performance.now() - workerStart) });
+};
 function TrackingDatabase(...args) {
+  if (when === 'worker') markWorker('database-open-enter');
   const db = new Database(...args);
+  if (when === 'worker') markWorker('database-open-return');
   const tracked = { db, closes: 0 };
   handles.push(tracked);
   const prepare = db.prepare.bind(db), exec = db.exec.bind(db), close = db.close.bind(db);
@@ -136,13 +144,16 @@ try {
   } });
   reset('worker');
   let outcome;
+  workerStart = performance.now();
+  markWorker('build-enter');
   const pending = buildDatabaseFromBundles({ repoRoot: root, Database: TrackingDatabase, outPath: path.join(root, 'worker.db'),
     mode: 'code', incrementalData: { bundleDir: root, manifest: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       files: { 'sample.js': { bundles: ['bundle.json'], hash: 'alpha', mtimeMs: 1, size: 1 } } } },
     workerPath: worker, envConfig: { bundleThreads: 2 }, threadLimits: { fileConcurrency: 1 },
-    signal: controller.signal, modelConfig: { id: null }, vectorConfig: { enabled: false }, emitOutput: false,
+    signal: controller.signal, modelConfig: { id: null }, vectorConfig: { enabled: false }, emitOutput: true,
+    logger: { log: message => markWorker(message), warn: message => { throw new Error(`Unexpected worker-build warning: ${message}`); } },
     validateMode: 'off', optimize: false, buildPragmas: false })
-    .then(value => { outcome = { value }; }, error => { outcome = { error }; });
+    .then(value => { markWorker('build-resolved'); outcome = { value }; }, error => { markWorker('build-rejected'); outcome = { error }; });
   try {
     const deadline = Date.now() + 3000;
     while (!(await fs.stat(path.join(root, 'worker-started')).catch(() => null))) {
@@ -150,14 +161,21 @@ try {
       assert.ok(Date.now() < deadline, 'bounded worker-start witness');
       await new Promise(resolve => setTimeout(resolve, 5));
     }
+    markWorker('worker-start-witness');
     controller.abort();
+    markWorker('abort-requested');
     await pending;
     assert.equal(outcome.error?.code, 'ABORT_ERR', 'worker cancellation must propagate without direct-parser fallback');
     assertClosed();
     await assert.rejects(fs.stat(path.join(root, 'worker.db')), { code: 'ENOENT' });
     await new Promise(resolve => setTimeout(resolve, 350));
     await assert.rejects(fs.stat(path.join(root, 'worker-late')), { code: 'ENOENT' }, 'closed workers cannot finish later work');
+    markWorker('no-late-work-witness');
+  } catch (error) {
+    console.error(`SQLite worker failure phases: ${JSON.stringify(workerTrace)}`);
+    throw error;
   } finally { controller.abort(); await pending; }
+  console.log(`SQLite worker lifecycle phases: ${JSON.stringify(workerTrace)}`);
   // Cancellation between backup and promotion must restore the old authority.
   const staged = path.join(root, 'staged.db');
   await fs.writeFile(staged, 'replacement');

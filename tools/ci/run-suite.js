@@ -24,6 +24,7 @@ const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parse
   'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle'];
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
+const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
@@ -307,6 +308,7 @@ const main = async () => {
           `/^tooling\\/script-coverage\\/(${SCRIPT_COVERAGE_GROUPS.join('|')})\\//`] : []),
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--timeout-ms',
         '600000',
@@ -344,6 +346,13 @@ const main = async () => {
       args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_ANN_GENERATION_IDS),
         '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
         '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-ann-generation.json')]
+    },
+    {
+      label: 'Serial native lifecycle',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_NATIVE_LIFECYCLE_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-native-lifecycle.json')]
     },
     {
       label: 'API contract cohort',

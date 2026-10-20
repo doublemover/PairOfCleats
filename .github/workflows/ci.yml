@@ -276,6 +276,7 @@ jobs:
         with:
           name: ci-quality-artifacts-ubuntu
           path: |
+            .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
             .diagnostics/serial-runtime-budgets.json
@@ -432,6 +433,7 @@ jobs:
         with:
           name: ci-quality-artifacts-windows
           path: |
+            .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
             .diagnostics/windows-subprocess-ownership.json
@@ -648,6 +650,7 @@ jobs:
         with:
           name: ci-quality-artifacts-macos
           path: |
+            .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
             .diagnostics/serial-runtime-budgets.json
