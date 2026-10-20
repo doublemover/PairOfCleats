@@ -38,7 +38,8 @@ for (const mode of ['ci', 'nightly']) {
       assert.deepEqual(selected.sort(), line === ann ? ['retrieval/ann/generation-lmdb',
         'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
         : ['indexing/semantic/compiler-single-cpu-lifecycle',
-          'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
+          'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',
+          'tooling/reports/summary/report']);
       const broad = lines.find(value => value.startsWith('[dry-run] CI test lane:'));
       for (const id of selected) {
         const exclusion = `--exclude /^${id.replaceAll('/', '\\/')}$/`;
