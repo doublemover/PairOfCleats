@@ -32,7 +32,7 @@ for (const mode of ['ci', 'nightly']) {
         'services/api/federated-search-validation-matrix', 'services/api/search-stream-outcomes']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);
       }
-    } else assert.deepEqual(selected.sort(), ['perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
+    } else assert.deepEqual(selected.sort(), ['perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
   }
 }
 console.log('CI/nightly API cohorts resolve authorization, search and federation; strict runtime budgets execute serially');

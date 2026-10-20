@@ -13,13 +13,39 @@ const result = runNode([path.join(root, 'tools/ci/run-suite.js'), '--mode', 'nig
   '--skip-prechecks', '--diagnostics', path.join(dir, 'diagnostics'), '--log-dir', path.join(dir, 'logs'),
   '--junit', path.join(dir, 'logs/junit.xml')], 'nightly coverage plan', root, env, { stdio: 'pipe' });
 const lines = String(result.stderr).split(/\r?\n/).filter(line => line.startsWith('[dry-run] Script coverage ('));
+const planLines = String(result.stderr).split(/\r?\n/);
+const listInvocation = line => {
+  const args = line.slice(line.indexOf('tests/run.js')).trim().split(/\s+/);
+  const selectors = [];
+  for (let index = 1; index < args.length; index++) {
+    if (['--lane', '--match', '--exclude'].includes(args[index])) selectors.push(args[index], args[++index]);
+  }
+  return runNode(['tests/run.js', ...selectors, '--list'], 'resolve actual nightly selection',
+    root, env, { stdio: 'pipe' }).stdout.trim().split(/\r?\n/);
+};
+const mainIds = new Set(listInvocation(planLines.find(line => line.startsWith('[dry-run] CI test lane:'))));
+const soak = planLines.find(line => line.startsWith('[dry-run] Operational soak and recovery suites:'));
+assert.ok(soak);
+for (const expected of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000',
+  '--retries 0', '--native-status-redo=false']) assert.ok(soak.includes(expected), `${expected}: ${soak}`);
+const selectedSoak = runNode(['tests/run.js', '--lane', 'all', '--match', 'services/soak/operational-recovery', '--list'],
+  'resolve exact supplemental soak selector', root, env, { stdio: 'pipe' });
+assert.deepEqual(selectedSoak.stdout.trim().split(/\r?\n/), ['services/soak/operational-recovery']);
+assert.ok(planLines.indexOf(soak) < planLines.findIndex(line => line.startsWith('[dry-run] Bench harness')));
+assert.ok(planLines.findIndex(line => line.startsWith('[dry-run] Bench harness')) < planLines.indexOf(lines[0]));
 assert.equal(lines.length, SCRIPT_COVERAGE_GROUPS.length);
+let supplementalCases = 0;
 for (let index = 0; index < lines.length; index += 1) {
   const line = lines[index];
+  const ids = listInvocation(line);
+  assert.ok(ids.length > 0);
+  supplementalCases += ids.length;
+  for (const id of ids) assert.ok(!mainIds.has(id), `main and supplemental phases repeat ${id}`);
   assert.match(line, /^\[dry-run\] Script coverage \([^)]+\): \S+ tests\/run\.js /,
     'nightly dispatch must use the real runner entrypoint, not a removed aggregate filename');
   assert.ok(line.replaceAll('\\/', '/').includes(`--match /^tooling/script-coverage/${SCRIPT_COVERAGE_GROUPS[index]}/`));
   for (const expected of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000',
     '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(expected), `${expected}: ${line}`);
 }
+console.log(JSON.stringify({ mainCases: mainIds.size, supplementalCases, overlap: 0 }));
 console.log('Nightly coverage dispatches every group through bounded discovered process cases');

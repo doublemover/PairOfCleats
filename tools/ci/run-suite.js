@@ -20,10 +20,12 @@ const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
 const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
-const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget'];
+const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
+  'perf/parsers/jinja-cold-budget'];
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
-  'services/api/federated-search-validation-matrix', 'services/api/search-stream-outcomes'];
+  'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
+  'services/api/search-stream-outcomes'];
 const exactSelectors = ids => ids.flatMap(id => ['--match', `/^${id.replaceAll('/', '\\/')}$/`]);
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
@@ -301,6 +303,8 @@ const main = async () => {
         baseLane,
         '--exclude',
         'services/api/',
+        ...(mode === 'nightly' ? ['--exclude',
+          '/^tooling\\/script-coverage\\/(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)\\//'] : []),
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--timeout-ms',
@@ -382,11 +386,13 @@ const main = async () => {
         args: [
           'tests/run.js',
           '--lane',
-          'ci-long',
+          'all',
           '--match',
           'services/soak/operational-recovery',
+          '--jobs', '1', '--pairofcleats-threads', '1',
           '--timeout-ms',
-          '600000',
+          '30000',
+          '--retries', '0', '--native-status-redo=false',
           '--log-dir',
           logDir
         ]
