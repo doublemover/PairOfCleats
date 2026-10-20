@@ -657,10 +657,10 @@ export const createApiRouter = ({
           repoPath,
           searchParams
         } = prepared;
-        await sse.sendHeaders();
-        await sse.sendEvent('start', attachObservability({ ok: true }, requestObservability));
-        await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
         try {
+          await sse.sendHeaders();
+          await sse.sendEvent('start', attachObservability({ ok: true }, requestObservability));
+          await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
           await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Running search.' }, requestObservability));
           const body = await runPreparedSearch({
             requestObservability,
@@ -675,19 +675,20 @@ export const createApiRouter = ({
           }
         } catch (err) {
           if (controller.signal.aborted || sse.isClosed()) {
-            sse.end();
             return;
           }
           const isNoIndex = isNoIndexError(err);
+          const format = projectIndexFormatError(err);
           await sse.sendEvent('error', attachObservability({
             ok: false,
-            code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
+            code: format ? ERROR_CODES.INVALID_REQUEST : isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
             message: err?.message || 'Search failed.',
             ...(format ? { ...format, details: format } : {})
           }, requestObservability));
           await sse.sendEvent('done', attachObservability({ ok: false }, requestObservability));
+        } finally {
+          sse.end();
         }
-        sse.end();
         return;
       }
 
@@ -710,6 +711,10 @@ export const createApiRouter = ({
       sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
     } catch (err) {
       if (res.writableEnded) return;
+      if (res.headersSent) {
+        res.destroy(err);
+        return;
+      }
       const format = projectIndexFormatError(err);
       if (format) {
         sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, corsHeaders || {});
