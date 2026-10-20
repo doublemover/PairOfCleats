@@ -157,6 +157,17 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
           },
           additionalProperties: false
         },
+        semantic: {
+          type: 'object',
+          required: ['included', 'state'],
+          properties: {
+            included: { type: 'boolean' },
+            state: { enum: ['partial', 'unavailable', 'omitted'] },
+            truncated: { type: 'boolean' },
+            warningCodes: { type: 'array', items: { type: 'string' } }
+          },
+          additionalProperties: false
+        },
         complete: { type: 'boolean' }
       },
       additionalProperties: true

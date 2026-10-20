@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { enforceContextPackResponseBudget, CONTEXT_PACK_RESPONSE_MAX_BYTES } from '../../src/context-pack/response-budget.js';
 import { assembleCompositeContextPack } from '../../src/context-pack/assemble.js';
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
+import { attachSemanticContextSection } from '../../src/context-pack/assemble/finalize.js';
 
 const payload = { primary: { excerpt: 'export function sum(a, b) { return a + b; }' },
   graph: { nodes: [{ id: 'sum' }] }, risk: { detail: 'x'.repeat(CONTEXT_PACK_RESPONSE_MAX_BYTES) } };
@@ -21,4 +22,52 @@ const bounded = enforceContextPackResponseBudget(assembled);
 assert.ok(!Object.hasOwn(bounded, 'semantic'));
 const validation = validateCompositeContextPack(bounded);
 assert.ok(validation.ok, JSON.stringify(validation.errors));
+
+const semantic = status => ({ schemaVersion: 1, repoRoot: process.cwd(), generation: null, status,
+  selector: null, discovery: null, detail: null, trace: null, excerpts: [], followUps: [], warnings: [] });
+const base = assembleCompositeContextPack({ seed: { type: 'file', path: 'tests/fixtures/context-pack/sample.js' },
+  chunkMeta: [{ chunkUid: 'sample', file: 'tests/fixtures/context-pack/sample.js', start: 0, end: 20 }],
+  repoRoot: process.cwd(), indexSignature: 'semantic-budget', includeGraph: false });
+for (const status of ['partial', 'unavailable']) {
+  const retained = attachSemanticContextSection(structuredClone(base), semantic(status));
+  assert.equal(validateCompositeContextPack(retained).ok, true);
+  const withinBudget = enforceContextPackResponseBudget(retained);
+  assert.equal(withinBudget.semantic.status, status);
+  assert.deepEqual(withinBudget.evidence.semantic, { included: true, state: status });
+
+  const oversized = attachSemanticContextSection(structuredClone(base), {
+    ...semantic(status), warnings: ['x'.repeat(CONTEXT_PACK_RESPONSE_MAX_BYTES)]
+  });
+  assert.equal(validateCompositeContextPack(oversized).ok, true, 'normal attachment must validate before budgeting');
+  const originalPrimary = structuredClone(oversized.primary);
+  const omitted = enforceContextPackResponseBudget(oversized);
+  assert.ok(!Object.hasOwn(omitted, 'semantic'));
+  assert.equal(omitted.evidence.semantic.included, false, 'omitted semantic evidence cannot claim inclusion');
+  assert.equal(omitted.evidence.semantic.state, 'omitted');
+  assert.equal(omitted.evidence.semantic.truncated, true);
+  assert.deepEqual(omitted.evidence.semantic.warningCodes, ['CONTEXT_PACK_RESPONSE_BUDGET']);
+  assert.equal(omitted.evidence.complete, false);
+  assert.deepEqual(omitted.primary, originalPrimary);
+  assert.ok(omitted.warnings.some(warning => warning.code === 'CONTEXT_PACK_RESPONSE_BUDGET' && warning.omitted.includes('semantic')));
+  assert.equal(validateCompositeContextPack(omitted).ok, true);
+  assert.ok(Buffer.byteLength(JSON.stringify(omitted, null, 2)) <= CONTEXT_PACK_RESPONSE_MAX_BYTES);
+  const once = structuredClone(omitted);
+  assert.deepEqual(enforceContextPackResponseBudget(omitted), once, 'rebudgeting cannot duplicate omission warnings');
+
+  const staleInclusion = structuredClone(withinBudget);
+  delete staleInclusion.semantic;
+  assert.equal(validateCompositeContextPack(staleInclusion).ok, false, 'absent semantic cannot retain included=true');
+  const contradictory = structuredClone(withinBudget);
+  contradictory.evidence.semantic = { included: false, state: 'omitted' };
+  assert.equal(validateCompositeContextPack(contradictory).ok, false, 'present semantic must have matching included metadata');
+  const wrongState = structuredClone(withinBudget);
+  wrongState.evidence.semantic.state = status === 'partial' ? 'unavailable' : 'partial';
+  assert.equal(validateCompositeContextPack(wrongState).ok, false, 'semantic state must describe the attached section');
+  const missingMetadata = structuredClone(withinBudget);
+  delete missingMetadata.evidence.semantic;
+  assert.equal(validateCompositeContextPack(missingMetadata).ok, false, 'present semantic requires its evidence metadata');
+  const falseComplete = structuredClone(withinBudget);
+  falseComplete.evidence.complete = true;
+  assert.equal(validateCompositeContextPack(falseComplete).ok, false, 'partial semantic evidence cannot claim complete context');
+}
 console.log('Whole context response budget preserves primary and graph evidence, with explicit omissions.');

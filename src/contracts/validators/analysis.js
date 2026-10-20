@@ -66,6 +66,13 @@ export function validateCompositeContextPack(payload) {
   if (!compatibility.ok) {
     errors.push(...compatibility.errors);
   }
+  const semanticEvidence = payload?.evidence?.semantic;
+  const hasSemantic = payload?.semantic != null;
+  if (semanticEvidence != null) {
+    if (semanticEvidence.included !== hasSemantic) errors.push('evidence.semantic.included must match semantic section presence.');
+    if (semanticEvidence.state !== (hasSemantic ? payload.semantic.status : 'omitted')) errors.push('evidence.semantic.state must describe the semantic section.');
+    if (payload.evidence.complete !== false) errors.push('Partial, unavailable or omitted semantic evidence cannot be complete.');
+  } else if (hasSemantic) errors.push('semantic section requires evidence.semantic.');
   return { ok: errors.length === 0, errors };
 }
 

@@ -19,6 +19,12 @@ export const enforceContextPackResponseBudget = (payload, { strictEvidence = fal
     if (section === 'semantic' || section === 'semanticFederation') delete payload[section];
     else payload[section] = null;
     omitted.push(section);
+    if (section === 'semantic' && payload.evidence) {
+      payload.evidence.complete = false;
+      payload.evidence.semantic = { ...payload.evidence.semantic,
+        included: false, state: 'omitted', truncated: true,
+        warningCodes: [...new Set([...(payload.evidence.semantic?.warningCodes || []), warning.code])] };
+    }
     if (section === 'types' && payload.evidence) {
       payload.evidence.complete = false;
       if (payload.evidence.types) payload.evidence.types = { ...payload.evidence.types,
