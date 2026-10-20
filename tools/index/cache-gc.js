@@ -293,24 +293,41 @@ const extractHashesFromManifestValue = (value, hashes, active = new WeakSet()) =
   active.delete(value);
 };
 
+const incompleteMarkError = (stage, target, cause) => Object.assign(
+  new Error(`CAS GC deferred: incomplete reachability inventory (${stage}: ${target}): ${cause.message}${cause.code ? ` [${cause.code}]` : ''}`, { cause }),
+  { code: 'ERR_CAS_GC_INCOMPLETE_MARK', markFailure: {
+    stage, path: path.resolve(target), code: cause.code || 'ERR_CAS_MANIFEST_INVALID', message: cause.message
+  } }
+);
+
 const collectManifestFiles = async (cacheRoot) => {
   const manifestNames = new Set(['workspace_manifest.json', 'manifest.json', 'snapshot.json', 'diff.json']);
   const roots = [path.join(cacheRoot, 'federation'), path.join(cacheRoot, 'repos')];
   const out = [];
   for (const startRoot of roots) {
-    if (!fileExists(startRoot)) continue;
+    let rootStat;
+    try { rootStat = await fs.lstat(startRoot); } catch (error) {
+      if (error.code === 'ENOENT') continue; // An optional root has never been admitted to this inventory.
+      throw incompleteMarkError('inspect-root', startRoot, error);
+    }
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+      throw incompleteMarkError('inspect-root', startRoot, new Error('Reachability root must be an ordinary directory.'));
+    }
     const stack = [startRoot];
     while (stack.length) {
       const current = stack.pop();
       let entries = [];
       try {
         entries = await fs.readdir(current, { withFileTypes: true });
-      } catch {
-        continue;
+      } catch (error) {
+        throw incompleteMarkError('enumerate-directory', current, error);
       }
       entries.sort((a, b) => a.name.localeCompare(b.name));
       for (const entry of entries) {
         const fullPath = path.join(current, entry.name);
+        if (entry.isSymbolicLink()) {
+          throw incompleteMarkError('inspect-entry', fullPath, new Error('Linked entries cannot establish a complete reachability inventory.'));
+        }
         if (entry.isDirectory()) {
           if (entry.name === 'cas') continue;
           stack.push(fullPath);
@@ -332,8 +349,9 @@ const collectReachableCasHashes = async (manifestPaths) => {
     try {
       const raw = await fs.readFile(manifestPath, 'utf8');
       const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') throw new Error('Reachability manifest must contain a JSON object or array.');
       extractHashesFromManifestValue(parsed, reachable);
-    } catch {}
+    } catch (error) { throw incompleteMarkError('read-manifest', manifestPath, error); }
   }
   return reachable;
 };
@@ -585,6 +603,13 @@ export const runCacheGc = async ({ repoOnly = false } = {}) => {
 };
 
 if (import.meta.main) runCacheGc().catch((error) => {
-  console.error(error?.message || error);
-  process.exit(1);
+  if (argv.json && error?.code === 'ERR_CAS_GC_INCOMPLETE_MARK') {
+    console.log(JSON.stringify({ ok: false, mode: 'cas', deferred: true,
+      dryRun: argv.apply !== true || argv['dry-run'] === true,
+      code: error.code, message: error.message,
+      mark: { complete: false, failures: [error.markFailure] },
+      counts: { plannedDeletes: 0, deleted: 0 }, bytes: { planned: 0, deleted: 0 }
+    }, null, 2));
+  } else console.error(error?.message || error);
+  process.exitCode = 1;
 });
