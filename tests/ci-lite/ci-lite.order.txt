@@ -1056,3 +1056,5 @@ lang/python/utf8-chunk-ranges
 lang/python/positional-defaults
 lang/contracts/html-registry-metadata
 indexing/contracts/python-html-registry
+tooling/vfs/hash-origin-authority
+tooling/vfs/token-origin-authority

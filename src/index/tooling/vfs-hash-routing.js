@@ -1,7 +1,7 @@
 import { checksumString } from '../../shared/hash.js';
 
 /** Schema version for VFS hash routing helpers. */
-export const VFS_HASH_ROUTING_SCHEMA_VERSION = '1.0.0';
+export const VFS_HASH_ROUTING_SCHEMA_VERSION = '2.0.0';
 
 const normalizeMode = (value) => {
   const raw = typeof value === 'string' ? value.trim() : '';

@@ -25,8 +25,8 @@ published ranges, defaults and HTML metadata.
 
 HTML preparation retains one summary for relations and chunk enrichment. Title,
 description, keywords, scripts and styles survive filtered/disabled relations.
-Per-file incremental signature version 9 invalidates the former Python/HTML
-bundles. This is legacy syntax/chunk output, independent of the newer native
+Per-file signature version 9 introduced invalidation of the former Python/HTML
+bundles; current version 10 also covers VFS source routing. This is legacy syntax/chunk output, independent of the newer native
 semantic producer and LSP response-cache versions below; no artifact schema or
 unrelated semantic producer is changed. The October 20 issue receipt records
 original failures and candidate qualification.
@@ -42,7 +42,8 @@ invocation; they cannot establish dependency freshness across invocations.
 Dependency-only changes therefore require the next build identity even when a
 document's bytes stay unchanged. The on-disk schema remains version 1; parsed
 signature cache identity is `v3`, whole-provider cache identity is `lk4`, and the
-shared LSP semantic producer version is 11.
+shared LSP semantic producer version is 12 (the initial rq2 repair used 11;
+version 12 also invalidates conflated VFS origins).
 
 Focused protocol fixtures cover equal-byte Python documents in different origins,
 positive and negative cache isolation, repeated same-generation hits and a

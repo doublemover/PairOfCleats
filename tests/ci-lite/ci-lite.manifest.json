@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 913,
+    "hero": 915,
     "matrix": 108,
     "meta": 34,
     "soak": 1,
@@ -6349,6 +6349,18 @@
     {
       "id": "indexing/contracts/python-html-registry",
       "order": 1056,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/vfs/hash-origin-authority",
+      "order": 1057,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/vfs/token-origin-authority",
+      "order": 1058,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -19,7 +19,7 @@ import {
 const buildVfsRoutingToken = hashRouting.buildVfsRoutingToken || hashRouting.resolveVfsRoutingToken;
 
 assert.equal(typeof buildVfsRoutingToken, 'function', 'Expected buildVfsRoutingToken export.');
-assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '1.0.0');
+assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '2.0.0');
 
 {
   const virtualPath = '.poc-vfs/src/app.ts#seg:segu:v1:abc.ts';
@@ -57,7 +57,8 @@ assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '1.0.0');
   assert.equal(fallback, legacy);
 
   const docHash = 'xxh64:0123456789abcdef';
-  const hashPath = buildVfsHashVirtualPath({ docHash, effectiveExt });
+  assert.equal(buildVfsHashVirtualPath({ docHash, effectiveExt }), null, 'hash routing requires source origin authority');
+  const hashPath = buildVfsHashVirtualPath({ docHash, effectiveExt, containerPath, segmentUid });
   assert.ok(hashPath?.startsWith('.poc-vfs/by-hash/'));
 
   const resolved = resolveVfsVirtualPath({
@@ -104,6 +105,9 @@ assert.equal(hashRouting.VFS_HASH_ROUTING_SCHEMA_VERSION, '1.0.0');
   const doc = documents[0];
   const expectedHashPath = buildVfsHashVirtualPath({
     docHash: doc.docHash,
+    containerPath: doc.containerPath,
+    segmentUid: doc.segmentUid,
+    languageId: doc.languageId,
     effectiveExt: doc.effectiveExt
   });
   assert.equal(doc.virtualPath, expectedHashPath);

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T12:14:52.824Z",
+  "generatedAt": "2026-10-20T12:45:33.017Z",
   "summary": {
     "lanes": 5,
-    "tests": 1278,
+    "tests": 1280,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 326,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1204
+      "missingTests": 1206
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1056,
+      "totalTests": 1058,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1007
+        "missing": 1009
       }
     },
     {
@@ -313,13 +313,13 @@
       "unknownDurationCount": 28
     },
     {
-      "key": "indexing/contracts",
-      "count": 23,
+      "key": "tooling/vfs",
+      "count": 25,
       "knownDurationMs": 0,
-      "unknownDurationCount": 23
+      "unknownDurationCount": 25
     },
     {
-      "key": "tooling/vfs",
+      "key": "indexing/contracts",
       "count": 23,
       "knownDurationMs": 0,
       "unknownDurationCount": 23

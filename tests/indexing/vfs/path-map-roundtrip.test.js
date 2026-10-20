@@ -18,6 +18,9 @@ try {
   assert.equal(entry.virtualPath, row.virtualPath);
   const expectedHash = buildVfsHashVirtualPath({
     docHash: row.docHash,
+    containerPath: row.containerPath,
+    segmentUid: row.segmentUid,
+    languageId: row.languageId,
     effectiveExt: row.effectiveExt
   });
   assert.equal(entry.hashVirtualPath, expectedHash);

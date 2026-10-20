@@ -185,6 +185,7 @@ export const buildToolingVirtualDocuments = async ({
     const virtualPath = resolveVfsVirtualPath({
       containerPath,
       segmentUid,
+      languageId,
       effectiveExt,
       docHash,
       hashRouting
@@ -192,7 +193,10 @@ export const buildToolingVirtualDocuments = async ({
     const legacyVirtualPath = hashRouting
       ? buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt })
       : null;
-    const segmentKey = hashRouting ? virtualPath : `${containerPath}::${segmentUid || ''}`;
+    // Byte identity may be shared; semantic document/target ownership may not.
+    const segmentKey = hashRouting
+      ? JSON.stringify([containerPath, segmentUid, languageId, effectiveExt])
+      : `${containerPath}::${segmentUid || ''}`;
     if (!docMap.has(segmentKey)) {
       docMap.set(segmentKey, {
         virtualPath,
