@@ -29,10 +29,9 @@ Rendered job/task offsets and wrapped log tail/follow now have actual frame cove
 Completed map, editor, VFS, language, bootstrap, compiler, release, LSIF/GNU Global,
 API/MCP, retrieval and resource repairs retain their individual failures, checks
 and source identities in the linked issue receipt.
-182 wrapper aliases are retired with input/assertion mappings; distinct CLI checks remain.
-Large semantic pieces now verify decoded blocks even with unchanged file clocks;
-history import has a proven linear turn-lookup repair. Windows orphan cleanup
-now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
+Wrapper retirement, decoded semantic-cache checks, linear history import and
+Toolhelp orphan cleanup retain their assertion mappings and real process controls
+in the issue receipt; distinct CLI checks remain.
 Archived hosted failures retain pending-delete, parity, XML, serial-plan and cold
 PowerShell-helper evidence and their individual repairs. The cold helper stall's
 cause remains open despite later successes. All seven checks pass at `77a6f0df7`
@@ -60,9 +59,11 @@ checks; that frozen result does not qualify the current source.
 Managed Go paths resolve absolutely and preserve explicit caches. Cached Ruby
 launchers now bind their gem repository; probe caches bind runtime/environment
 digests, with stale-context negatives and LSP producer 13 replay invalidation.
-Remaining real-tool outcomes include macOS PHP/.NET runtime discovery, Ruby gem
-environment/native builds, approved PHPactor bytes and the macOS `fsevents`
-script-policy warning. Installer exit, detection, startup and semantic precision
+C# 0.28.0 now completes real Windows startup/shutdown with selected .NET SDK
+10.0.113. CI binds an isolated SDK/root; fresh-process runtime qualification and
+the repaired Windows sync-timeout descendant owner retain failure controls.
+Remaining real-tool work includes fresh platform execution, Ruby/PHP installs
+and the macOS `fsevents` policy warning. Detection, startup and semantic precision
 remain separate evidence; no warning or failed readiness is suppressed.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
