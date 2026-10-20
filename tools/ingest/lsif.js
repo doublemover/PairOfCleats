@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { getRepoCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import {
@@ -51,18 +52,22 @@ const vertexById = new Map();
 const docById = new Map();
 const rangeById = new Map();
 const rangeToDoc = new Map();
+const conflictingRanges = new Set();
+// Flat occurrences need one role/document witness per range, not a copy of all edges.
+const occurrences = new Map();
 
 const normalizeRange = (range) => {
   if (!range || typeof range !== 'object') return null;
   const start = range.start || {};
   const end = range.end || {};
-  const startLine = Number.isFinite(Number(start.line)) ? Number(start.line) + 1 : null;
-  const endLine = Number.isFinite(Number(end.line)) ? Number(end.line) + 1 : startLine;
+  if (![start.line, start.character, end.line, end.character].every(value => Number.isSafeInteger(value) && value >= 0)
+    || start.line >= Number.MAX_SAFE_INTEGER || end.line >= Number.MAX_SAFE_INTEGER
+    || end.line < start.line || (end.line === start.line && end.character < start.character)) return null;
   return {
-    startLine,
-    endLine,
-    startChar: Number.isFinite(Number(start.character)) ? Number(start.character) : null,
-    endChar: Number.isFinite(Number(end.character)) ? Number(end.character) : null
+    startLine: start.line + 1,
+    endLine: end.line + 1,
+    startChar: start.character,
+    endChar: end.character
   };
 };
 
@@ -71,7 +76,9 @@ const uriPathFromDocumentUri = (uri) => {
   try {
     const parsed = new URL(uri);
     if (parsed.protocol !== 'file:') return null;
-    return parsed.pathname || null;
+    // /repo is the documented virtual root; real URIs keep native drive/UNC handling.
+    const virtual = !parsed.hostname && /^\/repo(?:\/|$)/.test(parsed.pathname);
+    return fileURLToPath(parsed, virtual ? { windows: false } : undefined);
   } catch {
     return null;
   }
@@ -82,49 +89,89 @@ const recordEntry = async (payload) => {
 };
 
 const handleVertex = (vertex) => {
+  if (vertexById.has(vertex.id)) { stats.errors += 1; return; }
   vertexById.set(vertex.id, vertex);
   const label = vertex.label || vertex.type || null;
   bumpStat(stats.kinds, label || 'unknown');
   if (label === 'document' && vertex.uri) {
     docById.set(vertex.id, vertex);
   }
-  if (label === 'range') {
+  if (label === 'range' || label === 'resultRange') {
     rangeById.set(vertex.id, vertex);
   }
   stats.vertices += 1;
 };
 
-const handleEdge = async (edge) => {
+const handleEdge = (edge) => {
   stats.edges += 1;
   const label = edge.label || edge.type || null;
   if (label === 'contains' && edge.outV != null && Array.isArray(edge.inVs)) {
     const outVertex = vertexById.get(edge.outV);
     if (outVertex && (outVertex.label === 'document' || outVertex.type === 'document')) {
       for (const id of edge.inVs) {
+        if (rangeById.get(id)?.label === 'resultRange') { conflictingRanges.add(id); stats.errors += 1; continue; }
+        if (rangeToDoc.has(id) && rangeToDoc.get(id) !== outVertex) {
+          conflictingRanges.add(id);
+          stats.errors += 1;
+        }
         rangeToDoc.set(id, outVertex);
       }
     }
   }
   if (label === 'item' && edge.outV != null && Array.isArray(edge.inVs)) {
-    const doc = rangeToDoc.get(edge.outV) || null;
-    const file = normalizePath(uriPathFromDocumentUri(doc?.uri || null));
-    if (!file) return;
-    const range = rangeById.get(edge.outV);
-    const normalized = normalizeRange(range);
+    const result = vertexById.get(edge.outV);
+    const resultLabel = result?.label;
+    if (!['definitionResult', 'referenceResult', 'declarationResult', 'typeDefinitionResult', 'implementationResult'].includes(resultLabel)) {
+      stats.errors += 1;
+      return;
+    }
+    if (resultLabel === 'referenceResult' && ['referenceResults', 'referenceLinks'].includes(edge.property)) {
+      const expected = edge.property === 'referenceResults' ? 'referenceResult' : 'moniker';
+      for (const id of edge.inVs) if (vertexById.get(id)?.label !== expected) stats.errors += 1;
+      // Links add membership to results, not new locations. This flat export
+      // already includes each linked result's concrete ranges exactly once.
+      return;
+    }
+    const role = resultLabel === 'definitionResult' ? 'definition'
+      : resultLabel === 'referenceResult'
+        ? ({ definitions: 'definition', references: 'reference', declarations: 'other' })[edge.property ?? 'references']
+        : 'other';
+    if (!role) { stats.errors += 1; return; }
     for (const inV of edge.inVs) {
-      const inVertex = vertexById.get(inV);
-      const inLabel = inVertex?.label || inVertex?.type || null;
-      const role = inLabel === 'definitionResult' ? 'definition'
-        : inLabel === 'referenceResult' ? 'reference'
-          : 'other';
+      if (!rangeById.has(inV)) { stats.errors += 1; continue; }
+      if (!occurrences.has(inV)) occurrences.set(inV, new Map());
+      const roles = occurrences.get(inV);
+      if (!roles.has(role)) roles.set(role, new Set());
+      const document = docById.get(edge.document ?? edge.shard);
+      if (document) roles.get(role).add(document);
+    }
+  }
+};
+
+const emitOccurrences = async () => {
+  const emitted = new Set();
+  for (const [id, roles] of occurrences) {
+    if (conflictingRanges.has(id)) continue;
+    const range = rangeById.get(id);
+    const normalized = normalizeRange(range);
+    if (!normalized) { stats.errors += 1; continue; }
+    for (const [role, hints] of roles) {
+      const contained = rangeToDoc.get(id);
+      if (hints.size > 1 || (contained && hints.size && !hints.has(contained))) { stats.errors += 1; continue; }
+      const doc = contained || hints.values().next().value;
+      const file = normalizePath(uriPathFromDocumentUri(doc?.uri));
+      if (!file) { stats.errors += 1; continue; }
+      const identity = JSON.stringify([file, normalized, role]);
+      if (emitted.has(identity)) continue;
+      emitted.add(identity);
       if (role === 'definition') stats.definitions += 1;
       if (role === 'reference') stats.references += 1;
       bumpStat(stats.languages, doc?.languageId || 'unknown');
       await recordEntry({
         file,
         ext: path.extname(file).toLowerCase(),
-        name: range?.tag || range?.text || null,
-        kind: range?.kind || null,
+        name: (typeof range.tag === 'string' ? range.tag : range.tag?.text) || range.text || null,
+        kind: range.tag?.kind ?? range.kind ?? null,
         startLine: normalized?.startLine ?? null,
         endLine: normalized?.endLine ?? null,
         startChar: normalized?.startChar ?? null,
@@ -143,7 +190,7 @@ const ingestJsonLines = async (stream) => {
     },
     onPayload: async (parsed) => {
       if (parsed && parsed.type === 'vertex') handleVertex(parsed);
-      else if (parsed && parsed.type === 'edge') await handleEdge(parsed);
+      else if (parsed && parsed.type === 'edge') handleEdge(parsed);
     }
   });
 };
@@ -156,6 +203,7 @@ await withStagedIngestOutput(outputPath, async (stream) => {
   } else {
     await ingestJsonLines(process.stdin);
   }
+  await emitOccurrences();
 });
 
 const summary = {
