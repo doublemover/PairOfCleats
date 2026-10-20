@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T17:40:30.606Z",
+  "generatedAt": "2026-10-20T17:52:21.121Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -9568,11 +9568,11 @@
       "tests/lang/contracts/mustache-parse-token-boundaries.test.js",
       "tests/lang/contracts/proto-reflection-lexical-boundaries.test.js",
       "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js",
-      "tests/lang/contracts/xml-lexical-boundaries.test.js",
       "tests/lang/contracts/yaml-syntax-node-boundaries.test.js",
       "tests/map/workspace/dom-interaction.test.js",
       "tests/map/workspace/projection.test.js",
       "tests/perf/bench/run.test.js",
+      "tests/perf/parsers/xml-cold-budget.test.js",
       "tests/services/api/runtime-claims.test.js",
       "tests/services/api/runtime-evidence.test.js",
       "tests/shared/cli-option-validators-contract.test.js",

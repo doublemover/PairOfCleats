@@ -90,7 +90,9 @@ try {
     for (const mode of ['code', 'prose', 'extracted-prose']) {
       const empty = mode === 'extracted-prose';
       const file = mode === 'code' ? 'cache.js' : 'README.md';
-      const { indexDir } = await createBaseIndex({ semantic: true, rootDir: path.join(buildRoot, mode),
+      // Only the code importer opens the semantic store. Prose modes retain
+      // their canonical metadata/postings without an unused disabled family.
+      const { indexDir } = await createBaseIndex({ semantic: mode === 'code', rootDir: path.join(buildRoot, mode),
         chunkMeta: empty ? [] : [{ id: 0, file, start: 0, end: 14, startLine: 1, endLine: 1,
           name: 'refreshCache', kind: mode, metaV2: {}, tokens: ['cache', 'refresh', 'refreshcache'] }],
         tokenPostings: { vocab: empty ? [] : ['cache', 'refresh', 'refreshcache'],
@@ -98,7 +100,7 @@ try {
           docLengths: empty ? [] : [3], avgDocLen: empty ? 0 : 3, totalDocs: empty ? 0 : 1 },
         indexState: { buildId, generatedAt: new Date().toISOString(), mode, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
           compatibilityKey: 'parity-fixture-v1' },
-        manifestOverrides: { mode, compatibilityKey: 'parity-fixture-v1' }
+        manifestOverrides: { mode, buildId, compatibilityKey: 'parity-fixture-v1' }
       });
       await fs.writeFile(path.join(indexDir, 'chunk_meta.meta.json'), JSON.stringify({ totalRecords: empty ? 0 : 1 }));
       await fs.rename(indexDir, path.join(buildRoot, 'index-' + mode));
@@ -147,6 +149,9 @@ try {
   assert.ok(report.results[0].code.topMemory.length > 0, 'the real memory search must return hits');
   assert.ok(report.results[0].code.topSqlite.length > 0, 'the real SQLite search must return hits');
   assert.equal(report.results[0].code.overlap, 1, 'the real backends must agree on the fixture hits');
+  assert.ok(report.results[0].prose.topMemory.length > 0, 'the real memory prose search must return hits');
+  assert.ok(report.results[0].prose.topSqlite.length > 0, 'the real SQLite prose search must return hits');
+  assert.equal(report.results[0].prose.overlap, 1, 'the real prose backends must agree');
   assert.equal(report.summary.sqliteBackend, 'sqlite');
   assert.equal(report.summary.annEnabled, false);
 

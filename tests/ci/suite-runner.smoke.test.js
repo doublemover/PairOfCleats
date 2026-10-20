@@ -72,6 +72,12 @@ for (const [mode, output] of [['ci', ciOutput], ['nightly', nightlyOutput]]) {
   assert.match(lane[0], /--native-status-redo=false(?:\s|$)/, `${mode}: native crashes cannot be redone by CI`);
   assert.ok(output.includes('[dry-run] API contract cohort:'), `${mode}: excluded API cases have an explicit portable cohort`);
   assert.ok(output.includes('[dry-run] Serial runtime budgets:'), `${mode}: measured parser/index budgets have an explicit serial owner`);
+  const xmlSelector = '/^perf\\/parsers\\/xml-cold-budget$/';
+  assert.ok(lane[0].includes(xmlSelector), `${mode}: real-clock XML acceptance is excluded from concurrent correctness`);
+  const serial = output.split(/\r?\n/).filter(line => line.startsWith('[dry-run] Serial runtime budgets:'));
+  assert.equal(serial.length, 1);
+  assert.ok(serial[0].includes(xmlSelector), `${mode}: the actual XML default APIs retain execution coverage`);
+  assert.match(serial[0], /--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false/);
 }
 
 console.log('suite runner smoke and zero-retry command contracts passed');

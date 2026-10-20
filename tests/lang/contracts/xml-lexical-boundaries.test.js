@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
-import { createXmlStructureParser, parseXmlStructure } from '../../../src/shared/xml-structure.js';
-import { createXmlChunker, chunkXml } from '../../../src/index/chunking/formats/xml.js';
-import { createXmlImportCollector, collectXmlImports } from '../../../src/index/language-registry/import-collectors/xml.js';
-import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
-import { buildConfigFileAdapters } from '../../../src/index/language-registry/adapters/config-files.js';
+import { createXmlStructureParser } from '../../../src/shared/xml-structure.js';
+import { createXmlChunker } from '../../../src/index/chunking/formats/xml.js';
+import { createXmlImportCollector } from '../../../src/index/language-registry/import-collectors/xml.js';
+
+// Lexical content/ranges use an injected clock. Default exported API and
+// registry/adapter positives retain real-clock, serial acceptance in
+// perf/parsers/xml-cold-budget; expiry and owner overrun remain asserted below.
+const parseXmlStructure = createXmlStructureParser({ now: () => 0 });
+const chunkXml = createXmlChunker({ parseStructure: parseXmlStructure, now: () => 0 });
+const collector = createXmlImportCollector({ parseStructure: parseXmlStructure });
+const collectXmlImports = (source, options = {}) => collector(source, { collectorNow: () => 0, ...options });
 
 globalThis.fetch = () => { throw Error('Excluded external reference/DTD fetching'); };
 const text = ['<root>', '  <![CDATA[😀 > <include href="cdata.fake"/><phony/>]]>',
@@ -22,15 +28,12 @@ assert.equal(text.slice(model.importEntries[0].nameRange.start, model.importEntr
 assert.equal(model.sections[0].start, text.lastIndexOf('<include'));
 assert.equal(text.slice(model.sections[0].start, model.sections[0].end), '<include\r\n    href="real.xml"/>');
 assert.deepEqual(collectXmlImports(text), ['real.xml']);
-assert.deepEqual(collectLanguageImports({ text, ext: '.xml', relPath: 'project.xml', mode: 'code' }), ['real.xml']);
 const chunks = chunkXml(text, {});
 assert.deepEqual(chunks.map((entry) => entry.name), ['include', 'last']);
 assert.ok(chunks.every((entry) => entry.meta.parserCoverage === 'partial'
   && entry.meta.astRange === undefined && entry.meta.rangeSource === 'application-utf16-lexer'));
 assert.equal(chunks[0].end, chunks[1].start);
 assert.equal(chunks[0].meta.lexicalElementRange.end, model.sections[0].end);
-const adapter = buildConfigFileAdapters().find((entry) => entry.id === 'xml');
-assert.deepEqual(adapter.buildRelations({ text, options: {} }).imports, ['real.xml']);
 const quoted = '<root>\n <item text=">"/>\n <include href="greater>name.xml"/>\n <last/>\n</root>';
 assert.deepEqual(chunkXml(quoted, {}).map((entry) => entry.name), ['item', 'include', 'last']);
 assert.deepEqual(collectXmlImports(quoted), ['greater>name.xml']);
@@ -83,7 +86,7 @@ assert.equal(stable('<root>' + '<!--x-->'.repeat(65536) + '</root>').reason, 'to
 assert.equal(stable('<root>' + '<n/>'.repeat(20000) + '</root>').reason, 'node-limit');
 assert.equal(stable('<n>'.repeat(65) + '</n>'.repeat(65)).reason, 'depth-limit');
 assert.equal(stable('<root>' + '<include href="x"/>'.repeat(4097) + '</root>').reason, 'import-limit');
-const expired = createXmlStructureParser();
+const expired = createXmlStructureParser({ now: () => 0 });
 assert.equal(expired('<root/>', { remainingMs: () => 0 }).reason, 'time-limit');
 assert.equal(expired('<root/>', { remainingMs: () => NaN }).reason, 'time-limit');
 assert.equal(expired('<root/>').reason, null);

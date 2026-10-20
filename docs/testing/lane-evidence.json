@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T17:40:26.886Z",
+  "generatedAt": "2026-10-20T17:52:17.394Z",
   "summary": {
     "lanes": 5,
-    "tests": 1293,
+    "tests": 1294,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 327,
+    "families": 328,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1219
+      "missingTests": 1220
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1070,
+      "totalTests": 1071,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1021
+        "missing": 1022
       }
     },
     {
@@ -1400,6 +1400,12 @@
     },
     {
       "key": "map/viewer-contract-matrix",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "perf/parsers",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
