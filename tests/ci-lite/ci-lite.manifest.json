@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 917,
+    "hero": 918,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6367,6 +6367,12 @@
     {
       "id": "tooling/sublime/minimum-runtime-compatibility",
       "order": 1059,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/sublime/api-authentication",
+      "order": 1060,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

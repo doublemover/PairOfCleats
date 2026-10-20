@@ -250,6 +250,34 @@ def get_settings(window=None):
     return merge_settings(base, overrides)
 
 
+def _api_origin(value):
+    try:
+        parsed = urlparse(str(value or '').strip())
+        if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+            return None
+        if parsed.username is not None or parsed.password is not None:
+            return None
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == 'https' else 80)
+        return (parsed.scheme, parsed.hostname.lower(), port)
+    except (ValueError, TypeError):
+        return None
+
+
+def build_destination_bound_api_headers(destination):
+    # Read only package/User Settings. Merged/caller/project settings cannot
+    # approve an origin or select credentials, including editor-environment ones.
+    user = _load_base_settings()
+    origin = _api_origin(user.get('api_server_url'))
+    if origin is None or origin != _api_origin(destination):
+        return {}
+    user_env = _get_env_settings(user)
+    user_token = user_env.get('PAIROFCLEATS_API_TOKEN') if isinstance(user_env, dict) else None
+    token = str(user_token or os.environ.get('PAIROFCLEATS_API_TOKEN') or '').strip()
+    if '\r' in token or '\n' in token:
+        raise RuntimeError('PAIROFCLEATS_API_TOKEN must be a single-line value.')
+    return {'Authorization': 'Bearer ' + token} if token else {}
+
+
 def filter_project_settings(overrides):
     if not isinstance(overrides, dict):
         return {}

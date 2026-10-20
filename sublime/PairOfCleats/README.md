@@ -60,6 +60,12 @@ Core:
 
 API:
 - `api_server_url`: Base URL for API-backed workflows.
+- Authenticated servers use `PAIROFCLEATS_API_TOKEN` from User Settings `env`,
+  falling back to the editor process environment. Credentials are sent only to
+  the origin configured by the user in `api_server_url` (scheme, host and port).
+  Project settings and caller-provided workflow settings cannot approve another
+  destination or override the token. Credential-bearing redirects are refused,
+  including redirects within the same origin; use the final API URL directly.
 - `api_timeout_ms`: Timeout for API requests in milliseconds.
 - `api_execution_mode`: `cli`, `prefer`, or `require`.
   - `search` and symbol-driven navigation/completion can use the API path.

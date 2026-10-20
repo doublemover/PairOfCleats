@@ -58,6 +58,25 @@ def _encode_payload(payload):
     return json.dumps(payload).encode('utf-8')
 
 
+def _api_headers(destination):
+    try:
+        import sublime
+    except ImportError:
+        # Standalone low-level callers have no editor-owned endpoint grant.
+        return {}
+    from . import config
+    return config.build_destination_bound_api_headers(destination)
+
+
+class _CredentialRedirectGuard(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, destination):
+        if any(key.lower() == 'authorization' for key, _ in request.header_items()):
+            raise urllib.error.HTTPError(request.full_url, code,
+                'Credential-bearing API redirects are not allowed.', headers, response)
+        return super(_CredentialRedirectGuard, self).redirect_request(
+            request, response, code, message, headers, destination)
+
+
 def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     timeout = float(timeout_ms or 5000) / 1000.0
     if timeout <= 0:
@@ -69,7 +88,8 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
 
     try:
-        resp = urllib.request.urlopen(request, timeout=timeout)
+        opener = urllib.request.build_opener(_CredentialRedirectGuard())
+        resp = opener.open(request, timeout=timeout)
         try:
             status = resp.getcode() or 0
             headers = dict(resp.headers.items())
@@ -85,6 +105,8 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
             data = err.read()
         except Exception:
             data = b''
+        finally:
+            err.close()
         headers = dict(getattr(err, 'headers', {}).items()) if getattr(err, 'headers', None) else {}
         status = getattr(err, 'code', 0) or 0
         return status, headers, data
@@ -207,6 +229,7 @@ def search_json(
         timeout_ms=timeout_ms,
         method='POST',
         payload=payload,
+        headers=_api_headers(base_url),
     )
     if not isinstance(body, dict) or body.get('ok') is False:
         raise RuntimeError((body or {}).get('message') or 'API search failed.')
@@ -233,6 +256,7 @@ def health_json(base_url, settings):
     body, headers = request_json(
         build_url(base_url, '/health'),
         timeout_ms=timeout_ms,
+        headers=_api_headers(base_url),
     )
     if not isinstance(body, dict) or body.get('ok') is False:
         raise RuntimeError((body or {}).get('message') or 'API health request failed.')
@@ -249,6 +273,7 @@ def status_json(base_url, repo_root, settings):
     body, headers = request_json(
         build_url(base_url, '/status', {'repo': repo_root}),
         timeout_ms=timeout_ms,
+        headers=_api_headers(base_url),
     )
     if not isinstance(body, dict) or body.get('ok') is False:
         raise RuntimeError((body or {}).get('message') or 'API status request failed.')
