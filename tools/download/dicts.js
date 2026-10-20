@@ -96,6 +96,15 @@ const streamToFile = (stream, outputPath, { maxBytes, expectedHash, policy }) =>
   });
 });
 
+const hasUsableLocalBytes = async (file) => {
+  try {
+    const stat = await fs.stat(file);
+    if (!stat.isFile() || stat.size === 0 || stat.size > downloadPolicy.maxBytes) return false;
+    await fs.access(file, fsSync.constants.R_OK);
+    return true;
+  } catch { return false; }
+};
+
 /**
  * Download a dictionary source into the cache.
  * @param {{name:string,url:string,file:string}} source
@@ -110,7 +119,11 @@ async function downloadSource(source) {
   }
 
   const headers = {};
-  if (argv.update) {
+  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
+  const canReuse = argv.update && !argv.force && entry.url === source.url && entry.file === source.file
+    && (!expectedHash || (entry.verified === true && entry.sha256 === expectedHash))
+    && await hasUsableLocalBytes(outputPath);
+  if (canReuse) {
     if (entry.etag) headers['If-None-Match'] = entry.etag;
     if (entry.lastModified) headers['If-Modified-Since'] = entry.lastModified;
   }
@@ -124,6 +137,9 @@ async function downloadSource(source) {
   });
   if (response.statusCode === 304) {
     response.stream?.resume?.();
+    if (!canReuse || !await hasUsableLocalBytes(outputPath)) {
+      throw new Error(`Unexpected 304 for ${source.url}: usable local dictionary bytes are unavailable.`);
+    }
     return { name: source.name, skipped: true };
   }
   if (response.statusCode !== 200) {
@@ -131,7 +147,6 @@ async function downloadSource(source) {
     throw new Error(`Failed to download ${source.url}: ${response.statusCode}`);
   }
 
-  const expectedHash = resolveExpectedHash(source, downloadPolicy, hashOverrides);
   const { tempPath, lastByte, hashHex } = await streamToFile(response.stream, outputPath, {
     maxBytes: downloadPolicy.maxBytes,
     expectedHash,
