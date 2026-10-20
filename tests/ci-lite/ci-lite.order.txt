@@ -1001,3 +1001,14 @@ tooling/lsp/clangd-missing-command-blocks-runtime
 tooling/ci/run-suite-script-coverage-plan
 tooling/script-coverage/harness
 tooling/script-coverage/harness-parity
+indexing/build/promotion-cancellation
+indexing/watch/cancel-before-publication
+storage/semantic/cache-routes-parity
+tooling/lsp/go-rust-signature-boundaries/go
+tooling/lsp/go-rust-signature-boundaries/rust
+tooling/lsp/signature-boundary-providers/python
+tooling/lsp/signature-boundary-providers/go
+tooling/lsp/signature-boundary-providers/rust
+tooling/lsp/request-cache-document-authority
+tooling/lsp/hover-cache-key-v2
+tooling/lsp/request-cache-persistent-hit

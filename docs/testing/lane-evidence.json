@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T06:20:33.208Z",
+  "generatedAt": "2026-10-20T06:52:12.628Z",
   "summary": {
     "lanes": 5,
-    "tests": 1223,
+    "tests": 1234,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 318,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1149
+      "missingTests": 1160
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1001,
+      "totalTests": 1012,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 952
+        "missing": 963
       }
     },
     {
@@ -254,9 +254,9 @@
     },
     {
       "key": "indexing/watch",
-      "count": 17,
+      "count": 18,
       "knownDurationMs": 160,
-      "unknownDurationCount": 16
+      "unknownDurationCount": 17
     },
     {
       "key": "indexing/postings",
@@ -296,9 +296,9 @@
     },
     {
       "key": "tooling/lsp",
-      "count": 97,
+      "count": 105,
       "knownDurationMs": 0,
-      "unknownDurationCount": 97
+      "unknownDurationCount": 105
     },
     {
       "key": "integrations/inference-history",
@@ -475,6 +475,12 @@
       "unknownDurationCount": 6
     },
     {
+      "key": "indexing/build",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
       "key": "indexing/determinism",
       "count": 5,
       "knownDurationMs": 0,
@@ -500,12 +506,6 @@
     },
     {
       "key": "context-pack/risk-filters-parity",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
-      "key": "indexing/build",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -559,6 +559,12 @@
       "unknownDurationCount": 4
     },
     {
+      "key": "storage/semantic",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
       "key": "tooling/architecture",
       "count": 4,
       "knownDurationMs": 0,
@@ -596,12 +602,6 @@
     },
     {
       "key": "services/queue",
-      "count": 3,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 3
-    },
-    {
-      "key": "storage/semantic",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -2008,9 +2008,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 402,
+      "count": 404,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 361,
+      "unknownDurationCount": 363,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
@@ -2043,9 +2043,9 @@
     },
     {
       "key": "lsp-bootstrap",
-      "count": 97,
+      "count": 105,
       "knownDurationMs": 0,
-      "unknownDurationCount": 97,
+      "unknownDurationCount": 105,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {

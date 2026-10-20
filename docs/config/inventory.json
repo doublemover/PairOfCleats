@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T05:45:22.636Z",
+  "generatedAt": "2026-10-20T06:52:16.348Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4455,6 +4455,8 @@
         "tests/runner/run-execution.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
+        "tests/tooling/lsp/signature-boundary-providers.test.js",
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",
         "tools/config/inventory.js"

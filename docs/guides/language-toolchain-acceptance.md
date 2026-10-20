@@ -8,6 +8,26 @@ adopted compatibility changes and their acceptance boundary. An installed packag
 or parser fixture does not establish LSP, compiler or whole-project correctness.
 Preserve the [execution authority rules](execution-authority.md) during trials.
 
+## LSP response authority and signature repair, October 20
+
+Response-cache policy `rq2` binds each answer to the provider/workspace, immutable
+build identity, document URI and virtual/container/segment identity, language,
+position encoding, source hash, request kind and position. Old ambiguous `rq1`
+entries are not admitted. All production provider routes supply the existing
+build identity. Direct collector callers without one get reuse within their
+invocation; they cannot establish dependency freshness across invocations.
+Dependency-only changes therefore require the next build identity even when a
+document's bytes stay unchanged. The on-disk schema remains version 1; parsed
+signature cache identity is `v3`, whole-provider cache identity is `lk4`, and the
+shared LSP semantic producer version is 11.
+
+Focused protocol fixtures cover equal-byte Python documents in different origins,
+positive and negative cache isolation, repeated same-generation hits and a
+dependency-only generation change. Separate real protocol callbacks exercise
+Python comparison/shift defaults, grouped/directional Go channels and Rust
+lifetime/tuple returns. These are simulated-server contracts with explicit fixture
+commands/trust, separate from real Pyright/gopls/rust-analyzer qualification.
+
 ## C# native grammar
 
 The pinned `tree-sitter-c-sharp` version is updated from 0.23.1 to 0.23.5.
