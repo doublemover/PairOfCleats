@@ -18,7 +18,7 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-seven issues have implemented repairs; Boolean complement follow-ups
+Sixty-eight issues have implemented repairs; Boolean complement follow-ups
 now preserve negative-only/OR hits, independent filters and cache invalidation.
 ANN publication binds full embedding identity and exact vector/chunk generation;
 failed replacements cannot relabel retained native bytes. Global Ctrl+C now follows
@@ -43,10 +43,13 @@ times out and macOS XML content assertions fail. Smaller parity artifacts and
 separate XML content/serial real-clock controls pass locally; fresh CI is pending.
 At `7162061f4`, native Windows ownership and three platform correctness selections
 reach only one shared failure: the serial-plan fixture still expects four owners.
-Its five-owner correction passes locally. #633 has a tested settings transaction
-owner with canonical schema/provenance, stale/cancel fences, privacy and exact-byte
-reset backup controls; supervisor/native keyboard integration remains unfinished.
-Its new file-symlink case requires the capable Windows authority launch.
+At `7789dd3fc`, Ubuntu/macOS correctness and serial real-clock budgets pass;
+the 47-owner Windows authority cohort also passes. Windows fails before the main
+suite: its cold system PowerShell snapshot helper exceeds the unchanged two-second
+bound before emitting its first phase. Attribution and repair remain active.
+#633 now connects canonical settings transactions to the real supervisor/native
+keyboard path, with scope, stale/cancel/privacy and exact-byte reset controls.
+Four actual Windows ConPTY cases pass; other platform native execution is separate.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
