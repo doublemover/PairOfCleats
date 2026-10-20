@@ -198,6 +198,7 @@ export function createLspClient(options) {
   let writerClosed = false;
   let trackedChildProcess = null;
   const unregisterChildProcessByChild = new WeakMap();
+  const pendingTerminations = new Set();
   const staleReapInFlight = new WeakMap();
   const STALE_REAP_RETRY_MS = 500;
   let nextId = 1;
@@ -319,13 +320,26 @@ export function createLspClient(options) {
     }
   };
 
-  const clearTrackedChildIfTerminated = (child, outcome = null) => {
-    const terminated = !isChildRunning(child) || outcome?.terminated === true;
+  const clearTrackedChildIfTerminated = (child) => {
+    const terminated = !isChildRunning(child);
     if (terminated) {
       clearTrackedChild({ force: true, child });
     }
     return terminated;
   };
+
+  const waitForChildExit = (child) => new Promise((resolve) => {
+    if (!isChildRunning(child)) { resolve(true); return; }
+    const finish = (exited) => {
+      clearTimeout(timer);
+      child.off?.('exit', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    // Keep the bounded wait referenced even when disposal unrefs the handle.
+    const timer = setTimeout(() => finish(false), 2500);
+    child.once('exit', onExit);
+  });
 
   const cleanupInvalidSpawnCandidate = (child, reason = 'invalid_spawn_candidate') => {
     if (!child || typeof child !== 'object') return;
@@ -373,7 +387,7 @@ export function createLspClient(options) {
       awaitGrace: true
     }).then((outcome) => {
       if (!outcome || typeof outcome !== 'object') return;
-      if (clearTrackedChildIfTerminated(child, outcome)) {
+      if (clearTrackedChildIfTerminated(child)) {
         staleReapInFlight.delete(child);
         if (!outcome.fallbackAttempted) return;
       }
@@ -381,7 +395,7 @@ export function createLspClient(options) {
         kind: 'kill_diagnostics',
         reason,
         pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null,
-        terminated: outcome.terminated === true,
+        terminated: !isChildRunning(child),
         forced: outcome.forced === true,
         fallbackAttempted: outcome.fallbackAttempted === true,
         fallbackTerminated: Number(outcome.fallbackTerminated || 0)
@@ -408,8 +422,8 @@ export function createLspClient(options) {
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).then((outcome) => {
-          clearTrackedChildIfTerminated(child, outcome);
+        }).then(() => {
+          clearTrackedChildIfTerminated(child);
         }).catch(() => {});
       }
     }, 200).unref?.();
@@ -731,19 +745,21 @@ export function createLspClient(options) {
       });
     });
     child.on('exit', (code, signal) => {
-      if (proc !== child || childGen !== generation) return;
-      rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
-      proc = null;
-      childParser?.dispose();
-      parser = null;
-      writer = null;
-      writerClosed = true;
       clearTrackedChild({ force: true, child });
+      childParser?.dispose();
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
-      backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
-      nextStartAt = Date.now() + backoffMs;
+      if (proc === child && childGen === generation) {
+        rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
+        proc = null;
+        parser = null;
+        writer = null;
+        writerClosed = true;
+        backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
+        nextStartAt = Date.now() + backoffMs;
+      }
       emitLifecycleEvent({
         kind: 'exit',
+        pid: Number.isFinite(Number(child.pid)) ? Number(child.pid) : null,
         code: code ?? null,
         signal: signal ?? null,
         backoffMs
@@ -860,58 +876,38 @@ export function createLspClient(options) {
         notify('exit', null, { startIfNeeded: false });
       }
     }
-    await new Promise((resolve) => {
-      if (!isChildRunning(current)) {
-        resolve();
-        return;
-      }
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        try {
-          current.off?.('exit', onExit);
-        } catch {}
-        resolve();
-      };
-      const onExit = () => {
-        finish();
-      };
-      const timer = setTimeout(() => {
-        finish();
-      }, 2500);
-      current.once('exit', onExit);
-    });
+    await waitForChildExit(current);
     if (proc === current && generation === currentGen && isChildRunning(current)) {
       await Promise.resolve(kill());
     }
   };
 
   const kill = () => {
-    if (!proc) return;
+    if (!proc) return Promise.all([...pendingTerminations]);
     const current = proc;
-    const terminatePromise = killChildProcessTree(current, {
+    // Subscribe before signalling; signal delivery does not reap a child handle.
+    const exited = waitForChildExit(current);
+    const terminatePromise = Promise.all([killChildProcessTree(current, {
       killTree: true,
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
-    }).then((outcome) => {
-      if (!outcome || typeof outcome !== 'object') return outcome;
-      if (clearTrackedChildIfTerminated(current, outcome) && !outcome.fallbackAttempted) return outcome;
+    }).catch(() => null), exited]).then(([outcome, exitObserved]) => {
+      if (exitObserved) clearTrackedChild({ force: true, child: current });
+      const result = { ...outcome, terminated: exitObserved, exitObserved };
+      if (exitObserved && !outcome?.fallbackAttempted) return result;
       emitLifecycleEvent({
         kind: 'kill_diagnostics',
         reason: 'explicit_kill',
         pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null,
-        terminated: outcome.terminated === true,
-        forced: outcome.forced === true,
-        fallbackAttempted: outcome.fallbackAttempted === true,
-        fallbackTerminated: Number(outcome.fallbackTerminated || 0)
+        terminated: exitObserved,
+        forced: outcome?.forced === true,
+        fallbackAttempted: outcome?.fallbackAttempted === true,
+        fallbackTerminated: Number(outcome?.fallbackTerminated || 0)
       });
-      return outcome;
-    }).catch(() => {
-      clearTrackedChildIfTerminated(current);
-    });
+      return result;
+    }).finally(() => pendingTerminations.delete(terminatePromise));
+    pendingTerminations.add(terminatePromise);
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
     try {
@@ -931,8 +927,8 @@ export function createLspClient(options) {
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).then((outcome) => {
-          clearTrackedChildIfTerminated(current, outcome);
+        }).then(() => {
+          clearTrackedChildIfTerminated(current);
         }).catch(() => {});
       }
     }, 200).unref?.();
@@ -945,15 +941,14 @@ export function createLspClient(options) {
       kind: 'kill',
       pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
     });
-    return terminatePromise;
+    return Promise.all([...pendingTerminations]).then(() => terminatePromise);
   };
 
   const killSync = () => {
     if (!proc) return;
     const current = proc;
-    let outcome = null;
     try {
-      outcome = killChildProcessTreeSync(current, {
+      killChildProcessTreeSync(current, {
         killTree: true,
         detached: killTreeDetached
       });
@@ -971,7 +966,7 @@ export function createLspClient(options) {
       current.unref?.();
     } catch {}
     proc = null;
-    clearTrackedChildIfTerminated(current, outcome);
+    clearTrackedChildIfTerminated(current);
     writer = null;
     writerClosed = true;
     backoffMs = 0;

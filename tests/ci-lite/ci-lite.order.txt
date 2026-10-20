@@ -630,6 +630,7 @@ indexing/segments/segment-pipeline
 tooling/lsp/preflight-contract-matrix
 tooling/type-inference/tooling-runtime-contract-matrix
 tooling/vfs/invalid-virtual-range-regression
+tooling/lsp/kill-awaits-child-exit
 tooling/lsp/restart-generation-safety
 shared/config/contract-matrix
 indexing/relations/call-graph-contract-matrix
