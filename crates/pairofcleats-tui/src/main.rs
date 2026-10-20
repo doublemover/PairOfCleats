@@ -1,4 +1,6 @@
 mod supervisor_lifetime;
+#[cfg(test)]
+mod viewport_tests;
 use supervisor_lifetime::SupervisorLifetime;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -20,6 +22,7 @@ use crossterm::terminal::{
 use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Terminal;
 use serde::{Deserialize, Serialize};
@@ -631,17 +634,18 @@ impl AppModel {
     }
 
     fn push_log_entry(&mut self, text: String, level: &str, source: &str) {
-        if !self.follow_updates && !self.logs.is_empty() {
+        let entry = LogEntry {
+            text,
+            level: level.to_string(),
+            source: source.to_string(),
+        };
+        if !self.follow_updates && !self.logs.is_empty() && matches_log_entry(self, &entry) {
             self.log_scroll = self.log_scroll.saturating_add(1);
         }
         if self.logs.len() >= LOG_RING_LIMIT {
             self.logs.pop_front();
         }
-        self.logs.push_back(LogEntry {
-            text,
-            level: level.to_string(),
-            source: source.to_string(),
-        });
+        self.logs.push_back(entry);
         self.dirty = true;
     }
 
@@ -1285,30 +1289,49 @@ fn wrap_text_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
     }
     let mut output = Vec::new();
     for raw_line in text.split('\n') {
-        let mut remaining = raw_line.trim();
-        if remaining.is_empty() {
+        let span = Span::raw(raw_line.trim());
+        let graphemes: Vec<_> = span
+            .styled_graphemes(Style::default())
+            .map(|g| g.symbol)
+            .collect();
+        if graphemes.is_empty() {
             output.push(String::new());
             if output.len() >= max_lines {
                 break;
             }
             continue;
         }
-        while !remaining.is_empty() && output.len() < max_lines {
-            let chars: Vec<char> = remaining.chars().collect();
-            if chars.len() <= width {
-                output.push(remaining.to_string());
-                break;
+        let mut start = 0;
+        while start < graphemes.len() && output.len() < max_lines {
+            let mut end = start;
+            let mut columns = 0;
+            while end < graphemes.len() {
+                let next_width = Span::raw(graphemes[end]).width();
+                if columns + next_width > width {
+                    break;
+                }
+                columns += next_width;
+                end += 1;
             }
-            let slice = chars.iter().take(width).collect::<String>();
-            let boundary = slice.rfind(' ').unwrap_or(width);
-            let next_line = slice[..boundary].trim_end().to_string();
-            output.push(if next_line.is_empty() {
-                slice
-            } else {
-                next_line
-            });
-            let consumed = boundary.min(remaining.len());
-            remaining = remaining[consumed..].trim_start();
+            if end == start {
+                // A single grapheme wider than the pane still makes progress.
+                output.push("…".into());
+                start += 1;
+                continue;
+            }
+            if end < graphemes.len() {
+                if let Some(boundary) = (start + 1..end)
+                    .rev()
+                    .find(|i| graphemes[*i].trim().is_empty())
+                {
+                    end = boundary;
+                }
+            }
+            output.push(graphemes[start..end].concat().trim_end().to_string());
+            start = end;
+            while start < graphemes.len() && graphemes[start].trim().is_empty() {
+                start += 1;
+            }
         }
         if output.len() >= max_lines {
             break;
@@ -1686,11 +1709,16 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
     fit_text(text, width)
 }
 
-fn build_job_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
+fn list_viewport<T>(rows: Vec<T>, scroll: usize, height: usize) -> Vec<T> {
+    let start = scroll.min(rows.len().saturating_sub(height));
+    rows.into_iter().skip(start).take(height).collect()
+}
+
+fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
     let mut rows = Vec::new();
     if model.job_order.is_empty() {
         rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
-        return rows;
+        return list_viewport(rows, model.job_scroll, height);
     }
     for job_id in &model.job_order {
         let Some(status) = model.job_status.get(job_id) else {
@@ -1730,10 +1758,10 @@ fn build_job_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
     if rows.is_empty() {
         rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
     }
-    rows
+    list_viewport(rows, model.job_scroll, height)
 }
 
-fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
+fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
     let selected_job = model.selected_job.clone().unwrap_or_default();
     let mut rows = Vec::new();
     for key in &model.task_order {
@@ -1765,7 +1793,7 @@ fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
     if rows.is_empty() {
         rows.push(ListItem::new(fit_text(&tasks_empty_reason(model), width)));
     }
-    rows
+    list_viewport(rows, model.task_scroll, height)
 }
 
 fn render_log_entry(entry: &LogEntry) -> String {
@@ -1787,19 +1815,23 @@ fn logs_empty_reason(model: &AppModel) -> String {
 }
 
 fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
-    let filtered: Vec<LogEntry> = model
+    if width == 0 || height == 0 {
+        return String::new();
+    }
+    let filtered: Vec<&LogEntry> = model
         .logs
         .iter()
-        .filter(|entry| matches_log_level_filter(&entry.level, model.log_level_filter))
-        .filter(|entry| matches_log_source_filter(&entry.source, model.log_source_filter))
-        .filter(|entry| contains_query(&render_log_entry(entry), &model.search_logs))
-        .cloned()
+        .filter(|entry| matches_log_entry(model, entry))
         .collect();
-    let visible_logs = tail_window_slice(&filtered, model.log_scroll, filtered.len().max(1));
+    let visible_logs = tail_window_slice(
+        &filtered,
+        model.log_scroll.min(filtered.len().saturating_sub(1)),
+        filtered.len(),
+    );
     let mut lines = Vec::new();
-    for entry in visible_logs {
-        let wrapped = wrap_text_lines(&render_log_entry(&entry), width, 2);
-        for line in wrapped {
+    for entry in visible_logs.into_iter().rev() {
+        let wrapped = wrap_text_lines(&render_log_entry(entry), width, usize::MAX);
+        for line in wrapped.into_iter().rev() {
             lines.push(line);
             if lines.len() >= height {
                 break;
@@ -1812,8 +1844,22 @@ fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
     if lines.is_empty() {
         lines.push(logs_empty_reason(model));
     }
-    let start = lines.len().saturating_sub(height.max(1));
-    lines[start..].join("\n")
+    lines.reverse();
+    lines.join("\n")
+}
+
+fn matches_log_entry(model: &AppModel, entry: &LogEntry) -> bool {
+    matches_log_level_filter(&entry.level, model.log_level_filter)
+        && matches_log_source_filter(&entry.source, model.log_source_filter)
+        && contains_query(&render_log_entry(entry), &model.search_logs)
+}
+
+fn toggle_follow(model: &mut AppModel) {
+    model.follow_updates = !model.follow_updates;
+    if model.follow_updates {
+        model.log_scroll = 0;
+    }
+    model.dirty = true;
 }
 
 fn panel_block(title: String, focused: bool, color: bool) -> Block<'static> {
@@ -2012,7 +2058,12 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         let jobs_width = stacked[0].width.saturating_sub(2) as usize;
         let tasks_width = stacked[1].width.saturating_sub(2) as usize;
         let logs_width = stacked[2].width.saturating_sub(2) as usize;
-        let jobs = List::new(build_job_rows(model, jobs_width)).block(panel_block(
+        let jobs = List::new(build_job_rows(
+            model,
+            jobs_width,
+            stacked[0].height.saturating_sub(2) as usize,
+        ))
+        .block(panel_block(
             block_title(
                 "Jobs",
                 model.focus_panel == FocusPanel::Jobs,
@@ -2029,7 +2080,12 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             model.terminal_caps.color,
         ));
         frame.render_widget(jobs, stacked[0]);
-        let tasks = List::new(build_task_rows(model, tasks_width)).block(panel_block(
+        let tasks = List::new(build_task_rows(
+            model,
+            tasks_width,
+            stacked[1].height.saturating_sub(2) as usize,
+        ))
+        .block(panel_block(
             block_title(
                 "Tasks",
                 model.focus_panel == FocusPanel::Tasks,
@@ -2095,7 +2151,12 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         let tasks_width = cols[1].width.saturating_sub(2) as usize;
         let logs_width = cols[2].width.saturating_sub(2) as usize;
 
-        let jobs = List::new(build_job_rows(model, jobs_width)).block(panel_block(
+        let jobs = List::new(build_job_rows(
+            model,
+            jobs_width,
+            cols[0].height.saturating_sub(2) as usize,
+        ))
+        .block(panel_block(
             block_title(
                 "Jobs",
                 model.focus_panel == FocusPanel::Jobs,
@@ -2113,7 +2174,12 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         ));
         frame.render_widget(jobs, cols[0]);
 
-        let tasks = List::new(build_task_rows(model, tasks_width)).block(panel_block(
+        let tasks = List::new(build_task_rows(
+            model,
+            tasks_width,
+            cols[1].height.saturating_sub(2) as usize,
+        ))
+        .block(panel_block(
             block_title(
                 "Tasks",
                 model.focus_panel == FocusPanel::Tasks,
@@ -2205,8 +2271,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
         }
         "cycle_filter" => cycle_active_filter(model),
         "toggle_follow" => {
-            model.follow_updates = !model.follow_updates;
-            model.dirty = true;
+            toggle_follow(model);
         }
         "toggle_help" => {
             model.overlay = if model.overlay == OverlayMode::Help {
@@ -2241,7 +2306,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
         "palette_select" => {
             if let Some(action) = palette_actions().get(model.palette_index).copied() {
                 match action {
-                    PaletteAction::ToggleFollow => model.follow_updates = !model.follow_updates,
+                    PaletteAction::ToggleFollow => toggle_follow(model),
                     PaletteAction::FocusJobs => model.focus_panel = FocusPanel::Jobs,
                     PaletteAction::FocusTasks => model.focus_panel = FocusPanel::Tasks,
                     PaletteAction::FocusLogs => model.focus_panel = FocusPanel::Logs,
@@ -2560,8 +2625,7 @@ fn apply_palette_action(
 ) -> anyhow::Result<bool> {
     match action {
         PaletteAction::ToggleFollow => {
-            model.follow_updates = !model.follow_updates;
-            model.dirty = true;
+            toggle_follow(model);
         }
         PaletteAction::FocusJobs => {
             model.focus_panel = FocusPanel::Jobs;
@@ -3199,8 +3263,7 @@ fn dispatch_input(
         }
         InputCommand::CycleFilter => cycle_active_filter(model),
         InputCommand::ToggleFollow => {
-            model.follow_updates = !model.follow_updates;
-            model.dirty = true;
+            toggle_follow(model);
         }
         InputCommand::ToggleHelp => {
             model.overlay = if model.overlay == OverlayMode::Help {
