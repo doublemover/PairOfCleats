@@ -8,6 +8,29 @@ adopted compatibility changes and their acceptance boundary. An installed packag
 or parser fixture does not establish LSP, compiler or whole-project correctness.
 Preserve the [execution authority rules](execution-authority.md) during trials.
 
+## Python/HTML extraction handoffs, October 20
+
+Python registry relations receive the actual AST; imports, exports, calls,
+call details and usages survive the normal adapter path, with import fallback
+when AST parsing is disabled. Positional defaults align against the combined
+positional-only/regular parameter list and share one map across signatures and
+default metadata. Keyword-only, varargs and async metadata retain their owners.
+
+The Python worker reads UTF-8 JSON bytes independently of the host console
+encoding. CPython's UTF-8 byte columns then convert to bounded UTF-16 source
+ranges; split-code-point and out-of-line offsets reject. Real-worker fixtures
+cover accents, CJK, astral text, docstrings, CRLF, multiline and ASCII controls,
+including an explicitly non-UTF-8 Python locale. A real index verifies the
+published ranges, defaults and HTML metadata.
+
+HTML preparation retains one summary for relations and chunk enrichment. Title,
+description, keywords, scripts and styles survive filtered/disabled relations.
+Per-file incremental signature version 9 invalidates the former Python/HTML
+bundles. This is legacy syntax/chunk output, independent of the newer native
+semantic producer and LSP response-cache versions below; no artifact schema or
+unrelated semantic producer is changed. The October 20 issue receipt records
+original failures and candidate qualification.
+
 ## LSP response authority and signature repair, October 20
 
 Response-cache policy `rq2` binds each answer to the provider/workspace, immutable

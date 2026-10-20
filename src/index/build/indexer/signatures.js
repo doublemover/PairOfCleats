@@ -14,8 +14,8 @@ import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-// v8 invalidates Markdown bundles that omitted host prose beside fenced code.
-export const SIGNATURE_VERSION = 8;
+// v9 invalidates Python relation/default/UTF-8 ranges and HTML metadata bundles.
+export const SIGNATURE_VERSION = 9;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 

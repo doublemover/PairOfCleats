@@ -48,17 +48,21 @@ def format_arg(arg, default_map):
         value += ("=" + default) if default else "=..."
     return value
 
-def format_args(args):
+def build_default_map(args):
     defaults = list(args.defaults) if args.defaults else []
     default_map = {}
-    if defaults and args.args:
-        for arg, default in zip(args.args[-len(defaults):], defaults):
+    positional = list(getattr(args, "posonlyargs", [])) + list(args.args)
+    if defaults:
+        for arg, default in zip(positional[-len(defaults):], defaults):
             default_map[arg.arg] = default
     if getattr(args, "kw_defaults", None) and args.kwonlyargs:
         for arg, default in zip(args.kwonlyargs, args.kw_defaults):
             if default is not None:
                 default_map[arg.arg] = default
+    return default_map
 
+def format_args(args):
+    default_map = build_default_map(args)
     parts = []
     for arg in getattr(args, "posonlyargs", []):
         parts.append(format_arg(arg, default_map))
@@ -125,15 +129,7 @@ def visibility_for(name):
     return "public"
 
 def collect_param_info(args):
-    defaults = list(args.defaults) if args.defaults else []
-    default_map = {}
-    if defaults and args.args:
-        for arg, default in zip(args.args[-len(defaults):], defaults):
-            default_map[arg.arg] = default
-    if getattr(args, "kw_defaults", None) and args.kwonlyargs:
-        for arg, default in zip(args.kwonlyargs, args.kw_defaults):
-            if default is not None:
-                default_map[arg.arg] = default
+    default_map = build_default_map(args)
 
     params = []
     param_types = {}
@@ -616,12 +612,14 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
     return result
 
 def main():
-    for line in sys.stdin:
+    # Requests are UTF-8 JSON bytes, independently of the host console locale.
+    # Responses use json.dumps' ASCII escaping, so that direction is invariant.
+    for line in sys.stdin.buffer:
         line = line.strip()
         if not line:
             continue
         try:
-            payload = json.loads(line)
+            payload = json.loads(line.decode("utf-8"))
         except Exception as e:
             sys.stdout.write(json.dumps({"id": None, "error": str(e)}) + "\\n")
             sys.stdout.flush()

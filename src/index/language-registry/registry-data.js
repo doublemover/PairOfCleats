@@ -199,6 +199,20 @@ const createParserChunkAdapter = ({
   return adapter;
 };
 
+const createHtmlAdapter = () => {
+  const adapter = createParserChunkAdapter({
+    id: 'html', match: ext => isHtml(ext), collectImports: collectHtmlImports,
+    chunkKey: 'htmlChunks', buildChunks: buildHtmlChunks, buildRelations: buildHtmlRelations,
+    parserScope: 'html', flow: computeHtmlFlow, metadata: getHtmlMetadata
+  });
+  return {
+    ...adapter,
+    prepare: async input => ({ ...await adapter.prepare(input), htmlMeta: getHtmlMetadata(input.text) }),
+    buildRelations: ({ text, context }) => buildHtmlRelations(text, context.htmlChunks, context.htmlMeta),
+    extractDocMeta: ({ chunk, context }) => extractHtmlDocMeta(chunk, context?.htmlMeta)
+  };
+};
+
 /**
  * Shared SQL adapter extras so chunking and relations use the same dialect.
  * @param {object} input
@@ -275,18 +289,7 @@ const PARSER_CHUNK_LANGUAGE_ADAPTERS = [
     extractDocMeta: ({ chunk }) => extractPhpDocMeta(chunk),
     flow: computePhpFlow
   }),
-  createParserChunkAdapter({
-    id: 'html',
-    match: (ext) => isHtml(ext),
-    collectImports: collectHtmlImports,
-    chunkKey: 'htmlChunks',
-    buildChunks: buildHtmlChunks,
-    buildRelations: buildHtmlRelations,
-    parserScope: 'html',
-    extractDocMeta: ({ chunk, fileRelations }) => extractHtmlDocMeta(chunk, fileRelations),
-    flow: computeHtmlFlow,
-    metadata: getHtmlMetadata
-  }),
+  createHtmlAdapter(),
   createParserChunkAdapter({
     id: 'css',
     match: (ext) => isCss(ext),
@@ -480,8 +483,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
       }
       return { pythonAst, pythonAstMetrics, pythonChunks };
     },
-    buildRelations: ({ text, relPath, context, options }) =>
-      buildPythonRelations(text, relPath, context.pythonAst, options),
+    buildRelations: ({ text, context }) => buildPythonRelations(text, context.pythonAst),
     extractDocMeta: ({ chunk, fileRelations, context }) =>
       extractPythonDocMeta(chunk, fileRelations, context),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, PY_CONTROL_FLOW),
