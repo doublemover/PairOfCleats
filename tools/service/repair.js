@@ -12,7 +12,8 @@ import {
   loadQuarantine,
   purgeQuarantinedJobs,
   quarantineJob,
-  retryQuarantinedJob
+  retryQuarantinedJob,
+  withQueueArtifactsLock
 } from './queue.js';
 import { getServiceShutdownPaths } from './shutdown-state.js';
 
@@ -399,36 +400,30 @@ export async function cleanupOrphanArtifacts(dirPath, queueName = null, {
   dryRun = false,
   requestedBy = null
 } = {}) {
-  const orphans = await describeOrphanArtifacts(dirPath, queueName);
-  const removed = {
-    logs: [],
-    reports: []
-  };
-  if (!dryRun) {
-    for (const filePath of orphans.logs) {
-      await fs.rm(filePath, { force: true });
-      removed.logs.push(filePath);
-    }
-    for (const filePath of orphans.reports) {
-      await fs.rm(filePath, { force: true });
-      removed.reports.push(filePath);
-    }
-    await appendRepairAuditEntry(dirPath, queueName, {
-      action: 'cleanup-orphans',
-      dryRun: false,
-      requestedBy: requestedBy || `cli:${process.pid}`,
-      result: {
-        removed
+  return withQueueArtifactsLock(dirPath, async () => {
+    const orphans = await describeOrphanArtifacts(dirPath, queueName);
+    const removed = {
+      logs: [],
+      reports: []
+    };
+    if (!dryRun) {
+      for (const filePath of orphans.logs) {
+        await fs.rm(filePath, { force: true });
+        removed.logs.push(filePath);
       }
-    });
-  }
-  return {
-    ok: true,
-    dryRun,
-    action: 'cleanup-orphans',
-    orphans,
-    removed
-  };
+      for (const filePath of orphans.reports) {
+        await fs.rm(filePath, { force: true });
+        removed.reports.push(filePath);
+      }
+      await appendRepairAuditEntry(dirPath, queueName, {
+        action: 'cleanup-orphans',
+        dryRun: false,
+        requestedBy: requestedBy || `cli:${process.pid}`,
+        result: { removed }
+      });
+    }
+    return { ok: true, dryRun, action: 'cleanup-orphans', orphans, removed };
+  });
 }
 
 export async function heartbeatStatusRepairState(dirPath, queueName = null) {

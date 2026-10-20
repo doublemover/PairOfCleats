@@ -553,6 +553,7 @@ const { buildDefaultRunResult, executeClaimedJob } = createJobExecutor({
 const queueWorker = createQueueWorker({
   queueDir,
   resolvedQueueName,
+  admissionPolicy: queueAdmissionPolicy,
   staleQueueMaxRetries,
   monitorBuildProgress,
   startBuildProgressMonitor,

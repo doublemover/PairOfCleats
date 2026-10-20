@@ -54,7 +54,7 @@ const readJson = async (filePath, fallback) => {
   }
 };
 
-const withLock = async (lockPath, worker) => {
+const withPartitionLock = async (lockPath, worker) => {
   let lock = null;
   try {
     lock = await acquireQueueFileLock({
@@ -79,6 +79,15 @@ const withLock = async (lockPath, worker) => {
     await lock.release();
   }
 };
+
+/** Fence shared log/report reachability against every queue partition writer. */
+export const withQueueArtifactsLock = (dirPath, worker) => withPartitionLock(
+  path.join(dirPath, 'queue-artifacts.lock'), worker
+);
+
+const withLock = (lockPath, worker) => withQueueArtifactsLock(
+  path.dirname(lockPath), () => withPartitionLock(lockPath, worker)
+);
 
 const createQueueError = (code, message) => {
   const error = new Error(message);
@@ -866,7 +875,8 @@ const createQueuedJobRecord = (job, {
   resolvedQueueName,
   idempotencyKey
 }) => {
-  const maxRetries = Number.isFinite(Number(job.maxRetries)) && Number(job.maxRetries) >= 0
+  const maxRetries = job.maxRetries != null && job.maxRetries !== ''
+    && Number.isFinite(Number(job.maxRetries)) && Number(job.maxRetries) >= 0
     ? Math.floor(Number(job.maxRetries))
     : null;
   return normalizeJobRecord({
@@ -1112,6 +1122,13 @@ export async function claimNextJob(dirPath, queueName = null, options = {}) {
   return withLock(lockPath, async () => {
     const { logsDir, reportsDir } = await ensureJobDirs(dirPath);
     const queue = await loadQueue(dirPath, resolvedQueueName);
+    // A configured cap belongs to this partition and is checked while its
+    // claim lock is held, including claims from independent worker processes.
+    const runningLimit = options.admissionPolicy?.maxRunning;
+    if (Number.isFinite(runningLimit)
+      && queue.jobs.filter(entry => entry.status === 'running').length >= Math.max(0, runningLimit)) {
+      return null;
+    }
     const now = Date.now();
     const nowIso = new Date(now).toISOString();
     const journalEntries = [];

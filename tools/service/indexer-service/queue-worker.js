@@ -20,6 +20,7 @@ const DEFAULT_SHUTDOWN_STATE = Object.freeze({
  *   queueDir:string,
  *   resolvedQueueName:string|null,
  *   staleQueueMaxRetries:number,
+ *   admissionPolicy?:object|null,
  *   monitorBuildProgress:boolean,
  *   startBuildProgressMonitor:(input:{job:{id:string},repoPath:string,stage?:string|null})=>() => Promise<void>,
  *   touchJobHeartbeat:(dirPath:string,jobId:string,queueName?:string|null)=>Promise<unknown>,
@@ -52,6 +53,7 @@ export const createQueueWorker = ({
   queueDir,
   resolvedQueueName,
   staleQueueMaxRetries,
+  admissionPolicy = null,
   monitorBuildProgress,
   startBuildProgressMonitor,
   touchJobHeartbeat,
@@ -237,6 +239,7 @@ export const createQueueWorker = ({
     }
     const queueLeasePolicy = resolveLeasePolicy({ job: null, queueName: resolvedQueueName });
     const job = await claimNextJob(queueDir, resolvedQueueName, {
+      admissionPolicy,
       ownerId: workerOwnerId,
       leaseMs: queueLeasePolicy?.leaseMs ?? null,
       renewIntervalMs: queueLeasePolicy?.renewIntervalMs ?? null,

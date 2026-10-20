@@ -117,7 +117,8 @@ export const createJobCompletion = ({
     const attempts = Number.isFinite(parsedAttempts)
       ? Math.max(0, Math.trunc(parsedAttempts))
       : 0;
-    const parsedMaxRetries = Number(job?.maxRetries);
+    const override = job?.maxRetries;
+    const parsedMaxRetries = override == null || override === '' ? NaN : Number(override);
     const maxRetries = Number.isFinite(parsedMaxRetries)
       ? Math.max(0, Math.trunc(parsedMaxRetries))
       : Math.max(0, Math.trunc(Number(queueMaxRetries ?? 0)));
