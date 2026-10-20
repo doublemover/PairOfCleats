@@ -85,7 +85,7 @@ export const createArtifactPresenceHelpers = ({
 
   const readJsonArtifact = (name, { required = false, allowOversize = false } = {}) => {
     try {
-      if (strict && manifest) {
+      if (manifest && (strict || manifest.pieces?.some(piece => piece.name === name))) {
         const presence = resolvePresence(name);
         if (!presence || presence.format === 'missing') return null;
         if (presence.format !== 'json') {

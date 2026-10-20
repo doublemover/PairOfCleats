@@ -210,6 +210,8 @@ export async function loadIndex(dir, options) {
       indexPath,
       hnswConfig,
       hnswMeta,
+      embeddingsState,
+      strict,
       denseVec,
       denseVecDoc,
       denseVecCode

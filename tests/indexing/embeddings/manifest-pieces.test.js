@@ -84,7 +84,12 @@ const ensureEntry = (name) => {
 
 const assertPathMatch = (name, relPath, kind) => {
   const entry = byName.get(name) || null;
-  const absPath = path.join(codeDir, relPath);
+  const native = /_hnsw(?:_meta)?$|_lancedb(?:_meta)?$/.test(name);
+  const selectedPath = native && entry ? entry.path : relPath;
+  const absPath = path.join(codeDir, selectedPath);
+  if (native && entry && !/^\.embeddings-backends\/[a-f0-9]{64}-[a-f0-9-]{36}\//.test(entry.path)) {
+    throw new Error(`Expected immutable generation for ${name}`);
+  }
   const exists = fs.existsSync(absPath) && (kind !== 'dir' || fs.statSync(absPath).isDirectory());
   if (exists && !entry) {
     console.error(`Expected manifest entry for ${name} when ${relPath} exists.`);

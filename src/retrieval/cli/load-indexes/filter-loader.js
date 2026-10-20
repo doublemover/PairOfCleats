@@ -68,7 +68,8 @@ export async function hydrateLoadedIndexes({
   }) => {
     idx.denseVec = resolveDenseVector(idx, mode, resolvedDenseVectorMode);
     if (!idx.denseVec && idx?.state?.embeddings?.embeddingIdentity) {
-      idx.denseVec = { ...idx.state.embeddings.embeddingIdentity, vectors: null };
+      idx.denseVec = { ...idx.state.embeddings.embeddingIdentity,
+        embeddingGeneration: idx.state.embeddings.embeddingGeneration, vectors: null };
     }
     attachDenseVectorLoader({
       idx,

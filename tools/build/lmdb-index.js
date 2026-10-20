@@ -328,7 +328,14 @@ const loadArtifactsForMode = async (indexDir, mode) => {
     loadDenseVectorArtifact('dense_vectors_doc'),
     loadDenseVectorArtifact('dense_vectors_code')
   ]);
-  const denseHnswMeta = readJsonOptional(path.join(indexDir, 'dense_vectors_hnsw.meta.json'));
+  const loadHnswMeta = async name => {
+    if (!manifest?.pieces?.some(piece => piece.name === name)) return null;
+    return loadJsonObjectArtifact(indexDir, name, { manifest, maxBytes: MAX_JSON_BYTES, strict: true });
+  };
+  const [denseHnswMeta, denseHnswMetaDoc, denseHnswMetaCode] = await Promise.all([
+    loadHnswMeta('dense_vectors_hnsw_meta'), loadHnswMeta('dense_vectors_doc_hnsw_meta'),
+    loadHnswMeta('dense_vectors_code_hnsw_meta')
+  ]);
   const indexState = readJsonOptional(path.join(indexDir, 'index_state.json'));
   const artifacts = {
     [LMDB_ARTIFACT_KEYS.chunkMeta]: chunkMeta,
@@ -346,6 +353,8 @@ const loadArtifactsForMode = async (indexDir, mode) => {
     [LMDB_ARTIFACT_KEYS.denseVectorsDoc]: denseVectorsDoc,
     [LMDB_ARTIFACT_KEYS.denseVectorsCode]: denseVectorsCode,
     [LMDB_ARTIFACT_KEYS.denseHnswMeta]: denseHnswMeta,
+    [LMDB_ARTIFACT_KEYS.denseHnswMetaDoc]: denseHnswMetaDoc,
+    [LMDB_ARTIFACT_KEYS.denseHnswMetaCode]: denseHnswMetaCode,
     [LMDB_ARTIFACT_KEYS.indexState]: indexState
   };
   const artifactKeys = Object.entries(artifacts)

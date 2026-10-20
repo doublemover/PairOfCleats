@@ -14,7 +14,9 @@ for (const mode of ['ci', 'nightly']) {
   assert.ok(api, `${mode}: portable API authorization and search require a scheduled owner`);
   const serial = lines.find(line => line.startsWith('[dry-run] Serial runtime budgets:'));
   assert.ok(serial);
-  for (const line of [api, serial]) {
+  const ann = lines.find(line => line.startsWith('[dry-run] Serial ANN generation:'));
+  assert.ok(ann);
+  for (const line of [api, serial, ann]) {
     for (const option of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000',
       '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(option), `${option}: ${line}`);
     const selectors = [...line.matchAll(/--match (\/\S+\/)/g)].map(match => match[1]);
@@ -33,8 +35,10 @@ for (const mode of ['ci', 'nightly']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);
       }
     } else {
-      assert.deepEqual(selected.sort(), ['indexing/semantic/compiler-single-cpu-lifecycle',
-        'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
+      assert.deepEqual(selected.sort(), line === ann ? ['retrieval/ann/generation-lmdb',
+        'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
+        : ['indexing/semantic/compiler-single-cpu-lifecycle',
+          'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
       const broad = lines.find(value => value.startsWith('[dry-run] CI test lane:'));
       for (const id of selected) {
         const exclusion = `--exclude /^${id.replaceAll('/', '\\/')}$/`;

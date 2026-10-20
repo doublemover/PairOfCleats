@@ -1061,3 +1061,7 @@ tooling/reports/map-selected-index-identity
 tooling/sublime/minimum-runtime-compatibility
 tooling/sublime/api-authentication
 tooling/vscode/external-node-runtime
+retrieval/ann/generation-identity
+retrieval/ann/generation-publication
+retrieval/ann/generation-rebuild-failure
+retrieval/ann/generation-lmdb

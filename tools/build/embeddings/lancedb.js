@@ -229,6 +229,8 @@ export async function writeLanceDbIndex({
   const batchSize = Math.max(1, Math.floor(resolvedConfig.batchSize || 1024));
 
   let table = null;
+  let writtenCount = 0;
+  let actualCount = 0;
   try {
     if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
       let docId = 0;
@@ -253,6 +255,7 @@ export async function writeLanceDbIndex({
               [idColumn]: docId,
               [embeddingColumn]: Array.from(floatVec)
             });
+            writtenCount += 1;
           }
         }
         docId += 1;
@@ -291,6 +294,7 @@ export async function writeLanceDbIndex({
         quantization,
         normalize
       );
+      writtenCount += firstBatch.length;
       table = await createTable(db, tableName, firstBatch);
       if (!table && typeof db.openTable === 'function') {
         table = await db.openTable(tableName);
@@ -308,9 +312,12 @@ export async function writeLanceDbIndex({
         );
         if (rows.length) {
           await addRows(table, rows);
+          writtenCount += rows.length;
         }
       }
     }
+    actualCount = table ? await table.countRows() : 0;
+    if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);
   } finally {
     if (db?.close) {
       await db.close();
@@ -322,7 +329,8 @@ export async function writeLanceDbIndex({
     generatedAt: new Date().toISOString(),
     model: modelId || null,
     dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
-    count: vectorsSource.count,
+    count: writtenCount,
+    expectedCount: writtenCount,
     metric: resolvedConfig.metric,
     table: tableName,
     embeddingColumn,
@@ -336,7 +344,7 @@ export async function writeLanceDbIndex({
 
   if (emitOutput) {
     const targetLabel = label || variant;
-    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${vectorsSource.count} vectors).`);
+    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${writtenCount} vectors).`);
   }
-  return { skipped: false, count: vectorsSource.count };
+  return { skipped: false, count: writtenCount };
 }

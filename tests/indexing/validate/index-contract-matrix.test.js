@@ -95,7 +95,8 @@ const cases = [
               assert.deepEqual(report.issues, [], `${target}/${label}`);
               assert.deepEqual(manifestCounts.map(([name, value]) => [name, value]), [[`${target}_meta`, count], [target, count]]);
             }
-            assert.ok(reads.every((name) => name.endsWith('_meta')), 'count validation must not read/materialize dense vector payloads');
+            assert.ok(reads.every((name) => name === 'index_state' || name.endsWith('_meta')),
+              'identity/count validation reads state and metadata without materializing dense vector payloads');
           }
         }
       } finally {

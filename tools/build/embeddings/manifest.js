@@ -19,7 +19,8 @@ import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-art
  * @param {{ indexDir: string, mode: string, totalChunks: number, dims: number }} options
  * @returns {Promise<void>}
  */
-export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
+export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims, backendPieces = null,
+  embeddingGeneration = null }) => {
   const piecesDir = path.join(indexDir, 'pieces');
   const manifestPath = path.join(piecesDir, 'manifest.json');
   const manifestBakPath = `${manifestPath}.bak`;
@@ -120,7 +121,34 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   const schemaNames = new Set(Object.keys(ARTIFACT_SCHEMA_DEFS));
   const allowedNames = new Set([...schemaNames, ...MANIFEST_ONLY_ARTIFACT_NAMES]);
   const enriched = [];
-  for (const entry of embeddingPieces) {
+  let selectedPieces = backendPieces === null ? embeddingPieces : [
+    ...embeddingPieces.filter(entry => !/_hnsw(?:_meta)?$|_lancedb(?:_meta)?$/.test(entry.name)),
+    ...backendPieces
+  ];
+  for (const suffix of ['', '_doc', '_code']) {
+    const name = `dense_vectors${suffix}`;
+    const base = `${name}_uint8`;
+    let binaryCurrent = fsSync.existsSync(path.join(indexDir, `${base}.bin`));
+    if (binaryCurrent && embeddingGeneration) {
+      const binaryMetaPath = path.join(indexDir, `${base}.bin.meta.json`);
+      binaryCurrent = fsSync.existsSync(binaryMetaPath)
+        && readJsonFile(binaryMetaPath, { maxBytes: MAX_JSON_BYTES })?.embeddingGeneration === embeddingGeneration;
+    }
+    if (binaryCurrent) continue;
+    selectedPieces = selectedPieces.filter(piece => ![name, `${name}_binary_meta`].includes(piece.name));
+    const metaPath = path.join(indexDir, `${base}.meta.json`);
+    if (!fsSync.existsSync(metaPath)) continue;
+    const meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+    for (const part of meta.parts || []) {
+      if (typeof part.path !== 'string' || !part.path.startsWith(`${base}.parts/`)
+        || part.path.split('/').some(component => component === '..')) {
+        throw new Error(`Invalid dense vector shard path for ${name}`);
+      }
+      selectedPieces.push({ type: 'embeddings', name, format: 'jsonl', path: part.path,
+        count: part.records, dims });
+    }
+  }
+  for (const entry of selectedPieces) {
     if (!allowedNames.has(entry.name)) continue;
     const absPath = path.join(indexDir, entry.path);
     if (!fsSync.existsSync(absPath)) continue;

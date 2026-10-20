@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T13:46:49.631Z",
+  "generatedAt": "2026-10-20T14:45:58.051Z",
   "summary": {
     "lanes": 5,
-    "tests": 1284,
+    "tests": 1288,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 326,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1210
+      "missingTests": 1214
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1061,
+      "totalTests": 1065,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1012
+        "missing": 1016
       }
     },
     {
@@ -170,9 +170,9 @@
     },
     {
       "key": "retrieval/ann",
-      "count": 7,
+      "count": 11,
       "knownDurationMs": 5020,
-      "unknownDurationCount": 6
+      "unknownDurationCount": 10
     },
     {
       "key": "retrieval/filters",

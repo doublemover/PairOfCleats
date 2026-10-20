@@ -115,6 +115,18 @@ Each `index-<mode>/` directory contains:
 - `dense_vectors_doc.lancedb/` + `dense_vectors_doc.lancedb.meta.json` (optional)
 - `dense_vectors_code.lancedb/` + `dense_vectors_code.lancedb.meta.json` (optional)
   - LanceDB vector indexes with `dims`, `count`, `metric`, and table/column metadata.
+  - Native HNSW/Lance files are committed beneath
+    `.embeddings-backends/<vector-generation-sha256>-<attempt-uuid>/`.
+    These filenames describe basenames; readers resolve logical artifacts through
+    `pieces/manifest.json`, rather than assuming root-level native files.
+  - Native metadata carries the complete `embeddingIdentity`, `embeddingGeneration`,
+    `backendGeneration` directory and `variant`. The vector-generation digest binds
+    the identity, ordered chunk/source mapping, null gaps and all three quantized
+    vector channels. Dense metadata and ready index state carry the same binding.
+  - A failed, skipped, disabled, empty or incomplete replacement is unavailable in
+    the new state and absent from the new manifest. Retained immutable generations
+    keep their original identity. Pending state blocks native/dense admission;
+    compatibility is checked before HNSW opens a file or LanceDB serves a query.
 - Embeddings cache entries are stored out-of-band under the OS cache root and are not part of the build artifact surface. They are safe to delete and are rebuilt on demand.
 - `index_state.json`
   - Build feature flags + stage metadata for the mode.
@@ -254,10 +266,16 @@ Artifact keys:
 - `artifact:dense_vectors_doc_uint8`
 - `artifact:dense_vectors_code_uint8`
 - `artifact:dense_vectors_hnsw_meta`
+- `artifact:dense_vectors_doc_hnsw_meta` (optional)
+- `artifact:dense_vectors_code_hnsw_meta` (optional)
 - `artifact:index_state`
 
-HNSW binary indexes remain in the file-backed index directory (`index-<mode>/dense_vectors_hnsw.bin`).
-LanceDB indexes and metadata remain in the file-backed index directory (`index-<mode>/dense_vectors*.lancedb`).
+HNSW binary indexes and LanceDB datasets remain file-backed in the committed native
+generation beneath `index-<mode>/.embeddings-backends/`. LMDB retains metadata for
+each variant and its original generation; it never pairs merged metadata with a
+different variant's binary. A stale store must be rebuilt when its binding differs
+from the selected current generation. The optional metadata keys extend the existing
+LMDB schema without changing its required keys.
 
 LMDB stores are rebuilt from file-backed artifacts via `pairofcleats lmdb build`.
 `pairofcleats index validate` performs a lightweight LMDB check (schema version, mode, and required artifact keys).
@@ -281,7 +299,10 @@ These invariants are validated by `pairofcleats index validate`:
 - Posting lists only reference valid chunk IDs.
 - `minhash_signatures.signatures.length == chunk_meta.length`.
 - `dense_vectors*.vectors.length == chunk_meta.length`.
-- `dense_vectors*.lancedb.meta.json.count == chunk_meta.length` (when present).
+- Native `count` is the number of successfully inserted nonempty vectors and cannot
+  exceed `chunk_meta.length`. HNSW/Lance `expectedCount` records expected nonempty
+  inserts; `count` must match it. Lance verifies the actual table count before writing
+  metadata. Legacy Lance metadata without `expectedCount` retains the full-row check.
 - Vector dimensionality matches `dims`.
 - `filter_index.fileChunksById` references valid chunk IDs.
 - `pieces/manifest.json` paths exist and `xxh64` checksums match (legacy `sha1` accepted).

@@ -88,8 +88,11 @@ export function createLmdbHelpers(options) {
     const denseVecCode = embeddingsReady && includeDense
       ? getArtifact(db, LMDB_ARTIFACT_KEYS.denseVectorsCode)
       : null;
+    const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
+    const hnswMetaKey = hnswTarget === 'doc' ? LMDB_ARTIFACT_KEYS.denseHnswMetaDoc
+      : hnswTarget === 'code' ? LMDB_ARTIFACT_KEYS.denseHnswMetaCode : LMDB_ARTIFACT_KEYS.denseHnswMeta;
     const hnswMeta = embeddingsReady && includeDense && includeHnsw && hnswConfig.enabled
-      ? getArtifact(db, LMDB_ARTIFACT_KEYS.denseHnswMeta)
+      ? getArtifact(db, hnswMetaKey)
       : null;
     let hnswIndex = null;
     let hnswAvailable = false;
@@ -97,11 +100,13 @@ export function createLmdbHelpers(options) {
       const indexDir = indexDirs?.[mode] || null;
       if (indexDir) {
         const target = resolveHnswTarget(mode, denseVectorMode);
-        const { indexPath } = resolveHnswPaths(indexDir, target);
+        const { indexPath } = resolveHnswPaths(indexDir, target, hnswMeta.backendGeneration);
         const loadedHnsw = loadSearchHnswIndex({
           indexPath,
           hnswConfig,
           hnswMeta,
+          embeddingsState,
+          strict: options.strict !== false,
           denseVec,
           denseVecDoc,
           denseVecCode

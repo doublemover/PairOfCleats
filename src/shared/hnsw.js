@@ -72,7 +72,13 @@ export function normalizeHnswConfig(raw = {}) {
   };
 }
 
-export function resolveHnswPaths(indexDir, target = 'merged') {
+export function resolveHnswPaths(indexDir, target = 'merged', backendGeneration = null) {
+  if (backendGeneration != null) {
+    if (!/^\.embeddings-backends\/[a-f0-9]{64}-[a-f0-9-]{36}$/.test(backendGeneration)) {
+      throw new Error('Invalid HNSW backend generation path.');
+    }
+    indexDir = path.join(indexDir, backendGeneration);
+  }
   const resolveTarget = (value) => {
     if (typeof value !== 'string') return 'merged';
     const trimmed = value.trim().toLowerCase();
@@ -147,9 +153,9 @@ export function loadHnswIndex({ indexPath, dims, config, meta, expectedModel = n
         throw new Error('readIndexSync unavailable');
       }
       if (read.length <= 1) {
-        read.call(index, candidate.path);
+        read.call(index, path.toNamespacedPath(candidate.path));
       } else {
-        read.call(index, candidate.path, normalized.allowReplaceDeleted);
+        read.call(index, path.toNamespacedPath(candidate.path), normalized.allowReplaceDeleted);
       }
     } catch (err) {
       lastErr = err;

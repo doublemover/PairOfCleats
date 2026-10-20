@@ -21,12 +21,11 @@ import {
   loadFileMetaRows
 } from '../../../src/shared/artifact-io/loaders.js';
 import { readTextFile, readTextFileWithHash } from '../../../src/shared/encoding.js';
-import { replaceFile } from '../../../src/shared/json-stream/atomic.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { createCrashLogger } from '../../../src/index/build/crash-log.js';
 import { resolveHnswPaths, resolveHnswTarget } from '../../../src/shared/hnsw.js';
-import { normalizeLanceDbConfig, resolveLanceDbPaths, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
+import { normalizeLanceDbConfig, resolveLanceDbTarget } from '../../../src/shared/lancedb.js';
 import { DEFAULT_STUB_DIMS, resolveStubDims } from '../../../src/shared/embedding.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import {
@@ -103,6 +102,8 @@ import {
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
 import { updatePieceManifest } from './manifest.js';
+import { publishBackendGeneration } from './backend-publication.js';
+import { buildEmbeddingGeneration } from '../../../src/shared/embedding-generation.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
@@ -1400,53 +1401,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       void logArtifactLocation(mode, `${stageLabel}:${entry.label}`, entry.path);
     }
   };
-  const BACKEND_ARTIFACT_RELATIVE_PATHS = [
-    'dense_vectors_hnsw.bin',
-    'dense_vectors_hnsw.meta.json',
-    'dense_vectors_doc_hnsw.bin',
-    'dense_vectors_doc_hnsw.meta.json',
-    'dense_vectors_code_hnsw.bin',
-    'dense_vectors_code_hnsw.meta.json',
-    'dense_vectors.lancedb',
-    'dense_vectors.lancedb.meta.json',
-    'dense_vectors_doc.lancedb',
-    'dense_vectors_doc.lancedb.meta.json',
-    'dense_vectors_code.lancedb',
-    'dense_vectors_code.lancedb.meta.json'
-  ];
-  /**
-   * Promote backend-only artifacts from a staging directory into the active
-   * index directory. Stage3 uses this to isolate backend writers from the core
-   * stage2 artifact surface and then copy only ANN outputs back.
-   *
-   * @param {{stageDir:string,indexDir:string}} input
-   * @returns {Promise<void>}
-   */
-  const promoteBackendArtifacts = async ({ stageDir, indexDir }) => {
-    for (const relPath of BACKEND_ARTIFACT_RELATIVE_PATHS) {
-      const sourcePath = path.join(stageDir, relPath);
-      const stat = await fs.lstat(sourcePath).catch(() => null);
-      if (!stat) continue;
-      const targetPath = path.join(indexDir, relPath);
-      await fs.mkdir(path.dirname(targetPath), { recursive: true });
-      if (stat.isDirectory()) {
-        await fs.rm(targetPath, { recursive: true, force: true });
-        try {
-          await fs.rename(sourcePath, targetPath);
-        } catch (err) {
-          if (!['EXDEV', 'EPERM', 'EACCES'].includes(err?.code)) throw err;
-          await fs.cp(sourcePath, targetPath, { recursive: true, force: true });
-          await fs.rm(sourcePath, { recursive: true, force: true });
-        }
-      } else {
-        try {
-          await fs.rm(`${targetPath}.bak`, { force: true });
-        } catch {}
-        await replaceFile(sourcePath, targetPath, { keepBackup: true });
-      }
-    }
-  };
-
   if (embeddingsConfig.enabled === false || resolvedEmbeddingMode === 'off') {
     error('Embeddings disabled; skipping build-embeddings.');
     finalize();
@@ -3758,7 +3712,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           log(`[embeddings] ${mode}: writing vectors to ${docVectorsBasePath}.meta.json + parts`);
           log(`[embeddings] ${mode}: writing vectors to ${codeVectorsBasePath}.meta.json + parts`);
         }
+        const embeddingGeneration = buildEmbeddingGeneration({ embeddingIdentity: cacheIdentity,
+          chunksByFile, vectors: { merged: mergedVectors, doc: docVectors, code: codeVectors } });
         const vectorFields = {
+          embeddingIdentity: cacheIdentity,
+          embeddingGeneration,
           model: modelId,
           dims: finalDims,
           scale: denseScale,
@@ -3783,6 +3741,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           { collectResults: false }
         );
         backendTask.set(1, 5, { message: 'building ANN backends (hnsw/lancedb)' });
+        // The existing pending state keeps readers off these inputs. Isolated
+        // writers require their newly written vectors to be manifest-declared;
+        // a prior generation's manifest cannot authorize this handoff.
+        await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
+          backendPieces: [], embeddingGeneration }));
         logArtifactLocation(mode, 'dense_vectors_uint8_meta', `${mergedVectorsBasePath}.meta.json`);
         logArtifactLocation(mode, 'dense_vectors_doc_uint8_meta', `${docVectorsBasePath}.meta.json`);
         logArtifactLocation(mode, 'dense_vectors_code_uint8_meta', `${codeVectorsBasePath}.meta.json`);
@@ -3803,6 +3766,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           doc: resolveHnswPaths(backendStageDir, 'doc'),
           code: resolveHnswPaths(backendStageDir, 'code')
         };
+        let backendPublication;
         try {
           Object.assign(hnswResults, await scheduleIo(() => writeHnswBackends({
             mode,
@@ -3826,7 +3790,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             warn
           })));
 
-          await scheduleIo(() => writeLanceDbBackends({
+          const lanceResults = await scheduleIo(() => writeLanceDbBackends({
             mode,
             indexDir: backendStageDir,
             lanceConfig,
@@ -3844,9 +3808,10 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             logger,
             warn
           }));
-          await scheduleIo(() => promoteBackendArtifacts({
-            stageDir: backendStageDir,
-            indexDir
+          backendPublication = await scheduleIo(() => publishBackendGeneration({
+            stageDir: backendStageDir, indexDir, embeddingIdentity: cacheIdentity, embeddingGeneration,
+            results: { hnsw: hnswResults, lancedb: lanceResults },
+            enabled: { hnsw: hnswConfig.enabled === true, lancedb: lanceConfig.enabled === true }, warn
           }));
           backendTask.set(2, 5, { message: 'updating sqlite dense vectors' });
         } finally {
@@ -3921,6 +3886,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           if (vectorAnn?.available && vectorAnn?.table) {
             const sqliteMeta = {
               version: 1,
+              embeddingIdentity: cacheIdentity,
+              embeddingGeneration,
               generatedAt: new Date().toISOString(),
               model: modelId || null,
               dims: finalDims,
@@ -3958,37 +3925,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         backendTask.set(3, 5, { message: 'validating backend metadata' });
 
         const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
-        const hnswTargetPaths = resolveHnswPaths(indexDir, hnswTarget);
-        const hnswMeta = await scheduleIo(() => readJsonOptional(hnswTargetPaths.metaPath));
-        const hnswIndexExists = await pathExists(hnswTargetPaths.indexPath)
-        || await pathExists(`${hnswTargetPaths.indexPath}.bak`);
-        const hnswAvailable = Boolean(hnswMeta) && hnswIndexExists;
-        const hnswState = {
-          enabled: hnswConfig.enabled !== false,
-          available: hnswAvailable,
-          target: hnswTarget
-        };
-        if (hnswMeta) {
-          hnswState.dims = Number.isFinite(Number(hnswMeta.dims)) ? Number(hnswMeta.dims) : finalDims;
-          hnswState.count = Number.isFinite(Number(hnswMeta.count)) ? Number(hnswMeta.count) : totalChunks;
-        }
-
-        const lancePaths = resolveLanceDbPaths(indexDir);
+        const hnswState = backendPublication.backends.hnsw[hnswTarget];
         const lanceTarget = resolveLanceDbTarget(mode, denseVectorMode);
-        const targetPaths = lancePaths?.[lanceTarget] || lancePaths?.merged || {};
-        const lanceMeta = await scheduleIo(() => readJsonOptional(targetPaths.metaPath));
-        const lanceAvailable = Boolean(lanceMeta)
-        && Boolean(targetPaths.dir)
-        && await pathExists(targetPaths.dir);
-        const lancedbState = {
-          enabled: lanceConfig.enabled !== false,
-          available: lanceAvailable,
-          target: lanceTarget
-        };
-        if (lanceMeta) {
-          lancedbState.dims = Number.isFinite(Number(lanceMeta.dims)) ? Number(lanceMeta.dims) : finalDims;
-          lancedbState.count = Number.isFinite(Number(lanceMeta.count)) ? Number(lanceMeta.count) : totalChunks;
-        }
+        const lancedbState = backendPublication.backends.lancedb[lanceTarget];
 
         stageCheckpoints.record({
           stage: 'stage3',
@@ -4035,6 +3974,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           service: indexState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
           embeddingIdentity: cacheIdentity || indexState.embeddings?.embeddingIdentity || null,
           embeddingIdentityKey: cacheIdentityKey || indexState.embeddings?.embeddingIdentityKey || null,
+          embeddingGeneration,
           lastError: null,
           cacheStats: {
             attempts: cacheAttempts,
@@ -4061,10 +4001,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         await scheduleIo(() => writeIndexState(statePath, indexState));
 
         try {
-          await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims }));
+          await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
+            backendPieces: backendPublication.pieces, embeddingGeneration }));
           void logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
-        } catch {
-        // Ignore piece manifest write failures.
+        } catch (error) {
+          throw new Error(`Embedding generation manifest publication failed: ${error.message}`, { cause: error });
         }
         logExpectedArtifacts(mode, indexDir, 'pre-validate');
 

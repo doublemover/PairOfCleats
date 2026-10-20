@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -68,18 +69,18 @@ const userConfig = loadUserConfig(repoRoot);
 const lanceConfig = normalizeLanceDbConfig(userConfig.indexing?.embeddings?.lancedb || {});
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
-const codeDb = path.join(codeDir, 'dense_vectors.lancedb');
-const codeDocDb = path.join(codeDir, 'dense_vectors_doc.lancedb');
-const codeCodeDb = path.join(codeDir, 'dense_vectors_code.lancedb');
-const proseDb = path.join(proseDir, 'dense_vectors.lancedb');
-const proseDocDb = path.join(proseDir, 'dense_vectors_doc.lancedb');
-const proseCodeDb = path.join(proseDir, 'dense_vectors_code.lancedb');
-const codeMeta = path.join(codeDir, 'dense_vectors.lancedb.meta.json');
-const codeDocMeta = path.join(codeDir, 'dense_vectors_doc.lancedb.meta.json');
-const codeCodeMeta = path.join(codeDir, 'dense_vectors_code.lancedb.meta.json');
-const proseMeta = path.join(proseDir, 'dense_vectors.lancedb.meta.json');
-const proseDocMeta = path.join(proseDir, 'dense_vectors_doc.lancedb.meta.json');
-const proseCodeMeta = path.join(proseDir, 'dense_vectors_code.lancedb.meta.json');
+const codeDb = embeddingArtifactPath(codeDir, 'dense_vectors_lancedb');
+const codeDocDb = embeddingArtifactPath(codeDir, 'dense_vectors_doc_lancedb');
+const codeCodeDb = embeddingArtifactPath(codeDir, 'dense_vectors_code_lancedb');
+const proseDb = embeddingArtifactPath(proseDir, 'dense_vectors_lancedb');
+const proseDocDb = embeddingArtifactPath(proseDir, 'dense_vectors_doc_lancedb');
+const proseCodeDb = embeddingArtifactPath(proseDir, 'dense_vectors_code_lancedb');
+const codeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_lancedb_meta');
+const codeDocMeta = embeddingArtifactPath(codeDir, 'dense_vectors_doc_lancedb_meta');
+const codeCodeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_code_lancedb_meta');
+const proseMeta = embeddingArtifactPath(proseDir, 'dense_vectors_lancedb_meta');
+const proseDocMeta = embeddingArtifactPath(proseDir, 'dense_vectors_doc_lancedb_meta');
+const proseCodeMeta = embeddingArtifactPath(proseDir, 'dense_vectors_code_lancedb_meta');
 
 if (!fs.existsSync(codeDb) || !fs.existsSync(codeMeta)) {
   console.error('LanceDB index missing for code mode.');

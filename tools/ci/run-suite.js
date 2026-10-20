@@ -22,6 +22,8 @@ const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pai
 const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
 const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
   'perf/parsers/jinja-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle'];
+const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
+  'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
@@ -306,6 +308,7 @@ const main = async () => {
         ...(mode === 'nightly' ? ['--exclude',
           '/^tooling\\/script-coverage\\/(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)\\//'] : []),
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
+        ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--timeout-ms',
         '600000',
@@ -336,6 +339,13 @@ const main = async () => {
       args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_RUNTIME_BUDGET_IDS),
         '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
         '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-runtime-budgets.json')]
+    },
+    {
+      label: 'Serial ANN generation',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_ANN_GENERATION_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-ann-generation.json')]
     },
     {
       label: 'API contract cohort',

@@ -152,7 +152,8 @@ export const writeLanceDbBackends = async ({
   logger,
   warn
 } = {}) => {
-  if (!lanceConfig?.enabled) return;
+  const results = { merged: null, doc: null, code: null };
+  if (!lanceConfig?.enabled) return results;
   const entries = [
     {
       variant: 'merged',
@@ -212,8 +213,10 @@ export const writeLanceDbBackends = async ({
           logger
         });
       }
+      results[entry.variant] = result;
     }
   } catch (err) {
     warn(`[embeddings] ${mode}: failed to write LanceDB indexes: ${err?.message || err}`);
   }
+  return results;
 };

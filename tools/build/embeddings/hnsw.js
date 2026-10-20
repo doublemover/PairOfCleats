@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
 import { normalizeHnswConfig } from '../../../src/shared/hnsw.js';
@@ -112,13 +113,13 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
     }
     const tempHnswPath = createTempPath(indexPath);
     try {
-      index.writeIndexSync(tempHnswPath);
+      index.writeIndexSync(path.toNamespacedPath(tempHnswPath));
       const hasTempIndex = fsSync.existsSync(tempHnswPath);
       if (!hasTempIndex) {
         // Some hnswlib builds can race temp visibility on Windows. Fall back
         // to direct write instead of failing the whole backend.
         traceLog(`[embeddings] ${mode}/hnsw: temp index missing after write; falling back to direct write.`);
-        index.writeIndexSync(indexPath);
+        index.writeIndexSync(path.toNamespacedPath(indexPath));
       } else {
         try {
           traceLog(`[embeddings] ${mode}/hnsw: deleting backup ${indexPath}.bak`);
@@ -131,7 +132,7 @@ export const createHnswBuilder = ({ enabled, config, totalChunks, mode, logger }
       if (err?.code === 'ERR_TEMP_MISSING') {
         try {
           traceLog(`[embeddings] ${mode}/hnsw: retrying direct write after missing temp.`);
-          index.writeIndexSync(indexPath);
+          index.writeIndexSync(path.toNamespacedPath(indexPath));
         } catch (directErr) {
           try {
             traceLog(`[embeddings] ${mode}/hnsw: deleting temp ${tempHnswPath}`);

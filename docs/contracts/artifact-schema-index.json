@@ -1,5 +1,5 @@
 {
-  "schemaHash": "51c2dcb91f84f7c0d425c1a53f6ab0117c5e259e",
+  "schemaHash": "3cff93a76aa88c4fb0c0ac3856c1acc29ea606e6",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -235,6 +235,8 @@
         "vectors"
       ],
       "optionalFields": [
+        "embeddingGeneration",
+        "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
@@ -258,6 +260,8 @@
       "optionalFields": [
         "artifact",
         "bytes",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "format",
         "generatedAt",
         "levels",
@@ -276,6 +280,8 @@
         "vectors"
       ],
       "optionalFields": [
+        "embeddingGeneration",
+        "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
@@ -299,6 +305,8 @@
       "optionalFields": [
         "artifact",
         "bytes",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "format",
         "generatedAt",
         "levels",
@@ -321,6 +329,9 @@
         "space"
       ],
       "optionalFields": [
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "expectedCount",
         "generatedAt",
         "levels",
@@ -328,6 +339,7 @@
         "minVal",
         "model",
         "scale",
+        "variant",
         "version"
       ]
     },
@@ -343,12 +355,17 @@
         "table"
       ],
       "optionalFields": [
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
         "scale",
+        "variant",
         "version"
       ]
     },
@@ -360,6 +377,8 @@
         "vectors"
       ],
       "optionalFields": [
+        "embeddingGeneration",
+        "embeddingIdentity",
         "levels",
         "maxVal",
         "minVal",
@@ -383,6 +402,8 @@
       "optionalFields": [
         "artifact",
         "bytes",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "format",
         "generatedAt",
         "levels",
@@ -405,6 +426,9 @@
         "space"
       ],
       "optionalFields": [
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "expectedCount",
         "generatedAt",
         "levels",
@@ -412,6 +436,7 @@
         "minVal",
         "model",
         "scale",
+        "variant",
         "version"
       ]
     },
@@ -427,12 +452,17 @@
         "table"
       ],
       "optionalFields": [
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
         "scale",
+        "variant",
         "version"
       ]
     },
@@ -448,6 +478,9 @@
         "space"
       ],
       "optionalFields": [
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "expectedCount",
         "generatedAt",
         "levels",
@@ -455,6 +488,7 @@
         "minVal",
         "model",
         "scale",
+        "variant",
         "version"
       ]
     },
@@ -470,12 +504,17 @@
         "table"
       ],
       "optionalFields": [
+        "backendGeneration",
+        "embeddingGeneration",
+        "embeddingIdentity",
+        "expectedCount",
         "generatedAt",
         "levels",
         "maxVal",
         "minVal",
         "model",
         "scale",
+        "variant",
         "version"
       ]
     },
@@ -489,6 +528,8 @@
       ],
       "optionalFields": [
         "embeddingColumn",
+        "embeddingGeneration",
+        "embeddingIdentity",
         "generatedAt",
         "idColumn",
         "levels",

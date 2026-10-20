@@ -10,6 +10,7 @@ import { joinPathSafe } from '../../shared/path-normalize.js';
 import { resolveLanceDbPaths } from '../../shared/lancedb.js';
 import { addIssue } from './issues.js';
 import { validateSchema } from './schema.js';
+import { embeddingBindingMismatches } from '../../shared/embedding-generation.js';
 
 const hasJsonVariant = (basePath) => (
   fs.existsSync(basePath)
@@ -33,6 +34,14 @@ export const validateEmbeddingArtifacts = ({
   lanceConfig,
   readJsonArtifact
 }) => {
+  const embeddings = readJsonArtifact('index_state')?.embeddings;
+  const readMeta = (name, legacyPath) => strict || manifest?.pieces?.some(piece => piece.name === name)
+    ? readJsonArtifact(name) : readJsonVariant(legacyPath);
+  const validateBinding = (name, meta) => {
+    const mismatches = embeddingBindingMismatches(meta, embeddings);
+    if (mismatches.length) addIssue(report, mode, `${name} embedding identity mismatch (${mismatches.join(', ')})`,
+      'Rebuild embeddings for this mode.');
+  };
   const denseTargets = [
     {
       label: 'dense_vectors',
@@ -60,11 +69,10 @@ export const validateEmbeddingArtifacts = ({
     }
   ];
   for (const target of denseTargets) {
-    const denseMetaRaw = strict
-      ? readJsonArtifact(target.metaName)
-      : readJsonVariant(target.metaPath);
+    const denseMetaRaw = readMeta(target.metaName, target.metaPath);
     if (!denseMetaRaw) continue;
     const denseMeta = normalizeDenseVectorMeta(denseMetaRaw) || denseMetaRaw;
+    validateBinding(target.metaName, denseMeta);
     validateSchema(
       report,
       mode,
@@ -150,10 +158,9 @@ export const validateEmbeddingArtifacts = ({
     }
   ];
   for (const target of hnswTargets) {
-    const hnswMeta = strict
-      ? readJsonArtifact(target.metaName)
-      : readJsonVariant(target.metaPath);
+    const hnswMeta = readMeta(target.metaName, target.metaPath);
     if (!hnswMeta) continue;
+    validateBinding(target.metaName, hnswMeta);
     validateSchema(
       report,
       mode,
@@ -219,10 +226,9 @@ export const validateEmbeddingArtifacts = ({
       }
     ];
     for (const target of lanceTargets) {
-      const meta = strict
-        ? readJsonArtifact(target.metaName)
-        : readJsonVariant(target.metaPath);
+      const meta = readMeta(target.metaName, target.metaPath);
       if (!meta) continue;
+      validateBinding(target.metaName, meta);
       validateSchema(
         report,
         mode,
@@ -234,8 +240,10 @@ export const validateEmbeddingArtifacts = ({
       const lanceCount = Number.isFinite(meta?.count) ? meta.count : chunkMeta.length;
       validateManifestCount(target.metaName, lanceCount, `${target.label} meta`);
       validateManifestCount(target.dirName, lanceCount, `${target.label} dir`);
-      if (Number.isFinite(meta?.count) && meta.count !== chunkMeta.length) {
-        const issue = `${target.label} count mismatch (${meta.count} !== ${chunkMeta.length})`;
+      const expectedCount = Number.isInteger(meta?.expectedCount) && meta.expectedCount >= 0
+        ? meta.expectedCount : chunkMeta.length;
+      if (Number.isFinite(meta?.count) && (meta.count !== expectedCount || meta.count > chunkMeta.length)) {
+        const issue = `${target.label} count mismatch (${meta.count} !== ${expectedCount} expected nonempty vectors; ${chunkMeta.length} chunk rows)`;
         modeReport.ok = false;
         modeReport.missing.push(issue);
         report.issues.push(`[${mode}] ${issue}`);

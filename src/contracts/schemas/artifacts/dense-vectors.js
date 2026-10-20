@@ -1,5 +1,14 @@
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
+const embeddingBindingProperties = {
+  embeddingIdentity: { type: 'object', additionalProperties: true },
+  embeddingGeneration: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+};
+const nativeBindingProperties = {
+  ...embeddingBindingProperties,
+  backendGeneration: { type: 'string', pattern: '^\\.embeddings-backends/[a-f0-9]{64}-[a-f0-9-]{36}$' },
+  variant: { enum: ['merged', 'doc', 'code'] }
+};
 
 const denseVectorArray = {
   type: 'array',
@@ -10,6 +19,7 @@ const denseVectorsSchema = {
   type: 'object',
   required: ['dims', 'vectors'],
   properties: {
+    ...embeddingBindingProperties,
     dims: { type: 'integer', minimum: 1 },
     model: nullableString,
     scale: { type: 'number' },
@@ -25,6 +35,7 @@ const denseVectorsHnswMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'space', 'm', 'efConstruction', 'efSearch'],
   properties: {
+    ...nativeBindingProperties,
     version: { type: 'integer', minimum: 1 },
     generatedAt: nullableString,
     model: nullableString,
@@ -47,11 +58,13 @@ const denseVectorsLanceDbMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'metric', 'table', 'embeddingColumn', 'idColumn'],
   properties: {
+    ...nativeBindingProperties,
     version: { type: 'integer', minimum: 1 },
     generatedAt: nullableString,
     model: nullableString,
     dims: { type: 'integer', minimum: 1 },
     count: { type: 'integer', minimum: 0 },
+    expectedCount: { type: 'integer', minimum: 0 },
     metric: { type: 'string' },
     table: { type: 'string' },
     embeddingColumn: { type: 'string' },
@@ -68,6 +81,7 @@ const denseVectorsSqliteVecMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'table'],
   properties: {
+    ...embeddingBindingProperties,
     version: { type: 'integer', minimum: 1 },
     generatedAt: nullableString,
     model: nullableString,
@@ -88,6 +102,7 @@ const denseVectorsBinaryMetaSchema = {
   type: 'object',
   required: ['dims', 'count', 'path'],
   properties: {
+    ...embeddingBindingProperties,
     schemaVersion: nullableString,
     artifact: nullableString,
     format: { type: 'string' },

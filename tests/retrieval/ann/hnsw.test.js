@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -63,8 +64,7 @@ const env = applyTestEnv({
     indexing: {
       embeddings: {
         hnsw: {
-          enabled: true,
-          isolate: false
+          enabled: true
         }
       },
       typeInference: false,
@@ -92,18 +92,18 @@ const userConfig = loadUserConfig(repoRoot);
 const hnswConfig = normalizeHnswConfig(userConfig.indexing?.embeddings?.hnsw || {});
 const codeDir = getIndexDir(repoRoot, 'code', userConfig);
 const proseDir = getIndexDir(repoRoot, 'prose', userConfig);
-const codeIndex = path.join(codeDir, 'dense_vectors_hnsw.bin');
-const codeMeta = path.join(codeDir, 'dense_vectors_hnsw.meta.json');
-const codeDocIndex = path.join(codeDir, 'dense_vectors_doc_hnsw.bin');
-const codeDocMeta = path.join(codeDir, 'dense_vectors_doc_hnsw.meta.json');
-const codeCodeIndex = path.join(codeDir, 'dense_vectors_code_hnsw.bin');
-const codeCodeMeta = path.join(codeDir, 'dense_vectors_code_hnsw.meta.json');
-const proseIndex = path.join(proseDir, 'dense_vectors_hnsw.bin');
-const proseMeta = path.join(proseDir, 'dense_vectors_hnsw.meta.json');
-const proseDocIndex = path.join(proseDir, 'dense_vectors_doc_hnsw.bin');
-const proseDocMeta = path.join(proseDir, 'dense_vectors_doc_hnsw.meta.json');
-const proseCodeIndex = path.join(proseDir, 'dense_vectors_code_hnsw.bin');
-const proseCodeMeta = path.join(proseDir, 'dense_vectors_code_hnsw.meta.json');
+const codeIndex = embeddingArtifactPath(codeDir, 'dense_vectors_hnsw');
+const codeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_hnsw_meta');
+const codeDocIndex = embeddingArtifactPath(codeDir, 'dense_vectors_doc_hnsw');
+const codeDocMeta = embeddingArtifactPath(codeDir, 'dense_vectors_doc_hnsw_meta');
+const codeCodeIndex = embeddingArtifactPath(codeDir, 'dense_vectors_code_hnsw');
+const codeCodeMeta = embeddingArtifactPath(codeDir, 'dense_vectors_code_hnsw_meta');
+const proseIndex = embeddingArtifactPath(proseDir, 'dense_vectors_hnsw');
+const proseMeta = embeddingArtifactPath(proseDir, 'dense_vectors_hnsw_meta');
+const proseDocIndex = embeddingArtifactPath(proseDir, 'dense_vectors_doc_hnsw');
+const proseDocMeta = embeddingArtifactPath(proseDir, 'dense_vectors_doc_hnsw_meta');
+const proseCodeIndex = embeddingArtifactPath(proseDir, 'dense_vectors_code_hnsw');
+const proseCodeMeta = embeddingArtifactPath(proseDir, 'dense_vectors_code_hnsw_meta');
 
 if (!fs.existsSync(codeIndex) || !fs.existsSync(codeMeta)) {
   console.error('HNSW index missing for code mode.');
