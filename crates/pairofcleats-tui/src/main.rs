@@ -948,7 +948,9 @@ fn snapshot_from_model(model: &AppModel) -> SessionSnapshot {
 }
 
 fn restore_snapshot(model: &mut AppModel, snapshot: SessionSnapshot) {
-    model.selected_job = snapshot.selected_job;
+    model.selected_job = snapshot
+        .selected_job
+        .filter(|id| model.job_status.contains_key(id));
     model.job_scroll = snapshot.job_scroll;
     model.task_scroll = snapshot.task_scroll;
     model.log_scroll = snapshot.log_scroll;
@@ -3520,6 +3522,41 @@ mod redraw_tests {
     }
 
     #[test]
+    fn restored_paused_selection_reconciles_with_new_supervisor_jobs() {
+        let mut original = model();
+        original.selected_job = Some("job-2".into());
+        original.follow_updates = false;
+        let mut restored = model();
+        restore_snapshot(&mut restored, snapshot_from_model(&original));
+        apply_protocol_event(
+            &mut restored,
+            json!({"event":"job:start", "jobId":"job-1", "title":"New session"}),
+            0,
+        );
+        restored.update_task_status("job-1", "visible-new-task", "running", None);
+        assert!(
+            !restored.follow_updates,
+            "restoration retains the pause preference"
+        );
+        assert_eq!(restored.selected_job.as_deref(), Some("job-1"));
+        assert!(screen(&restored, 120, 40).contains("visible-new-task"));
+        let mut supervisor = std::process::Command::new("node")
+            .args(["-e", "process.stdin.once('data', bytes => { process.stdout.write(bytes); process.exit(0); });"])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+        restored.last_input_at =
+            Instant::now() - Duration::from_millis(INPUT_DISPATCH_INTERVAL_MS as u64 + 1);
+        restored
+            .input_queue
+            .push_back((1, InputCommand::CancelSelected));
+        dispatch_input(&mut restored, &mut supervisor, &mut 1).unwrap();
+        let output = supervisor.wait_with_output().unwrap();
+        assert!(output.status.success());
+        let request: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(request["op"], "job:cancel");
+        assert_eq!(request["jobId"], "job-1");
+    }
+
+    #[test]
     fn session_snapshot_preserves_refinement_and_accepts_old_state() {
         let mut original = model();
         original.selected_job = Some("job-7".into());
@@ -3533,7 +3570,10 @@ mod redraw_tests {
         let encoded = serde_json::to_string(&snapshot_from_model(&original)).unwrap();
         let mut restored = model();
         restore_snapshot(&mut restored, serde_json::from_str(&encoded).unwrap());
-        assert_eq!(restored.selected_job, original.selected_job);
+        assert_eq!(
+            restored.selected_job, None,
+            "a new supervisor has no persisted job inventory"
+        );
         assert_eq!(restored.search_logs, original.search_logs);
         assert_eq!(restored.search_jobs, original.search_jobs);
         assert_eq!(restored.search_tasks, original.search_tasks);
@@ -3541,6 +3581,13 @@ mod redraw_tests {
         assert!(restored.log_level_filter == LogLevelFilter::Error);
         assert!(!restored.follow_updates);
         assert_eq!(restored.log_scroll, 12);
+        let mut known_jobs = model();
+        known_jobs.update_job_status("job-7", "running", None);
+        restore_snapshot(&mut known_jobs, snapshot_from_model(&original));
+        assert_eq!(
+            known_jobs.selected_job, original.selected_job,
+            "selection survives when its job is actually known"
+        );
         let old = r#"{"selected_job":null,"job_scroll":0,"task_scroll":0,"log_scroll":0}"#;
         let mut legacy = model();
         restore_snapshot(&mut legacy, serde_json::from_str(old).unwrap());
