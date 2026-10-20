@@ -150,9 +150,11 @@ export function buildQueryPlan({
     meta: metaFilters,
     chunkAuthor: chunkAuthorFilter,
     modifiedAfter,
-    excludeTokens,
-    excludePhrases: excludePhraseNgrams,
-    excludePhraseRange
+    // The full AST owns query exclusions. Flattening a NOT below OR into
+    // an independent filter would incorrectly reject its positive branch.
+    excludeTokens: queryAst ? [] : excludeTokens,
+    excludePhrases: queryAst ? [] : excludePhraseNgrams,
+    excludePhraseRange: queryAst ? null : excludePhraseRange
   };
   const intentInfo = classifyQuery({
     query,

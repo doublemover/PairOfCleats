@@ -1,6 +1,7 @@
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../sparse/requirements.js';
 import { bitmapHas } from '../bitmap.js';
 import { FTS_UNAVAILABLE_CODE } from './constants.js';
+import { requiresBooleanUniverse } from './query-ast.js';
 
 const emitSparseUnavailable = (diagnostics, reason, mode, extra = {}) => {
   if (!Array.isArray(diagnostics)) return;
@@ -54,6 +55,7 @@ export const runCandidateStage = ({
   queryAst = null
 }) => {
   let sparseAllowedIds = allowedIdx;
+  const needsUniverse = requiresBooleanUniverse(queryAst);
   const nativeFtsGate = sqliteEnabledForMode && sqliteFtsDesiredForMode;
   if (typeof matchesQueryAst === 'function' && !nativeFtsGate) {
     sparseAllowedIds = new Set();
@@ -87,11 +89,12 @@ export const runCandidateStage = ({
     && sparseAllowedIds
     && sparseAllowedCount > 0
   );
+  const sqliteFtsHasQuery = (typeof sqliteFtsCompilation.match === 'string'
+    && sqliteFtsCompilation.match.trim().length > 0) || needsUniverse;
   const sqliteFtsEligible = sqliteEnabledForMode
     && !sparseDeniedByProfile
     && sqliteFtsDesiredForMode
-    && typeof sqliteFtsCompilation.match === 'string'
-    && sqliteFtsCompilation.match.trim().length > 0
+    && sqliteFtsHasQuery
     && sqliteFtsMissingTables.length === 0
     && (typeof sqliteHasFts !== 'function' || sqliteHasFts(mode))
     && (!sparseFiltersEnabled || sqliteFtsCanPushdown);
@@ -181,6 +184,17 @@ export const runCandidateStage = ({
         candidates = buildCandidateSet(idx, queryTokens, mode);
         trackReleaseSet(candidates);
         if (nativeFtsGate && typeof matchesQueryAst === 'function') {
+          if (needsUniverse && idx.loadChunkMetaByIds) {
+            // A degraded FTS route must evaluate negative branches against
+            // real metadata, not treat unloaded rows as negative matches.
+            for (let start = 0; start < idx.chunkMeta.length; start += 512) {
+              const missing = [];
+              for (let id = start; id < Math.min(start + 512, idx.chunkMeta.length); id++) {
+                if (!idx.chunkMeta[id] && (!allowedIdx || bitmapHas(allowedIdx, id))) missing.push(id);
+              }
+              if (missing.length) idx.loadChunkMetaByIds(mode, missing, idx.chunkMeta);
+            }
+          }
           if (idx.loadChunkMetaByIds && tokenIndexOverride?.postings) {
             const missing = new Set();
             for (const posting of tokenIndexOverride.postings) {
@@ -206,7 +220,8 @@ export const runCandidateStage = ({
           fieldWeights,
           k1: bm25K1,
           b: bm25B,
-          tokenIndexOverride
+          tokenIndexOverride,
+          includeZeroScores: needsUniverse
         });
         bmHits = bm25Result.hits;
         sparseType = bm25Result.type;
@@ -236,7 +251,7 @@ export const runCandidateStage = ({
       ? 'profile_vector_only_sparse_unavailable'
       : !sqliteFtsDesiredForMode
         ? 'mode_routed_to_sparse'
-        : !sqliteFtsCompilation.match
+        : !sqliteFtsHasQuery
           ? 'empty_fts_match'
           : sqliteFtsMissingTables.length > 0
             ? 'fts_missing_required_tables'

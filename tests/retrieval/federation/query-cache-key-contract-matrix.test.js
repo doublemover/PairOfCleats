@@ -28,6 +28,15 @@ const withTempWorkspace = async (prefix, build) => {
 
 const cases = [
   {
+    name: 'Boolean complement results invalidate the earlier federated result namespace',
+    async run() {
+      const payload = buildFederatedQueryCacheKeyPayload({ query: 'alpha OR NOT gamma' });
+      assert.notEqual(buildFederatedQueryCacheKey(payload).keyHash,
+        buildFederatedQueryCacheKey({ ...payload, v: 3 }).keyHash,
+        'a parent cache cannot reuse results produced before complement eligibility');
+    }
+  },
+  {
     name: 'manifest hash participates in federated query cache invalidation',
     async run() {
       await withTempWorkspace('pairofcleats-fed-cache-manifest-', async (tempRoot) => {

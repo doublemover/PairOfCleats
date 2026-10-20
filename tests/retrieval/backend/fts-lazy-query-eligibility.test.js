@@ -12,7 +12,7 @@ import { buildLocalCacheKey } from '../../../src/shared/cache-key.js';
 
 const cachePayload = { query: 'alpha NOT gamma', backend: 'sqlite', mode: 'prose' };
 assert.notEqual(buildQueryCacheKey(cachePayload).key,
-  buildLocalCacheKey({ namespace: 'query-cache', version: 5, payload: cachePayload }).key,
+  buildLocalCacheKey({ namespace: 'query-cache', version: 6, payload: cachePayload }).key,
   'results produced before eligibility-before-limit cannot satisfy a current query');
 
 const db = new Database(':memory:');

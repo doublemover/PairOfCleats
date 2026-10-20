@@ -2,6 +2,23 @@ import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
 import { createVocabIndex } from '../vocab-index.js';
 
+/** Whether positive lexical seeding can omit rows admitted by the Boolean AST. */
+export const requiresBooleanUniverse = queryAst => {
+  const visit = node => {
+    if (!node) return { seed: false, narrowed: false, valid: false };
+    if (node.type === 'term' || node.type === 'phrase') return { seed: true, narrowed: false, valid: true };
+    if (node.type === 'not') return { seed: false, narrowed: false, valid: visit(node.child).valid };
+    const left = visit(node.left), right = visit(node.right);
+    const valid = left.valid && right.valid;
+    if (node.type === 'and') return { seed: left.seed || right.seed, narrowed: left.narrowed || right.narrowed, valid };
+    if (node.type === 'or') return { seed: left.seed && right.seed,
+      narrowed: left.narrowed || right.narrowed || left.seed !== right.seed, valid };
+    return { seed: false, narrowed: false, valid: false };
+  };
+  const result = visit(queryAst);
+  return result.valid && (!result.seed || result.narrowed);
+};
+
 /** Exact contiguous membership in the admitted literal token stream. */
 export const matchesLiteralPhraseTokens = (literal, phrase) => {
   if (!phrase.length || literal.length < phrase.length) return false;

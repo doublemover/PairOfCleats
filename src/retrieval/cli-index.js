@@ -344,8 +344,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v6 invalidates FTS results capped before full AST eligibility.
-    version: 6,
+    // v7 includes Boolean complement rows without positive lexical scores.
+    version: 7,
     payload
   });
   return { key: keyInfo.key, payload };

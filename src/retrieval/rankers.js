@@ -12,7 +12,7 @@ import { createVocabIndex } from './vocab-index.js';
  * @param {Set<number>|object|null} [allowedIdx]
  * @returns {Array<{idx:number,score:number}>}
  */
-export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null) {
+export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null, includeZeroScores = false) {
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
   const scores = new Map();
   const ids = allowedIdx ? bitmapToArray(allowedIdx) : idx.chunkMeta.map((_, i) => i);
@@ -33,7 +33,7 @@ export function rankBM25Legacy(idx, tokens, topN, allowedIdx = null) {
   });
   let order = 0;
   for (const [docId, score] of scores.entries()) {
-    if (score > 0) {
+    if (score > 0 || (includeZeroScores && score === 0)) {
       reducer.pushRaw(score, docId, order);
       order += 1;
     }
@@ -104,7 +104,7 @@ const accumulateBm25Scores = ({
   }
 };
 
-const finishWeightedScores = ({ idx, scores, topN }) => {
+const finishWeightedScores = ({ idx, scores, topN, includeZeroScores = false, zeroScoreIds = null }) => {
   const reducer = createTopKReducer({
     k: topN,
     buildPayload: (entry) => ({ idx: entry.id, score: entry.score })
@@ -113,9 +113,17 @@ const finishWeightedScores = ({ idx, scores, topN }) => {
   for (const [docId, score] of scores.entries()) {
     const weight = idx.chunkMeta[docId]?.weight || 1;
     const weightedScore = score * weight;
-    if (weightedScore > 0) {
+    if (weightedScore > 0 || (includeZeroScores && weightedScore === 0)) {
       reducer.pushRaw(weightedScore, docId, order);
       order += 1;
+    }
+  }
+  if (includeZeroScores && zeroScoreIds) {
+    const ids = zeroScoreIds instanceof Set ? zeroScoreIds : bitmapToArray(zeroScoreIds);
+    for (const id of ids) {
+      if (!scores.has(id) && idx.chunkMeta[id]) {
+        reducer.pushRaw(0, id, order++);
+      }
     }
   }
   return reducer.finish({ limit: topN });
@@ -141,11 +149,12 @@ export function rankBM25({
   tokenIndexOverride = null,
   allowedIdx = null,
   k1 = 1.2,
-  b = 0.75
+  b = 0.75,
+  includeZeroScores = false
 }) {
   const tokenIndex = tokenIndexOverride || getTokenIndex(idx);
   if (!tokenIndex || !tokenIndex.vocab || !tokenIndex.postings) {
-    return rankBM25Legacy(idx, tokens, topN, allowedIdx);
+    return rankBM25Legacy(idx, tokens, topN, allowedIdx, includeZeroScores);
   }
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
@@ -165,7 +174,7 @@ export function rankBM25({
     k1,
     b
   });
-  return finishWeightedScores({ idx, scores, topN });
+  return finishWeightedScores({ idx, scores, topN, includeZeroScores, zeroScoreIds: allowedIdx });
 }
 
 /**
@@ -188,11 +197,12 @@ export function rankBM25Fields({
   tokenIndexOverride = null,
   allowedIdx = null,
   k1 = 1.2,
-  b = 0.75
+  b = 0.75,
+  includeZeroScores = false
 }) {
   const fields = idx.fieldPostings?.fields;
   if (!fields || !fieldWeights || !tokens.length) {
-    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride });
+    return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride, includeZeroScores });
   }
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
@@ -241,7 +251,7 @@ export function rankBM25Fields({
     });
   }
 
-  return finishWeightedScores({ idx, scores, topN });
+  return finishWeightedScores({ idx, scores, topN, includeZeroScores, zeroScoreIds: allowedIdx });
 }
 
 function minhashSigForTokens(tokens) {

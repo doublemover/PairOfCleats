@@ -1,5 +1,5 @@
 import { compileFtsMatchFromAst } from './fts-query.js';
-import { createQueryAstHelpers, matchesLiteralPhraseTokens } from './pipeline/query-ast.js';
+import { createQueryAstHelpers, matchesLiteralPhraseTokens, requiresBooleanUniverse } from './pipeline/query-ast.js';
 import { FTS_VARIANT_TABLES } from '../storage/sqlite/fts-variants.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
@@ -664,13 +664,14 @@ export function createSqliteHelpers(options) {
     const explicitMatch = typeof options?.ftsMatch === 'string'
       ? options.ftsMatch.trim()
       : '';
-    if (!explicitMatch && !queryTokens.length) return [];
+    const needsUniverse = requiresBooleanUniverse(options.queryAst);
+    if (!explicitMatch && !queryTokens.length && !needsUniverse) return [];
     const ftsTokens = queryTokens.filter((token) => FTS_TOKEN_SAFE.test(token));
     const fallbackMatch = ftsTokens.length
       ? ftsTokens.map((token) => `"${token}"`).join(' AND ')
       : '';
     const ftsQuery = explicitMatch || fallbackMatch;
-    if (!ftsQuery) return [];
+    if (!ftsQuery && !needsUniverse) return [];
     const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights, table);
     const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
     const canPushdown = Boolean(allowedList);
@@ -686,7 +687,15 @@ export function createSqliteHelpers(options) {
       db.function('poc_fts_phrase_match', { deterministic: true }, matchesFtsPhraseJson);
       phraseFunctionDatabases.add(db);
     }
-    const fetchSql = () => `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+    const fetchSql = () => needsUniverse
+      ? `WITH fts_scores AS MATERIALIZED (${ftsQuery
+        ? `SELECT rowid AS id, ${bm25Expr} AS score FROM ${table} WHERE ${table} MATCH ?`
+        : 'SELECT NULL AS id, 0.0 AS score WHERE 0'})
+       SELECT chunks.id AS id, COALESCE(fts_scores.score, 0.0) AS score, chunks.weight AS weight
+       FROM chunks LEFT JOIN fts_scores ON fts_scores.id = chunks.id
+       WHERE chunks.mode = ? AND (${eligibility.sql}) ${allowedClause}
+       ORDER BY score ASC, chunks.id ASC LIMIT ?`
+      : `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
        FROM ${table}
        JOIN chunks ON chunks.id = ${table}.rowid
        WHERE ${table} MATCH ? AND chunks.mode = ?
@@ -705,9 +714,8 @@ export function createSqliteHelpers(options) {
       const queryLimit = canPushdown
         ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
         : overfetchRowCap;
-      const params = canPushdown
-        ? [ftsQuery, mode, ...(eligibility?.params || []), ...(jsonPushdown ? [JSON.stringify(allowedList)] : allowedList), queryLimit]
-        : [ftsQuery, mode, ...(eligibility?.params || []), queryLimit];
+      const params = [...(ftsQuery ? [ftsQuery] : []), mode, ...(eligibility?.params || []),
+        ...(canPushdown ? jsonPushdown ? [JSON.stringify(allowedList)] : allowedList : []), queryLimit];
       rows = stmt.all(...params);
       rowsScanned = rows.length;
       truncated = rows.length >= overfetchRowCap;

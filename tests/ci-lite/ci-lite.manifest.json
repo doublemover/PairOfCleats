@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 924,
+    "hero": 928,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6409,6 +6409,30 @@
     {
       "id": "tui/cargo-invocation-policy",
       "order": 1066,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/fts-boolean-universe",
+      "order": 1067,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/boolean-complement-cli/memory",
+      "order": 1068,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/boolean-complement-cli/sqlite",
+      "order": 1069,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/boolean-complement-cli/sqlite-fts",
+      "order": 1070,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

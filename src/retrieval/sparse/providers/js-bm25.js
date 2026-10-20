@@ -12,7 +12,8 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
       fieldWeights,
       k1,
       b,
-      tokenIndexOverride
+      tokenIndexOverride,
+      includeZeroScores = false
     }) => {
       const fieldWeightsEnabled = fieldWeights
         && Object.values(fieldWeights).some((value) => (
@@ -29,6 +30,7 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           topN,
           fieldWeights,
           tokenIndexOverride,
+          includeZeroScores,
           allowedIdx: allowedIds,
           k1,
           b
@@ -38,6 +40,7 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           tokens: queryTokens,
           topN,
           tokenIndexOverride,
+          includeZeroScores,
           allowedIdx: allowedIds,
           k1,
           b

@@ -1066,3 +1066,7 @@ retrieval/ann/generation-publication
 retrieval/ann/generation-rebuild-failure
 retrieval/ann/generation-lmdb
 tui/cargo-invocation-policy
+retrieval/backend/fts-boolean-universe
+retrieval/backend/boolean-complement-cli/memory
+retrieval/backend/boolean-complement-cli/sqlite
+retrieval/backend/boolean-complement-cli/sqlite-fts

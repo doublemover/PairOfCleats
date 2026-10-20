@@ -120,8 +120,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  // Eligibility and relative-time execution changed; retire earlier result sets.
-  v: 3,
+  // Boolean complements now admit rows outside the positive lexical seed.
+  v: 4,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),

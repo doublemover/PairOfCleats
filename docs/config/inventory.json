@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T16:29:54.631Z",
+  "generatedAt": "2026-10-20T17:40:30.606Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3268,6 +3268,7 @@
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
         "tests/perf/baseline-artifacts.test.js",
+        "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/run.js",
         "tests/storage/sqlite/ann/sqlite-extension.test.js",
         "tests/tooling/reports/parity-cold-build-cleanup.test.js",
@@ -4451,6 +4452,7 @@
         "tests/helpers/test-env.js",
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
+        "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/runner/run-execution.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
@@ -4711,6 +4713,7 @@
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/run.test.js",
+        "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/shared/runtime/embedding-plan-allowlist.test.js",
