@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T05:46:16.000Z",
+  "generatedAt": "2026-10-20T06:20:33.208Z",
   "summary": {
     "lanes": 5,
-    "tests": 1215,
+    "tests": 1223,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 316,
+    "families": 318,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1141
+      "missingTests": 1149
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 993,
+      "totalTests": 1001,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 944
+        "missing": 952
       }
     },
     {
@@ -296,9 +296,9 @@
     },
     {
       "key": "tooling/lsp",
-      "count": 96,
+      "count": 97,
       "knownDurationMs": 0,
-      "unknownDurationCount": 96
+      "unknownDurationCount": 97
     },
     {
       "key": "integrations/inference-history",
@@ -463,6 +463,12 @@
       "unknownDurationCount": 6
     },
     {
+      "key": "tooling/ci",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
       "key": "tooling/ingest",
       "count": 6,
       "knownDurationMs": 0,
@@ -482,12 +488,6 @@
     },
     {
       "key": "retrieval/output",
-      "count": 5,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 5
-    },
-    {
-      "key": "tooling/ci",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
@@ -530,6 +530,12 @@
     },
     {
       "key": "indexing/state",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "map/workspace",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -722,6 +728,12 @@
     },
     {
       "key": "tooling/paths",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/script-coverage",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -2031,9 +2043,9 @@
     },
     {
       "key": "lsp-bootstrap",
-      "count": 96,
+      "count": 97,
       "knownDurationMs": 0,
-      "unknownDurationCount": 96,
+      "unknownDurationCount": 97,
       "note": "Dedicated/configured provider bootstrap and session reuse."
     },
     {

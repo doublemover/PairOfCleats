@@ -993,3 +993,11 @@ tooling/service/indexer-queue-worker-contract
 tooling/ci/run-suite-api-plan
 tooling/shared-module-performance
 shared/cache/repo-access
+map/workspace/projection
+map/workspace/dom-interaction
+map/workspace/lifecycle
+map/workspace/semantic-hydration
+tooling/lsp/clangd-missing-command-blocks-runtime
+tooling/ci/run-suite-script-coverage-plan
+tooling/script-coverage/harness
+tooling/script-coverage/harness-parity
