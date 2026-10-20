@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 877,
+    "hero": 882,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6127,6 +6127,36 @@
     {
       "id": "tooling/cache/gc-incomplete-mark",
       "order": 1019,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/risk-truncation-contract/excerpt-bytes",
+      "order": 1020,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/risk-truncation-contract/excerpt-tokens",
+      "order": 1021,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/risk-truncation-contract/partial-count",
+      "order": 1022,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/risk-truncation-contract/partial-bytes",
+      "order": 1023,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/risk-truncation-contract/partial-tokens",
+      "order": 1024,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

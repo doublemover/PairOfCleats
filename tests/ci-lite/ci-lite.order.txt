@@ -1019,3 +1019,8 @@ tooling/install/download-dicts-update
 tooling/triage/ingest-fallback-identity
 tooling/triage/ingest-single-record-arrays
 tooling/cache/gc-incomplete-mark
+context-pack/risk-truncation-contract/excerpt-bytes
+context-pack/risk-truncation-contract/excerpt-tokens
+context-pack/risk-truncation-contract/partial-count
+context-pack/risk-truncation-contract/partial-bytes
+context-pack/risk-truncation-contract/partial-tokens

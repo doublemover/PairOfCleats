@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T07:31:31.227Z",
+  "generatedAt": "2026-10-20T07:53:24.231Z",
   "summary": {
     "lanes": 5,
-    "tests": 1241,
+    "tests": 1246,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 318,
+    "families": 319,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1167
+      "missingTests": 1172
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1019,
+      "totalTests": 1024,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 970
+        "missing": 975
       }
     },
     {
@@ -473,6 +473,12 @@
       "count": 6,
       "knownDurationMs": 0,
       "unknownDurationCount": 6
+    },
+    {
+      "key": "context-pack/risk-truncation-contract",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
     },
     {
       "key": "indexing/build",

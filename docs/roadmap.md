@@ -18,10 +18,10 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Thirty-six issues have repairs through source candidate `1eb0ca91d`; the latest makes incomplete CAS marking
-defer deletion and strict risk reject missing/unreadable required evidence.
-The prior published candidate `face1e12a` prevents triage identity loss and preserves
-array fields. Setup/prefetch, JSON and dictionary updates also have repairs. Earlier
+Thirty-eight issues have repairs through source candidate `0133169a5`; the latest preserves valid risk truncation
+responses and prevents unknown evidence from becoming removed flows. Published
+candidate `fee2edcfd` defers incomplete CAS marking and rejects missing required risk
+evidence; triage identity/arrays, setup/prefetch and download repairs precede it. Earlier
 batches add watch cancellation, semantic partition removal, Python/Go/Rust
 signatures and LSP cache authority. Nightly soak/reference
 enforcement, filter-only HTTP
