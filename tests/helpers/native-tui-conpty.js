@@ -2,16 +2,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capture.js';
 import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../src/shared/kill-tree.js';
 import { prepareIsolatedTestCacheDir } from './test-cache.js';
 import { reconstructTerminalScreen } from '../../tools/testing/terminal-screen.js';
 
-export const verifyNativeTuiConpty = async mode => {
+export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) => {
   const root = fileURLToPath(new URL('../../', import.meta.url));
-  const binary = path.join(root, 'crates/pairofcleats-tui/target/debug/pairofcleats-tui.exe');
+  assert.ok(binaryPath == null || path.isAbsolute(binaryPath), 'Native qualification selects an absolute binary path');
+  const binary = binaryPath || path.join(root, 'crates/pairofcleats-tui/target/debug/pairofcleats-tui.exe');
   await fs.access(binary);
+  const binarySha256 = createHash('sha256').update(await fs.readFile(binary)).digest('hex');
   const { dir } = await prepareIsolatedTestCacheDir(`native-conpty-${mode}`, { root, clean: true });
   const pidFile = path.join(dir, 'pids.jsonl');
   await fs.writeFile(path.join(dir, 'fixture-mode.json'), JSON.stringify(mode));
@@ -93,8 +96,10 @@ export const verifyNativeTuiConpty = async mode => {
     assert.ok(statuses.length && statuses.every(status => ['cancelled', 'failed', 'done'].includes(status)));
     if (mode !== 'supervisor-error') assert.deepEqual(statuses, ['cancelled']);
     else assert.deepEqual(statuses, ['failed']);
-    console.log(`Native ConPTY lifetime passed: ${JSON.stringify({ ...receipt, ownedPids: pids, finalStatuses: statuses,
-      allReaped: true, capture: capture.outputDir })}`);
+    const summary = { ...receipt, binary, binarySha256, ownedPids: pids, finalStatuses: statuses,
+      allReaped: true, capture: capture.outputDir };
+    console.log(`Native ConPTY lifetime passed: ${JSON.stringify(summary)}`);
+    return summary;
   } finally {
     for (const row of await readPids()) {
       for (const key of ['native', 'proxy', 'supervisor', 'job', 'descendant']) {

@@ -1065,3 +1065,4 @@ retrieval/ann/generation-identity
 retrieval/ann/generation-publication
 retrieval/ann/generation-rebuild-failure
 retrieval/ann/generation-lmdb
+tui/cargo-invocation-policy

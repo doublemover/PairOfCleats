@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T15:42:26.261Z",
+  "generatedAt": "2026-10-20T16:02:49.740Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4877,6 +4877,7 @@
       "files": [
         "tests/cli/general/tui-build-install.test.js",
         "tests/cli/general/tui-install-missing-cargo.test.js",
+        "tests/tui/cargo-invocation-policy.test.js",
         "tools/config/inventory.js",
         "tools/tui/build-support.js",
         "tools/tui/targets.js"

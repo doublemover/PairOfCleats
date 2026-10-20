@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 923,
+    "hero": 924,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6403,6 +6403,12 @@
     {
       "id": "retrieval/ann/generation-lmdb",
       "order": 1065,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/cargo-invocation-policy",
+      "order": 1066,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

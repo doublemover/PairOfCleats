@@ -81,10 +81,11 @@ export const stageBuiltArtifact = async ({ rootDir, target, distDirectory, env =
   if (!fs.existsSync(cargoManifestPath)) {
     throw new Error(`missing TUI Cargo manifest: ${toPosixRelative(rootDir, cargoManifestPath)}`);
   }
-  const cargoInvocation = resolveCargoCommandInvocation(env);
+  const cargoInvocation = resolveCargoCommandInvocation(env, rootDir);
   const cargoArgs = [
     ...cargoInvocation.args,
     'build',
+    '--locked',
     '--release',
     '--manifest-path',
     cargoManifestPath,

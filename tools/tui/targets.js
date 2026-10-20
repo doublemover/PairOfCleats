@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getCacheRoot } from '../../src/shared/cache-roots.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 
@@ -98,12 +99,15 @@ export const resolveTargetsPath = (root) => path.join(root, 'tools', 'tui', 'tar
 
 export const resolveCargoManifestPath = (root) => path.join(root, 'crates', 'pairofcleats-tui', 'Cargo.toml');
 
-export const resolveCargoCommandInvocation = (env = process.env) => {
+export const resolveCargoCommandInvocation = (env = process.env, root = fileURLToPath(new URL('../../', import.meta.url))) => {
   const override = normalizeString(env?.[TUI_CARGO_COMMAND_ENV]);
   if (!override) {
+    const toolchainPath = path.join(root, 'crates', 'pairofcleats-tui', 'rust-toolchain.toml');
+    const pin = fs.readFileSync(toolchainPath, 'utf8').match(/^\s*channel\s*=\s*"([^"]+)"\s*$/m)?.[1];
+    if (!/^\d+\.\d+\.\d+$/.test(pin || '')) throw new Error(`Expected an exact stable Rust toolchain in ${toolchainPath}`);
     return {
       command: 'cargo',
-      args: []
+      args: [`+${pin}`]
     };
   }
   const resolved = path.resolve(override);
