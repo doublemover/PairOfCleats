@@ -243,8 +243,8 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
-  if (!/find dist\/release\/downloads dist\/release\/bundle dist\/release\/trust -type f \| sort/.test(publishBlock)) {
-    console.error(`${label} publish job must upload trust materials alongside the release bundle.`);
+  if (!/stageReleaseAssets\('dist\/release'\)/.test(publishBlock)) {
+    console.error(`${label} publish job must stage validated downloads, bundle and trust assets.`);
     process.exit(1);
   }
   if (!/RELEASE_GIT_SHA:\s*\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/.test(publishBlock)) {
@@ -264,8 +264,13 @@ const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
       process.exit(1);
     }
   }
-  if (!/upload_args=\(\)[\s\S]*rel_path="\$\{file_path#dist\/release\/\}"[\s\S]*"\$\{file_path\}#\$\{rel_path\}"/.test(publishBlock)) {
-    console.error(`${label} publish job must upload release assets with unique relative-path labels.`);
+  const stageOffset = publishBlock.indexOf("stageReleaseAssets('dist/release')");
+  if (stageOffset < 0 || stageOffset > publishBlock.indexOf('gh release create')
+    || !/mapfile -t upload_args[^\n]*plan\.uploadPaths/.test(publishBlock)
+    || !/uses: actions\/checkout@v7[\s\S]*ref:\s*\$\{\{\s*needs\.prepare\.outputs\.release_git_sha\s*\}\}/.test(publishBlock)
+    || !/uses: actions\/setup-node@v7/.test(publishBlock)
+    || /file_path\}#/.test(publishBlock)) {
+    console.error(`${label} publish job must validate unique asset basenames before release mutation and upload the staged plan.`);
     process.exit(1);
   }
   if (!/name:\s*release-prepare-docs[\s\S]*docs\/tooling\/doc-contract-drift\.json[\s\S]*docs\/tooling\/doc-contract-drift\.md/.test(prepareBlock)) {

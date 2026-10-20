@@ -41,6 +41,18 @@ Each supported target must pass:
 5. Release bundle assembly and trust-material generation.
 6. Integrated readiness gate, including CI/CI Long status and USR technical contract evidence.
 
+CI Long is release evidence at the exact release SHA, dispatched manually or by
+release-tag automation. It is not required on ordinary PRs; the complete merge
+job inventory and repository-enforcement limits are in the
+[CI gate policy](ci-gate-policy.md).
+
+Promotion stages every file from downloads, bundle and trust under a stable
+unique asset basename before creating or updating a GitHub release. Each name
+contains the SHA-256 of its original relative path and a readable filename suffix.
+`release-asset-map.json` maps every original relative path to its promoted name,
+byte length and content SHA-256. Reruns use the same names and validate all names
+and staged bytes first; display labels do not provide filename uniqueness.
+
 ## Failure taxonomy
 
 - `infra_flake`: CI/service/transient infra issue.
