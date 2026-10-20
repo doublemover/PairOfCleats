@@ -1,5 +1,6 @@
 import { compareStrings } from '../../shared/sort.js';
 import { buildSuggestTestsReport } from '../../graph/suggest-tests.js';
+import { createGraphNeighborResolver } from '../../graph/neighborhood/walker.js';
 
 export const CONTEXT_PACK_MAX_RISK_GUIDANCE_CALLERS = 3;
 export const CONTEXT_PACK_MAX_RISK_GUIDANCE_SYMBOLS = 5;
@@ -19,6 +20,7 @@ export const buildRiskGuidance = ({
     ? graphIndex.symbolIndex.byChunk
     : new Map();
   const byChunkUid = chunkIndex?.byChunkUid instanceof Map ? chunkIndex.byChunkUid : new Map();
+  const resolveNeighbors = createGraphNeighborResolver({ graphIndex, iterableCsr: true });
   const guidanceCaps = {
     maxCallers: CONTEXT_PACK_MAX_RISK_GUIDANCE_CALLERS,
     maxSymbols: CONTEXT_PACK_MAX_RISK_GUIDANCE_SYMBOLS,
@@ -72,9 +74,8 @@ export const buildRiskGuidance = ({
       const targetMeta = resolveChunkMeta(targetChunkUid);
       if (targetMeta?.file) flowFiles.add(targetMeta.file);
 
-      const incoming = Array.isArray(callGraphIndex.get(targetChunkUid)?.in)
-        ? callGraphIndex.get(targetChunkUid).in
-        : [];
+      const incoming = resolveNeighbors(callGraphIndex, targetChunkUid, 'in', null,
+        graphIndex.callGraphAdjacency, 'callGraph');
       for (const callerChunkUid of incoming) {
         if (!callerChunkUid || targetChunkUids.includes(callerChunkUid)) continue;
         const entry = callerScores.get(callerChunkUid) || {
@@ -157,6 +158,7 @@ export const buildRiskGuidance = ({
     ? buildSuggestTestsReport({
       changed: Array.from(flowFiles).sort(compareStrings),
       graphRelations: graphIndex.graphRelations || null,
+      graphIndex,
       repoRoot,
       caps: {
         maxSuggestions: CONTEXT_PACK_MAX_RISK_GUIDANCE_TESTS,

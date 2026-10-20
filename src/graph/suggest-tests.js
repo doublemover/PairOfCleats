@@ -9,6 +9,7 @@ import { toPosix } from '../shared/file-paths.js';
 import { compareStrings } from '../shared/sort.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { sha1 } from '../shared/hash.js';
+import { createGraphNeighborResolver } from './neighborhood/walker.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -320,6 +321,7 @@ const buildSuggestTestsFidelity = ({
 export const buildSuggestTestsReport = ({
   changed = [],
   graphRelations = null,
+  graphIndex = null,
   tests = null,
   repoRoot = null,
   testPatterns = null,
@@ -404,7 +406,11 @@ export const buildSuggestTestsReport = ({
   }
 
   let suggestions = [];
-  const graphAvailable = Boolean(graphRelations && graphRelations.importGraph);
+  const indexedImports = graphIndex && (graphIndex.importGraphIndex instanceof Map || graphIndex.graphRelationsCsr?.importGraph);
+  const effectiveGraphRelations = graphIndex?.graphRelations || graphRelations;
+  const graphAvailable = indexedImports
+    ? Boolean(graphIndex.graphRelations?.importGraph || graphIndex.graphRelationsCsr?.importGraph || graphIndex.importGraphIndex?.size)
+    : Boolean(effectiveGraphRelations?.importGraph);
   let graphUsed = false;
   let edgesVisited = 0;
   let workUnits = 0;
@@ -412,7 +418,10 @@ export const buildSuggestTestsReport = ({
 
   if (graphAvailable && seeds.length && testList.length) {
     graphUsed = true;
-    const { incoming } = buildImportGraphIndex(graphRelations, repoRoot);
+    const incoming = indexedImports ? null : buildImportGraphIndex(effectiveGraphRelations, repoRoot).incoming;
+    const resolveNeighbors = indexedImports ? createGraphNeighborResolver({ graphIndex, iterableCsr: true }) : null;
+    const normalizeNeighbor = graphIndex?.normalizeImportPath || (value => normalizePathForRepo(value, repoRoot));
+    const indexedNodes = graphIndex?.importGraphIndex || new Map();
     const queue = [];
     const visited = new Map();
     for (const seed of seeds) {
@@ -427,7 +436,9 @@ export const buildSuggestTestsReport = ({
       queueIndex += 1;
       const distance = current.distance;
       if (capsNormalized.maxDepth != null && distance >= capsNormalized.maxDepth) continue;
-      const neighbors = incoming.get(current.path) || [];
+      const neighbors = indexedImports
+        ? resolveNeighbors(indexedNodes, current.path, 'in', normalizeNeighbor, graphIndex.importGraphAdjacency, 'importGraph')
+        : incoming.get(current.path) || [];
       for (const neighbor of neighbors) {
         if (capsNormalized.maxEdges != null && edgesVisited >= capsNormalized.maxEdges) {
           recordTruncation('maxEdges', {
