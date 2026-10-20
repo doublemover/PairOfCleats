@@ -455,6 +455,10 @@ indexing/artifacts/symbols/symbol-by-file-index
 indexing/tree-sitter/parse-determinism
 indexing/vfs/manifest-roundtrip
 smoke/baseline
+smoke/baseline-negative/missing
+smoke/baseline-negative/corrupt
+smoke/baseline-negative/incomplete
+smoke/baseline-negative/legacy
 storage/sqlite/bundle-loader-worker
 tooling/vscode/search-runtime-contract-matrix
 storage/sqlite/build-rowcount-contract

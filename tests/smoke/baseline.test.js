@@ -8,7 +8,7 @@ import { getDictionaryPaths, getDictConfig, getIndexDir, loadUserConfig, resolve
 import { normalizePostingsConfig } from '../../src/shared/postings-config.js';
 import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../../tools/sqlite/vector-extension.js';
 import { REQUIRED_TABLES } from '../../src/storage/sqlite/schema.js';
-import { createBaselinePrerequisites } from '../helpers/baseline-prerequisites.js';
+import { BASELINE_INDEX_FILES, createBaselinePrerequisites } from '../helpers/baseline-prerequisites.js';
 
 const requested = createCli({
   scriptName: 'verify',
@@ -19,12 +19,10 @@ const requested = createCli({
   }
 }).parse();
 
-const indexFiles = ['chunk_meta.json', 'token_postings.json', 'phrase_ngrams.json',
-  'chargram_postings.json', 'minhash_signatures.json'];
 // Explicit requirements retain the standalone workspace diagnostic. The
 // discovered default case must own its prerequisites and assert its negatives.
 const explicit = process.argv.slice(2).some(arg => /^--(?:no-)?require-(?:index|sqlite|dicts)(?:=|$)/.test(arg));
-const fixture = explicit ? null : await createBaselinePrerequisites(process.cwd(), fileURLToPath(import.meta.url), indexFiles);
+const fixture = explicit ? null : await createBaselinePrerequisites(process.cwd(), fileURLToPath(import.meta.url), BASELINE_INDEX_FILES);
 const root = fixture?.root || process.cwd();
 const argv = fixture ? { 'require-index': true, 'require-sqlite': true, 'require-dicts': true } : requested;
 try {
@@ -155,7 +153,13 @@ try {
 
   if (fixture) {
     assert.deepEqual(warnings, [], 'the healthy baseline must not hide warnings');
-    await fixture.verifyNegatives();
-    console.log('Baseline prerequisites assert fresh, restored, missing, corrupt, incomplete and legacy states');
+    // Discovered negatives have independent bounded owners. Direct invocation
+    // retains the original aggregate diagnostic, including every negative.
+    if (process.env.PAIROFCLEATS_TEST_ID === 'smoke/baseline') {
+      console.log('Baseline prerequisites assert fresh healthy state; discovered negatives have independent bounded owners');
+    } else {
+      await fixture.verifyNegatives();
+      console.log('Baseline prerequisites assert fresh, restored, missing, corrupt, incomplete and legacy states');
+    }
   }
 } finally { await fixture?.cleanup(); }

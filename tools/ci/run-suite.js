@@ -21,7 +21,9 @@ const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
 const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
 const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget',
-  'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle'];
+  'perf/parsers/jinja-cold-budget', 'perf/parsers/xml-cold-budget', 'indexing/semantic/compiler-single-cpu-lifecycle',
+  'smoke/baseline-negative/missing', 'smoke/baseline-negative/corrupt',
+  'smoke/baseline-negative/incomplete', 'smoke/baseline-negative/legacy'];
 const SERIAL_ANN_GENERATION_IDS = ['retrieval/ann/generation-publication',
   'retrieval/ann/generation-rebuild-failure', 'retrieval/ann/generation-lmdb'];
 const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];

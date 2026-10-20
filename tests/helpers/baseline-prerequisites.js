@@ -11,6 +11,9 @@ import { runNode } from './run-node.js';
 
 // This fixture checks prerequisite presence and schema inspection. Actual index
 // construction/query coverage belongs to smoke/e2e, smoke/retrieval and smoke/sqlite.
+export const BASELINE_INDEX_FILES = ['chunk_meta.json', 'token_postings.json', 'phrase_ngrams.json',
+  'chargram_postings.json', 'minhash_signatures.json'];
+export const BASELINE_NEGATIVE_CASES = ['missing', 'corrupt', 'incomplete', 'legacy'];
 export const createBaselinePrerequisites = async (checkout, script, indexFiles) => {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-baseline-prerequisites-')));
   const dictionary = path.join(root, 'dictionary');
@@ -53,12 +56,21 @@ export const createBaselinePrerequisites = async (checkout, script, indexFiles) 
     const optional = ['--require-index=false'];
     const deadlineAt = performance.now() + 20000;
     const warningLines = output => output.split(/\r?\n/).filter(line => line.startsWith('[warn]'));
+    let activeCase = 'standalone';
     const execute = (args, expectedStatus) => {
       const remaining = Math.floor(deadlineAt - performance.now());
       assert.ok(remaining > 0, 'the aggregate diagnostic cases stay inside their 20-second budget');
+      const timeoutMs = Math.min(5000, remaining);
+      const started = performance.now();
       const result = runNode([script, ...args], 'Baseline prerequisite diagnostic', root, env,
-        { stdio: 'pipe', allowFailure: true, timeoutMs: Math.min(5000, remaining) });
-      assert.equal(result.error, undefined, 'the actual diagnostic finishes and reaps its child');
+        { stdio: 'pipe', allowFailure: true, timeoutMs });
+      if (result.error || result.signal || result.status !== expectedStatus) {
+        console.error(`Baseline diagnostic child: ${JSON.stringify({ case: activeCase, args, timeoutMs,
+          elapsedMs: Math.round(performance.now() - started), status: result.status, signal: result.signal,
+          errorCode: result.error?.code || null, cleanup: result.timeoutCleanup || null,
+          stdout: String(result.stdout || '').slice(-16384), stderr: String(result.stderr || '').slice(-16384) })}`);
+      }
+      assert.equal(result.error, undefined, `${activeCase}: the actual diagnostic finishes and reaps its child`);
       assert.equal(result.signal, null);
       assert.equal(result.status, expectedStatus, result.stdout + result.stderr);
       if (expectedStatus === 0) {
@@ -70,47 +82,60 @@ export const createBaselinePrerequisites = async (checkout, script, indexFiles) 
       }
       return result;
     };
-    const verifyNegatives = async () => {
+    const cases = {
       // Fresh missing prerequisites and a subsequent healthy cache must produce
       // their own results, irrespective of any author-workspace cache contents.
-      for (const dir of [...dirs, dictionary]) await fs.rm(inside(dir), { recursive: true, force: true });
-      for (const file of databases) await fs.rm(inside(file), { force: true });
-      const absent = execute(optional, 0);
-      assert.deepEqual(warningLines(absent.stdout), [
-        '[warn] dictionary files not found (run node tools/download/dicts.js --lang en)',
-        ...dirs.map(dir => `[warn] ${path.relative(root, dir)} missing (build index to generate)`),
-        ...databases.map((file, index) => `[warn] sqlite index missing (${index ? 'prose' : 'code'}: ${file})`)
-      ]);
-      const missingRequired = execute(required, 1);
-      assert.deepEqual(warningLines(missingRequired.stdout), []);
-      assert.match(missingRequired.stderr, /5 checks failed/);
-      await restore();
-      assert.deepEqual(warningLines(execute(required, 0).stdout), []);
-
-      for (const file of databases) await fs.writeFile(inside(file), 'not a sqlite database\n');
-      const corrupt = execute(required, 1);
-      assert.match(corrupt.stdout, /\[fail\] sqlite table check failed \(file is not a database\)/);
-      assert.deepEqual(warningLines(corrupt.stdout), []);
-      assert.match(corrupt.stderr, /1 checks failed/);
-      const optionalCorrupt = execute(optional, 0);
-      assert.deepEqual(warningLines(optionalCorrupt.stdout), ['[warn] sqlite table check skipped (file is not a database)']);
-      await restore();
-
-      const db = new Database(sqlite.codePath);
-      try { db.exec('DROP TABLE token_stats'); }
-      finally { db.close(); }
-      const incomplete = execute(required, 1);
-      assert.match(incomplete.stdout, /\[fail\] sqlite code index missing tables \(token_stats\)/);
-      assert.deepEqual(warningLines(incomplete.stdout), []);
-      assert.deepEqual(warningLines(execute(optional, 0).stdout), ['[warn] sqlite code index missing tables (token_stats)']);
-      await restore();
-
-      await fs.writeFile(inside(sqlite.legacyPath), 'legacy fixture\n');
-      const legacy = execute(required, 1);
-      assert.ok(legacy.stdout.includes(`[fail] legacy sqlite index detected (${sqlite.legacyPath})`));
-      assert.deepEqual(warningLines(legacy.stdout), []);
-      await fs.rm(inside(sqlite.legacyPath));
-      assert.deepEqual(warningLines(execute(required, 0).stdout), []);
+      missing: async () => {
+        for (const dir of [...dirs, dictionary]) await fs.rm(inside(dir), { recursive: true, force: true });
+        for (const file of databases) await fs.rm(inside(file), { force: true });
+        const absent = execute(optional, 0);
+        assert.deepEqual(warningLines(absent.stdout), [
+          '[warn] dictionary files not found (run node tools/download/dicts.js --lang en)',
+          ...dirs.map(dir => `[warn] ${path.relative(root, dir)} missing (build index to generate)`),
+          ...databases.map((file, index) => `[warn] sqlite index missing (${index ? 'prose' : 'code'}: ${file})`)
+        ]);
+        const missingRequired = execute(required, 1);
+        assert.deepEqual(warningLines(missingRequired.stdout), []);
+        assert.match(missingRequired.stderr, /5 checks failed/);
+        await restore();
+        assert.deepEqual(warningLines(execute(required, 0).stdout), []);
+      },
+      corrupt: async () => {
+        for (const file of databases) await fs.writeFile(inside(file), 'not a sqlite database\n');
+        const corrupt = execute(required, 1);
+        assert.match(corrupt.stdout, /\[fail\] sqlite table check failed \(file is not a database\)/);
+        assert.deepEqual(warningLines(corrupt.stdout), []);
+        assert.match(corrupt.stderr, /1 checks failed/);
+        const optionalCorrupt = execute(optional, 0);
+        assert.deepEqual(warningLines(optionalCorrupt.stdout), ['[warn] sqlite table check skipped (file is not a database)']);
+        await restore();
+      },
+      incomplete: async () => {
+        const db = new Database(sqlite.codePath);
+        try { db.exec('DROP TABLE token_stats'); }
+        finally { db.close(); }
+        const incomplete = execute(required, 1);
+        assert.match(incomplete.stdout, /\[fail\] sqlite code index missing tables \(token_stats\)/);
+        assert.deepEqual(warningLines(incomplete.stdout), []);
+        assert.deepEqual(warningLines(execute(optional, 0).stdout), ['[warn] sqlite code index missing tables (token_stats)']);
+        await restore();
+      },
+      legacy: async () => {
+        await fs.writeFile(inside(sqlite.legacyPath), 'legacy fixture\n');
+        const legacy = execute(required, 1);
+        assert.ok(legacy.stdout.includes(`[fail] legacy sqlite index detected (${sqlite.legacyPath})`));
+        assert.deepEqual(warningLines(legacy.stdout), []);
+        await fs.rm(inside(sqlite.legacyPath));
+        assert.deepEqual(warningLines(execute(required, 0).stdout), []);
+      }
+    };
+    const verifyNegatives = async (selectedCase = null) => {
+      const selected = selectedCase === null ? BASELINE_NEGATIVE_CASES : [selectedCase];
+      assert.ok(selected.every(name => BASELINE_NEGATIVE_CASES.includes(name)), 'select a declared baseline prerequisite case');
+      for (const name of selected) {
+        activeCase = name;
+        await cases[name]();
+      }
     };
     return { root, cleanup, verifyNegatives };
   } catch (error) {

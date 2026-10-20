@@ -78,6 +78,11 @@ for (const [mode, output] of [['ci', ciOutput], ['nightly', nightlyOutput]]) {
   assert.equal(serial.length, 1);
   assert.ok(serial[0].includes(xmlSelector), `${mode}: the actual XML default APIs retain execution coverage`);
   assert.match(serial[0], /--jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false/);
+  for (const state of ['missing', 'corrupt', 'incomplete', 'legacy']) {
+    const selector = `/^smoke\\/baseline-negative\\/${state}$/`;
+    assert.equal(lane[0].split(selector).length - 1, 1, `${mode}: exclude each measured diagnostic wrapper exactly once`);
+    assert.equal(serial[0].split(selector).length - 1, 1, `${mode}: preserve each wrapper in the strict serial budget owner`);
+  }
   const sqliteSelector = '/^storage\\/sqlite\\/build\\/cancellation$/';
   assert.ok(lane[0].includes(sqliteSelector), `${mode}: native worker startup/disposal has a serial replacement owner`);
   const native = output.split(/\r?\n/).filter(line => line.startsWith('[dry-run] Serial native lifecycle:'));

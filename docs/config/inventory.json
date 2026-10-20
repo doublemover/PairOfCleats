@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T21:06:55.668Z",
+  "generatedAt": "2026-10-20T21:23:03.913Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4455,6 +4455,8 @@
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/runner/run-execution.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
+        "tests/smoke/baseline-negative.test.js",
+        "tests/smoke/baseline.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
         "tests/tooling/lsp/signature-boundary-providers.test.js",
