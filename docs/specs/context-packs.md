@@ -172,7 +172,7 @@ are included only when requested and available.
 
 ### 3.2 Optional blocks
 
-- `graph`: `GRAPH_CONTEXT_PACK_SCHEMA` payload with graph nodes, edges, witness paths, truncation, warnings, and stats.
+- `graph`: `GRAPH_CONTEXT_PACK_SCHEMA` payload with graph nodes, edges, witness paths, truncation, warnings, and stats. Edge endpoints retain the recorded source direction even during an incoming walk; witness node order describes traversal separately. Reciprocal edges remain distinct, and call-site evidence uses the original caller/callee pair. CSR and object adjacency yield equivalent edges, callers and graph-derived test guidance without restoring duplicate adjacency into metadata nodes.
 - `types`: type facts when `includeTypes=true`.
 - `risk`: risk summary/flow/partial-flow slice when `includeRisk=true`.
 - `truncation`: pack-level truncation records.

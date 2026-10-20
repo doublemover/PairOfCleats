@@ -18,30 +18,19 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Forty-two issues have repairs through source `7706c5b21`: graph selections preserve explicit exclusion and
-semantic response omissions reconcile evidence metadata. Source `271cf8d59`
-also restores owner-permitted metadata from
-retained source, and test suggestions admit seeds/neighbors within the node cap.
-Risk truncation responses stay valid and unknown evidence cannot become removed flows. Published
-candidate `fee2edcfd` defers incomplete CAS marking and rejects missing required risk
-evidence; triage identity/arrays, setup/prefetch and download repairs precede it. Earlier
-batches add watch cancellation, semantic partition removal, Python/Go/Rust
-signatures and LSP cache authority. Nightly soak/reference
-enforcement, filter-only HTTP
-federation, artifact identities, semantic hydration and restored TUI selection now
-have regressions. Five proven wrapper aliases are retired; broader wrapper/direct
-fixture equivalence remains open under #616. Hosted CI exposed a missing-clangd
-runtime attempt and a Jinja clock-sensitive assertion; both have local repairs.
-The original TOML/summary failures remain recorded. Hosted run 39383472179
-passes gate/Rust but exposes cache-ownership version drift and stale request-cache
-fixture keys; both have local corrections preserving authority/content checks.
-The earlier orphan-cleanup failure remains unattributed, with stronger diagnostics.
-The later Windows large-piece mutation failure has a deterministic unchanged-clock
-regression and block-verification repair through `85faf23ef`; qualification remains open.
-History import also has a proven quadratic turn lookup and a bounded linear repair.
-Windows cleanup times out after its CIM snapshot; shell map traversal now moves
-to Node with real orphan/grandchild isolation coverage, pending hosted qualification. Parity setup has
-phase timings and an 8.31-second local baseline; its hosted timeout remains open.
+Forty-four issues have repairs through source `556a4e7d8`: incoming edges retain
+source direction and CSR risk guidance preserves callers and graph-derived tests.
+Explicit graph exclusion, semantic omissions, owner metadata restoration and
+test-suggestion node caps have regressions. Earlier batches cover resource leases,
+publication/cancellation, cache authority, evidence contracts, triage, setup and
+editor/provider correctness. Every failed candidate and original receipt remains
+in the linked issue audit. Five proven wrapper aliases are retired; broader
+wrapper/direct equivalence remains open under #616.
+Large semantic pieces now verify decoded blocks even with unchanged file clocks;
+history import has a proven linear turn-lookup repair. Windows orphan cleanup
+moves shell map traversal into Node with real descendant/isolation coverage.
+Run 39398071465 passes its hosted subprocess-ownership step; broad Windows CI is
+still running. Parity setup retains phase timings and its earlier hosted timeout.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.

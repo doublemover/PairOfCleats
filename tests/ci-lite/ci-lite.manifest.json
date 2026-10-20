@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 895,
+    "hero": 897,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6235,6 +6235,18 @@
     {
       "id": "shared/kill-tree-windows-lineage",
       "order": 1037,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/risk-guidance-csr",
+      "order": 1038,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/directed-traversal",
+      "order": 1039,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
