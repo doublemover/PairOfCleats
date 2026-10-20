@@ -37,10 +37,10 @@ now reads Toolhelp snapshots, with native layout/failure and real descendant/iso
 All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
 and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
 their source identities in the issue receipt; the supported native System32 owner
-keeps its two-second bound. Newer `2e83a841f` passes macOS, Ubuntu and all 46 Windows
-authority cases after the preflight alias repair. Windows compiler lifecycle hits
-its own cancellation bound; the preceding API core timeout also remains open.
-Authority inventory drift is now in the front gate. Fresh candidate qualification is required.
+keeps its two-second bound. Newer `0e872cb0b` passes all seven hosted checks,
+including 46 Windows authority cases and all eight API cases. Earlier compiler/API
+deadline failures retain their receipts. Compiler resource qualification now has
+a serial owner with unchanged bounds. Fresh candidate qualification is required.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
