@@ -3540,7 +3540,13 @@ mod redraw_tests {
         );
         assert_eq!(restored.selected_job.as_deref(), Some("job-1"));
         assert!(screen(&restored, 120, 40).contains("visible-new-task"));
-        let mut supervisor = std::process::Command::new("node")
+        let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|directory| directory.join(node_name))
+            .find(|candidate| candidate.is_absolute() && candidate.is_file())
+            .and_then(|candidate| candidate.canonicalize().ok())
+            .expect("protocol fixture requires the supported external Node runtime on PATH");
+        let mut supervisor = std::process::Command::new(node)
             .args(["-e", "process.stdin.once('data', bytes => { process.stdout.write(bytes); process.exit(0); });"])
             .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
         restored.last_input_at =
