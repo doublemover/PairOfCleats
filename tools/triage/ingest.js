@@ -80,6 +80,9 @@ async function main() {
   for (let index = 0; index < rawEntries.length; index += 1) {
     const raw = rawEntries[index];
     try {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new Error('Triage records must be JSON objects.');
+      }
       const record = normalizer(raw, meta, {
         repoRoot,
         storeRawPayload: triageConfig.storeRawPayload
@@ -148,8 +151,8 @@ function resolveNormalizer(sourceValue) {
  * Load triage entries from JSON or JSONL inputs.
  *
  * Supports top-level arrays, common wrapper keys (`alerts`, `findings`,
- * `records`, `items`), and a fallback to the first array value found in an
- * object payload. If JSON parsing fails, the payload is treated as JSONL.
+ * `records`, `items`), explicitly shaped records, and unambiguous legacy wrappers
+ * with one array value. If JSON parsing fails, the payload is treated as JSONL.
  *
  * @param {string} filePath
  * @param {{strict?:boolean}} [options]
@@ -165,31 +168,34 @@ async function loadInputEntries(filePath, options = {}) {
       audit: createIngestAudit({ policy: strict ? 'strict' : 'permissive', inputFormat: 'json' })
     };
   }
-  try {
-    const parsed = JSON.parse(trimmed);
-    const entries = coerceJsonEntries(parsed);
-    return {
-      entries,
-      audit: finalizeParsedAudit(
-        createIngestAudit({ policy: strict ? 'strict' : 'permissive', inputFormat: 'json' }),
-        entries.length
-      )
-    };
-  } catch {
+  let parsed;
+  try { parsed = JSON.parse(trimmed); } catch {
     return parseJsonLines(trimmed, { strict });
   }
+  const entries = coerceJsonEntries(parsed);
+  return {
+    entries,
+    audit: finalizeParsedAudit(
+      createIngestAudit({ policy: strict ? 'strict' : 'permissive', inputFormat: 'json' }),
+      entries.length
+    )
+  };
 }
 
 function coerceJsonEntries(parsed) {
   if (Array.isArray(parsed)) return parsed;
-  if (Array.isArray(parsed.alerts)) return parsed.alerts;
-  if (Array.isArray(parsed.findings)) return parsed.findings;
-  if (Array.isArray(parsed.records)) return parsed.records;
-  if (Array.isArray(parsed.items)) return parsed.items;
-  if (parsed && typeof parsed === 'object') {
-    const firstArray = Object.values(parsed).find((value) => Array.isArray(value));
-    if (Array.isArray(firstArray)) return firstArray;
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Triage input must be a JSON object or an array of record objects.');
   }
+  const recordKeys = ['recordId', 'recordType', 'stableKey', 'title', 'description', 'vuln',
+    'findingArn', 'security_advisory', 'package', 'asset'];
+  if (recordKeys.some(key => Object.hasOwn(parsed, key))) return [parsed];
+  const named = ['alerts', 'findings', 'records', 'items'].filter(key => Array.isArray(parsed[key]));
+  if (named.length === 1) return parsed[named[0]];
+  if (named.length > 1) throw new Error('Ambiguous triage input: multiple record wrapper arrays.');
+  const arrays = Object.values(parsed).filter(Array.isArray);
+  if (arrays.length === 1) return arrays[0];
+  if (arrays.length > 1) throw new Error('Ambiguous triage input: name the record collection with a supported wrapper key.');
   return [parsed];
 }
 
