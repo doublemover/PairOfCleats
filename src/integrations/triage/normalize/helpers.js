@@ -169,28 +169,16 @@ export function ensureRecordId(record, source, stableKey, raw, warnings) {
   record.idProvenance = idProvenance;
 }
 
-const MAX_FALLBACK_BYTES = 16384;
-
-const capStringBytes = (value, maxBytes) => {
-  const buffer = Buffer.from(value, 'utf8');
-  if (buffer.length <= maxBytes) return value;
-  return buffer.subarray(0, maxBytes).toString('utf8');
-};
-
 const safeStringifyFallback = (value) => {
-  const seen = new WeakSet();
   try {
-    const text = JSON.stringify(value, (key, entry) => {
-      if (entry && typeof entry === 'object') {
-        if (seen.has(entry)) return '[Circular]';
-        seen.add(entry);
-      }
-      return entry;
+    // Preserve the existing field-order policy while hashing every admitted byte.
+    const text = JSON.stringify(value);
+    if (!text) throw new Error('Payload has no JSON identity.');
+    return text;
+  } catch (cause) {
+    throw Object.assign(new Error('Triage fallback identity requires a complete JSON-serializable payload.', { cause }), {
+      code: 'ERR_TRIAGE_RECORD_IDENTITY'
     });
-    if (!text) return null;
-    return capStringBytes(text, MAX_FALLBACK_BYTES);
-  } catch {
-    return null;
   }
 };
 
