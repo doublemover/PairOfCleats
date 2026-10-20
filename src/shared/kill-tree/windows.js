@@ -47,9 +47,13 @@ export const isWindowsPidAlive = (pid) => {
 const discoverWindowsDescendantPidsSync = (rootPid) => {
   const script = [
     '$ErrorActionPreference = "Stop"',
+    '[Console]::Error.WriteLine("lineage:script-start")',
     '$rootPid = [int]$env:POC_ROOT_PID',
     '$children = @{}',
-    '$procs = Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId',
+    // Only lineage is needed; do not retrieve every process property and then
+    // discard it through a second object projection pipeline.
+    '$procs = Get-CimInstance -ClassName Win32_Process -Property ProcessId,ParentProcessId',
+    '[Console]::Error.WriteLine("lineage:snapshot-ready")',
     'foreach ($p in $procs) {',
     '  $pp = [int]$p.ParentProcessId',
     '  if (-not $children.ContainsKey($pp)) { $children[$pp] = New-Object System.Collections.Generic.List[int] }',
