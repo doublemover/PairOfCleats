@@ -33,24 +33,24 @@ and source identities in the linked issue receipt.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
-Earlier hosted successes and failures retain their source identities in the issue
-receipt. ANN generation/strict-error repairs and global interrupt pass all seven
-checks at `18179bb7f` (39451767657).
+Earlier receipts retain ANN/interrupt success at `18179bb7f` (39451767657).
 Hosted `c4357abb3` exposes Windows pending-delete lock admission; its native
 regression now passes with bounded acquisition and preserved permission errors.
 At `3e4082c7a`, Windows parity and macOS XML fail; smaller artifacts and separate
 content/real-clock owners repair them. Tool probes now retain actual causes and
 bounded redacted failure excerpts; real optional-tool qualification remains active.
-At `7162061f4`, native Windows ownership and three platform correctness selections
-reach only one shared failure: the serial-plan fixture still expects four owners.
+At `7162061f4`, only the stale four-owner serial-plan assertion fails; its owner is repaired.
 At `7789dd3fc`, Ubuntu/macOS correctness and serial real-clock budgets pass;
 the 47-owner Windows authority cohort also passes. Windows fails before the main
 suite: its cold system PowerShell snapshot helper exceeds the unchanged two-second
 bound before emitting its first phase. Engine/payload diagnostics now distinguish
 those boundaries; the original cause remains open.
+All seven checks pass at `77a6f0df7` (39486272672); later changes need fresh CI.
 #633 now connects canonical settings transactions to the real supervisor/native
 keyboard path, with scope, stale/cancel/privacy and exact-byte reset controls.
 Four actual Windows ConPTY cases pass; other platform native execution is separate.
+Bundled Pyright now detects and completes a real Windows initialize/shutdown;
+fresh/stale cache and untrusted-child controls pass. #631 remains active.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
