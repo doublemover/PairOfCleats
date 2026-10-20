@@ -62,7 +62,7 @@ const inventoryFiles = (root, prefix = '', depth = 0) => {
 // paths with multiple slashes) are direct paths, not cache-relative model IDs.
 const isRepositoryId = id => /^(\b[\w.-]+\b\/)?\b[\w.-]{1,96}\b$/u.test(id)
   && !id.includes('..') && !id.includes('--') && !/\.(?:git|ipynb)$/u.test(id);
-const resolveArtifactRoot = (id, modelsDir) => {
+export const resolveEmbeddingArtifactRoot = (id, modelsDir) => {
   if (typeof id !== 'string' || !id) return null;
   if (!isRepositoryId(id)) {
     const directRoot = path.resolve(id);
@@ -85,9 +85,9 @@ export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir,
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
-  const modelRoot = resolveArtifactRoot(modelId, modelsDir);
+  const modelRoot = resolveEmbeddingArtifactRoot(modelId, modelsDir);
   const tokenizerId = onnx?.tokenizerId || modelId;
-  const tokenizerRoot = resolveArtifactRoot(tokenizerId, modelsDir);
+  const tokenizerRoot = resolveEmbeddingArtifactRoot(tokenizerId, modelsDir);
   const rootFiles = inventoryFiles(provider === 'onnx' ? tokenizerRoot : modelRoot);
   const tokenizerFiles = rootFiles.filter(({ rel, filePath }) => !rel.includes('/')
     && TOKENIZER_FILES.has(path.basename(filePath)));

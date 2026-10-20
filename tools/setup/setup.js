@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import readline from 'node:readline/promises';
@@ -25,6 +24,7 @@ import { getVectorExtensionConfig, resolveVectorExtensionPath } from '../sqlite/
 import { verifyVectorExtensionArtifact } from '../sqlite/extension-trust.js';
 import { buildSetupReadiness } from './readiness.js';
 import { resolveDictionarySetupReadiness } from './dictionary-readiness.js';
+import { resolveModelSetupReadiness } from './model-readiness.js';
 
 const argv = createCli({
   scriptName: 'setup',
@@ -56,7 +56,7 @@ const root = resolveRepoRootArg(explicitRoot);
 const toolRoot = resolveToolRoot();
 const jsonOutput = argv.json === true;
 const nonInteractive = argv['non-interactive'] === true;
-const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
+const rl = nonInteractive ? null : readline.createInterface({ input: process.stdin, output: jsonOutput ? process.stderr : process.stdout });
 const stdoutGuard = createStdoutGuard({ enabled: jsonOutput, stream: process.stdout, label: 'setup stdout' });
 
 const log = (msg) => {
@@ -187,15 +187,6 @@ function runOrExit(label, cmd, args, options = {}) {
   return result;
 }
 
-async function hasEntries(dirPath) {
-  try {
-    const entries = await fsPromises.readdir(dirPath);
-    return entries.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 log(`Starting setup in ${root}`);
 
 const configPath = path.join(root, '.pairofcleats.json');
@@ -300,10 +291,11 @@ if (argv['skip-models']) {
 } else {
   const modelConfig = getModelConfig(root, userConfig);
   const modelDir = modelConfig.dir;
-  const hasModels = await hasEntries(modelDir);
+  const resolveModels = () => resolveModelSetupReadiness({ root, modelConfig, embeddingsConfig: userConfig.indexing?.embeddings });
+  const before = resolveModels();
   let downloaded = false;
   let declined = false;
-  if (!hasModels) {
+  if (!before.present) {
     const shouldDownload = await promptYesNo(`Download embedding model ${modelConfig.id}?`, true);
     if (shouldDownload) {
       const result = runCommand(process.execPath, [
@@ -326,7 +318,7 @@ if (argv['skip-models']) {
   } else {
     log(`Model cache present (${modelDir}).`);
   }
-  recordStep('models', { skipped: false, present: await hasEntries(modelDir), beforePresent: hasModels, downloaded, declined });
+  recordStep('models', { skipped: false, ...resolveModels(), beforePresent: before.present, downloaded, declined });
 }
 
 if (argv['skip-extensions']) {
