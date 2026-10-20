@@ -63,6 +63,8 @@ try {
   const setupGuard = path.join(temp, 'sqlite-setup-import-guard.mjs');
   await fs.writeFile(setupGuard, `
     import { registerHooks } from 'node:module';
+    globalThis.paritySetupStarted = performance.now();
+    console.error('[parity-setup] bootstrap ready');
     registerHooks({ load(url, context, nextLoad) {
       if (url.endsWith('/src/index/build/indexer.js')) {
         throw new Error('SQLite artifact setup must not load the source-indexing pipeline');
@@ -76,6 +78,9 @@ try {
     import { getRepoCacheRoot, loadUserConfig } from ${JSON.stringify(pathsModule)};
     import { runSqliteBuild } from ${JSON.stringify(sqliteModule)};
     import { ARTIFACT_SURFACE_VERSION } from ${JSON.stringify(versionModule)};
+    const phase = label => console.error('[parity-setup] ' + label + ' elapsedMs=' +
+      Math.round(performance.now() - globalThis.paritySetupStarted));
+    phase('imports ready');
     const repo = ${JSON.stringify(repo)};
     const cache = getRepoCacheRoot(repo, loadUserConfig(repo));
     const buildId = 'parity-fixture';
@@ -98,17 +103,23 @@ try {
       await fs.writeFile(path.join(indexDir, 'chunk_meta.meta.json'), JSON.stringify({ totalRecords: empty ? 0 : 1 }));
       await fs.rename(indexDir, path.join(buildRoot, 'index-' + mode));
       roots[mode] = 'builds/' + buildId;
+      phase('artifacts ' + mode);
     }
     await fs.writeFile(path.join(buildRoot, 'build_state.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, schemaVersion: 1, signatureVersion: 2,
       buildId, configHash: 'parity-fixture', tool: { version: '1.0.0' },
       validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] } }));
     await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId,
       buildRoot: 'builds/' + buildId, buildRoots: roots }));
-    for (const mode of Object.keys(roots)) await runSqliteBuild(repo, { mode });`;
+    for (const mode of Object.keys(roots)) {
+      phase('sqlite start ' + mode);
+      await runSqliteBuild(repo, { mode });
+      phase('sqlite finished ' + mode);
+    }`;
   const build = await runNode(['--input-type=module', '--eval', buildScript], 'parity fixture artifacts', repo, {
     ...env, NODE_OPTIONS: `${env.NODE_OPTIONS || ''} --import=${pathToFileURL(setupGuard).href}`.trim()
   });
   assert.equal(build.exitCode, 0, `${build.signal || ''}\n${build.stderr}`);
+  console.log(build.stderr.trim());
 
   // Ready indexes must not load the indexing pipeline in the report child.
   const importGuard = path.join(temp, 'parity-import-guard.mjs');
