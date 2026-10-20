@@ -2,6 +2,15 @@ import { extractNgrams } from '../../shared/tokenize.js';
 import { postingIncludesDocId, resolvePhraseRange } from './candidates.js';
 import { createVocabIndex } from '../vocab-index.js';
 
+/** Exact contiguous membership in the admitted literal token stream. */
+export const matchesLiteralPhraseTokens = (literal, phrase) => {
+  if (!phrase.length || literal.length < phrase.length) return false;
+  for (let start = 0; start <= literal.length - phrase.length; start++) {
+    if (phrase.every((token, offset) => literal[start + offset] === token)) return true;
+  }
+  return false;
+};
+
 /**
  * Build helpers for navigating a parsed query AST.
  * @param {{queryAst:object,phraseNgramSet?:Set<string>,phraseRange?:object}} input
@@ -130,11 +139,7 @@ export const createQueryAstHelpers = ({ queryAst, phraseNgramSet, phraseRange, t
         case 'phrase': {
           const literal = chunkRecord?.phraseTokens ?? tokens;
           const phrase = node.tokens ?? [];
-          if (!phrase.length || literal.length < phrase.length) return false;
-          for (let start = 0; start <= literal.length - phrase.length; start++) {
-            if (phrase.every((token, offset) => literal[start + offset] === token)) return true;
-          }
-          return false;
+          return matchesLiteralPhraseTokens(literal, phrase);
         }
         case 'not':
           return !evalNode(node.child, false);

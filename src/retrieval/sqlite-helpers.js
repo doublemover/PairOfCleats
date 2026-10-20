@@ -1,5 +1,5 @@
 import { compileFtsMatchFromAst } from './fts-query.js';
-import { createQueryAstHelpers } from './pipeline/query-ast.js';
+import { createQueryAstHelpers, matchesLiteralPhraseTokens } from './pipeline/query-ast.js';
 import { FTS_VARIANT_TABLES } from '../storage/sqlite/fts-variants.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
@@ -18,6 +18,35 @@ const FTS_OVERFETCH_MIN_ROWS = 5000;
 const FTS_OVERFETCH_MULTIPLIER = 10;
 const FTS_OVERFETCH_TIME_BUDGET_MS = 150;
 export const RETRIEVAL_FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
+const phraseFunctionDatabases = new WeakSet();
+const matchesFtsPhraseJson = (literal, phrase) => Number(matchesLiteralPhraseTokens(parseArrayField(literal), parseArrayField(phrase)));
+
+// Apply the same AST eligibility before ranking admission. SQL term membership
+// uses the actual selected tokenizer; the pure phrase callback shares the
+// memory matcher's exact token semantics, including legacy array decoding.
+const compileFtsEligibility = (queryAst, table) => {
+  const params = [];
+  let hasPhrase = false;
+  const visit = node => {
+    if (!node) return '1';
+    if (node.type === 'term') {
+      const match = compileFtsMatchFromAst(node);
+      if (!match) return '0';
+      params.push(match);
+      return `chunks.id IN (SELECT rowid FROM ${table} WHERE ${table} MATCH ?)`;
+    }
+    if (node.type === 'phrase') {
+      hasPhrase = true;
+      params.push(JSON.stringify(node.tokens ?? []));
+      return 'poc_fts_phrase_match(chunks.phrase_tokens, ?)';
+    }
+    if (node.type === 'not') return `NOT (${visit(node.child)})`;
+    if (node.type === 'and' || node.type === 'or') return `(${visit(node.left)}) ${node.type.toUpperCase()} (${visit(node.right)})`;
+    return '1';
+  };
+  const predicate = visit(queryAst);
+  return { sql: hasPhrase ? `chunks.phrase_tokens IS NOT NULL AND (${predicate})` : predicate, params, hasPhrase };
+};
 
 /**
  * Decode a packed uint32 buffer into an array.
@@ -150,12 +179,12 @@ export function createSqliteHelpers(options) {
       dbCache = new Map();
       statementCache.set(db, dbCache);
     }
-    let stmt = dbCache.get(key);
-    if (!stmt) {
-      stmt = db.prepare(sql);
-      dbCache.set(key, stmt);
+    let cached = dbCache.get(key);
+    if (!cached || cached.sql !== sql) {
+      cached = { sql, stmt: db.prepare(sql) };
+      dbCache.set(key, cached);
     }
-    return stmt;
+    return cached.stmt;
   };
 
   const buildPlaceholders = (count) => Array.from({ length: count }, () => '?').join(',');
@@ -652,10 +681,16 @@ export function createSqliteHelpers(options) {
       ? jsonPushdown ? ' AND chunks.id IN (SELECT value FROM json_each(?))'
         : ` AND chunks.id IN (${allowedList.map(() => '?').join(',')})`
       : '';
+    const eligibility = options.queryAst ? compileFtsEligibility(options.queryAst, table) : null;
+    if (eligibility?.hasPhrase && !phraseFunctionDatabases.has(db)) {
+      db.function('poc_fts_phrase_match', { deterministic: true }, matchesFtsPhraseJson);
+      phraseFunctionDatabases.add(db);
+    }
     const fetchSql = () => `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
        FROM ${table}
        JOIN chunks ON chunks.id = ${table}.rowid
        WHERE ${table} MATCH ? AND chunks.mode = ?
+       ${eligibility ? `AND (${eligibility.sql})` : ''}
        ${allowedClause}
        ORDER BY score ASC, ${table}.rowid ASC LIMIT ?`;
     let rows = [];
@@ -671,8 +706,8 @@ export function createSqliteHelpers(options) {
         ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
         : overfetchRowCap;
       const params = canPushdown
-        ? [ftsQuery, mode, ...(jsonPushdown ? [JSON.stringify(allowedList)] : allowedList), queryLimit]
-        : [ftsQuery, mode, queryLimit];
+        ? [ftsQuery, mode, ...(eligibility?.params || []), ...(jsonPushdown ? [JSON.stringify(allowedList)] : allowedList), queryLimit]
+        : [ftsQuery, mode, ...(eligibility?.params || []), queryLimit];
       rows = stmt.all(...params);
       rowsScanned = rows.length;
       truncated = rows.length >= overfetchRowCap;

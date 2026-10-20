@@ -342,8 +342,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v5 invalidates empty FTS responses produced before lazy AST hydration.
-    version: 5,
+    // v6 invalidates FTS results capped before full AST eligibility.
+    version: 6,
     payload
   });
   return { key: keyInfo.key, payload };

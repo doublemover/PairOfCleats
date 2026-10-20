@@ -50,6 +50,11 @@ triaged quickly.
 Query-result cache keys are versioned for these semantics; old cached zero-result
 responses are not reused after the change.
 
+SQLite FTS applies Boolean exclusions and exact literal-phrase eligibility before
+its bounded candidate limit, so ineligible high-ranking matches cannot crowd out
+eligible results later in the same list. Missing literal phrase evidence remains
+ineligible; a healthy FTS result does not require a sparse-backend fallback.
+
 ## File Filter Prefilter (Substring/Regex)
 
 When `--file` or `--path` filters are used, the filter index builds file-name chargrams. The filter stage:
