@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T19:30:56.105Z",
+  "generatedAt": "2026-10-20T19:52:35.143Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -5149,7 +5149,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 498,
+    "totalFlags": 501,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5604,6 +5604,7 @@
       "sqlite",
       "sqlite-backend",
       "status",
+      "stdio",
       "strict",
       "stub-embeddings",
       "surface",
@@ -5616,6 +5617,7 @@
       "threads",
       "three-url",
       "timeout-ratio-max",
+      "timeoutMs",
       "token-postings-size",
       "tokenSize",
       "tokens",
@@ -5645,6 +5647,7 @@
       "wasd-max-speed",
       "wasd-sensitivity",
       "windowBytes",
+      "windowsHide",
       "with-sqlite",
       "write",
       "write-report",
@@ -5933,6 +5936,16 @@
         "flags": [
           "force",
           "recursive"
+        ]
+      },
+      {
+        "file": "src/shared/kill-tree/windows.js",
+        "flags": [
+          "encoding",
+          "input",
+          "stdio",
+          "timeoutMs",
+          "windowsHide"
         ]
       },
       {
@@ -8123,6 +8136,21 @@
         ]
       },
       {
+        "flag": "input",
+        "count": 9,
+        "files": [
+          "src/shared/kill-tree/windows.js",
+          "tools/bench/vfs/hash-routing-lookup.js",
+          "tools/bench/vfs/vfsidx-lookup.js",
+          "tools/index/assemble-pieces.js",
+          "tools/ingest/ctags.js",
+          "tools/ingest/gtags.js",
+          "tools/ingest/lsif.js",
+          "tools/ingest/scip.js",
+          "tools/test_times/report.js"
+        ]
+      },
+      {
         "flag": "quiet",
         "count": 9,
         "files": [
@@ -8194,20 +8222,6 @@
           "tools/index/reconcile-identity.js",
           "tools/index/report-artifacts.js",
           "tools/index/validate.js"
-        ]
-      },
-      {
-        "flag": "input",
-        "count": 8,
-        "files": [
-          "tools/bench/vfs/hash-routing-lookup.js",
-          "tools/bench/vfs/vfsidx-lookup.js",
-          "tools/index/assemble-pieces.js",
-          "tools/ingest/ctags.js",
-          "tools/ingest/gtags.js",
-          "tools/ingest/lsif.js",
-          "tools/ingest/scip.js",
-          "tools/test_times/report.js"
         ]
       },
       {
@@ -8950,6 +8964,14 @@
         "files": [
           "tools/bench/map/viewer-fps.js",
           "tools/bench/map/viewer-lod-stress.js"
+        ]
+      },
+      {
+        "flag": "encoding",
+        "count": 2,
+        "files": [
+          "src/shared/kill-tree/windows.js",
+          "tools/sqlite/verify-extensions.js"
         ]
       },
       {

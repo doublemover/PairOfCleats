@@ -69,6 +69,20 @@ try {
 [Console]::Error.WriteLine('lineage:rows-written')
 `;
 
+/** Keep engine startup distinct from parsing/executing the larger native script.
+ * The fixed launcher reads a private stdin payload; no shell/PATH lookup occurs.
+ * This preserves the production deadline and makes pre-script stalls observable.
+ */
+export const createWindowsProcessSnapshotRequest = ({ env = process.env,
+  script = WINDOWS_PROCESS_SNAPSHOT_SCRIPT } = {}) => {
+  const command = resolveWindowsPowerShellPath(env);
+  if (!command) return null;
+  return { command, args: ['-NoProfile', '-NonInteractive', '-Command',
+    "[Console]::Error.WriteLine('lineage:engine-ready'); & ([ScriptBlock]::Create([Console]::In.ReadToEnd()))"],
+  options: { input: script, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true,
+    timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS } };
+};
+
 /** Walk a complete lineage-only snapshot without per-process shell objects. */
 export const resolveWindowsDescendantPids = (value, rootPid) => {
   const children = new Map(), processIds = new Set();
@@ -120,20 +134,12 @@ export const isWindowsPidAlive = (pid) => {
 };
 
 const discoverWindowsDescendantPidsSync = (rootPid) => {
-  const script = WINDOWS_PROCESS_SNAPSHOT_SCRIPT;
   const startedAt = Date.now();
-  const executable = resolveWindowsPowerShellPath(process.env);
-  if (!executable) return { pids: [], diagnostic: { exitCode: null,
+  const request = createWindowsProcessSnapshotRequest();
+  if (!request) return { pids: [], diagnostic: { exitCode: null,
     errorCode: 'ERR_WINDOWS_SYSTEM_ROOT', durationMs: 0, discoveredCount: 0, stderr: '' } };
   const result = runSyncCommandWithTimeout(
-    executable,
-    ['-NoProfile', '-NonInteractive', '-Command', script],
-    {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      encoding: 'utf8',
-      windowsHide: true,
-      timeoutMs: WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS
-    }
+    request.command, request.args, request.options
   );
   const exitCode = toSyncCommandExitCode(result);
   let pids = [], parseError = null;
