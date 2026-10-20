@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 907,
+    "hero": 908,
     "matrix": 108,
     "meta": 34,
     "soak": 1,
@@ -6315,6 +6315,12 @@
       "order": 1050,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/bootstrap-preflight",
+      "order": 1051,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

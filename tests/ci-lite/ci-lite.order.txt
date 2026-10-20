@@ -1050,3 +1050,4 @@ ci/gate-policy
 tooling/release/publish-assets
 tooling/release/readiness-gate-missing-workflow
 tooling/typescript-compiler-compatibility
+tooling/install/bootstrap-preflight
