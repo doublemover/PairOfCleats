@@ -28,6 +28,14 @@ Useful options (subset):
 - `--include imports,calls,usages,dataflow,exports`
 - Guardrails: `--max-files`, `--max-members-per-file`, `--max-edges`, `--top-k-by-degree`
 
+`--index-root <build-root>` selects that root's `index-<mode>` artifacts. Report
+caches bind the canonical selected path, complete pieces-manifest identity and
+map producer version. Switching roots or replacing a selected generation does
+not require `--refresh`. An unreadable/incompatible manifest fails before cache
+admission; a generation changed during the report fails without publishing a
+new cached model. The default cache remains outside source, under the repository
+cache root; `--cache-dir` selects an explicit cache destination.
+
 ## Interactive evidence workspace
 
 Run `pairofcleats service api --repo /your/repository` and open the printed `/map/workspace`

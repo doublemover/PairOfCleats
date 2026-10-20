@@ -247,6 +247,10 @@ const mapKeyB = buildMapCacheKey({
   options: { include: ['src'], onlyExported: true, focus: null, scope: 'repo' }
 });
 assert.equal(mapKeyA, mapKeyB);
+const selectedMapKey = buildMapCacheKey({ indexIdentity: { indexDir: '/indexes/a', manifest: 'generation-a' } });
+assert.equal(selectedMapKey, buildMapCacheKey({ indexIdentity: { manifest: 'generation-a', indexDir: '/indexes/a' } }));
+assert.notEqual(selectedMapKey, buildMapCacheKey({ indexIdentity: { indexDir: '/indexes/b', manifest: 'generation-a' } }));
+assert.notEqual(selectedMapKey, buildMapCacheKey({ indexIdentity: { indexDir: '/indexes/a', manifest: 'generation-b' } }));
 
 const queryKeyA = buildQueryCacheKey({ query: 'foo', filters: ['a', 'b'] });
 const queryKeyB = buildQueryCacheKey({ filters: ['a', 'b'], query: 'foo' });

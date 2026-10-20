@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { toPosix } from '../../src/shared/file-paths.js';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
@@ -12,7 +13,10 @@ import { renderDot } from '../../src/map/dot-writer.js';
 import { renderSvgHtml } from '../../src/map/html-writer.js';
 import { renderIsometricHtml } from '../../src/map/isometric-viewer.js';
 import { MAP_BENCH_BUILD_OPTIONS, resolveLimit } from '../shared/map-build-options.js';
-import { getCurrentBuildInfo, getIndexDir, getRepoCacheRoot, getRepoId, resolveRepoConfig } from '../shared/dict-utils.js';
+import { getIndexDir, getRepoCacheRoot, getRepoId, resolveRepoConfig, toRealPathSync } from '../shared/dict-utils.js';
+import { readJsonFile } from '../../src/shared/artifact-io/json.js';
+import { assertPiecesManifestFormat } from '../../src/shared/artifact-io/manifest-read.js';
+import { stableStringify } from '../../src/shared/stable-json.js';
 import { emitJson } from '../shared/cli-utils.js';
 
 const argv = createCli({
@@ -39,9 +43,9 @@ const argv = createCli({
 
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const mode = String(argv.mode || 'code').toLowerCase();
-const indexDir = getIndexDir(repoRoot, mode, userConfig, {
+const indexDir = toRealPathSync(getIndexDir(repoRoot, mode, userConfig, {
   indexRoot: argv['index-root'] ? path.resolve(argv['index-root']) : null
-});
+}));
 
 const scope = String(argv.scope || 'repo').toLowerCase();
 const focus = argv.focus ? String(argv.focus) : '';
@@ -92,8 +96,15 @@ const buildOptions = {
   }
 };
 
-const buildInfo = getCurrentBuildInfo(repoRoot, userConfig, { mode });
-const cacheKey = buildMapCacheKey({ buildId: buildInfo?.buildId || null, options: buildOptions });
+// A selected index can be independent of the repository's current pointer.
+// Read the manifest before any cache lookup, including warm-cache admission.
+const readSelectedIdentity = () => {
+  const raw = readJsonFile(path.join(indexDir, 'pieces/manifest.json'));
+  assertPiecesManifestFormat(indexDir, raw?.fields || raw, repoRoot);
+  return { indexDir, manifest: createHash('sha256').update(stableStringify(raw)).digest('hex') };
+};
+const indexIdentity = readSelectedIdentity();
+const cacheKey = buildMapCacheKey({ indexIdentity, options: buildOptions });
 const cacheDir = argv['cache-dir']
   ? path.resolve(argv['cache-dir'])
   : path.join(getRepoCacheRoot(repoRoot, userConfig), 'maps', 'cache');
@@ -117,9 +128,15 @@ if (!argv.refresh && fs.existsSync(cachePath)) {
   }
 }
 
-if (!mapModel) {
+const cacheMiss = !mapModel;
+if (cacheMiss) {
   mapModel = await buildCodeMap({ repoRoot, indexDir, options: buildOptions });
   mapModel.root.id = getRepoId(repoRoot);
+}
+if (readSelectedIdentity().manifest !== indexIdentity.manifest) {
+  throw new Error('Selected index generation changed while reading the map. Run the report again against a stable generation.');
+}
+if (cacheMiss) {
   try {
     writeJsonFileSyncResolved(cachePath, createMapCacheEnvelope(mapModel, cacheIdentity.key), { spaces: 0 });
   } catch (err) {

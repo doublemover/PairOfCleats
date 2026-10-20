@@ -703,8 +703,9 @@ export function buildNodeList(mapModel) {
   };
 }
 
-export function buildMapCacheKey({ buildId, options }) {
-  const payload = { buildId: buildId || null, options: options || null };
+export function buildMapCacheKey({ buildId, indexIdentity, options }) {
+  const payload = { producerVersion: 2, modelVersion: MAP_MODEL_VERSION,
+    buildId: buildId || null, indexIdentity: indexIdentity || null, options: options || null };
   return buildLocalCacheKey({
     namespace: 'code-map',
     payload
