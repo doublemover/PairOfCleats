@@ -56,9 +56,9 @@ Frozen `ffde426be` passes 2982 Windows cases across 48 cohorts, with 17 declared
 exclusions, 16 supplementary passes and seven green PR checks. Its receipt maps
 all 65 original failures, including 27 timeouts. Later repairs retain separate
 checks; that frozen result does not qualify the current source.
-Managed-Go cache defaults and reused SDK launch paths now resolve absolutely;
-explicit user caches remain active. Both path defects have real-Go before/after
-controls and 22 affected passing cases; the SDK regression joins regular CI.
+Managed Go paths resolve absolutely and preserve explicit caches. Cached Ruby
+launchers now bind their gem repository; probe caches bind runtime/environment
+digests, with stale-context negatives and LSP producer 13 replay invalidation.
 Remaining real-tool outcomes include macOS PHP/.NET runtime discovery, Ruby gem
 environment/native builds, approved PHPactor bytes and the macOS `fsevents`
 script-policy warning. Installer exit, detection, startup and semantic precision
