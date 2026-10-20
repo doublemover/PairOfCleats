@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T16:02:06.859Z",
+  "generatedAt": "2026-10-20T05:12:59.130Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -7000,6 +7000,12 @@
         ]
       },
       {
+        "file": "tools/docs/editor-config-bundle.js",
+        "flags": [
+          "out"
+        ]
+      },
+      {
         "file": "tools/docs/export-artifact-schema-index.js",
         "flags": [
           "out",
@@ -7874,7 +7880,7 @@
       },
       {
         "flag": "out",
-        "count": 50,
+        "count": 51,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -7907,6 +7913,7 @@
           "tools/ci/coverage-policy-report.js",
           "tools/config/generate-demo-config.js",
           "tools/dicts/generate-repo-dict.js",
+          "tools/docs/editor-config-bundle.js",
           "tools/docs/export-artifact-schema-index.js",
           "tools/download/extensions.js",
           "tools/eval/risk-pack.js",

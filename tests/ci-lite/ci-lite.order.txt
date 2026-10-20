@@ -474,6 +474,10 @@ indexing/postings/chargram-rolling-hash
 shared/hash/xxhash-backends
 tooling/install/tooling
 tooling/install/go-sdk-cache-recipe
+services/api/search-stream-outcomes
+services/mcp/legacy-execution-settlement
+tooling/service/indexer-queue-worker-setup-failures
+tooling/sublime/config-runtime-contract
 lang/typescript/typescript-contract-matrix
 retrieval/ann/lancedb-runtime-contract-matrix
 services/indexing/compressed-artifact-presence
@@ -574,6 +578,7 @@ indexing/imports/decision-metamorphic
 indexing/imports/replay-stage-percentiles
 indexing/imports/import-graph-incremental-reuse
 shared/io/atomic-write-contract
+shared/io/replace-file-visibility
 tooling/vscode/package-determinism
 indexing/determinism/chunk-meta-ordering-drift
 indexing/imports/import-scan-post-graph-stats

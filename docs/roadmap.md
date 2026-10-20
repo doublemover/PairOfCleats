@@ -1,8 +1,8 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-19
-Last reconciled: 2026-10-19
+Last audited: 2026-10-20
+Last reconciled: 2026-10-20
 Canonical for: initiative status, execution order, and remaining work
 
 ## Repository maintenance audit, October 18
@@ -10,9 +10,14 @@ Canonical for: initiative status, execution order, and remaining work
 Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 `ab00d918d`; the archive retains the original upstream reconciliation.
 
-The October 19 live inventory has zero open issues, repair PR
+The October 20 live inventory has 78 new open issues (#584–#661), repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
+The [issue repair receipt](archived/github-issue-repairs-2026-10-20.md) tracks
+every issue and its acceptance. All 78 are in scope, including TUI functionality,
+optional tooling, representative workloads and Linux/macOS deep qualification.
+P1 publication and resource-lifecycle defects are first; the earlier green
+campaign below does not establish that the newly reported bugs are fixed.
 Windows acceptance is complete at frozen candidate `ffde426be`: all 2982
 required cases pass across 48 explicit cohorts, with 17 enumerated exclusions.
 There are no failures, timeouts, native crashes, retries or unexpected skips.
@@ -184,7 +189,7 @@ power-loss and unrelated build-writer/global disk quotas remain separate.
 
 ## Current Validation Boundary
 
-Current reconciliation, 2026-10-19: the prior 45-item implementation audit retains
+Current reconciliation, 2026-10-20: the prior 45-item implementation audit retains
 39 bounded-verified and six qualification-limited classifications. This
 maintenance run refreshes selected product/governance checks; it does not repeat
 every item's qualification.
