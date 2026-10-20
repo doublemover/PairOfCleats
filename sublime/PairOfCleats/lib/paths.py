@@ -231,10 +231,12 @@ def resolve_path_within_repo(repo_root, value):
     try:
         repo_root_norm = os.path.normcase(os.path.abspath(repo_root))
         resolved_norm = os.path.normcase(os.path.abspath(resolved))
-        common = os.path.commonpath([repo_root_norm, resolved_norm])
+        # relpath is available in Sublime's Python 3.3. Check components rather
+        # than a string prefix, which would admit a sibling such as repo-other.
+        relative = os.path.relpath(resolved_norm, repo_root_norm)
     except Exception:
         return None
-    if common != repo_root_norm:
+    if relative == os.pardir or relative.startswith(os.pardir + os.sep) or os.path.isabs(relative):
         return None
     return resolved
 

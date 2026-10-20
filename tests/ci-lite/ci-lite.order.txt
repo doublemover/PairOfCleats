@@ -1058,3 +1058,4 @@ indexing/contracts/python-html-registry
 tooling/vfs/hash-origin-authority
 tooling/vfs/token-origin-authority
 tooling/reports/map-selected-index-identity
+tooling/sublime/minimum-runtime-compatibility

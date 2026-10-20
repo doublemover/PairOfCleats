@@ -5,7 +5,7 @@ PairOfCleats integration for Sublime Text 3.
 ## Install
 
 1. Install the CLI from the [source checkout](../../README.md#quickstart), using
-   Node.js **26.x** and `npm run bootstrap:ci` with development dependencies.
+   Node.js **>=26.10.0 <27** and `npm run bootstrap:ci` with development dependencies.
 2. Copy or symlink `sublime/PairOfCleats` into your Sublime `Packages` directory.
 3. Run `PairOfCleats: Open Settings` and set `pairofcleats_path` to the absolute path
    of that checkout's `bin/pairofcleats.js`. Set `node_path` if the required Node
@@ -18,6 +18,12 @@ global npm package or a globally linked CLI command. CLI/Node paths belong in
 User Settings rather than `.sublime-project` overrides.
 
 ## Package Control notes
+
+The plugin supports Sublime Text 3's embedded Python 3.3; checkout setup still
+requires the separately documented Python/native build toolchain. Windows stop
+uses a bounded compatible subprocess helper and retains direct termination and
+force-stop escalation when that helper fails. Folder-watch containment checks
+path components, including sibling-prefix and different-drive rejection.
 
 This package avoids external Python dependencies. It relies on the Node runtime
 and the PairOfCleats CLI or local repo binaries.

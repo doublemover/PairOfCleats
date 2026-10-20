@@ -84,13 +84,20 @@ def _terminate_process_tree(process, force=False):
             cmd = ['taskkill', '/PID', str(pid), '/T']
             if force:
                 cmd.append('/F')
-            subprocess.run(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=False,
-            )
-            return
+            try:
+                # Sublime Text 3 embeds Python 3.3 (before subprocess.run).
+                # Bound a missing/stuck helper and retain direct fallback so
+                # request_stop can still schedule its force-stop timer.
+                status = subprocess.call(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=2,
+                )
+                if status == 0:
+                    return
+            except (OSError, subprocess.TimeoutExpired):
+                pass
     else:
         pid = getattr(process, 'pid', None)
         if pid:

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T13:09:37.012Z",
+  "generatedAt": "2026-10-20T13:20:42.364Z",
   "summary": {
     "lanes": 5,
-    "tests": 1281,
+    "tests": 1282,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 326,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1207
+      "missingTests": 1208
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1058,
+      "totalTests": 1059,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1009
+        "missing": 1010
       }
     },
     {
@@ -481,6 +481,12 @@
       "unknownDurationCount": 6
     },
     {
+      "key": "tooling/sublime",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
       "key": "context-pack/risk-truncation-contract",
       "count": 5,
       "knownDurationMs": 0,
@@ -506,12 +512,6 @@
     },
     {
       "key": "retrieval/output",
-      "count": 5,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 5
-    },
-    {
-      "key": "tooling/sublime",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
