@@ -37,6 +37,8 @@ import {
 } from './provider-output-contract.js';
 
 const TOOLING_PROVIDER_CACHE_KEY_VERSION = 'lk4';
+const TOOLING_PROVIDER_CACHE_KEY_PATTERN = new RegExp(`^tooling-provider:${TOOLING_PROVIDER_CACHE_KEY_VERSION}:[a-f0-9]{40}$`);
+const TOOLING_PROVIDER_CACHE_FILE_PATTERN = new RegExp(`-tooling-provider_${TOOLING_PROVIDER_CACHE_KEY_VERSION}_[a-f0-9]{40}[.]json$`);
 const TOOLING_PROVIDER_CACHE_SCHEMA_VERSION = 4;
 const TOOLING_PROVIDER_CACHE_READ_MAX_BYTES = 8 * 1024 * 1024;
 const TOOLING_PROVIDER_PROGRESS_HEARTBEAT_MS = 10_000;
@@ -168,7 +170,7 @@ const buildCacheFileName = ({ providerId, cacheKey }) => {
 const isOwnedProviderCache = (payload, fileName) => (
   payload?.cache?.owner === 'pairofcleats'
   && payload.cache.schemaVersion === TOOLING_PROVIDER_CACHE_SCHEMA_VERSION
-  && /^tooling-provider:lk3:[a-f0-9]{40}$/.test(payload.cache.key)
+  && TOOLING_PROVIDER_CACHE_KEY_PATTERN.test(payload.cache.key)
   && typeof payload?.provider?.id === 'string'
   && payload.provider.id.length > 0
   && fileName === buildCacheFileName({ providerId: payload.provider.id, cacheKey: payload.cache.key })
@@ -284,7 +286,7 @@ const pruneToolingCacheDir = async (cacheDir, { maxBytes, maxEntries } = {}) => 
     return { removed: 0, remainingBytes: 0 };
   }
   const files = entries.filter((entry) => (
-    entry.isFile() && /-tooling-provider_lk3_[a-f0-9]{40}\.json$/.test(entry.name)
+    entry.isFile() && TOOLING_PROVIDER_CACHE_FILE_PATTERN.test(entry.name)
   ));
   const stats = [];
   for (const entry of files) {
