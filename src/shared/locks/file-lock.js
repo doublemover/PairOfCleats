@@ -122,6 +122,15 @@ export const acquireFileLock = async ({
         }
       };
     } catch (err) {
+      // Windows can retain a delete-pending file object until another native
+      // handle closes. CREATE_NEW reports EPERM (not EEXIST) during that gap.
+      // Keep the existing acquisition bound; persistent denial still throws
+      // the original filesystem error and never enters stale-owner cleanup.
+      if (process.platform === 'win32' && err?.code === 'EPERM' && err?.syscall === 'open'
+        && deadline != null && Date.now() < deadline) {
+        await sleepWithAbort(resolvedPollMs, lockSignal);
+        continue;
+      }
       if (err?.code === 'ENOENT') {
         parentMissingRetries += 1;
         incrementParentMissingRetriesMetric();
