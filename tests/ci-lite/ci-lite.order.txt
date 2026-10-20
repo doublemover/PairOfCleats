@@ -972,7 +972,6 @@ tooling/release/shipped-surface-registry
 indexing/language-registry/linguist-metadata-parity
 tooling/install/docx-node-compatibility
 tooling/lsp/lifecycle-health
-ci/windows-authority-cohort
 tooling/reports/summary/index-lifecycle
 indexing/semantic/compiler-single-cpu-lifecycle
 storage/semantic/verified-piece-snapshot
@@ -1058,3 +1057,4 @@ lang/contracts/html-registry-metadata
 indexing/contracts/python-html-registry
 tooling/vfs/hash-origin-authority
 tooling/vfs/token-origin-authority
+tooling/reports/map-selected-index-identity

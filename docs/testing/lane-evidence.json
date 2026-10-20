@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T12:45:33.017Z",
+  "generatedAt": "2026-10-20T13:09:37.012Z",
   "summary": {
     "lanes": 5,
-    "tests": 1280,
+    "tests": 1281,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 326,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1206
+      "missingTests": 1207
     }
   },
   "lanes": [
@@ -20,14 +20,14 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/gate/gate.order.txt",
       "timingArtifactPath": ".testLogs/gate-testRunTimes.txt",
-      "totalTests": 39,
+      "totalTests": 40,
       "knownDurationTests": 0,
       "knownDurationMs": 0,
       "p50DurationMs": null,
       "p95DurationMs": null,
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
-        "missing": 39
+        "missing": 40
       }
     },
     {
@@ -230,9 +230,9 @@
     },
     {
       "key": "tooling/reports",
-      "count": 10,
+      "count": 11,
       "knownDurationMs": 510,
-      "unknownDurationCount": 8
+      "unknownDurationCount": 9
     },
     {
       "key": "shared/hash",

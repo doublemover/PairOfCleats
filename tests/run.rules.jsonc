@@ -31,6 +31,7 @@
         "^indexing/policy/",
         "^indexing/contracts/",
         "^tooling/api-contracts/",
+        "^ci/windows-authority-cohort$",
         "^ci/capability-gate\\.smoke$",
         "^ci/tooling-doctor-gate\\.smoke$"
       ]
