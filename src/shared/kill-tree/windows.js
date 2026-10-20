@@ -1,5 +1,6 @@
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 import { scheduleUnrefTimer, wait } from './shared.js';
+import path from 'node:path';
 
 const DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
@@ -7,10 +8,18 @@ const WINDOWS_DESCENDANT_KILL_LIMIT = 2048;
 const WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_BUDGET_MS = 4000;
 
+/** Node 26 supports 64-bit Windows; bind its native system helper, independently of PATH. */
+export const resolveWindowsPowerShellPath = (env = process.env) => {
+  const systemRoot = env.SystemRoot || env.SYSTEMROOT || env.windir || env.WINDIR;
+  if (typeof systemRoot !== 'string' || !/^[A-Za-z]:[\\/]/.test(systemRoot)) return null;
+  return path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+};
+
 // Toolhelp reads the native process snapshot without a WMI provider or C# compiler.
 // PROCESSENTRY32W layout: tlhelp32.h; reject anything except complete enumeration.
 export const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
 [Console]::Error.WriteLine('lineage:script-start')
+if ([IntPtr]::Size -ne 8) { throw 'Process snapshot requires the supported 64-bit Windows runtime.' }
 $assembly = [AppDomain]::CurrentDomain.DefineDynamicAssembly([Reflection.AssemblyName]::new('PocProcessSnapshot'), [Reflection.Emit.AssemblyBuilderAccess]::Run)
 $module = $assembly.DefineDynamicModule('Native')
 $builder = $module.DefineType('PocProcessSnapshot', [Reflection.TypeAttributes]'Public, Abstract, Sealed')
@@ -29,8 +38,8 @@ Add-NativeMethod 'Process32NextW' ([bool]) ([Type[]]@([IntPtr], [IntPtr]))
 Add-NativeMethod 'CloseHandle' ([bool]) ([Type[]]@([IntPtr]))
 $native = $builder.CreateType()
 [Console]::Error.WriteLine('lineage:interop-ready')
-$entrySize = if ([IntPtr]::Size -eq 8) { 568 } else { 556 }
-$parentOffset = if ([IntPtr]::Size -eq 8) { 32 } else { 24 }
+$entrySize = 568
+$parentOffset = 32
 $buffer = [IntPtr]::Zero
 $snapshot = [IntPtr]::new(-1)
 $rows = [Text.StringBuilder]::new()
@@ -113,8 +122,11 @@ export const isWindowsPidAlive = (pid) => {
 const discoverWindowsDescendantPidsSync = (rootPid) => {
   const script = WINDOWS_PROCESS_SNAPSHOT_SCRIPT;
   const startedAt = Date.now();
+  const executable = resolveWindowsPowerShellPath(process.env);
+  if (!executable) return { pids: [], diagnostic: { exitCode: null,
+    errorCode: 'ERR_WINDOWS_SYSTEM_ROOT', durationMs: 0, discoveredCount: 0, stderr: '' } };
   const result = runSyncCommandWithTimeout(
-    'powershell.exe',
+    executable,
     ['-NoProfile', '-NonInteractive', '-Command', script],
     {
       stdio: ['ignore', 'pipe', 'pipe'],
