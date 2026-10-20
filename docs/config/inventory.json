@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T12:14:56.587Z",
+  "generatedAt": "2026-10-20T15:42:26.261Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4405,6 +4405,7 @@
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/retrieval/filters/semantic-filter-contract-matrix.test.js",
         "tests/retrieval/parity/equivalence.test.js",
+        "tests/retrieval/pipeline/ann-lazy-import.test.js",
         "tests/services/core-observability.test.js",
         "tests/services/mcp/mode-selection.test.js",
         "tests/services/mcp/tool-search-defaults-and-filters.test.js",

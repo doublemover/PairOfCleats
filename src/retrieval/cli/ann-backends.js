@@ -128,18 +128,22 @@ export const attachDenseVectorLoader = ({
       }
       for (const artifactName of artifactCandidates) {
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+        let legacy = null;
         try {
-          const legacy = await loadJsonObjectArtifact(dir, artifactName, {
+          legacy = await loadJsonObjectArtifact(dir, artifactName, {
             maxBytes: MAX_JSON_BYTES,
             manifest,
             strict
           });
-          const payload = admitDense(materializeLegacyDenseVectorPayload(legacy, modelIdDefault));
-          if (!payload) continue;
-          idx.denseVec = payload;
-          return payload;
         } catch {
           if (strict || !descriptor) continue;
+        }
+        // Optional source lookup may fall through; a strict identity rejection
+        // after a successful read must reach the caller.
+        const payload = admitDense(materializeLegacyDenseVectorPayload(legacy, modelIdDefault));
+        if (payload) {
+          idx.denseVec = payload;
+          return payload;
         }
         if (!strict && descriptor) {
           const fallbackPaths = [
