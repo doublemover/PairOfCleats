@@ -1044,3 +1044,5 @@ retrieval/federation/relative-cache-freshness
 services/mcp/index-build-cancellation
 storage/sqlite/build/cancellation
 tooling/ingest/lsif/protocol
+tooling/ingest/gtags/protocol
+tooling/ingest/gtags/command-contract

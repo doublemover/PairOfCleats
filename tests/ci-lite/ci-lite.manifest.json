@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 902,
+    "hero": 904,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6277,6 +6277,18 @@
     {
       "id": "tooling/ingest/lsif/protocol",
       "order": 1044,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ingest/gtags/protocol",
+      "order": 1045,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ingest/gtags/command-contract",
+      "order": 1046,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

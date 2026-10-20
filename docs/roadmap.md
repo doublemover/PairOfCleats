@@ -18,8 +18,9 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Forty-nine issues have repairs through source `ab0bba773` (fifteenth batch): LSIF ingestion follows
-result-to-range item direction and document/URI authority. MCP builds retain
+Fifty issues have repairs through source `39cf3939d` (sixteenth batch): GNU Global cxref ingestion
+separates source text from encoded paths and owns valid query arguments; LSIF follows
+result-to-range direction and document/URI authority. MCP builds retain
 request cancellation through core, SQLite ingestion and publication. FTS applies query
 eligibility before its candidate cap, federation enumerates exact eligible modes,
 and relative modification filters bind result caches to one request cutoff.
