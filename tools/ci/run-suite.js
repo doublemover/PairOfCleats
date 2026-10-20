@@ -84,17 +84,16 @@ export const __applySuiteToolingPathEntriesForTests = (env, repoRoot, userConfig
 
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
-  'core',
   'storage',
   'indexing',
-  'language',
-  'benchmarks',
-  'search',
-  'embeddings',
-  'services',
   'fixtures',
   'tools'
 ]);
+// These canonical owners were previously reachable only through redundant
+// script wrappers. API replacements already belong to their dedicated cohort.
+const RETIRED_DELEGATION_OWNER_IDS = ['smoke/tantivy', 'smoke/e2e', 'smoke/baseline',
+  'services/mcp/tools-list', 'services/mcp/schema', 'services/mcp/robustness',
+  'tooling/fixtures/fixture-eval'];
 const buildUsrGateSteps = (diagnosticsDir) => USR_GUARDRAIL_GATES.map((gate) => ({
   label: gate.label,
   command: process.execPath,
@@ -306,7 +305,7 @@ const main = async () => {
         '--exclude',
         'services/api/',
         ...(mode === 'nightly' ? ['--exclude',
-          '/^tooling\\/script-coverage\\/(core|storage|indexing|language|benchmarks|search|embeddings|services|fixtures|tools)\\//'] : []),
+          `/^tooling\\/script-coverage\\/(${SCRIPT_COVERAGE_GROUPS.join('|')})\\//`] : []),
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
@@ -422,6 +421,15 @@ const main = async () => {
           path.join(logDir, 'bench-sweet16.json'),
           '--quiet'
         ]
+      }]
+      : []),
+    ...(mode === 'nightly'
+      ? [{
+        label: 'Retained canonical fixture owners',
+        command: process.execPath,
+        args: ['tests/run.js', '--lane', 'all', ...exactSelectors(RETIRED_DELEGATION_OWNER_IDS),
+          '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000',
+          '--retries', '0', '--native-status-redo=false']
       }]
       : []),
     ...(mode === 'nightly'

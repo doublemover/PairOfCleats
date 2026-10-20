@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseExpressionAt } from 'acorn';
 
+export const isDirectNodeDelegation = action => {
+  const expression = parseExpressionAt(`(${action.run.toString()})`, 0, { ecmaVersion: 'latest' });
+  return expression.type === 'ArrowFunctionExpression' && !expression.async
+    && expression.body.type === 'CallExpression' && expression.body.callee.name === 'runNode';
+};
+
 /** The callback returns undefined so guarded runtime-only postchecks stay idle. */
 export const createInvocationRecorder = () => {
   const records = [];
@@ -16,9 +22,7 @@ export const createInvocationRecorder = () => {
       for (const action of actions) {
         current = { group: action.group, label: action.label, covers: action.covers || [],
           coversTierB: action.coversTierB || [], invocations: [] };
-        const expression = parseExpressionAt(`(${action.run.toString()})`, 0, { ecmaVersion: 'latest' });
-        current.directDelegation = expression.type === 'ArrowFunctionExpression' && !expression.async
-          && expression.body.type === 'CallExpression' && expression.body.callee.name === 'runNode';
+        current.directDelegation = isDirectNodeDelegation(action);
         await action.run();
         records.push(current);
       }

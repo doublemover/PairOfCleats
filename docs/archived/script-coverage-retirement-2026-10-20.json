@@ -1,0 +1,1806 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "c4357abb3db1af3e887dda97dde24b768b801b1c",
+  "packageSha256": "48f4c314291244bd5013e758373162e2a58b89b7a9d345b4f92242d4510d64f8",
+  "beforeActions": 212,
+  "afterActions": 38,
+  "retiredCount": 174,
+  "proof": "Each retired action is a synchronous arrow whose entire body returns one runNode call. Runtime recording establishes one canonical test file, no arguments/options and no surviving npm-script claims. No fixture body or assertion is removed.",
+  "environment": "Nested runner sets the canonical target test ID. All 174 canonical lanes are outside ci/ci-long and have the same lane-default config. Cache/log suffixes name isolated disposable namespaces; they are not workload inputs. Shared runner, isolation, cancellation, timeout, retry and skip contracts remain independently covered.",
+  "boundaries": {
+    "before": "outer discovered wrapper -> group runner -> action runner -> canonical fixture process",
+    "after": "canonical discovered fixture process; unchanged assertions and 30-second deadline"
+  },
+  "originalModules": [
+    {
+      "path": "tests/tooling/script-coverage/actions/core.js",
+      "sha256": "1af33ce06b668635583a1f15aa89bc77ddd642c523ffd96f0e20f663dd77c8b6"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/storage.js",
+      "sha256": "0c07879576843c15ea6a16a2e978348238b41284fd1909ae835fe42d6390de32"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/indexing.js",
+      "sha256": "ce13e51a8485c6f6a353792c1273d8992564a7f5d7004b0aad27b0f002dd9c22"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/language.js",
+      "sha256": "6bab713cc635ec7e20e1b46b31c2a9e8919a8c23d68f6f049dc3c33bd3a6151b"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/benchmarks.js",
+      "sha256": "9dcc31d99c0e862dae75491527ea8df3b452f9985976bdb5bd9a4b4afa71e160"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/search.js",
+      "sha256": "c9e8ffffe5eedef9ab21b23a85fee0524c90a1058b1575854d011f209b9b0526"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/embeddings.js",
+      "sha256": "fb238f235aee2325f42fdaa9e855b28e8bddd86dcd7e31ba19cf3e7a8935acc0"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/services.js",
+      "sha256": "b0dc1dcb43c5ad7bad01c1491cfd83b3eb235f8dd973af06244c8c57cbedd042"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/fixtures.js",
+      "sha256": "560a923b5c8757e00cf23ce40e6b3d027010c0881082c2d8a3632e8d807831f0"
+    },
+    {
+      "path": "tests/tooling/script-coverage/actions/tools.js",
+      "sha256": "4b44cdbca48c34c71ba94d56c94dec9a910eaa455fbc5d50c354439a658191cd"
+    }
+  ],
+  "retiredEmptyGroups": [
+    "core",
+    "language",
+    "benchmarks",
+    "search",
+    "embeddings",
+    "services"
+  ],
+  "delegations": [
+    {
+      "wrapperId": "tooling/script-coverage/core/download-dicts-test",
+      "canonicalOwner": "tooling/install/download-dicts",
+      "lane": "unit",
+      "target": "tests/tooling/install/download-dicts.test.js",
+      "targetSha256AtRemoval": "fd840b9bcfc49d3a8e0489f597480bf57e00d09ef420debcda2a00ead0a1b8b9",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/download-extensions-test",
+      "canonicalOwner": "tooling/install/download-extensions",
+      "lane": "unit",
+      "target": "tests/tooling/install/download-extensions.test.js",
+      "targetSha256AtRemoval": "8eaebe9c5c842e8414006b77fe9dfd483f06ad6b56a03f28e1f66c01a5b9e181",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/vector-extension-contract-matrix-test",
+      "canonicalOwner": "storage/vector-extension/contract-matrix",
+      "lane": "storage",
+      "target": "tests/storage/vector-extension/contract-matrix.test.js",
+      "targetSha256AtRemoval": "2ccd57cc7f0b40b006b90b32041daa97312267311f40795ba9c1b50351b62d78",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/xxhash-backends-test",
+      "canonicalOwner": "shared/hash/xxhash-backends",
+      "lane": "unit",
+      "target": "tests/shared/hash/xxhash-backends.test.js",
+      "targetSha256AtRemoval": "2c6fba75054e18d3270750507f0a149411b87808ef4d3562b06c0bf518a3f73e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/safe-regex-contract-matrix-test",
+      "canonicalOwner": "shared/safe-regex/contract-matrix",
+      "lane": "unit",
+      "target": "tests/shared/safe-regex/contract-matrix.test.js",
+      "targetSha256AtRemoval": "e66491153ab1656d162110be4df14a3ba7e282dfdecb7fa948e73136e917e2ca",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/detect-and-plan-contract-matrix-test",
+      "canonicalOwner": "tooling/install/detect-and-plan-contract-matrix",
+      "lane": "unit",
+      "target": "tests/tooling/install/detect-and-plan-contract-matrix.test.js",
+      "targetSha256AtRemoval": "d4e2f77e87aafe26fda361821d41f4a4341638a744f7989688071c4ece68cc94",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/tooling-install-test",
+      "canonicalOwner": "tooling/install/tooling",
+      "lane": "unit",
+      "target": "tests/tooling/install/tooling.test.js",
+      "targetSha256AtRemoval": "72d8e99742358729454d2e044ce4593f376fef48e99daf9695f7c5181f17bfcd",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/capabilities-report-test",
+      "canonicalOwner": "tooling/reports/capabilities-report",
+      "lane": "unit",
+      "target": "tests/tooling/reports/capabilities-report.test.js",
+      "targetSha256AtRemoval": "fb00b8313d98e21b881967ea59c969688629e3be4b151ed11c8f7f73927347b4",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/clean-artifacts-test",
+      "canonicalOwner": "indexing/artifacts/clean",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/clean.test.js",
+      "targetSha256AtRemoval": "af2a8e70f02bbf32b29db6bd18b5511d70b69b0b29198c375d66edbac513f21c",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/core/uninstall-test",
+      "canonicalOwner": "tooling/install/uninstall",
+      "lane": "unit",
+      "target": "tests/tooling/install/uninstall.test.js",
+      "targetSha256AtRemoval": "1aeaf89e82e9d63d0ca7e222b115c45f3e2392f2c6808fa9f425a39a8654ea9f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-incremental-test",
+      "canonicalOwner": "storage/sqlite/incremental/file-manifest-updates",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/incremental/file-manifest-updates.test.js",
+      "targetSha256AtRemoval": "e0e6341bb1c8f8c42b34c6c2ee7625cbdba32817681f309b00aa934c700eb564",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-incremental-no-change-test",
+      "canonicalOwner": "storage/sqlite/incremental-no-change",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/incremental-no-change.test.js",
+      "targetSha256AtRemoval": "0e887e44e15e277306590d672a18935a956fc6ad2d9f97715224bd6fb9dfeb92",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-bundle-missing-test",
+      "canonicalOwner": "storage/sqlite/bundle-missing",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/bundle-missing.test.js",
+      "targetSha256AtRemoval": "c80e9f57def082e3287ba47cd64183edb73513ad008957abb61affeaaac79a50",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-maintenance-contract-matrix-test",
+      "canonicalOwner": "storage/sqlite/maintenance-contract-matrix",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/maintenance-contract-matrix.test.js",
+      "targetSha256AtRemoval": "d46cbaa8cad43defd3dba465a14d789e90a7733bf078207af2eeb7f80973fb58",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-ann-extension-test",
+      "canonicalOwner": "storage/sqlite/ann/sqlite-extension",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/ann/sqlite-extension.test.js",
+      "targetSha256AtRemoval": "424ee931190b983ce3987b4460267ecd0a7e184bffcb6ca99485636cdd4dae2e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-vec-candidate-set-test",
+      "canonicalOwner": "storage/sqlite/ann/sqlite-vec-candidate-set",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/ann/sqlite-vec-candidate-set.test.js",
+      "targetSha256AtRemoval": "067258449a6d1143e317b6bc1c40d02039d35c4098853ea3dbb8c84317654958",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-build-manifest-test",
+      "canonicalOwner": "storage/sqlite/build-manifest",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/build-manifest.test.js",
+      "targetSha256AtRemoval": "b0f7289d65e80c3320649e593567a232bf8eb1ff0e0ad5326bff261bfef7ac1f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-build-vocab-test",
+      "canonicalOwner": "storage/sqlite/build-vocab",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/build-vocab.test.js",
+      "targetSha256AtRemoval": "f788200919619630ca3dd13abf0b1e47be5ba46552470c2303fe48aa4adbc894",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-build-delete-test",
+      "canonicalOwner": "storage/sqlite/build-delete",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/build-delete.test.js",
+      "targetSha256AtRemoval": "2b179beca9f943ba64c6f1d69e4394dc6b26bdc9b1cc197b135642852a67ea22",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/hnsw-ann-test",
+      "canonicalOwner": "retrieval/ann/hnsw",
+      "lane": "integration",
+      "target": "tests/retrieval/ann/hnsw.test.js",
+      "targetSha256AtRemoval": "08b4334742135cb105c5f4f94d2a8fb442d11d09d3f1a25a39dfe840681577ab",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/lancedb-ann-test",
+      "canonicalOwner": "retrieval/ann/lancedb",
+      "lane": "integration",
+      "target": "tests/retrieval/ann/lancedb.test.js",
+      "targetSha256AtRemoval": "0b835acd3ebefadf937e9ec7f03ef57a28904a7f037208a70aa628c4b6a5b870",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/tantivy-smoke-test",
+      "canonicalOwner": "smoke/tantivy",
+      "lane": "smoke",
+      "target": "tests/smoke/tantivy.test.js",
+      "targetSha256AtRemoval": "b080aa493e10d6b02ab37fcf5a9f20302bf867a4a99863ad4ce1123f23ca70f3",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/hnsw-atomic-test",
+      "canonicalOwner": "retrieval/ann/hnsw-atomic",
+      "lane": "integration",
+      "target": "tests/retrieval/ann/hnsw-atomic.test.js",
+      "targetSha256AtRemoval": "a3d609bef4bb5d71cba36309d86f9c94b029f34bfab1428bd7a6b445c6ca9064",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/ann-backend-contract-matrix-test",
+      "canonicalOwner": "retrieval/ann/backend-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/ann/backend-contract-matrix.test.js",
+      "targetSha256AtRemoval": "14c8b960d5733a99c833176fd3e5bee8ae9b5efd76a65f877467ff6d7a9f9e08",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-chunk-id-test",
+      "canonicalOwner": "storage/sqlite/chunk-id",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/chunk-id.test.js",
+      "targetSha256AtRemoval": "e33788086bb30ca7420c7efb46ad561d4f4e3cae7714879baa20ccff97102840",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-search-backend-contract-matrix-test",
+      "canonicalOwner": "storage/sqlite/search-backend-contract-matrix",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/search-backend-contract-matrix.test.js",
+      "targetSha256AtRemoval": "883bbcb03a0756d8a980eca2fc8cf8715b0cbf2884c8024eb112208e41b88cd1",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-cache-test",
+      "canonicalOwner": "storage/sqlite/cache",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/cache.test.js",
+      "targetSha256AtRemoval": "1f54c7a97e6c1ce410b9a57f0ceb75f827a90a5ef09b0e4baab0ab3359a49165",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-build-indexes-test",
+      "canonicalOwner": "storage/sqlite/build-indexes",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/build-indexes.test.js",
+      "targetSha256AtRemoval": "c16c37366facadff75e4d52480d25d2640479da410be3f998cf0a5559c727895",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/sqlite-chunk-meta-streaming-test",
+      "canonicalOwner": "storage/sqlite/chunk-meta-streaming",
+      "lane": "storage",
+      "target": "tests/storage/sqlite/chunk-meta-streaming.test.js",
+      "targetSha256AtRemoval": "6a8186b1ed0186316152bbf869ee26cdc592bc641e7c701fa87e9889364146d1",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/lmdb-contract-matrix-test",
+      "canonicalOwner": "storage/lmdb/contract-matrix",
+      "lane": "storage",
+      "target": "tests/storage/lmdb/contract-matrix.test.js",
+      "targetSha256AtRemoval": "4e6a6a989e60a436f20a43194c58a6570cbf824474b6b7859223be7580aabb48",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/storage/runtime-contract-matrix-test",
+      "canonicalOwner": "indexing/runtime/contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/runtime/contract-matrix.test.js",
+      "targetSha256AtRemoval": "94ad8c9b8ac653c4b62794dfad5b0d193be066d949f84d220df6ef89d618062d",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/artifact-size-guardrails-test",
+      "canonicalOwner": "indexing/artifacts/artifact-size-guardrails",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/artifact-size-guardrails.test.js",
+      "targetSha256AtRemoval": "f54126c4d45a7f11cd49e0797da2cb8d7cefd88dca5336b80c48984109e8d59f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/chunk-meta-jsonl-cleanup-test",
+      "canonicalOwner": "indexing/artifacts/chunk-meta-jsonl-cleanup",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/chunk-meta-jsonl-cleanup.test.js",
+      "targetSha256AtRemoval": "7e255d6b1f9edc2785569e2ce1e40a889afb610d8fa68c9f3624a0753724ff93",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/chunking-guardrails-test",
+      "canonicalOwner": "indexing/chunking/guardrails",
+      "lane": "integration",
+      "target": "tests/indexing/chunking/guardrails.test.js",
+      "targetSha256AtRemoval": "b43cac8c5fb8e0bc4ce36861c154a06a285d9f5daab11b31083b19363b44f103",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/code-map-contract-matrix-test",
+      "canonicalOwner": "indexing/map/code-map-contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/map/code-map-contract-matrix.test.js",
+      "targetSha256AtRemoval": "8dd7298ebf0efb326746beb42f4c056a7786231ad674d203d34f49d246f9bfec",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/e2e-smoke-test",
+      "canonicalOwner": "smoke/e2e",
+      "lane": "smoke",
+      "target": "tests/smoke/e2e.test.js",
+      "targetSha256AtRemoval": "13b6905e6285b6d1a91f3bb02a900f93e607c90f10fa09452ced6cf312bc4eea",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/jsonl-validation-test",
+      "canonicalOwner": "shared/json-stream/jsonl-validation",
+      "lane": "unit",
+      "target": "tests/shared/json-stream/jsonl-validation.test.js",
+      "targetSha256AtRemoval": "8a6b49d197c74519b537bc653b1d32da7f354d76f58ea3a1e97061fc99003b53",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/incremental-manifest-test",
+      "canonicalOwner": "indexing/incremental/manifest",
+      "lane": "integration",
+      "target": "tests/indexing/incremental/manifest.test.js",
+      "targetSha256AtRemoval": "9c33daa5c4cc0d622bc0863e180e81c1def9976f71a490ce72b3a3d2013d6556",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/index-lock-test",
+      "canonicalOwner": "indexing/watch/index-lock",
+      "lane": "integration",
+      "target": "tests/indexing/watch/index-lock.test.js",
+      "targetSha256AtRemoval": "40a2987ce3433e0356298749ee2009396045bc1e8800bac53874222e875181c6",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/minhash-parity-test",
+      "canonicalOwner": "indexing/tokenization/minhash-parity",
+      "lane": "integration",
+      "target": "tests/indexing/tokenization/minhash-parity.test.js",
+      "targetSha256AtRemoval": "c82b10839aaea70f15d5dc806d68bdc31af36c3ed09572e5fb9221df9101560a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/metadata-v2-test",
+      "canonicalOwner": "indexing/metav2/metadata-v2",
+      "lane": "integration",
+      "target": "tests/indexing/metav2/metadata-v2.test.js",
+      "targetSha256AtRemoval": "c9589701184a53c96e1e4ff5e2e48e937d8207984651ea72bc9329ea1bb03ac0",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/chunking-limits-test",
+      "canonicalOwner": "indexing/chunking/limits",
+      "lane": "integration",
+      "target": "tests/indexing/chunking/limits.test.js",
+      "targetSha256AtRemoval": "27bd3d3f35c85ac17ee1d1697ba36f902d6a2a69c8f69a579f9dbc3455646344",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/call-graph-contract-matrix-test",
+      "canonicalOwner": "indexing/relations/call-graph-contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/relations/call-graph-contract-matrix.test.js",
+      "targetSha256AtRemoval": "f722766ed86cb164d072163d49d56ab60f840f9f83d224ffffc234f985b88180",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/segment-pipeline-test",
+      "canonicalOwner": "indexing/segments/segment-pipeline",
+      "lane": "integration",
+      "target": "tests/indexing/segments/segment-pipeline.test.js",
+      "targetSha256AtRemoval": "4a050aaa435696c814c19911033af96cc3bfc2290126c6c58645883c50bcc732",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/prose-skip-imports-test",
+      "canonicalOwner": "indexing/imports/prose-skip",
+      "lane": "integration",
+      "target": "tests/indexing/imports/prose-skip.test.js",
+      "targetSha256AtRemoval": "ef62c1aaee9d76788cfdfc3cc7d2149a2d7c6151a8bf348db41eaa23ccfb689e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/extracted-prose-test",
+      "canonicalOwner": "indexing/extracted-prose/core",
+      "lane": "integration",
+      "target": "tests/indexing/extracted-prose/core.test.js",
+      "targetSha256AtRemoval": "c7f21da4b19e49f4230002d626ab8a3cf0a7370bd6cc87fdafd579a8e2b9eb6c",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/tokenize-dictionary-test",
+      "canonicalOwner": "indexing/tokenization/tokenize-dictionary",
+      "lane": "integration",
+      "target": "tests/indexing/tokenization/tokenize-dictionary.test.js",
+      "targetSha256AtRemoval": "244f8fcbcb46f2da4789204caddaaba961481e057ff15ea4f0bc855701804113",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/import-links-test",
+      "canonicalOwner": "indexing/imports/import-links",
+      "lane": "integration",
+      "target": "tests/indexing/imports/import-links.test.js",
+      "targetSha256AtRemoval": "ec9c84401bbaf3acb25de037a45bbd95791ecd7f4731fd633f0ed9da1e2b3034",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/git-blame-range-test",
+      "canonicalOwner": "indexing/git/blame-range",
+      "lane": "integration",
+      "target": "tests/indexing/git/blame-range.test.js",
+      "targetSha256AtRemoval": "8291763be53e0439efc9c123769b0cd42495ab58b94702d35d03ee6d975068eb",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/external-docs-test",
+      "canonicalOwner": "indexing/metadata/external-docs",
+      "lane": "integration",
+      "target": "tests/indexing/metadata/external-docs.test.js",
+      "targetSha256AtRemoval": "fbcf4a2b4fd7412857a15b6896b9a0b695a0a928c3e941360ae52dd660d0b254",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/artifact-bak-recovery-test",
+      "canonicalOwner": "indexing/artifacts/artifact-bak-recovery",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/artifact-bak-recovery.test.js",
+      "targetSha256AtRemoval": "e82ee24a3bd87843bfe7bee456c2540d065945bbb80f93fca1c61b22e5a4dae9",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/encoding-contract-matrix-test",
+      "canonicalOwner": "shared/encoding/contract-matrix",
+      "lane": "unit",
+      "target": "tests/shared/encoding/contract-matrix.test.js",
+      "targetSha256AtRemoval": "a34a93ca59cf0d7f843345b428a647a8d8078c9def96942057e9d6757b09d075",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/jsonl-utf8-test",
+      "canonicalOwner": "shared/json-stream/jsonl-utf8",
+      "lane": "unit",
+      "target": "tests/shared/json-stream/jsonl-utf8.test.js",
+      "targetSha256AtRemoval": "bd99752a079e530332e7f5887f8f42637c3a48134376b0e578f848f85a97282e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/unicode-offset-test",
+      "canonicalOwner": "shared/encoding/unicode-offset",
+      "lane": "unit",
+      "target": "tests/shared/encoding/unicode-offset.test.js",
+      "targetSha256AtRemoval": "5e7b035d4206ace712f87cf69c2e929ca9dfc5be32ddd39e2599a07a50991eb8",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/file-caps-contract-matrix-test",
+      "canonicalOwner": "indexing/file-caps/contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/file-caps/contract-matrix.test.js",
+      "targetSha256AtRemoval": "2f73a06d8c3731dd7fda210032c62aacc22812cfae3465c88ba025932ef591b7",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/skip-minified-binary-test",
+      "canonicalOwner": "indexing/file-processor/skip-minified-binary",
+      "lane": "integration",
+      "target": "tests/indexing/file-processor/skip-minified-binary.test.js",
+      "targetSha256AtRemoval": "7ca549e93e1765500b4c9a731e065dace024c67f897a193c520294818c374e88",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/read-failure-skip-test",
+      "canonicalOwner": "indexing/file-processor/read-failure-skip",
+      "lane": "integration",
+      "target": "tests/indexing/file-processor/read-failure-skip.test.js",
+      "targetSha256AtRemoval": "96710f3eecb52327d72b5ce6dc76676dba360f836d597d468511bf7d97d4d0b8",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/encoding-fallback-test",
+      "canonicalOwner": "shared/encoding/fallback",
+      "lane": "unit",
+      "target": "tests/shared/encoding/fallback.test.js",
+      "targetSha256AtRemoval": "323a75548ad994decaa95ec865317a92d284fd53297f64e7ad46c38ae381e60c",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/tokenization-buffering-test",
+      "canonicalOwner": "indexing/tokenization/buffering",
+      "lane": "integration",
+      "target": "tests/indexing/tokenization/buffering.test.js",
+      "targetSha256AtRemoval": "534743efd2841250a7b07bc6d94ea577fc20a93b40d111369a368c397d1a4cbf",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/postings-quantize-test",
+      "canonicalOwner": "indexing/postings/quantize",
+      "lane": "integration",
+      "target": "tests/indexing/postings/quantize.test.js",
+      "targetSha256AtRemoval": "ac0603d05a8fa7b73c07b5b3ee17ad2d7005b53340b721abbc5834c40ebe025b",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/incremental-cache-signature-test",
+      "canonicalOwner": "indexing/incremental/cache-signature",
+      "lane": "integration",
+      "target": "tests/indexing/incremental/cache-signature.test.js",
+      "targetSha256AtRemoval": "7366903d49df0b8e2ae1309586bd69669741ea89589831589aa7b64866dee2d3",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/incremental-reuse-test",
+      "canonicalOwner": "indexing/incremental/reuse",
+      "lane": "integration",
+      "target": "tests/indexing/incremental/reuse.test.js",
+      "targetSha256AtRemoval": "cb8a221e6f572568254efff8684cfeb630c759336cabed4d32ac73a4010bedec",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/runtime-contract-matrix-test",
+      "canonicalOwner": "shared/runtime/runtime-contract-matrix",
+      "lane": "unit",
+      "target": "tests/shared/runtime/runtime-contract-matrix.test.js",
+      "targetSha256AtRemoval": "0d214eba6090d4b2f1171dc3c2d3b924f1101f9b972bef43ac177f6a00a3839f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/shard-merge-test",
+      "canonicalOwner": "indexing/shards/shard-merge",
+      "lane": "integration",
+      "target": "tests/indexing/shards/shard-merge.test.js",
+      "targetSha256AtRemoval": "6ad08fa6094207183a752ff0f149ed5c6396d624d4aba2abbad7c97d6ecb3201",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/shard-plan-test",
+      "canonicalOwner": "indexing/shards/shard-plan",
+      "lane": "integration",
+      "target": "tests/indexing/shards/shard-plan.test.js",
+      "targetSha256AtRemoval": "bcb48491182f6c37d2b764b302b0f27c6595bbe34f43d575b576870b0c473e26",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/preprocess-files-test",
+      "canonicalOwner": "indexing/preprocess/files",
+      "lane": "integration",
+      "target": "tests/indexing/preprocess/files.test.js",
+      "targetSha256AtRemoval": "e26e8d0eae3ddf0cad059ab767f7bb13e8b4d5318819c51031f3c31cee2fb532",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/chunking-json-unit-test",
+      "canonicalOwner": "indexing/chunking/json",
+      "lane": "integration",
+      "target": "tests/indexing/chunking/json.test.js",
+      "targetSha256AtRemoval": "acd53ee8aee7cf9bfd9a6ebffe5bc19958cb37428e3e0a55ded6222cbf8984d5",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/indexer-signatures-contract-matrix-test",
+      "canonicalOwner": "indexer/signatures/contract-matrix",
+      "lane": "unit",
+      "target": "tests/indexer/signatures/contract-matrix.test.js",
+      "targetSha256AtRemoval": "75b435330e2f84e597a6297ffbb9876eb48d81a2ab895a0690b6100f68221a84",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/indexer-sort-determinism-test",
+      "canonicalOwner": "indexer/determinism/sort",
+      "lane": "unit",
+      "target": "tests/indexer/determinism/sort.test.js",
+      "targetSha256AtRemoval": "dba25df06d470e18e2821b25301e171604789c006f3a7a9f8194ce5dfddc7156",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/indexer-incremental-contract-matrix-test",
+      "canonicalOwner": "indexer/incremental/contract-matrix",
+      "lane": "unit",
+      "target": "tests/indexer/incremental/contract-matrix.test.js",
+      "targetSha256AtRemoval": "9397a4e28a4ced177bbd4ea8aee512fb487c4ea8dae49b0e94f08888235aa909",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/file-processor-skip-test",
+      "canonicalOwner": "indexing/file-processor/skip",
+      "lane": "integration",
+      "target": "tests/indexing/file-processor/skip.test.js",
+      "targetSha256AtRemoval": "e13b7252b7a4e52c27eac85281e52a154fe71e89d41475b483b810a1dd65b71f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/file-processor-cached-bundle-test",
+      "canonicalOwner": "indexing/file-processor/cached-bundle",
+      "lane": "integration",
+      "target": "tests/indexing/file-processor/cached-bundle.test.js",
+      "targetSha256AtRemoval": "0a83dd6a6b76d5ee2af6bcb86f7de20a5ac9b1a7399af02399817655409b81dd",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/artifacts-token-mode-test",
+      "canonicalOwner": "indexing/artifacts/token-mode",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/token-mode.test.js",
+      "targetSha256AtRemoval": "84cb70fb0db82419506985ab71b659044721bf36f87bc06f4db52e9ea3e8f2be",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/artifacts-file-meta-test",
+      "canonicalOwner": "indexing/artifacts/file-meta",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/file-meta.test.js",
+      "targetSha256AtRemoval": "01371d883fe29d84e836fa4e6a3f30f69970d01f0c8b97eef79187fc371fe957",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/piece-assembly-test",
+      "canonicalOwner": "indexing/piece-assembly/core",
+      "lane": "integration",
+      "target": "tests/indexing/piece-assembly/core.test.js",
+      "targetSha256AtRemoval": "3273e16c203312f8d699d3ba08e4645fe1a7c420a9f5d96ae93a001f0353e873",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/git-meta-test",
+      "canonicalOwner": "indexing/git/meta",
+      "lane": "integration",
+      "target": "tests/indexing/git/meta.test.js",
+      "targetSha256AtRemoval": "b96df63e6ac56f0c8b3d984ebc0b4b12c3705583f342817295db3fbec8972524",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/artifact-formats-test",
+      "canonicalOwner": "indexing/artifacts/artifact-formats",
+      "lane": "integration",
+      "target": "tests/indexing/artifacts/artifact-formats.test.js",
+      "targetSha256AtRemoval": "f83fe9d3cea14aa5923eb38c108a6b16aab34802505cee195a63c56b322fd731",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/json-stream-test",
+      "canonicalOwner": "shared/json-stream/codec-contract",
+      "lane": "unit",
+      "target": "tests/shared/json-stream/codec-contract.test.js",
+      "targetSha256AtRemoval": "1367b504cc664fd46b55f3aaccb0b6ae3e840786a67d3143f278fc7ca7db88c6",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/language-fixture-contracts-test",
+      "canonicalOwner": "lang/contracts/language-fixture-contracts",
+      "lane": "unit",
+      "target": "tests/lang/contracts/language-fixture-contracts.test.js",
+      "targetSha256AtRemoval": "f87f8c459142365fbaffb4821b8e910360198291faf85ee1fcc31a4eace19153",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/kotlin-perf-guard-test",
+      "canonicalOwner": "lang/kotlin/perf-guard",
+      "lane": "unit",
+      "target": "tests/lang/kotlin/perf-guard.test.js",
+      "targetSha256AtRemoval": "c4fd39c5d47a38b00222ad7387ed796db297c578a0056a607a1b0e464ceaefb8",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/tree-sitter-chunks-test",
+      "canonicalOwner": "indexing/tree-sitter/chunks",
+      "lane": "integration",
+      "target": "tests/indexing/tree-sitter/chunks.test.js",
+      "targetSha256AtRemoval": "dae0274ce9a2283ba6c44a93909b33e37269c740e767eb6a7f13b0122a9d40db",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/js-tree-sitter-maxbytes-test",
+      "canonicalOwner": "indexing/tree-sitter/js-maxbytes",
+      "lane": "integration",
+      "target": "tests/indexing/tree-sitter/js-maxbytes.test.js",
+      "targetSha256AtRemoval": "2adf47af174af3f01c943487b1a832ffac29ddc0eff07949cf977c3a5d52b602",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/type-inference-crossfile-go",
+      "canonicalOwner": "indexing/type-inference/crossfile/type-inference-go",
+      "lane": "integration",
+      "target": "tests/indexing/type-inference/crossfile/type-inference-go.test.js",
+      "targetSha256AtRemoval": "70c67d3f019024afbf88b1adb028840a6c72b57cd65318ca2845304fcd5c6560",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/type-inference-crossfile-test",
+      "canonicalOwner": "indexing/type-inference/crossfile/output.integration",
+      "lane": "integration",
+      "target": "tests/indexing/type-inference/crossfile/output.integration.test.js",
+      "targetSha256AtRemoval": "adda34e4f92ac1d029adf176598fb110ae26bc1f2c546acbc44a9c28f672e23b",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/type-inference-lsp-enrichment-test",
+      "canonicalOwner": "indexing/type-inference/providers/type-inference-lsp-enrichment",
+      "lane": "integration",
+      "target": "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
+      "targetSha256AtRemoval": "fa4aa1ebcd0108a745da134b9796d4f95487067d6975166dd10a66a37bee7dac",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/type-inference-typescript-provider-no-ts",
+      "canonicalOwner": "indexing/type-inference/providers/type-inference-typescript-provider-no-ts",
+      "lane": "integration",
+      "target": "tests/indexing/type-inference/providers/type-inference-typescript-provider-no-ts.test.js",
+      "targetSha256AtRemoval": "78a442d76fce31f1c4235b6c0c18288c54a0a27fbc90d89b1de8de90168068d7",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/type-inference-clangd-provider-no-clangd",
+      "canonicalOwner": "indexing/type-inference/providers/type-inference-clangd-provider-no-clangd",
+      "lane": "integration",
+      "target": "tests/indexing/type-inference/providers/type-inference-clangd-provider-no-clangd.test.js",
+      "targetSha256AtRemoval": "3893320a5b11937aad35982e59cf315991e732d871967cbc0916c7a19d7e3c1f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/type-inference-sourcekit-provider-no-sourcekit",
+      "canonicalOwner": "indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit",
+      "lane": "integration",
+      "target": "tests/indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit.test.js",
+      "targetSha256AtRemoval": "1928733f8cd4b074c37b0f78b5432b6bda453fcd95fd103a240a4ba47a62c301",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/format-fidelity-test",
+      "canonicalOwner": "indexing/chunking/formats/format-fidelity",
+      "lane": "integration",
+      "target": "tests/indexing/chunking/formats/format-fidelity.test.js",
+      "targetSha256AtRemoval": "7b34ce4a2a11de72dbaa23da49f5390613536b794b1b75057a10c4c9e75685d1",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/chunking-yaml-test",
+      "canonicalOwner": "indexing/chunking/yaml",
+      "lane": "integration",
+      "target": "tests/indexing/chunking/yaml.test.js",
+      "targetSha256AtRemoval": "67ebfde65341a620dc5ea6b6cfa6795dae5017adf161f35c8fa90fbb954d9f20",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/chunking-sql-lua-test",
+      "canonicalOwner": "indexing/chunking/sql-lua",
+      "lane": "integration",
+      "target": "tests/indexing/chunking/sql-lua.test.js",
+      "targetSha256AtRemoval": "3872ae775617507c4a0ff849014980c90b31b761bc7aa0a7f546d595a65bd824",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/clike-doc-comments-test",
+      "canonicalOwner": "lang/clike/doc-comments",
+      "lane": "unit",
+      "target": "tests/lang/clike/doc-comments.test.js",
+      "targetSha256AtRemoval": "c0935a6896682872dddefcc4c33fec8a76d40a7ad42541e07c6146f959e475ca",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/ruby-end-comment-test",
+      "canonicalOwner": "lang/ruby/end-comment",
+      "lane": "unit",
+      "target": "tests/lang/ruby/end-comment.test.js",
+      "targetSha256AtRemoval": "f242e27d59173b77182a420fe4ddfcb416a824488811357f2cfe87ca4da8668c",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/php-methods-unique-test",
+      "canonicalOwner": "lang/php/methods-unique",
+      "lane": "unit",
+      "target": "tests/lang/php/methods-unique.test.js",
+      "targetSha256AtRemoval": "22b6db620e6b94b80469c324f28838f27c37f5d3e7a7d5e866bdcd4e9338b3f2",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/tooling-lsp-test",
+      "canonicalOwner": "tooling/lsp/tooling",
+      "lane": "unit",
+      "target": "tests/tooling/lsp/tooling.test.js",
+      "targetSha256AtRemoval": "cd9eaf447ca74b2aca1c68ea428571d2afa648bdd6962d7798d00c88675bbb94",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/lsp-shutdown-test",
+      "canonicalOwner": "tooling/lsp/shutdown",
+      "lane": "unit",
+      "target": "tests/tooling/lsp/shutdown.test.js",
+      "targetSha256AtRemoval": "61478430d70b521d0624f9520117e2b0b56173cf38c3b8b2a37e57e1f61edaef",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/typescript-contract-matrix-test",
+      "canonicalOwner": "lang/typescript/typescript-contract-matrix",
+      "lane": "unit",
+      "target": "tests/lang/typescript/typescript-contract-matrix.test.js",
+      "targetSha256AtRemoval": "13780012a5fdbe57658b39f69d215066d085843abc746a3c07dbaf2e7eff90df",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/import-resolution-policy-contract-matrix-test",
+      "canonicalOwner": "indexing/imports/import-resolution-policy-contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/imports/import-resolution-policy-contract-matrix.test.js",
+      "targetSha256AtRemoval": "c53eebdeae3e572dc55d5475ef9581319055f1bad9edef7dc738afb1f07a8cc7",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/ignore-contract-matrix-test",
+      "canonicalOwner": "indexing/ignore/contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/ignore/contract-matrix.test.js",
+      "targetSha256AtRemoval": "2a1f68ebf17221e618967c2688eed3d2aa989e87ebaa08efb960ab8c2b9f0721",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/language-registry-contract-matrix-test",
+      "canonicalOwner": "lang/registry/registry-contract-matrix",
+      "lane": "unit",
+      "target": "tests/lang/registry/registry-contract-matrix.test.js",
+      "targetSha256AtRemoval": "cc9188a9f3c3b724ec96e063f79ca28a9343f14e883f0f10c1b7f71a53dfc026",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/python-contract-matrix-test",
+      "canonicalOwner": "lang/python/python-contract-matrix",
+      "lane": "unit",
+      "target": "tests/lang/python/python-contract-matrix.test.js",
+      "targetSha256AtRemoval": "29b1ee67b37300f0937a502f9995eb17a15b68c144b5f0a65b52305bdd3549bc",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/python-ast-worker-test",
+      "canonicalOwner": "lang/python/ast-worker",
+      "lane": "unit",
+      "target": "tests/lang/python/ast-worker.test.js",
+      "targetSha256AtRemoval": "f51d0dff26cba3ac4ab2763df9b4102b0946d89a55eba50dc619dc40e4f40aa0",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/language/javascript-contract-matrix-test",
+      "canonicalOwner": "lang/javascript/javascript-contract-matrix",
+      "lane": "unit",
+      "target": "tests/lang/javascript/javascript-contract-matrix.test.js",
+      "targetSha256AtRemoval": "5af458eb4c4c310ae10a5d483c891664b1b5026934ef0742881e5f6ab76345da",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/benchmarks/bench-language-repos-test",
+      "canonicalOwner": "perf/bench/language-repos",
+      "lane": "perf",
+      "target": "tests/perf/bench/language-repos.test.js",
+      "targetSha256AtRemoval": "2ad91836f81fe7f48091421344fd998534c15fc999533517ff83516e9bc48546",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/benchmarks/bench-language-lock-test",
+      "canonicalOwner": "perf/bench/language-lock",
+      "lane": "perf",
+      "target": "tests/perf/bench/language-lock.test.js",
+      "targetSha256AtRemoval": "63aa08c9d5a99a7206d07d49434bb5d34171ad194f2c18273ba1687b21fc4123",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/benchmarks/bench-language-progress-parse-test",
+      "canonicalOwner": "perf/bench/language-progress-parse",
+      "lane": "perf",
+      "target": "tests/perf/bench/language-progress-parse.test.js",
+      "targetSha256AtRemoval": "78059b23451c4d05fdab664c079e19d847bc56bbea0d026fdcd5acdceee02478",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/benchmarks/bench-language-lock-semantics-test",
+      "canonicalOwner": "perf/bench/language-lock-semantics",
+      "lane": "perf",
+      "target": "tests/perf/bench/language-lock-semantics.test.js",
+      "targetSha256AtRemoval": "7aafc77d235a4e9a8a590a197bead27d967ba3ed07186ab25510d99c15d4b5b4",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/benchmarks/bench-progress-format-test",
+      "canonicalOwner": "perf/bench/progress-format",
+      "lane": "perf",
+      "target": "tests/perf/bench/progress-format.test.js",
+      "targetSha256AtRemoval": "1b1aa53f630a78472013ed73dfb32b9cc05361118b9cd0aa0679a2d3983e463f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/search-filter-contract-matrix-test",
+      "canonicalOwner": "retrieval/filters/search-filter-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/filters/search-filter-contract-matrix.test.js",
+      "targetSha256AtRemoval": "26283086e22edf15c06d362069f90970e0ef568f7c91376f86d6f79a99824859",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/backend-contract-matrix-test",
+      "canonicalOwner": "retrieval/backend/backend-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/backend/backend-contract-matrix.test.js",
+      "targetSha256AtRemoval": "ffdc667d712b893bb7c56e6a3cec1aa2a6b2516961f95cdb2417cbfa42225f29",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/structural-search-test",
+      "canonicalOwner": "tooling/structural/search",
+      "lane": "unit",
+      "target": "tests/tooling/structural/search.test.js",
+      "targetSha256AtRemoval": "f77cccd6bb8ccebfb65168829da7aa44177046d47d01dac76d23e9367f6b7140",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/structural-filters-test",
+      "canonicalOwner": "tooling/structural/filters",
+      "lane": "unit",
+      "target": "tests/tooling/structural/filters.test.js",
+      "targetSha256AtRemoval": "f976c2a15a048eb484f4dd67433c3896ab0b8ea95a69b08d3b4ecac314324d9e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/filter-index-artifact-test",
+      "canonicalOwner": "retrieval/filters/filter-index-artifact",
+      "lane": "integration",
+      "target": "tests/retrieval/filters/filter-index-artifact.test.js",
+      "targetSha256AtRemoval": "38037f7a35d10e494ce71d704e954b68a8a8ba6c183aafd39cf31546697d917c",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/search-symbol-boost-test",
+      "canonicalOwner": "cli/search/symbol-boost",
+      "lane": "unit",
+      "target": "tests/cli/search/symbol-boost.test.js",
+      "targetSha256AtRemoval": "22cc78d0e994380384ec6994bdead86821ead777eccc66b5242c9820dfdaa212",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/cli-search-contract-matrix-test",
+      "canonicalOwner": "cli/search/contract-matrix",
+      "lane": "unit",
+      "target": "tests/cli/search/contract-matrix.test.js",
+      "targetSha256AtRemoval": "1d8581864a33e888df7455f4462f5d838fa06d5b461ebbf9027374d2cea6a99b",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/query-contract-matrix-test",
+      "canonicalOwner": "retrieval/query/query-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/query/query-contract-matrix.test.js",
+      "targetSha256AtRemoval": "e5c97ab71436865ba623d1071cae9f2d7fd503806f4e57cb8c9404a642366bcb",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/context-expansion-contract-matrix-test",
+      "canonicalOwner": "retrieval/context-expansion/context-expansion-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/context-expansion/context-expansion-contract-matrix.test.js",
+      "targetSha256AtRemoval": "5937587aa40d7be881c21309f2927c8d0661b11ba01e77abec621dc6a2af6fb5",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/query-cache-contract-matrix-test",
+      "canonicalOwner": "retrieval/cache/query-cache-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/cache/query-cache-contract-matrix.test.js",
+      "targetSha256AtRemoval": "b5ef5d8357bfe496f8b839369096def2d6ca05364b501ea0cffe1277e46d88a2",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/search/fielded-bm25-test",
+      "canonicalOwner": "retrieval/ranking/fielded-bm25",
+      "lane": "integration",
+      "target": "tests/retrieval/ranking/fielded-bm25.test.js",
+      "targetSha256AtRemoval": "9745dfc42221593220550904029cc3d13a94a86983f5eb1221ac251203536be8",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-validate-test",
+      "canonicalOwner": "indexing/embeddings/validate",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/validate.test.js",
+      "targetSha256AtRemoval": "b566bd1c4324a2bf41d3624d4e98f75ede56cd6498633899ed4984a7d023390a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-cache-identity-test",
+      "canonicalOwner": "indexing/embeddings/cache-identity",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/cache-identity.test.js",
+      "targetSha256AtRemoval": "365880ebee1ef13d75f513c66d583b96d183e2a1f33257db6d7646c51b1d8e75",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-identity-test",
+      "canonicalOwner": "indexing/embeddings/identity",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/identity.test.js",
+      "targetSha256AtRemoval": "42529fd8b1a8aadc124a8c8e929bebfb392e4d527d4aa37642bf71f732f5c2f1",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-cache-index-contract-matrix-test",
+      "canonicalOwner": "indexing/embeddings/cache-index-contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/cache-index-contract-matrix.test.js",
+      "targetSha256AtRemoval": "dc3951873939cf319e9a27852fa6b4f055681b9fabb12c17aff1800f67da1713",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-stub-fastpath-cache-contract-matrix-test",
+      "canonicalOwner": "indexing/embeddings/stub-fastpath-cache-contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/stub-fastpath-cache-contract-matrix.test.js",
+      "targetSha256AtRemoval": "090c3afeeaacfd73af35995508dc9fb4fcbd8a76337a5c882e0a340792275ff9",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-dims-validation-test",
+      "canonicalOwner": "indexing/embeddings/dims-validation",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/dims-validation.test.js",
+      "targetSha256AtRemoval": "b0cfc3486391c5f88b347268d91695ff334128cff757d0780aed9dcef5744f70",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embeddings-sqlite-dense-test",
+      "canonicalOwner": "indexing/embeddings/sqlite-dense",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/sqlite-dense.test.js",
+      "targetSha256AtRemoval": "da9617790724a460d197b24e455f4397f8e4003a05df823c51b9b282ce11c8a6",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embedding-batch-policy-matrix-test",
+      "canonicalOwner": "indexing/embeddings/embedding-batch-policy-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/embedding-batch-policy-matrix.test.js",
+      "targetSha256AtRemoval": "b7216dedbfb402e3c521f10e4407e8f591c43ed7d0a00e3b4679345da98c0f72",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/build-embeddings-cache-test",
+      "canonicalOwner": "indexing/embeddings/build/embeddings-cache",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/build/embeddings-cache.test.js",
+      "targetSha256AtRemoval": "430911d7bf7242ed2220040eaa0d9773a81a6ec4faa8d9c2c0bf41feafbcadfd",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/embeddings/embedding-autotune-profile-test",
+      "canonicalOwner": "indexing/embeddings/embedding-autotune-profile",
+      "lane": "integration",
+      "target": "tests/indexing/embeddings/embedding-autotune-profile.test.js",
+      "targetSha256AtRemoval": "02b9f2f18a728e2f3b1b21a83b4d2a9111a4c317b469a12c25a2f705aedaa313",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/mcp-server-test",
+      "canonicalOwner": "services/mcp/tools-list",
+      "lane": "mcp",
+      "target": "tests/services/mcp/tools-list.test.js",
+      "targetSha256AtRemoval": "00791d5b6c67fd7dbc3e2906e928b9cba960547b6be3deecbf39ab8c3b8f10a1",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/mcp-schema-test",
+      "canonicalOwner": "services/mcp/schema",
+      "lane": "mcp",
+      "target": "tests/services/mcp/schema.test.js",
+      "targetSha256AtRemoval": "7da67643069d7581807f7b1b1659aa987ea76c2758384faf0ea10ce180ca13c5",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/mcp-robustness-test",
+      "canonicalOwner": "services/mcp/robustness",
+      "lane": "mcp",
+      "target": "tests/services/mcp/robustness.test.js",
+      "targetSha256AtRemoval": "8274ba114826c3d7774547c915a042396ecd5d27b7af2d326e04407977578edc",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/api-server-test",
+      "canonicalOwner": "services/api/router-contract-matrix",
+      "lane": "api",
+      "target": "tests/services/api/router-contract-matrix.test.js",
+      "targetSha256AtRemoval": "7b3b7eeee3139939c9d576293fbc45056b5b5f60221ca0b2c5d6cb8f8f674e12",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/api-server-stream-test",
+      "canonicalOwner": "services/api/server-stream",
+      "lane": "api",
+      "target": "tests/services/api/server-stream.test.js",
+      "targetSha256AtRemoval": "67f16fb9a1addaaf230ae5d58f851a55210efcddfdcc865842324681fd7b97be",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/indexer-service-test",
+      "canonicalOwner": "services/indexer/service",
+      "lane": "services",
+      "target": "tests/services/indexer/service.test.js",
+      "targetSha256AtRemoval": "006e51f57e2e5f9bc0aaf20fa297329b82150f6f2721fbac43e6a5c184219890",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/services/service-queue-test",
+      "canonicalOwner": "services/queue/service",
+      "lane": "services",
+      "target": "tests/services/queue/service.test.js",
+      "targetSha256AtRemoval": "f46343fa7e4ec36614d9b5df5084256ad87eb6005f273d18231684c8dba050cc",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/fixtures/verify",
+      "canonicalOwner": "smoke/baseline",
+      "lane": "smoke",
+      "target": "tests/smoke/baseline.test.js",
+      "targetSha256AtRemoval": "d03c74ea943434e708339bd6d8cf3afd15379fa65e18787402cf56e5001c08ed",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/fixtures/fixture-smoke",
+      "canonicalOwner": "indexing/fixtures/build-and-artifacts",
+      "lane": "integration",
+      "target": "tests/indexing/fixtures/build-and-artifacts.test.js",
+      "targetSha256AtRemoval": "55e9ab393e2924b98973e6a51b661332720a48323ba3e08191c7aa7a91c9c789",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/fixtures/fixture-empty",
+      "canonicalOwner": "tooling/fixtures/fixture-empty",
+      "lane": "unit",
+      "target": "tests/tooling/fixtures/fixture-empty.test.js",
+      "targetSha256AtRemoval": "be869bac50284fa4d13640e2f02cea241bdd19a189458af6fc3fb462be9e3280",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/fixtures/fixture-eval",
+      "canonicalOwner": "tooling/fixtures/fixture-eval",
+      "lane": "unit",
+      "target": "tests/tooling/fixtures/fixture-eval.test.js",
+      "targetSha256AtRemoval": "f6495a5eb79b3faf64b0e17210b1d7441a126beded3b440adaf535d3e9b19740",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/fixtures/eval-quality-test",
+      "canonicalOwner": "tooling/eval/quality",
+      "lane": "unit",
+      "target": "tests/tooling/eval/quality.test.js",
+      "targetSha256AtRemoval": "57e76f5dea0c323bd77e6cb408bd3810898428460e92b6bcfabc8070ef48a90a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/summary-report-test",
+      "canonicalOwner": "tooling/reports/summary/report",
+      "lane": "unit",
+      "target": "tests/tooling/reports/summary/report.test.js",
+      "targetSha256AtRemoval": "ca449aaedf26a5653f895ba498be0ae46ca05db19f90810d6e98d4334918e54c",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/metrics-dashboard-test",
+      "canonicalOwner": "tooling/reports/metrics-dashboard",
+      "lane": "unit",
+      "target": "tests/tooling/reports/metrics-dashboard.test.js",
+      "targetSha256AtRemoval": "9c2ca6823729f41d29b160b3bea2dc4406c7cfa754ad2ddc33480cc6c0777ffc",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/index-validate-test",
+      "canonicalOwner": "indexing/validate/index",
+      "lane": "integration",
+      "target": "tests/indexing/validate/index.test.js",
+      "targetSha256AtRemoval": "f451f4e77db3c8b14accc3270e9819cb1d926da3f7a566887324d0f8bcfbe7ce",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/triage-test",
+      "canonicalOwner": "tooling/triage/records-index-and-search",
+      "lane": "unit",
+      "target": "tests/tooling/triage/records-index-and-search.test.js",
+      "targetSha256AtRemoval": "40dacb8d060ba302ebc3b4250ed2d63357f524dee91b5c9d5d1e449cdc3f299f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/ctags-ingest-test",
+      "canonicalOwner": "tooling/ingest/ctags/ingest",
+      "lane": "unit",
+      "target": "tests/tooling/ingest/ctags/ingest.test.js",
+      "targetSha256AtRemoval": "2bd56c2a76e6435c312900fc7e0a10079743a76eecb34122c5430d9ce92fe58f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/scip-ingest-test",
+      "canonicalOwner": "tooling/ingest/scip/ingest",
+      "lane": "unit",
+      "target": "tests/tooling/ingest/scip/ingest.test.js",
+      "targetSha256AtRemoval": "d954a743b2146c006ad4496b593a951eb48c09038199aa24d12bfa67d5f5f399",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/lsif-ingest-test",
+      "canonicalOwner": "tooling/ingest/lsif/ingest",
+      "lane": "unit",
+      "target": "tests/tooling/ingest/lsif/ingest.test.js",
+      "targetSha256AtRemoval": "f8e377304a5caf389bb6a410172d7cdcea083372753beefd8eadff91d7fc2d1a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/gtags-ingest-test",
+      "canonicalOwner": "tooling/ingest/gtags/ingest",
+      "lane": "unit",
+      "target": "tests/tooling/ingest/gtags/ingest.test.js",
+      "targetSha256AtRemoval": "58cae0dd04856d3b747a6c3bfd8bb1df88061704b490fe5e34a8fce716cda896",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/vscode-package-contract-matrix-test",
+      "canonicalOwner": "tooling/vscode/package-contract-matrix",
+      "lane": "unit",
+      "target": "tests/tooling/vscode/package-contract-matrix.test.js",
+      "targetSha256AtRemoval": "277f0101edb059d6c689e1bd68edee36f7ddc28f898bd2441f3fcc9af53a780a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/repo-root-test",
+      "canonicalOwner": "cli/general/repo-root",
+      "lane": "unit",
+      "target": "tests/cli/general/repo-root.test.js",
+      "targetSha256AtRemoval": "b16a092f6c875e98e68fa046d7ab9e9b663d1a706e08c13d7c4dfa448c07f740",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/tool-root-test",
+      "canonicalOwner": "tooling/install/tool-root",
+      "lane": "unit",
+      "target": "tests/tooling/install/tool-root.test.js",
+      "targetSha256AtRemoval": "20dbaaddb58d00172321f9150fae5f4a0762dea00bc84c69411e88db4f87068f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/jsonrpc-parser-test",
+      "canonicalOwner": "shared/jsonrpc/parser",
+      "lane": "unit",
+      "target": "tests/shared/jsonrpc/parser.test.js",
+      "targetSha256AtRemoval": "ac0895a2c464061fdee133bf7dff312f1d79a3c56bc8c04f11a610a1208bf149",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/index-cache-contract-matrix-test",
+      "canonicalOwner": "retrieval/cache/index-cache-contract-matrix",
+      "lane": "integration",
+      "target": "tests/retrieval/cache/index-cache-contract-matrix.test.js",
+      "targetSha256AtRemoval": "14d09b249048ec944dd84bcdcd3ee81c934c6b1e8def504df140e527f7a3a76e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/worker-pool-test",
+      "canonicalOwner": "indexing/workers/worker-pool",
+      "lane": "integration",
+      "target": "tests/indexing/workers/worker-pool.test.js",
+      "targetSha256AtRemoval": "fc7f488611ac521b43c8c5613b6637fb4d59e03120c4bae416f073dfef5f59fb",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/worker-pool-windows-test",
+      "canonicalOwner": "indexing/workers/worker-pool-windows",
+      "lane": "integration",
+      "target": "tests/indexing/workers/worker-pool-windows.test.js",
+      "targetSha256AtRemoval": "6b1ed17651582600d49fdc31a35f7e2eec7fb7fb6c9cfad6bc79d6e0ff5ebe69",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/build-index-all-test",
+      "canonicalOwner": "cli/build-index/all",
+      "lane": "unit",
+      "target": "tests/cli/build-index/all.test.js",
+      "targetSha256AtRemoval": "a6263ac817e37efbb6cadc6c0abb048adbedc10946ab164fc9da083e2f1f56c0",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/cache-gc-test",
+      "canonicalOwner": "shared/cache/gc",
+      "lane": "unit",
+      "target": "tests/shared/cache/gc.test.js",
+      "targetSha256AtRemoval": "c192f94aac68b40d0d2aca3528375952b44b0b17da9ac2abfd3c3af13efa6c70",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/cache-contract-matrix-test",
+      "canonicalOwner": "shared/cache/contract-matrix",
+      "lane": "unit",
+      "target": "tests/shared/cache/contract-matrix.test.js",
+      "targetSha256AtRemoval": "14828bf6191d548e97049ab685bca7096b5cb54980bbacb262b83d8f3c311809",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/discovery-contract-matrix-test",
+      "canonicalOwner": "indexing/discovery/contract-matrix",
+      "lane": "integration",
+      "target": "tests/indexing/discovery/contract-matrix.test.js",
+      "targetSha256AtRemoval": "e060cc23d18cfd0843e9ffc3166ee9a8284f9711b7ea9f41803a789690ff4777",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/watch-debounce-test",
+      "canonicalOwner": "indexing/watch/debounce",
+      "lane": "integration",
+      "target": "tests/indexing/watch/debounce.test.js",
+      "targetSha256AtRemoval": "9008e5f8a63932e0fa8132ef8591dfddeb57f6245614d3e13f31da102a70e73a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/watch-backend-selection-test",
+      "canonicalOwner": "indexing/watch/backend-selection",
+      "lane": "integration",
+      "target": "tests/indexing/watch/backend-selection.test.js",
+      "targetSha256AtRemoval": "c6f0b501efbc17cf85f9182b9b8edae451cd4878e4fb15efda578f13381dd3d6",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/watch-stability-guard-test",
+      "canonicalOwner": "indexing/watch/stability-guard",
+      "lane": "integration",
+      "target": "tests/indexing/watch/stability-guard.test.js",
+      "targetSha256AtRemoval": "876b71fc2ff2eaf7a3bcb7cb301200ae88da4081111a4c577a6c227fc93e737a",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/watch-filter-test",
+      "canonicalOwner": "indexing/watch/filter",
+      "lane": "integration",
+      "target": "tests/indexing/watch/filter.test.js",
+      "targetSha256AtRemoval": "b8dd0cc79ac57190ea930e0772559666bdb716051c061d5f0695f21bffe01fd1",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/setup-test",
+      "canonicalOwner": "tooling/install/setup",
+      "lane": "unit",
+      "target": "tests/tooling/install/setup.test.js",
+      "targetSha256AtRemoval": "996d51f26d7b9c3cc09bdba85e2a067ea7c6658c51d2e66a230e4f15139be4a6",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/setup-index-detection-test",
+      "canonicalOwner": "tooling/install/setup-index-detection",
+      "lane": "unit",
+      "target": "tests/tooling/install/setup-index-detection.test.js",
+      "targetSha256AtRemoval": "afd59808f1e040bf233294d8494fb21f6d5438c459fa54e8ae43700e4639121f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/config-validate-test",
+      "canonicalOwner": "tooling/config/contract-matrix",
+      "lane": "unit",
+      "target": "tests/tooling/config/contract-matrix.test.js",
+      "targetSha256AtRemoval": "e28f3ede477fc3bffd2c0bc5c1bd5b767b36e995d043a264d265798dfeb42fd8",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/io-concurrency-cap-test",
+      "canonicalOwner": "shared/concurrency/io-cap",
+      "lane": "unit",
+      "target": "tests/shared/concurrency/io-cap.test.js",
+      "targetSha256AtRemoval": "b9b5ca7ffccb9d892ac30803794daa4d866ac45e955425fc433158e0aa812199",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/backend-policy-test",
+      "canonicalOwner": "storage/backend/policy",
+      "lane": "storage",
+      "target": "tests/storage/backend/policy.test.js",
+      "targetSha256AtRemoval": "10812b3b7b21a29c142665f882e13f154843a79ce27782ac60d51a30d054f434",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/dict-adaptive-test",
+      "canonicalOwner": "tooling/dict-utils/dict-adaptive",
+      "lane": "unit",
+      "target": "tests/tooling/dict-utils/dict-adaptive.test.js",
+      "targetSha256AtRemoval": "eac987648c03dee16908e3333d20e1aafa18a2368649ca8df116965425ae444e",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/chargram-guardrails-test",
+      "canonicalOwner": "indexing/postings/chargram-guardrails",
+      "lane": "integration",
+      "target": "tests/indexing/postings/chargram-guardrails.test.js",
+      "targetSha256AtRemoval": "9b8afb96ca48020c847641a2ed5a5abd6e4caf1b9c2a58e0fb4e01d504a9263f",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/core-api-test",
+      "canonicalOwner": "services/api/core",
+      "lane": "api",
+      "target": "tests/services/api/core.test.js",
+      "targetSha256AtRemoval": "fba1bb2296f4785a9ff3c26b5b607c3bea47bebee3e3496b16870d3bb4708684",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/script-coverage-harness-test",
+      "canonicalOwner": "tooling/script-coverage/harness",
+      "lane": "unit",
+      "target": "tests/tooling/script-coverage/harness.test.js",
+      "targetSha256AtRemoval": "885e75c654b67dc863d281d2c07c746c19099e81301ac39e5dc8a52fa4310aa0",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/tools/cli-test",
+      "canonicalOwner": "cli/general/cli",
+      "lane": "unit",
+      "target": "tests/cli/general/cli.test.js",
+      "targetSha256AtRemoval": "e321d494db0135c0d95856e646992e3c5ef6a57cbf08525016e57b95a3ffdc45",
+      "args": [],
+      "options": {},
+      "survivingScriptClaims": []
+    }
+  ]
+}

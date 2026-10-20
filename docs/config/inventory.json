@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T16:02:49.740Z",
+  "generatedAt": "2026-10-20T16:29:54.631Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -202,7 +202,6 @@
       "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "PAIROFCLEATS_SKIP_BENCH",
       "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
-      "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
       "PAIROFCLEATS_SQLITE_DENSE_CHILD",
       "PAIROFCLEATS_SQLITE_DENSE_PAYLOAD",
       "PAIROFCLEATS_SQLITE_FTS_OVERFETCH_CHUNK_SIZE",
@@ -4174,14 +4173,6 @@
       "name": "PAIROFCLEATS_SKIP_SCRIPT_COVERAGE",
       "files": [
         "tests/runner/all.js",
-        "tools/config/inventory.js"
-      ]
-    },
-    {
-      "name": "PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL",
-      "files": [
-        "tests/runner/all.js",
-        "tests/tooling/script-coverage/actions.js",
         "tools/config/inventory.js"
       ]
     },

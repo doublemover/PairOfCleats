@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -18,7 +19,7 @@ const listInvocation = line => {
   const args = line.slice(line.indexOf('tests/run.js')).trim().split(/\s+/);
   const selectors = [];
   for (let index = 1; index < args.length; index++) {
-    if (['--lane', '--match', '--exclude'].includes(args[index])) selectors.push(args[index], args[++index]);
+    if (['--lane', '--match', '--exclude', '--tag', '--exclude-tag'].includes(args[index])) selectors.push(args[index], args[++index]);
   }
   return runNode(['tests/run.js', ...selectors, '--list'], 'resolve actual nightly selection',
     root, env, { stdio: 'pipe' }).stdout.trim().split(/\r?\n/);
@@ -48,4 +49,19 @@ for (let index = 0; index < lines.length; index += 1) {
     '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(expected), `${expected}: ${line}`);
 }
 console.log(JSON.stringify({ mainCases: mainIds.size, supplementalCases, overlap: 0 }));
+const plannedOwners = new Map();
+for (const line of planLines.filter(line => line.startsWith('[dry-run] ') && line.includes(' tests/run.js '))) {
+  for (const id of listInvocation(line)) {
+    assert.ok(!plannedOwners.has(id), `nightly repeats ${id}: ${plannedOwners.get(id)} and ${line}`);
+    plannedOwners.set(id, line.slice(0, line.indexOf(':')));
+  }
+}
+const retirement = JSON.parse(await fs.readFile(path.join(root,
+  'docs/archived/script-coverage-retirement-2026-10-20.json'), 'utf8'));
+for (const entry of retirement.delegations) {
+  assert.ok(plannedOwners.has(entry.canonicalOwner), `retirement cannot omit ${entry.canonicalOwner}`);
+  assert.ok(!plannedOwners.has(entry.wrapperId), `retired wrapper remains scheduled: ${entry.wrapperId}`);
+}
+console.log(JSON.stringify({ retainedCanonicalOwners: retirement.delegations.length,
+  plannedCases: plannedOwners.size, repeatedCases: 0 }));
 console.log('Nightly coverage dispatches every group through bounded discovered process cases');
