@@ -18,7 +18,8 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-seven issues have implemented repairs through the thirty-third batch.
+Sixty-seven issues have implemented repairs; Boolean complement follow-ups
+now preserve negative-only/OR hits, independent filters and cache invalidation.
 ANN publication binds full embedding identity and exact vector/chunk generation;
 failed replacements cannot relabel retained native bytes. Global Ctrl+C now follows
 shutdown across overlays, with a real Windows terminal/reaping witness.
@@ -40,14 +41,13 @@ correctness. The linked issue audit retains each failure, regression and source 
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
-Earlier hosted successes, CIM/SysWOW64 and compiler/API failures retain their
-source identities in the issue receipt. `8a0511c09` passes all seven checks
-(39436483363), including 46 Windows authority and eight API cases. Resource
-qualification retains its serial owner and unchanged bounds. Hosted `49b3189c9`
-failed the legacy ANN fallback fixture. Its generation/strict-error repair and
-global interrupt pass all seven checks at `18179bb7f` (39451767657).
+Earlier hosted successes and failures retain their source identities in the issue
+receipt. ANN generation/strict-error repairs and global interrupt pass all seven
+checks at `18179bb7f` (39451767657).
 Hosted `c4357abb3` exposes Windows pending-delete lock admission; its native
 regression now passes with bounded acquisition and preserved permission errors.
+At `3e4082c7a` the native lock cohort and Ubuntu pass; Windows parity setup
+times out and macOS XML content assertions fail. These remain repair targets.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.

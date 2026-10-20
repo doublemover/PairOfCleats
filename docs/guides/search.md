@@ -41,6 +41,10 @@ triaged quickly.
 - Explicit `AND`, `OR`, or parentheses request Boolean matching for the complete
   query, including its implicit conjunctions. Use `cache AND refresh` to require
   both terms for sparse and ANN results alike.
+- `alpha OR NOT gamma` also admits rows without `alpha` when they lack `gamma`;
+  `NOT gamma` searches the selected mode's complement. Sparse ranking retains
+  those eligible rows with zero lexical score after positive matches. Independent
+  file/language/metadata filters still apply to every result.
 - Quoted phrases, `NOT`/`-` exclusions, and structured file/language/metadata filters
   remain hard constraints for ANN results. Free text never bypasses those filters.
 - With `--stats` or `--explain`, the `rank` entry in `stats.pipeline` includes
