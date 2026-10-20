@@ -38,7 +38,8 @@ PowerShell-helper evidence and their individual repairs. The cold helper stall's
 cause remains open despite later successes. All seven checks pass at `77a6f0df7`
 (39486272672). Later `720bfbd0a` (39495523746) passes Linux/macOS, Rust, gate,
 47 Windows authority cases and five early ownership cases; real gopls starts on
-all platforms. Windows main has 1076 passes and one baseline diagnostic timeout.
+all platforms. Windows main has 1076 passes and one baseline diagnostic timeout;
+its nine child checks now have four bounded owners with mapped assertions.
 Earlier SQLite worker failure remains retained; its native lifecycle now has a
 strict serial owner and phase timing. Attribution and fresh acceptance remain open.
 #633 now connects canonical settings transactions to the real supervisor/native
