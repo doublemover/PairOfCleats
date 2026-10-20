@@ -1039,3 +1039,5 @@ context-pack/graph-selection/unspecified
 shared/kill-tree-windows-lineage
 context-pack/risk-guidance-csr
 graph/directed-traversal
+retrieval/federation/prose-enumeration-mode-scope
+retrieval/federation/relative-cache-freshness

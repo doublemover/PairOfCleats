@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 897,
+    "hero": 899,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6247,6 +6247,18 @@
     {
       "id": "graph/directed-traversal",
       "order": 1039,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/prose-enumeration-mode-scope",
+      "order": 1040,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/relative-cache-freshness",
+      "order": 1041,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
