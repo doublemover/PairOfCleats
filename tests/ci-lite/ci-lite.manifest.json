@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 874,
+    "hero": 876,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6111,6 +6111,18 @@
       "order": 1016,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/triage/ingest-fallback-identity",
+      "order": 1017,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/ingest-single-record-arrays",
+      "order": 1018,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }

@@ -18,8 +18,9 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Thirty-two issues have repairs through source candidate `e55f2cd8b`; the latest adds selected-model setup,
-prefetch precedence, interactive JSON and dictionary update correctness. Earlier
+Thirty-four issues have repairs through source candidate `fa26b03f8`; the latest prevents triage fallback identity
+loss and preserves single findings with array fields. The prior published batch
+through `6f9215890` fixes selected-model setup, prefetch, JSON and dictionary updates. Earlier
 batches add watch cancellation, semantic partition removal, Python/Go/Rust
 signatures and LSP cache authority. Nightly soak/reference
 enforcement, filter-only HTTP

@@ -34,6 +34,19 @@ Generic (already normalized schema):
 node tools/triage/ingest.js --source generic --in record.json --meta service=api --meta env=prod
 ```
 
+Inputs may be a single record, an array of records, or a named `alerts`, `findings`,
+`records` or `items` wrapper. Arrays owned by a shaped record (references, CWE tags
+or custom fields) stay part of that record. Legacy wrappers with one array remain
+supported; ambiguous wrappers are rejected. Primitive record entries are reported
+as per-entry errors and never written.
+
+Prefer an explicit `recordId` or `stableKey`. Fallback IDs hash the complete raw
+JSON serialization, including Unicode and suffixes, with field and array order
+preserved. Reordering fields therefore changes a fallback ID; identical inputs
+retain it. Fallback provenance remains lower trust. A conflicting persisted
+record at a derived ID is preserved and reported as an error; normalization's
+generated outer timestamps alone do not make a repeat import conflicting.
+
 Each ingest writes:
 - `<repoCacheRoot>/triage/records/<recordId>.json`
 - `<repoCacheRoot>/triage/records/<recordId>.md`

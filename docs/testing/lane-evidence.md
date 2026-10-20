@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-20T07:14:24.356Z
+Generated: 2026-10-20T07:21:38.368Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-20T07:14:24.356Z
 ## Lane Summary
 
 - `gate`: 39 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 1016 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 1018 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 152 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 20 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -26,7 +26,7 @@ Generated: 2026-10-20T07:14:24.356Z
 
 - `storage/sqlite`: 69 tests, 25860 ms known duration
 - `indexing/chunking`: 11 tests, 10530 ms known duration
-- `tooling/triage`: 3 tests, 10060 ms known duration
+- `tooling/triage`: 5 tests, 10060 ms known duration
 - `indexing/shards`: 4 tests, 8870 ms known duration
 - `indexing/file-processor`: 10 tests, 8370 ms known duration
 - `tooling/install`: 22 tests, 8330 ms known duration
@@ -42,7 +42,7 @@ Generated: 2026-10-20T07:14:24.356Z
 
 ## Setup Hotspots
 
-- `index-build-heavy`: 404 tests, 70250 ms known duration
+- `index-build-heavy`: 406 tests, 70250 ms known duration
   Index construction, replay, and build-heavy setup overlap.
 - `sqlite-heavy`: 69 tests, 25860 ms known duration
   SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.

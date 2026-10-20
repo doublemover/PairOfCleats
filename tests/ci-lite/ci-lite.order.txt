@@ -1016,3 +1016,5 @@ tooling/install/download-model-selection
 tooling/install/setup-model-readiness
 tooling/install/setup-json-prompts
 tooling/install/download-dicts-update
+tooling/triage/ingest-fallback-identity
+tooling/triage/ingest-single-record-arrays
