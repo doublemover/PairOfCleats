@@ -84,6 +84,9 @@ export default {
         const fixedPattern = buildFixedPattern(pattern);
         if (!fixedPattern) return;
         const flags = raw.slice(lastSlash + 1);
+        // A literal backslash followed by a real group is valid regex syntax.
+        // Never turn that into an unmatched escaped delimiter during --fix.
+        try { new RegExp(fixedPattern, flags); } catch { return; }
         context.report({
           node,
           messageId: 'doubleEscape',

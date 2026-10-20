@@ -7,6 +7,8 @@ ensureTestingEnv(process.env);
 const tester = new RuleTester({ languageOptions: { ecmaVersion: 2022, sourceType: 'module' } });
 tester.run('no-regex-double-escape', noRegexDoubleEscape, {
   valid: [
+    String.raw`const pattern = /\\(?:n|t)/u;`,
+    String.raw`const pattern = /\\\\(?:n|t)/u;`,
     String.raw`const pattern = /\s+\d/giu;`,
     String.raw`const pattern = /[\\s]/;`,
     String.raw`const pattern = new RegExp('\\s+');`,
