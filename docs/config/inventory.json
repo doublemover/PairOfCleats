@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T05:12:59.130Z",
+  "generatedAt": "2026-10-20T05:45:22.636Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4145,6 +4145,7 @@
     {
       "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_MAX_OUTPUT_BYTES",
       "files": [
+        "tests/tooling/service/subprocess-contract-matrix.test.js",
         "tools/config/inventory.js",
         "tools/service/subprocess-log.js"
       ]
@@ -4152,6 +4153,7 @@
     {
       "name": "PAIROFCLEATS_SERVICE_SUBPROCESS_TIMEOUT_MS",
       "files": [
+        "tests/tooling/service/subprocess-contract-matrix.test.js",
         "tools/config/inventory.js",
         "tools/service/subprocess-log.js"
       ]

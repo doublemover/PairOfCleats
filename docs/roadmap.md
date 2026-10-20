@@ -18,6 +18,12 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
+Six repairs are published at `afea1df6a`; ten more issues have local repairs
+and focused checks in the next batch. The first hosted run found a macOS TOML
+30 ms admission rejection and a Windows summary-build 20-second timeout;
+both receipts remain failures. Serial qualification now owns those unchanged
+budgets, and an explicit portable API cohort restores omitted authorization,
+search and federation coverage. New-candidate hosted qualification is pending.
 Windows acceptance is complete at frozen candidate `ffde426be`: all 2982
 required cases pass across 48 explicit cohorts, with 17 enumerated exclusions.
 There are no failures, timeouts, native crashes, retries or unexpected skips.

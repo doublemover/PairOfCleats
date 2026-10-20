@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-10-19. Source contracts and workflow definitions describe required
+Audited: 2026-10-20. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
@@ -11,6 +11,8 @@ Current execution evidence and unresolved failures belong to the
 | Surface | Checked-in qualification | What it establishes |
 | --- | --- | --- |
 | Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.10.0 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
+| Portable API contracts | Explicit serial seven-case CI cohort: router, core, repo authorization, streaming success/failure, search matrix and federated validation; nightly selects every discovered API case | The invocation-plan test resolves exact IDs and requires every ordered API fixture to have an owner. Each case uses one job/thread, 30 seconds, zero retries/native redo. New-candidate hosted execution remains pending. |
+| Serial runtime budgets | TOML cold quoted/date/integer corpus under its real 30 ms parser limit; unchanged summary code/prose build and SQLite assertions with a 20-second build bound | Execute separately from concurrent correctness lanes. The corresponding main-lane IDs have explicit serial replacement owners. Raw samples, native timeout failures and exact candidate identity remain distinct; no limit is raised. |
 | Windows authority | `windows-authority` job: exact PR head, real file-symlink capability probe, explicit 44-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification. A configured job is not a passing receipt; all cases must pass with logs and source/dependency identity. |
 | Windows subprocess ownership | Three existing real lifecycle fixtures before the broad Windows CI suite; one job/thread, 30-second limits, zero retries/native redo | Direct termination, already-exited parent/orphan fallback and synchronous timeout cleanup; raw discovery outcomes and attempts remain available. Configured coverage is not a passing hosted result. |
 | Semantic read ownership | Real trace/index reads, cancellation after opening, later errors, overlapping requests, same-size data/offset edits and cursor continuation | One common verified index owner per page plus three local probes preserves the four-pair bound. Every following page/request revalidates bytes and every scope closes before settling. Full 115-record/136-edge content equivalence is separate from timing. |

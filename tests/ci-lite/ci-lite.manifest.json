@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 843,
+    "hero": 854,
     "matrix": 108,
-    "meta": 29,
+    "meta": 30,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -5899,6 +5899,78 @@
     {
       "id": "context-pack/fd-zero-close",
       "order": 981,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/cache-gc-repo-scope",
+      "order": 982,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/maintenance-cancellation",
+      "order": 983,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/queue/artifact-cleanup-concurrency",
+      "order": 984,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/queue/admission-policy",
+      "order": 985,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/service/repo-sync-policy",
+      "order": 986,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/service/background-retry-policy",
+      "order": 987,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/service/service-config-validation",
+      "order": 988,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/service/indexer-job-completion-signal",
+      "order": 989,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/service/indexer-queue-worker-contract",
+      "order": 990,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ci/run-suite-api-plan",
+      "order": 991,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/shared-module-performance",
+      "order": 992,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/cache/repo-access",
+      "order": 993,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

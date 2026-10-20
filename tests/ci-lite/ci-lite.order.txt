@@ -981,3 +981,15 @@ shared/contained-file-verified-read
 storage/semantic/working-set-file-identity
 shared/io/append-writer-flush-after-close
 context-pack/fd-zero-close
+services/mcp/cache-gc-repo-scope
+services/mcp/maintenance-cancellation
+services/queue/artifact-cleanup-concurrency
+services/queue/admission-policy
+tooling/service/repo-sync-policy
+tooling/service/background-retry-policy
+tooling/service/service-config-validation
+tooling/service/indexer-job-completion-signal
+tooling/service/indexer-queue-worker-contract
+tooling/ci/run-suite-api-plan
+tooling/shared-module-performance
+shared/cache/repo-access

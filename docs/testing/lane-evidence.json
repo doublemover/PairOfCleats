@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T05:12:52.692Z",
+  "generatedAt": "2026-10-20T05:46:16.000Z",
   "summary": {
     "lanes": 5,
-    "tests": 1203,
+    "tests": 1215,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 315,
+    "families": 316,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1129
+      "missingTests": 1141
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 981,
+      "totalTests": 993,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 932
+        "missing": 944
       }
     },
     {
@@ -433,13 +433,19 @@
       "unknownDurationCount": 7
     },
     {
-      "key": "runner/harness",
-      "count": 6,
+      "key": "shared/cache",
+      "count": 7,
       "knownDurationMs": 0,
-      "unknownDurationCount": 6
+      "unknownDurationCount": 7
     },
     {
-      "key": "shared/cache",
+      "key": "tooling/service",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
+      "key": "runner/harness",
       "count": 6,
       "knownDurationMs": 0,
       "unknownDurationCount": 6
@@ -476,6 +482,12 @@
     },
     {
       "key": "retrieval/output",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
+      "key": "tooling/ci",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
@@ -547,12 +559,6 @@
       "unknownDurationCount": 4
     },
     {
-      "key": "tooling/ci",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
       "key": "tooling/config-inventory",
       "count": 4,
       "knownDurationMs": 0,
@@ -572,6 +578,18 @@
     },
     {
       "key": "indexing/filter-index",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "services/mcp",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "services/queue",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -704,12 +722,6 @@
     },
     {
       "key": "tooling/paths",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "tooling/service",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1471,18 +1483,6 @@
       "unknownDurationCount": 1
     },
     {
-      "key": "services/mcp",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "services/queue",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
       "key": "services/risk-explain-adapter-matrix",
       "count": 1,
       "knownDurationMs": 0,
@@ -1898,6 +1898,12 @@
     },
     {
       "key": "tooling/release",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/shared-module-performance",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
