@@ -46,7 +46,8 @@ reach only one shared failure: the serial-plan fixture still expects four owners
 At `7789dd3fc`, Ubuntu/macOS correctness and serial real-clock budgets pass;
 the 47-owner Windows authority cohort also passes. Windows fails before the main
 suite: its cold system PowerShell snapshot helper exceeds the unchanged two-second
-bound before emitting its first phase. Attribution and repair remain active.
+bound before emitting its first phase. Engine/payload diagnostics now distinguish
+those boundaries; the original cause remains open.
 #633 now connects canonical settings transactions to the real supervisor/native
 keyboard path, with scope, stale/cancel/privacy and exact-byte reset controls.
 Four actual Windows ConPTY cases pass; other platform native execution is separate.
