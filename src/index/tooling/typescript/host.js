@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { createModeAwareTypeScriptResolver } from './resolution.js';
 import { createTypeScriptVirtualBySource } from './roots.js';
+import { assertTypeScriptCompatibility } from './compatibility.js';
 
 const resolveScriptKind = (ts, fileName) => {
   const ext = path.extname(fileName).toLowerCase();
@@ -15,8 +16,9 @@ const resolveScriptKind = (ts, fileName) => {
   return ts.ScriptKind.Unknown;
 };
 
-export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths, system = ts.sys,
+export const createVirtualCompilerHost = (ts, compilerOptions, vfsMap, sourcePaths = new Map(), moduleOrigins = sourcePaths, system = ts?.sys,
   reuse = null) => {
+  assertTypeScriptCompatibility(ts);
   const baseHost = ts.createCompilerHost(compilerOptions, true);
   for (const method of ['fileExists', 'readFile', 'directoryExists', 'getDirectories', 'readDirectory', 'realpath']) {
     if (typeof system[method] === 'function') baseHost[method] = system[method];

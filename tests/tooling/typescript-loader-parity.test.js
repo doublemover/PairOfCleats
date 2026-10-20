@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { clearTypeScriptModuleCache, loadTypeScript, loadTypeScriptModule } from '../../src/index/tooling/typescript/load.js';
 
 const tmpRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'ts-loader-'));
@@ -14,7 +15,7 @@ await fsPromises.writeFile(path.join(tsRoot, 'package.json'), JSON.stringify({ n
 await fsPromises.writeFile(path.join(tsRoot, 'index.js'), 'module.exports = require("./lib/typescript.js");\n', 'utf8');
 await fsPromises.writeFile(
   path.join(tsLibDir, 'typescript.js'),
-  'module.exports = { version: "0.0.0-test", marker: "repo" };\n',
+  `module.exports = { ...require(${JSON.stringify(createRequire(import.meta.url).resolve('typescript'))}), marker: "repo" };\n`,
   'utf8'
 );
 

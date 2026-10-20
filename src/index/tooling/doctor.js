@@ -2,7 +2,6 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { buildProviderRecovery } from './recovery.js';
 import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
-import semver from 'semver';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import {
@@ -13,6 +12,7 @@ import {
 } from './provider-contract.js';
 import { resolveProviderCommandOverride } from './provider-command-override.js';
 import { loadTypeScript } from './typescript/load.js';
+import { assertTypeScriptCompatibility } from './typescript/compatibility.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
@@ -28,7 +28,6 @@ import {
   resolveToolingCommandProfile
 } from './command-resolver.js';
 
-const MIN_TYPESCRIPT_VERSION = '4.8.0';
 const TOOLING_DOCTOR_REPORT_SCHEMA_VERSION = 2;
 const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';
 
@@ -420,28 +419,21 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       providerAvailable = false;
       addCheck(executionAuthority.check);
     } else if (providerId === 'typescript') {
-      const ts = await loadTypeScript(toolingConfig, repoRoot);
-      if (!ts) {
+      let ts = null, incompatible = null;
+      try { ts = await loadTypeScript(toolingConfig, repoRoot); } catch (error) {
+        if (error?.reason !== 'typescript_incompatible') throw error;
+        incompatible = error;
+        addCheck({ name: 'typescript-compatibility', status: 'error', message: error.message });
+      }
+      if (!ts && !incompatible) {
         addCheck({
           name: 'typescript',
           status: 'error',
           message: 'TypeScript module not found.'
         });
-      } else {
-        const version = ts.version || 'unknown';
-        if (semver.valid(version) && !semver.gte(version, MIN_TYPESCRIPT_VERSION)) {
-          addCheck({
-            name: 'typescript-version',
-            status: 'warn',
-            message: `TypeScript ${version} below minimum ${MIN_TYPESCRIPT_VERSION}.`
-          });
-        } else {
-          addCheck({
-            name: 'typescript-version',
-            status: 'ok',
-            message: `TypeScript ${version} detected.`
-          });
-        }
+      } else if (ts) {
+        const { version } = assertTypeScriptCompatibility(ts);
+        addCheck({ name: 'typescript-version', status: 'ok', message: `TypeScript ${version} detected; compiler host/preflight APIs verified.` });
       }
 
       if (toolingConfig.typescript?.useTsconfig !== false && toolingConfig.typescript?.tsconfigPath) {

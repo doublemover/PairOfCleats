@@ -1,10 +1,6 @@
 import path from 'node:path';
+import { assertTypeScriptCompatibility as assertApis } from './compatibility.js';
 const unavailable = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_DEPENDENCY_UNSEALED' });
-const assertApis = ts => {
-  for (const name of ['getModeForUsageLocation', 'getImpliedNodeFormatForFile', 'getDefaultResolutionModeForFileWorker',
-    'getSetExternalModuleIndicator', 'isSourceFileJS', 'getIsolatedModules', 'getJSXRuntimeImport', 'getJSXImplicitImportBase', 'forEachDynamicImportOrRequireCall', 'createModuleResolutionCache', 'createTypeReferenceDirectiveResolutionCache'])
-    if (typeof ts[name] !== 'function') throw unavailable('TypeScript resolution API unavailable: ' + name);
-};
 /** Same compiler resolver and occurrence modes for execution and dependency preflight. */
 export const createModeAwareTypeScriptResolver = (ts, defaultOptions, moduleHost, { canonicalize, moduleOrigins, virtualBySource }) => {
   assertApis(ts);
