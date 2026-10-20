@@ -8,6 +8,9 @@ const previewBase = { scopeId: id, revision, schemaRevision };
 
 /** Internal native TUI requests; these add no CLI or repository configuration knobs. */
 export const TUI_SETTINGS_REQUEST_SCHEMAS = {
+  dispatch: record({ proto: { type: 'string' }, op: { const: 'settings:run' },
+    jobId: { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,128}$' },
+    method: { enum: ['select', 'inspect', 'preview', 'commit', 'cancel'] }, params: { type: 'object' } }),
   select: record({ kind: { enum: ['repo', 'workspace'] }, target: { type: 'string', minLength: 1, maxLength: 4096 } }),
   inspect: record({ scopeId: id }),
   preview: { oneOf: [

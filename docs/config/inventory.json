@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T18:56:16.391Z",
+  "generatedAt": "2026-10-20T19:30:56.105Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4460,6 +4460,7 @@
         "tests/tooling/lsp/signature-boundary-providers.test.js",
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",
+        "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4900,6 +4901,7 @@
         "tests/cli/general/unknown-workflow-options.test.js",
         "tests/helpers/native-tui-conpty.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tui/native-settings-conpty.test.js",
         "tests/tui/observability/supervisor-fixture.js",
         "tools/config/inventory.js"
       ]
@@ -4930,6 +4932,7 @@
         "bin/tui-wrapper-env.js",
         "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
+        "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4939,6 +4942,7 @@
         "bin/tui-wrapper-env.js",
         "src/shared/env/tui.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tui/native-settings-conpty.test.js",
         "tests/tui/observability/supervisor-fixture.js",
         "tools/config/inventory.js"
       ]
@@ -4947,6 +4951,7 @@
       "name": "PAIROFCLEATS_TUI_SNAPSHOT_PATH",
       "files": [
         "tests/helpers/native-tui-conpty.js",
+        "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4956,6 +4961,7 @@
         "bin/tui-wrapper-env.js",
         "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
+        "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"
       ]
     },

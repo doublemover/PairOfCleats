@@ -19,7 +19,7 @@ import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.j
  * Build and expose job lifecycle operations for the supervisor runtime.
  *
  * @param {{
- *  state:{jobs:Map<string,object>},
+ *  state:{jobs:Map<string,object>,shuttingDown?:boolean},
  *  runId:string,
  *  root:string,
  *  emit:(event:string,payload?:object,options?:{jobId?:string|null,critical?:boolean})=>void,
@@ -28,12 +28,17 @@ import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.j
  * }} input
  * @returns {{
  *  startJob:(request:object)=>Promise<void>,
+ *  startOperation:(request:object,execute:Function,options?:object)=>Promise<void>,
  *  cancelJob:(jobId:string,reason?:string)=>boolean,
  *  cleanupFinalizedJob:(jobId:string)=>void,
  *  failJobInvalidRequest:(jobId:string,error:Error|string)=>void
  * }}
  */
 export const createJobController = ({ state, runId, root, emit, emitLog, buildFlowSnapshot }) => {
+  const assertAcceptingWork = () => {
+    if (state.shuttingDown) throw Object.assign(new Error('Supervisor is shutting down.'),
+      { code: 'ERR_TUI_SHUTTING_DOWN' });
+  };
   /**
    * Return one tracked job by id.
    *
@@ -108,12 +113,13 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * @returns {Promise<void>}
    */
   const startJob = async (request) => {
+    assertAcceptingWork();
     const jobId = String(request?.jobId || '').trim();
     if (!jobId) {
       throw new Error('job:run requires jobId.');
     }
     if (state.jobs.has(jobId)) {
-      throw new Error(`job already exists: ${jobId}`);
+      throw Object.assign(new Error(`job already exists: ${jobId}`), { code: 'ERR_TUI_JOB_EXISTS' });
     }
     const title = String(request?.title || 'Job').trim() || 'Job';
     const retryPolicy = resolveRetryPolicy(request);
@@ -370,8 +376,48 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     cleanupFinalizedJob(jobId);
   };
 
+  /** Run an internal operation through the same cancellation/shutdown registry.
+   * Parameters and raw errors deliberately never enter progress/event logs.
+   * An atomic save that already completed remains successful on late abort.
+   */
+  const startOperation = async ({ jobId, method }, execute,
+    { timeoutMs = 15000, isCommitted = data => data?.saved === true } = {}) => {
+    assertAcceptingWork();
+    if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
+      throw new Error('Internal operation requires a bounded jobId.');
+    }
+    if (state.jobs.has(jobId)) throw new Error('Job already exists.');
+    const job = { id: jobId, seq: 0, status: 'accepted', abortController: new AbortController(),
+      cancelReason: null, startedAt: Date.now(), finalized: false, internal: true };
+    state.jobs.set(jobId, job);
+    emit('job:start', { title: 'Settings', internal: true }, { jobId });
+    const timer = setTimeout(() => {
+      job.timedOut = true;
+      cancelJob(jobId, 'operation_timeout');
+    }, timeoutMs);
+    const finish = payload => finalizeJob(job, { internal: true, durationMs: Date.now() - job.startedAt,
+      signal: null, ...payload });
+    Promise.resolve().then(() => execute({ signal: job.abortController.signal })).then(data => {
+      const committed = isCommitted(data);
+      if (job.abortController.signal.aborted && !committed) {
+        finish({ status: job.timedOut ? 'failed' : 'cancelled', exitCode: null, result: null,
+          error: { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : 'ABORT_ERR' } });
+      } else if (Buffer.byteLength(JSON.stringify(data) ?? '') > 1024 * 1024) {
+        finish({ status: 'failed', exitCode: null, result: null, error: { code: 'ERR_TUI_OPERATION_OUTPUT' } });
+      } else {
+        finish({ status: 'done', exitCode: 0, resultState: 'complete', result: { method, data } });
+      }
+    }).catch(error => {
+      const aborted = job.abortController.signal.aborted;
+      finish({ status: aborted && !job.timedOut ? 'cancelled' : 'failed', exitCode: null, result: null,
+        error: { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
+          : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
+    }).finally(() => { clearTimeout(timer); cleanupFinalizedJob(jobId); });
+  };
+
   return {
     startJob,
+    startOperation,
     cancelJob,
     cleanupFinalizedJob,
     failJobInvalidRequest

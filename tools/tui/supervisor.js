@@ -91,6 +91,7 @@ const buildSessionDescriptor = () => ({
 
 const {
   startJob,
+  startOperation,
   cancelJob,
   failJobInvalidRequest
 } = createJobController({
@@ -103,6 +104,19 @@ const {
 });
 
 let runtimeMetricsTimer = null;
+let settingsSession = null;
+let settingsModules = null;
+const runSettings = async (request, { signal }) => {
+  settingsModules ||= Promise.all([import('./operator/settings.js'),
+    import('../../src/contracts/validators/tui-settings.js')]);
+  const [settings, contracts] = await settingsModules;
+  contracts.assertTuiSettingsRequest('dispatch', request);
+  contracts.assertTuiSettingsRequest(request.method, request.params);
+  if (signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  settingsSession ||= settings.createTuiSettingsSession({ toolRoot: ROOT });
+  const methods = { select: 'selectScope', inspect: 'inspectConfig', preview: 'preview', commit: 'commit', cancel: 'cancel' };
+  return settingsSession[methods[request.method]](request.params, { signal });
+};
 
 /**
  * Gracefully cancel all jobs and terminate supervisor process.
@@ -128,6 +142,7 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
     if (!active) break;
     await sleep(50);
   }
+  settingsSession?.dispose();
   eventLogRecorder?.finalize(reason);
   process.exit(exitCode);
 };
@@ -170,9 +185,20 @@ const handleRequest = async (request) => {
     } catch (error) {
       const jobId = typeof request.jobId === 'string' ? request.jobId : null;
       emitLog(jobId, 'error', error?.message || String(error));
-      if (jobId && state.jobs.has(jobId)) {
+      if (jobId && state.jobs.has(jobId)
+        && !['ERR_TUI_JOB_EXISTS', 'ERR_TUI_SHUTTING_DOWN'].includes(error?.code)) {
         failJobInvalidRequest(jobId, error);
       }
+    }
+    return;
+  }
+  if (op === 'settings:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runSettings(request, context),
+        { isCommitted: data => data?.saved === true || (request.method === 'select' && typeof data?.id === 'string') });
+    } catch {
+      // Never persist unvalidated input or raw parser/subprocess error messages.
+      emitLog(null, 'error', 'Settings request was not admitted.');
     }
     return;
   }

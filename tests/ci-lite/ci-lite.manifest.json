@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 933,
+    "hero": 940,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6463,6 +6463,48 @@
     {
       "id": "tui/operator-settings-authority",
       "order": 1075,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-shutdown-admission",
+      "order": 1076,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-duplicate-job-admission",
+      "order": 1077,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-session-resource-cleanup",
+      "order": 1078,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-operation-lifecycle",
+      "order": 1079,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-settings",
+      "order": 1080,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-settings-scope-jobs",
+      "order": 1081,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/terminal-screen-wrap",
+      "order": 1082,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

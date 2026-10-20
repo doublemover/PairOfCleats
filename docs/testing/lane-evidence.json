@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T18:56:10.661Z",
+  "generatedAt": "2026-10-20T19:40:01.580Z",
   "summary": {
     "lanes": 5,
-    "tests": 1298,
+    "tests": 1305,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 332,
+    "families": 339,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1224
+      "missingTests": 1231
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1075,
+      "totalTests": 1082,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1026
+        "missing": 1033
       }
     },
     {
@@ -1975,6 +1975,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "tooling/terminal-screen-wrap",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "tooling/test-selection",
       "count": 1,
       "knownDurationMs": 0,
@@ -2072,6 +2078,42 @@
     },
     {
       "key": "tui/operator-settings-request-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-duplicate-job-admission",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-operation-lifecycle",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-session-resource-cleanup",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-settings",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-settings-scope-jobs",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-shutdown-admission",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

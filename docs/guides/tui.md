@@ -20,6 +20,7 @@ Use `pairofcleats tui build --smoke` when you want to validate or restage the ho
 Runtime controls:
 
 - `[r]` queue job run
+- `[s]` select a repository/workspace and inspect or edit settings
 - `[c]` cancel selected job
 - `[q]` graceful shutdown
 - `[Ctrl+C]` global graceful shutdown, including help, palette and search overlays;
@@ -48,6 +49,41 @@ reap the supervisor within its ten-second grace. The native lifetime guard then
 contains any remaining owned descendants. Snapshots save the resulting final job
 statuses; an interrupted supervisor cannot leave a saved job marked running.
 Linux, macOS, and Windows require separate native lifecycle receipts.
+
+## Repository, workspace and settings
+
+Press `[s]` or select **Repository / workspace and settings** in the action palette.
+The selector accepts a repository directory or a workspace file; `[Tab]` changes
+the kind and `[Ctrl+U]` clears the input. The current scope remains visible in the
+session header and settings view. A new command captures its selected directory;
+changing selection does not retarget an existing job.
+
+After selection, the view loads the canonical schema and runs `config dump` in a
+fresh child. Fields show repository overrides, recorded effective values and schema
+defaults; `[p]` shows the canonical source/provenance and resolved policy record.
+An absent value in the bounded dump is labelled unrecorded. This configuration
+preview does not establish that a model, provider or runtime operation is ready.
+Workspace configuration edits apply to the workspace directory's repository
+configuration, rather than rewriting the workspace membership file.
+
+Use `[/]` to filter field names, arrows to select and `[Enter]` to edit a JSON
+value. `[Ctrl+U]` clears the draft. `[Enter]` validates and displays a diff; a second
+`[Enter]` confirms publication. `[Esc]` discards the draft or cancels its preview.
+`[r]` reloads actual configuration. Invalid values and stale file/schema revisions
+cannot be saved; reload after an external edit. Unrelated fields and comments
+survive ordinary edits. Sensitive fields and launch-policy-controlled values stay
+read only; use a private editor for credentials or raw provider commands/arguments.
+
+`[R]` previews replacement with the canonical default template. Review the diff
+and backup location, type literal `RESET`, then press `[Enter]`. Reset preserves
+the original bytes in its backup, including an undecodable original file. The
+preview explicitly reports whether an existing backup would be replaced.
+
+An in-flight request accepts `[Esc]` cancellation and waits for its actual outcome;
+a save or scope selection that already completed remains committed. `[Ctrl+C]`
+uses global graceful shutdown. Settings require a controllable supervisor advertising
+`supportsSettings`; passive/replay sessions cannot execute these actions. Settings
+drafts/responses stay outside saved layout snapshots and foreground job selection.
 
 Result capture uses the requested byte cap, including Unicode bytes. Job completion
 and result completeness are independent: `resultState` is `disabled`, `complete`,

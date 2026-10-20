@@ -16,7 +16,8 @@ const createScreenState = (columns, rows) => ({
   column: 0,
   savedRow: 0,
   savedColumn: 0,
-  wrapCount: 0
+  wrapCount: 0,
+  wrapPending: false
 });
 
 const clearRowRange = (row, start, end, state) => {
@@ -41,11 +42,13 @@ const scrollDown = (state) => {
 };
 
 const moveCursor = (state, row, column) => {
+  state.wrapPending = false;
   state.row = clamp(row, 0, state.rows - 1);
   state.column = clamp(column, 0, state.columns - 1);
 };
 
 const newline = (state) => {
+  state.wrapPending = false;
   state.row += 1;
   if (state.row >= state.rows) {
     scrollDown(state);
@@ -53,31 +56,23 @@ const newline = (state) => {
 };
 
 const advanceColumn = (state, count = 1) => {
-  state.column += Math.max(0, count);
-  while (state.column >= state.columns) {
-    state.wrapCount += 1;
-    state.column -= state.columns;
-    newline(state);
-  }
+  moveCursor(state, state.row, state.column + Math.max(0, count));
 };
 
 const writeChar = (state, char) => {
   if (!char) return;
-  if (state.column >= state.columns) {
+  if (state.wrapPending) {
     state.wrapCount += 1;
     state.column = 0;
     newline(state);
   }
   state.grid[state.row][state.column] = char;
-  state.column += 1;
-  if (state.column >= state.columns) {
-    state.wrapCount += 1;
-    state.column = 0;
-    newline(state);
-  }
+  if (state.column === state.columns - 1) state.wrapPending = true;
+  else state.column += 1;
 };
 
 const applyCarriageReturn = (state) => {
+  state.wrapPending = false;
   state.column = 0;
 };
 

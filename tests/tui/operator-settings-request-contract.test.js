@@ -5,6 +5,7 @@ import { assertTuiSettingsRequest } from '../../src/contracts/validators/tui-set
 const scopeId = randomUUID(), previewId = randomUUID();
 const revision = `sha256:${'a'.repeat(64)}`, schemaRevision = `sha256:${'b'.repeat(64)}`;
 const valid = {
+  dispatch: { proto: 'poc.tui@1', op: 'settings:run', jobId: 'settings-1', method: 'inspect', params: { scopeId } },
   select: { kind: 'repo', target: 'C:/fixture repository' },
   inspect: { scopeId },
   preview: { scopeId, revision, schemaRevision, operation: 'edit', path: ['threads'], value: 1 },
@@ -20,6 +21,9 @@ assertTuiSettingsRequest('select', { kind: 'workspace', target: 'workspace.jsonc
 assertTuiSettingsRequest('preview', { scopeId, revision, schemaRevision, operation: 'reset' });
 for (const [kind, request] of [
   ['unknown', {}], ['select', { kind: 'shell', target: 'cmd.exe' }],
+  ['dispatch', { ...valid.dispatch, method: 'shell' }],
+  ['dispatch', { ...valid.dispatch, jobId: '../outside' }],
+  ['dispatch', { ...valid.dispatch, jobId: 'x'.repeat(129) }],
   ['select', { kind: 'repo', target: 'x'.repeat(4097) }], ['inspect', { scopeId: 'unbound' }],
   ['preview', { ...valid.preview, operation: 'delete' }],
   ['preview', { ...valid.preview, revision: 'author-cache' }],

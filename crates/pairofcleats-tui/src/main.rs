@@ -1,3 +1,4 @@
+mod settings;
 mod supervisor_lifetime;
 #[cfg(test)]
 mod viewport_tests;
@@ -302,6 +303,7 @@ enum OverlayMode {
     Help,
     Palette,
     Search,
+    Settings,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -368,6 +370,7 @@ enum PaletteAction {
     CycleFilter,
     ClearSearch,
     RunJob,
+    Settings,
     CancelSelected,
     ShowHelp,
     Quit,
@@ -383,6 +386,7 @@ impl PaletteAction {
             Self::CycleFilter => "Cycle active panel filter",
             Self::ClearSearch => "Clear current panel search",
             Self::RunJob => "Run sample job",
+            Self::Settings => "Repository / workspace and settings",
             Self::CancelSelected => "Cancel selected job",
             Self::ShowHelp => "Open help overlay",
             Self::Quit => "Quit TUI",
@@ -497,6 +501,7 @@ struct CaptureManifest {
 enum InputCommand {
     Quit,
     RunJob,
+    Settings,
     CancelSelected,
     FocusNext,
     FocusJobs,
@@ -524,6 +529,7 @@ enum InputCommand {
 }
 
 struct AppModel {
+    settings: settings::SettingsUi,
     run_id: String,
     job_status: BTreeMap<String, String>,
     job_titles: BTreeMap<String, String>,
@@ -577,6 +583,7 @@ impl AppModel {
         telemetry_file: Option<fs::File>,
     ) -> Self {
         Self {
+            settings: settings::SettingsUi::default(),
             run_id,
             job_status: BTreeMap::new(),
             job_titles: BTreeMap::new(),
@@ -1101,6 +1108,7 @@ fn frame_signature(model: &AppModel) -> String {
         "searchTarget": model.search_target.label(),
         "searchDraft": model.search_draft,
         "paletteIndex": model.palette_index,
+        "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
         "terminal": [model.terminal_caps.color, model.terminal_caps.unicode]
     })
     .to_string()
@@ -1704,6 +1712,7 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
         OverlayMode::Help => "help overlay | Esc or ? close",
         OverlayMode::Palette => "action palette | j/k move | Enter select | Esc close",
         OverlayMode::Search => "search | type to filter current panel | Enter apply | Backspace delete | Esc cancel",
+        OverlayMode::Settings => "settings | Ctrl+U clears input | Esc cancels or closes | Ctrl+C quits",
         OverlayMode::None => "Tab focus | f cycle filter | / search | x clear search | p pause/follow | : actions | ? help | q quit",
     };
     fit_text(text, width)
@@ -1887,6 +1896,7 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         ": open action palette",
         "? close help",
         "r run sample job",
+        "s select repository / workspace and edit settings",
         "c cancel selected job",
         "q quit",
         "",
@@ -1921,6 +1931,7 @@ fn palette_actions() -> Vec<PaletteAction> {
         PaletteAction::CycleFilter,
         PaletteAction::ClearSearch,
         PaletteAction::RunJob,
+        PaletteAction::Settings,
         PaletteAction::CancelSelected,
         PaletteAction::ShowHelp,
         PaletteAction::Quit,
@@ -2238,6 +2249,24 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         OverlayMode::Help => render_help_overlay(frame, model),
         OverlayMode::Palette => render_palette_overlay(frame, model),
         OverlayMode::Search => render_search_overlay(frame, model),
+        OverlayMode::Settings => {
+            let area = centered_rect(94, 92, frame.area());
+            let text = model
+                .settings
+                .lines(area.height.saturating_sub(2) as usize)
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(panel_block(
+                        "Settings".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
         OverlayMode::None => {}
     }
 }
@@ -2313,6 +2342,10 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                     PaletteAction::CycleFilter => cycle_active_filter(model),
                     PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
                     PaletteAction::ShowHelp => model.overlay = OverlayMode::Help,
+                    PaletteAction::Settings => {
+                        model.settings.open(&model.session.scope);
+                        model.overlay = OverlayMode::Settings;
+                    }
                     PaletteAction::RunJob | PaletteAction::CancelSelected | PaletteAction::Quit => {
                     }
                 }
@@ -2617,6 +2650,15 @@ fn open_search(model: &mut AppModel) {
     model.dirty = true;
 }
 
+fn sample_job_request(model: &AppModel, job_id: &str) -> Value {
+    let mut request = json!({"proto":"poc.tui@1", "op":"job:run", "jobId":job_id,
+        "title":"Search Help", "argv":["search", "--help"]});
+    if let Some(scope) = &model.settings.scope {
+        request["cwd"] = scope["configRoot"].clone();
+    }
+    request
+}
+
 fn apply_palette_action(
     model: &mut AppModel,
     supervisor: &mut std::process::Child,
@@ -2644,16 +2686,7 @@ fn apply_palette_action(
         PaletteAction::RunJob => {
             let job_id = format!("job-{}", *next_job_idx);
             *next_job_idx += 1;
-            let _ = send_request(
-                supervisor,
-                json!({
-                    "proto": "poc.tui@1",
-                    "op": "job:run",
-                    "jobId": job_id,
-                    "title": "Search Help",
-                    "argv": ["search", "--help"]
-                }),
-            );
+            send_request(supervisor, sample_job_request(model, &job_id))?;
         }
         PaletteAction::CancelSelected => {
             if let Some(job_id) = model.selected_job.clone() {
@@ -2670,6 +2703,11 @@ fn apply_palette_action(
         }
         PaletteAction::ShowHelp => {
             model.overlay = OverlayMode::Help;
+            model.dirty = true;
+        }
+        PaletteAction::Settings => {
+            model.settings.open(&model.session.scope);
+            model.overlay = OverlayMode::Settings;
             model.dirty = true;
         }
         PaletteAction::Quit => {
@@ -3047,6 +3085,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     }
     apply_workload_descriptor(model, &event);
     if event_name == "hello" {
+        model.settings.available = event["capabilities"]["supportsSettings"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
         if let Some(session) = event.get("session") {
             apply_session_descriptor(model, session);
         } else {
@@ -3060,7 +3101,17 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         }
     }
     if event_name == "session:attach" {
+        model.settings.available = false;
         apply_session_descriptor(model, &event);
+    }
+    if model.settings.event(&event) {
+        if let Some(scope) = &model.settings.scope {
+            if let Some(target) = scope["target"].as_str() {
+                model.session.scope = target.to_string();
+            }
+        }
+        model.dirty = true;
+        return;
     }
     if let Some(job_id) = event.get("jobId").and_then(|value| value.as_str()) {
         if event_name == "job:start" || event_name == "job:spawn" {
@@ -3169,6 +3220,12 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
         return;
     }
     match model.overlay {
+        OverlayMode::Settings => {
+            if model.settings.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
         OverlayMode::Help => match key.code {
             KeyCode::Esc | KeyCode::Char('?') => {
                 enqueue_input(model, InputCommand::ToggleHelp, "help-close")
@@ -3202,6 +3259,7 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
             _ => {}
         },
         OverlayMode::None => match key.code {
+            KeyCode::Char('s') => enqueue_input(model, InputCommand::Settings, "settings-open"),
             KeyCode::Char('q') => enqueue_input(model, InputCommand::Quit, "q"),
             KeyCode::Char('r') => enqueue_input(model, InputCommand::RunJob, "r"),
             KeyCode::Char('c') => enqueue_input(model, InputCommand::CancelSelected, "c"),
@@ -3242,6 +3300,11 @@ fn dispatch_input(
     let (_, cmd) = model.input_queue.pop_front().unwrap();
     model.last_input_at = Instant::now();
     match cmd {
+        InputCommand::Settings => {
+            model.settings.open(&model.session.scope);
+            model.overlay = OverlayMode::Settings;
+            model.dirty = true;
+        }
         InputCommand::Quit => {
             return Ok(true);
         }
@@ -3330,16 +3393,7 @@ fn dispatch_input(
         InputCommand::RunJob => {
             let job_id = format!("job-{}", *next_job_idx);
             *next_job_idx += 1;
-            let _ = send_request(
-                supervisor,
-                json!({
-                    "proto": "poc.tui@1",
-                    "op": "job:run",
-                    "jobId": job_id,
-                    "title": "Search Help",
-                    "argv": ["search", "--help"]
-                }),
-            );
+            send_request(supervisor, sample_job_request(model, &job_id))?;
         }
         InputCommand::CancelSelected => {
             if let Some(job_id) = model.selected_job.clone() {
@@ -3490,6 +3544,9 @@ fn main() -> anyhow::Result<()> {
             if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
                 break;
             }
+            while let Some(request) = model.settings.outbox.pop_front() {
+                send_request(&mut supervisor, request)?;
+            }
         }
         Ok(())
     })();
@@ -3509,12 +3566,27 @@ mod redraw_tests {
     use super::*;
 
     #[test]
+    fn new_job_captures_selected_scope_without_retargeting_an_existing_request() {
+        let mut model = model();
+        model.settings.scope = Some(json!({"configRoot":"first-repository"}));
+        let first = sample_job_request(&model, "first");
+        model.settings.scope = Some(json!({"configRoot":"second-repository"}));
+        let second = sample_job_request(&model, "second");
+        assert_eq!(first["cwd"], "first-repository");
+        assert_eq!(second["cwd"], "second-repository");
+        let snapshot = serde_json::to_string(&snapshot_from_model(&model)).unwrap();
+        assert!(!snapshot.contains("first-repository"));
+        assert!(!snapshot.contains("second-repository"));
+    }
+
+    #[test]
     fn control_c_is_global_shutdown_in_every_overlay_and_job_state() {
         for overlay in [
             OverlayMode::None,
             OverlayMode::Help,
             OverlayMode::Palette,
             OverlayMode::Search,
+            OverlayMode::Settings,
         ] {
             for active in [false, true] {
                 for (code, modifiers) in [
@@ -3564,6 +3636,7 @@ mod redraw_tests {
             OverlayMode::Help,
             OverlayMode::Palette,
             OverlayMode::Search,
+            OverlayMode::Settings,
         ] {
             for active in [false, true] {
                 let mut model = model();

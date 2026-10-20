@@ -1,0 +1,707 @@
+use std::collections::VecDeque;
+
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use serde_json::{json, Value};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Scope,
+    Fields,
+    Filter,
+    Edit,
+    Preview,
+    Provenance,
+}
+
+/// Volatile operator state. Neither editor drafts nor settings responses belong
+/// in the layout snapshot, telemetry, command history or foreground job list.
+pub(crate) struct SettingsUi {
+    pub available: bool,
+    pub scope: Option<Value>,
+    pub revision: u64,
+    pub outbox: VecDeque<Value>,
+    page: Page,
+    workspace: bool,
+    target: String,
+    query: String,
+    draft: String,
+    inspection: Option<Value>,
+    preview: Option<Value>,
+    reset: bool,
+    selected: usize,
+    scroll: usize,
+    status: String,
+    pending: Option<(String, String)>,
+    next_id: u64,
+}
+
+impl Default for SettingsUi {
+    fn default() -> Self {
+        Self {
+            available: false,
+            scope: None,
+            revision: 0,
+            outbox: VecDeque::new(),
+            page: Page::Scope,
+            workspace: false,
+            target: String::new(),
+            query: String::new(),
+            draft: String::new(),
+            inspection: None,
+            preview: None,
+            reset: false,
+            selected: 0,
+            scroll: 0,
+            status: String::new(),
+            pending: None,
+            next_id: 1,
+        }
+    }
+}
+
+fn compact(value: &Value) -> String {
+    value.to_string().chars().take(240).collect()
+}
+
+fn field_name(field: &Value) -> String {
+    field["path"]
+        .as_array()
+        .map(|path| {
+            path.iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(".")
+        })
+        .unwrap_or_default()
+}
+
+impl SettingsUi {
+    pub fn open(&mut self, initial_scope: &str) {
+        if self.target.is_empty() {
+            self.target = initial_scope.to_string();
+        }
+        self.revision += 1;
+    }
+
+    fn request(&mut self, method: &str, params: Value) {
+        if self.pending.is_some() || !self.available {
+            return;
+        }
+        let id = format!("native-settings-{}", self.next_id);
+        self.next_id += 1;
+        self.outbox
+            .push_back(json!({"proto":"poc.tui@1", "op":"settings:run",
+            "jobId":id, "method":method, "params":params}));
+        self.pending = Some((id, method.to_string()));
+        self.status = format!("Waiting for {method}; Esc requests cancellation");
+        self.revision += 1;
+    }
+
+    fn inspect(&mut self) {
+        if let Some(scope) = &self.scope {
+            self.request("inspect", json!({"scopeId":scope["id"]}));
+        }
+    }
+
+    fn fields(&self) -> Vec<&Value> {
+        self.inspection
+            .as_ref()
+            .and_then(|info| info["fields"].as_array())
+            .map(|fields| {
+                fields
+                    .iter()
+                    .filter(|field| {
+                        field_name(field)
+                            .to_lowercase()
+                            .contains(&self.query.to_lowercase())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn selected_field(&self) -> Option<&Value> {
+        let fields = self.fields();
+        fields
+            .get(self.selected.min(fields.len().saturating_sub(1)))
+            .copied()
+    }
+
+    fn preview(&mut self, reset: bool) {
+        let Some(info) = &self.inspection else {
+            return;
+        };
+        let mut params = json!({"scopeId":info["scope"]["id"], "revision":info["revision"],
+            "schemaRevision":info["schemaRevision"], "operation":if reset {"reset"} else {"edit"}});
+        if !reset {
+            let Some(field) = self.selected_field() else {
+                return;
+            };
+            let Ok(value) = serde_json::from_str::<Value>(&self.draft) else {
+                self.status = "Invalid JSON value; nothing saved".into();
+                return;
+            };
+            params["path"] = field["path"].clone();
+            params["value"] = value;
+        }
+        self.reset = reset;
+        self.draft.clear();
+        self.preview = None;
+        self.request("preview", params);
+    }
+
+    /// Returns true only when Esc closes the overlay. Input is never logged.
+    pub fn key(&mut self, key: KeyEvent) -> bool {
+        self.revision += 1;
+        if !self.available {
+            self.status =
+                "Settings require a controllable supervisor with settings capability".into();
+            return key.code == KeyCode::Esc;
+        }
+        if let Some((id, _)) = &self.pending {
+            if key.code == KeyCode::Esc {
+                self.outbox
+                    .push_back(json!({"proto":"poc.tui@1", "op":"job:cancel",
+                    "jobId":id, "reason":"user_cancel"}));
+                self.status = "Cancellation requested; waiting for the actual outcome".into();
+            }
+            return false;
+        }
+        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('u') {
+            match self.page {
+                Page::Scope => self.target.clear(),
+                Page::Edit | Page::Preview => self.draft.clear(),
+                Page::Filter => {
+                    self.query.clear();
+                    self.selected = 0;
+                }
+                _ => {}
+            }
+            return false;
+        }
+        match self.page {
+            Page::Scope => match key.code {
+                KeyCode::Tab => self.workspace = !self.workspace,
+                KeyCode::Backspace => {
+                    self.target.pop();
+                }
+                KeyCode::Char(ch) if !ch.is_control() && self.target.len() < 4096 => {
+                    self.target.push(ch)
+                }
+                KeyCode::Enter => self.request(
+                    "select",
+                    json!({"kind":if self.workspace {"workspace"} else {"repo"},
+                    "target":self.target}),
+                ),
+                KeyCode::Esc => {
+                    if self.scope.is_some() {
+                        self.page = Page::Fields;
+                    } else {
+                        return true;
+                    }
+                }
+                _ => {}
+            },
+            Page::Fields => match key.code {
+                KeyCode::Esc => return true,
+                KeyCode::Char('s') => self.page = Page::Scope,
+                KeyCode::Char('r') => self.inspect(),
+                KeyCode::Char('R') => self.preview(true),
+                KeyCode::Char('p') => {
+                    self.page = Page::Provenance;
+                    self.scroll = 0;
+                }
+                KeyCode::Char('/') => self.page = Page::Filter,
+                KeyCode::Down => {
+                    self.selected = (self.selected + 1).min(self.fields().len().saturating_sub(1))
+                }
+                KeyCode::Up => self.selected = self.selected.saturating_sub(1),
+                KeyCode::Enter | KeyCode::Char('e') => {
+                    if let Some(field) = self.selected_field() {
+                        if field["editable"].as_bool() != Some(true) {
+                            self.status = field["readOnlyReason"]
+                                .as_str()
+                                .unwrap_or("Read only")
+                                .into();
+                        } else {
+                            self.draft = if field["requestedPresent"].as_bool() == Some(true) {
+                                field["requested"].to_string()
+                            } else if field["effectiveRecorded"].as_bool() == Some(true) {
+                                field["effective"].to_string()
+                            } else if let Some(default) = field["schema"].get("default") {
+                                default.to_string()
+                            } else {
+                                String::new()
+                            };
+                            self.page = Page::Edit;
+                            self.status =
+                                "Edit a JSON value; Enter validates and previews; Esc discards"
+                                    .into();
+                        }
+                    }
+                }
+                _ => {}
+            },
+            Page::Filter => match key.code {
+                KeyCode::Esc => {
+                    self.query.clear();
+                    self.selected = 0;
+                    self.page = Page::Fields;
+                }
+                KeyCode::Enter => {
+                    self.selected = 0;
+                    self.page = Page::Fields;
+                }
+                KeyCode::Backspace => {
+                    self.query.pop();
+                    self.selected = 0;
+                }
+                KeyCode::Char(ch) if !ch.is_control() && self.query.len() < 256 => {
+                    self.query.push(ch);
+                    self.selected = 0;
+                }
+                _ => {}
+            },
+            Page::Edit => match key.code {
+                KeyCode::Esc => {
+                    self.draft.clear();
+                    self.page = Page::Fields;
+                    self.status = "Edit discarded; nothing saved".into();
+                }
+                KeyCode::Enter => self.preview(false),
+                KeyCode::Backspace => {
+                    self.draft.pop();
+                }
+                KeyCode::Char(ch) if !ch.is_control() && self.draft.len() < 4096 => {
+                    self.draft.push(ch)
+                }
+                _ => {}
+            },
+            Page::Preview => match key.code {
+                KeyCode::Esc => {
+                    if let Some(preview) = &self.preview {
+                        self.request("cancel", json!({"scopeId":preview["scope"]["id"], "previewId":preview["previewId"]}));
+                    }
+                }
+                KeyCode::Char(ch) if self.reset && !ch.is_control() && self.draft.len() < 64 => {
+                    self.draft.push(ch)
+                }
+                KeyCode::Backspace => {
+                    self.draft.pop();
+                }
+                KeyCode::Down => self.scroll = self.scroll.saturating_add(1),
+                KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+                KeyCode::Enter => {
+                    if self.reset && self.draft != "RESET" {
+                        self.status = "Reset requires typing RESET exactly; nothing saved".into();
+                    } else if let Some(preview) = &self.preview {
+                        let mut params = json!({"scopeId":preview["scope"]["id"], "previewId":preview["previewId"], "confirmed":true});
+                        if self.reset {
+                            params["resetConfirmation"] = json!(self.draft);
+                        }
+                        self.request("commit", params);
+                    }
+                }
+                _ => {}
+            },
+            Page::Provenance => match key.code {
+                KeyCode::Esc => self.page = Page::Fields,
+                KeyCode::Down => self.scroll = self.scroll.saturating_add(1),
+                KeyCode::Up => self.scroll = self.scroll.saturating_sub(1),
+                _ => {}
+            },
+        }
+        false
+    }
+
+    /// Consume only this view's request IDs, before foreground job routing.
+    pub fn event(&mut self, event: &Value) -> bool {
+        let Some((id, method)) = self.pending.as_ref() else {
+            return false;
+        };
+        if event["jobId"].as_str() != Some(id) {
+            return false;
+        }
+        if event["event"] != "job:end" {
+            return true;
+        }
+        let method = method.clone();
+        self.pending = None;
+        self.revision += 1;
+        if event["status"] != "done" || event["resultState"] != "complete" {
+            self.draft.clear();
+            self.preview = None;
+            self.page = if self.scope.is_some() {
+                Page::Fields
+            } else {
+                Page::Scope
+            };
+            self.status = format!(
+                "{}: {}. Reload to inspect the actual state.",
+                event["status"].as_str().unwrap_or("failed"),
+                event["error"]["code"]
+                    .as_str()
+                    .unwrap_or("ERR_TUI_OPERATION_FAILED")
+            );
+            return true;
+        }
+        let data = &event["result"]["data"];
+        if event["result"]["method"] != method {
+            self.status = "Mismatched settings response; reload required".into();
+            return true;
+        }
+        match method.as_str() {
+            "select" => {
+                self.scope = Some(data.clone());
+                self.target = data["target"].as_str().unwrap_or_default().into();
+                self.inspection = None;
+                self.preview = None;
+                self.draft.clear();
+                self.query.clear();
+                self.selected = 0;
+                self.page = Page::Fields;
+                self.inspect();
+            }
+            "inspect" => {
+                if self.scope.as_ref().map(|scope| &scope["id"]) == Some(&data["scope"]["id"]) {
+                    self.inspection = Some(data.clone());
+                    self.selected = self.selected.min(self.fields().len().saturating_sub(1));
+                    self.page = Page::Fields;
+                    self.status = if data["validation"]["ok"] == true {
+                        "Loaded canonical configuration preview; p shows provenance".into()
+                    } else {
+                        format!("Invalid configuration: {}", compact(&data["validation"]))
+                    };
+                }
+            }
+            "preview" => {
+                if data["ok"] == true {
+                    self.preview = Some(data.clone());
+                    self.page = Page::Preview;
+                    self.scroll = 0;
+                    self.status = "Validated preview; no file has been changed".into();
+                } else {
+                    self.page = Page::Fields;
+                    self.status = format!(
+                        "Invalid value; nothing saved: {}",
+                        compact(&data["validation"])
+                    );
+                }
+            }
+            "commit" => {
+                self.preview = None;
+                self.draft.clear();
+                self.page = Page::Fields;
+                self.status = "Saved; loading the next canonical configuration invocation".into();
+                self.inspect();
+            }
+            "cancel" => {
+                self.preview = None;
+                self.draft.clear();
+                self.page = Page::Fields;
+                self.status = "Preview cancelled; nothing saved".into();
+            }
+            _ => {}
+        }
+        true
+    }
+
+    pub fn lines(&self, height: usize) -> Vec<String> {
+        let scope = self
+            .scope
+            .as_ref()
+            .map(|scope| {
+                format!(
+                    "{} {}",
+                    scope["kind"].as_str().unwrap_or("scope"),
+                    scope["target"].as_str().unwrap_or("unknown")
+                )
+            })
+            .unwrap_or_else(|| "not selected".into());
+        let mut lines = vec![
+            format!("Scope: {scope}"),
+            "Configuration preview; observed provider/runtime readiness requires its own operation"
+                .into(),
+            self.status.clone(),
+        ];
+        if !self.available {
+            lines.push("Read only: settings are unavailable in this session. Esc closes".into());
+            return lines;
+        }
+        match self.page {
+            Page::Scope => lines.extend([
+                format!(
+                    "Select {} | Tab changes kind | Enter selects | Esc cancels",
+                    if self.workspace {
+                        "workspace file"
+                    } else {
+                        "repository directory"
+                    }
+                ),
+                self.target.clone(),
+            ]),
+            Page::Fields | Page::Filter => {
+                lines.push(format!("Filter: {} | / filter | arrows select | Enter edit | r reload | R reset | s scope | p provenance | Esc close", self.query));
+                let fields = self.fields();
+                let count = height.saturating_sub(13).max(1);
+                let start = self
+                    .selected
+                    .saturating_sub(count / 2)
+                    .min(fields.len().saturating_sub(count));
+                lines.extend(fields.iter().enumerate().skip(start).take(count).map(
+                    |(index, field)| {
+                        format!(
+                            "{} {}{}",
+                            if index == self.selected { ">" } else { " " },
+                            field_name(field),
+                            if field["editable"] == true {
+                                ""
+                            } else {
+                                " [read only]"
+                            }
+                        )
+                    },
+                ));
+                if let Some(field) = self.selected_field() {
+                    lines.extend([
+                        format!(
+                            "Selected: {} | schema {}",
+                            field_name(field),
+                            compact(&field["schema"])
+                        ),
+                        format!(
+                            "Repository override: {}",
+                            if field["requestedPresent"] == true {
+                                compact(&field["requested"])
+                            } else {
+                                "absent".into()
+                            }
+                        ),
+                        format!(
+                            "Effective: {}",
+                            if field["effectiveRecorded"] == true {
+                                compact(&field["effective"])
+                            } else {
+                                "not recorded by the canonical bounded dump".into()
+                            }
+                        ),
+                        format!(
+                            "Schema default: {}",
+                            field["schema"]
+                                .get("default")
+                                .map(compact)
+                                .unwrap_or_else(|| "not specified".into())
+                        ),
+                    ]);
+                }
+            }
+            Page::Edit => lines.extend([
+                format!(
+                    "Edit {} as JSON | Enter validates preview | Esc discards",
+                    self.selected_field().map(field_name).unwrap_or_default()
+                ),
+                self.draft.clone(),
+            ]),
+            Page::Preview => {
+                let preview = self.preview.as_ref().unwrap_or(&Value::Null);
+                lines.push(if self.reset {
+                    format!(
+                        "RESET preview | type RESET then Enter | Esc cancels | confirmation: {}",
+                        self.draft
+                    )
+                } else {
+                    "EDIT preview | Enter confirms save | Esc cancels | arrows scroll".into()
+                });
+                if self.reset {
+                    lines.push(format!(
+                        "Byte-preserving backup: {} | replaces existing backup: {}",
+                        preview["backupPath"], preview["overwritesBackup"]
+                    ));
+                }
+                let text = serde_json::to_string_pretty(&preview["diff"]).unwrap_or_default();
+                let rows: Vec<_> = text.lines().collect();
+                lines.extend(
+                    rows.iter()
+                        .skip(self.scroll.min(rows.len().saturating_sub(1)))
+                        .take(height.saturating_sub(lines.len()))
+                        .map(|line| line.to_string()),
+                );
+            }
+            Page::Provenance => {
+                lines.push(
+                    "Canonical config sources and resolved policy | arrows scroll | Esc returns"
+                        .into(),
+                );
+                let effective = self.inspection.as_ref().map(|info| &info["effective"]);
+                let mut sources = effective.cloned().unwrap_or(Value::Null);
+                if let Some(record) = sources.as_object_mut() {
+                    record.remove("userConfig");
+                }
+                let text = serde_json::to_string_pretty(&sources).unwrap_or_default();
+                let rows: Vec<_> = text.lines().collect();
+                lines.extend(
+                    rows.iter()
+                        .skip(self.scroll.min(rows.len().saturating_sub(1)))
+                        .take(height.saturating_sub(lines.len()))
+                        .map(|line| line.to_string()),
+                );
+            }
+        }
+        lines
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(ui: &mut SettingsUi, code: KeyCode) -> bool {
+        ui.key(KeyEvent::new(code, KeyModifiers::NONE))
+    }
+    fn end(ui: &mut SettingsUi, data: Value) {
+        let (id, method) = ui.pending.clone().unwrap();
+        assert!(
+            ui.event(&json!({"event":"job:end", "jobId":id, "status":"done",
+            "resultState":"complete", "result":{"method":method,"data":data}}))
+        );
+    }
+    fn selected() -> SettingsUi {
+        let mut ui = SettingsUi {
+            available: true,
+            ..SettingsUi::default()
+        };
+        ui.open("fixture");
+        key(&mut ui, KeyCode::Enter);
+        end(
+            &mut ui,
+            json!({"id":"scope-1","kind":"repo","target":"fixture"}),
+        );
+        end(
+            &mut ui,
+            json!({"scope":{"id":"scope-1"}, "revision":"revision-1", "schemaRevision":"schema-1",
+            "validation":{"ok":true}, "fields":[{"path":["threads"],"schema":{"type":"integer"},
+            "editable":true,"requestedPresent":true,"requested":2,"effectiveRecorded":true,"effective":2},
+            {"path":["tooling","lsp","servers"],"editable":false,"requested":{"redacted":true},
+            "readOnlyReason":"Use a private editor"}]}),
+        );
+        ui.outbox.clear();
+        ui
+    }
+
+    #[test]
+    fn selection_binds_requests_and_ignores_unrelated_and_old_responses() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Char('r'));
+        assert_eq!(ui.outbox.back().unwrap()["params"]["scopeId"], "scope-1");
+        assert!(!ui.event(&json!({"event":"job:end","jobId":"other-job"})));
+        assert!(!ui.event(&json!({"event":"job:end","jobId":"native-settings-1"})));
+        assert!(ui.pending.is_some());
+        assert_eq!(ui.scope.as_ref().unwrap()["id"], "scope-1");
+    }
+
+    #[test]
+    fn private_fields_cannot_open_an_editor() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Down);
+        key(&mut ui, KeyCode::Enter);
+        assert!(ui.page == Page::Fields);
+        assert_eq!(ui.status, "Use a private editor");
+        assert!(ui.draft.is_empty());
+        assert!(ui.outbox.is_empty());
+    }
+
+    #[test]
+    fn invalid_json_and_discard_never_send_a_write() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Enter);
+        ui.draft = "invalid".into();
+        key(&mut ui, KeyCode::Enter);
+        assert!(ui.outbox.is_empty());
+        assert!(ui.status.contains("Invalid JSON"));
+        key(&mut ui, KeyCode::Esc);
+        assert!(ui.draft.is_empty());
+        assert!(ui.page == Page::Fields);
+    }
+
+    #[test]
+    fn edit_preview_and_explicit_save_keep_source_and_schema_revisions() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Enter);
+        ui.draft = "1".into();
+        key(&mut ui, KeyCode::Enter);
+        let request = ui.outbox.back().unwrap();
+        assert_eq!(request["method"], "preview");
+        assert_eq!(request["params"]["revision"], "revision-1");
+        assert_eq!(request["params"]["schemaRevision"], "schema-1");
+        assert_eq!(request["params"]["path"], json!(["threads"]));
+        assert_eq!(request["params"]["value"], 1);
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"preview-1","diff":[]}),
+        );
+        assert!(ui.page == Page::Preview);
+        key(&mut ui, KeyCode::Enter);
+        let request = ui.outbox.back().unwrap();
+        assert_eq!(request["method"], "commit");
+        assert_eq!(request["params"]["confirmed"], true);
+        assert_eq!(request["params"]["previewId"], "preview-1");
+        end(&mut ui, json!({"saved":true}));
+        assert_eq!(ui.outbox.back().unwrap()["method"], "inspect");
+    }
+
+    #[test]
+    fn reset_requires_literal_confirmation_and_preview_cancel_uses_its_nonce() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Char('R'));
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"reset-1","diff":[]}),
+        );
+        let count = ui.outbox.len();
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.len(), count);
+        ui.draft = "reset".into();
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(ui.outbox.len(), count);
+        ui.draft = "RESET".into();
+        key(&mut ui, KeyCode::Enter);
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["resetConfirmation"],
+            "RESET"
+        );
+        end(&mut ui, json!({"saved":true}));
+        end(
+            &mut ui,
+            json!({"scope":{"id":"scope-1"},"validation":{"ok":true},"fields":[]}),
+        );
+        key(&mut ui, KeyCode::Char('R'));
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"cancel-1","diff":[]}),
+        );
+        key(&mut ui, KeyCode::Esc);
+        assert_eq!(ui.outbox.back().unwrap()["method"], "cancel");
+        assert_eq!(ui.outbox.back().unwrap()["params"]["previewId"], "cancel-1");
+    }
+
+    #[test]
+    fn cancellation_waits_for_real_outcome_and_read_only_sessions_never_execute() {
+        let mut ui = selected();
+        key(&mut ui, KeyCode::Char('r'));
+        let id = ui.pending.as_ref().unwrap().0.clone();
+        assert!(!key(&mut ui, KeyCode::Esc));
+        assert_eq!(ui.outbox.back().unwrap()["op"], "job:cancel");
+        assert_eq!(ui.outbox.back().unwrap()["jobId"], id);
+        assert!(ui.pending.is_some());
+        assert!(ui.event(
+            &json!({"event":"job:end","jobId":id,"status":"cancelled","error":{"code":"ABORT_ERR"}})
+        ));
+        assert!(ui.pending.is_none());
+        assert!(ui.status.contains("cancelled"));
+        ui.available = false;
+        ui.outbox.clear();
+        key(&mut ui, KeyCode::Enter);
+        assert!(ui.outbox.is_empty());
+        assert!(key(&mut ui, KeyCode::Esc));
+    }
+}

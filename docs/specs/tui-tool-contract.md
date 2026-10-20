@@ -79,3 +79,28 @@ Tools that produce machine output or long-running work MUST support:
 - JSONL discipline (`--progress jsonl` emits only protocol lines)
 - Cancellation exit code is 130
 - Stdout guard triggers on non‑JSON bytes in `--json` mode
+
+## Internal settings requests
+
+The local `poc.tui@1` supervisor advertises `supportsSettings` when it implements
+`settings:run`. A request contains only `proto`, `op`, a bounded `jobId`, `method`
+and `params`. Methods are `select`, `inspect`, `preview`, `commit` and `cancel`;
+their strict shapes are owned by `src/contracts/schemas/tui-settings.js` and its
+validator. Selection returns an opaque scope ID. Inspection returns verified file
+and schema revisions; previews bind those revisions to a bounded, expiring nonce.
+Commits require confirmation, with literal `RESET` additionally required for reset.
+
+These operations use the existing job registry, cancellation and shutdown owner,
+emit ordinary `job:start` / `job:end` progress events with `internal: true`, and
+return `{method,data}` with `resultState: complete` on completion. A completed
+validation request may return `data.ok: false`; it has not saved anything. Raw
+request parameters, configuration source and subprocess/parser error messages
+never enter operation events. Errors expose bounded codes. Results are limited
+to 1 MiB, operations have a 15-second lifetime, and canonical inspection children
+retain their 10-second limit. Existing progress chunking handles larger records.
+No retries are introduced. Cancellation cannot undo an atomic save or completed
+scope selection. The supervisor rejects new work once shutdown begins.
+
+The native view routes its own request IDs before foreground job selection and
+accepts settings only in a controllable supervised session. Configuration preview
+and observed runtime/provider qualification remain distinct.
