@@ -141,6 +141,25 @@ try {
   const download = await downloadPromise, downloaded = path.join(destination, 'semantic-detail.json');
   await download.saveAs(downloaded); assert.deepEqual(JSON.parse(await fs.readFile(downloaded, 'utf8')).result, detail);
   record('download preserves the complete admitted service envelope');
+  const candidates = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
+    selector: { field: 'astKind', value: 'CallExpression' }, limits: { records: 2, bytes: 65536, workMs: 250 } });
+  assert.ok(candidates.records.length);
+  assert.equal(candidates.records[0].generation, undefined, 'canonical records pin generation on their envelope');
+  await page.locator('#tree button').first().click();
+  const hydrationResponse = page.waitForResponse(response => response.url().endsWith('/analysis/semantic-detail') && response.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).click();
+  const hydration = await hydrationResponse;
+  assert.equal(hydration.status(), 200);
+  const hydrationInput = hydration.request().postDataJSON();
+  assert.deepEqual(hydrationInput.generation, candidates.generation);
+  assert.deepEqual(hydrationInput.refs, [candidates.records[0].ref]);
+  assert.equal(hydrationInput.repoRoot, witness.repoRoot);
+  const hydrated = (await hydration.json()).result;
+  assert.ok(hydrated.operands.length, 'hydration loads actual operands of the selected call');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.startsWith('semantic detail'));
+  await page.locator('#tree button').first().click();
+  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).waitFor();
+  record('canonical find → exact envelope generation/ref → hydrated operands; canonical detail remains hydratable');
   const typed = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
     selector: { typeExpression: { expression: 'number', match: 'exact-expression', sources: ['compiler'], roles: ['parameter'] } },
     limits: { records: 2, bytes: 65536, workMs: 250 } });

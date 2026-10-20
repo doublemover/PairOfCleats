@@ -1,6 +1,6 @@
 import { projectOutput, VIEW_LIMITS } from './projection.js';
 import { authorProjection, createCompileController } from './reladraw.js';
-import { createRequestController, OPERATIONS } from './request.js';
+import { createRequestController, semanticDetailInput, OPERATIONS } from './request.js';
 import { mountDiagram } from './svg.js';
 import { inspectValue, button, download } from './inspect.js';
 const $ = id => document.getElementById(id);
@@ -19,10 +19,10 @@ function selection(id, remember = true) {
   $('selection').textContent = node.label; $('detail').replaceChildren(entityOverview(node));
   const heading = document.createElement('h2'); heading.textContent = 'Directed relationships in this page'; $('detail').append(heading);
   const related = projection.edges.filter(edge => edge.from === id || edge.to === id);
-  if (node.detail?.ref?.partitionId && node.detail?.generation) {
+  const detailInput = semanticDetailInput(node, projection, activeRequest?.input?.repoRoot || '.');
+  if (detailInput) {
     $('detail').prepend(button('Load semantic detail', async () => {
-      const input = { repoRoot: activeRequest?.input?.repoRoot || '.', generation: node.detail.generation,
-        refs: [node.detail.ref], include: ['operands', 'names', 'ownership'], limits: { records: 128, rows: 512, bytes: 65536, workMs: 250 } };
+      const input = detailInput;
       try { const data = await requests.request('detail', input, { token: $('token').value, expectedGeneration: input.generation });
         accept(data, 'semantic detail'); activeRequest = { operation: 'detail', input }; $('next-response').disabled = !projection.cursor;
       } catch (error) { notice(error.message, true); }

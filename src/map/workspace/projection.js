@@ -79,7 +79,12 @@ export function projectOutput(envelope, { page = 0, relation = '', family = dete
     section('Interpretation', { meaning: 'Compressed word DAG; literal/ordered-concat structure only. No unbounded string expansion.', backend: 'classify-compressed requires the separately unpublished symbolic backend.' });
   } else if (family === 'artifacts') {
     const rows = data.artifacts ?? data.rows ?? [];
-    for (const row of array(rows)) add(`artifact:${row.name ?? seen}`, row.name ?? row.path ?? row.id ?? `Row ${(data.ordinal || 0) + seen}`, row.family ?? data.mode ?? 'artifact', row);
+    array(rows).forEach((row, ordinal) => {
+      const absoluteOrdinal = (data.ordinal || 0) + ordinal;
+      const id = data.kind === 'artifact-catalog' ? `artifact:${row.name}`
+        : `artifact-row:${JSON.stringify([data.name ?? '', data.generation ?? null, absoluteOrdinal])}`;
+      add(id, row.name ?? row.path ?? row.id ?? `Row ${absoluteOrdinal}`, row.family ?? data.mode ?? 'artifact', row);
+    });
     section('Logical artifact inventory', data.artifacts, 'manifest');
     section('Artifact values', data.value ?? data.rows, 'records');
     section('Storage provenance', data.provenance, 'manifest');

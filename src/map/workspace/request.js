@@ -24,6 +24,18 @@ export async function readBoundedJson(response, limit = VIEW_LIMITS.bytes) {
   return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(joined));
 }
 const generationKey = value => value && typeof value === 'object' ? JSON.stringify(Object.keys(value).sort().map(key => [key, value[key]])) : JSON.stringify(value);
+/** Canonical records inherit the pinned envelope; artifact wrappers pin their own generation. */
+export function semanticDetailInput(node, projection, repoRoot) {
+  const ref = node?.detail?.ref ?? node?.ref;
+  const generation = node?.detail?.generation ?? projection?.generation;
+  if (!ref || !/^(sy1|sa1):[a-f0-9]{64}$/.test(ref.partitionId)
+    || !Number.isSafeInteger(ref.localId) || ref.localId < 0
+    || !generation || typeof generation.baseBuildId !== 'string' || !generation.baseBuildId.length
+    || generation.semanticRevision !== 0 || Object.keys(generation).length !== 2
+    || typeof repoRoot !== 'string' || !repoRoot.length) return null;
+  return { repoRoot, generation, refs: [ref], include: ['operands', 'names', 'ownership'],
+    limits: { records: 128, rows: 512, bytes: 65536, workMs: 250 } };
+}
 export function createRequestController({ fetchFn = globalThis.fetch } = {}) {
   let controller = null, serial = 0;
   return {
