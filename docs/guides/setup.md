@@ -115,6 +115,9 @@ receipts.
 ## Notes
 
 - The JSON summary includes a readiness receipt for the selected checks: `ready`, `degraded` for optional omissions, or `blocked` for required failures. Failed requested dependency/config/index/SQLite steps block completion. Optional download/tooling failures remain visible and no longer print an unconditional success message.
+- Interactive `--json` keeps questions on stderr and consumes answers from stdin; stdout contains one JSON summary. Ordinary interactive prompts remain on stdout.
+- Model setup checks nonempty readable assets for the selected model/provider, including a configured ONNX weights path and tokenizer identity. Unrelated cache entries and partial models do not satisfy `--require-steps models`. The receipt records the identity, paths and missing assets; this presence check does not qualify inference. Model prefetch resolves explicit `--model`, `indexing.embeddings.model`, legacy `models.id`, then the default.
+- Dictionary `--update` sends validators only for the same source with usable local bytes and compatible hash evidence. Missing or empty wordlists are fetched again; an unexpected 304 without usable bytes fails visibly.
 - Tool installation rechecks executable resolution, the command probe and package layout after the installer exits. A successful installer process without a working executable is a failure; manual-only tools remain explicit prerequisites requiring action. The receipt identifies this verification level. It does not claim an LSP initialize/workspace check, complete model validation or native-extension loading from a presence/probe check alone; those capabilities require their own admission checks.
 
 - Defaults follow `.pairofcleats.json` where applicable.

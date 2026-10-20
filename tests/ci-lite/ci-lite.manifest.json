@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 870,
+    "hero": 874,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6087,6 +6087,30 @@
       "order": 1012,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/download-model-selection",
+      "order": 1013,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/setup-model-readiness",
+      "order": 1014,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/setup-json-prompts",
+      "order": 1015,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/download-dicts-update",
+      "order": 1016,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }
   ]
 }

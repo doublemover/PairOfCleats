@@ -18,18 +18,20 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Twenty-eight issues have repairs through source candidate `7014eaedd`; this batch adds
-watch publication cancellation, complete semantic partition removal and Python,
-Go/Rust signature plus LSP response-cache authority. Nightly soak/reference
+Thirty-two issues have repairs through source candidate `e55f2cd8b`; the latest adds selected-model setup,
+prefetch precedence, interactive JSON and dictionary update correctness. Earlier
+batches add watch cancellation, semantic partition removal, Python/Go/Rust
+signatures and LSP cache authority. Nightly soak/reference
 enforcement, filter-only HTTP
 federation, artifact identities, semantic hydration and restored TUI selection now
 have regressions. Five proven wrapper aliases are retired; broader wrapper/direct
 fixture equivalence remains open under #616. Hosted CI exposed a missing-clangd
 runtime attempt and a Jinja clock-sensitive assertion; both have local repairs.
-The original TOML/summary failures remain recorded. Hosted run 39380323801 also
-rejects a bare-Node test launch (now corrected) and reports an orphan-cleanup
-failure whose cause remains unproven; diagnostics are strengthened without retry
-or deadline changes. Eight API cases and serial
+The original TOML/summary failures remain recorded. Hosted run 39383472179
+passes gate/Rust but exposes cache-ownership version drift and stale request-cache
+fixture keys; both have local corrections preserving authority/content checks.
+The earlier orphan-cleanup failure remains unattributed, with stronger diagnostics.
+Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
 Windows acceptance is complete at frozen candidate `ffde426be`: all 2982

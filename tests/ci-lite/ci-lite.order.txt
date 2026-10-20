@@ -1012,3 +1012,7 @@ tooling/lsp/signature-boundary-providers/rust
 tooling/lsp/request-cache-document-authority
 tooling/lsp/hover-cache-key-v2
 tooling/lsp/request-cache-persistent-hit
+tooling/install/download-model-selection
+tooling/install/setup-model-readiness
+tooling/install/setup-json-prompts
+tooling/install/download-dicts-update
