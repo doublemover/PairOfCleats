@@ -89,7 +89,8 @@ try {
     graceMs: 0,
     awaitGrace: true
   });
-  assert.equal(result?.terminated, true, 'expected orphan descendant fallback to terminate process tree');
+  console.log(JSON.stringify({ case: 'windows-orphan-descendant-fallback', result }));
+  assert.equal(result?.terminated, true, `expected orphan descendant fallback to terminate process tree: ${JSON.stringify(result)}`);
   assert.equal(
     Number(result?.fallbackTerminated || 0) > 0 || result?.fallbackAttempted === false,
     true,
