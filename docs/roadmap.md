@@ -18,7 +18,9 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-three issues have implemented repairs through the twenty-sixth batch.
+Sixty-four issues have implemented repairs through the twenty-eighth batch.
+ANN publication binds full embedding identity and exact vector/chunk generation;
+failed replacements cannot relabel retained native bytes. Final qualification follows.
 Code-map caches bind the selected canonical index and manifest generation.
 Sublime cancellation and folder watch now pass actual Python 3.3 controls.
 Its API requests use destination-bound user credentials and refuse authenticated redirects.
@@ -37,12 +39,12 @@ now reads Toolhelp snapshots, with native layout/failure and real descendant/iso
 All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
 and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
 their source identities in the issue receipt; the supported native System32 owner
-keeps its two-second bound. Newer `0e872cb0b` passes all seven hosted checks,
+keeps its two-second bound. Newer `8a0511c09` passes all seven hosted checks (39436483363),
 including 46 Windows authority cases and all eight API cases. Earlier compiler/API
 deadline failures retain their receipts. Compiler resource qualification now has
 a serial owner with unchanged bounds. Fresh candidate qualification is required.
-Eight API cases and serial
-production parser/summary bounds have explicit owners. Candidate qualification
+Eight API cases, serial native generation cases and production resource bounds
+have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
 Windows acceptance is complete at frozen candidate `ffde426be`: all 2982
 required cases pass across 48 explicit cohorts, with 17 enumerated exclusions.
