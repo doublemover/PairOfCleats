@@ -13,7 +13,7 @@ import {
 } from './concurrency.js';
 
 export const DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES = 50000;
-export const LSP_REQUEST_CACHE_POLICY_VERSION = 'rq1';
+export const LSP_REQUEST_CACHE_POLICY_VERSION = 'rq2';
 const LSP_REQUEST_CACHE_SCHEMA_VERSION = 1;
 const LSP_REQUEST_CACHE_MAX_READ_BYTES = 16 * 1024 * 1024;
 const LSP_REQUEST_CACHE_NEGATIVE_TTL_MS = 30 * 1000;
@@ -156,6 +156,7 @@ export const loadLspRequestCache = async (cacheRoot, { log = null } = {}) => {
     for (const row of rows) {
       if (!row || typeof row !== 'object') continue;
       if (typeof row.key !== 'string' || !row.key) continue;
+      if (!row.key.startsWith(LSP_REQUEST_CACHE_POLICY_VERSION + '|')) continue;
       const value = normalizeRequestCacheEntry(row.value);
       if (!value || isExpiredRequestCacheEntry(value, now)) continue;
       entries.set(row.key, value);
@@ -210,25 +211,36 @@ export const buildLspRequestCacheKey = ({
   providerId,
   providerVersion = null,
   workspaceKey = null,
+  generation = null,
+  virtualPath = null,
+  uri = null,
+  containerPath = null,
+  segmentUid = null,
+  segmentId = null,
+  segmentStart = null,
+  segmentEnd = null,
+  languageId = null,
+  positionEncoding = 'utf-16',
   docHash,
   requestKind,
   position,
   policyVersion = LSP_REQUEST_CACHE_POLICY_VERSION
 }) => {
-  if (!docHash) return null;
+  if (!docHash || (!virtualPath && !uri) || !generation) return null;
   const symbolPositionKey = buildSymbolPositionCacheKey({ position });
   if (!symbolPositionKey) return null;
   const normalizedRequestKind = String(requestKind || '').trim().toLowerCase();
   if (!normalizedRequestKind) return null;
-  return [
-    String(policyVersion || '').trim() || LSP_REQUEST_CACHE_POLICY_VERSION,
+  return (String(policyVersion || '').trim() || LSP_REQUEST_CACHE_POLICY_VERSION) + '|' + JSON.stringify([
     normalizeRequestCacheProviderValue(providerId),
     String(providerVersion || '').trim(),
     String(workspaceKey || '').trim(),
+    generation,
+    [uri, virtualPath, containerPath, segmentUid, segmentId, segmentStart, segmentEnd, languageId, positionEncoding],
     String(docHash),
     normalizedRequestKind,
     symbolPositionKey
-  ].join('|');
+  ]);
 };
 
 export const normalizeSignatureCacheText = (value) => (
@@ -245,7 +257,7 @@ export const buildSignatureParseCacheKey = ({
   const normalizedDetail = normalizeSignatureCacheText(detailText);
   if (!normalizedDetail) return null;
   const parts = [
-    'v2',
+    'v3',
     String(languageId || '').trim(),
     String(parserKey || '').trim() || 'default',
     normalizedDetail

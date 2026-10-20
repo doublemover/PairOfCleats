@@ -15,6 +15,12 @@ const baseInput = {
   providerId: 'clangd',
   providerVersion: '1.2.3',
   workspaceKey: 'repo-root',
+  generation: 'immutable-build',
+  virtualPath: 'package-a/source.py',
+  uri: 'file:///repo/package-a/source.py',
+  containerPath: 'package-a/source.py',
+  languageId: 'python',
+  positionEncoding: 'utf-16',
   docHash: 'doc-hash-v2',
   requestKind: 'hover',
   position: { line: 7, character: 3 }
@@ -27,9 +33,18 @@ const betaFunctionKey = buildLspRequestCacheKey({
   requestKind: 'signature_help'
 });
 
-assert.equal(alphaFunctionKey?.startsWith('rq1|'), true, 'expected request cache key policy prefix');
+assert.equal(alphaFunctionKey?.startsWith('rq2|'), true, 'expected request cache key policy prefix');
 assert.equal(alphaFunctionKey, alphaVariableKey, 'expected request cache key to stay deterministic');
 assert.notEqual(alphaFunctionKey, betaFunctionKey, 'expected request cache key to vary by request kind');
+for (const change of [{ virtualPath: 'package-b/source.py' }, { uri: 'file:///repo/package-b/source.py' },
+  { containerPath: 'package-b/source.py' }, { segmentUid: 'different-segment' }, { segmentId: 'other' },
+  { segmentStart: 20 }, { segmentEnd: 100 }, { languageId: 'cpp' },
+  { positionEncoding: 'utf-8' }, { generation: 'next-build' }]) {
+  assert.notEqual(buildLspRequestCacheKey({ ...baseInput, ...change }), alphaFunctionKey,
+    `identical source bytes cannot erase response authority: ${JSON.stringify(change)}`);
+}
+assert.equal(buildLspRequestCacheKey({ ...baseInput, uri: null, virtualPath: null }), null);
+assert.equal(buildLspRequestCacheKey({ ...baseInput, generation: null }), null);
 
 const alphaPositionKey = buildSymbolPositionCacheKey({
   position: baseInput.position,
@@ -104,6 +119,11 @@ await persistLspRequestCache({
 });
 const persisted = JSON.parse(await fs.readFile(state.path, 'utf8'));
 assert.equal(persisted?.version, 1, 'expected persisted request cache schema version 1');
+persisted.entries.push({ key: 'rq1|ambiguous-old-answer', value: persisted.entries[0].value });
+await fs.writeFile(state.path, JSON.stringify(persisted));
+const reloaded = await loadLspRequestCache(tempRoot);
+assert.equal(reloaded.entries.has('rq1|ambiguous-old-answer'), false, 'legacy ambiguous entries are not admitted');
+assert.ok(reloaded.entries.has(alphaFunctionKey), 'current scoped entries remain reusable');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 console.log('LSP request cache key test passed');

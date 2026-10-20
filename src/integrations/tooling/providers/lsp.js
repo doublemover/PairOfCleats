@@ -237,6 +237,7 @@ export async function collectLspTypes({
   referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
   softDeadlineMs = null,
   requestCacheMaxEntries = DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
+  requestCacheGeneration = null,
   stderrFilter = null,
   initializationOptions = null,
   providerId = null,
@@ -331,6 +332,10 @@ export async function collectLspTypes({
     DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
     { min: 1000, max: 200000 }
   );
+  // Unscoped direct callers get per-invocation reuse only. They cannot establish
+  // that unchanged text still sees the same imports/includes/workspace state.
+  const resolvedRequestCacheGeneration = typeof requestCacheGeneration === 'string' && requestCacheGeneration.length
+    ? requestCacheGeneration : globalThis.crypto.randomUUID();
 
   const checks = [];
   const runtime = {
@@ -988,7 +993,8 @@ export async function collectLspTypes({
           requestCacheContext: {
             providerId: resolvedProviderId,
             providerVersion: resolvedProviderVersion,
-            workspaceKey: resolvedWorkspaceKey
+            workspaceKey: resolvedWorkspaceKey,
+            generation: resolvedRequestCacheGeneration
           },
           providerConfidenceBias: resolveProviderConfidenceBias(resolvedProviderId),
           semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig, resolveRequestCacheGeneration } from './provider-contract.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { writeToolingCacheJsonSync } from './cache-storage.js';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess/sync-command.js';
@@ -775,6 +775,7 @@ export const createClangdProvider = () => ({
     let result;
     try {
       result = await collectLspTypes({
+        requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,

@@ -5,6 +5,7 @@ import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
   hashProviderConfig,
+  resolveRequestCacheGeneration,
   normalizePreflightPolicy,
   normalizePreflightRuntimeRequirements,
   PREFLIGHT_POLICY,
@@ -372,6 +373,7 @@ export const createDedicatedLspProvider = (descriptor) => {
           const partitionAuthority = executionAuthorityFor(ctx, partition.rootDir);
           if (partitionAuthority) return buildBaseResult(providerRef, [...checks, partitionAuthority.check]);
           partitionResults.push(await collectLspTypes({
+            requestCacheGeneration: resolveRequestCacheGeneration(ctx),
             semanticSession: ctx.semanticLspSession || null,
             ...runtimeConfig,
             rootDir: ctx.repoRoot,

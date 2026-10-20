@@ -3,6 +3,10 @@ import { stableStringify } from '../../shared/stable-json.js';
 
 export const normalizeProviderId = (value) => String(value || '').trim().toLowerCase();
 
+/** Persistent semantic answers require an immutable build identity. */
+export const resolveRequestCacheGeneration = (ctx) => typeof ctx?.buildId === 'string' && ctx.buildId.length
+  ? JSON.stringify([ctx.repoRoot ?? null, ctx.buildRoot ?? null, ctx.mode ?? null, ctx.buildId]) : null;
+
 export const PREFLIGHT_POLICY = Object.freeze({
   REQUIRED: 'required',
   OPTIONAL: 'optional'

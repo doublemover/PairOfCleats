@@ -9,6 +9,7 @@ import {
   buildDuplicateChunkUidChecks,
   buildProviderFidelityContract,
   hashProviderConfig,
+  resolveRequestCacheGeneration,
   PROVIDER_FIDELITY_STATE
 } from './provider-contract.js';
 import {
@@ -923,6 +924,7 @@ export const createSourcekitProvider = () => ({
 
     try {
       const result = await collectLspTypes({
+        requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,

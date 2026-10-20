@@ -5,6 +5,7 @@ import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
   appendDiagnosticChecks,
   buildProviderFidelityContract,
+  resolveRequestCacheGeneration,
   PROVIDER_FIDELITY_STATE,
   shouldCollectTypesForRequestedKinds,
   shouldCaptureDiagnosticsForRequestedKinds
@@ -461,6 +462,7 @@ export const collectConfiguredOutput = async ({
     let partitionResult;
     try {
       partitionResult = await collectLspTypes({
+        requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,

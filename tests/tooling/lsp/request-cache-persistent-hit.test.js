@@ -98,6 +98,7 @@ const runCollect = async (tracePath) => {
       providerId: 'clangd',
       providerVersion: '9.9.9',
       workspaceKey: 'repo-root',
+      requestCacheGeneration: 'unchanged-immutable-build',
       parseSignature
     });
   });

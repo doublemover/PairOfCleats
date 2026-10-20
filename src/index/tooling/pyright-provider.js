@@ -6,6 +6,7 @@ import {
   appendDiagnosticChecks,
   buildDuplicateChunkUidChecks,
   hashProviderConfig,
+  resolveRequestCacheGeneration,
   shouldCaptureDiagnosticsForRequestedKinds
 } from './provider-contract.js';
 import { invalidateProbeCacheOnInitializeFailure, resolveToolingCommandProfile } from './command-resolver.js';
@@ -417,6 +418,7 @@ export const createPyrightProvider = () => ({
       });
     }
     const result = await collectLspTypes({
+      requestCacheGeneration: resolveRequestCacheGeneration(ctx),
       semanticSession: ctx.semanticLspSession || null,
       ...runtimeConfig,
       rootDir: ctx.repoRoot,
