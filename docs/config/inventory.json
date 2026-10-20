@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T11:32:32.992Z",
+  "generatedAt": "2026-10-20T12:14:56.587Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -6112,6 +6112,24 @@
         ]
       },
       {
+        "file": "tests/lang/python/positional-defaults.test.js",
+        "flags": [
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/python/registry-relations.test.js",
+        "flags": [
+          "pythonAst"
+        ]
+      },
+      {
+        "file": "tests/lang/python/utf8-chunk-ranges.test.js",
+        "flags": [
+          "pythonAst"
+        ]
+      },
+      {
         "file": "tests/lang/registry/registry-contract-matrix.test.js",
         "flags": [
           "collectorDiagnostics",
@@ -8517,6 +8535,16 @@
         ]
       },
       {
+        "flag": "pythonAst",
+        "count": 4,
+        "files": [
+          "tests/indexing/language-registry/python-ast-heavy-skip.test.js",
+          "tests/lang/python/positional-defaults.test.js",
+          "tests/lang/python/registry-relations.test.js",
+          "tests/lang/python/utf8-chunk-ranges.test.js"
+        ]
+      },
+      {
         "flag": "queries",
         "count": 4,
         "files": [
@@ -9539,6 +9567,7 @@
       "tests/indexing/tree-sitter/memory-plateau.test.js",
       "tests/lang/contracts/dockerfile-ast-boundaries.test.js",
       "tests/lang/contracts/handlebars-ast-boundaries.test.js",
+      "tests/lang/contracts/html-registry-metadata.test.js",
       "tests/lang/contracts/jinja-django-lexical-boundaries.test.js",
       "tests/lang/contracts/mustache-parse-token-boundaries.test.js",
       "tests/lang/contracts/proto-reflection-lexical-boundaries.test.js",

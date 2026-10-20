@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T11:46:22.517Z",
+  "generatedAt": "2026-10-20T12:14:52.824Z",
   "summary": {
     "lanes": 5,
-    "tests": 1273,
+    "tests": 1278,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 326,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1199
+      "missingTests": 1204
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1051,
+      "totalTests": 1056,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1002
+        "missing": 1007
       }
     },
     {
@@ -158,9 +158,9 @@
     },
     {
       "key": "lang/contracts",
-      "count": 15,
+      "count": 16,
       "knownDurationMs": 5030,
-      "unknownDurationCount": 14
+      "unknownDurationCount": 15
     },
     {
       "key": "indexing/language-fixture",
@@ -313,16 +313,16 @@
       "unknownDurationCount": 28
     },
     {
-      "key": "tooling/vfs",
+      "key": "indexing/contracts",
       "count": 23,
       "knownDurationMs": 0,
       "unknownDurationCount": 23
     },
     {
-      "key": "indexing/contracts",
-      "count": 22,
+      "key": "tooling/vfs",
+      "count": 23,
       "knownDurationMs": 0,
-      "unknownDurationCount": 22
+      "unknownDurationCount": 23
     },
     {
       "key": "retrieval/pipeline",
@@ -542,6 +542,12 @@
     },
     {
       "key": "indexing/state",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
+      "key": "lang/python",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -1339,12 +1345,6 @@
       "unknownDurationCount": 1
     },
     {
-      "key": "lang/python",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
       "key": "lang/ruby",
       "count": 1,
       "knownDurationMs": 0,
@@ -2056,9 +2056,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 406,
+      "count": 407,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 365,
+      "unknownDurationCount": 366,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

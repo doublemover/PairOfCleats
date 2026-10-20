@@ -18,9 +18,9 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Fifty-four issues have repairs through source `f6b36db6f` (nineteenth batch):
-first-run preflight precedes installation, with a clean fresh Windows locked bootstrap.
-TypeScript doctor,
+Fifty-eight issues have repairs through source `55d24e63f` (twentieth batch): Python AST relations,
+defaults and Unicode ranges, plus HTML summary metadata, survive registry/index paths.
+First-run preflight has a clean fresh Windows bootstrap. TypeScript doctor,
 loaders and host/preflight share version/capability admission. Release assets have
 unique staged names/checksum mappings and CI Long has explicit release-only scope. GNU Global cxref ingestion
 separates source text from encoded paths and owns valid query arguments; LSIF follows
@@ -38,14 +38,10 @@ wrapper/direct equivalence remains open under #616.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
-Run 39401360614 at `2bcbfd1ba` passes all seven hosted checks, including Windows
-ownership and broad CI. Earlier `88748d677` parity passes in 11 seconds; its original timeout
-remains historical without inferred attribution. Newer `4eca0d995` passes six
-checks but times out in CIM snapshot discovery before the broad Windows suite.
-At `e6996eaba`, production orphan cleanup passes in 1.46 seconds; an extra
-unsupported 32-bit helper probe fails. Native System32 selection and its unchanged
-two-second checks follow 64-bit Node 26 targets. All native controls pass at `b6bc0612f`;
-its broad Windows run was cancelled by publication concurrency. Fresh CI remains required.
+All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
+and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
+their source identities in the issue receipt; the supported native System32 owner
+keeps its two-second bound. Fresh resulting-candidate qualification remains required.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.

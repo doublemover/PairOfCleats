@@ -1051,3 +1051,8 @@ tooling/release/publish-assets
 tooling/release/readiness-gate-missing-workflow
 tooling/typescript-compiler-compatibility
 tooling/install/bootstrap-preflight
+lang/python/registry-relations
+lang/python/utf8-chunk-ranges
+lang/python/positional-defaults
+lang/contracts/html-registry-metadata
+indexing/contracts/python-html-registry
