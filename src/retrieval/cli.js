@@ -8,6 +8,9 @@ import {
   resolveSparsePreflightModes
 } from './cli/preflight.js';
 
+// Process-local capability for coordinator-owned per-mode work, never a CLI flag.
+export const INTERNAL_EXACT_SEARCH_MODE = Symbol('coordinator-exact-search-mode');
+
 export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}) {
   const { runSearchCli: runSearchCliImpl } = await import('./cli/run-search/plan-runner.js');
   return runSearchCliImpl(rawArgs, options);

@@ -127,7 +127,8 @@ export function normalizeSearchOptions({
   rootDir,
   userConfig,
   metricsDir,
-  policy
+  policy,
+  exactMode = null
 }) {
   const controls = resolveSearchControls(argv);
   const jsonOutput = argv.json === true;
@@ -169,6 +170,12 @@ export function normalizeSearchOptions({
   const chunkAuthorFilter = argv['chunk-author'] || null;
 
   const searchModeInfo = resolveSearchMode(argv.mode);
+  if (exactMode != null) {
+    if (!['code', 'prose', 'extracted-prose', 'records'].includes(exactMode) || searchModeInfo.searchMode !== exactMode) {
+      throw new Error('Invalid internal exact search mode.');
+    }
+    searchModeInfo.runExtractedProse = exactMode === 'extracted-prose';
+  }
   const {
     searchMode,
     runCode,
@@ -177,7 +184,7 @@ export function normalizeSearchOptions({
     runExtractedProse: runExtractedProseRaw
   } = searchModeInfo;
   const runExtractedProse = runExtractedProseRaw;
-  const commentsEnabled = argv.comments !== false;
+  const commentsEnabled = argv.comments !== false && (exactMode == null || exactMode === 'extracted-prose');
 
   const bm25K1Arg = normalizeOptionalNumber(argv['bm25-k1']);
   const bm25BArg = normalizeOptionalNumber(argv['bm25-b']);

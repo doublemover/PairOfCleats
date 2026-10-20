@@ -25,6 +25,7 @@ import {
 import { selectWorkspaceRepos } from './select.js';
 import { enumerateWorkspace, withoutCursor } from './enumeration.js';
 import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
+import { bindRelativeModificationArgs } from './time-filter.js';
 
 const MODE_PAYLOAD_KEYS = Object.freeze({
   code: 'code',
@@ -562,6 +563,7 @@ const resolveWorkspaceConfig = (request, context) => {
 };
 
 export const runFederatedSearch = async (request = {}, context = {}) => {
+  const timeAnchor = Date.now();
   const query = String(request.query || '').trim();
   if (query && (request.cursor || request.search?.cursor)) {
     throw createError(ERROR_CODES.INVALID_REQUEST, 'Workspace cursors require filter-only enumeration.');
@@ -628,13 +630,13 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const includePaths = request.debug?.includePaths === true;
   const strictFailures = request.strict === true;
 
-  const basePerRepoArgs = request.rawArgs
+  const basePerRepoArgs = bindRelativeModificationArgs(request.rawArgs
     ? buildPerRepoArgsFromCli({ rawArgs: request.rawArgs, perRepoTop })
     : buildPerRepoArgsFromRequest({
       query,
       search: request.search || {},
       perRepoTop
-    });
+    }), timeAnchor);
   const perRepoQuery = request.rawArgs ? '' : query;
   if (!query) {
     const enumerationArgs = withoutCursor(request.rawArgs
@@ -725,10 +727,12 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   });
   const cachedEntry = findFederatedQueryCacheEntry(cacheData, {
     keyHash: cacheKeyInfo.keyHash,
-    manifestHash: manifest.manifestHash
+    manifestHash: manifest.manifestHash,
+    policy: cachePolicy,
+    now: timeAnchor
   });
   if (cachedEntry?.result) {
-    touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash);
+    touchFederatedQueryCacheEntry(cacheData, cacheKeyInfo.keyHash, new Date(timeAnchor).toISOString());
     try {
       await persistFederatedQueryCache({ cachePath, cache: cacheData });
     } catch {}
@@ -741,6 +745,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         keyPayloadHash: cacheKeyInfo.keyPayloadHash,
         manifestHash: manifest.manifestHash,
         result,
+        now: new Date(timeAnchor).toISOString(),
         policy: cachePolicy
       });
       await persistFederatedQueryCache({

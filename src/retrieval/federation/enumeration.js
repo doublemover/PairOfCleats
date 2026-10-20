@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
+import { bindRelativeModificationArgs } from './time-filter.js';
 
 const invalid = (message) => createError(ERROR_CODES.INVALID_REQUEST, message);
 const keys = { code: 'code', prose: 'prose', 'extracted-prose': 'extractedProse', records: 'records' };
@@ -44,20 +46,16 @@ export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, se
   if (task) {
     // Override the CLI mode once, preserving the ordinary search owner and its cursor checks.
     const modeArgs = [];
-    for (let i = 0; i < args.length; i += 1) {
-      if (args[i] === '--mode') { i += 1; continue; }
-      if (args[i] === '--modified-since' || args[i].startsWith('--modified-since=')) {
-        const days = Number(args[i].includes('=') ? args[i].split('=')[1] : args[++i]);
-        const after = timeAnchor - days * 86400000;
-        if (!Number.isFinite(after) || days < 0 || Math.abs(after) > 8.64e15) throw invalid('Invalid modified-since interval.');
-        modeArgs.push('--modified-after', new Date(after).toISOString());
-        continue;
-      }
-      if (!args[i].startsWith('--mode=')) modeArgs.push(args[i]);
+    const boundArgs = bindRelativeModificationArgs(args, timeAnchor);
+    for (let i = 0; i < boundArgs.length; i += 1) {
+      if (boundArgs[i] === '--') { modeArgs.push(...boundArgs.slice(i)); break; }
+      if (boundArgs[i] === '--mode') { i += 1; continue; }
+      if (!boundArgs[i].startsWith('--mode=')) modeArgs.push(boundArgs[i]);
     }
     const result = await search(task.repo.repoRootCanonical, {
       args: [...modeArgs, '--mode', task.mode, ...(localCursor ? ['--cursor', localCursor] : [])],
-      emitOutput: false, exitOnError: false, signal
+      emitOutput: false, exitOnError: false, signal,
+      [INTERNAL_EXACT_SEARCH_MODE]: task.mode
     });
     if (!result?.pagination) throw invalid('Repository did not return structured enumeration metadata.');
     const key = keys[task.mode];

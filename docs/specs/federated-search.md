@@ -102,6 +102,12 @@ If `--workspace` is present:
 - In federated mode, JSON output is the canonical contract.
 - If the user does not pass `--json`, the CLI MAY still print a human-readable merged view; however, correctness testing and API/MCP should always use JSON.
 
+Filter-only enumeration schedules one exact eligible repository/mode task per
+page. A prose task cannot implicitly load extracted prose; that mode has its own
+eligibility and continuation. Missing requested modes remain explicit partial
+results or strict failures. Ordinary single-repository prose search retains its
+comment expansion and index-compatibility requirements.
+
 ---
 
 ## 5. API server contract

@@ -30,6 +30,7 @@ import { hasIndexMetaAsync, hasLmdbStore } from '../index-loader.js';
 import { applyBranchFilter } from '../branch-filter.js';
 import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
+import { INTERNAL_EXACT_SEARCH_MODE } from '../../cli.js';
 import { buildQueryPlan } from '../query-plan.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
@@ -205,7 +206,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
         userConfig,
         metricsDir,
         queryCacheDir,
-        policy
+        policy,
+        exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null
       });
     } catch (err) {
       return bail(err.message, 1, ERROR_CODES.INVALID_REQUEST);

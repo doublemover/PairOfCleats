@@ -120,7 +120,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  v: 2,
+  // Eligibility and relative-time execution changed; retire earlier result sets.
+  v: 3,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),
@@ -301,6 +302,13 @@ const estimateFederatedCacheHeaderBytes = (cache) => {
   return Buffer.byteLength(stableStringify(envelope), 'utf8');
 };
 
+const resolveAgeCutoff = (policy, now) => {
+  const maxAgeDays = Number.isFinite(Number(policy.maxAgeDays))
+    ? Math.max(0, Number(policy.maxAgeDays))
+    : FEDERATED_QUERY_CACHE_DEFAULTS.maxAgeDays;
+  return now - (maxAgeDays * 24 * 60 * 60 * 1000);
+};
+
 export const pruneFederatedQueryCache = (cache, policy = {}) => {
   const maxEntries = Number.isFinite(Number(policy.maxEntries))
     ? Math.max(1, Math.floor(Number(policy.maxEntries)))
@@ -308,10 +316,7 @@ export const pruneFederatedQueryCache = (cache, policy = {}) => {
   const maxBytes = Number.isFinite(Number(policy.maxBytes))
     ? Math.max(1, Math.floor(Number(policy.maxBytes)))
     : FEDERATED_QUERY_CACHE_DEFAULTS.maxBytes;
-  const maxAgeDays = Number.isFinite(Number(policy.maxAgeDays))
-    ? Math.max(0, Number(policy.maxAgeDays))
-    : FEDERATED_QUERY_CACHE_DEFAULTS.maxAgeDays;
-  const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+  const cutoff = resolveAgeCutoff(policy, Date.now());
 
   for (const [key, entry] of Object.entries(cache.entries || {})) {
     if (toMs(entry.lastUsedAt) < cutoff) {
@@ -356,12 +361,15 @@ export const pruneFederatedQueryCache = (cache, policy = {}) => {
 
 export const findFederatedQueryCacheEntry = (cache, {
   keyHash,
-  manifestHash
+  manifestHash,
+  policy = {},
+  now = Date.now()
 } = {}) => {
   if (!cache || !cache.entries || !keyHash || !manifestHash) return null;
   const entry = cache.entries[keyHash];
   if (!entry) return null;
   if (entry.manifestHash !== manifestHash) return null;
+  if (toMs(entry.lastUsedAt) < resolveAgeCutoff(policy, now)) return null;
   return entry;
 };
 

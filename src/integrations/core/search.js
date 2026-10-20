@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { runSearchCli } from '../../retrieval/cli.js';
+import { runSearchCli, INTERNAL_EXACT_SEARCH_MODE } from '../../retrieval/cli.js';
 import { buildSearchArgs } from './args.js';
 import { attachObservability, normalizeObservability } from '../../shared/observability.js';
 
@@ -33,7 +33,8 @@ export async function search(repoRoot, params = {}) {
     sqliteCache: params.sqliteCache,
     signal: params.signal || null,
     scoreMode: params.scoreMode ?? null,
-    generationContext: params.generationContext || null
+    generationContext: params.generationContext || null,
+    [INTERNAL_EXACT_SEARCH_MODE]: params[INTERNAL_EXACT_SEARCH_MODE]
   });
   return attachObservability(result, observability);
 }
