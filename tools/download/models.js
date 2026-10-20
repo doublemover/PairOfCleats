@@ -11,7 +11,7 @@ import { DEFAULT_MODEL_ID, getModelConfig, resolveRepoConfig } from '../shared/d
 const argv = createCli({
   scriptName: 'download-models',
   options: {
-    model: { type: 'string', default: DEFAULT_MODEL_ID },
+    model: { type: 'string' },
     'cache-dir': { type: 'string' },
     onnx: { type: 'boolean', default: false },
     'onnx-path': { type: 'string' },
