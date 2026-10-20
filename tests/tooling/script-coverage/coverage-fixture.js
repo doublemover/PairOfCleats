@@ -5,7 +5,7 @@ import { repoRoot } from '../../helpers/root.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { buildActions } from './actions.js';
 
-export const createScriptCoverageActionsFixture = async () => {
+export const createScriptCoverageActionsFixture = async ({ runNode = () => {} } = {}) => {
   const root = repoRoot();
   const fixtureRoot = path.join(root, 'tests', 'fixtures', 'sample');
   const baseCacheRoot = await makeTempDir('pairofcleats-script-coverage-');
@@ -20,7 +20,7 @@ export const createScriptCoverageActionsFixture = async () => {
     repoEnv: { ...process.env },
     baseCacheRoot,
     mergeDir,
-    runNode: () => {},
+    runNode,
     scriptNames
   });
 

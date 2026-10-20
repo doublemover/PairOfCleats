@@ -218,11 +218,6 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['config-validate', 'config-validate-test']
   },
   {
-    label: 'config-contract-matrix-dump-test',
-    run: () => runNode('config-contract-matrix-dump-test', path.join(root, 'tests', 'tooling', 'config', 'contract-matrix.test.js')),
-    covers: ['config-dump-test', 'config-contract-matrix-dump-test']
-  },
-  {
     label: 'structural-search-help',
     run: () => runNode('structural-search', path.join(root, 'tools', 'analysis', 'structural-search.js'), ['--help']),
     covers: ['structural-search']
@@ -273,11 +268,6 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     covers: ['release-check']
   },
   {
-    label: 'release-check-breaking-help',
-    run: () => runNode('release-check:breaking', path.join(root, 'tools', 'release', 'check.js'), ['--help']),
-    covers: ['release-check:breaking']
-  },
-  {
     label: 'parity-matrix-help',
     run: () => runNode('parity:matrix', path.join(root, 'tools', 'reports', 'parity-matrix.js'), ['--help']),
     covers: ['parity:matrix']
@@ -320,11 +310,6 @@ export const buildToolActions = ({ root, fixtureRoot, repoEnv, baseCacheRoot, ci
     label: 'shard-census-help',
     run: () => runNode('shard-census', path.join(root, 'tools', 'index', 'shard-census.js'), ['--help']),
     covers: ['shard-census']
-  },
-  {
-    label: 'shared-runtime-contract-matrix-test',
-    run: () => runNode('shared-runtime-contract-matrix-test', path.join(root, 'tests', 'shared', 'runtime', 'runtime-contract-matrix.test.js')),
-    covers: ['uv-threadpool-env-test', 'uv-threadpool-no-override-test', 'shared-runtime-contract-matrix-test']
   },
   {
     label: 'io-concurrency-cap-test',

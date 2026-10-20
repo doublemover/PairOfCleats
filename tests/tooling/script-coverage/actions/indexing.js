@@ -191,16 +191,6 @@ export const buildIndexingActions = ({ root, runNode }) => [
     covers: ['preprocess-files-test']
   },
   {
-    label: 'chunking-limits-unit-test',
-    run: () => runNode('chunking-limits-unit-test', path.join(root, 'tests', 'indexing', 'chunking', 'limits.test.js')),
-    covers: ['chunking-limits-unit-test']
-  },
-  {
-    label: 'chunking-yaml-unit-test',
-    run: () => runNode('chunking-yaml-unit-test', path.join(root, 'tests', 'indexing', 'chunking', 'yaml.test.js')),
-    covers: ['chunking-yaml-unit-test']
-  },
-  {
     label: 'chunking-json-unit-test',
     run: () => runNode('chunking-json-unit-test', path.join(root, 'tests', 'indexing', 'chunking', 'json.test.js')),
     covers: ['chunking-json-unit-test']

@@ -24,7 +24,7 @@ const actions = await buildActions({
   repoEnv: { ...process.env },
   baseCacheRoot,
   mergeDir,
-  runNode: (label, script, args = []) => invocations.push({ label, script, args }),
+  runNode: (label, script, args = [], options = {}) => { invocations.push({ label, script, args, options }); },
   scriptNames
 });
 for (const [group, expected] of Object.entries(buildScriptCoverageCaseInventories(actions))) {
@@ -35,6 +35,7 @@ for (const [group, expected] of Object.entries(buildScriptCoverageCaseInventorie
 
 const unknown = new Set();
 const commandMismatches = [];
+const signatures = new Map(), duplicateInvocations = [];
 let hasHarnessAction = false;
 for (const action of actions) {
   assert.ok(groups.has(action.group), `unexpected script-coverage group: ${action.group}`);
@@ -46,9 +47,12 @@ for (const action of actions) {
     }
   }
   const claims = [...new Set([...(action.covers || []), ...(action.coversTierB || [])])];
+  invocations.length = 0;
+  await action.run();
+  const signature = JSON.stringify(invocations.map(({ script, args, options }) => ({ script, args, options })));
+  if (signatures.has(signature)) duplicateInvocations.push([signatures.get(signature), `${action.group}/${action.label}`]);
+  else signatures.set(signature, `${action.group}/${action.label}`);
   if (claims.length) {
-    invocations.length = 0;
-    await action.run();
     const actual = invocations.length === 1
       ? ['node', path.relative(root, invocations[0].script).replace(/\\/g, '/'), ...invocations[0].args].join(' ')
       : `${invocations.length} separate invocations`;
@@ -60,6 +64,7 @@ for (const action of actions) {
 
 await rmDirRecursive(baseCacheRoot);
 assert.deepEqual(commandMismatches, [], 'a partial smoke command must not claim execution of a different npm command');
+assert.deepEqual(duplicateInvocations, [], 'identical subprocess inputs/options cannot have duplicate wrapper aliases');
 assert.equal(unknown.size, 0, `expected covers to align with package scripts (unknown: ${Array.from(unknown).join(', ')})`);
 assert.equal(hasHarnessAction, true, 'expected dedicated script-coverage harness action');
 

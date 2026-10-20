@@ -39,8 +39,6 @@
     "shard-merge-test",
     "shard-plan-test",
     "preprocess-files-test",
-    "chunking-limits-unit-test",
-    "chunking-yaml-unit-test",
     "chunking-json-unit-test",
     "indexer-signatures-contract-matrix-test",
     "indexer-sort-determinism-test",
