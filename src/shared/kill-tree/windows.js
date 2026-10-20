@@ -1,4 +1,4 @@
-import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
+import { spawnSync } from 'node:child_process';
 import { scheduleUnrefTimer, wait } from './shared.js';
 import path from 'node:path';
 
@@ -7,6 +7,14 @@ const WINDOWS_DESCENDANT_DISCOVERY_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_LIMIT = 2048;
 const WINDOWS_TASKLIST_TIMEOUT_MS = 2000;
 const WINDOWS_DESCENDANT_KILL_BUDGET_MS = 4000;
+
+// Native leaf helpers never launch application work. Bound them directly so a
+// stalled taskkill/snapshot cannot recursively enter the tree-cleanup owner.
+const runWindowsHelperSync = (command, args, { timeoutMs, ...options }) => {
+  try { return spawnSync(command, args, { ...options, timeout: timeoutMs }); }
+  catch (error) { return { pid: null, status: null, signal: null, stdout: '', stderr: '', error }; }
+};
+const toSyncCommandExitCode = result => Number.isFinite(result?.status) ? result.status : null;
 
 /** Node 26 supports 64-bit Windows; bind its native system helper, independently of PATH. */
 export const resolveWindowsPowerShellPath = (env = process.env) => {
@@ -114,7 +122,7 @@ export const resolveWindowsDescendantPids = (value, rootPid) => {
 export const isWindowsPidAlive = (pid) => {
   const numericPid = Number(pid);
   if (!Number.isFinite(numericPid) || numericPid <= 0) return false;
-  const result = runSyncCommandWithTimeout(
+  const result = runWindowsHelperSync(
     'tasklist',
     ['/FI', `PID eq ${Math.floor(numericPid)}`, '/FO', 'CSV', '/NH'],
     {
@@ -138,7 +146,7 @@ const discoverWindowsDescendantPidsSync = (rootPid) => {
   const request = createWindowsProcessSnapshotRequest();
   if (!request) return { pids: [], diagnostic: { exitCode: null,
     errorCode: 'ERR_WINDOWS_SYSTEM_ROOT', durationMs: 0, discoveredCount: 0, stderr: '' } };
-  const result = runSyncCommandWithTimeout(
+  const result = runWindowsHelperSync(
     request.command, request.args, request.options
   );
   const exitCode = toSyncCommandExitCode(result);
@@ -179,7 +187,7 @@ const killWindowsOrphanDescendantsSync = (
     }
     if (!Number.isFinite(pid) || pid <= 0 || pid === rootPid) continue;
     try {
-      const result = runSyncCommandWithTimeout('taskkill', ['/PID', String(pid), '/T', '/F'], {
+      const result = runWindowsHelperSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
         stdio: 'ignore',
         timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
       });
@@ -216,7 +224,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     fallbackTerminated: 0
   };
   try {
-    const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
+    const graceful = runWindowsHelperSync('taskkill', baseArgs, {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
@@ -232,7 +240,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     if (graceMs > 0) {
       scheduleUnrefTimer(graceMs, () => {
         if (!isWindowsPidAlive(pid)) return;
-        runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+        runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
           stdio: 'ignore',
           timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
         });
@@ -240,7 +248,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
       return { ...state, forced: false };
     }
     try {
-      const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+      const forcedKill = runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
         stdio: 'ignore',
         timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
       });
@@ -252,7 +260,7 @@ export const killWindowsTree = async (pid, { graceMs, awaitGrace = true }) => {
     return state;
   }
   try {
-    const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+    const forcedKill = runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
@@ -274,7 +282,7 @@ export const killWindowsTreeSync = (pid) => {
     fallbackTerminated: 0
   };
   try {
-    const graceful = runSyncCommandWithTimeout('taskkill', baseArgs, {
+    const graceful = runWindowsHelperSync('taskkill', baseArgs, {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });
@@ -286,7 +294,7 @@ export const killWindowsTreeSync = (pid) => {
     return { ...state, terminated: true, forced: false };
   }
   try {
-    const forcedKill = runSyncCommandWithTimeout('taskkill', [...baseArgs, '/F'], {
+    const forcedKill = runWindowsHelperSync('taskkill', [...baseArgs, '/F'], {
       stdio: 'ignore',
       timeoutMs: DEFAULT_WINDOWS_TASKKILL_TIMEOUT_MS
     });

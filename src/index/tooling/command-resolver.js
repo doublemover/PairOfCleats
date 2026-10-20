@@ -912,6 +912,8 @@ export const probeLspInitializeHandshake = async (input) => {
     cwd,
     env: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
       providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }),
+    onLifecycleEvent: input?.onLifecycleEvent,
+    onStderrLine: input?.onStderrLine,
     log: () => {}
   });
   const startedAt = Date.now();
@@ -953,5 +955,8 @@ export const probeLspInitializeHandshake = async (input) => {
     };
   } finally {
     await Promise.resolve(client.kill());
+    if (typeof input?.onMetrics === 'function') {
+      try { input.onMetrics(client.getMetrics()); } catch {}
+    }
   }
 };

@@ -602,6 +602,7 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'shutdown') {
+    if (mode === 'stall-shutdown') return;
     respond(id, null);
     if (exitOnShutdown) {
       setTimeout(() => process.exit(0), 0);

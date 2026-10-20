@@ -149,6 +149,10 @@ jobs:
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_HOME: ${{ runner.temp }}/poc-dotnet-cli-home
+      NUGET_PACKAGES: ${{ runner.temp }}/poc-nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -192,6 +196,40 @@ jobs:
           fi
           node -v
           npm -v
+
+      - name: Setup qualified .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+        with:
+          dotnet-version: '10.0.113'
+
+      - name: Verify selected .NET SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const root = process.env.DOTNET_ROOT;
+          assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+          const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+          const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+          const version = runCommand(command, ["--version"], options);
+          const selected = runCommand("dotnet", ["--version"], options);
+          const runtimes = runCommand(command, ["--list-runtimes"], options);
+          for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+          assert.equal(version.stdout.trim(), "10.0.113");
+          assert.equal(selected.stdout.trim(), "10.0.113");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+          fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
 
       - name: Setup qualified Go SDK
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -238,24 +276,32 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           import path from "node:path";
-          import { createHash } from "node:crypto";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
-          import { probeLspInitializeHandshake, resolveToolingCommandProfile } from "./src/index/tooling/command-resolver.js";
-          const toolingConfig = getToolingConfig(process.cwd());
-          const workspace = path.resolve(".diagnostics/gopls-workspace");
-          fs.mkdirSync(workspace, { recursive: true });
-          fs.writeFileSync(path.join(workspace, "go.mod"), "module example.com/poc-qualification\n\ngo 1.26.0\n");
-          fs.writeFileSync(path.join(workspace, "answer.go"), "package qualification\n\nfunc Answer() int { return 42 }\n");
-          const profile = resolveToolingCommandProfile({ providerId: "gopls", cmd: "gopls", args: ["serve"], repoRoot: process.cwd(), toolingConfig });
-          assert.equal(profile.probe.ok, true, JSON.stringify(profile));
-          const result = await probeLspInitializeHandshake({ providerId: "gopls", ...profile.resolved, cwd: workspace, toolingConfig, timeoutMs: 4000 });
-          const binary = profile.probe.resolvedPath || profile.resolved.cmd;
-          const receipt = { source: process.env.GITHUB_SHA, node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch, command: binary, args: profile.resolved.args, binarySha256: createHash("sha256").update(fs.readFileSync(binary)).digest("hex"), sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), result, qualification: "initialize-and-shutdown" };
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
-          console.log(JSON.stringify(result));
-          assert.equal(result.ok, true, JSON.stringify(result));
-          assert.equal(result.capabilities.documentSymbol, true);
-          assert.equal(result.capabilities.definition, true);
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real Csharp language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
           '
 
       - name: CI Suite
@@ -276,6 +322,8 @@ jobs:
         with:
           name: ci-quality-artifacts-ubuntu
           path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
@@ -311,6 +359,10 @@ jobs:
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_HOME: ${{ runner.temp }}/poc-dotnet-cli-home
+      NUGET_PACKAGES: ${{ runner.temp }}/poc-nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -355,6 +407,40 @@ jobs:
           }
           node -v
           npm -v
+
+      - name: Setup qualified .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+        with:
+          dotnet-version: '10.0.113'
+
+      - name: Verify selected .NET SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const root = process.env.DOTNET_ROOT;
+          assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+          const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+          const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+          const version = runCommand(command, ["--version"], options);
+          const selected = runCommand("dotnet", ["--version"], options);
+          const runtimes = runCommand(command, ["--list-runtimes"], options);
+          for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+          assert.equal(version.stdout.trim(), "10.0.113");
+          assert.equal(selected.stdout.trim(), "10.0.113");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+          fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
 
       - name: Setup qualified Go SDK
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -403,24 +489,32 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           import path from "node:path";
-          import { createHash } from "node:crypto";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
-          import { probeLspInitializeHandshake, resolveToolingCommandProfile } from "./src/index/tooling/command-resolver.js";
-          const toolingConfig = getToolingConfig(process.cwd());
-          const workspace = path.resolve(".diagnostics/gopls-workspace");
-          fs.mkdirSync(workspace, { recursive: true });
-          fs.writeFileSync(path.join(workspace, "go.mod"), "module example.com/poc-qualification\n\ngo 1.26.0\n");
-          fs.writeFileSync(path.join(workspace, "answer.go"), "package qualification\n\nfunc Answer() int { return 42 }\n");
-          const profile = resolveToolingCommandProfile({ providerId: "gopls", cmd: "gopls", args: ["serve"], repoRoot: process.cwd(), toolingConfig });
-          assert.equal(profile.probe.ok, true, JSON.stringify(profile));
-          const result = await probeLspInitializeHandshake({ providerId: "gopls", ...profile.resolved, cwd: workspace, toolingConfig, timeoutMs: 4000 });
-          const binary = profile.probe.resolvedPath || profile.resolved.cmd;
-          const receipt = { source: process.env.GITHUB_SHA, node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch, command: binary, args: profile.resolved.args, binarySha256: createHash("sha256").update(fs.readFileSync(binary)).digest("hex"), sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), result, qualification: "initialize-and-shutdown" };
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
-          console.log(JSON.stringify(result));
-          assert.equal(result.ok, true, JSON.stringify(result));
-          assert.equal(result.capabilities.documentSymbol, true);
-          assert.equal(result.capabilities.definition, true);
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real Csharp language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
           '
 
       - name: CI Suite
@@ -433,6 +527,8 @@ jobs:
         with:
           name: ci-quality-artifacts-windows
           path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json
@@ -533,6 +629,10 @@ jobs:
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_HOME: ${{ runner.temp }}/poc-dotnet-cli-home
+      NUGET_PACKAGES: ${{ runner.temp }}/poc-nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -574,6 +674,40 @@ jobs:
           fi
           node -v
           npm -v
+
+      - name: Setup qualified .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+        with:
+          dotnet-version: '10.0.113'
+
+      - name: Verify selected .NET SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const root = process.env.DOTNET_ROOT;
+          assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+          const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+          const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+          const version = runCommand(command, ["--version"], options);
+          const selected = runCommand("dotnet", ["--version"], options);
+          const runtimes = runCommand(command, ["--list-runtimes"], options);
+          for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+          assert.equal(version.stdout.trim(), "10.0.113");
+          assert.equal(selected.stdout.trim(), "10.0.113");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+          fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
 
       - name: Setup qualified Go SDK
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -620,24 +754,32 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           import path from "node:path";
-          import { createHash } from "node:crypto";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
-          import { probeLspInitializeHandshake, resolveToolingCommandProfile } from "./src/index/tooling/command-resolver.js";
-          const toolingConfig = getToolingConfig(process.cwd());
-          const workspace = path.resolve(".diagnostics/gopls-workspace");
-          fs.mkdirSync(workspace, { recursive: true });
-          fs.writeFileSync(path.join(workspace, "go.mod"), "module example.com/poc-qualification\n\ngo 1.26.0\n");
-          fs.writeFileSync(path.join(workspace, "answer.go"), "package qualification\n\nfunc Answer() int { return 42 }\n");
-          const profile = resolveToolingCommandProfile({ providerId: "gopls", cmd: "gopls", args: ["serve"], repoRoot: process.cwd(), toolingConfig });
-          assert.equal(profile.probe.ok, true, JSON.stringify(profile));
-          const result = await probeLspInitializeHandshake({ providerId: "gopls", ...profile.resolved, cwd: workspace, toolingConfig, timeoutMs: 4000 });
-          const binary = profile.probe.resolvedPath || profile.resolved.cmd;
-          const receipt = { source: process.env.GITHUB_SHA, node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch, command: binary, args: profile.resolved.args, binarySha256: createHash("sha256").update(fs.readFileSync(binary)).digest("hex"), sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), result, qualification: "initialize-and-shutdown" };
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
-          console.log(JSON.stringify(result));
-          assert.equal(result.ok, true, JSON.stringify(result));
-          assert.equal(result.capabilities.documentSymbol, true);
-          assert.equal(result.capabilities.definition, true);
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real Csharp language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
           '
 
       - name: CI Suite
@@ -650,6 +792,8 @@ jobs:
         with:
           name: ci-quality-artifacts-macos
           path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
             .diagnostics/gopls-startup.json

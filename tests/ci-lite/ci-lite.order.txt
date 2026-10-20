@@ -503,6 +503,15 @@ storage/sqlite/build/args-parsing
 shared/runtime-capability-manifest-contract
 indexing/embeddings/writer-and-queue-contract-matrix
 tooling/ci/lsp-embeddings-gates-testing-env
+tooling/ci/lsp-runtime-qualification/success
+tooling/ci/lsp-runtime-qualification/unexpected-stderr
+tooling/ci/lsp-runtime-qualification/unresponsive-initialize
+tooling/ci/lsp-runtime-qualification/unresponsive-shutdown
+tooling/ci/lsp-runtime-qualification/diagnostics-truncated
+tooling/ci/lsp-runtime-qualification/observer-throw
+tooling/ci/lsp-runtime-qualification/untrusted-command
+tooling/ci/lsp-runtime-qualification/version-timeout
+tooling/ci/lsp-runtime-qualification/fixture-without-testing
 storage/sqlite/build-full-transaction
 tooling/providers/provider-registry-contract-matrix
 ci/tooling-lsp-slo-gate.smoke
@@ -816,6 +825,10 @@ lang/contracts/yaml-syntax-node-boundaries
 lang/contracts/xml-lexical-boundaries
 shared/json-stream/compression-pool-transfer
 shared/subprocess/sync-timeout-kills-child-tree
+shared/subprocess/sync-timeout-detached-tree/raw
+shared/subprocess/sync-timeout-detached-tree/raw-single
+shared/subprocess/sync-timeout-detached-tree/runner
+shared/subprocess/sync-timeout-detached-tree/runner-single
 cli/general/tooling-command-controls
 tooling/reports/parity-matrix-execution
 tooling/reports/parity-matrix-failure-contract

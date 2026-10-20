@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["success", "unexpected-stderr", "unresponsive-initialize", "unresponsive-shutdown", "diagnostics-truncated", "observer-throw", "untrusted-command", "version-timeout", "fixture-without-testing"]
+}

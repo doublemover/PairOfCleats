@@ -16,7 +16,9 @@ for (const mode of ['ci', 'nightly']) {
   assert.ok(serial);
   const ann = lines.find(line => line.startsWith('[dry-run] Serial ANN generation:'));
   assert.ok(ann);
-  for (const line of [api, serial, ann]) {
+  const native = lines.find(line => line.startsWith('[dry-run] Serial native lifecycle:'));
+  assert.ok(native);
+  for (const line of [api, serial, ann, native]) {
     for (const option of ['--lane all', '--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 30000',
       '--retries 0', '--native-status-redo=false']) assert.ok(line.includes(option), `${option}: ${line}`);
     const selectors = [...line.matchAll(/--match (\/\S+\/)/g)].map(match => match[1]);
@@ -35,11 +37,14 @@ for (const mode of ['ci', 'nightly']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);
       }
     } else {
-      assert.deepEqual(selected.sort(), line === ann ? ['retrieval/ann/generation-lmdb',
-        'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
-        : ['indexing/semantic/compiler-single-cpu-lifecycle',
-          'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',
-          'tooling/reports/summary/report']);
+      assert.deepEqual(selected.sort(), line === native ? ['storage/sqlite/build/cancellation']
+        : line === ann ? ['retrieval/ann/generation-lmdb',
+          'retrieval/ann/generation-publication', 'retrieval/ann/generation-rebuild-failure']
+          : ['indexing/semantic/compiler-single-cpu-lifecycle',
+            'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'perf/parsers/xml-cold-budget',
+            'smoke/baseline-negative/corrupt', 'smoke/baseline-negative/incomplete',
+            'smoke/baseline-negative/legacy', 'smoke/baseline-negative/missing',
+            'tooling/reports/summary/report']);
       const broad = lines.find(value => value.startsWith('[dry-run] CI test lane:'));
       for (const id of selected) {
         const exclusion = `--exclude /^${id.replaceAll('/', '\\/')}$/`;

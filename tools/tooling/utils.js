@@ -522,8 +522,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['csharp'],
       detect: { cmd: 'csharp-ls', args: ['--version'], binDirs: [dotnetDir, ...globalDotnetBins] },
       install: {
-        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls'], requires: 'dotnet' },
-        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls'], requires: 'dotnet' }
+        cache: { cmd: 'dotnet', args: ['tool', 'install', '--tool-path', dotnetDir, 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet' },
+        user: { cmd: 'dotnet', args: ['tool', 'install', '-g', 'csharp-ls', '--version', '0.28.0'], requires: 'dotnet' }
       },
       docs: TOOL_DOCS['csharp-ls']
     },

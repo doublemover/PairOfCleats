@@ -417,15 +417,35 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || !steps[goVerify].run.includes('.diagnostics/go-sdk.json')
     || goStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
     || goStartup >= steps.findIndex(step => step.name === 'CI Suite')
-    || !steps[goStartup].run.includes('probeLspInitializeHandshake')
-    || !steps[goStartup].run.includes('timeoutMs: 4000')) {
+    || !steps[goStartup].run.includes('qualifyInstalledLspRuntime')
+    || !steps[goStartup].run.includes('providerId: "gopls"')) {
     throw new Error(`${platform}: qualify the explicit compatible Go SDK before optional installs, bind its root, and retain the executable receipt.`);
+  }
+  const dotnetSetup = steps.findIndex(step => step.name === 'Setup qualified .NET SDK');
+  const dotnetVerify = steps.findIndex(step => step.name === 'Verify selected .NET SDK');
+  const csharpStartup = steps.findIndex(step => step.name === 'Qualify real Csharp language server startup');
+  const dotnet = steps[dotnetSetup];
+  if (dotnetSetup < 0 || dotnetVerify <= dotnetSetup
+    || dotnetVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || dotnet.uses !== 'actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1'
+    || dotnet.with?.['dotnet-version'] !== '10.0.113'
+    || dotnet.env?.DOTNET_INSTALL_DIR !== '${{ runner.temp }}/poc-dotnet-sdk'
+    || parse(ciWorkflow).jobs[platform].env?.DOTNET_GENERATE_ASPNET_CERTIFICATE !== 'false'
+    || !steps[dotnetVerify].run.includes('DOTNET_HOST_PATH=')
+    || !steps[dotnetVerify].run.includes('DOTNET_ROOT_')
+    || !steps[dotnetVerify].run.includes('.diagnostics/dotnet-sdk.json')
+    || csharpStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || csharpStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || !steps[csharpStartup].run.includes('qualifyInstalledLspRuntime')
+    || !steps[csharpStartup].run.includes('providerId: "csharp-ls"')) {
+    throw new Error(`${platform}: qualify the isolated .NET SDK and real C# runtime, bind host/architecture roots, and prevent unrelated development-certificate generation.`);
   }
   const upload = steps.find(step => step.name === 'Upload quality artifacts');
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
   if (upload?.if !== 'always()' || !paths.includes('.testLogs/**/*.log')
     || !paths.includes('.testLogs/**/*.failure.json') || !paths.includes('.diagnostics/go-sdk.json')
-    || !paths.includes('.diagnostics/gopls-startup.json') || !paths.includes('.diagnostics/serial-native-lifecycle.json')) {
+    || !paths.includes('.diagnostics/gopls-startup.json') || !paths.includes('.diagnostics/serial-native-lifecycle.json')
+    || !paths.includes('.diagnostics/dotnet-sdk.json') || !paths.includes('.diagnostics/csharp-ls-startup.json')) {
     throw new Error(`${platform}: quality artifacts must preserve every raw attempt and failure receipt, including retry-masked failures.`);
   }
   if (platform === 'windows' && !paths.includes('.diagnostics/windows-subprocess-ownership.json')) {
