@@ -1043,3 +1043,4 @@ retrieval/federation/prose-enumeration-mode-scope
 retrieval/federation/relative-cache-freshness
 services/mcp/index-build-cancellation
 storage/sqlite/build/cancellation
+tooling/ingest/lsif/protocol

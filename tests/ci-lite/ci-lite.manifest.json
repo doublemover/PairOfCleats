@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 901,
+    "hero": 902,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6271,6 +6271,12 @@
     {
       "id": "storage/sqlite/build/cancellation",
       "order": 1043,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ingest/lsif/protocol",
+      "order": 1044,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
