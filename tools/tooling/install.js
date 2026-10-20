@@ -8,9 +8,9 @@ import { exitLikeCommandResult, probeCommand, runCommand } from '../shared/cli-u
 import { buildToolingReport, detectTool, normalizeLanguageList, resolveToolsById, resolveToolsForLanguages, selectInstallPlan } from './utils.js';
 import { getToolingConfig, resolveRepoRootArg, resolveToolRoot } from '../shared/dict-utils.js';
 import { buildToolInstallReadiness } from '../setup/readiness.js';
-import { invalidateToolingCommandProbeCache } from '../../src/index/tooling/command-resolver.js';
+import { invalidateToolingCommandProbeCache, resolveNoProvisionToolingEnvironment } from '../../src/index/tooling/command-resolver.js';
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
-import { resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
+import { isGoSdkVersionAtLeast, resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
 import { ensureManagedGoSdk } from './install-go-sdk.js';
 import { applyManagedGoEnvironment, resolveManagedGoSdk } from '../../src/shared/managed-go.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
@@ -114,6 +114,11 @@ for (const tool of tools) {
     continue;
   }
   const { cmd, args, env, requires } = selection.plan;
+  const minimumGoVersion = requires === 'go' && !verifiedPath ? selection.plan.minimumGoVersion || null : null;
+  const goRootPin = requires === 'go' ? String(process.env.GOROOT || '').trim() : '';
+  const goVersionPin = requires === 'go' && /^go\d/u.test(String(process.env.GOTOOLCHAIN || ''));
+  const pinnedGoCommand = goRootPin && path.isAbsolute(goRootPin)
+    ? path.join(goRootPin, 'bin', process.platform === 'win32' ? 'go.exe' : 'go') : null;
   let requirementCommand = requires;
   let goPrerequisite = null;
   if (requires) {
@@ -121,7 +126,9 @@ for (const tool of tools) {
     let requirementSatisfied = false;
     const requirementChecks = [];
     const requirementCommands = requires === 'go'
-      ? [...new Set([managedGoSdk?.command, findBinaryOnPath('go')].filter(Boolean))]
+      ? goRootPin ? [pinnedGoCommand].filter(Boolean)
+        : goVersionPin ? [findBinaryOnPath('go')].filter(Boolean)
+          : [...new Set([managedGoSdk?.command, findBinaryOnPath('go')].filter(Boolean))]
       : [findBinaryOnPath(requires)].filter(Boolean);
     for (const candidate of requirementCommands) {
       if (!isAllowedRequirementCommand(candidate)) {
@@ -131,14 +138,15 @@ for (const tool of tools) {
       for (const requirementArgs of requirementArgCandidates) {
         const requireCheck = probeCommand(candidate, requirementArgs, {
           cwd: installationCwd,
-          env: candidate === managedGoSdk?.command
+          env: requires === 'go' ? resolveNoProvisionToolingEnvironment(candidate === managedGoSdk?.command
             ? applyManagedGoEnvironment(process.env, { toolingRoot: toolingConfig.dir, sdk: managedGoSdk }) : process.env,
+          { cwd: installationCwd, command: candidate, providerId: 'go-sdk' }) : process.env,
           stdio: 'pipe',
           timeoutMs: 4000,
           maxOutputBytes: 64 * 1024,
           outputEncoding: 'utf8'
         });
-        const verification = verifyInstallerRequirementProbe(requires, requireCheck);
+        const verification = verifyInstallerRequirementProbe(requires, requireCheck, { minimumGoVersion });
         requirementChecks.push({
           command: candidate,
           args: requirementArgs,
@@ -148,6 +156,7 @@ for (const tool of tools) {
           errorCode: typeof requireCheck?.errorCode === 'string' ? requireCheck.errorCode : null,
           verificationLevel: verification.verificationLevel || null,
           identity: verification.identity || null,
+          ...(minimumGoVersion ? { minimumGoVersion } : {}),
           reason: verification.reason || null
         });
         if (verification.ok === true) {
@@ -164,7 +173,8 @@ for (const tool of tools) {
       }
       if (requirementSatisfied) break;
     }
-    if (!requirementSatisfied && requires === 'go') {
+    if (!requirementSatisfied && requires === 'go' && !goRootPin && !goVersionPin
+      && !requirementChecks.some(check => check.identity?.family === 'go')) {
       if (argv['dry-run']) {
         goPrerequisite = { id: 'go-sdk', state: 'planned', recipe: 'official-portable-archive',
           verificationLevel: 'official-release-sha256-and-executable-version' };
@@ -173,6 +183,10 @@ for (const tool of tools) {
         try {
           if (goBootstrapFailure) throw goBootstrapFailure;
           managedGoSdk = await ensureManagedGoSdk({ toolingRoot: path.resolve(toolingConfig.dir), cwd: installationCwd });
+          if (minimumGoVersion && !isGoSdkVersionAtLeast(managedGoSdk.version, minimumGoVersion)) {
+            throw Object.assign(new Error(`The verified SDK ${managedGoSdk.version} does not meet ${minimumGoVersion}.`),
+              { reason: 'unsupported_go_sdk_version' });
+          }
           requirementCommand = managedGoSdk.command;
           requirementSatisfied = true;
           goPrerequisite = { id: 'go-sdk', state: 'available-and-verified',
@@ -195,6 +209,9 @@ for (const tool of tools) {
         ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
         ...(requirementChecks.some((check) => check.reason === 'unrecognized_go_sdk_version')
           ? { error: 'The go command did not emit a recognized Go SDK version.' } : {}),
+        ...(requirementChecks.some(check => check.reason === 'unsupported_go_sdk_version')
+          ? { error: `${tool.id} installation requires ${minimumGoVersion} or newer; the selected SDK was retained.` } : {}),
+        ...(goRootPin || goVersionPin ? { selectedGoRoot: goRootPin || null, selectedGoToolchain: process.env.GOTOOLCHAIN || null } : {}),
         docs: tool.docs || null,
         probe: status.probe || null
       });
@@ -208,6 +225,7 @@ for (const tool of tools) {
   }
   actions.push({ id: tool.id, cmd: requires === 'go' && cmd === 'go' ? requirementCommand : cmd,
     args, env, requires, ...(goPrerequisite ? { prerequisite: goPrerequisite } : {}),
+    ...(minimumGoVersion ? { minimumGoVersion } : {}),
     scope: selection.scope, fallback: selection.fallback || false, docs: tool.docs || null });
 }
 
@@ -240,6 +258,7 @@ for (const action of actions) {
     }
     env = { ...env, GOENV: 'off', GOWORK: 'off', GOMAXPROCS: env.GOMAXPROCS || '1',
       GOTOOLCHAIN: env.GOTOOLCHAIN || 'local' };
+    env = resolveNoProvisionToolingEnvironment(env, { cwd: installationCwd, command: action.cmd, providerId: 'go-sdk' });
     if (!/(?:^|\s)-p(?:=|\s)/.test(env.GOFLAGS || '')) env.GOFLAGS = `${env.GOFLAGS || ''} -p=1`.trim();
   }
   const spawnOpts = {

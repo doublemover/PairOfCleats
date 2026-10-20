@@ -63,8 +63,11 @@ export const resolveManagedGoSdk = (toolingRoot, targetOptions = {}) => {
 };
 
 export const applyManagedGoEnvironment = (baseEnv, { toolingRoot, sdk = null } = {}) => {
-  const managed = sdk || resolveManagedGoSdk(toolingRoot);
   const env = { ...(baseEnv || {}) };
+  // Automatic discovery cannot override the launcher's SDK pin. An explicit
+  // sdk argument still binds its own matching executable, PATH and GOROOT.
+  if (!sdk && (String(env.GOROOT || '').trim() || /^go\d/u.test(String(env.GOTOOLCHAIN || '').trim()))) return env;
+  const managed = sdk || resolveManagedGoSdk(toolingRoot);
   if (!managed) return env;
   const pathInfo = normalizeEnvPathKeys(env);
   env[pathInfo.key] = [path.resolve(managed.binDir), resolveEnvPath(env)].filter(Boolean).join(path.delimiter);

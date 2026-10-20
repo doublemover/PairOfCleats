@@ -403,10 +403,29 @@ if (ownershipStepIndex < 0 || ownershipStepIndex >= windowsJob.steps.findIndex(s
   throw new Error('Windows ownership must run its native snapshot, three lifecycle fixtures and native delete-pending control before the broad suite with strict bounds and zero retries.');
 }
 for (const platform of ['ubuntu', 'windows', 'macos']) {
-  const upload = parse(ciWorkflow).jobs[platform].steps.find(step => step.name === 'Upload quality artifacts');
+  const steps = parse(ciWorkflow).jobs[platform].steps;
+  const goSetup = steps.findIndex(step => step.name === 'Setup qualified Go SDK');
+  const goVerify = steps.findIndex(step => step.name === 'Verify selected Go SDK');
+  const goStartup = steps.findIndex(step => step.name === 'Qualify real Go language server startup');
+  const go = steps[goSetup];
+  if (goSetup < 0 || goVerify <= goSetup
+    || goVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || go.uses !== 'actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
+    || go.with?.['go-version'] !== '1.27.3' || go.with?.cache !== false
+    || !steps[goVerify].run.includes('delete env.GOROOT')
+    || !steps[goVerify].run.includes('GOTOOLCHAIN=local')
+    || !steps[goVerify].run.includes('.diagnostics/go-sdk.json')
+    || goStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || goStartup >= steps.findIndex(step => step.name === 'CI Suite')
+    || !steps[goStartup].run.includes('probeLspInitializeHandshake')
+    || !steps[goStartup].run.includes('timeoutMs: 4000')) {
+    throw new Error(`${platform}: qualify the explicit compatible Go SDK before optional installs, bind its root, and retain the executable receipt.`);
+  }
+  const upload = steps.find(step => step.name === 'Upload quality artifacts');
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
   if (upload?.if !== 'always()' || !paths.includes('.testLogs/**/*.log')
-    || !paths.includes('.testLogs/**/*.failure.json')) {
+    || !paths.includes('.testLogs/**/*.failure.json') || !paths.includes('.diagnostics/go-sdk.json')
+    || !paths.includes('.diagnostics/gopls-startup.json')) {
     throw new Error(`${platform}: quality artifacts must preserve every raw attempt and failure receipt, including retry-masked failures.`);
   }
   if (platform === 'windows' && !paths.includes('.diagnostics/windows-subprocess-ownership.json')) {

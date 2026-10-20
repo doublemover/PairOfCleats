@@ -193,6 +193,34 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified Go SDK
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Verify selected Go SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const env = { ...process.env, GOTOOLCHAIN: "local" };
+          delete env.GOROOT;
+          const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.GOVERSION, "go1.27.3");
+          assert.ok(path.isAbsolute(sdk.GOROOT));
+          assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+          fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+          console.log(JSON.stringify(sdk));
+          '
+
       - name: Install optional LSP tools (best effort)
         shell: bash
         run: |
@@ -203,6 +231,32 @@ jobs:
             echo "optional tooling install had non-fatal failures (continuing)."
           fi
           exit 0
+
+      - name: Qualify real Go language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { probeLspInitializeHandshake, resolveToolingCommandProfile } from "./src/index/tooling/command-resolver.js";
+          const toolingConfig = getToolingConfig(process.cwd());
+          const workspace = path.resolve(".diagnostics/gopls-workspace");
+          fs.mkdirSync(workspace, { recursive: true });
+          fs.writeFileSync(path.join(workspace, "go.mod"), "module example.com/poc-qualification\n\ngo 1.26.0\n");
+          fs.writeFileSync(path.join(workspace, "answer.go"), "package qualification\n\nfunc Answer() int { return 42 }\n");
+          const profile = resolveToolingCommandProfile({ providerId: "gopls", cmd: "gopls", args: ["serve"], repoRoot: process.cwd(), toolingConfig });
+          assert.equal(profile.probe.ok, true, JSON.stringify(profile));
+          const result = await probeLspInitializeHandshake({ providerId: "gopls", ...profile.resolved, cwd: workspace, toolingConfig, timeoutMs: 4000 });
+          const binary = profile.probe.resolvedPath || profile.resolved.cmd;
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch, command: binary, args: profile.resolved.args, binarySha256: createHash("sha256").update(fs.readFileSync(binary)).digest("hex"), sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), result, qualification: "initialize-and-shutdown" };
+          fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(result));
+          assert.equal(result.ok, true, JSON.stringify(result));
+          assert.equal(result.capabilities.documentSymbol, true);
+          assert.equal(result.capabilities.definition, true);
+          '
 
       - name: CI Suite
         run: |
@@ -222,6 +276,8 @@ jobs:
         with:
           name: ci-quality-artifacts-ubuntu
           path: |
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-startup.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
@@ -299,6 +355,34 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified Go SDK
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Verify selected Go SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const env = { ...process.env, GOTOOLCHAIN: "local" };
+          delete env.GOROOT;
+          const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.GOVERSION, "go1.27.3");
+          assert.ok(path.isAbsolute(sdk.GOROOT));
+          assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+          fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+          console.log(JSON.stringify(sdk));
+          '
+
       - name: Install optional LSP tools (best effort)
         shell: pwsh
         run: |
@@ -312,6 +396,32 @@ jobs:
         run: |
           node tests/run.js --lane all --match '/^shared\/kill-tree\.windows$/' --match '/^shared\/kill-tree\.windows-orphan-descendant-fallback$/' --match '/^shared\/kill-tree-windows-snapshot$/' --match '/^shared\/subprocess\/sync-timeout-kills-child-tree$/' --match '/^shared\/locks\/windows-delete-pending$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/windows-subprocess-ownership.json
 
+      - name: Qualify real Go language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { probeLspInitializeHandshake, resolveToolingCommandProfile } from "./src/index/tooling/command-resolver.js";
+          const toolingConfig = getToolingConfig(process.cwd());
+          const workspace = path.resolve(".diagnostics/gopls-workspace");
+          fs.mkdirSync(workspace, { recursive: true });
+          fs.writeFileSync(path.join(workspace, "go.mod"), "module example.com/poc-qualification\n\ngo 1.26.0\n");
+          fs.writeFileSync(path.join(workspace, "answer.go"), "package qualification\n\nfunc Answer() int { return 42 }\n");
+          const profile = resolveToolingCommandProfile({ providerId: "gopls", cmd: "gopls", args: ["serve"], repoRoot: process.cwd(), toolingConfig });
+          assert.equal(profile.probe.ok, true, JSON.stringify(profile));
+          const result = await probeLspInitializeHandshake({ providerId: "gopls", ...profile.resolved, cwd: workspace, toolingConfig, timeoutMs: 4000 });
+          const binary = profile.probe.resolvedPath || profile.resolved.cmd;
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch, command: binary, args: profile.resolved.args, binarySha256: createHash("sha256").update(fs.readFileSync(binary)).digest("hex"), sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), result, qualification: "initialize-and-shutdown" };
+          fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(result));
+          assert.equal(result.ok, true, JSON.stringify(result));
+          assert.equal(result.capabilities.documentSymbol, true);
+          assert.equal(result.capabilities.definition, true);
+          '
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -322,6 +432,8 @@ jobs:
         with:
           name: ci-quality-artifacts-windows
           path: |
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-startup.json
             .diagnostics/windows-subprocess-ownership.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
@@ -461,6 +573,34 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified Go SDK
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Verify selected Go SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const env = { ...process.env, GOTOOLCHAIN: "local" };
+          delete env.GOROOT;
+          const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.GOVERSION, "go1.27.3");
+          assert.ok(path.isAbsolute(sdk.GOROOT));
+          assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+          fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+          console.log(JSON.stringify(sdk));
+          '
+
       - name: Install optional LSP tools (best effort)
         shell: bash
         run: |
@@ -472,6 +612,32 @@ jobs:
           fi
           exit 0
 
+      - name: Qualify real Go language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { probeLspInitializeHandshake, resolveToolingCommandProfile } from "./src/index/tooling/command-resolver.js";
+          const toolingConfig = getToolingConfig(process.cwd());
+          const workspace = path.resolve(".diagnostics/gopls-workspace");
+          fs.mkdirSync(workspace, { recursive: true });
+          fs.writeFileSync(path.join(workspace, "go.mod"), "module example.com/poc-qualification\n\ngo 1.26.0\n");
+          fs.writeFileSync(path.join(workspace, "answer.go"), "package qualification\n\nfunc Answer() int { return 42 }\n");
+          const profile = resolveToolingCommandProfile({ providerId: "gopls", cmd: "gopls", args: ["serve"], repoRoot: process.cwd(), toolingConfig });
+          assert.equal(profile.probe.ok, true, JSON.stringify(profile));
+          const result = await probeLspInitializeHandshake({ providerId: "gopls", ...profile.resolved, cwd: workspace, toolingConfig, timeoutMs: 4000 });
+          const binary = profile.probe.resolvedPath || profile.resolved.cmd;
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch, command: binary, args: profile.resolved.args, binarySha256: createHash("sha256").update(fs.readFileSync(binary)).digest("hex"), sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), result, qualification: "initialize-and-shutdown" };
+          fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(result));
+          assert.equal(result.ok, true, JSON.stringify(result));
+          assert.equal(result.capabilities.documentSymbol, true);
+          assert.equal(result.capabilities.definition, true);
+          '
+
       - name: CI Suite
         run: |
           node tools/ci/run-suite.js --mode ci --skip-prechecks
@@ -482,6 +648,8 @@ jobs:
         with:
           name: ci-quality-artifacts-macos
           path: |
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-startup.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
             .diagnostics/test-summary.json

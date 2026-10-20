@@ -474,6 +474,8 @@ indexing/postings/chargram-rolling-hash
 shared/hash/xxhash-backends
 tooling/install/tooling
 tooling/install/go-sdk-cache-recipe
+tooling/install/go-sdk-explicit-pin
+tooling/install/gopls-sdk-version-contract
 services/api/search-stream-outcomes
 services/mcp/legacy-execution-settlement
 tooling/service/indexer-queue-worker-setup-failures

@@ -134,7 +134,7 @@ const runRequirementCases = async () => {
   const goPayload = runCliJson({
     scriptPath: path.join(root, 'tools', 'tooling', 'install.js'),
     args: ['--root', fixtureRoot, '--tools', 'gopls', '--dry-run', '--json'],
-    env: { ...process.env, PATH: goBinDir, Path: goBinDir },
+    env: { ...process.env, PATH: goBinDir, Path: goBinDir, GOROOT: undefined, GOTOOLCHAIN: 'local' },
     label: 'tooling-install gopls requirement probe'
   });
   const goplsResult = (goPayload.results || []).find((entry) => entry?.id === 'gopls');

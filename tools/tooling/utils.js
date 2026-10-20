@@ -438,8 +438,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['go'],
       detect: { cmd: 'gopls', args: ['version'], binDirs: [binDir] },
       install: {
-        cache: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@latest'], env: { GOBIN: binDir }, requires: 'go' },
-        user: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@latest'], requires: 'go' }
+        cache: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@v0.24.0'], env: { GOBIN: binDir }, requires: 'go', minimumGoVersion: 'go1.27.0' },
+        user: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@v0.24.0'], requires: 'go', minimumGoVersion: 'go1.27.0' }
       },
       docs: TOOL_DOCS.gopls
     },

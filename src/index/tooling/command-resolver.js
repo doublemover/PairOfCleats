@@ -38,7 +38,7 @@ const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 const DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS = 5 * 60_000;
 let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
-const resolveNoProvisionProbeEnv = (baseEnv, options = {}) => {
+export const resolveNoProvisionToolingEnvironment = (baseEnv, options = {}) => {
   const next = applyToolchainDaemonPolicyEnv(baseEnv, options);
   next.RUSTUP_AUTO_INSTALL = '0';
   const go = String(next.GOTOOLCHAIN || '').trim();
@@ -49,7 +49,7 @@ const resolveNoProvisionProbeEnv = (baseEnv, options = {}) => {
   return next;
 };
 
-export const __resolveNoProvisionProbeEnvForTests = resolveNoProvisionProbeEnv;
+export const __resolveNoProvisionProbeEnvForTests = resolveNoProvisionToolingEnvironment;
 
 const runProbeCommand = (cmd, args = [], options = {}) => {
   const maxOutputBytes = options.maxBuffer || (2 * 1024 * 1024);
@@ -60,7 +60,7 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
   return spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd,
-    env: resolveNoProvisionProbeEnv(process.env, { cwd, command: cmd,
+    env: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
       providerId: options.providerId, toolingRoot: options.toolingConfig?.dir || null }),
     rejectOnNonZeroExit: false,
     captureStdout: true,
@@ -913,7 +913,7 @@ export const probeLspInitializeHandshake = async (input) => {
     cmd,
     args,
     cwd,
-    env: resolveNoProvisionProbeEnv(process.env, { cwd, command: cmd,
+    env: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
       providerId: input?.providerId, toolingRoot: input?.toolingConfig?.dir || null }),
     log: () => {}
   });
