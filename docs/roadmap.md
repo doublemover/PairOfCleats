@@ -18,8 +18,10 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Fifty-eight issues have repairs through source `55d24e63f` (twentieth batch): Python AST relations,
-defaults and Unicode ranges, plus HTML summary metadata, survive registry/index paths.
+Fifty-nine issues have implemented repairs through the twenty-second batch.
+Equal-text VFS origins retain distinct compiler targets, imported types and diagnostics;
+ambiguous content-only tokens fail closed. Python AST relations, defaults and Unicode
+ranges, plus HTML summary metadata, survive registry/index paths.
 First-run preflight has a clean fresh Windows bootstrap. TypeScript doctor,
 loaders and host/preflight share version/capability admission. Release assets have
 unique staged names/checksum mappings and CI Long has explicit release-only scope. GNU Global cxref ingestion
@@ -41,8 +43,10 @@ now reads Toolhelp snapshots, with native layout/failure and real descendant/iso
 All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
 and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
 their source identities in the issue receipt; the supported native System32 owner
-keeps its two-second bound. A later macOS empty-PATH fixture assumption is repaired
-with explicit missing-tool input; fresh hosted/candidate qualification remains required.
+keeps its two-second bound. Later CI exposes a real preflight entry-alias bypass,
+now reproduced and repaired with the existing real-path owner. Windows API core
+also exceeds 30 seconds after real clangd takes 18.6 seconds; a local 20.1-second
+pass does not close that hosted timeout. Fresh hosted/candidate qualification remains required.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
