@@ -432,10 +432,11 @@ const buildClangdRequestedCommand = ({ ctx, clangdConfig, compileCommandsDir }) 
   });
 };
 
-const buildClangdCommandUnavailableCheck = () => ({
+const buildClangdCommandUnavailableCheck = ({ definitelyMissing = false } = {}) => ({
   name: 'clangd_command_unavailable',
   status: 'warn',
-  message: 'clangd command probe failed; attempting stdio initialization anyway.'
+  message: definitelyMissing ? 'clangd command is unavailable; skipping tooling-based types.'
+    : 'clangd command probe failed; attempting stdio initialization anyway.'
 });
 
 const resolveConfiguredFallbackFlags = (clangdConfig) => (
@@ -538,10 +539,12 @@ export const createClangdProvider = () => ({
       providerId: 'clangd',
       requestedCommand,
       ctx,
-      unavailableCheck: buildClangdCommandUnavailableCheck()
+      unavailableCheck: buildClangdCommandUnavailableCheck,
+      blockWhenDefinitelyMissing: true
     });
     if (commandPreflight.state !== 'ready') {
-      log('[index] clangd command probe failed; attempting stdio initialization.');
+      log(commandPreflight.blockProvider ? '[index] clangd command unavailable or invalid; skipping.'
+        : '[index] clangd command probe failed; attempting stdio initialization.');
       return {
         state: commandPreflight.state,
         reasonCode: commandPreflight.reasonCode,
