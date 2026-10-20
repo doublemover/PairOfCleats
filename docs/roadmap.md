@@ -18,10 +18,12 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-five issues have implemented repairs through the twenty-ninth batch.
+Sixty-five issues have implemented repairs through the thirtieth batch.
 ANN publication binds full embedding identity and exact vector/chunk generation;
 failed replacements cannot relabel retained native bytes. Global Ctrl+C now follows
-shutdown across overlays, with a real Windows terminal/reaping witness. Final qualification follows.
+shutdown across overlays, with a real Windows terminal/reaping witness.
+Default TUI build/capture now select pinned Rust with locked dependencies;
+the actual Windows release binary passes four terminal-lifetime controls.
 Code-map caches bind the selected canonical index and manifest generation.
 Sublime cancellation and folder watch now pass actual Python 3.3 controls.
 Its API requests use destination-bound user credentials and refuse authenticated redirects.
@@ -37,14 +39,12 @@ Five proven wrapper aliases are retired; broader equivalence remains open under 
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
-All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
-and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
-their source identities in the issue receipt; the supported native System32 owner
-keeps its two-second bound. Newer `8a0511c09` passes all seven hosted checks (39436483363),
-including 46 Windows authority cases and all eight API cases. Earlier compiler/API
-deadline failures retain their receipts. Compiler resource qualification now has
-a serial owner with unchanged bounds. Hosted 49b3189c9 CI failed the legacy ANN
-fallback fixture; its coherent-generation/strict-error repair awaits fresh checks.
+Earlier hosted successes, CIM/SysWOW64 and compiler/API failures retain their
+source identities in the issue receipt. `8a0511c09` passes all seven checks
+(39436483363), including 46 Windows authority and eight API cases. Resource
+qualification retains its serial owner and unchanged bounds. Hosted `49b3189c9`
+failed the legacy ANN fallback fixture. Its generation/strict-error repair and
+global interrupt pass all seven checks at `18179bb7f` (39451767657).
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
