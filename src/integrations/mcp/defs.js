@@ -453,7 +453,7 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'cache_gc',
-      description: 'Preview cache cleanup by default. Explicit dryRun=false applies deletion; whole-repo cleanup protects cooperating local sessions with process-lifetime leases.',
+      description: 'Preview cleanup of only the selected repository cache using quota or age limits. Explicit dryRun=false applies deletion; process-lifetime leases protect cooperating sessions. Shared CAS and other repositories require user-owned maintenance CLI scope.',
       inputSchema: {
         type: 'object',
         properties: {

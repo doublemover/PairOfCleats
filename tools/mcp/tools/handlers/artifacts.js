@@ -1,21 +1,21 @@
 import path from 'node:path';
-import { runNodeSync, runToolWithProgress } from '../../runner.js';
+import { runNodeAsync, runToolWithProgress } from '../../runner.js';
 import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 
 /**
  * Handle the MCP cache_gc tool call.
  * @param {object} [args]
- * @returns {object}
+ * @returns {Promise<object>}
  */
-export function cacheGc(args = {}) {
+export async function cacheGc(args = {}, context = {}) {
   const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
-  const scriptArgs = [path.join(toolRoot, 'tools', 'index', 'cache-gc.js'), '--json', '--repo', repoPath];
+  const scriptArgs = [path.join(toolRoot, 'tools', 'mcp', 'cache-gc-worker.js'), '--json', '--repo', repoPath];
   if (args.dryRun === true) scriptArgs.push('--dry-run');
   if (args.dryRun === false) scriptArgs.push('--apply');
   if (Number.isFinite(Number(args.maxBytes))) scriptArgs.push('--max-bytes', String(args.maxBytes));
   if (Number.isFinite(Number(args.maxGb))) scriptArgs.push('--max-gb', String(args.maxGb));
   if (Number.isFinite(Number(args.maxAgeDays))) scriptArgs.push('--max-age-days', String(args.maxAgeDays));
-  const stdout = runNodeSync(repoPath, scriptArgs, { env: runtimeEnv });
+  const { stdout } = await runNodeAsync(repoPath, scriptArgs, { env: runtimeEnv, signal: context.signal });
   try {
     return JSON.parse(stdout || '{}');
   } catch {

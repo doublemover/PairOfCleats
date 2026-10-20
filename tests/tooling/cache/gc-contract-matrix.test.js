@@ -10,6 +10,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { cacheGc } from '../../../tools/mcp/tools/handlers/artifacts.js';
 import { assertSafeCacheDeletion, CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
+import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 
 applyTestEnv();
 
@@ -143,13 +144,20 @@ try {
   assert.equal(JSON.parse(protectedPreview.stdout).removals.length, 0);
 
   applyTestEnv({ cacheRoot, testConfig: { cache: { root: cacheRoot } } });
-  const mcpPreview = cacheGc({ repoPath: tempRoot });
+  const scopedCache = resolveRepoCacheRootPath(tempRoot, { cache: { root: cacheRoot } });
+  await fs.mkdir(scopedCache, { recursive: true });
+  await fs.writeFile(path.join(scopedCache, 'data'), 'repository-owned cache');
+  const mcpPreview = await cacheGc({ repoPath: tempRoot, maxBytes: 1 });
   assert.equal(path.resolve(mcpPreview.cacheRoot), path.resolve(cacheRoot));
   assert.equal(mcpPreview.dryRun, true, 'omitted MCP dryRun must preview');
   await fs.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
-  const mcpApplied = cacheGc({ repoPath: tempRoot, dryRun: false });
+  const mcpApplied = await cacheGc({ repoPath: tempRoot, maxBytes: 1, dryRun: false });
   assert.equal(mcpApplied.dryRun, false, 'explicit MCP dryRun=false applies');
-  assert.ok(mcpApplied.deleted.includes(prune.hash));
+  assert.deepEqual(mcpApplied.removals.map(entry => entry.id), [path.basename(scopedCache)]);
+  await fs.access(prune.objectPath);
+  const globalApply = runNode([toolPath, '--apply', '--json', '--cache-root', cacheRoot, '--grace-days', '0'],
+    'explicit user-owned whole-cache CAS apply', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe' });
+  assert.ok(JSON.parse(globalApply.stdout).deleted.includes(prune.hash), 'whole-cache CAS cleanup remains covered through its explicit CLI owner');
   await fs.access(leased.objectPath);
 
   console.log('tooling cache gc contract matrix test passed');

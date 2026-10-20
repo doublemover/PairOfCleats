@@ -33,6 +33,7 @@ import { normalizeLegacyCacheRootPath } from '../../src/shared/cache-roots.js';
 import { getCacheRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { assertSafeCacheDeletion } from '../../src/shared/cache-deletion.js';
 import { inspectRepoCacheAccess, withExclusiveRepoCacheCleanup } from '../../src/shared/cache/repo-access.js';
+import { resolveRepoCacheRootPath } from '../../src/shared/repo-paths.js';
 
 const argv = createCli({
   scriptName: 'cache-gc',
@@ -80,11 +81,12 @@ const resolveMs = (value, fallbackMs = 0) => {
   return Number.isFinite(parsed) ? parsed : fallbackMs;
 };
 
-const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
+const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays, scopedRepo = null }) => {
   const dryRun = argv.apply !== true || argv['dry-run'] === true;
   const repoRoot = path.join(cacheRoot, 'repos');
+  const selectedCache = scopedRepo ? resolveRepoCacheRootPath(scopedRepo, { cache: { root: cacheRoot } }) : null;
 
-  if (!maxBytes && !maxAgeDays) {
+  if (maxBytes == null && maxAgeDays == null) {
     const message = 'No cache GC limits provided. Use --max-bytes/--max-gb or --max-age-days.';
     if (argv.json) {
       console.log(JSON.stringify({ ok: false, message }, null, 2));
@@ -111,6 +113,7 @@ const runLegacyRepoGc = async ({ cacheRoot, maxBytes, maxAgeDays }) => {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const repoPath = path.join(repoRoot, entry.name);
+    if (selectedCache && path.resolve(repoPath) !== path.resolve(selectedCache)) continue;
     const protectedBytes = needsSizeScan ? await sizeOfPath(repoPath) : null;
     const owners = inspectRepoCacheAccess(repoPath);
     if (owners.length) {
@@ -560,7 +563,10 @@ const runCasManifestGc = async ({ cacheRoot, gcConfig }) => {
   }
 };
 
-const main = async () => {
+export const runCacheGc = async ({ repoOnly = false } = {}) => {
+  if (repoOnly && (typeof argv.repo !== 'string' || !argv.repo.trim())) {
+    throw new Error('Repository-scoped cache GC requires an explicit --repo target.');
+  }
   const cacheRoot = resolveCacheRoot();
   const { userConfig } = resolveRepoConfig(argv.repo);
   const gcConfig = userConfig.cache?.gc || {};
@@ -570,15 +576,15 @@ const main = async () => {
     ?? parseNumber(gcConfig.maxBytes)
     ?? (parseNumber(gcConfig.maxGb) != null ? parseNumber(gcConfig.maxGb) * 1024 ** 3 : null);
   const maxAgeDays = parseNumber(argv['max-age-days']) ?? parseNumber(gcConfig.maxAgeDays);
-  const useLegacyMode = maxBytes != null || maxAgeDays != null;
+  const useLegacyMode = repoOnly || maxBytes != null || maxAgeDays != null;
   if (useLegacyMode) {
-    await runLegacyRepoGc({ cacheRoot, maxBytes, maxAgeDays });
+    await runLegacyRepoGc({ cacheRoot, maxBytes, maxAgeDays, scopedRepo: repoOnly ? argv.repo : null });
     return;
   }
   await runCasManifestGc({ cacheRoot, gcConfig });
 };
 
-main().catch((error) => {
+if (import.meta.main) runCacheGc().catch((error) => {
   console.error(error?.message || error);
   process.exit(1);
 });
