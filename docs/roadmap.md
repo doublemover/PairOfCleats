@@ -29,8 +29,10 @@ wrapper/direct equivalence remains open under #616.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 moves shell map traversal into Node with real descendant/isolation coverage.
-Run 39398071465 passes its hosted subprocess-ownership step; broad Windows CI is
-still running. Parity setup retains phase timings and its earlier hosted timeout.
+Run 39398071465 at `88748d677` passes all seven hosted checks, including Windows
+ownership and broad CI. Its parity case passes in 11 seconds; the earlier timeout
+remains historical without inferred attribution. The newer graph batch still
+requires hosted qualification.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
