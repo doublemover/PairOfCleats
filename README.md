@@ -96,9 +96,12 @@ or build requirements. The interfaces and references are linked below.
 
 ## Quickstart
 
-The current install path is a source checkout with **Node.js 26.x**
-and npm. Native dependencies may require a C/C++ toolchain and Python 3 when
-compatible prebuilt binaries are unavailable.
+The current install path is a source checkout with **Node.js >=26.10.0 <27**
+(prefer the exact `.nvmrc` pin), npm and Git. **Python 3 and supported C/C++
+build tools are mandatory**, even when other packages have prebuilt binaries:
+bootstrap always rebuilds the required patched Perl parser from source. This
+also applies to sparse-search setup. Install the
+[platform prerequisites](docs/guides/bootstrap-prerequisites.md) before bootstrap.
 
 ```sh
 git clone https://github.com/doublemover/PairOfCleats.git
@@ -107,6 +110,8 @@ npm run bootstrap:ci
 ```
 
 Development dependencies are needed to apply the checkout's required patches.
+Bootstrap runs a dependency-free runtime/toolchain preflight before installation;
+missing prerequisites stop before npm downloads or replaces dependencies.
 The examples run the CLI directly, so you do not need a global command install.
 
 Normal CLI commands, test runs and benchmark entry points refuse to start when

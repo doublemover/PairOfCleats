@@ -15,7 +15,7 @@ const write = (relative, text) => {
   fs.writeFileSync(file, text);
 };
 const required = ['better-sqlite3', 'tree-sitter', 'tree-sitter-javascript'];
-const inputs = ['.nvmrc', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
+const inputs = ['.nvmrc', 'tools/setup/preflight.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js',
@@ -85,6 +85,11 @@ try {
   write('node_modules/tree-sitter/index.cjs', parser);
   write('node_modules/tree-sitter/fixture.node', 'changed binary evidence');
   assert.match((await inspectBootstrapReadiness({ root })).reason, /artifact changed/);
+  record();
+  const preflight = fs.readFileSync(path.join(root, 'tools/setup/preflight.js'), 'utf8');
+  write('tools/setup/preflight.js', `${preflight}\n// changed prerequisite policy\n`);
+  assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'changed prerequisite policy invalidates setup evidence');
+  write('tools/setup/preflight.js', preflight);
   record();
   fs.unlinkSync(path.join(root, 'node_modules/tree-sitter/fixture.node'));
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'missing native artifacts reject the receipt');
