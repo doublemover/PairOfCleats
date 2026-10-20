@@ -117,13 +117,10 @@ export const createQueueWorker = ({
    * Create lifecycle resources for one claimed queue job.
    *
    * @param {{id:string,repo:string,stage?:string|null,logPath?:string|null}} job
-   * @returns {{jobLifecycle:ReturnType<typeof createLifecycleRegistry>,logPath:string}}
+   * @param {ReturnType<typeof createLifecycleRegistry>} jobLifecycle
+   * @returns {{logPath:string}}
    */
-  const startJobLifecycle = (job) => {
-    const jobLifecycle = createLifecycleRegistry({
-      name: `indexer-service-job:${job.id}`
-    });
-    const abortController = new AbortController();
+  const startJobLifecycle = (job, jobLifecycle) => {
     const leasePolicy = resolveLeasePolicy({ job, queueName: resolvedQueueName });
     const renewalIntervalMs = Number.isFinite(Number(leasePolicy?.renewIntervalMs))
       ? Math.max(250, Math.trunc(Number(leasePolicy.renewIntervalMs)))
@@ -134,9 +131,9 @@ export const createQueueWorker = ({
       lastSuccessAt: Date.now()
     };
     const heartbeat = setInterval(() => {
-      if (renewalState.inFlight) return;
+      if (jobLifecycle.isClosed() || renewalState.inFlight) return;
       renewalState.inFlight = true;
-      void (async () => {
+      const renewal = (async () => {
         const replayState = await loadJobReplayState(job);
         return await touchJobHeartbeat(queueDir, job.id, resolvedQueueName, {
           ownerId: workerOwnerId,
@@ -166,6 +163,7 @@ export const createQueueWorker = ({
       }).finally(() => {
         renewalState.inFlight = false;
       });
+      void jobLifecycle.registerPromise(renewal, { label: 'indexer-service-job-heartbeat-renewal' });
     }, renewalIntervalMs);
     jobLifecycle.registerTimer(heartbeat, { label: 'indexer-service-job-heartbeat' });
     const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
@@ -173,7 +171,7 @@ export const createQueueWorker = ({
       ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
       : NOOP_ASYNC;
     jobLifecycle.registerCleanup(() => stopProgress(), { label: 'indexer-service-progress-stop' });
-    return { jobLifecycle, logPath, abortController };
+    return { logPath };
   };
 
   const syncWorkerShutdownState = async (status = null) => {
@@ -246,14 +244,17 @@ export const createQueueWorker = ({
     });
     if (!job) return false;
     metrics.processed += 1;
-    const { jobLifecycle, logPath, abortController } = startJobLifecycle(job);
-    activeJobControls.set(job.id, { abortController });
-    await syncWorkerShutdownState();
+    // Establish ownership before any fallible post-claim setup.
+    const jobLifecycle = createLifecycleRegistry({ name: `indexer-service-job:${job.id}` });
+    const abortController = new AbortController();
     let execution = {
       handled: false,
       runResult: buildDefaultRunResult()
     };
     try {
+      activeJobControls.set(job.id, { abortController });
+      const { logPath } = startJobLifecycle(job, jobLifecycle);
+      await syncWorkerShutdownState();
       execution = await executeClaimedJob({ job, jobLifecycle, logPath, abortSignal: abortController.signal });
     } catch (err) {
       const message = err?.message || String(err);
@@ -266,9 +267,16 @@ export const createQueueWorker = ({
         }
       };
     } finally {
-      await jobLifecycle.close().catch(() => {});
+      await jobLifecycle.close().catch(err => {
+        console.error(`[indexer] job ${job.id} resource cleanup failed: ${err?.message || err}`);
+      });
       activeJobControls.delete(job.id);
-      await syncWorkerShutdownState();
+      try {
+        await syncWorkerShutdownState();
+      } catch (err) {
+        // Telemetry persistence must not prevent the claimed job's completion.
+        console.error(`[indexer] job ${job.id} shutdown state update failed: ${err?.message || err}`);
+      }
     }
     if (execution?.handled) {
       // `handled` jobs are completed out-of-band (currently non-retriable failures),

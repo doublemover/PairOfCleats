@@ -29,6 +29,8 @@ export const createMcpTransport = ({
   capabilityManifest
 }) => {
   const inFlight = new Map();
+  const activeTasks = new Set();
+  let closing = false, closePromise = null;
   const pendingById = new Map();
   const laneQueues = {
     fast: [],
@@ -221,18 +223,20 @@ export const createMcpTransport = ({
     const entry = { controller, cancelled: false, observability: requestObservability, lane };
     inFlight.set(idKey, entry);
     let timedOut = false;
+    let execution = null;
     const progress = (payload) => {
       if (timedOut) return;
       sendProgress(id, name, payload, requestObservability);
     };
     try {
+      execution = Promise.resolve().then(() => handleToolCall(name, args, {
+        progress,
+        toolCallId: id,
+        signal: controller.signal,
+        observability: requestObservability
+      }));
       const result = await withTimeout(
-        handleToolCall(name, args, {
-          progress,
-          toolCallId: id,
-          signal: controller.signal,
-          observability: requestObservability
-        }),
+        execution,
         timeoutMs,
         {
           label: name,
@@ -265,12 +269,16 @@ export const createMcpTransport = ({
         isError: true
       });
     } finally {
+      // The timeout response is prompt, but capacity and request identity stay
+      // owned until the aborted operation and its children actually settle.
+      await execution?.catch(() => {});
       inFlight.delete(idKey);
       clearProgressState(idKey);
     }
   };
 
   const scheduleWork = () => {
+    if (closing) return;
     while (totalActive() < (laneConcurrency.fast + laneConcurrency.slow)) {
       let lane = null;
       if (laneActive.fast < laneConcurrency.fast && laneQueues.fast.length > 0) {
@@ -284,15 +292,33 @@ export const createMcpTransport = ({
       if (!task) continue;
       pendingById.delete(task.idKey);
       laneActive[lane] += 1;
-      void processTask(task)
+      const executionTask = processTask(task)
         .catch((error) => {
           logError('[mcp] queue error', { error: error?.message || String(error), lane });
         })
         .finally(() => {
           laneActive[lane] = Math.max(0, laneActive[lane] - 1);
+          activeTasks.delete(executionTask);
           scheduleWork();
         });
+      activeTasks.add(executionTask);
     }
+  };
+
+  const close = () => {
+    if (closePromise) return closePromise;
+    closing = true;
+    for (const [idKey, task] of pendingById) {
+      removePendingTask(idKey);
+      clearProgressState(idKey);
+      sendCancelledResponse(task.id);
+    }
+    for (const entry of inFlight.values()) {
+      entry.cancelled = true;
+      entry.controller.abort();
+    }
+    closePromise = Promise.allSettled(Array.from(activeTasks)).then(() => {});
+    return closePromise;
   };
 
   /**
@@ -316,11 +342,14 @@ export const createMcpTransport = ({
     }
 
     if (method === 'shutdown') {
+      await close();
       sendResult(id, {});
       return;
     }
 
     if (method === 'exit') {
+      await close();
+      closeOutput();
       process.exit(0);
     }
 
@@ -341,6 +370,7 @@ export const createMcpTransport = ({
 
     if (method === 'tools/call') {
       if (id === null || id === undefined) return;
+      if (closing) { sendCancelledResponse(id); return; }
       const idKey = normalizeId(id);
       if (rejectDuplicateRequestId(id, idKey)) return;
       const name = params?.name;
@@ -391,23 +421,20 @@ export const createMcpTransport = ({
       onMessage: enqueueMessage,
       onError: (err) => {
         logError('[mcp] stream error', { error: err?.message || String(err) });
-        closeOutput();
-        process.exit(1);
+        void close().finally(() => { closeOutput(); process.exit(1); });
       },
       maxBufferBytes
     });
     process.stdin.on('data', (chunk) => parser.push(chunk));
     process.stdin.on('end', () => {
-      closeOutput();
-      process.exit(0);
+      void close().finally(() => { closeOutput(); process.exit(0); });
     });
     process.stdin.on('error', (err) => {
       logError('[mcp] stream error', { error: err?.message || String(err) });
-      closeOutput();
-      process.exit(1);
+      void close().finally(() => { closeOutput(); process.exit(1); });
     });
     return parser;
   };
 
-  return { start };
+  return { start, close };
 };
