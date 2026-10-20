@@ -18,7 +18,8 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Forty-seven issues have repairs through source `bf82a7781` (thirteenth batch): FTS applies query
+Forty-eight issues have repairs through source `4bb7fc6a7` (fourteenth batch): MCP builds retain
+request cancellation through core, SQLite ingestion and publication. FTS applies query
 eligibility before its candidate cap, federation enumerates exact eligible modes,
 and relative modification filters bind result caches to one request cutoff.
 Incoming edges retain source direction and CSR risk guidance preserves callers and graph-derived tests.
@@ -30,11 +31,12 @@ in the linked issue audit. Five proven wrapper aliases are retired; broader
 wrapper/direct equivalence remains open under #616.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
-moves shell map traversal into Node with real descendant/isolation coverage.
+now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
 Run 39401360614 at `2bcbfd1ba` passes all seven hosted checks, including Windows
 ownership and broad CI. Earlier `88748d677` parity passes in 11 seconds; its original timeout
-remains historical without inferred attribution. The newer retrieval batch still
-requires hosted qualification; its detailed focused/gate receipts are in the issue audit.
+remains historical without inferred attribution. Newer `4eca0d995` passes six
+checks but times out in CIM snapshot discovery before the broad Windows suite.
+The Toolhelp replacement retains the two-second bound and needs fresh hosted acceptance.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.

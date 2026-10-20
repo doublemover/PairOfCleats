@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 899,
+    "hero": 901,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6259,6 +6259,18 @@
     {
       "id": "retrieval/federation/relative-cache-freshness",
       "order": 1041,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/index-build-cancellation",
+      "order": 1042,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/cancellation",
+      "order": 1043,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

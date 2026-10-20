@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T10:02:49.264Z",
+  "generatedAt": "2026-10-20T10:28:03.589Z",
   "summary": {
     "lanes": 5,
-    "tests": 1263,
+    "tests": 1265,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 324,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1189
+      "missingTests": 1191
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1041,
+      "totalTests": 1043,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 992
+        "missing": 994
       }
     },
     {
@@ -98,9 +98,9 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 69,
+      "count": 70,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 60
+      "unknownDurationCount": 61
     },
     {
       "key": "indexing/chunking",
@@ -571,6 +571,12 @@
       "unknownDurationCount": 4
     },
     {
+      "key": "services/mcp",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
       "key": "storage/semantic",
       "count": 4,
       "knownDurationMs": 0,
@@ -602,12 +608,6 @@
     },
     {
       "key": "indexing/filter-index",
-      "count": 3,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 3
-    },
-    {
-      "key": "services/mcp",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
@@ -2051,9 +2051,9 @@
     },
     {
       "key": "sqlite-heavy",
-      "count": 69,
+      "count": 70,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 60,
+      "unknownDurationCount": 61,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {
