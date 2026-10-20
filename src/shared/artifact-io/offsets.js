@@ -34,20 +34,59 @@ const hashReadSource = async (source, expectedBytes, signal, snapshot) => {
   const hash = createHash('sha256');
   const scratch = Buffer.allocUnsafe(Math.max(1, Math.min(expectedBytes, VERIFIED_SNAPSHOT_BYTES)));
   const captured = snapshot ? Buffer.alloc(expectedBytes) : null;
+  const blocks = snapshot ? null : [];
   let bytes = 0;
-  for (;;) {
+  while (bytes < expectedBytes) {
     throwIfAborted(signal);
-    const length = Math.min(scratch.length, expectedBytes - bytes + 1);
-    const { bytesRead } = await source.read(scratch, 0, length, bytes);
-    if (!bytesRead) break;
-    bytes += bytesRead;
-    if (bytes > expectedBytes) throw contentChanged();
-    hash.update(scratch.subarray(0, bytesRead));
-    if (captured) scratch.copy(captured, bytes - bytesRead, 0, bytesRead);
+    const length = Math.min(scratch.length, expectedBytes - bytes);
+    let filled = 0;
+    while (filled < length) {
+      throwIfAborted(signal);
+      const { bytesRead } = await source.read(scratch, filled, length - filled, bytes + filled);
+      if (!bytesRead) throw contentChanged();
+      filled += bytesRead;
+    }
+    const block = scratch.subarray(0, length);
+    hash.update(block);
+    if (captured) scratch.copy(captured, bytes, 0, length);
+    else blocks.push(createHash('sha256').update(block).digest());
+    bytes += length;
   }
-  if (bytes !== expectedBytes || !sameReadIdentity(before, await source.stat())) throw contentChanged();
-  return { hash: hash.digest('hex'), captured, stat: before };
+  const extra = await source.read(scratch, 0, 1, expectedBytes);
+  if (extra.bytesRead || !sameReadIdentity(before, await source.stat())) throw contentChanged();
+  return { hash: hash.digest('hex'), captured, blocks, stat: before };
 };
+
+// Metadata can remain equal after an in-place write. Decode only block bytes
+// freshly matched to the original full-file verification, using bounded scratch
+// storage rather than retaining a large piece or rereading it for every row.
+const verifiedBlockReadSource = (source, { stat, blocks }, signal) => ({
+  stat: (...args) => source.stat(...args),
+  async read(target, offset, length, position) {
+    throwIfAborted(signal);
+    const bytesRead = Math.max(0, Math.min(length, stat.size - position));
+    let copied = 0;
+    while (copied < bytesRead) {
+      throwIfAborted(signal);
+      const blockIndex = Math.floor((position + copied) / VERIFIED_SNAPSHOT_BYTES);
+      const blockStart = blockIndex * VERIFIED_SNAPSHOT_BYTES;
+      const block = Buffer.allocUnsafe(Math.min(VERIFIED_SNAPSHOT_BYTES, stat.size - blockStart));
+      let filled = 0;
+      while (filled < block.length) {
+        throwIfAborted(signal);
+        const read = await source.read(block, filled, block.length - filled, blockStart + filled);
+        if (!read.bytesRead) throw contentChanged();
+        filled += read.bytesRead;
+      }
+      if (!createHash('sha256').update(block).digest().equals(blocks[blockIndex])) throw contentChanged();
+      const start = position + copied - blockStart;
+      const count = Math.min(bytesRead - copied, block.length - start);
+      block.copy(target, offset + copied, start, start + count);
+      copied += count;
+    }
+    return { bytesRead, buffer: target };
+  }
+});
 const readOffsetValue = (buffer, index) => {
   const value = buffer.readBigUInt64LE(index * OFFSET_BYTES);
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
@@ -406,7 +445,7 @@ const readJsonlRowsAtWithHandles = async (
 export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
   let handles = await openJsonlHandles(jsonlPath, offsetsPath);
   let closed = false;
-  let verification = null, identity = null, closePromise = null;
+  let verification = null, identity = null, contentVerification = null, closePromise = null;
   const pending = new Set();
   const track = operation => {
     pending.add(operation);
@@ -418,6 +457,9 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
     const current = await Promise.all(handles.map(handle => handle.stat()));
     if (current.some((stat, index) => !sameReadIdentity(identity[index], stat))) throw contentChanged();
   };
+  const readSources = signal => contentVerification
+    ? handles.map((handle, index) => verifiedBlockReadSource(handle, contentVerification[index], signal))
+    : handles;
   return {
     verify({ jsonlBytes, offsetsBytes, jsonlHash, offsetsHash, signal = null }) {
       if (closed) throw new Error('JSONL row reader is closed.');
@@ -445,6 +487,7 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
         } else {
           // Large pieces retain the same opened objects through decoding.
           identity = values.map(value => value.stat);
+          contentVerification = values;
         }
       })());
       return verification;
@@ -455,7 +498,7 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
         if (verification) await verification;
         throwIfAborted(options.signal);
         await checkIdentity();
-        const rows = await readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, handles);
+        const rows = await readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, readSources(options.signal));
         await checkIdentity();
         throwIfAborted(options.signal);
         return rows;
@@ -466,7 +509,7 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
       return track((async () => {
         if (verification) await verification;
         await checkIdentity();
-        const result = await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, handles);
+        const result = await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, readSources(options.signal));
         await checkIdentity();
         return result;
       })());
@@ -477,6 +520,11 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath) => {
       closePromise = (async () => {
         await Promise.allSettled([...pending]);
         await Promise.allSettled(handles.map(handle => handle.close()));
+        handles = [];
+        identity = null;
+        contentVerification = null;
+        verification = null;
+        pending.clear();
       })();
       return closePromise;
     }

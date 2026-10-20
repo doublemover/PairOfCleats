@@ -36,8 +36,18 @@ try {
     assert.deepEqual(await collect(), expected);
     const open = fs.open, active = new Set();
     let mutations = 0;
+    let preserveTimestamps = false;
     fs.open = async (...args) => {
       const handle = await open(...args), close = handle.close.bind(handle);
+      const stat = handle.stat.bind(handle);
+      let firstStat = null;
+      handle.stat = async (...options) => {
+        const currentStat = await stat(...options);
+        if (!preserveTimestamps) return currentStat;
+        firstStat ||= currentStat;
+        return Object.assign(Object.create(Object.getPrototypeOf(currentStat)), currentStat,
+          { mtimeMs: firstStat.mtimeMs, ctimeMs: firstStat.ctimeMs });
+      };
       active.add(handle);
       handle.close = async () => {
         try {
@@ -60,14 +70,25 @@ try {
         'the next request must freshly hash and reject the changed bytes');
       assert.equal(active.size, 0);
       if (large) {
-        await fs.writeFile(filename, original);
-        const iterator = store.iterateRows(current.partition.partitionId, 'semantic_records');
-        assert.equal((await iterator.next()).done, false);
-        assert.equal(active.size, 2, 'large iteration retains just its one verified file pair');
-        await fs.writeFile(filename, replacement);
-        await assert.rejects(async () => { for await (const _row of iterator) {} },
-          error => error.code === 'ERR_SEMANTIC_INTEGRITY', 'in-place changes invalidate the retained large piece');
-        assert.equal(active.size, 0);
+        for (const clock of ['filesystem-clock', 'unchanged-clock']) {
+          preserveTimestamps = clock === 'unchanged-clock';
+          await fs.writeFile(filename, original);
+          const iterator = store.iterateRows(current.partition.partitionId, 'semantic_records');
+          assert.equal((await iterator.next()).done, false);
+          assert.equal(active.size, 2, 'large iteration retains just its one verified file pair');
+          const before = await fs.stat(filename);
+          await fs.writeFile(filename, replacement);
+          const after = await fs.stat(filename);
+          await assert.rejects(async () => {
+            let changedRows = 0;
+            for await (const row of iterator) if (row.span[0] === 1) changedRows += 1;
+            const identity = stat => Object.fromEntries(['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].map(key => [key, stat[key]]));
+            console.error(JSON.stringify({ clock, changedRows, before: identity(before), after: identity(after) }));
+          }, error => error.code === 'ERR_SEMANTIC_INTEGRITY',
+          `in-place changes invalidate the retained large piece (${clock})`);
+          assert.equal(active.size, 0);
+        }
+        preserveTimestamps = false;
         await fs.writeFile(filename, original);
         const controller = new AbortController();
         const cancelled = store.iterateRows(current.partition.partitionId, 'semantic_records', { signal: controller.signal });
