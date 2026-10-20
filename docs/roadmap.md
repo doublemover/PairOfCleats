@@ -33,6 +33,9 @@ The original TOML/summary failures remain recorded. Hosted run 39383472179
 passes gate/Rust but exposes cache-ownership version drift and stale request-cache
 fixture keys; both have local corrections preserving authority/content checks.
 The earlier orphan-cleanup failure remains unattributed, with stronger diagnostics.
+The later Windows large-piece mutation failure has a deterministic unchanged-clock
+regression and block-verification repair through `85faf23ef`; qualification remains open.
+History import also has a proven quadratic turn lookup and a bounded linear repair.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.

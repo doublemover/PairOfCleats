@@ -1024,3 +1024,4 @@ context-pack/risk-truncation-contract/excerpt-tokens
 context-pack/risk-truncation-contract/partial-count
 context-pack/risk-truncation-contract/partial-bytes
 context-pack/risk-truncation-contract/partial-tokens
+integrations/inference-history/linear-turn-lookup

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 882,
+    "hero": 883,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6157,6 +6157,12 @@
     {
       "id": "context-pack/risk-truncation-contract/partial-tokens",
       "order": 1024,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/linear-turn-lookup",
+      "order": 1025,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
