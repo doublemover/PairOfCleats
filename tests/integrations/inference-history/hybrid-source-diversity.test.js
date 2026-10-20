@@ -9,7 +9,7 @@ import { createLocalSourceHistoryService } from '../../../src/integrations/infer
 import { searchHybridHistory } from '../../../src/integrations/inference-history/hybrid.js';
 import { historyIndexState } from '../../../src/integrations/inference-history/generation.js';
 import { updateHistoryPrivacy } from '../../../src/integrations/inference-history/privacy.js';
-import { visibleNode } from '../../../src/integrations/inference-history/reader.js';
+import { createVisibleNodeReader } from '../../../src/integrations/inference-history/reader.js';
 import { readHistoryCandidates } from '../../../src/integrations/inference-history/reader.js';
 const base=path.resolve('temp/tasks/archive-retrieval-tests');await fs.mkdir(base,{recursive:true});
 const root=await fs.mkdtemp(path.join(base,'diversity-'));
@@ -53,10 +53,10 @@ await assert.rejects(searchHybridHistory(db,{query:'cobalt',mode:'hybrid',search
 const metadataOnly=await searchHybridHistory(db,{query:'NebulaHTTPServer',mode:'auto',searchField:'title'},semantic,async()=>{});
 assert.equal(metadataOnly.query.retrievalMode,'lexical');assert.equal(metadataOnly.hits.length,1);
 const privateRecord=db.prepare("SELECT record_id FROM units WHERE text LIKE '%cobalt unrelated%'").get().record_id;
-updateHistoryPrivacy(db,{recordRef:privateRecord,excluded:false,redactions:['unrelated'],annotation:''},visibleNode);
+updateHistoryPrivacy(db,{recordRef:privateRecord,excluded:false,redactions:['unrelated'],annotation:''},createVisibleNodeReader);
 const privateRead=readHistoryCandidates(db,{query:'cobalt'},rows);
 assert.ok(privateRead.hits.some(row=>row.text.includes('[REDACTED owner]')));
 assert.ok(privateRead.hits.every(row=>!row.text.includes('unrelated')));
-updateHistoryPrivacy(db,{recordRef:privateRecord,excluded:true,redactions:['unrelated'],annotation:''},visibleNode);
+updateHistoryPrivacy(db,{recordRef:privateRecord,excluded:true,redactions:['unrelated'],annotation:''},createVisibleNodeReader);
 assert.ok(readHistoryCandidates(db,{query:'cobalt'},rows).hits.every(row=>row.recordRef!==privateRecord));
 db.close();console.log('No-model archive original diversity, metadata hybrid, exact citations, role/date/exclusion/phrase guards and unavailable reranker passed');
