@@ -1,6 +1,6 @@
 const normalizeInput = (value) => (typeof value === 'string' ? value : String(value || ''));
 
-const walkTopLevel = (value, onChar) => {
+const walkTopLevel = (value, onChar, { angleBrackets = true, rustLifetimes = false } = {}) => {
   const source = normalizeInput(value);
   let depthAngle = 0;
   let depthParen = 0;
@@ -30,7 +30,9 @@ const walkTopLevel = (value, onChar) => {
       continue;
     }
 
-    if (ch === '"' || ch === '\'' || ch === '`') {
+    const rustCharacter = rustLifetimes && ch === '\''
+      && /^'(?:\\(?:u\{[0-9a-fA-F_]+\}|x[0-9a-fA-F]{2}|[^\r\n])|[^'\\\r\n])'/u.test(source.slice(i));
+    if (ch === '"' || (ch === '\'' && (!rustLifetimes || rustCharacter)) || ch === '`') {
       quote = ch;
       onChar(ch, i, {
         depthAngle,
@@ -42,8 +44,8 @@ const walkTopLevel = (value, onChar) => {
       continue;
     }
 
-    if (ch === '<') depthAngle += 1;
-    if (ch === '>' && depthAngle > 0) depthAngle -= 1;
+    if (angleBrackets && ch === '<') depthAngle += 1;
+    if (angleBrackets && ch === '>' && depthAngle > 0 && !(rustLifetimes && source[i - 1] === '-')) depthAngle -= 1;
     if (ch === '(') depthParen += 1;
     if (ch === ')' && depthParen > 0) depthParen -= 1;
     if (ch === '[') depthBracket += 1;
@@ -69,7 +71,7 @@ const isTopLevel = (state) => (
   && !state.inQuote
 );
 
-export const splitTopLevel = (value, separator = ',') => {
+export const splitTopLevel = (value, separator = ',', options = {}) => {
   const source = normalizeInput(value);
   if (!source) return [];
 
@@ -84,14 +86,14 @@ export const splitTopLevel = (value, separator = ',') => {
       return;
     }
     current += ch;
-  });
+  }, options);
 
   const tail = current.trim();
   if (tail) parts.push(tail);
   return parts;
 };
 
-export const findTopLevelIndex = (value, targetChar) => {
+export const findTopLevelIndex = (value, targetChar, options = {}) => {
   const source = normalizeInput(value);
   let found = -1;
 
@@ -100,13 +102,13 @@ export const findTopLevelIndex = (value, targetChar) => {
     if (ch === targetChar && isTopLevel(state)) {
       found = index;
     }
-  });
+  }, options);
 
   return found;
 };
 
-export const stripTopLevelAssignment = (value) => {
+export const stripTopLevelAssignment = (value, options = {}) => {
   const source = normalizeInput(value);
-  const idx = findTopLevelIndex(source, '=');
+  const idx = findTopLevelIndex(source, '=', options);
   return idx === -1 ? source : source.slice(0, idx);
 };

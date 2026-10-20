@@ -15,6 +15,11 @@ const suites = [
     invalid: 'python hover details without signature',
     cases: [
       ['def greet(name: str) -> str:', 'str', { name: 'str' }],
+      ['def f(ok: bool = 1 < 2, count: int = 3) -> bool', 'bool', { ok: 'bool', count: 'int' }],
+      ['def f(ok: bool = 1 <= 2) -> bool', 'bool', { ok: 'bool' }],
+      ['def f(mask: int = 1 << 2, other: int = 8 >> 1) -> int', 'int', { mask: 'int', other: 'int' }],
+      ['def f(items: list[int] = build({"key": (1, 2)}), text: str = "[)<]") -> Callable[[int], tuple[int, int]]',
+        'Callable[[int], tuple[int, int]]', { items: 'list[int]', text: 'str' }],
       [['```python', 'def greet(name: str, count: int = 1) -> str', '```'].join('\n'), 'str', { name: 'str', count: 'int' }],
       ['(function) greet(name: str, count: int = 1) -> str', 'str', { name: 'str', count: 'int' }],
       [['def greet(', '  name: str,', '  count: int,', ') -> str:'].join('\n'), 'str', { name: 'str', count: 'int' }],

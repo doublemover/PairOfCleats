@@ -1,8 +1,9 @@
 import { findTopLevelIndex, splitTopLevel, stripTopLevelAssignment } from './shared.js';
 
-const splitPythonParams = (value) => splitTopLevel(value, ',');
+const PYTHON_NESTING = Object.freeze({ angleBrackets: false });
+const splitPythonParams = (value) => splitTopLevel(value, ',', PYTHON_NESTING);
 
-const stripDefaultValue = (value) => stripTopLevelAssignment(value);
+const stripDefaultValue = (value) => stripTopLevelAssignment(value, PYTHON_NESTING);
 
 const parsePythonParam = (value) => {
   let cleaned = stripDefaultValue(value).trim();
@@ -10,7 +11,7 @@ const parsePythonParam = (value) => {
   if (cleaned.startsWith('**')) cleaned = cleaned.slice(2).trim();
   else if (cleaned.startsWith('*')) cleaned = cleaned.slice(1).trim();
   if (!cleaned) return null;
-  const colonIdx = findTopLevelIndex(cleaned, ':');
+  const colonIdx = findTopLevelIndex(cleaned, ':', PYTHON_NESTING);
   const name = (colonIdx === -1 ? cleaned : cleaned.slice(0, colonIdx)).trim();
   const type = colonIdx === -1 ? null : cleaned.slice(colonIdx + 1).trim();
   if (!name) return null;
@@ -100,7 +101,7 @@ export const parsePythonSignature = (detail) => {
   const signature = candidate.trim().replace(/:\s*$/, '');
   const open = signature.indexOf('(');
   // The last parenthesis can belong to a return annotation or function body.
-  const closingOffset = open < 0 ? -1 : findTopLevelIndex(signature.slice(open), ')');
+  const closingOffset = open < 0 ? -1 : findTopLevelIndex(signature.slice(open), ')', PYTHON_NESTING);
   const close = closingOffset < 0 ? -1 : open + closingOffset;
   if (open === -1 || close === -1 || close < open) return null;
   const paramsText = signature.slice(open + 1, close).trim();

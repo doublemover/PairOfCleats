@@ -1,8 +1,9 @@
-import { splitTopLevel } from './shared.js';
+import { splitTopLevel, findTopLevelIndex } from './shared.js';
 
 const GO_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-const splitParams = (value) => splitTopLevel(value, ',');
+const GO_NESTING = Object.freeze({ angleBrackets: false });
+const splitParams = (value) => splitTopLevel(value, ',', GO_NESTING);
 
 const normalizeType = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
@@ -22,17 +23,8 @@ const parseGoParamPart = (part) => {
 
 const findMatchingParen = (text, startIndex) => {
   if (!text || text[startIndex] !== '(') return -1;
-  let depth = 0;
-  for (let i = startIndex; i < text.length; i += 1) {
-    const char = text[i];
-    if (char === '(') {
-      depth += 1;
-    } else if (char === ')') {
-      depth -= 1;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
+  const offset = findTopLevelIndex(text.slice(startIndex), ')', GO_NESTING);
+  return offset < 0 ? -1 : startIndex + offset;
 };
 
 /**
@@ -91,8 +83,11 @@ export const parseGoSignature = (detail) => {
   const returnsText = normalizeType(signature.slice(paramsEnd + 1));
   const paramTypes = {};
   const paramNames = [];
+  const pendingNames = [];
   for (const part of splitParams(paramsText)) {
-    const entries = parseGoParamPart(part);
+    if (GO_IDENT.test(part)) { pendingNames.push(part); continue; }
+    const entries = parseGoParamPart([...pendingNames, part].join(', '));
+    pendingNames.length = 0;
     for (const entry of entries) {
       paramNames.push(entry.name);
       paramTypes[entry.name] = entry.type;

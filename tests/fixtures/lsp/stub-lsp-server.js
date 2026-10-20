@@ -26,6 +26,15 @@ const fragmentSize = fragmentSizeIdx !== -1 && Number.isFinite(Number(args[fragm
   : 8;
 
 const symbolsByMode = {
+  'python-comparison-default': {
+    name: 'greet', detail: 'def greet(ok: bool = 1 < 2, mask: int = 1 << 2) -> bool', kind: 12
+  },
+  'go-grouped-channel': {
+    name: 'Read', detail: 'func Read(first, second <-chan string, timeout int) error', kind: 12
+  },
+  'rust-lifetime-tuple': {
+    name: 'borrow', detail: "fn borrow<'a>(text: &'a str, count: u32) -> (usize, usize)", kind: 12
+  },
   clangd: {
     name: 'add',
     detail: 'int add(int a, int b)',
