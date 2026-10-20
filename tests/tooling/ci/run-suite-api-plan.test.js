@@ -32,7 +32,15 @@ for (const mode of ['ci', 'nightly']) {
         'services/api/federated-search-validation-matrix', 'services/api/search-stream-outcomes']) {
         assert.ok(selected.includes(id), `${mode}: ${id} must actually resolve`);
       }
-    } else assert.deepEqual(selected.sort(), ['perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
+    } else {
+      assert.deepEqual(selected.sort(), ['indexing/semantic/compiler-single-cpu-lifecycle',
+        'perf/parsers/jinja-cold-budget', 'perf/parsers/toml-cold-budget', 'tooling/reports/summary/report']);
+      const broad = lines.find(value => value.startsWith('[dry-run] CI test lane:'));
+      for (const id of selected) {
+        const exclusion = `--exclude /^${id.replaceAll('/', '\\/')}$/`;
+        assert.equal(broad.split(exclusion).length - 1, 1, `${mode}: ${id} has exactly one serial replacement owner`);
+      }
+    }
   }
 }
 console.log('CI/nightly API cohorts resolve authorization, search and federation; strict runtime budgets execute serially');
