@@ -16,6 +16,7 @@ import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
 import { assertArtifactPublicationReady } from './artifact-publication.js';
 import { withGeneratedArtifactMetadata } from '../../shared/generated-artifact-core.js';
 import { reconcilePublishedSemanticBindingWork } from '../semantic/build-frontier.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const CURRENT_POINTER_MAX_BYTES = 512 * 1024;
 
@@ -30,8 +31,10 @@ export async function promoteBuild({
   configHash,
   repoProvenance,
   artifactSurfaceVersion = ARTIFACT_SURFACE_VERSION,
-  compatibilityKey = null
+  compatibilityKey = null,
+  abortSignal = null
 }) {
+  throwIfAborted(abortSignal);
   if (!repoRoot || !buildId || !buildRoot) return null;
   assertCurrentIndexFormat({ operation: 'publish', component: 'build pointer',
     foundVersion: artifactSurfaceVersion, repoRoot, indexPath: buildRoot });
@@ -124,6 +127,7 @@ export async function promoteBuild({
   }
   if (!promotedModes.length) modesByRoot.set(resolvedBuildRoot, []);
   for (const [root, rootModes] of modesByRoot) {
+    throwIfAborted(abortSignal);
     await assertArtifactPublicationReady({ buildRoot: root, modes: rootModes });
   }
   const buildRootsByMode = { ...priorRoots };
@@ -145,7 +149,7 @@ export async function promoteBuild({
     repo: repoProvenance || null
   }, 'builds-current');
   await fs.mkdir(buildsRoot, { recursive: true });
-  await atomicWriteJson(currentPath, payload, { spaces: 0 });
+  await atomicWriteJson(currentPath, payload, { spaces: 0, signal: abortSignal });
   try {
     await reconcilePublishedSemanticBindingWork({ repoRoot, userConfig, buildId, buildRoot: resolvedBuildRoot,
       modes: modesByRoot.get(resolvedBuildRoot) || [] });

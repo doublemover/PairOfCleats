@@ -5,6 +5,7 @@ import { createTempPath } from './temp-path.js';
 import { replaceFile, replaceFileSync } from './replace-file.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
 import { incAtomicPersistenceFallback } from '../metrics/core.js';
+import { throwIfAborted, isAbortError } from '../abort.js';
 
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
@@ -146,8 +147,10 @@ const resolveAtomicWriteTarget = (targetPath) => {
 const writeAtomicPayload = async (targetPath, payload, {
   mkdir = true,
   mode = undefined,
-  encoding = 'utf8'
+  encoding = 'utf8',
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const resolvedTarget = resolveAtomicWriteTarget(targetPath);
   if (!resolvedTarget) return null;
   const { parent, safeTargetPath } = resolvedTarget;
@@ -171,6 +174,7 @@ const writeAtomicPayload = async (targetPath, payload, {
     handle = null;
     await replaceFile(tempPath, safeTargetPath, {
       keepBackup: false,
+      signal,
       onExdevFallback: () => {
         recordExdevFallback(safeTargetPath);
       }
@@ -182,6 +186,7 @@ const writeAtomicPayload = async (targetPath, payload, {
       try { await handle.close(); } catch {}
     }
     await removeTempPath(tempPath);
+    if (isAbortError(err)) throw err;
     throw createAtomicWriteError('write file atomically', safeTargetPath, err);
   }
 };

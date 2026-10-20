@@ -58,7 +58,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
   if (samePathAlreadyCommitted(tempPath, finalPath)) return;
   const initialStat = readFinalStat(finalPath);
   if (!(await waitForPath(tempPath, {
-    attempts: REPLACE_TEMP_WAIT_ATTEMPTS, baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS
+    attempts: REPLACE_TEMP_WAIT_ATTEMPTS, baseDelayMs: REPLACE_TEMP_WAIT_BASE_DELAY_MS, signal: options.signal
   }))) {
     if (hasRecentlyCommittedFinalPath(finalPath, committedFinalGraceMs)) return;
     throw createTempMissingError(tempPath);
@@ -70,7 +70,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       await copyFileWithDurability(finalPath, backupPath);
     }
     try {
-      await renameWithRetry(tempPath, finalPath);
+      await renameWithRetry(tempPath, finalPath, { signal: options.signal });
     } catch (error) {
       if (error.code === 'ENOENT' && concurrentCommitSucceeded(tempPath, finalPath, initialStat)) {
         committed = true;
@@ -79,7 +79,7 @@ export const replaceFile = async (tempPath, finalPath, options = {}) => {
       if (error.code !== 'EXDEV') throw error;
       stagedPath = `${createSiblingBackupPath(finalPath)}.tmp`;
       await copyFileWithDurability(tempPath, stagedPath);
-      await renameWithRetry(stagedPath, finalPath);
+      await renameWithRetry(stagedPath, finalPath, { signal: options.signal });
       committed = true;
       await fs.rm(tempPath, { force: true });
       maybeReportExdevFallback(options, error.code);

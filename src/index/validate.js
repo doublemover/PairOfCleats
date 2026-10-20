@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { throwIfAborted } from '../shared/abort.js';
 import path from 'node:path';
 import {
   getBuildsRoot,
@@ -49,6 +50,8 @@ import { validateFileNameCollisions, validateIdPostings } from './validate/check
  * @returns {Promise<object>}
  */
 export async function validateIndexArtifacts(input = {}) {
+  const signal = input.abortSignal ?? input.signal;
+  throwIfAborted(signal);
   const root = getRepoRoot(input.root);
   const indexRoot = input.indexRoot ? path.resolve(input.indexRoot) : null;
   const userConfig = input.userConfig || loadUserConfig(root);
@@ -75,6 +78,7 @@ export async function validateIndexArtifacts(input = {}) {
     orderingDrift: []
   };
   const orderingLedger = await loadOrderingLedger(indexRoot || root);
+  throwIfAborted(signal);
   const orderingStrict = input.validateOrdering === true;
 
   const {
@@ -88,6 +92,7 @@ export async function validateIndexArtifacts(input = {}) {
   const symbolArtifacts = new Set(['symbols', 'symbol_occurrences', 'symbol_edges']);
 
   for (const mode of modes) {
+    throwIfAborted(signal);
     const dir = resolveIndexDir(root, mode, userConfig, indexRoot, strict);
     const modeReport = {
       path: path.resolve(dir),
@@ -510,6 +515,7 @@ export async function validateIndexArtifacts(input = {}) {
     }
   }
 
+  throwIfAborted(signal);
   const lmdbReport = await buildLmdbReport({
     root,
     userConfig,
@@ -518,6 +524,7 @@ export async function validateIndexArtifacts(input = {}) {
     report,
     lmdbEnabled: input.lmdbEnabled
   });
+  throwIfAborted(signal);
 
   const sqliteReport = await buildSqliteReport({
     root,
@@ -527,6 +534,7 @@ export async function validateIndexArtifacts(input = {}) {
     report,
     sqliteEnabled: report.sqlite.enabled
   });
+  throwIfAborted(signal);
 
   report.lmdb = lmdbReport;
   report.sqlite = sqliteReport;

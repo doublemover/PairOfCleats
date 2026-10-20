@@ -1,6 +1,7 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { throwIfAborted } from '../abort.js';
 
 export const WINDOWS_PATH_BUDGET = 240;
 export const MIN_COMPACT_TOKEN_CHARS = 12;
@@ -48,10 +49,11 @@ export const areComparablePathsEqual = (left, right) => {
   }
 };
 
-export const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10 } = {}) => {
+export const waitForPath = async (targetPath, { attempts = 3, baseDelayMs = 10, signal = null } = {}) => {
   const resolvedAttempts = Number.isFinite(attempts) ? Math.max(1, Math.floor(attempts)) : 3;
   const resolvedBaseDelay = Number.isFinite(baseDelayMs) ? Math.max(1, Math.floor(baseDelayMs)) : 10;
   for (let attempt = 0; attempt < resolvedAttempts; attempt += 1) {
+    throwIfAborted(signal);
     if (fsSync.existsSync(targetPath)) return true;
     if (attempt < resolvedAttempts - 1) {
       await sleep(resolvedBaseDelay * (attempt + 1));
@@ -166,13 +168,15 @@ export const renameWithRetry = async (
   {
     attempts = REPLACE_FILE_RENAME_RETRY_ATTEMPTS,
     baseDelayMs = REPLACE_FILE_RENAME_BASE_DELAY_MS,
-    retryableCodes = RETRYABLE_FILE_RENAME_CODES
+    retryableCodes = RETRYABLE_FILE_RENAME_CODES,
+    signal = null
   } = {}
 ) => {
   const resolvedAttempts = Math.max(1, Math.floor(Number(attempts) || 1));
   const resolvedBaseDelay = Math.max(1, Math.floor(Number(baseDelayMs) || 1));
   let lastError = null;
   for (let attempt = 0; attempt < resolvedAttempts; attempt += 1) {
+    throwIfAborted(signal);
     try {
       await fs.rename(fromPath, toPath);
       return;
