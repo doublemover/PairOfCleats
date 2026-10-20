@@ -1084,3 +1084,4 @@ tui/supervisor-settings-scope-jobs
 tooling/terminal-screen-wrap
 tooling/cli-utils-probe-outcomes
 tooling/install/detect-probe-diagnostics
+tooling/install/application-owned-node-detect

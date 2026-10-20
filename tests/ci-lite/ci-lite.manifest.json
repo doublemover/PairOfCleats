@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 942,
+    "hero": 943,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6517,6 +6517,12 @@
     {
       "id": "tooling/install/detect-probe-diagnostics",
       "order": 1084,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/application-owned-node-detect",
+      "order": 1085,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { detectTool } from '../../../tools/tooling/utils.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
-import { ensureTestingEnv } from '../../helpers/test-env.js';
+import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 
 ensureTestingEnv(process.env);
 const { dir } = await prepareIsolatedTestCacheDir('tool-detect-probe-diagnostics');
@@ -30,4 +30,14 @@ for (const attempt of result.probe.attempts) {
 }
 const serialized = JSON.stringify(result);
 assert.equal(serialized.includes(secret), false); assert.equal(serialized.includes('fixture-private-token'), false);
+await withTemporaryEnv({ PATH: path.dirname(process.execPath), Path: path.dirname(process.execPath) }, async () => {
+  const name = process.platform === 'win32' ? path.basename(command, '.cmd') : path.basename(command);
+  const managedFailure = detectTool({ id: 'explicit-diagnostic-fixture',
+    detect: { cmd: name, binDirs: [dir], args: ['--version'] } });
+  assert.equal(managedFailure.found, false);
+  assert.equal(managedFailure.probe.outcome, 'nonzero',
+    'a missing PATH fallback cannot overwrite the actual installed executable failure');
+  assert.ok(managedFailure.probe.attempts.every(attempt => attempt.status === 23));
+  assert.ok(managedFailure.probe.attempts.some(attempt => attempt.stderrExcerpt.includes('provider prerequisite unavailable')));
+});
 console.log('Tool detection retains bounded redacted diagnostics for every failed argument candidate');

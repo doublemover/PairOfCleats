@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T19:52:35.143Z",
+  "generatedAt": "2026-10-20T20:10:07.365Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4830,6 +4830,7 @@
         "tests/tooling/config/loader-schema-contract.test.js",
         "tests/tooling/doctor/generic-preset-matrix.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
+        "tests/tooling/install/application-owned-node-detect.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/lsp/configured-provider-gopls-preset-profile.test.js",
         "tests/tooling/lsp/configured-provider-gopls-profile.test.js",

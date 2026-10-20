@@ -128,7 +128,7 @@ const isPyrightProbeUsageError = (text) => {
     && normalized.includes('createconnection');
 };
 
-const isNonZeroProbeSuccess = ({ providerId, command, stderr, stdout }) => {
+export const isNonZeroToolingProbeSuccess = ({ providerId, command, stderr, stdout }) => {
   const normalizedProviderId = normalizeProviderId(providerId);
   const commandName = normalizeCommandToken(command);
   if (normalizedProviderId === 'pyright' || commandName.includes('pyright-langserver')) {
@@ -619,7 +619,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
       });
       if (
         result.exitCode === 0
-        || isNonZeroProbeSuccess({
+        || isNonZeroToolingProbeSuccess({
           providerId,
           command,
           stderr: result.stderr,

@@ -6,7 +6,7 @@ import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
-import { validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
+import { isNonZeroToolingProbeSuccess, validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
 import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
   resolveGlobalComposerBinDirs,
@@ -184,7 +184,7 @@ function resolveDetectArgCandidates(tool) {
   return candidates;
 }
 
-function probeWithArgCandidates(cmd, argCandidates) {
+function probeWithArgCandidates(cmd, argCandidates, providerId) {
   const attempts = [];
   for (const args of argCandidates) {
     const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd: resolveToolRoot() });
@@ -199,10 +199,14 @@ function probeWithArgCandidates(cmd, argCandidates) {
       ...(probe.ok ? {} : { stdoutExcerpt: redactDiagnosticText(probe.stdout),
         stderrExcerpt: redactDiagnosticText(probe.stderr) })
     });
-    if (probe.ok) {
+    const recognizedUsage = probe.outcome === 'nonzero' && isNonZeroToolingProbeSuccess({
+      providerId, command: cmd, stderr: probe.stderr, stdout: probe.stdout
+    });
+    if (probe.ok || recognizedUsage) {
       return {
         ok: true,
         outcome: 'ok',
+        ...(recognizedUsage ? { acceptance: 'recognized-transport-usage' } : {}),
         attempts
       };
     }
@@ -353,8 +357,11 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
   const localBinDirs = resolveLocalToolingBinDirs(absoluteToolingRoot);
   const [binDir, nodeBin, dotnetDir, composerBin] = localBinDirs;
   const nodeDir = path.join(absoluteToolingRoot, 'node');
-  const repoNodeBin = isRepoTrusted(repoRoot)
-    ? [path.join(repoRoot, 'node_modules', '.bin')] : [];
+  const repoNodeBinPath = typeof repoRoot === 'string' && repoRoot
+    ? path.join(repoRoot, 'node_modules', '.bin') : null;
+  const repoNodeBin = repoNodeBinPath && (isRepoTrusted(repoRoot)
+    || isApplicationOwnedCommand({ commandPath: repoNodeBinPath, repoRoot, toolRoot: implementationRoot }))
+    ? [repoNodeBinPath] : [];
   const gemsDir = path.join(absoluteToolingRoot, 'gems');
   const globalDotnetBins = resolveGlobalDotnetBinDirs();
   const globalGemBins = resolveGlobalGemBinDirs();
@@ -705,23 +712,26 @@ export function detectTool(tool) {
       return;
     }
     if (lastProbe.validationFailure && !probe.validationFailure) return;
+    // An absent bare-PATH fallback says nothing about the known executable's
+    // actual failure. Keep that stronger diagnostic (and all layout failures).
+    if (!probe.validationFailure && lastProbe.outcome !== 'missing' && probe.outcome === 'missing') return;
     lastProbe = probe;
   };
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates));
+    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates, tool.id));
     rememberProbe(probe);
     if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates));
+  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates, tool.id));
   rememberProbe(probe);
   if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const pathFound = findBinaryInDirs(detectCmd, pathEntries);
   if (pathFound) {
-    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates));
+    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates, tool.id));
     rememberProbe(pathProbe);
     if (pathProbe.ok === true) {
       return { found: true, path: pathFound, source: 'path', probe: pathProbe };
