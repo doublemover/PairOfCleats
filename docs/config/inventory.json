@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T08:54:14.024Z",
+  "generatedAt": "2026-10-20T11:32:32.992Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4841,6 +4841,7 @@
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js",
         "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
+        "tests/tooling/typescript-compiler-compatibility.test.js",
         "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
         "tools/config/inventory.js",

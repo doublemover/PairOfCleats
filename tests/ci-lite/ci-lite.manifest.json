@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 906,
+    "hero": 907,
     "matrix": 108,
     "meta": 34,
     "soak": 1,
@@ -6307,6 +6307,12 @@
     {
       "id": "tooling/release/readiness-gate-missing-workflow",
       "order": 1049,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-compiler-compatibility",
+      "order": 1050,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

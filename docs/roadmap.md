@@ -18,7 +18,8 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Fifty-two issues have repairs through source `940f5c3d3` (seventeenth batch): release assets have
+Fifty-three issues have repairs through source `2679cdb58` (eighteenth batch): TypeScript doctor,
+loaders and host/preflight share version/capability admission. Release assets have
 unique staged names/checksum mappings and CI Long has explicit release-only scope. GNU Global cxref ingestion
 separates source text from encoded paths and owns valid query arguments; LSIF follows
 result-to-range direction and document/URI authority. MCP builds retain

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T11:21:57.753Z",
+  "generatedAt": "2026-10-20T11:32:28.006Z",
   "summary": {
     "lanes": 5,
-    "tests": 1271,
+    "tests": 1272,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 325,
+    "families": 326,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1197
+      "missingTests": 1198
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1049,
+      "totalTests": 1050,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1000
+        "missing": 1001
       }
     },
     {
@@ -1970,6 +1970,12 @@
     },
     {
       "key": "tooling/test-selection",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/typescript-compiler-compatibility",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
