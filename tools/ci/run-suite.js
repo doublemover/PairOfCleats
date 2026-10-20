@@ -338,8 +338,8 @@ const main = async () => {
       command: process.execPath,
       args: ['tests/run.js', '--lane', 'all', ...(mode === 'nightly'
         ? ['--match', '/^services\\/api\\//'] : exactSelectors(API_CONTRACT_IDS)),
-        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
-        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'api-contracts.json')]
+      '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+      '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'api-contracts.json')]
     },
     {
       label: 'Import resolution SLO gate',
