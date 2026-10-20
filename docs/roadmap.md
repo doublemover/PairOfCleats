@@ -41,7 +41,8 @@ now reads Toolhelp snapshots, with native layout/failure and real descendant/iso
 All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windows
 and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
 their source identities in the issue receipt; the supported native System32 owner
-keeps its two-second bound. Fresh resulting-candidate qualification remains required.
+keeps its two-second bound. A later macOS empty-PATH fixture assumption is repaired
+with explicit missing-tool input; fresh hosted/candidate qualification remains required.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
