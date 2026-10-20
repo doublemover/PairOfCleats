@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T08:16:33.414Z",
+  "generatedAt": "2026-10-20T08:42:18.714Z",
   "summary": {
     "lanes": 5,
-    "tests": 1247,
+    "tests": 1249,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 319,
+    "families": 320,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1173
+      "missingTests": 1175
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1025,
+      "totalTests": 1027,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 976
+        "missing": 978
       }
     },
     {
@@ -302,9 +302,9 @@
     },
     {
       "key": "integrations/inference-history",
-      "count": 33,
+      "count": 34,
       "knownDurationMs": 0,
-      "unknownDurationCount": 33
+      "unknownDurationCount": 34
     },
     {
       "key": "indexing/tree-sitter",
@@ -1064,6 +1064,12 @@
     },
     {
       "key": "graph/store-csr-artifact-load",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "graph/suggest-tests-node-budget",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

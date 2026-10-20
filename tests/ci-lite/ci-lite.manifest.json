@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 883,
+    "hero": 885,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6163,6 +6163,18 @@
     {
       "id": "integrations/inference-history/linear-turn-lookup",
       "order": 1025,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/inference-history/privacy-roundtrip",
+      "order": 1026,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/suggest-tests-node-budget",
+      "order": 1027,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

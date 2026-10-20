@@ -1025,3 +1025,5 @@ context-pack/risk-truncation-contract/partial-count
 context-pack/risk-truncation-contract/partial-bytes
 context-pack/risk-truncation-contract/partial-tokens
 integrations/inference-history/linear-turn-lookup
+integrations/inference-history/privacy-roundtrip
+graph/suggest-tests-node-budget
