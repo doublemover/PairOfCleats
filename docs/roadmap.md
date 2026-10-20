@@ -18,25 +18,16 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Fifty-nine issues have implemented repairs through the twenty-second batch.
+Sixty issues have implemented repairs through the twenty-third batch.
+Code-map caches bind the selected canonical index and manifest generation.
 Equal-text VFS origins retain distinct compiler targets, imported types and diagnostics;
 ambiguous content-only tokens fail closed. Python AST relations, defaults and Unicode
 ranges, plus HTML summary metadata, survive registry/index paths.
-First-run preflight has a clean fresh Windows bootstrap. TypeScript doctor,
-loaders and host/preflight share version/capability admission. Release assets have
-unique staged names/checksum mappings and CI Long has explicit release-only scope. GNU Global cxref ingestion
-separates source text from encoded paths and owns valid query arguments; LSIF follows
-result-to-range direction and document/URI authority. MCP builds retain
-request cancellation through core, SQLite ingestion and publication. FTS applies query
-eligibility before its candidate cap, federation enumerates exact eligible modes,
-and relative modification filters bind result caches to one request cutoff.
-Incoming edges retain source direction and CSR risk guidance preserves callers and graph-derived tests.
-Explicit graph exclusion, semantic omissions, owner metadata restoration and
-test-suggestion node caps have regressions. Earlier batches cover resource leases,
-publication/cancellation, cache authority, evidence contracts, triage, setup and
-editor/provider correctness. Every failed candidate and original receipt remains
-in the linked issue audit. Five proven wrapper aliases are retired; broader
-wrapper/direct equivalence remains open under #616.
+First-run preflight has a clean fresh Windows bootstrap. Earlier repairs cover
+compiler admission, release promotion/policy, LSIF/GNU Global, MCP/SQLite cancellation,
+FTS/federation, graph/risk/evidence contracts, resource ownership and editor/tooling
+correctness. The linked issue audit retains each failure, regression and source identity.
+Five proven wrapper aliases are retired; broader equivalence remains open under #616.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
@@ -44,7 +35,8 @@ All seven hosted checks pass at `5adcb13d9` (39416248627), including broad Windo
 and strict authority. Earlier CIM/SysWOW64 failures and cancelled runs retain
 their source identities in the issue receipt; the supported native System32 owner
 keeps its two-second bound. Later CI exposes a real preflight entry-alias bypass,
-now reproduced and repaired with the existing real-path owner. Windows API core
+now reproduced and repaired with the existing real-path owner. The authority inventory
+includes both new aliases; its drift check moves into the front gate. Windows API core
 also exceeds 30 seconds after real clangd takes 18.6 seconds; a local 20.1-second
 pass does not close that hosted timeout. Fresh hosted/candidate qualification remains required.
 Eight API cases and serial
