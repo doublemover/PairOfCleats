@@ -20,6 +20,11 @@ const DEFAULT_LOG_DIR = path.join(ROOT, '.testLogs');
 const DEFAULT_JUNIT = path.join(DEFAULT_LOG_DIR, 'junit.xml');
 const DEFAULT_CACHE_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-cache', 'pairofcleats');
 const DEFAULT_HOME_ROOT = resolveDevelopmentArtifactPath(ROOT, 'ci-home', 'pairofcleats');
+const SERIAL_RUNTIME_BUDGET_IDS = ['tooling/reports/summary/report', 'perf/parsers/toml-cold-budget'];
+const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
+  'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
+  'services/api/federated-search-validation-matrix', 'services/api/search-stream-outcomes'];
+const exactSelectors = ids => ids.flatMap(id => ['--match', `/^${id.replaceAll('/', '\\/')}$/`]);
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
 const npmCommand = process.platform === 'win32' ? 'cmd' : 'npm';
@@ -296,6 +301,7 @@ const main = async () => {
         baseLane,
         '--exclude',
         'services/api/',
+        ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--timeout-ms',
         '600000',
@@ -319,6 +325,21 @@ const main = async () => {
         '--log-dir',
         logDir
       ]
+    },
+    {
+      label: 'Serial runtime budgets',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...exactSelectors(SERIAL_RUNTIME_BUDGET_IDS),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'serial-runtime-budgets.json')]
+    },
+    {
+      label: 'API contract cohort',
+      command: process.execPath,
+      args: ['tests/run.js', '--lane', 'all', ...(mode === 'nightly'
+        ? ['--match', '/^services\\/api\\//'] : exactSelectors(API_CONTRACT_IDS)),
+        '--jobs', '1', '--pairofcleats-threads', '1', '--timeout-ms', '30000', '--retries', '0',
+        '--native-status-redo=false', '--report-file', path.join(diagnosticsDir, 'api-contracts.json')]
     },
     {
       label: 'Import resolution SLO gate',

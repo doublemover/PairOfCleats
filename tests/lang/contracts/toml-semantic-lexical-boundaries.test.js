@@ -6,6 +6,7 @@ import { chunkIniToml, createTomlChunker } from '../../../src/index/chunking/for
 import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
 import { buildConfigFileAdapters } from '../../../src/index/language-registry/adapters/config-files.js';
+import { quotedToml as quoted } from '../../fixtures/formats/toml-quoted.js';
 
 const vendor = createRequire(import.meta.url)('smol-toml');
 const forbidden = () => { throw Error('Excluded file/reference loading or serialization'); };
@@ -38,18 +39,18 @@ assert.equal(chunks[0].end, chunks[1].start);
 const tomlAdapter = buildConfigFileAdapters().find((adapter) => adapter.id === 'toml');
 assert.deepEqual(tomlAdapter.buildRelations({ text, options: {} }).imports, collectTomlImports(text).sort());
 
-const quoted = ['"in\\u0063lude" = "escaped.toml"', '"literal.dot".includes = ["dotted.toml"]',
-  '"" = "empty key"', 'count = 9223372036854775807', 'date = 1979-05-27T07:32:00Z',
-  '["tool.poc"."😀"]', "'include' = 'unicode.toml'", '[dependencies."quoted.crate"]',
-  'path = "../quoted"', 'version = "1.0"'].join('\n');
-const quotedModel = parseTomlStructure(quoted);
+// Content/range assertions have a controlled clock; the identical input's
+// unchanged production 30 ms bound is exercised serially by toml-cold-budget.
+const quotedParser = createTomlStructureParser({ now: () => 0 });
+const quotedModel = quotedParser(quoted);
 assert.equal(quotedModel.reason, null);
 assert.deepEqual(quotedModel.importEntries.map((entry) => entry.value), ['escaped.toml', 'dotted.toml', 'unicode.toml', '../quoted']);
 assert.equal(quoted.slice(quotedModel.importEntries[0].keyRange.start, quotedModel.importEntries[0].keyRange.end), '"in\\u0063lude"');
 assert.deepEqual(quotedModel.headings[0].path, ['tool.poc', '😀']);
 assert.deepEqual(quotedModel.headings[1].path, ['dependencies', 'quoted.crate']);
 assert.equal(quoted.slice(quotedModel.headings[0].start, quotedModel.headings[0].end), '["tool.poc"."😀"]');
-assert.deepEqual(collectTomlImports(quoted), ['escaped.toml', 'dotted.toml', 'unicode.toml', '../quoted']);
+assert.deepEqual(createTomlImportCollector({ parseStructure: quotedParser })(quoted),
+  ['escaped.toml', 'dotted.toml', 'unicode.toml', '../quoted']);
 
 const arrays = ['[[plugins]]', 'include = "first.toml"', '[plugins.settings]', 'source = "first.source"',
   '[[plugins.children]]', 'include = "first-child.toml"', '[[plugins.children]]', 'include = "second-child.toml"',

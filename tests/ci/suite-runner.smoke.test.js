@@ -54,7 +54,8 @@ assertRequired(ciOutput, [
 
 const nightlyOutput = runDrySuite('nightly');
 assertRequired(nightlyOutput, [
-  /tests[\\/]run\.js --lane ci --exclude services[\\/]api[\\/] --lane storage --lane perf/,
+  /tests[\\/]run\.js --lane ci /,
+  /--lane storage --lane perf/,
   /--report-file/,
   /--timings-file/,
   /--stability-file/,
@@ -69,6 +70,8 @@ for (const [mode, output] of [['ci', ciOutput], ['nightly', nightlyOutput]]) {
   assert.equal(lane.length, 1, `${mode}: expected the actual broad test command`);
   assert.match(lane[0], /--retries 0(?:\s|$)/, `${mode}: a failed first attempt must fail CI`);
   assert.match(lane[0], /--native-status-redo=false(?:\s|$)/, `${mode}: native crashes cannot be redone by CI`);
+  assert.ok(output.includes('[dry-run] API contract cohort:'), `${mode}: excluded API cases have an explicit portable cohort`);
+  assert.ok(output.includes('[dry-run] Serial runtime budgets:'), `${mode}: measured parser/index budgets have an explicit serial owner`);
 }
 
 console.log('suite runner smoke and zero-retry command contracts passed');

@@ -217,6 +217,8 @@ jobs:
         with:
           name: ci-quality-artifacts-ubuntu
           path: |
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
@@ -316,6 +318,8 @@ jobs:
           name: ci-quality-artifacts-windows
           path: |
             .diagnostics/windows-subprocess-ownership.json
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
@@ -473,6 +477,8 @@ jobs:
         with:
           name: ci-quality-artifacts-macos
           path: |
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
