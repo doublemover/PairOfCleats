@@ -12,7 +12,7 @@ import { visitChatGptExport } from './archive.js';
 import { hashCanonicalJson } from './normalize.js';
 import { normalizeHistoryRecord } from './records.js';
 import { normalizeMemberLinks } from './member-links.js';
-import { READ_GUARDS, visibleNode, readVisibleContext, readHistoryReferences } from './reader.js';
+import { READ_GUARDS, visibleNode, createVisibleNodeReader, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore, openMemoryHistoryStore, openLocalArchiveStore } from './store.js';
 import { searchHybridHistory } from './hybrid.js';
 import { historyIndexState, advanceHistoryGeneration } from './generation.js';
@@ -196,11 +196,12 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
             db.prepare('UPDATE records SET latest_snapshot=? WHERE id=?').run(snapshotRef, recordRef);
             return;
           }
+          const readVisibleNode = createVisibleNodeReader(raw, normalized.evidenceKind);
+          const policy = historyPrivacy(db, recordRef);
           for (const node of normalized.nodes) {
             const nodeRevision = node.sourceRevision;
             const sourceRef = privateReference(referenceKey, JSON.stringify([recordRef, node.nodeId, nodeRevision, projectionFingerprint]));
-            const fullText = visibleNode(raw, normalized.evidenceKind, node.nodeId)?.text ?? '';
-            const policy=historyPrivacy(db,recordRef);
+            const fullText = readVisibleNode(node.nodeId)?.text ?? '';
             const projection = projectHistoryText(privacyText(fullText,policy), limits.maxTextChars);
             const metadata = {
               evidenceKind: normalized.evidenceKind,
