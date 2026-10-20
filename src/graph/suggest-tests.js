@@ -370,6 +370,14 @@ export const buildSuggestTestsReport = ({
     });
     seeds = seeds.slice(0, capsNormalized.maxSeeds);
   }
+  if (capsNormalized.maxNodes != null && seeds.length > capsNormalized.maxNodes) {
+    recordTruncation('maxNodes', {
+      limit: capsNormalized.maxNodes,
+      observed: seeds.length,
+      omitted: seeds.length - capsNormalized.maxNodes
+    });
+    seeds = seeds.slice(0, capsNormalized.maxNodes);
+  }
 
   const { matchers: testMatchers, key: testMatcherKey } = compileTestMatchers(testPatterns);
   if (!Array.isArray(tests) && !repoRoot) {
@@ -442,19 +450,19 @@ export const buildSuggestTestsReport = ({
         edgesVisited += 1;
         workUnits += 1;
         if (visited.has(neighbor)) continue;
-        const trail = current.trail.concat([neighbor]);
-        const nextDistance = distance + 1;
-        visited.set(neighbor, { distance: nextDistance, trail });
-        queue.push({ path: neighbor, distance: nextDistance, trail });
         if (capsNormalized.maxNodes != null && visited.size >= capsNormalized.maxNodes) {
           recordTruncation('maxNodes', {
             limit: capsNormalized.maxNodes,
-            observed: visited.size,
+            observed: visited.size + 1,
             omitted: null
           });
           stopTraversal = true;
           break;
         }
+        const trail = current.trail.concat([neighbor]);
+        const nextDistance = distance + 1;
+        visited.set(neighbor, { distance: nextDistance, trail });
+        queue.push({ path: neighbor, distance: nextDistance, trail });
       }
     }
 
