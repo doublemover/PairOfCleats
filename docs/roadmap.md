@@ -33,24 +33,21 @@ and source identities in the linked issue receipt.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
 now reads Toolhelp snapshots, with native layout/failure and real descendant/isolation controls.
-Earlier receipts retain ANN/interrupt success at `18179bb7f` (39451767657).
-Hosted `c4357abb3` exposes Windows pending-delete lock admission; its native
-regression now passes with bounded acquisition and preserved permission errors.
-At `3e4082c7a`, Windows parity and macOS XML fail; smaller artifacts and separate
-content/real-clock owners repair them. Tool probes now retain actual causes and
-bounded redacted failure excerpts; real optional-tool qualification remains active.
-At `7162061f4`, only the stale four-owner serial-plan assertion fails; its owner is repaired.
-At `7789dd3fc`, Ubuntu/macOS correctness and serial real-clock budgets pass;
-the 47-owner Windows authority cohort also passes. Windows fails before the main
-suite: its cold system PowerShell snapshot helper exceeds the unchanged two-second
-bound before emitting its first phase. Engine/payload diagnostics now distinguish
-those boundaries; the original cause remains open.
-All seven checks pass at `77a6f0df7` (39486272672); later changes need fresh CI.
+Archived hosted failures retain pending-delete, parity, XML, serial-plan and cold
+PowerShell-helper evidence and their individual repairs. The cold helper stall's
+cause remains open despite later successes. All seven checks pass at `77a6f0df7`
+(39486272672). Later `1da3d6113` (39490541489) passes Linux/macOS, Rust, gate,
+47 Windows authority cases and five early ownership cases. Windows main has
+1074 passes and one SQLite cancellation worker-start witness failure; its original
+receipt remains unresolved. Later changes require fresh hosted confirmation.
 #633 now connects canonical settings transactions to the real supervisor/native
 keyboard path, with scope, stale/cancel/privacy and exact-byte reset controls.
 Four actual Windows ConPTY cases pass; other platform native execution is separate.
 Bundled Pyright now detects and completes a real Windows initialize/shutdown;
-fresh/stale cache and untrusted-child controls pass. #631 remains active.
+fresh/stale cache and untrusted-child controls pass. Go installation now rejects
+incompatible SDKs and honors explicit root/version pins. Real gopls v0.24.0 starts
+and shuts down with explicitly selected Go 1.27.3; CI selects and records that SDK
+and requires protocol startup on each platform. #631 remains active.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
@@ -61,10 +58,10 @@ checks; that frozen result does not qualify the current source.
 Managed-Go cache defaults and reused SDK launch paths now resolve absolutely;
 explicit user caches remain active. Both path defects have real-Go before/after
 controls and 22 affected passing cases; the SDK regression joins regular CI.
-macOS optional-tool readiness still rejects missing PHP and unverified
-Pyright/C#/Ruby installations. Its npm `fsevents` script-policy warning also
-remains separate from clean Windows native setup; installed-tool qualification
-stays open rather than turning successful installer exits into readiness.
+Remaining real-tool outcomes include macOS PHP/.NET runtime discovery, Ruby gem
+environment/native builds, approved PHPactor bytes and the macOS `fsevents`
+script-policy warning. Installer exit, detection, startup and semantic precision
+remain separate evidence; no warning or failed readiness is suppressed.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
