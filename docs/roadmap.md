@@ -62,8 +62,10 @@ digests, with stale-context negatives and LSP producer 13 replay invalidation.
 C# 0.28.0 now completes real Windows startup/shutdown with selected .NET SDK
 10.0.113. CI binds an isolated SDK/root; fresh-process runtime qualification and
 the repaired Windows sync-timeout descendant owner retain failure controls.
-PHPactor delivery now pins approved bytes and reports its native Windows POSIX
-limitation; an isolated WSL checkout bootstraps and installs the real package.
+PHPactor pins approved bytes and reports its native Windows POSIX limitation.
+The clean WSL checkout qualifies real startup/shutdown; LSP disposal now awaits
+observed child exits and retains ownership across concurrent cleanup/restart.
+CI requires Linux/macOS PHPactor startup; later hosted execution remains blocked.
 Remaining tool work includes startup/platform qualification, Ruby installs
 and the macOS `fsevents` policy warning. Detection, startup and semantic precision
 remain separate evidence; no warning or failed readiness is suppressed.
