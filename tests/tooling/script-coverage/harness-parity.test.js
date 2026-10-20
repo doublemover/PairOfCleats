@@ -79,7 +79,10 @@ assert.equal(retirement.retiredCount, retirement.delegations.length);
 const actionIds = new Set(actions.map(action => `tooling/script-coverage/${action.group}/${action.label}`));
 for (const entry of retirement.delegations) {
   assert.ok(!actionIds.has(entry.wrapperId), `retired alias must not reappear: ${entry.wrapperId}`);
-  assert.deepEqual(entry.args, []);
+  if (entry.selectorEquivalence) {
+    assert.equal(entry.selectorEquivalence.kind, 'canonical-case-id');
+    assert.deepEqual(entry.args, ['--case', entry.canonicalOwner.split('/').at(-1)]);
+  } else assert.deepEqual(entry.args, []);
   assert.deepEqual(entry.options, {});
   assert.deepEqual(entry.survivingScriptClaims, []);
   await fsPromises.access(path.join(root, entry.target));

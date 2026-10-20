@@ -85,7 +85,6 @@ export const __applySuiteToolingPathEntriesForTests = (env, repoRoot, userConfig
 const renderCommand = (command, args) => [command, ...args].join(' ');
 const SCRIPT_COVERAGE_GROUPS = Object.freeze([
   'storage',
-  'indexing',
   'fixtures',
   'tools'
 ]);

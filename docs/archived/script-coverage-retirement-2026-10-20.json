@@ -3,8 +3,8 @@
   "sourceCommit": "c4357abb3db1af3e887dda97dde24b768b801b1c",
   "packageSha256": "48f4c314291244bd5013e758373162e2a58b89b7a9d345b4f92242d4510d64f8",
   "beforeActions": 212,
-  "afterActions": 38,
-  "retiredCount": 174,
+  "afterActions": 35,
+  "retiredCount": 177,
   "proof": "Each retired action is a synchronous arrow whose entire body returns one runNode call. Runtime recording establishes one canonical test file, no arguments/options and no surviving npm-script claims. No fixture body or assertion is removed.",
   "environment": "Nested runner sets the canonical target test ID. All 174 canonical lanes are outside ci/ci-long and have the same lane-default config. Cache/log suffixes name isolated disposable namespaces; they are not workload inputs. Shared runner, isolation, cancellation, timeout, retry and skip contracts remain independently covered.",
   "boundaries": {
@@ -59,7 +59,8 @@
     "benchmarks",
     "search",
     "embeddings",
-    "services"
+    "services",
+    "indexing"
   ],
   "delegations": [
     {
@@ -1801,6 +1802,70 @@
       "args": [],
       "options": {},
       "survivingScriptClaims": []
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/incremental-tokenization-cache-identical-config",
+      "canonicalOwner": "indexing/incremental/tokenization-cache/identical-config",
+      "lane": "integration",
+      "target": "tests/indexing/incremental/tokenization-cache.test.js",
+      "targetSha256AtRemoval": "9314893ef617aa2c64a9a2cf0833ec63e96092dd950da2ab22b61dae8c0e1865",
+      "targetSha256AfterSelectorRetirement": "edd65498cdfb9e89c7b64fba52489d8eb32929ae20db29e1790f6dc176fbf7e3",
+      "args": [
+        "--case",
+        "identical-config"
+      ],
+      "options": {},
+      "survivingScriptClaims": [],
+      "selectorEquivalence": {
+        "kind": "canonical-case-id",
+        "proof": "The original fixture selects the identical case and owned cache namespace from --case or its canonical test-ID suffix. All three pairs pass before retirement. Only the unused private --case selector is removed; case inputs and assertions remain."
+      }
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/incremental-tokenization-cache-tokenization-config",
+      "canonicalOwner": "indexing/incremental/tokenization-cache/tokenization-config",
+      "lane": "integration",
+      "target": "tests/indexing/incremental/tokenization-cache.test.js",
+      "targetSha256AtRemoval": "9314893ef617aa2c64a9a2cf0833ec63e96092dd950da2ab22b61dae8c0e1865",
+      "targetSha256AfterSelectorRetirement": "edd65498cdfb9e89c7b64fba52489d8eb32929ae20db29e1790f6dc176fbf7e3",
+      "args": [
+        "--case",
+        "tokenization-config"
+      ],
+      "options": {},
+      "survivingScriptClaims": [],
+      "selectorEquivalence": {
+        "kind": "canonical-case-id",
+        "proof": "The original fixture selects the identical case and owned cache namespace from --case or its canonical test-ID suffix. All three pairs pass before retirement. Only the unused private --case selector is removed; case inputs and assertions remain."
+      }
+    },
+    {
+      "wrapperId": "tooling/script-coverage/indexing/incremental-tokenization-cache-dictionary-config",
+      "canonicalOwner": "indexing/incremental/tokenization-cache/dictionary-config",
+      "lane": "integration",
+      "target": "tests/indexing/incremental/tokenization-cache.test.js",
+      "targetSha256AtRemoval": "9314893ef617aa2c64a9a2cf0833ec63e96092dd950da2ab22b61dae8c0e1865",
+      "targetSha256AfterSelectorRetirement": "edd65498cdfb9e89c7b64fba52489d8eb32929ae20db29e1790f6dc176fbf7e3",
+      "args": [
+        "--case",
+        "dictionary-config"
+      ],
+      "options": {},
+      "survivingScriptClaims": [],
+      "selectorEquivalence": {
+        "kind": "canonical-case-id",
+        "proof": "The original fixture selects the identical case and owned cache namespace from --case or its canonical test-ID suffix. All three pairs pass before retirement. Only the unused private --case selector is removed; case inputs and assertions remain."
+      }
+    }
+  ],
+  "retainedFixtureDelegations": [
+    {
+      "wrapper": "tooling/script-coverage/fixtures/fixture-parity",
+      "reason": "Explicit --fixtures list acceptance; the canonical harness also rejects a missing first list member rather than falling back to sample."
+    },
+    {
+      "wrapper": "tooling/script-coverage/tools/parity",
+      "reason": "Explicit sample repository/cwd, checkout search entry and disabled ANN differ from the canonical fresh-repository default."
     }
   ]
 }

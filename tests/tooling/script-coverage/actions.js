@@ -1,12 +1,10 @@
 import path from 'node:path';
 import { buildFixtureActions } from './actions/fixtures.js';
-import { buildIndexingActions } from './actions/indexing.js';
 import { buildStorageActions } from './actions/storage.js';
 import { buildToolActions } from './actions/tools.js';
 
 export const SCRIPT_COVERAGE_GROUPS = Object.freeze([
   'storage',
-  'indexing',
   'fixtures',
   'tools'
 ]);
@@ -36,7 +34,6 @@ export const buildActions = async (context) => {
 
   const actions = [
     ...withGroup('storage', buildStorageActions(actionContext)),
-    ...withGroup('indexing', buildIndexingActions(actionContext)),
     ...withGroup('fixtures', buildFixtureActions(actionContext)),
     ...withGroup('tools', buildToolActions(actionContext))
   ];

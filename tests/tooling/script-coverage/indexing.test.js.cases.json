@@ -1,8 +1,0 @@
-{
-  "schemaVersion": 1,
-  "cases": [
-    "incremental-tokenization-cache-identical-config",
-    "incremental-tokenization-cache-tokenization-config",
-    "incremental-tokenization-cache-dictionary-config"
-  ]
-}

@@ -6,6 +6,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { applyActionCoverage, createCoverageState, finalizeCoverage, reportCoverage } from './report.js';
 import { repoRoot } from '../../helpers/root.js';
+import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { createCommandRunner, resolveRetries } from './runner.js';
 import { createInvocationRecorder, validateInvocationTargets } from './invocation-inventory.js';
 import {
@@ -31,6 +33,15 @@ assert.equal(tierOverrideSummary.missingTierB.length, 0, 'expected tier B overri
 assert.equal(tierOverrideSummary.coveredTierB.length, 1, 'expected tier B override to mark covered');
 
 const root = repoRoot();
+// The retained explicit --fixtures invocation checks a distinct CLI selector.
+// This negative proves it consumes the list rather than silently using sample.
+const rejectedList = runNode([path.join(root, 'tests/tooling/fixtures/fixture-parity.test.js'),
+  '--fixtures', 'deliberately-missing-parity-fixture,sample'], 'explicit fixture-list authority',
+root, applyTestEnv({ syncProcess: false }), { allowFailure: true, stdio: 'pipe', timeoutMs: 10000 });
+assert.equal(rejectedList.status, 1);
+assert.equal(rejectedList.stderr.trim(),
+  `Fixture not found: ${path.join(root, 'tests/fixtures/deliberately-missing-parity-fixture')}`);
+assert.doesNotMatch(rejectedList.stdout, /Fixture parity: sample/);
 assert.equal(resolveRetries({ argvRetries: 0, defaultRetries: 2 }), 0,
   'an explicit audit retry count must reach the nested runner unchanged');
 const boundedRunner = createCommandRunner({ retries: 0, failureLogRoot: root });

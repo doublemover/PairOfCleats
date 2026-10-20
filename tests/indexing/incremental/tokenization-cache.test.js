@@ -12,9 +12,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
 const root = process.cwd();
 const cases = ['identical-config', 'tokenization-config', 'dictionary-config'];
-const explicitCase = process.argv.indexOf('--case');
-const selectedCase = explicitCase >= 0 ? process.argv[explicitCase + 1]
-  : process.env.PAIROFCLEATS_TEST_ID?.split('indexing/incremental/tokenization-cache/')[1];
+const selectedCase = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/incremental/tokenization-cache/')[1];
 if (selectedCase) assert.ok(cases.includes(selectedCase), `unknown tokenization cache case: ${selectedCase}`);
 assert.deepEqual(JSON.parse(await fsPromises.readFile(new URL('./tokenization-cache.test.js.cases.json', import.meta.url))),
   { schemaVersion: 1, cases }, 'every cache comparison remains discoverable');
