@@ -26,17 +26,9 @@ shutdown across overlays, with a real Windows terminal/reaping witness.
 Default TUI build/capture now select pinned Rust with locked dependencies;
 the actual Windows release binary passes four terminal-lifetime controls.
 Rendered job/task offsets and wrapped log tail/follow now have actual frame coverage.
-Code-map caches bind the selected canonical index and manifest generation.
-Sublime cancellation and folder watch now pass actual Python 3.3 controls.
-Its API requests use destination-bound user credentials and refuse authenticated redirects.
-VS Code JS/operator scripts select a validated external Node from user settings or PATH.
-Equal-text VFS origins retain distinct compiler targets, imported types and diagnostics;
-ambiguous content-only tokens fail closed. Python AST relations, defaults and Unicode
-ranges, plus HTML summary metadata, survive registry/index paths.
-First-run preflight has a clean fresh Windows bootstrap. Earlier repairs cover
-compiler admission, release promotion/policy, LSIF/GNU Global, MCP/SQLite cancellation,
-FTS/federation, graph/risk/evidence contracts, resource ownership and editor/tooling
-correctness. The linked issue audit retains each failure, regression and source identity.
+Completed map, editor, VFS, language, bootstrap, compiler, release, LSIF/GNU Global,
+API/MCP, retrieval and resource repairs retain their individual failures, checks
+and source identities in the linked issue receipt.
 182 wrapper aliases are retired with input/assertion mappings; distinct CLI checks remain.
 Large semantic pieces now verify decoded blocks even with unchanged file clocks;
 history import has a proven linear turn-lookup repair. Windows orphan cleanup
@@ -49,6 +41,12 @@ regression now passes with bounded acquisition and preserved permission errors.
 At `3e4082c7a` the native lock cohort and Ubuntu pass; Windows parity setup
 times out and macOS XML content assertions fail. Smaller parity artifacts and
 separate XML content/serial real-clock controls pass locally; fresh CI is pending.
+At `7162061f4`, native Windows ownership and three platform correctness selections
+reach only one shared failure: the serial-plan fixture still expects four owners.
+Its five-owner correction passes locally. #633 has a tested settings transaction
+owner with canonical schema/provenance, stale/cancel fences, privacy and exact-byte
+reset backup controls; supervisor/native keyboard integration remains unfinished.
+Its new file-symlink case requires the capable Windows authority launch.
 Eight API cases, serial native generation cases and production resource bounds
 have explicit owners. Candidate qualification
 remains pending; earlier passing observations do not qualify the resulting tree.
