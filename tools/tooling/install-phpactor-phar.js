@@ -2,10 +2,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { validateDownloadUrl } from '../download/network-policy.js';
+import { fetchDownloadUrl } from '../download/shared-fetch.js';
+import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 import {
   createInstallError,
-  downloadToBuffer,
+  computeSha256,
+  isRetryableHttpStatus,
   jitterForAttempt,
   normalizeChecksum,
   sleep,
@@ -13,7 +15,7 @@ import {
   writeInstallReport
 } from './install-shared.js';
 
-const PHPACTOR_PHAR_URL = 'https://github.com/phpactor/phpactor/releases/latest/download/phpactor.phar';
+const PHPACTOR_PHAR_URL = PHPACTOR_APPROVED_RELEASE.url;
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_RETRIES = 2;
 const DEFAULT_RETRY_BASE_MS = 500;
@@ -38,24 +40,23 @@ const parseArgs = () => createCli({
   .parse();
 
 const downloadPhar = async ({ url, timeoutMs }) => {
-  validateDownloadUrl(url);
-  return downloadToBuffer({
-    url,
-    timeoutMs,
-    redirect: 'manual',
-    maxBytes: 32 * 1024 * 1024,
-    label: 'phpactor PHAR',
-    drainErrorBody: false,
-    createErrorMessage: (reason, details) => {
-      if (reason === 'download_http_error') {
-        return `Failed to download phpactor PHAR (${details.statusCode} ${details.statusText}).`;
-      }
-      if (reason === 'download_empty_payload') return 'Downloaded empty phpactor PHAR payload.';
-      if (reason === 'download_timeout') return `Timed out downloading phpactor PHAR after ${details.timeoutMs}ms.`;
-      if (reason === 'download_network_error') return `Failed to download phpactor PHAR: ${details.message || details.errorText}`;
-      return null;
+  try {
+    const result = await fetchDownloadUrl(url, { timeoutMs, maxBytes: 32 * 1024 * 1024 });
+    if (result.statusCode < 200 || result.statusCode >= 300) {
+      throw createInstallError('download_http_error', `Failed to download phpactor PHAR (${result.statusCode}).`,
+        { retryable: isRetryableHttpStatus(result.statusCode), statusCode: result.statusCode });
     }
-  });
+    if (!result.body?.length) throw createInstallError('download_empty_payload', 'Downloaded empty phpactor PHAR payload.');
+    return { body: result.body, sha256: computeSha256(result.body), sourceUrl: result.url };
+  } catch (error) {
+    if (error.reason) throw error;
+    const timeout = error.code === 'ERR_DOWNLOAD_TIMEOUT';
+    const tooLarge = error.code === 'ERR_DOWNLOAD_MAX_BYTES';
+    const authority = ['ERR_DOWNLOAD_AUTHORITY', 'ERR_DOWNLOAD_REDIRECT', 'ERR_INVALID_URL'].includes(error.code);
+    throw createInstallError(timeout ? 'download_timeout' : tooLarge ? 'download_too_large' : 'download_network_error',
+      timeout ? `Timed out downloading phpactor PHAR after ${timeoutMs}ms.` : `Failed to download phpactor PHAR: ${error.message}`,
+      { retryable: !tooLarge && !authority, cause: error });
+  }
 };
 
 const writeShims = async (binDir) => {

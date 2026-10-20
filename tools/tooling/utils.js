@@ -22,6 +22,7 @@ import {
 } from '../../src/shared/env-path.js';
 import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
 import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
+import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -556,14 +557,18 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       detect: { cmd: 'phpactor', args: ['--version'], binDirs: [binDir, composerBin, ...globalComposerBins, ...globalPhpactorBins] },
       install: {
         manual: true,
+        platforms: ['linux', 'darwin'],
+        platformRequirement: 'PHP POSIX extension on Linux or macOS; Windows users must run this installation inside WSL.',
         cache: {
           cmd: process.execPath,
-          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot,
+            '--url', PHPACTOR_APPROVED_RELEASE.url, '--sha256', PHPACTOR_APPROVED_RELEASE.sha256],
           requires: 'php'
         },
         user: {
           cmd: process.execPath,
-          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user'],
+          args: [path.join(implementationRoot, 'tools', 'tooling', 'install-phpactor-phar.js'), '--scope', 'user',
+            '--url', PHPACTOR_APPROVED_RELEASE.url, '--sha256', PHPACTOR_APPROVED_RELEASE.sha256],
           requires: 'php'
         }
       },

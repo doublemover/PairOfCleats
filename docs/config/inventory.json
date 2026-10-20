@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T22:14:15.911Z",
+  "generatedAt": "2026-10-20T22:34:33.039Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3182,6 +3182,8 @@
         "tests/tooling/download/shared-fetch-contract.test.js",
         "tests/tooling/install/download-dicts-test-helper.js",
         "tests/tooling/install/download-extensions.test.js",
+        "tests/tooling/install/install-phpactor-phar-network-guards.test.js",
+        "tests/tooling/install/phpactor-download-authority.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3538,6 +3540,7 @@
         "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/tooling/download/shared-fetch-contract.test.js",
+        "tests/tooling/install/phpactor-download-authority.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -3652,6 +3655,7 @@
         "tests/shared/cache/contract-matrix.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/install/download-model-selection.test.js",
+        "tests/tooling/install/phpactor-platform-contract.test.js",
         "tests/tooling/install/setup-json-prompts.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",
         "tests/tooling/install/tooling-post-install-verification.test.js",
@@ -4455,12 +4459,14 @@
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/runner/run-execution.js",
+        "tests/security/download-redirect-deadline.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/install/phpactor-download-authority.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
         "tests/tooling/lsp/signature-boundary-providers.test.js",
         "tests/tooling/script-coverage/group-runner.js",
@@ -4736,6 +4742,7 @@
         "src/shared/env/runtime.js",
         "src/shared/toolchain-env.js",
         "tests/perf/bench/language-resource-roots.test.js",
+        "tests/tooling/install/phpactor-platform-contract.test.js",
         "tools/bench/language/prerequisite-runtime.js",
         "tools/bench/language/resource-roots.js",
         "tools/config/inventory.js"
@@ -4839,6 +4846,7 @@
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
         "tests/tooling/install/application-owned-node-detect.test.js",
         "tests/tooling/install/gopls-sdk-version-contract.test.js",
+        "tests/tooling/install/phpactor-platform-contract.test.js",
         "tests/tooling/install/ruby-cache-environment.test.js",
         "tests/tooling/install/uninstall.test.js",
         "tests/tooling/lsp/configured-provider-gopls-preset-profile.test.js",

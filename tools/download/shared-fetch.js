@@ -25,7 +25,8 @@ const toTimeoutMs = (value) => {
   return Math.floor(parsed);
 };
 
-const downloadError = (url, message) => new Error(`Download request failed for ${url}: ${message}`);
+const downloadError = (url, message, code = 'ERR_DOWNLOAD_NETWORK') =>
+  Object.assign(new Error(`Download request failed for ${url}: ${message}`), { code });
 
 const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLocal }) => new Promise((resolve, reject) => {
   const parsed = validateDownloadUrl(url, { allowLocal });
@@ -66,7 +67,7 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
       const declaredBytes = Number(responseHeaders['content-length']);
       if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
         res.resume();
-        finish(reject, downloadError(url, `response exceeds maxBytes (${declaredBytes} > ${maxBytes})`));
+        finish(reject, downloadError(url, `response exceeds maxBytes (${declaredBytes} > ${maxBytes})`, 'ERR_DOWNLOAD_MAX_BYTES'));
         return;
       }
     }
@@ -85,7 +86,7 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
     res.on('data', (chunk) => {
       total += chunk.length;
       if (maxBytes != null && total > maxBytes) {
-        finish(reject, downloadError(url, `response exceeds maxBytes (${total} > ${maxBytes})`));
+        finish(reject, downloadError(url, `response exceeds maxBytes (${total} > ${maxBytes})`, 'ERR_DOWNLOAD_MAX_BYTES'));
         res.destroy();
         return;
       }
@@ -99,7 +100,9 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
       });
     });
     res.on('error', (err) => {
-      finish(reject, downloadError(url, err?.message || 'response error'));
+      finish(reject, timedOut
+        ? downloadError(url, `timeout after ${timeoutMs}ms`, 'ERR_DOWNLOAD_TIMEOUT')
+        : downloadError(url, err?.message || 'response error', err?.code || 'ERR_DOWNLOAD_NETWORK'));
     });
   });
 
@@ -112,10 +115,10 @@ const requestOnce = (url, { headers, responseType, timeoutMs, maxBytes, allowLoc
 
   req.on('error', (err) => {
     if (timedOut) {
-      finish(reject, downloadError(url, `timeout after ${timeoutMs}ms`));
+      finish(reject, downloadError(url, `timeout after ${timeoutMs}ms`, 'ERR_DOWNLOAD_TIMEOUT'));
       return;
     }
-    finish(reject, downloadError(url, err?.message || 'request error'));
+    finish(reject, downloadError(url, err?.message || 'request error', err?.code || 'ERR_DOWNLOAD_NETWORK'));
   });
   req.on('close', () => {
     if (timeoutHandle != null) clearTimeout(timeoutHandle);
@@ -142,6 +145,7 @@ export async function fetchDownloadUrl(initialUrl, options = {}) {
   const maxRedirects = Math.min(DEFAULT_MAX_REDIRECTS,
     toBoundedInteger(options.maxRedirects, DEFAULT_MAX_REDIRECTS, { min: 0 }));
   const timeoutMs = toTimeoutMs(options.timeoutMs) || 30_000;
+  const deadline = Date.now() + timeoutMs;
   const maxBytes = toMaxBytes(options.maxBytes) || 64 * 1024 * 1024;
   const downloadEnv = getDownloadEnvConfig();
   const allowLocal = options.allowLocal === true || downloadEnv.allowLocal;
@@ -159,19 +163,21 @@ export async function fetchDownloadUrl(initialUrl, options = {}) {
 
   for (let redirects = 0; redirects <= maxRedirects; redirects++) {
     validateDownloadUrl(currentUrl, { allowLocal });
-    const result = await requestOnce(currentUrl, { headers, responseType, timeoutMs, maxBytes, allowLocal });
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) throw downloadError(currentUrl, `timeout after ${timeoutMs}ms`, 'ERR_DOWNLOAD_TIMEOUT');
+    const result = await requestOnce(currentUrl, { headers, responseType, timeoutMs: remainingMs, maxBytes, allowLocal });
     if (result.redirectUrl) {
       if (redirects >= maxRedirects) {
-        throw downloadError(currentUrl, `too many redirects (max ${maxRedirects})`);
+        throw downloadError(currentUrl, `too many redirects (max ${maxRedirects})`, 'ERR_DOWNLOAD_REDIRECT');
       }
       const previous = new URL(currentUrl);
       const next = validateDownloadUrl(result.redirectUrl, { allowLocal });
       if (previous.protocol === 'https:' && next.protocol !== 'https:') {
-        throw downloadError(currentUrl, 'HTTPS downgrade redirect rejected');
+        throw downloadError(currentUrl, 'HTTPS downgrade redirect rejected', 'ERR_DOWNLOAD_AUTHORITY');
       }
       if (previous.origin !== next.origin) {
         if (!redirectOrigins.has(next.origin)) {
-          throw downloadError(currentUrl, 'cross-origin redirect requires launch-time approval');
+          throw downloadError(currentUrl, 'cross-origin redirect requires launch-time approval', 'ERR_DOWNLOAD_AUTHORITY');
         }
         headers = Object.fromEntries(Object.entries(headers).filter(([key]) => (
           !['authorization', 'cookie', 'proxy-authorization', 'host'].includes(key.toLowerCase())

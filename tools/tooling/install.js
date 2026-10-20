@@ -114,6 +114,11 @@ for (const tool of tools) {
     continue;
   }
   const { cmd, args, env, requires } = selection.plan;
+  if (Array.isArray(tool.install.platforms) && !tool.install.platforms.includes(process.platform)) {
+    results.push({ id: tool.id, status: 'missing-requirement', reason: 'unsupported_platform',
+      requires: tool.install.platformRequirement, error: tool.install.platformRequirement, docs: tool.docs || null });
+    continue;
+  }
   const minimumGoVersion = requires === 'go' && !verifiedPath ? selection.plan.minimumGoVersion || null : null;
   const goRootPin = requires === 'go' ? String(process.env.GOROOT || '').trim() : '';
   const goVersionPin = requires === 'go' && /^go\d/u.test(String(process.env.GOTOOLCHAIN || ''));

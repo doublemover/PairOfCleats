@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["same-origin", "cross-origin-rejected", "cross-origin-approved", "checksum-mismatch", "oversized", "empty", "mutable-url", "private-dns", "local-opt-in-required", "redirect-loop"]
+}

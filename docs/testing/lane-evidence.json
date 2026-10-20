@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T22:14:12.375Z",
+  "generatedAt": "2026-10-20T22:34:28.809Z",
   "summary": {
     "lanes": 5,
-    "tests": 1328,
+    "tests": 1342,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 341,
+    "families": 342,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1254
+      "missingTests": 1268
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1105,
+      "totalTests": 1119,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1056
+        "missing": 1070
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 28,
+      "count": 40,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 23
+      "unknownDurationCount": 35
     },
     {
       "key": "indexing/type-inference",
@@ -710,6 +710,12 @@
     },
     {
       "key": "retrieval/query",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "security/download-redirect-deadline",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
