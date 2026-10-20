@@ -67,6 +67,12 @@ Configure caps under `indexing.riskCaps`:
 }
 ```
 
+Required stats and summaries must each be present and readable. Missing either
+produces a missing/degraded analysis, and strict risk returns
+`ERR_CONTEXT_PACK_RISK_STRICT`. Permission/I/O, schema and timeout failures remain
+visible. Valid required evidence proving zero emitted flows can still omit the
+flow artifact; this exception does not apply to required stats or summaries.
+
 `risk.analysisStatus` is an object containing `status`, `reason`, `caps`, `bytes`,
 and `lines`. Exceeding `maxBytes` or `maxLines` produces `status: "capped"`
 before allocating the line array or evaluating rules. Exceeding `maxNodes`,

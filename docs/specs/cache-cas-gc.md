@@ -75,6 +75,14 @@ Must be complete before deletion is enabled:
 2. Resolve reachable CAS objects.
 3. Record mark set and source manifest references.
 
+Marking must complete before any sweep. Missing optional inventory roots are
+allowed; inaccessible roots, enumeration failures, unreadable/disappearing or
+malformed manifests, and linked inventory entries defer the run. `cache-gc
+--json` reports `ok: false`, `deferred: true`,
+`ERR_CAS_GC_INCOMPLETE_MARK` and the failed stage/path/code, with zero planned or
+deleted bytes and exit status 1. Ordinary output prints the same cause. An
+incomplete mark set never establishes unreachability or quota success.
+
 ### 4.2 Sweep phase
 
 Delete only objects:

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T07:21:38.368Z",
+  "generatedAt": "2026-10-20T07:31:31.227Z",
   "summary": {
     "lanes": 5,
-    "tests": 1240,
+    "tests": 1241,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 318,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1166
+      "missingTests": 1167
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1018,
+      "totalTests": 1019,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 969
+        "missing": 970
       }
     },
     {
@@ -704,6 +704,12 @@
     },
     {
       "key": "storage/lmdb",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/cache",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1868,12 +1874,6 @@
     },
     {
       "key": "tooling/analysis-wrapper-exit-propagation",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "tooling/cache",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
