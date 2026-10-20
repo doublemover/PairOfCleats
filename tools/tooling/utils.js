@@ -6,7 +6,7 @@ import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
-import { isNonZeroToolingProbeSuccess, validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
+import { isNonZeroToolingProbeSuccess, resolveNoProvisionToolingEnvironment, validateResolvedToolingCommandLayout } from '../../src/index/tooling/command-resolver.js';
 import { isPathWithinRoot, toPosix } from '../../src/shared/file-paths.js';
 import {
   resolveGlobalComposerBinDirs,
@@ -184,10 +184,12 @@ function resolveDetectArgCandidates(tool) {
   return candidates;
 }
 
-function probeWithArgCandidates(cmd, argCandidates, providerId) {
+function probeWithArgCandidates(cmd, argCandidates, providerId, toolingRoot = null) {
   const attempts = [];
   for (const args of argCandidates) {
-    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd: resolveToolRoot() });
+    const cwd = resolveToolRoot();
+    const probe = probeCommand(cmd, args, { timeoutMs: 4000, cwd,
+      env: resolveNoProvisionToolingEnvironment(process.env, { command: cmd, providerId, toolingRoot, cwd }) });
     attempts.push({
       args,
       outcome: probe.outcome,
@@ -634,7 +636,7 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       },
       docs: TOOL_DOCS.sqls
     }
-  ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot }));
+  ].map((tool) => ({ ...tool, authorityRepoRoot: repoRoot, toolingRoot: absoluteToolingRoot }));
 }
 
 export const getToolProviderAliases = (toolId) => {
@@ -719,19 +721,19 @@ export function detectTool(tool) {
   };
   const binPath = binDirs.length ? findBinaryInDirs(tool.detect.cmd, binDirs) : null;
   if (binPath) {
-    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates, tool.id));
+    const probe = applyToolLayoutValidation(tool, binPath, probeWithArgCandidates(binPath, detectArgCandidates, tool.id, tool.toolingRoot));
     rememberProbe(probe);
     if (probe.ok === true) {
       return { found: true, path: binPath, source: 'cache', probe };
     }
   }
-  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates, tool.id));
+  const probe = applyToolLayoutValidation(tool, tool.detect.cmd, probeWithArgCandidates(tool.detect.cmd, detectArgCandidates, tool.id, tool.toolingRoot));
   rememberProbe(probe);
   if (probe.ok === true) return { found: true, path: tool.detect.cmd, source: 'path', probe };
   const pathEntries = splitPathEntries(resolveEnvPath(process.env));
   const pathFound = findBinaryInDirs(detectCmd, pathEntries);
   if (pathFound) {
-    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates, tool.id));
+    const pathProbe = applyToolLayoutValidation(tool, pathFound, probeWithArgCandidates(pathFound, detectArgCandidates, tool.id, tool.toolingRoot));
     rememberProbe(pathProbe);
     if (pathProbe.ok === true) {
       return { found: true, path: pathFound, source: 'path', probe: pathProbe };

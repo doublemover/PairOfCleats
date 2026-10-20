@@ -6,7 +6,7 @@ import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { spawnResolvedSubprocessSync } from '../../shared/subprocess/command-invocation.js';
-import { applyToolchainDaemonPolicyEnv } from '../../shared/toolchain-env.js';
+import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
 import {
   resolveGlobalToolingBinDirs,
   resolveLocalToolingBinDirs
@@ -16,6 +16,7 @@ import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from './binary-u
 import {
   __getPersistentCommandProbeCacheRuntimeStatsForTests,
   __resetPersistentCommandProbeCacheRuntimeStatsForTests,
+  createCommandProbeEnvironmentIdentity,
   invalidatePersistentCommandProbeCache,
   readPersistentCommandProbeCache,
   writePersistentCommandProbeCache
@@ -38,16 +39,7 @@ const COMMAND_PROBE_FAILURE_TTL_MS = 10_000;
 const DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS = 5 * 60_000;
 let commandProbeSuccessTtlMs = DEFAULT_COMMAND_PROBE_SUCCESS_TTL_MS;
 
-export const resolveNoProvisionToolingEnvironment = (baseEnv, options = {}) => {
-  const next = applyToolchainDaemonPolicyEnv(baseEnv, options);
-  next.RUSTUP_AUTO_INSTALL = '0';
-  const go = String(next.GOTOOLCHAIN || '').trim();
-  if (!go || go === 'auto') next.GOTOOLCHAIN = 'path';
-  else if (go === 'local+auto') next.GOTOOLCHAIN = 'local+path';
-  else if (/^go[0-9][0-9A-Za-z.]*\+auto$/u.test(go)) next.GOTOOLCHAIN = go.replace(/\+auto$/u, '+path');
-  else if (/^go[0-9][0-9A-Za-z.]*$/u.test(go)) next.GOTOOLCHAIN = `${go}+path`;
-  return next;
-};
+export { resolveNoProvisionToolingEnvironment };
 
 export const __resolveNoProvisionProbeEnvForTests = resolveNoProvisionToolingEnvironment;
 
@@ -60,7 +52,7 @@ const runProbeCommand = (cmd, args = [], options = {}) => {
   return spawnResolvedSubprocessSync(cmd, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
     cwd,
-    env: resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
+    env: options.env || resolveNoProvisionToolingEnvironment(process.env, { cwd, command: cmd,
       providerId: options.providerId, toolingRoot: options.toolingConfig?.dir || null }),
     rejectOnNonZeroExit: false,
     captureStdout: true,
@@ -568,7 +560,10 @@ const resolveBaseCommand = ({ providerId, requestedCmd, repoRoot, toolingConfig 
 const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutMs, toolingConfig, cwd = process.cwd() }) => {
   let probeCwd = path.resolve(cwd);
   try { probeCwd = fsSync.realpathSync(probeCwd); } catch {}
-  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}\u0000${normalizeComparablePath(probeCwd)}`;
+  const probeEnv = resolveNoProvisionToolingEnvironment(process.env, { cwd: probeCwd, command,
+    providerId, toolingRoot: toolingConfig?.dir || null });
+  const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv);
+  const cacheKey = `${normalizeProviderId(providerId) || ''}\u0000${String(command || '').trim()}\u0000${JSON.stringify(launchArgs || [])}\u0000${JSON.stringify(probeArgs || [])}\u0000${Math.max(100, Math.floor(Number(timeoutMs) || DEFAULT_PROBE_TIMEOUT_MS))}\u0000${normalizeComparablePath(probeCwd)}\u0000${environmentIdentity}`;
   const now = Date.now();
   const normalizedProviderId = normalizeProviderId(providerId);
   const commandKey = normalizeCommandCacheKey(command);
@@ -590,6 +585,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
     args: launchArgs,
     toolingConfig,
     cwd: probeCwd,
+    probeEnv,
     successTtlMs: resolveCommandProbeSuccessTtlMs()
   });
   if (persistentCached?.ok === true) {
@@ -610,7 +606,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
   const attempted = [];
   for (const args of probeArgs) {
     try {
-      const result = runProbeCommand(command, args, { timeoutMs, cwd: probeCwd, providerId, toolingConfig });
+      const result = runProbeCommand(command, args, { timeoutMs, cwd: probeCwd, providerId, toolingConfig, env: probeEnv });
       attempted.push({
         args,
         exitCode: result.exitCode ?? null,
@@ -645,6 +641,7 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
           args: launchArgs,
           toolingConfig,
           cwd: probeCwd,
+          probeEnv,
           attempted
         });
         return {

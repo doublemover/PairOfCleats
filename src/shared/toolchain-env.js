@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { applyManagedGoEnvironment, isGoToolchainServer } from './managed-go.js';
+import { applyManagedRubyEnvironment } from './managed-ruby.js';
 
 const GRADLE_DAEMON_FLAG = '-Dorg.gradle.daemon=false';
 const GRADLE_DAEMON_PATTERN = /-Dorg\.gradle\.daemon\s*=\s*\S+/i;
@@ -38,7 +39,7 @@ const appendGradleDaemonFlag = (value) => {
  * @returns {NodeJS.ProcessEnv}
  */
 export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
-  const next = normalizeEnv(baseEnv);
+  const next = applyManagedRubyEnvironment(normalizeEnv(baseEnv), options);
   next.ORG_GRADLE_DAEMON = 'false';
   next.GRADLE_OPTS = appendGradleDaemonFlag(next.GRADLE_OPTS);
   const beamCrashDumpPath = resolveBeamCrashDumpPath(next, options?.cwd || null);
@@ -48,4 +49,16 @@ export const applyToolchainDaemonPolicyEnv = (baseEnv = null, options = {}) => {
   return isGoToolchainServer(options)
     ? applyManagedGoEnvironment(next, { toolingRoot: options?.toolingRoot || next.PAIROFCLEATS_TOOLING_DIR })
     : next;
+};
+
+/** Version and handshake probes must never provision a toolchain implicitly. */
+export const resolveNoProvisionToolingEnvironment = (baseEnv, options = {}) => {
+  const next = applyToolchainDaemonPolicyEnv(baseEnv, options);
+  next.RUSTUP_AUTO_INSTALL = '0';
+  const go = String(next.GOTOOLCHAIN || '').trim();
+  if (!go || go === 'auto') next.GOTOOLCHAIN = 'path';
+  else if (go === 'local+auto') next.GOTOOLCHAIN = 'local+path';
+  else if (/^go[0-9][0-9A-Za-z.]*\+auto$/u.test(go)) next.GOTOOLCHAIN = go.replace(/\+auto$/u, '+path');
+  else if (/^go[0-9][0-9A-Za-z.]*$/u.test(go)) next.GOTOOLCHAIN = `${go}+path`;
+  return next;
 };

@@ -1,9 +1,11 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildLocalCacheKey } from '../../shared/cache-key.js';
 import { getCacheRoot } from '../../shared/cache-roots.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
 import { isGeneratedCacheMetadata, withGeneratedCacheMetadata } from '../../shared/generated-artifact-cache.js';
+import { resolveNoProvisionToolingEnvironment } from '../../shared/toolchain-env.js';
 import {
   assertToolingCachePath,
   readToolingCacheEntry,
@@ -11,8 +13,8 @@ import {
   writeToolingCacheJsonSync
 } from './cache-storage.js';
 
-const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 1;
-const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp2';
+const COMMAND_PROBE_CACHE_SCHEMA_VERSION = 2;
+const COMMAND_PROBE_CACHE_KEY_VERSION = 'tcp3';
 const SHARED_COMMAND_PROBE_CACHE_SUBDIR = path.join('tooling', 'command-probes');
 const TOOLING_CACHE_COMMAND_PROBE_SUBDIR = 'command-probes';
 const COMMAND_PROBE_CACHE_MAX_ENTRIES = 256;
@@ -21,6 +23,13 @@ const COMMAND_PROBE_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 let persistentReadCount = 0;
 let persistentHitCount = 0;
 let persistentWriteCount = 0;
+
+/** Cache context retains only a digest, never raw environment or credentials. */
+export const createCommandProbeEnvironmentIdentity = env => createHash('sha256').update(JSON.stringify({
+  node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch,
+  environment: Object.entries(env || {}).filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => [key, String(value)]).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+})).digest('hex');
 
 const normalizeCommandPath = (value) => {
   const raw = String(value || '').trim();
@@ -91,7 +100,8 @@ const resolvePersistentCacheDescriptor = ({
   command,
   args = [],
   toolingConfig,
-  cwd = process.cwd()
+  cwd = process.cwd(),
+  probeEnv = null
 }) => {
   const cacheDir = resolvePersistentCacheRoot(toolingConfig);
   if (!cacheDir) return null;
@@ -103,6 +113,9 @@ const resolvePersistentCacheDescriptor = ({
   catch { return null; }
   const normalizedProviderId = normalizeProviderIdForCache(providerId);
   const normalizedArgs = normalizeArgListForCache(args);
+  const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv
+    || resolveNoProvisionToolingEnvironment(process.env, { command, providerId, cwd,
+      toolingRoot: toolingConfig?.dir || null }));
   const keyInfo = buildLocalCacheKey({
     namespace: 'tooling-command-probe',
     version: COMMAND_PROBE_CACHE_KEY_VERSION,
@@ -111,6 +124,7 @@ const resolvePersistentCacheDescriptor = ({
       providerId: normalizedProviderId,
       commandPath: fingerprint.path,
       cwd: normalizedCwd,
+      environmentIdentity,
       args: normalizedArgs,
       size: fingerprint.size,
       mtimeMs: fingerprint.mtimeMs
@@ -121,6 +135,7 @@ const resolvePersistentCacheDescriptor = ({
     cachePath: path.join(cacheDir, `${keyInfo.digest}.json`),
     fingerprint,
     cwd: normalizedCwd,
+    environmentIdentity,
     providerId: normalizedProviderId,
     args: normalizedArgs
   };
@@ -137,6 +152,7 @@ const isCommandProbeEntry = (payload, fileName, { requireOwnership = true } = {}
   if (payload?.schemaVersion !== COMMAND_PROBE_CACHE_SCHEMA_VERSION
     || payload.ok !== true || !isAttemptList(payload.attempted)
     || typeof payload.cwd !== 'string' || !path.isAbsolute(payload.cwd)
+    || !/^[a-f0-9]{64}$/u.test(payload.environmentIdentity || '')
     || typeof payload.command?.path !== 'string' || !path.isAbsolute(payload.command.path)
     || !Array.isArray(payload.args)) return false;
   const key = buildLocalCacheKey({
@@ -147,6 +163,7 @@ const isCommandProbeEntry = (payload, fileName, { requireOwnership = true } = {}
       providerId: payload.providerId,
       commandPath: payload.command.path,
       cwd: payload.cwd,
+      environmentIdentity: payload.environmentIdentity,
       args: payload.args,
       size: payload.command.size,
       mtimeMs: payload.command.mtimeMs
@@ -201,6 +218,7 @@ export const readPersistentCommandProbeCache = ({
   args = [],
   toolingConfig,
   cwd = process.cwd(),
+  probeEnv = null,
   successTtlMs = null
 } = {}) => {
   const descriptor = resolvePersistentCacheDescriptor({
@@ -208,7 +226,8 @@ export const readPersistentCommandProbeCache = ({
     command,
     args,
     toolingConfig,
-    cwd
+    cwd,
+    probeEnv
   });
   if (!descriptor) return null;
   persistentReadCount += 1;
@@ -218,6 +237,7 @@ export const readPersistentCommandProbeCache = ({
     if (Number(parsed?.schemaVersion) !== COMMAND_PROBE_CACHE_SCHEMA_VERSION) return null;
     if (parsed?.ok !== true) return null;
     if (parsed.cwd !== descriptor.cwd) return null;
+    if (parsed.environmentIdentity !== descriptor.environmentIdentity) return null;
     if (normalizeProviderIdForCache(parsed?.providerId) !== descriptor.providerId) return null;
     const cachedCommand = normalizeCommandPath(parsed?.command?.path);
     if (cachedCommand !== descriptor.fingerprint.path) return null;
@@ -250,6 +270,7 @@ export const writePersistentCommandProbeCache = ({
   args = [],
   toolingConfig,
   cwd = process.cwd(),
+  probeEnv = null,
   attempted
 } = {}) => {
   const descriptor = resolvePersistentCacheDescriptor({
@@ -257,7 +278,8 @@ export const writePersistentCommandProbeCache = ({
     command,
     args,
     toolingConfig,
-    cwd
+    cwd,
+    probeEnv
   });
   if (!descriptor || !isAttemptList(attempted) || attempted.length === 0) return false;
   try {
@@ -274,6 +296,7 @@ export const writePersistentCommandProbeCache = ({
       providerId: descriptor.providerId,
       args: descriptor.args,
       cwd: descriptor.cwd,
+      environmentIdentity: descriptor.environmentIdentity,
       command: {
         path: descriptor.fingerprint.path,
         size: descriptor.fingerprint.size,
