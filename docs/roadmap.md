@@ -36,11 +36,11 @@ now reads Toolhelp snapshots, with native layout/failure and real descendant/iso
 Archived hosted failures retain pending-delete, parity, XML, serial-plan and cold
 PowerShell-helper evidence and their individual repairs. The cold helper stall's
 cause remains open despite later successes. All seven checks pass at `77a6f0df7`
-(39486272672). Later `1da3d6113` (39490541489) passes Linux/macOS, Rust, gate,
-47 Windows authority cases and five early ownership cases. Windows main has
-1074 passes and one SQLite cancellation worker-start witness failure. That native
-lifecycle now has a strict serial owner and phase timing; cause attribution and
-fresh hosted confirmation remain open, with its original receipt retained.
+(39486272672). Later `720bfbd0a` (39495523746) passes Linux/macOS, Rust, gate,
+47 Windows authority cases and five early ownership cases; real gopls starts on
+all platforms. Windows main has 1076 passes and one baseline diagnostic timeout.
+Earlier SQLite worker failure remains retained; its native lifecycle now has a
+strict serial owner and phase timing. Attribution and fresh acceptance remain open.
 #633 now connects canonical settings transactions to the real supervisor/native
 keyboard path, with scope, stale/cancel/privacy and exact-byte reset controls.
 Four actual Windows ConPTY cases pass; other platform native execution is separate.
