@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { canRunCommand, probeCommand } from '../shared/cli-utils.js';
+import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { LOCK_FILES, MANIFEST_FILES, SKIP_DIRS, SKIP_FILES } from '../../src/index/constants.js';
 import { findBinaryInDirs, findBinaryOnPath, splitPathEntries } from '../../src/index/tooling/binary-utils.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
@@ -192,7 +193,11 @@ function probeWithArgCandidates(cmd, argCandidates) {
       outcome: probe.outcome,
       status: probe.status,
       signal: probe.signal,
-      errorCode: probe.errorCode
+      errorCode: probe.errorCode,
+      // Version/help probes may expose environment-derived values. Persist only
+      // bounded redacted excerpts; never raw command output in the tool report.
+      ...(probe.ok ? {} : { stdoutExcerpt: redactDiagnosticText(probe.stdout),
+        stderrExcerpt: redactDiagnosticText(probe.stderr) })
     });
     if (probe.ok) {
       return {

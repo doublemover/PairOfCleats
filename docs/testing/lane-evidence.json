@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T19:40:01.580Z",
+  "generatedAt": "2026-10-20T19:58:54.536Z",
   "summary": {
     "lanes": 5,
-    "tests": 1305,
+    "tests": 1307,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 339,
+    "families": 340,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1231
+      "missingTests": 1233
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1082,
+      "totalTests": 1084,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1033
+        "missing": 1035
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 23,
+      "count": 24,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 18
+      "unknownDurationCount": 19
     },
     {
       "key": "indexing/type-inference",
@@ -1928,6 +1928,12 @@
     },
     {
       "key": "tooling/analysis-wrapper-exit-propagation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tooling/cli-utils-probe-outcomes",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
