@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { runSetupPreflight } from '../../../tools/setup/preflight.js';
 import { spawnResolvedSubprocessSync } from '../../../src/shared/subprocess/command-invocation.js';
+import { runNode } from '../../helpers/run-node.js';
 
 const calls = [];
 const python = JSON.stringify({ version: [3, 13, 3], executable: '/fixture/python3' });
@@ -73,10 +74,19 @@ try {
   const preflight = path.join(root, 'preflight.js'), marker = path.join(root, 'installer-started');
   fs.copyFileSync('tools/setup/preflight.js', preflight);
   fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}');
+  // An empty PATH is not a portable proof that system tools are unavailable.
+  // Select an explicit missing-command fixture runner in this dependency-free
+  // child; the real CLI's dependency-free argument guard is checked separately.
+  const fixtureEntry = path.join(root, 'explicit-missing-tool-fixture.mjs');
+  fs.writeFileSync(fixtureEntry, `import { runSetupPreflight } from './preflight.js';
+    try { runSetupPreflight({ run(command) {
+      if (command !== 'git') throw new Error('Unexpected probe after missing Git');
+      return { status: null, error: { code: 'ENOENT' } };
+    } }); } catch (error) { console.error(error.message); process.exitCode = 1; }`);
   const shell = process.platform === 'win32' ? path.join(root, 'explicit-fixture-bootstrap.cmd') : '/bin/sh';
   if (process.platform === 'win32') fs.writeFileSync(shell, '@echo off\r\n"%~1" "%~2" && echo installed>"%~3"\r\n');
-  const args = process.platform === 'win32' ? [process.execPath, preflight, marker]
-    : ['-c', '"$1" "$2" && printf installed > "$3"', 'preflight', process.execPath, preflight, marker];
+  const args = process.platform === 'win32' ? [process.execPath, fixtureEntry, marker]
+    : ['-c', '"$1" "$2" && printf installed > "$3"', 'preflight', process.execPath, fixtureEntry, marker];
   const env = { ...process.env, PATH: '', Path: '' };
   const result = spawnResolvedSubprocessSync(shell, args, { cwd: root, env, encoding: 'utf8', timeoutMs: 5000, rejectOnNonZeroExit: false });
   assert.notEqual(result.exitCode, 0);
@@ -84,5 +94,10 @@ try {
   assert.doesNotMatch(result.stderr, /ERR_MODULE_NOT_FOUND/);
   assert.equal(fs.existsSync(marker), false, 'failed dependency-free preflight stops the install chain');
   assert.equal(fs.existsSync(path.join(root, 'node_modules')), false);
+  const cli = runNode([preflight, '--unexpected'], 'dependency-free preflight CLI argument rejection', root, env,
+    { stdio: 'pipe', allowFailure: true, timeoutMs: 5000 });
+  assert.equal(cli.status, 1);
+  assert.match(cli.stderr, /accepts no arguments/);
+  assert.doesNotMatch(cli.stderr, /ERR_MODULE_NOT_FOUND/);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
 console.log('Bootstrap preflight rejects unsupported Node/missing tools before installation, discovers supported platform prerequisites and runs without dependencies.');
