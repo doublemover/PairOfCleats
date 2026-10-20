@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-20T07:53:27.496Z",
+  "generatedAt": "2026-10-20T08:54:14.024Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4453,6 +4453,7 @@
     {
       "name": "PAIROFCLEATS_TEST_ID",
       "files": [
+        "tests/context-pack/graph-selection.test.js",
         "tests/context-pack/risk-filters-parity.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/helpers/test-env.js",

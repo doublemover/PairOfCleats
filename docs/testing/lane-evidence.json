@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T08:42:18.714Z",
+  "generatedAt": "2026-10-20T08:59:04.117Z",
   "summary": {
     "lanes": 5,
-    "tests": 1249,
+    "tests": 1259,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 320,
+    "families": 322,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1175
+      "missingTests": 1185
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1027,
+      "totalTests": 1037,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 978
+        "missing": 988
       }
     },
     {
@@ -404,6 +404,12 @@
     },
     {
       "key": "conformance/language-shards",
+      "count": 9,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 9
+    },
+    {
+      "key": "context-pack/graph-selection",
       "count": 9,
       "knownDurationMs": 0,
       "unknownDurationCount": 9
@@ -1682,6 +1688,12 @@
     },
     {
       "key": "shared/jsonl",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "shared/kill-tree-windows-lineage",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

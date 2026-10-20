@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 885,
+    "hero": 895,
     "matrix": 108,
     "meta": 33,
     "soak": 1,
@@ -6175,6 +6175,66 @@
     {
       "id": "graph/suggest-tests-node-budget",
       "order": 1027,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/none",
+      "order": 1028,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/calls",
+      "order": 1029,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/usages",
+      "order": 1030,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/imports",
+      "order": 1031,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/calls-usages",
+      "order": 1032,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/calls-imports",
+      "order": 1033,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/usages-imports",
+      "order": 1034,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/all",
+      "order": 1035,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "context-pack/graph-selection/unspecified",
+      "order": 1036,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/kill-tree-windows-lineage",
+      "order": 1037,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

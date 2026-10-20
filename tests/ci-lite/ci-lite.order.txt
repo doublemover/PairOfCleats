@@ -1027,3 +1027,13 @@ context-pack/risk-truncation-contract/partial-tokens
 integrations/inference-history/linear-turn-lookup
 integrations/inference-history/privacy-roundtrip
 graph/suggest-tests-node-budget
+context-pack/graph-selection/none
+context-pack/graph-selection/calls
+context-pack/graph-selection/usages
+context-pack/graph-selection/imports
+context-pack/graph-selection/calls-usages
+context-pack/graph-selection/calls-imports
+context-pack/graph-selection/usages-imports
+context-pack/graph-selection/all
+context-pack/graph-selection/unspecified
+shared/kill-tree-windows-lineage

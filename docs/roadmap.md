@@ -18,7 +18,9 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Forty issues have repairs through source `271cf8d59`: owner privacy restores permitted metadata from
+Forty-two issues have repairs through source `7706c5b21`: graph selections preserve explicit exclusion and
+semantic response omissions reconcile evidence metadata. Source `271cf8d59`
+also restores owner-permitted metadata from
 retained source, and test suggestions admit seeds/neighbors within the node cap.
 Risk truncation responses stay valid and unknown evidence cannot become removed flows. Published
 candidate `fee2edcfd` defers incomplete CAS marking and rejects missing required risk
@@ -37,8 +39,8 @@ The earlier orphan-cleanup failure remains unattributed, with stronger diagnosti
 The later Windows large-piece mutation failure has a deterministic unchanged-clock
 regression and block-verification repair through `85faf23ef`; qualification remains open.
 History import also has a proven quadratic turn lookup and a bounded linear repair.
-Latest Windows cleanup diagnostics identify a two-second CIM discovery timeout;
-bounded projection/phase diagnostics await hosted qualification. Parity setup has
+Windows cleanup times out after its CIM snapshot; shell map traversal now moves
+to Node with real orphan/grandchild isolation coverage, pending hosted qualification. Parity setup has
 phase timings and an 8.31-second local baseline; its hosted timeout remains open.
 Eight API cases and serial
 production parser/summary bounds have explicit owners. Candidate qualification

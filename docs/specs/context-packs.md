@@ -17,6 +17,14 @@ when source identity differs or is unavailable. Complete/strict evidence require
 matching indexed source identity; retained semantic source excerpts remain a
 separate verified path. Test suggestions observe a fresh working-tree inventory,
 pin graph generations, and replay identical truncation/coverage on warm cache hits.
+Graph inclusion flags select calls, usages and imports independently. Setting all
+three to false retains an empty graph slice and loads no graph-family artifacts;
+an explicit empty selection stays distinct from an unspecified graph selection
+in preparation, cache identity and traversal. Unspecified low-level selection
+continues to admit all available families. Test-suggestion node caps include
+changed seeds and newly discovered neighbors. Actual omissions report truncation
+and partial graph or explicit heuristic fidelity; reaching a cap with no omitted
+work remains complete.
 Each excerpt, range, and hash cache has an 8 MiB conservative retained-string
 allowance in addition to its entry cap; oversized entries bypass caching.
 Call-site hydration shares a request-scoped verified source snapshot, bounded to
@@ -160,7 +168,7 @@ are included only when requested and available.
 - `seed`: the caller-provided seed, resolved or represented as a reference envelope.
 - `provenance`: generated time, index signature/compat key, caps used, repo, and index dir.
 - `primary`: resolved seed file/range/excerpt plus primary evidence/provenance.
-- `evidence`: strict-evidence policy, primary excerpt state, type-slice state, and completeness flag.
+- `evidence`: strict-evidence policy, primary excerpt state, type-slice state, optional semantic state, and completeness flag. Semantic inclusion must match the attached section and its status. Whole-response omission records `included=false`, `state=omitted`, truncation and the budget warning code; partial, unavailable or omitted semantic evidence cannot claim complete context.
 
 ### 3.2 Optional blocks
 
