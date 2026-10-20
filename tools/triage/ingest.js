@@ -187,12 +187,13 @@ function coerceJsonEntries(parsed) {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Triage input must be a JSON object or an array of record objects.');
   }
-  const recordKeys = ['recordId', 'recordType', 'stableKey', 'title', 'description', 'vuln',
+  const recordKeys = ['recordId', 'recordType', 'stableKey', 'vuln',
     'findingArn', 'security_advisory', 'package', 'asset'];
   if (recordKeys.some(key => Object.hasOwn(parsed, key))) return [parsed];
   const named = ['alerts', 'findings', 'records', 'items'].filter(key => Array.isArray(parsed[key]));
   if (named.length === 1) return parsed[named[0]];
   if (named.length > 1) throw new Error('Ambiguous triage input: multiple record wrapper arrays.');
+  if (Object.hasOwn(parsed, 'title') || Object.hasOwn(parsed, 'description')) return [parsed];
   const arrays = Object.values(parsed).filter(Array.isArray);
   if (arrays.length === 1) return arrays[0];
   if (arrays.length > 1) throw new Error('Ambiguous triage input: name the record collection with a supported wrapper key.');
