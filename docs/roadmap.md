@@ -18,56 +18,40 @@ every issue and its acceptance. All 78 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Sixty-eight issues have implemented repairs; Boolean complement follow-ups
-now preserve negative-only/OR hits, independent filters and cache invalidation.
-ANN publication binds full embedding identity and exact vector/chunk generation;
-failed replacements cannot relabel retained native bytes. Global Ctrl+C now follows
-shutdown across overlays, with a real Windows terminal/reaping witness.
-Default TUI build/capture now select pinned Rust with locked dependencies;
-the actual Windows release binary passes four terminal-lifetime controls.
-Rendered job/task offsets and wrapped log tail/follow now have actual frame coverage.
-Completed repairs and their failure/check/source identities remain in the
-linked issue receipt. Wrapper retirement and cache/history/Toolhelp repairs retain
-assertion mappings and real process controls there; distinct CLI checks remain.
-Archived hosted failures retain pending-delete, parity, XML, serial-plan and cold
-PowerShell-helper evidence and their individual repairs. The cold helper stall's
-cause remains open despite later successes. All seven checks pass at `77a6f0df7`
-(39486272672). Later `720bfbd0a` (39495523746) passes Linux/macOS, Rust, gate,
-47 Windows authority cases and five early ownership cases; real gopls starts on
-all platforms. Windows main has 1076 passes and one baseline diagnostic timeout;
-its nine child checks now have four bounded owners with mapped assertions.
-Earlier SQLite worker failure remains retained; its native lifecycle now has a
-strict serial owner and phase timing. Attribution and fresh acceptance remain open.
-#633 now connects canonical settings transactions to the real supervisor/native
-keyboard path, with scope, stale/cancel/privacy and exact-byte reset controls.
-Four actual Windows ConPTY cases pass; other platform native execution is separate.
-Bundled Pyright now detects and completes a real Windows initialize/shutdown;
-fresh/stale cache and untrusted-child controls pass. Go installation now rejects
-incompatible SDKs and honors explicit root/version pins. Real gopls v0.24.0 starts
-and shuts down with explicitly selected Go 1.27.3; CI selects and records that SDK
-and requires protocol startup on each platform. #631 remains active.
-Eight API cases, serial native generation cases and production resource bounds
-have explicit owners. Candidate qualification
-remains pending; earlier passing observations do not qualify the resulting tree.
+Sixty-nine issues have implemented repairs. The linked receipt retains original
+failures, source identities, assertion mappings and every affected check; all
+issues remain open until their own acceptance and publication are verified.
+Canonical settings (#633) and repository search (#634) now connect the native
+keyboard path to real supervisor operations. Search includes ordered results,
+supported cursors, bounded source previews and confirmed trusted editor launch.
+At `4f0ac6f62`, all twenty Windows search/settings/lifetime cases pass serially,
+along with 34 Rust tests and the full front gate. Other platform native execution
+and the later-source privileged file-link cohort remain separate prerequisites.
+
+Earlier `720bfbd0a` CI (39495523746) passes Linux/macOS, Rust, gate, 47 Windows
+authority cases and five early ownership cases; its Windows baseline diagnostic
+timeout now has bounded owners retaining all nine child checks. The original
+SQLite worker-start and cold PowerShell-helper stalls remain unattributed despite
+later successes. New serial/timing controls preserve their original bounds.
+Publication and PR refresh remain blocked by automatic approval review; local
+commits and exact-source checks continue, without an alternative publication route.
+
 Frozen `ffde426be` passes 2982 Windows cases across 48 cohorts, with 17 declared
 exclusions, 16 supplementary passes and seven green PR checks. Its receipt maps
 all 65 original failures, including 27 timeouts. Later repairs retain separate
 checks; that frozen result does not qualify the current source.
-Managed Go paths resolve absolutely and preserve explicit caches. Cached Ruby
-launchers now bind their gem repository; probe caches bind runtime/environment
-digests, with stale-context negatives and LSP producer 13 replay invalidation.
-C# 0.28.0 now completes real Windows startup/shutdown with selected .NET SDK
-10.0.113. CI binds an isolated SDK/root; fresh-process runtime qualification and
-the repaired Windows sync-timeout descendant owner retain failure controls.
-PHPactor pins approved bytes and reports its native Windows POSIX limitation.
-The clean WSL checkout qualifies real startup/shutdown; LSP disposal now awaits
-observed child exits and retains ownership across concurrent cleanup/restart.
-CI requires Linux/macOS PHPactor startup; later hosted execution remains blocked.
-The search supervisor now owns typed queries, cursors and bounded source views;
-#634 still requires native keyboard/results integration and acceptance.
-Remaining tool work includes startup/platform qualification, Ruby installs
-and the macOS `fsevents` policy warning. Detection, startup and semantic precision
-remain separate evidence; no warning or failed readiness is suppressed.
+
+Remaining implementation/qualification owners are #635–#640 (index/setup/service,
+job/artifact, recorded-session and registered-analysis native workflows), #630
+(Linux/macOS deep/native/package acceptance), #631 (real tooling/platform gaps)
+and #632 (representative retrieval/freshness/memory/model evidence). Real Windows
+Pyright, Go 1.27.3/gopls and .NET 10.0.113/csharp-ls startup/shutdown have separate
+receipts. The clean WSL checkout qualifies approved PHPactor bytes on PHP 8.3.6;
+native Windows POSIX support is explicitly unavailable. LSP disposal now awaits
+observed exits across cancellation/restart. Ruby startup/install warnings, the
+macOS `fsevents` policy warning and later hosted tool execution remain open.
+Detection, startup and semantic precision remain distinct; no failed readiness
+or warning is suppressed.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
