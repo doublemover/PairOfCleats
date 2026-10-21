@@ -141,6 +141,11 @@ try {
         assert.equal(end.status, 'done', JSON.stringify(end)); return end.result.data;
       };
       const operation = async (method, input) => { const after = await last('native-workflow-'); terminal.write(input); return settled('native-workflow-', method, after); };
+      const currentStatus = async () => {
+        const result = await operation('status', 't');
+        await rendered('Published generation observation; independent of process success');
+        return result;
+      };
       let catalog;
       const choose = async id => {
         const commands = catalog.commands.filter(command => command.scopeKind === (mode === 'workspace' ? 'workspace' : 'repo'));
@@ -162,6 +167,8 @@ try {
         const launch = await operation('launch', '\r'); assert.equal(launch.launched, true);
         assert.equal(launch.jobId, preview.plannedJobId);
         assert.deepEqual(launch.canonicalArgv, preview.canonicalArgv);
+        await wait(() => screen().includes('Owned job admitted; c cancels.')
+          || screen().includes('Process ended; inspect publication evidence separately'), 'actual launch response rendered');
         return { launch, preview };
       };
       const finish = async jobId => {
@@ -176,7 +183,7 @@ try {
         terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${mode === 'workspace' ? workspace : repo}\r`);
         catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical index/workspace catalog loaded');
         if (mode === 'validate-search') {
-          const status = await operation('status', 't'); assert.equal(status.publications[0].ready, true);
+          const status = await currentStatus(); assert.equal(status.publications[0].ready, true);
           await backToCatalog(); const validation = await run('index.validate', { mode: 'code' });
           const validated = await finish(validation.launch.jobId); assert.equal(validated.status, 'done', JSON.stringify(validated)); assert.equal(validated.result.ok, true);
           await rendered('Process ended; inspect publication evidence separately'); await backToCatalog(); await closeCatalog();
@@ -235,6 +242,7 @@ try {
           } else if (mode === 'stats') {
             const stats = await completed('index.stats', { mode: 'code', verify: true });
             assert.equal(stats.verify.ok, true); assert.ok(stats.modes.code.chunkMeta.rows > 0);
+            assert.deepEqual(stats.verify.warnings, [], 'a valid full index must not emit checksum warnings');
           } else {
             const report = await completed('index.report', {});
             assert.ok(report.repo.artifacts.indexCode > 0); assert.equal(report.corruption.modes.code.ok, true);
@@ -249,7 +257,7 @@ try {
         } else {
           const id = mode === 'workspace' ? 'workspace.build' : mode === 'watch-cancel' ? 'index.watch' : 'index.build';
           if (['build-search', 'workspace'].includes(mode)) {
-            const partial = await operation('status', 't');
+            const partial = await currentStatus();
             assert.equal(partial.publications[0].published, true); assert.equal(partial.publications[0].ready, false);
             assert.ok(partial.publications[0].currentValidation.issues.some(issue => issue.includes('db missing')));
             await backToCatalog();
@@ -260,6 +268,7 @@ try {
           if (mode === 'stale') {
             const command = await choose(id); for (const [key, value] of Object.entries(values)) await edit(command, key, value);
             const preview = await operation('preview', 'p'); assert.equal(preview.launchable, true);
+            await rendered('Launch preview ready; Enter confirms, Esc discards');
             await fs.writeFile(config, JSON.stringify({ ...original, threads: 3 }));
             const launch = await operation('launch', '\r'), end = await finish(launch.jobId);
             assert.equal(end.status, 'failed'); assert.equal(end.error.code, 'ERR_TUI_WORKFLOW_STALE');
