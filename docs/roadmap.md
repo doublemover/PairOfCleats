@@ -10,26 +10,28 @@ Canonical for: initiative status, execution order, and remaining work
 Work continues on `codex/pr557-audit-repairs-20261012` from audited base
 `ab00d918d`; the archive retains the original upstream reconciliation.
 
-The October 20 live inventory has 78 new open issues (#584–#661), repair PR
+The October 20 live inventory now has 84 open issues (#584–#667), repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
-11 new Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
+11 original Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
 The [issue repair receipt](archived/github-issue-repairs-2026-10-20.md) tracks
-every issue and its acceptance. All 78 are in scope, including TUI functionality,
+every issue and its acceptance. All 84 are in scope, including TUI functionality,
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
+New correctness issues #662–#667 take priority over remaining TUI feature work.
 Sixty-nine issues have implemented repairs. The linked receipt retains original
 failures, source identities, assertion mappings and every affected check; all
 issues remain open until their own acceptance and publication are verified.
 Canonical settings (#633) and repository search (#634) now connect the native
 keyboard path to real supervisor operations. Search includes ordered results,
 supported cursors, bounded source previews and confirmed trusted editor launch.
-At `529b21c70`, all 21 Windows search/settings/selection/lifetime cases pass
-serially, along with 44 Rust tests and the full front gate. #638 now pins explicit
-job selection, binds tasks/logs/cancel and preserves distinct key presses; its
-result/artifact inspector remains required. Exact-source Linux builds and passes
-44 Rust tests, four actual PTY lifetime cases, four affected UI checks and the
-full front gate. New workflow keyboard acceptance on Linux/macOS and the
+At `702a8e250`, all 29 Windows native cases, 55 Rust tests and the full front gate
+pass. #638 adds bounded outcome/result/artifact inspection; verified artifact
+open/copy/export actions remain required. Cancellation input, timeout causes and
+an actual search-handshake race have failing-before/passing-after controls.
+Linux at fixture correction `ceea4b802` passes 55 Rust tests, seven inspector
+workflows, four PTY lifetime cases, eleven other checks and the full front gate.
+Broader workflow keyboard acceptance on Linux/macOS and the
 later-source privileged Windows file-link cohort remain separate prerequisites.
 
 Earlier `720bfbd0a` CI (39495523746) passes Linux/macOS, Rust, gate, 47 Windows
