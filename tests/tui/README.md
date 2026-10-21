@@ -29,6 +29,16 @@ the native binary and Windows ConPTY; Linux/macOS require native PTY owners and
 must not count a platform skip or Rust model snapshot as this execution.
 
 The supervisor transaction and scope/job cases remain portable ci-lite owners.
+
+`tui/native-search-conpty/{query-source,pagination,cancel,empty-error,replace,scope,navigation,truncated,modes,incompatible,narrow,interrupt}`
+are separately bounded Windows native search cases with the same pinned build,
+serial execution and thirty-second limits. Ordinary cases build a real tiny
+index; explicit compatibility artifacts cover four-mode/incompatible results and
+oversized capture. They inspect actual query/editor child exits, final jobs,
+terminal restoration and saved-layout privacy. Navigation uses an inert explicitly
+trusted fixture launcher. `operator-search-file-authority` separately requires
+actual file-symlink creation privilege; a junction or platform skip is not proof.
+
 `supervisor-session-resource-cleanup` checks actual active timers after graceful
 exit and retains a real forced-shutdown negative; a completed child cannot leave
 the helper's losing timeout keeping the fixture alive.

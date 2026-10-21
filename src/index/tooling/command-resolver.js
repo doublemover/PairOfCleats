@@ -1,6 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { isApplicationOwnedCommand, isRepoTrusted } from '../../shared/config-authority.js';
+import { isResolvedCommandTrusted, isRepoTrusted } from '../../shared/config-authority.js';
 import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
 import { resolveToolRoot } from '../../shared/dict-utils.js';
 import { resolveEnvPath } from '../../shared/env-path.js';
@@ -795,15 +795,7 @@ export const resolveToolingCommandProfile = (input) => {
   // Also reject PATH symlinks and explicit commands that resolve into an
   // untrusted repo before even a --version probe can execute them.
   const candidate = findBinaryOnPath(resolvedCmd) || resolvedCmd;
-  let canonicalCandidate = null;
-  let canonicalRepo = null;
-  try { canonicalCandidate = fsSync.realpathSync(candidate); } catch {}
-  try { canonicalRepo = fsSync.realpathSync(repoRoot); } catch {}
-  if (!isRepoTrusted(repoRoot) && canonicalCandidate && canonicalRepo
-    && (isPathInside(canonicalCandidate, canonicalRepo)
-      || isPathInside(path.resolve(candidate), canonicalRepo)
-      || isPathInside(path.resolve(candidate), path.resolve(repoRoot)))
-    && !isApplicationOwnedCommand({ commandPath: candidate, repoRoot, toolRoot: resolveToolRoot() })) {
+  if (!isResolvedCommandTrusted({ commandPath: candidate, repoRoot, toolRoot: resolveToolRoot() })) {
     return {
       providerId, requested: { cmd: requestedCmd, args: requestedArgs },
       resolved: { cmd: '', args: [], mode: 'blocked', reason: 'untrusted-repository-command' },

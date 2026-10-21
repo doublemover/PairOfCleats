@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["query-source", "pagination", "source-authority", "launch-authority"]
+  "cases": ["query-source", "pagination", "source-authority", "launch-authority", "navigation", "navigation-untrusted", "navigation-cancel"]
 }

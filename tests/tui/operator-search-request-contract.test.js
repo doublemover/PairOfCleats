@@ -2,12 +2,23 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { assertTuiSearchRequest } from '../../src/contracts/validators/tui-search.js';
 import { STRING_FLAG_FIELDS, INTEGER_MIN_ZERO_FLAG_FIELDS, REPEATED_LIST_FIELDS } from '../../src/shared/search-request.js';
+import { createTuiSearchSession } from '../../tools/tui/operator/search.js';
 
 const request = { repoPath: process.cwd(), search: { query: 'alpha', mode: 'all', backend: 'memory', top: 5 } };
 const resultId = randomUUID(), hitId = 'a'.repeat(64);
 assert.equal(assertTuiSearchRequest('query', request), request);
+assertTuiSearchRequest('describe', {});
+const session = createTuiSearchSession({ toolRoot: process.cwd() });
+const descriptor = session.describe({});
+assert.deepEqual(descriptor.resultModes, ['code', 'prose', 'extracted-prose', 'records']);
+assert.equal(descriptor.schema.properties.cursor, undefined);
+descriptor.schema.properties.backend.enum.push('invented');
+assert.equal(session.describe({}).schema.properties.backend.enum.includes('invented'), false,
+  'caller metadata mutation cannot poison the canonical schema or future descriptions');
+await session.dispose();
 assertTuiSearchRequest('continue', { resultId });
 assertTuiSearchRequest('source', { resultId, hitId });
+assertTuiSearchRequest('open', { resultId, hitId, editor: 'code', confirmed: true, sourceHash: `sha1:${'a'.repeat(40)}` });
 assertTuiSearchRequest('dispatch', { proto: 'poc.tui@1', op: 'search:run', jobId: 'search-1', method: 'query', params: request });
 for (const [field] of STRING_FLAG_FIELDS) {
   assertTuiSearchRequest('query', { ...request, search: { [field]: 'alpha', query: 'alpha' } });
@@ -28,6 +39,8 @@ rejects('query', { ...request, repoPath: 'bad\0path' });
 rejects('continue', { resultId, cursor: 'forged' });
 rejects('source', { resultId, hitId, path: '../private' });
 rejects('source', { resultId, hitId: 'unknown' });
+rejects('open', { resultId, hitId, editor: 'code', confirmed: false, sourceHash: `sha1:${'a'.repeat(40)}` });
+rejects('open', { resultId, hitId, editor: 'arbitrary-command', confirmed: true, sourceHash: `sha1:${'a'.repeat(40)}` });
 rejects('dispatch', { proto: 'poc.tui@1', op: 'search:run', jobId: 'bad\njob', method: 'query', params: request });
 const cyclic = {}; cyclic.self = cyclic;
 rejects('query', { ...request, search: cyclic });

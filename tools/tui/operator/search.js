@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { createTuiSettingsSession } from './settings.js';
@@ -7,6 +8,12 @@ import { buildSearchRequestArgs } from '../../../src/shared/search-request.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { createExcerptSourceContext, resolveExcerpt } from '../../../src/context-pack/excerpt-cache.js';
+import { getSearchRequestSchema } from '../../api/validation.js';
+import { readVerifiedContainedFile, assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
+import { isResolvedCommandTrusted } from '../../../src/shared/config-authority.js';
+import { findBinaryOnPath } from '../../../src/index/tooling/binary-utils.js';
+import { resolveEnvPath } from '../../../src/shared/env-path.js';
+import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
 
 const MODES = [['code', 'code'], ['prose', 'prose'], ['extractedProse', 'extracted-prose'], ['records', 'records']];
 const MAX_OUTPUT_BYTES = 768 * 1024;
@@ -22,7 +29,17 @@ const hitKey = (mode, hit) => createHash('sha256').update(JSON.stringify([
 export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => {
   const scopes = createTuiSettingsSession({ toolRoot, env });
   const pendingWork = new Set();
+  const controllers = new Set();
   let epoch = 0, current = null, pending = null, disposed = false;
+  const describe = request => {
+    assertTuiSearchRequest('describe', request);
+    const schema = getSearchRequestSchema();
+    for (const key of ['repo', 'repoPath', 'cursor', 'output']) delete schema.properties[key];
+    return { schema, resultModes: MODES.map(([, mode]) => mode),
+      defaults: { mode: 'all', backend: 'auto', top: 10 },
+      limits: { maxHits: MAX_RETAINED_HITS, maxCaptureBytes: MAX_OUTPUT_BYTES,
+        maxSourceBytes: 64 * 1024 * 1024, maxExcerptBytes: 16 * 1024 } };
+  };
   const requireCurrent = resultId => {
     if (disposed || !current || current.resultId !== resultId) {
       fail('ERR_TUI_SEARCH_STALE', 'The search has changed. Run it again.');
@@ -77,21 +94,25 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
       pagination: payload.pagination ?? null, freshness: payload.retrieval?.freshness ?? null,
       outputBudget: payload.outputBudget ?? null, diagnostics: safeText(child.stderr).slice(0, 8192) };
   };
-  const run = async (state, cursor, signal, onSpawn) => {
+  const withOwnedOperation = async (executeOperation, signal, { query = false } = {}) => {
     const controller = new AbortController();
-    pending = controller;
+    if (query) pending = controller;
+    controllers.add(controller);
     const abort = () => controller.abort(signal?.reason);
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    const operation = execute(state, cursor, controller.signal, onSpawn);
+    const operation = Promise.resolve().then(() => executeOperation(controller.signal));
     pendingWork.add(operation);
     try { return await operation; }
     finally {
       pendingWork.delete(operation);
+      controllers.delete(controller);
       signal?.removeEventListener('abort', abort);
       if (pending === controller) pending = null;
     }
   };
+  const run = (state, cursor, signal, onSpawn) => withOwnedOperation(
+    ownedSignal => execute(state, cursor, ownedSignal, onSpawn), signal, { query: true });
   const query = async (request, { signal, onSpawn } = {}) => {
     assertTuiSearchRequest('query', request);
     if (disposed) fail('ERR_TUI_SEARCH_STALE', 'The search session has closed.');
@@ -140,9 +161,43 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
       throw error;
     } finally { context.clear(); }
   };
-  return { query, continueSearch, source,
+  const open = async (request, { signal, onSpawn } = {}) => {
+    assertTuiSearchRequest('open', request);
+    return withOwnedOperation(async signal => {
+      const state = requireCurrent(request.resultId), hit = state.hits.get(request.hitId);
+      if (!hit) fail('ERR_TUI_SEARCH_HIT', 'Choose a hit from the current search.');
+      const target = path.resolve(state.scope.configRoot, hit.file);
+      await readVerifiedContainedFile(state.scope.configRoot, target, { signal, hashAlgorithm: 'sha1',
+        expectedHash: request.sourceHash, maxBytes: 64 * 1024 * 1024 });
+      const command = findBinaryOnPath('code', resolveEnvPath(env));
+      if (!command) fail('ERR_TUI_EDITOR_MISSING', 'Install the VS Code command launcher to use this action.');
+      await fs.realpath(command);
+      if (!(await fs.stat(command)).isFile()) fail('ERR_TUI_EDITOR_MISSING', 'The editor launcher is not a regular file.');
+      if (!isResolvedCommandTrusted({ commandPath: command, repoRoot: state.scope.configRoot, toolRoot, env })) {
+        fail('ERR_TUI_EDITOR_UNTRUSTED', 'The selected repository does not have command execution authority.');
+      }
+      requireCurrent(request.resultId);
+      assertNoSymlinkPath(state.scope.configRoot, target);
+      throwIfAborted(signal);
+      const line = Number.isSafeInteger(hit.startLine) && hit.startLine > 0 ? hit.startLine : 1;
+      const args = ['--reuse-window', '--goto', `${target}:${line}:1`];
+      const invocation = process.platform === 'win32' ? resolveWindowsCmdInvocation(command, args, env) : { command, args };
+      const child = await spawnSubprocess(invocation.command, invocation.args, {
+        cwd: state.scope.configRoot, env: invocation.env || env, signal, onSpawn,
+        windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
+        timeoutMs: 5000, maxOutputBytes: 16 * 1024, stdio: ['ignore', 'pipe', 'pipe']
+      });
+      if (child.outputCapture?.stdout?.truncated || child.outputCapture?.stderr?.truncated) {
+        fail('ERR_TUI_EDITOR_OUTPUT', 'Editor launcher output exceeded its bound.');
+      }
+      return { opened: true, editor: 'code', resultId: state.resultId, hitId: request.hitId,
+        file: safeLabel(hit.file), line, diagnostics: safeText(child.stderr).slice(0, 8192) };
+    }, signal);
+  };
+  return { describe, query, continueSearch, source, open,
     dispose() {
-      disposed = true; epoch++; pending?.abort(); current = null; scopes.dispose();
+      disposed = true; epoch++; for (const controller of controllers) controller.abort();
+      pending = null; current = null; scopes.dispose();
       return Promise.allSettled([...pendingWork]).then(() => undefined);
     } };
 };

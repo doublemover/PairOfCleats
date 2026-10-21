@@ -1,4 +1,4 @@
-import { compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
+import { cloneJsonSchema, compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 import {
   INTEGER_MIN_ZERO_FLAG_FIELDS,
   REPEATED_LIST_FIELDS,
@@ -267,6 +267,9 @@ const formatValidationErrors = (errors = []) => errors.map((err) => {
   }
   return `${path} ${err.message}`.trim();
 });
+
+/** An owned description for native clients; callers cannot mutate validation. */
+export const getSearchRequestSchema = () => cloneJsonSchema(searchRequestSchema);
 
 export const createSearchValidator = () => {
   const ajv = createAjv({ allErrors: false, strict: false });

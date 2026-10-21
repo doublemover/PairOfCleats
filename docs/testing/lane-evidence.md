@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-20T23:55:29.915Z
+Generated: 2026-10-21T01:13:56.249Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-20T23:55:29.915Z
 ## Lane Summary
 
 - `gate`: 40 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 1135 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 1139 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 152 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 20 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s

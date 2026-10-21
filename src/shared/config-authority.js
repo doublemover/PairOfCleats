@@ -27,6 +27,17 @@ export const isApplicationOwnedCommand = ({ commandPath, repoRoot, toolRoot }) =
       || isPathWithinRoot(path.resolve(commandPath), application));
 };
 
+/** Apply the same lexical/physical repository boundary before a command runs. */
+export const isResolvedCommandTrusted = ({ commandPath, repoRoot, toolRoot, env = process.env }) => {
+  if (isRepoTrusted(repoRoot, env)) return true;
+  const command = canonicalPath(commandPath), repository = canonicalPath(repoRoot);
+  if (!command || !repository) return true;
+  return !(isPathWithinRoot(command, repository)
+    || isPathWithinRoot(path.resolve(commandPath), repository)
+    || isPathWithinRoot(path.resolve(commandPath), path.resolve(repoRoot)))
+    || isApplicationOwnedCommand({ commandPath, repoRoot, toolRoot });
+};
+
 /** A launch-selected user policy must not be stored inside the target repo. */
 export const resolveTrustedConfigPath = (repoRoot, env = process.env) => {
   if (!env.PAIROFCLEATS_TRUSTED_CONFIG) return null;

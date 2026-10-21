@@ -46,6 +46,7 @@
     "tooling/release/release-check-output-paths",
     "tooling/release/verify-surface-output-paths",
     "tooling/reports/map-selected-index-identity",
+    "tui/operator-search-file-authority",
     "tui/operator-settings-authority",
     "workspace/config-contract-matrix"
   ]

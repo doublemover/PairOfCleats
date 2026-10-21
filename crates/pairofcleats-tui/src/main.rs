@@ -1,3 +1,4 @@
+mod search;
 mod settings;
 mod supervisor_lifetime;
 #[cfg(test)]
@@ -304,6 +305,7 @@ enum OverlayMode {
     Palette,
     Search,
     Settings,
+    RepositorySearch,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -371,6 +373,7 @@ enum PaletteAction {
     ClearSearch,
     RunJob,
     Settings,
+    RepositorySearch,
     CancelSelected,
     ShowHelp,
     Quit,
@@ -385,8 +388,9 @@ impl PaletteAction {
             Self::FocusLogs => "Focus logs panel",
             Self::CycleFilter => "Cycle active panel filter",
             Self::ClearSearch => "Clear current panel search",
-            Self::RunJob => "Run sample job",
+            Self::RunJob => "Show search command help",
             Self::Settings => "Repository / workspace and settings",
+            Self::RepositorySearch => "Search a repository and inspect results",
             Self::CancelSelected => "Cancel selected job",
             Self::ShowHelp => "Open help overlay",
             Self::Quit => "Quit TUI",
@@ -502,6 +506,7 @@ enum InputCommand {
     Quit,
     RunJob,
     Settings,
+    RepositorySearch,
     CancelSelected,
     FocusNext,
     FocusJobs,
@@ -530,6 +535,7 @@ enum InputCommand {
 
 struct AppModel {
     settings: settings::SettingsUi,
+    repository_search: search::SearchUi,
     run_id: String,
     job_status: BTreeMap<String, String>,
     job_titles: BTreeMap<String, String>,
@@ -584,6 +590,7 @@ impl AppModel {
     ) -> Self {
         Self {
             settings: settings::SettingsUi::default(),
+            repository_search: search::SearchUi::default(),
             run_id,
             job_status: BTreeMap::new(),
             job_titles: BTreeMap::new(),
@@ -1109,6 +1116,7 @@ fn frame_signature(model: &AppModel) -> String {
         "searchDraft": model.search_draft,
         "paletteIndex": model.palette_index,
         "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
+        "repositorySearchRevision": if model.overlay == OverlayMode::RepositorySearch {model.repository_search.revision} else {0},
         "terminal": [model.terminal_caps.color, model.terminal_caps.unicode]
     })
     .to_string()
@@ -1262,17 +1270,20 @@ fn fit_text(text: &str, width: usize) -> String {
     if width == 0 {
         return String::new();
     }
-    let chars: Vec<char> = text.chars().collect();
-    if chars.len() <= width {
+    let span = Span::raw(text);
+    if span.width() <= width {
         return text.to_string();
     }
-    if width <= 1 {
-        return "…".to_string();
+    let mut output = String::new();
+    let mut columns = 0;
+    for grapheme in span.styled_graphemes(Style::default()) {
+        let next_width = Span::raw(grapheme.symbol).width();
+        if columns + next_width > width.saturating_sub(1) {
+            break;
+        }
+        output.push_str(grapheme.symbol);
+        columns += next_width;
     }
-    let mut output = chars
-        .into_iter()
-        .take(width.saturating_sub(1))
-        .collect::<String>();
     output.push('…');
     output
 }
@@ -1713,7 +1724,8 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
         OverlayMode::Palette => "action palette | j/k move | Enter select | Esc close",
         OverlayMode::Search => "search | type to filter current panel | Enter apply | Backspace delete | Esc cancel",
         OverlayMode::Settings => "settings | Ctrl+U clears input | Esc cancels or closes | Ctrl+C quits",
-        OverlayMode::None => "Tab focus | f cycle filter | / search | x clear search | p pause/follow | : actions | ? help | q quit",
+        OverlayMode::RepositorySearch => "Repository search | Tab field | Enter submit/source | Esc back/cancel | Ctrl+C quit",
+        OverlayMode::None => "R repository search | Tab focus | f filter | / panel text | x clear | p follow | : actions | ? help | q quit",
     };
     fit_text(text, width)
 }
@@ -1895,7 +1907,8 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         "p toggle follow/pause",
         ": open action palette",
         "? close help",
-        "r run sample job",
+        "R search a repository and inspect results",
+        "r show search command help",
         "s select repository / workspace and edit settings",
         "c cancel selected job",
         "q quit",
@@ -1932,6 +1945,7 @@ fn palette_actions() -> Vec<PaletteAction> {
         PaletteAction::ClearSearch,
         PaletteAction::RunJob,
         PaletteAction::Settings,
+        PaletteAction::RepositorySearch,
         PaletteAction::CancelSelected,
         PaletteAction::ShowHelp,
         PaletteAction::Quit,
@@ -2267,6 +2281,27 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 area,
             );
         }
+        OverlayMode::RepositorySearch => {
+            let area = centered_rect(96, 94, frame.area());
+            let text = model
+                .repository_search
+                .lines(
+                    area.height.saturating_sub(2) as usize,
+                    area.width.saturating_sub(2) as usize,
+                )
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(panel_block(
+                        "Repository search".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
         OverlayMode::None => {}
     }
 }
@@ -2345,6 +2380,10 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                     PaletteAction::Settings => {
                         model.settings.open(&model.session.scope);
                         model.overlay = OverlayMode::Settings;
+                    }
+                    PaletteAction::RepositorySearch => {
+                        model.repository_search.open(&model.session.scope);
+                        model.overlay = OverlayMode::RepositorySearch;
                     }
                     PaletteAction::RunJob | PaletteAction::CancelSelected | PaletteAction::Quit => {
                     }
@@ -2708,6 +2747,11 @@ fn apply_palette_action(
         PaletteAction::Settings => {
             model.settings.open(&model.session.scope);
             model.overlay = OverlayMode::Settings;
+            model.dirty = true;
+        }
+        PaletteAction::RepositorySearch => {
+            model.repository_search.open(&model.session.scope);
+            model.overlay = OverlayMode::RepositorySearch;
             model.dirty = true;
         }
         PaletteAction::Quit => {
@@ -3085,6 +3129,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     }
     apply_workload_descriptor(model, &event);
     if event_name == "hello" {
+        model.repository_search.available = event["capabilities"]["supportsSearch"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
         model.settings.available = event["capabilities"]["supportsSettings"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
@@ -3101,12 +3148,20 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         }
     }
     if event_name == "session:attach" {
+        model.repository_search.available = false;
         model.settings.available = false;
         apply_session_descriptor(model, &event);
+    }
+    if model.repository_search.event(&event) {
+        model.dirty = true;
+        return;
     }
     if model.settings.event(&event) {
         if let Some(scope) = &model.settings.scope {
             if let Some(target) = scope["target"].as_str() {
+                if model.session.scope != target {
+                    model.repository_search.scope_changed(target);
+                }
                 model.session.scope = target.to_string();
             }
         }
@@ -3220,6 +3275,12 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
         return;
     }
     match model.overlay {
+        OverlayMode::RepositorySearch => {
+            if model.repository_search.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
         OverlayMode::Settings => {
             if model.settings.key(key) {
                 model.overlay = OverlayMode::None;
@@ -3260,6 +3321,11 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
         },
         OverlayMode::None => match key.code {
             KeyCode::Char('s') => enqueue_input(model, InputCommand::Settings, "settings-open"),
+            KeyCode::Char('R') => enqueue_input(
+                model,
+                InputCommand::RepositorySearch,
+                "repository-search-open",
+            ),
             KeyCode::Char('q') => enqueue_input(model, InputCommand::Quit, "q"),
             KeyCode::Char('r') => enqueue_input(model, InputCommand::RunJob, "r"),
             KeyCode::Char('c') => enqueue_input(model, InputCommand::CancelSelected, "c"),
@@ -3300,6 +3366,11 @@ fn dispatch_input(
     let (_, cmd) = model.input_queue.pop_front().unwrap();
     model.last_input_at = Instant::now();
     match cmd {
+        InputCommand::RepositorySearch => {
+            model.repository_search.open(&model.session.scope);
+            model.overlay = OverlayMode::RepositorySearch;
+            model.dirty = true;
+        }
         InputCommand::Settings => {
             model.settings.open(&model.session.scope);
             model.overlay = OverlayMode::Settings;
@@ -3547,6 +3618,9 @@ fn main() -> anyhow::Result<()> {
             while let Some(request) = model.settings.outbox.pop_front() {
                 send_request(&mut supervisor, request)?;
             }
+            while let Some(request) = model.repository_search.outbox.pop_front() {
+                send_request(&mut supervisor, request)?;
+            }
         }
         Ok(())
     })();
@@ -3587,6 +3661,7 @@ mod redraw_tests {
             OverlayMode::Palette,
             OverlayMode::Search,
             OverlayMode::Settings,
+            OverlayMode::RepositorySearch,
         ] {
             for active in [false, true] {
                 for (code, modifiers) in [
@@ -3637,6 +3712,7 @@ mod redraw_tests {
             OverlayMode::Palette,
             OverlayMode::Search,
             OverlayMode::Settings,
+            OverlayMode::RepositorySearch,
         ] {
             for active in [false, true] {
                 let mut model = model();

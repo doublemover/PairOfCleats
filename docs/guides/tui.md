@@ -19,7 +19,8 @@ Use `pairofcleats tui build --smoke` when you want to validate or restage the ho
 
 Runtime controls:
 
-- `[r]` queue job run
+- `[R]` search a repository and inspect results/source
+- `[r]` run the search command's help as a job
 - `[s]` select a repository/workspace and inspect or edit settings
 - `[c]` cancel selected job
 - `[q]` graceful shutdown
@@ -29,7 +30,7 @@ Runtime controls:
 - `[Tab]` cycle focus between jobs, tasks, and logs
 - `[1]`, `[2]`, `[3]` focus jobs, tasks, or logs directly
 - `[f]` cycle the active panel filter
-- `[/]` open search for the active panel
+- `[/]` filter text in the active panel
 - `[x]` clear the active search
 - `[p]` toggle follow live / pause selection drift
 - `[:]` or `[a]` open the action palette
@@ -49,6 +50,37 @@ reap the supervisor within its ten-second grace. The native lifetime guard then
 contains any remaining owned descendants. Snapshots save the resulting final job
 statuses; an interrupted supervisor cannot leave a saved job marked running.
 Linux, macOS, and Windows require separate native lifecycle receipts.
+
+## Repository search
+
+Press `[R]` or select **Search a repository and inspect results** in the palette.
+`[Tab]` and `[Shift+Tab]` move between repository, query, mode, backend, top,
+snapshot, as-of and shared-filter fields. `[Ctrl+U]` clears a field. The form uses
+the canonical search schema and defaults supplied by the supervisor. Shared
+filters accept a JSON object with the same predicates as the API; duplicate
+fields and simultaneous snapshot/as-of selection are rejected. `[Enter]` submits.
+
+The results view preserves canonical mode groups, ranks, scores, paths, ranges,
+freshness and output-budget evidence. Arrows or `[j]/[k]` select a hit; `[Enter]`
+loads its bounded working-tree source. `[n]` requests the next supported cursor
+page and `[e]` edits the query. A filter-only query can enumerate cursor pages;
+ranked text queries retain the CLI's top-k behavior. Empty results, unavailable
+source, index incompatibility and incomplete capture are reported explicitly.
+
+In source view, arrows and page keys scroll, left/right pan, `[Home]` resets the
+viewport and `[r]` refreshes current bytes. `[Esc]` returns to results. `[o]`
+previews opening the selected file/line with the installed `code` launcher;
+`[Enter]` confirms and `[Esc]` cancels. The operator rechecks source bytes,
+repository containment and command trust before launch. Changed or unsafe paths
+require a fresh preview and cannot inherit an earlier confirmation.
+
+`[Esc]` cancels an in-flight request and waits for its actual outcome. Changing
+scope or replacing a query invalidates old results and rejects late responses.
+`[Ctrl+C]` shuts down the native client, supervisor and owned query children.
+Search requires a controllable supervisor advertising `supportsSearch`; passive
+and replay sessions cannot execute requests. Drafts and source text stay outside
+saved layout snapshots and ordinary telemetry. Explicitly enabled event recordings
+include returned search data, so retain them with the same care as source files.
 
 ## Repository, workspace and settings
 

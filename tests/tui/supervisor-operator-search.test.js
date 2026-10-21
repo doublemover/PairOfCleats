@@ -6,20 +6,23 @@ import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture.js';
 import { createSupervisorSession } from '../helpers/supervisor-session.js';
+import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tui/supervisor-operator-search/')[1];
-assert.ok(['query-source', 'pagination', 'source-authority', 'launch-authority'].includes(selected));
+assert.ok(['query-source', 'pagination', 'source-authority', 'launch-authority', 'navigation', 'navigation-untrusted', 'navigation-cancel'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`operator-search-${selected}`);
 const repo = path.join(dir, 'selected repository');
 await fs.mkdir(path.join(repo, 'src'), { recursive: true });
 applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off', syncProcess: true,
-  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: selected === 'launch-authority' ? path.join(dir, 'missing-trusted.json') : null } });
+  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: selected === 'launch-authority' ? path.join(dir, 'missing-trusted.json') : null,
+    PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'navigation-untrusted' ? [] : [repo]) } });
 const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-operator-search', profileId: 'default' });
 const body = 'export function alpha() { return 42; }\n';
 const rows = Array.from({ length: 3 }, (_, id) => ({ id, file: `src/item${id}.js`,
   kind: 'FunctionDeclaration', name: `alpha${id}`, tokens: ['alpha'],
   start: 0, end: Buffer.byteLength(body), startLine: 1, endLine: 1, chunkUid: `uid:alpha:${id}`,
   sourceHash: createHash('sha1').update(body).digest('hex') }));
+if (selected.startsWith('navigation')) rows[0].file = 'src/source & %PAIROFCLEATS_TEST_ID% (quoted).js';
 for (const row of rows) await fs.writeFile(path.join(repo, row.file), body);
 if (selected === 'source-authority') {
   rows[0].end = 70 * 1024;
@@ -27,6 +30,22 @@ if (selected === 'source-authority') {
   await fs.writeFile(path.join(dir, 'outside-private.js'), 'private-outside-source');
 }
 await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify(rows));
+const editorMarker = path.join(dir, 'editor-invoked.json');
+if (selected.startsWith('navigation')) {
+  const bin = path.join(repo, 'explicit-editor'); await fs.mkdir(bin);
+  const fixture = path.join(bin, 'record-editor.mjs');
+  await fs.writeFile(fixture, `import fs from 'node:fs';
+fs.writeFileSync(${JSON.stringify(editorMarker)}, JSON.stringify({args:process.argv.slice(2),pid:process.pid}));
+${selected === 'navigation-cancel' ? 'setInterval(()=>{},1000);' : ''}\n`);
+  const quote = value => `"${value.replace(/%/g, '%%')}"`;
+  if (process.platform === 'win32') await fs.writeFile(path.join(bin, 'code.cmd'),
+    `@echo off\r\nsetlocal DisableDelayedExpansion\r\n${quote(process.execPath)} ${quote(fixture)} %*\r\n`);
+  else {
+    const shellQuote = value => `'${value.replace(/'/g, `'\\''`)}'`;
+    await fs.writeFile(path.join(bin, 'code'), `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(fixture)} "$@"\n`, { mode: 0o755 });
+  }
+  process.env.PATH = `${bin}${path.delimiter}${process.env.PATH || ''}`;
+}
 const session = createSupervisorSession({ timeoutMs: 10000, reassembleEvents: true });
 let sequence = 0;
 const request = async (method, params) => {
@@ -85,6 +104,42 @@ try {
     assert.equal(new Set(hits.map(hit => hit.hitId)).size, 3);
     const end = await request('continue', { resultId });
     assert.equal(end.status, 'failed'); assert.equal(end.error.code, 'ERR_TUI_SEARCH_CURSOR');
+  } else if (selected.startsWith('navigation')) {
+    const page = await success('query', { repoPath: repo, search });
+    const hit = page.hits.find(hit => hit.file === rows[0].file);
+    const source = await success('source', { resultId: page.resultId, hitId: hit.hitId });
+    const params = { resultId: page.resultId, hitId: hit.hitId, editor: 'code', confirmed: true,
+      sourceHash: source.sourceIdentity.currentHash };
+    if (selected === 'navigation-untrusted') {
+      const end = await request('open', params);
+      assert.equal(end.status, 'failed'); assert.equal(end.error.code, 'ERR_TUI_EDITOR_UNTRUSTED');
+      await assert.rejects(fs.access(editorMarker), { code: 'ENOENT' });
+    } else if (selected === 'navigation-cancel') {
+      const launching = request('open', params), jobId = `search-${sequence}`;
+      const deadline = Date.now() + 3000;
+      while (!await fs.access(editorMarker).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; })) {
+        assert.ok(Date.now() < deadline, 'explicit editor fixture did not start within 3s');
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      const editor = JSON.parse(await fs.readFile(editorMarker, 'utf8'));
+      assert.equal(isProcessAlive(editor.pid), true);
+      session.send({ op: 'job:cancel', jobId });
+      const end = await launching;
+      assert.equal(end.status, 'cancelled'); assert.equal(isProcessAlive(editor.pid), false);
+    } else {
+      const noConfirmation = await request('open', { ...params, confirmed: false });
+      assert.equal(noConfirmation.status, 'failed'); assert.equal(noConfirmation.error.code, 'ERR_TUI_SEARCH_REQUEST');
+      await assert.rejects(fs.access(editorMarker), { code: 'ENOENT' });
+      await fs.writeFile(path.join(repo, rows[0].file), 'changed after preview');
+      const stale = await request('open', params);
+      assert.equal(stale.status, 'failed'); assert.equal(stale.error.code, 'ERR_FILE_INTEGRITY');
+      await assert.rejects(fs.access(editorMarker), { code: 'ENOENT' });
+      await fs.writeFile(path.join(repo, rows[0].file), body);
+      const opened = await success('open', params); assert.equal(opened.opened, true);
+      const editor = JSON.parse(await fs.readFile(editorMarker, 'utf8'));
+      assert.deepEqual(editor.args, ['--reuse-window', '--goto', `${path.join(repo, rows[0].file)}:1:1`]);
+      assert.equal(isProcessAlive(editor.pid), false);
+    }
   } else {
     const page = await success('query', { repoPath: repo, search });
     const escaped = page.hits.find(hit => hit.file.startsWith('../'));

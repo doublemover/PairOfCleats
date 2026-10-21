@@ -114,6 +114,9 @@ The local supervisor advertises `supportsSearch` for `search:run`. The strict
 envelope contains `proto: "poc.tui@1"`, `op`, a bounded `jobId`, `method` and
 `params`; its owner is `src/contracts/schemas/tui-search.js`. The methods are:
 
+- `describe`: `{}`. Returns a copy of the canonical search predicate schema,
+  result modes, defaults and operator limits. Operator-owned repository/output/
+  cursor fields are excluded; callers cannot mutate the shared validator.
 - `query`: `{ repoPath, search }`. The predicate object uses the canonical API
   search validator and shared CLI argument builder. It retains all shared filters,
   mode/backend/top selection and snapshot/as-of exclusivity. Repository identity,
@@ -128,6 +131,12 @@ envelope contains `proto: "poc.tui@1"`, `op`, a bounded `jobId`, `method` and
   unchanged, changed or unknown. Missing and oversized files have explicit
   unavailable results. Historical index selection does not reconstruct source
   bytes; the preview identifies its working-tree policy.
+- `open`: `{ resultId, hitId, sourceHash, editor: "code", confirmed: true }`.
+  Requires the selected preview's current hash and explicit confirmation. The
+  operator rechecks contained source bytes and lexical/physical command trust
+  before launching `code --reuse-window --goto file:line:1`. Missing, stale,
+  symlinked or untrusted targets fail before execution. The tracked launcher has
+  a five-second deadline and bounded capture; disposal joins its cleanup.
 
 Responses bind an opaque result/scope identity and query generation to ordered
   per-mode ranks, scores, paths, ranges, canonical freshness/pagination and output
@@ -141,6 +150,10 @@ Responses bind an opaque result/scope identity and query generation to ordered
 Operations use the existing job cancellation, output, timeout and shutdown
   owners. `job:spawn` records an actual child PID; awaited cancellation/disposal
   joins child cleanup. The strict shared JSON request boundary preserves the
-  existing settings limits. Native query entry, results/source keyboard flow,
-  explicit file/editor navigation and actual terminal acceptance remain #634
-  work; supervisor fixtures alone do not establish that native workflow.
+  existing settings limits. The native `[R]` composer, ranked results, cursor
+  continuation, source viewport and confirmed editor navigation use this same
+  owner. Query/source identity guards reject superseded replies; scope changes
+  invalidate the view. `/` remains panel text filtering. Native ConPTY cases
+  exercise real keys, supervisor/CLI children and terminal cleanup on Windows;
+  portable contract tests and Rust rendering tests do not replace native platform
+  execution or the separately privileged file-symlink authority cohort.

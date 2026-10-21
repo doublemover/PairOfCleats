@@ -1,5 +1,23 @@
 use super::*;
 
+#[test]
+fn fitted_labels_preserve_graphemes_and_terminal_columns() {
+    for text in ["界界界界", "e\u{301}e\u{301}e\u{301}", "👩‍💻界alpha"] {
+        for width in 0..10 {
+            let fitted = fit_text(text, width);
+            assert!(
+                Span::raw(&fitted).width() <= width,
+                "{text:?} exceeds {width} columns: {fitted:?}"
+            );
+        }
+    }
+    assert_eq!(
+        fit_text("e\u{301}", 1),
+        "e\u{301}",
+        "a composed grapheme that fits must remain intact"
+    );
+}
+
 fn model() -> AppModel {
     let mut model = AppModel::new(
         "viewport-test".into(),
