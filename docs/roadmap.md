@@ -35,7 +35,7 @@ both platform front gates pass. Dense-vector partial/zero-progress I/O
 (#667) is repaired at `c4139ac68`; nine affected checks and both full front gates
 pass on Windows/Linux, with original corruption and orphaned-temp witnesses.
 The linked receipt retains original
-failures, source identities, assertion mappings and every affected check; all
+failures, source identities, obsolete-code proofs, assertion mappings and every affected check; all
 issues remain open until their own acceptance and publication are verified.
 Canonical settings (#633) and repository search (#634) now connect the native
 keyboard path to real supervisor operations. Search includes ordered results,
