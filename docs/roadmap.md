@@ -18,8 +18,11 @@ every issue and its acceptance. All 84 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Correctness issues #662–#663 and #665–#666 precede remaining TUI feature work.
-Seventy-one issues have implemented repairs. Hit-list correlation (#664) now
+Correctness issues #662–#663 and #666 precede remaining TUI feature work.
+Seventy-two issues have implemented repairs. API warning detection (#665) now
+survives a zero detail cap at `977818d40`; actual indexed public-CLI regressions
+retain failure exits, clean-input success and visible Markdown omission counts.
+Hit-list correlation (#664) now
 ranks the common subset at `97356f254`; actual model-report/parity consumers and
 both platform front gates pass. Dense-vector partial/zero-progress I/O
 (#667) is repaired at `c4139ac68`; nine affected checks and both full front gates
