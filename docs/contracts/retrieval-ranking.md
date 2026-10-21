@@ -147,6 +147,20 @@ When graph ranking is enabled:
 
 ---
 
+## Hit-list comparison metrics
+
+`rankCorr` compares relative order among distinct identities shared by the two
+top-N hit lists. Each shared subset is ranked from 1 through its own size before
+computing Spearman correlation. Moving the same shared ordering behind unrelated
+hits therefore leaves correlation at 1; reversing that ordering gives -1.
+Fewer than two distinct shared hits yields `null` and contributes no value to a
+report's correlation average.
+
+Membership loss remains visible through `overlap` and the missing-hit lists;
+absolute displacement is not an additional penalty inside `rankCorr`. Score
+deltas and top-one equality retain their separate meanings. Model-comparison
+reports and retrieval-parity thresholds use this same comparison owner.
+
 ## References
 - `docs/contracts/search-contract.md`
 - `docs/contracts/search-cli.md`

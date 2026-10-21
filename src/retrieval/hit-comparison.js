@@ -31,6 +31,8 @@ export function resolveRetrievalHitScore(hit) {
 
 /**
  * Compare top-N retrieval/search hit lists and compute shared parity metrics.
+ * rankCorr measures relative order among distinct shared hits. Membership loss
+ * remains separate in overlap/missing fields; fewer than two shared hits is null.
  * @param {Array<object>} baseHits
  * @param {Array<object>} otherHits
  * @param {{topN?: number}} [options]
@@ -52,8 +54,6 @@ export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
   const other = otherHits.slice(0, topN);
   const baseKeys = base.map(buildRetrievalHitKey);
   const otherKeys = other.map(buildRetrievalHitKey);
-  const baseRanks = new Map(baseKeys.map((key, idx) => [key, idx + 1]));
-  const otherRanks = new Map(otherKeys.map((key, idx) => [key, idx + 1]));
   const baseSet = new Set(baseKeys);
   const otherSet = new Set(otherKeys);
   const intersection = baseKeys.filter((key) => otherSet.has(key));
@@ -65,13 +65,18 @@ export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
   const avgDelta = deltas.length ? deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length : 0;
 
   let rankCorr = null;
-  if (intersection.length >= 2) {
+  const shared = new Set(intersection);
+  const commonBase = Array.from(shared);
+  const commonOther = Array.from(new Set(otherKeys.filter(key => shared.has(key))));
+  if (commonBase.length >= 2) {
+    const baseRanks = new Map(commonBase.map((key, idx) => [key, idx + 1]));
+    const otherRanks = new Map(commonOther.map((key, idx) => [key, idx + 1]));
     let sum = 0;
-    for (const key of intersection) {
-      const d = (baseRanks.get(key) || 0) - (otherRanks.get(key) || 0);
+    for (const key of commonBase) {
+      const d = baseRanks.get(key) - otherRanks.get(key);
       sum += d * d;
     }
-    const n = intersection.length;
+    const n = commonBase.length;
     rankCorr = 1 - (6 * sum) / (n * (n * n - 1));
   }
 

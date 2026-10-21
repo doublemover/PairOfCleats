@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-input-format.js';
@@ -11,7 +10,7 @@ import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-me
 import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels, resolveCompareModelCacheRoot } from '../../src/experimental/compare/config.js';
 import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
 import { mean, meanNullable } from '../../src/shared/stats.js';
@@ -108,24 +107,12 @@ if (!buildIndex && models.length > 1 && configCacheRoot) {
 }
 
 /**
- * Create a stable slug for a model id.
- * @param {string} modelId
- * @returns {string}
- */
-function modelSlug(modelId) {
-  const safe = modelId.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
-  const hash = crypto.createHash('sha1').update(modelId).digest('hex').slice(0, 8);
-  return `${safe || 'model'}-${hash}`;
-}
-
-/**
  * Resolve the cache root for a specific model comparison run.
  * @param {string} modelId
  * @returns {string}
  */
 function getModelCacheRoot(modelId) {
-  if (configCacheRoot) return configCacheRoot;
-  return path.join(cacheRootBase, 'model-compare', modelSlug(modelId));
+  return resolveCompareModelCacheRoot({ modelId, cacheRootBase, configCacheRoot });
 }
 
 /**

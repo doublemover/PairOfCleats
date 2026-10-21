@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
+import { compareRetrievalHitLists, summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
 
 const baseHits = [
   { id: 'a', score: 0.9 },
@@ -34,5 +34,31 @@ const emptyParity = summarizeRetrievalHitComparison([], [], {
 assert.equal(emptyParity.overlap, 1, 'parity-style empty comparisons can opt into perfect overlap');
 assert.deepEqual(emptyParity.baseKeys, [], 'empty comparisons should keep top key arrays empty');
 assert.deepEqual(emptyParity.otherKeys, [], 'empty comparisons should keep top key arrays empty');
+
+const hits = ids => ids.map(id => ({ id, score: 1 }));
+const first = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+const displaced = ['k', 'l', 'm', 'n', 'o', 'p', 'q', 'r'];
+for (const [label, left, right, expected] of [
+  ['shifted shared order', first, [...displaced, 'a', 'b'], 1],
+  ['shifted shared reverse', first, [...displaced, 'b', 'a'], -1],
+  ['gapped three-hit swap', ['a', 'x', 'b', 'y', 'c'], ['z', 'a', 'w', 'c', 'v', 'b'], 0.5],
+  ['gapped three-hit rotation', ['a', 'x', 'b', 'y', 'c'], ['z', 'b', 'w', 'c', 'v', 'a'], -0.5],
+  ['identical full membership', first, first, 1],
+  ['reversed full membership', first, [...first].reverse(), -1]
+]) {
+  const actual = compareRetrievalHitLists(hits(left), hits(right));
+  assert.equal(actual.rankCorr, expected, label);
+  assert.ok(Number.isFinite(actual.rankCorr) && actual.rankCorr >= -1 && actual.rankCorr <= 1, label);
+  assert.equal(summarizeRetrievalHitComparison(hits(left), hits(right)).rankCorr, expected,
+    'report/parity summaries retain the shared correlation semantics');
+}
+const partial = compareRetrievalHitLists(hits(first), hits([...displaced, 'a', 'b']));
+assert.equal(partial.overlap, 0.2, 'missing membership remains visible independently of relative order');
+assert.equal(partial.top1Same, false);
+assert.equal(compareRetrievalHitLists(hits(['a']), hits(['a'])).rankCorr, null);
+assert.equal(compareRetrievalHitLists(hits(['a']), hits(['b'])).rankCorr, null);
+assert.equal(compareRetrievalHitLists(hits(['a', 'a']), hits(['a'])).rankCorr, null,
+  'repeated rows cannot create independent shared ranks');
+assert.equal(compareRetrievalHitLists(hits(first), hits(first), { topN: 0 }).rankCorr, null);
 
 console.log('hit comparison summary test passed');

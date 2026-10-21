@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T03:55:58.325Z",
+  "generatedAt": "2026-10-21T04:22:25.634Z",
   "summary": {
     "lanes": 5,
-    "tests": 1368,
+    "tests": 1372,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 348,
+    "families": 350,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1294
+      "missingTests": 1298
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1145,
+      "totalTests": 1149,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1096
+        "missing": 1100
       }
     },
     {
@@ -230,9 +230,9 @@
     },
     {
       "key": "tooling/reports",
-      "count": 11,
+      "count": 13,
       "knownDurationMs": 510,
-      "unknownDurationCount": 9
+      "unknownDurationCount": 11
     },
     {
       "key": "shared/hash",
@@ -1447,7 +1447,19 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "retrieval/hit-comparison-summary",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "retrieval/index-hydration-vocab-allocation",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/parity",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

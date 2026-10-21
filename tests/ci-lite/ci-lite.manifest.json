@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 990,
+    "hero": 994,
     "matrix": 108,
     "meta": 46,
     "soak": 1,
@@ -6883,6 +6883,30 @@
     {
       "id": "shared/dense-vector-binary-writes/artifact-api",
       "order": 1145,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/hit-comparison-summary",
+      "order": 1146,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/parity/partial-ranks-report",
+      "order": 1147,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
+      "order": 1148,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/compare-models-partial-ranks/one-common",
+      "order": 1149,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

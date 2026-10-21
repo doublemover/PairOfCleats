@@ -1145,3 +1145,7 @@ shared/dense-vector-binary-writes/partial
 shared/dense-vector-binary-writes/zero-progress
 shared/dense-vector-binary-writes/write-error
 shared/dense-vector-binary-writes/artifact-api
+retrieval/hit-comparison-summary
+retrieval/parity/partial-ranks-report
+tooling/reports/compare-models-partial-ranks/opposite-orders
+tooling/reports/compare-models-partial-ranks/one-common
