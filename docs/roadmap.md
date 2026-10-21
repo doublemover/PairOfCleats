@@ -18,8 +18,8 @@ every issue and its acceptance. All 84 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Seventy-six issues have implemented repairs. The six later correctness repairs
-(#662–#667) retain their exact Windows/Linux checks and front gates in the archive.
+Seventy-seven issues have implemented repairs. The six later correctness repairs
+(#662–#667) retain Windows/Linux checks and front gates in the archive.
 MinHash source `cfc5cbf9a` passes the same 221 unique affected/contract cases on both
 OSes, including real workers/LMDB, records and 100 required SQLite cases. Its
 calibrated family, incremental signature 12 and SQLite schema 16 reject old hashes.
@@ -30,21 +30,22 @@ issues remain open until their own acceptance and publication are verified.
 Canonical settings (#633) and repository search (#634) now connect the native
 keyboard path to real supervisor operations. Search includes ordered results,
 supported cursors, bounded source previews and confirmed trusted editor launch.
-Source `0c698017e` completes #638's verified artifact open/copy/export operations,
-with opaque job-instance selections, exact file identities, non-overwriting
-publication and cancellation. Windows passes all 34 native cases and 168 selected
-checks; Linux passes 16 portable native cases and 153 selected checks. Both pass
-58 Rust tests, native/patch verification and the full front gate. The shared set
-has 150 unique cases; three additional Linux file-link owners do not qualify the
-blocked 49-case Windows authority cohort. A real symlink probe still gets EPERM.
-The new three-platform native-inspection job is configured; hosted/macOS execution
-and broader Linux/macOS workflow keys remain external qualification prerequisites.
+Source `208395791` adds #635's typed index/watch/validation/report/stats, seven
+snapshot and workspace-build workflows, preserving #638's verified artifact actions.
+Previews bind scope, configuration sources and reserved job identity; process exit
+does not establish publication readiness. Snapshot directory copying, nullable
+artifact sizes, checksum selection and terminal-worker disposal gain regressions.
+Windows passes 52 native cases and 234 unique selected checks; Linux passes 34
+native cases and 219 unique checks. Both pass 60 Rust tests, native/patch verification
+and complete front gates. The 216 common IDs and all platform exclusions are
+reconciled in the archive. These are selected checks, not a current full-deep pass.
+The 49-case Windows file-link authority cohort still requires a capable launch;
+the fresh actual probe gets EPERM. Hosted/macOS execution remains external.
 
 Earlier `720bfbd0a` CI (39495523746) passes Linux/macOS, Rust, gate, 47 Windows
-authority cases and five early ownership cases; its Windows baseline diagnostic
-timeout now has bounded owners retaining all nine child checks. The original
-SQLite worker-start and cold PowerShell-helper stalls remain unattributed despite
-later successes. New serial/timing controls preserve their original bounds.
+authority cases and five ownership cases. Its baseline timeout now has bounded
+owners retaining all nine child checks. SQLite worker-start and cold PowerShell
+stalls remain unattributed; serial/timing controls preserve their original bounds.
 Publication and PR refresh remain blocked by automatic approval review; local
 commits and exact-source checks continue, without an alternative publication route.
 
@@ -53,7 +54,7 @@ exclusions, 16 supplementary passes and seven green PR checks. Its receipt maps
 all 65 original failures, including 27 timeouts. Later repairs retain separate
 checks; that frozen result does not qualify the current source.
 
-Remaining implementation/qualification owners are #635–#637 and #639–#640 (index/setup/service,
+Remaining implementation/qualification owners are #636–#637 and #639–#640 (setup/service,
 recorded-session and registered-analysis native workflows), #630
 (Linux/macOS deep/native/package acceptance), #631 (real tooling/platform gaps)
 and #632 (representative retrieval/freshness/memory/model evidence). Real Windows
@@ -65,7 +66,9 @@ macOS `fsevents` policy warning and later hosted tool execution remain open.
 Fresh Solargraph 0.61.0 checks still miss their original deadline. An isolated
 RubyGems update also fails; neither the runtime nor probe bounds are changed.
 Detection, startup and semantic precision remain distinct; no failed readiness
-or warning is suppressed.
+or warning is suppressed. The clean Linux locked rebuild also exposes two Perl
+scanner fall-through compiler warnings; quiet readiness verification does not
+erase those diagnostics or qualify their parsing/lifecycle behavior.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
