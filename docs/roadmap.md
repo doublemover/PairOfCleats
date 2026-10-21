@@ -18,33 +18,27 @@ every issue and its acceptance. All 84 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Seventy-five issues have implemented repairs. MinHash (#662) at `cfc5cbf9a`
-replaces correlated polynomial orderings with a calibrated, explicitly versioned
-family. Missing/old identities require rebuilding across memory, packed/streamed
-artifacts, SQLite and LMDB; incremental signature 12 and SQLite schema 16 retire
-old data. Windows affected cohorts, real workers, records, 100 required SQLite
-cases, serial latency/import checks and the full front gate pass. Both OSes pass
-the same 221 unique affected/contract cases; full deep/platform acceptance remains separate.
-The other five new correctness repairs have Windows/Linux affected checks and
-front gates: JS/TS export authority (#666, `f2041e091`), zero relation weights/caps
-(#663, `c1571aaff`), API warning detection at zero detail cap (#665, `977818d40`),
-common-subset hit correlation (#664, `97356f254`) and complete dense-vector I/O
-(#667, `c4139ac68`). Their public-command, invalid-input and failure receipts remain
-in the linked archive; no earlier green campaign qualifies the complete final tree.
+Seventy-six issues have implemented repairs. The six later correctness repairs
+(#662–#667) retain their exact Windows/Linux checks and front gates in the archive.
+MinHash source `cfc5cbf9a` passes the same 221 unique affected/contract cases on both
+OSes, including real workers/LMDB, records and 100 required SQLite cases. Its
+calibrated family, incremental signature 12 and SQLite schema 16 reject old hashes.
+Those observations do not qualify later sources or full deep/platform acceptance.
 The linked receipt retains original
 failures, source identities, obsolete-code proofs, assertion mappings and every affected check; all
 issues remain open until their own acceptance and publication are verified.
 Canonical settings (#633) and repository search (#634) now connect the native
 keyboard path to real supervisor operations. Search includes ordered results,
 supported cursors, bounded source previews and confirmed trusted editor launch.
-At `702a8e250`, all 29 Windows native cases, 55 Rust tests and the full front gate
-pass. #638 adds bounded outcome/result/artifact inspection; verified artifact
-open/copy/export actions remain required. Cancellation input, timeout causes and
-an actual search-handshake race have failing-before/passing-after controls.
-Linux at fixture correction `ceea4b802` passes 55 Rust tests, seven inspector
-workflows, four PTY lifetime cases, eleven other checks and the full front gate.
-Broader workflow keyboard acceptance on Linux/macOS and the
-later-source privileged Windows file-link cohort remain separate prerequisites.
+Source `0c698017e` completes #638's verified artifact open/copy/export operations,
+with opaque job-instance selections, exact file identities, non-overwriting
+publication and cancellation. Windows passes all 34 native cases and 168 selected
+checks; Linux passes 16 portable native cases and 153 selected checks. Both pass
+58 Rust tests, native/patch verification and the full front gate. The shared set
+has 150 unique cases; three additional Linux file-link owners do not qualify the
+blocked 49-case Windows authority cohort. A real symlink probe still gets EPERM.
+The new three-platform native-inspection job is configured; hosted/macOS execution
+and broader Linux/macOS workflow keys remain external qualification prerequisites.
 
 Earlier `720bfbd0a` CI (39495523746) passes Linux/macOS, Rust, gate, 47 Windows
 authority cases and five early ownership cases; its Windows baseline diagnostic
@@ -59,8 +53,8 @@ exclusions, 16 supplementary passes and seven green PR checks. Its receipt maps
 all 65 original failures, including 27 timeouts. Later repairs retain separate
 checks; that frozen result does not qualify the current source.
 
-Remaining implementation/qualification owners are #635–#640 (index/setup/service,
-job/artifact, recorded-session and registered-analysis native workflows), #630
+Remaining implementation/qualification owners are #635–#637 and #639–#640 (index/setup/service,
+recorded-session and registered-analysis native workflows), #630
 (Linux/macOS deep/native/package acceptance), #631 (real tooling/platform gaps)
 and #632 (representative retrieval/freshness/memory/model evidence). Real Windows
 Pyright, Go 1.27.3/gopls and .NET 10.0.113/csharp-ls startup/shutdown have separate
