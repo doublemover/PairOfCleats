@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 
 const MAX_RECORDS: usize = 8;
@@ -52,6 +52,8 @@ enum Page {
 }
 
 struct Artifact {
+    id: String,
+    actions: Vec<String>,
     label: String,
     kind: String,
     path: String,
@@ -62,7 +64,12 @@ struct Artifact {
 
 impl Artifact {
     fn payload_bytes(&self) -> usize {
-        self.label.len() + self.kind.len() + self.path.len() + self.modified.len() + 64
+        self.label.len()
+            + self.kind.len()
+            + self.path.len()
+            + self.modified.len()
+            + self.id.len()
+            + 96
     }
 }
 
@@ -94,6 +101,7 @@ struct Record {
     artifact_notice: String,
     artifact_source: String,
     artifact_observed: String,
+    inventory_id: String,
 }
 
 impl Record {
@@ -126,6 +134,7 @@ impl Record {
             artifact_notice: "Awaiting artifact inventory".into(),
             artifact_source: String::new(),
             artifact_observed: String::new(),
+            inventory_id: String::new(),
         }
     }
 
@@ -196,6 +205,7 @@ impl Record {
 
     fn inventory(&mut self, event: &Value) {
         self.artifacts.clear();
+        self.inventory_id = text(&event["inventoryId"], 36);
         self.artifact_source = text(&event["source"], 128);
         self.artifact_observed = text(&event["ts"], 128);
         let Some(rows) = event["artifacts"].as_array() else {
@@ -216,6 +226,21 @@ impl Record {
                 continue;
             }
             let artifact = Artifact {
+                id: text(&row["artifactId"], 36),
+                actions: if row["snapshotVerified"] == true {
+                    ["open", "copy", "export"]
+                        .iter()
+                        .filter(|action| {
+                            row["actions"]
+                                .as_array()
+                                .map(|values| values.iter().any(|value| value == **action))
+                                .unwrap_or(false)
+                        })
+                        .map(|action| action.to_string())
+                        .collect()
+                } else {
+                    Vec::new()
+                },
                 label: text(&row["label"], 256),
                 kind: text(&row["kind"], 128),
                 path: text(&row["path"], 4096),
@@ -297,6 +322,8 @@ impl Record {
 
 pub struct InspectionUi {
     pub revision: u64,
+    pub available: bool,
+    pub outbox: VecDeque<Value>,
     records: HashMap<String, Record>,
     order: VecDeque<String>,
     next_generation: u64,
@@ -305,12 +332,19 @@ pub struct InspectionUi {
     scroll: usize,
     column: usize,
     selected_artifact: usize,
+    prompt: Option<(String, Value, String)>,
+    pending: Option<(String, String)>,
+    cancel_requested: bool,
+    next_id: u64,
+    action_status: String,
 }
 
 impl Default for InspectionUi {
     fn default() -> Self {
         Self {
             revision: 0,
+            available: false,
+            outbox: VecDeque::new(),
             records: HashMap::new(),
             order: VecDeque::new(),
             next_generation: 0,
@@ -319,6 +353,11 @@ impl Default for InspectionUi {
             scroll: 0,
             column: 0,
             selected_artifact: 0,
+            prompt: None,
+            pending: None,
+            cancel_requested: false,
+            next_id: 0,
+            action_status: "Actions reverify the recorded object before use".into(),
         }
     }
 }
@@ -385,6 +424,7 @@ impl InspectionUi {
     }
 
     pub fn open(&mut self, id: &str) {
+        self.prompt = None;
         let generation = self
             .records
             .get(id)
@@ -405,13 +445,125 @@ impl InspectionUi {
             .filter(|record| record.generation == *generation)
     }
 
+    fn selection(&self, method: &str) -> Option<Value> {
+        if !self.available {
+            return None;
+        }
+        let record = self.current_record()?;
+        let artifact = record.artifacts.get(self.selected_artifact)?;
+        if record.inventory_id.len() != 36
+            || artifact.id.len() != 36
+            || !artifact.actions.iter().any(|action| action == method)
+        {
+            return None;
+        }
+        Some(json!({"sourceJobId":self.current.as_ref()?.0,
+            "inventoryId":record.inventory_id,"artifactId":artifact.id}))
+    }
+
+    fn request(&mut self, method: String, params: Value) {
+        self.next_id += 1;
+        let id = format!("native-artifact-{}", self.next_id);
+        self.outbox
+            .push_back(json!({"proto":"poc.tui@1","op":"artifact:run",
+            "jobId":id,"method":method,"params":params}));
+        self.action_status = format!("Artifact {method} running; Esc cancels this action");
+        self.pending = Some((id, method));
+        self.cancel_requested = false;
+    }
+
+    pub fn event(&mut self, event: &Value) -> bool {
+        let Some((id, method)) = self.pending.as_ref() else {
+            return false;
+        };
+        if event["jobId"].as_str() != Some(id) {
+            return false;
+        }
+        if event["event"] == "job:end" {
+            self.action_status =
+                if event["status"] == "done" && event["result"]["method"] == *method {
+                    format!("Artifact {method} complete")
+                } else {
+                    format!(
+                        "Artifact {method} {}: {}",
+                        text(&event["status"], 24),
+                        text(&event["error"]["code"], 80)
+                    )
+                };
+            self.pending = None;
+            self.revision += 1;
+        }
+        true
+    }
+
     pub fn key(&mut self, key: KeyEvent) -> bool {
         self.revision += 1;
+        if let Some((id, _)) = self.pending.as_ref() {
+            if key.code == KeyCode::Esc && !self.cancel_requested {
+                self.outbox
+                    .push_back(json!({"proto":"poc.tui@1","op":"job:cancel",
+                    "jobId":id,"reason":"user_cancel"}));
+                self.cancel_requested = true;
+            }
+            return false;
+        }
+        if let Some((method, mut selection, mut destination)) = self.prompt.take() {
+            if key.code == KeyCode::Esc {
+                self.action_status = "Artifact action cancelled before execution".into();
+                return false;
+            }
+            if key.code == KeyCode::Enter {
+                if self.selection(&method).as_ref() != Some(&selection) {
+                    self.action_status = "Artifact selection changed; select it again".into();
+                } else if method == "export" && destination.is_empty() {
+                    self.prompt = Some((method, selection, destination));
+                } else {
+                    selection["confirmed"] = json!(true);
+                    if method == "export" {
+                        selection["destination"] = json!(destination);
+                    }
+                    self.request(method, selection);
+                }
+            } else {
+                if method == "export" {
+                    match key.code {
+                        KeyCode::Backspace => {
+                            destination.pop();
+                        }
+                        KeyCode::Char(character)
+                            if !character.is_control()
+                                && destination.len() + character.len_utf8() <= 4096 =>
+                        {
+                            destination.push(character)
+                        }
+                        _ => {}
+                    }
+                }
+                self.prompt = Some((method, selection, destination));
+            }
+            return false;
+        }
         if key.code == KeyCode::Esc {
             return true;
         }
         let previous = self.page;
         match key.code {
+            KeyCode::Char(character @ ('o' | 'y' | 'e')) if self.page == Page::Artifacts => {
+                let method = match character {
+                    'o' => "open",
+                    'y' => "copy",
+                    _ => "export",
+                };
+                if let Some(selection) = self.selection(method) {
+                    if method == "copy" {
+                        self.request(method.into(), selection);
+                    } else {
+                        self.prompt = Some((method.into(), selection, String::new()));
+                    }
+                } else {
+                    self.action_status = "Action unavailable: no live verified selection or unsupported artifact type".into();
+                }
+            }
             KeyCode::Tab => {
                 self.page = match self.page {
                     Page::Summary => Page::Result,
@@ -504,6 +656,10 @@ impl InspectionUi {
             format!("Job {id}"),
             "1 Summary | 2 Result | 3 Artifacts | Tab switches | Esc closes".into(),
         ];
+        output.push(if let Some((method, _, destination)) = &self.prompt {
+            if method == "export" { format!("Export new file within the selected repository: {destination} | Enter exports; Esc cancels") }
+            else { "Open the verified artifact in VS Code? Enter confirms; Esc cancels".into() }
+        } else { self.action_status.clone() });
         let Some(record) = self.current_record() else {
             output.push(
                 "Record unavailable or superseded in bounded history; reselect the current job"
@@ -512,7 +668,7 @@ impl InspectionUi {
             return fit(output);
         };
         output[0] = format!("Job {id} | {}", record.title);
-        let available = height.saturating_sub(3);
+        let available = height.saturating_sub(4);
         if available == 0 {
             return fit(output);
         }
@@ -590,7 +746,7 @@ impl InspectionUi {
                     .map(|line| pan(line)),
             );
         }
-        output.push("Arrows/j/k scroll/select | Left/Right pan | Home reset | recorded paths need verification before disk actions".into());
+        output.push("Arrows/j/k select | Left/Right pan | o Open | y Copy path | e Export file | actions reverify current disk identity".into());
         fit(output)
     }
 }
@@ -599,6 +755,76 @@ impl InspectionUi {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn actionable(ui: &mut InspectionUi) {
+        start(ui, "selected", "text");
+        ui.record(
+            &json!({"event":"job:artifacts","jobId":"selected","artifactsIndexed":true,
+            "inventoryId":"11111111-1111-1111-1111-111111111111","artifacts":[{
+                "path":"/selected/report","artifactId":"22222222-2222-2222-2222-222222222222",
+                "snapshotVerified":true,"actions":["open","copy","export"]}]}),
+        );
+        ui.open("selected");
+        ui.page = Page::Artifacts;
+    }
+
+    #[test]
+    fn artifact_actions_require_live_authority_and_confirm_the_exact_selection() {
+        let mut ui = InspectionUi::default();
+        actionable(&mut ui);
+        ui.key(KeyCode::Char('y').into());
+        assert!(
+            ui.outbox.is_empty(),
+            "passive inspection cannot dispatch disk actions"
+        );
+        ui.available = true;
+        ui.key(KeyCode::Char('o').into());
+        assert!(ui.outbox.is_empty(), "editor launch waits for confirmation");
+        start(&mut ui, "unrelated", "text");
+        ui.key(KeyCode::Enter.into());
+        let request = ui.outbox.pop_front().unwrap();
+        assert_eq!(request["params"]["sourceJobId"], "selected");
+        assert_eq!(request["params"]["confirmed"], true);
+        let id = request["jobId"].clone();
+        ui.key(KeyCode::Esc.into());
+        ui.key(KeyCode::Esc.into());
+        assert_eq!(
+            ui.outbox.len(),
+            1,
+            "cancellation is bounded and targets only this operation"
+        );
+        assert_eq!(ui.outbox[0]["jobId"], id);
+        assert!(ui.event(
+            &json!({"event":"job:end","jobId":id,"status":"cancelled","error":{"code":"ABORT_ERR"}})
+        ));
+        assert_eq!(ui.current.as_ref().unwrap().0, "selected");
+        assert!(ui.action_status.contains("cancelled"));
+    }
+
+    #[test]
+    fn changed_inventory_or_reused_job_cannot_retarget_a_confirmation() {
+        let mut ui = InspectionUi::default();
+        actionable(&mut ui);
+        ui.available = true;
+        ui.key(KeyCode::Char('e').into());
+        ui.key(KeyCode::Char('x').into());
+        ui.record(
+            &json!({"event":"job:artifacts","jobId":"selected","artifactsIndexed":true,
+            "inventoryId":"33333333-3333-3333-3333-333333333333","artifacts":[]}),
+        );
+        ui.key(KeyCode::Enter.into());
+        assert!(ui.outbox.is_empty());
+        assert!(ui.action_status.contains("selection changed"));
+        actionable(&mut ui);
+        ui.key(KeyCode::Char('o').into());
+        start(&mut ui, "selected", "text");
+        ui.key(KeyCode::Enter.into());
+        assert!(ui.outbox.is_empty());
+        assert!(
+            ui.current_record().is_none(),
+            "same spelling does not replace the pinned job instance"
+        );
+    }
 
     fn start(ui: &mut InspectionUi, id: &str, kind: &str) {
         ui.record(

@@ -82,8 +82,24 @@ without changing the producer's capture status. The view retains eight jobs,
 
 Artifacts show their recorded provenance, path, existence, size and modification
 time. Current disk availability remains unverified: files can change after the
-inventory was recorded. Disk open/copy/export actions are not yet available in
-this view. Superseded job identities cannot inherit an older inspector's data.
+inventory was recorded. On the artifact page, `[o]` asks for confirmation before
+opening a verified file or directory with the trusted VS Code launcher; `[y]`
+copies its canonical path. Clipboard launchers use the existing command authority
+policy: Windows PowerShell, macOS `pbcopy`, or Linux `wl-copy`/`xclip` on PATH.
+Missing or untrusted launchers report an error. These actions hand a verified
+path to an external application; that application controls its subsequent use.
+
+`[e]` exports a verified file to an explicit new filename within the selected
+job's repository. The parent directory must exist. Existing names are never
+overwritten; directories do not offer file export. Bytes, checksum and exact
+opened-file identity are rechecked, including the published export. Missing,
+changed, linked or expired selections fail without selecting another artifact.
+`[Esc]` cancels a confirmation or the current action, retaining the selected job.
+Actions require a controllable live supervisor; replayed observation JSON cannot
+authorize them. The action registry retains eight job instances and 64 artifacts
+per instance, admits files up to 8 MiB and 16 MiB total per inventory, and permits
+one action at a time. Larger artifacts retain observations without actions.
+Superseded job identities cannot inherit an older inspector's data.
 Result bodies stay outside layout snapshots and ordinary runtime telemetry;
 supervisor event recordings contain captured results as described below.
 

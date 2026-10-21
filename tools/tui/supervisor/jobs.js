@@ -35,7 +35,8 @@ import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.j
  *  failJobInvalidRequest:(jobId:string,error:Error|string)=>void
  * }}
  */
-export const createJobController = ({ state, runId, root, emit, emitLog, buildFlowSnapshot }) => {
+export const createJobController = ({ state, runId, root, emit, emitLog, buildFlowSnapshot,
+  beginArtifactJob = null, captureArtifactInventory = null }) => {
   const assertAcceptingWork = () => {
     if (state.shuttingDown) throw Object.assign(new Error('Supervisor is shutting down.'),
       { code: 'ERR_TUI_SHUTTING_DOWN' });
@@ -54,9 +55,9 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * @param {string} jobId
    * @returns {void}
    */
-  const cleanupFinalizedJob = (jobId) => {
+  const cleanupFinalizedJob = (jobId, expectedJob = null) => {
     const job = getJob(jobId);
-    if (!job || !job.finalized) return;
+    if (!job || !job.finalized || (expectedJob && job !== expectedJob)) return;
     state.jobs.delete(jobId);
   };
 
@@ -89,12 +90,17 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
   const emitArtifacts = async (job, request, { cwd } = {}) => {
     try {
       const artifacts = await collectJobArtifacts({ request, cwd });
+      const inventory = job.artifactGeneration && captureArtifactInventory
+        ? await captureArtifactInventory({ sourceJobId: job.id, generation: job.artifactGeneration, artifacts })
+        : { artifacts };
+      if (getJob(job.id) !== job) return;
       emit('job:artifacts', {
-        artifacts,
+        ...inventory,
         artifactsIndexed: true,
         source: 'supervisor'
       }, { jobId: job.id });
     } catch (error) {
+      if (getJob(job.id) !== job) return;
       emit('job:artifacts', {
         artifacts: [],
         artifactsIndexed: false,
@@ -146,6 +152,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       timedOut: false,
       finalized: false
     };
+    job.artifactGeneration = beginArtifactJob?.(jobId) ?? null;
     state.jobs.set(jobId, job);
 
     emit('job:start', {
@@ -342,7 +349,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       });
     }).finally(() => {
       job.status = job.status === 'cancelled' ? 'cancelled' : (job.status || 'done');
-      cleanupFinalizedJob(jobId);
+      cleanupFinalizedJob(jobId, job);
     });
   };
 
@@ -431,7 +438,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       finish({ status: aborted && !job.timedOut ? 'cancelled' : 'failed', exitCode: null, result: null,
         error: { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
           : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
-    }).finally(() => { clearTimeout(timer); cleanupFinalizedJob(jobId); });
+    }).finally(() => { clearTimeout(timer); cleanupFinalizedJob(jobId, job); });
   };
 
   return {

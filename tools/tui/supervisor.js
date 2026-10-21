@@ -7,6 +7,7 @@ import { createEventLogRecorder, createFlowController } from './supervisor/proto
 import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
 import { createCli } from '../../src/shared/cli.js';
 import { assertTuiControlReason } from '../../src/contracts/validators/tui-request.js';
+import { createTuiArtifactRegistry } from './operator/artifact-registry.js';
 
 createCli({
   scriptName: 'pairofcleats tui supervisor',
@@ -90,6 +91,8 @@ const buildSessionDescriptor = () => ({
   controllable: true
 });
 
+const artifactRegistry = createTuiArtifactRegistry();
+
 const {
   startJob,
   startOperation,
@@ -101,7 +104,9 @@ const {
   root: ROOT,
   emit,
   emitLog,
-  buildFlowSnapshot
+  buildFlowSnapshot,
+  beginArtifactJob: id => /^[a-zA-Z0-9_-]{1,128}$/.test(id) ? artifactRegistry.beginJob(id) : null,
+  captureArtifactInventory: artifactRegistry.capture
 });
 
 let runtimeMetricsTimer = null;
@@ -134,6 +139,17 @@ const runSearch = async (request, context) => {
   return searchSession[methods[request.method]](request.params, context);
 };
 
+let artifactActions = null, artifactModules = null;
+const runArtifact = async (request, context) => {
+  artifactModules ||= Promise.all([import('./operator/artifacts.js'),
+    import('../../src/contracts/validators/tui-artifact.js')]);
+  const [actions, contracts] = await artifactModules;
+  contracts.assertTuiArtifactRequest('dispatch', request);
+  contracts.assertTuiArtifactRequest(request.method, request.params);
+  artifactActions ||= actions.createTuiArtifactActions({ registry: artifactRegistry, toolRoot: ROOT });
+  return artifactActions.execute(request.method, request.params, context);
+};
+
 /**
  * Gracefully cancel all jobs and terminate supervisor process.
  *
@@ -161,6 +177,8 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
   }
   settingsSession?.dispose();
   await searchSession?.dispose();
+  await artifactRegistry.dispose();
+  await artifactActions?.dispose();
   eventLogRecorder?.finalize(reason);
   process.exit(exitCode);
 };
@@ -226,6 +244,15 @@ const handleRequest = async (request) => {
         { title: 'Search', isCommitted: data => data?.opened === true });
     } catch {
       emitLog(null, 'error', 'Search request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'artifact:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runArtifact(request, context),
+        { title: 'Artifact', isCommitted: data => data?.opened === true || data?.copied === true || data?.exported === true });
+    } catch {
+      emitLog(null, 'error', 'Artifact request was not admitted.');
     }
     return;
   }

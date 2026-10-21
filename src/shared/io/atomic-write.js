@@ -141,14 +141,19 @@ const resolveAtomicWriteTarget = (targetPath) => {
  *
  * @param {string} targetPath
  * @param {string|Buffer} payload
- * @param {{mkdir?:boolean,mode?:number,encoding?:string}} [options]
+ * @param {{mkdir?:boolean,mode?:number,encoding?:string,signal?:AbortSignal,
+ * createOnly?:boolean,verifyStaging?:Function,beforeCommit?:Function,verifyPublished?:Function}} [options]
  * @returns {Promise<string|null>}
  */
 const writeAtomicPayload = async (targetPath, payload, {
   mkdir = true,
   mode = undefined,
   encoding = 'utf8',
-  signal = null
+  signal = null,
+  createOnly = false,
+  verifyStaging = null,
+  beforeCommit = null,
+  verifyPublished = null
 } = {}) => {
   throwIfAborted(signal);
   const resolvedTarget = resolveAtomicWriteTarget(targetPath);
@@ -162,26 +167,53 @@ const writeAtomicPayload = async (targetPath, payload, {
     await fs.mkdir(path.dirname(tempPath), { recursive: true });
   }
   let handle = null;
+  let publishedIdentity = null, published = false;
   try {
     handle = await openWithRetry(tempPath, 'wx', mode);
+    await verifyStaging?.(handle, tempPath);
+    throwIfAborted(signal);
     if (Buffer.isBuffer(payload)) {
       await handle.writeFile(payload);
     } else {
       await handle.writeFile(String(payload), { encoding });
     }
     await handle.sync();
-    await handle.close();
-    handle = null;
-    await replaceFile(tempPath, safeTargetPath, {
-      keepBackup: false,
-      signal,
-      onExdevFallback: () => {
-        recordExdevFallback(safeTargetPath);
-      }
-    });
+    await beforeCommit?.(handle, tempPath);
+    throwIfAborted(signal);
+    if (createOnly) {
+      // Same-directory hard-link publication is atomic and fails if the name
+      // already exists. Never fall back to an overwriting rename or copy.
+      publishedIdentity = await handle.stat({ bigint: true });
+      await fs.link(tempPath, safeTargetPath);
+      published = true;
+      await verifyPublished?.(handle, safeTargetPath);
+      await handle.close();
+      handle = null;
+      await removeTempPath(tempPath);
+    } else {
+      await handle.close();
+      handle = null;
+      await replaceFile(tempPath, safeTargetPath, {
+        keepBackup: false,
+        signal,
+        onExdevFallback: () => {
+          recordExdevFallback(safeTargetPath);
+        }
+      });
+    }
     await syncParentDirectory(safeTargetPath);
     return safeTargetPath;
   } catch (err) {
+    if (published) {
+      // Roll back only the new name that still identifies our opened object.
+      // A replacement or link installed by somebody else is never unlinked.
+      try {
+        const current = await fs.lstat(safeTargetPath, { bigint: true });
+        if (!current.isSymbolicLink() && current.dev === publishedIdentity.dev && current.ino === publishedIdentity.ino) {
+          await fs.unlink(safeTargetPath);
+        }
+      } catch {}
+    }
     if (handle) {
       try { await handle.close(); } catch {}
     }

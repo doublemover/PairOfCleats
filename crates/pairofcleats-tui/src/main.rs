@@ -3376,6 +3376,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     apply_workload_descriptor(model, &event);
     if event_name == "hello" {
         let search_was_available = model.repository_search.available;
+        model.job_inspection.available = event["capabilities"]["supportsArtifactActions"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
         model.repository_search.available = event["capabilities"]["supportsSearch"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
@@ -3401,9 +3404,14 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         }
     }
     if event_name == "session:attach" {
+        model.job_inspection.available = false;
         model.repository_search.available = false;
         model.settings.available = false;
         apply_session_descriptor(model, &event);
+    }
+    if model.job_inspection.event(&event) {
+        model.dirty = true;
+        return;
     }
     if model.repository_search.event(&event) {
         model.dirty = true;
@@ -3911,6 +3919,9 @@ fn main() -> anyhow::Result<()> {
             while let Some(request) = model.repository_search.outbox.pop_front() {
                 send_request(&mut supervisor, request)?;
             }
+            while let Some(request) = model.job_inspection.outbox.pop_front() {
+                send_request(&mut supervisor, request)?;
+            }
         }
         Ok(())
     })();
@@ -3928,6 +3939,38 @@ fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod redraw_tests {
     use super::*;
+
+    #[test]
+    fn runtime_metrics_update_telemetry_without_entering_user_logs() {
+        let mut model = model();
+        model.logs.clear();
+        apply_protocol_event(
+            &mut model,
+            json!({"event":"log","jobId":"selected",
+            "message":"retained user log","level":"info"}),
+            0,
+        );
+        let before = model.telemetry.processed_events;
+        for _ in 0..100 {
+            apply_protocol_event(
+                &mut model,
+                json!({"event":"runtime:metrics","flow":{"queueDepth":42}}),
+                0,
+            );
+        }
+        assert_eq!(model.telemetry.processed_events, before + 100);
+        assert!(model.telemetry.queue_depth_ewma > 0.0);
+        assert_eq!(model.logs.len(), 1);
+        assert_eq!(model.logs[0].text, "retained user log");
+        assert_eq!(model.logs[0].job_id.as_deref(), Some("selected"));
+        apply_protocol_event(
+            &mut model,
+            json!({"event":"log","message":"session log","level":"info"}),
+            0,
+        );
+        assert_eq!(model.logs.len(), 2);
+        assert_eq!(model.logs[1].job_id, None);
+    }
 
     #[test]
     fn an_open_search_recovers_when_its_real_control_handshake_arrives() {

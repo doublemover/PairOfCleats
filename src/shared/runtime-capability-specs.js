@@ -103,7 +103,8 @@ export const TUI_SUPERVISOR_CAPABILITY_SPEC = Object.freeze({
   supportsFlowControl: true,
   supportsChunking: true,
   supportsSettings: true,
-  supportsSearch: true
+  supportsSearch: true,
+  supportsArtifactActions: true
 });
 
 export const RISK_FEATURES = Object.freeze({

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { bindArtifactScope } from '../operator/artifact-registry.js';
 import { resolveDispatchRequest } from '../../../src/shared/dispatch/resolve.js';
 import {
   getIndexDir,
@@ -182,5 +183,7 @@ export const collectJobArtifacts = async ({ request, cwd }) => {
 
   return artifacts
     .slice()
-    .sort((a, b) => `${a.kind}|${a.path}`.localeCompare(`${b.kind}|${b.path}`));
+    .sort((a, b) => `${a.kind}|${a.path}`.localeCompare(`${b.kind}|${b.path}`))
+    .map(row => bindArtifactScope(row, { repoRoot,
+      root: row.kind === 'config:file' ? repoRoot : getRepoCacheRoot(repoRoot, userConfig) }));
 };

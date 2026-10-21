@@ -1163,3 +1163,10 @@ tooling/api-contracts/export-identity-cli/js-report
 tooling/api-contracts/export-identity-cli/ts-report
 tooling/api-contracts/export-identity-cli/js-fail
 tooling/api-contracts/export-identity-cli/ts-fail
+ci/native-inspection-workflow
+shared/contained-file-pinned-identity
+shared/io/atomic-exclusive-write
+tui/artifact-registry-authority
+tui/operator-artifacts
+tui/operator-artifact-file-authority
+tui/supervisor-artifact-generation-cleanup

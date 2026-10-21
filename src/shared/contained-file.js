@@ -32,7 +32,7 @@ export const assertNoSymlinkPath = (root, target, { allowMissing = false } = {})
   return lexicalTarget;
 };
 
-const verifyHandle = (fd, root, target) => {
+const verifyHandle = (fd, root, target, expectedFileIdentity = null) => {
   assertNoSymlinkPath(root, target);
   const opened = fs.fstatSync(fd, { bigint: true });
   const current = fs.statSync(target, { bigint: true });
@@ -40,12 +40,15 @@ const verifyHandle = (fd, root, target) => {
     throw Object.assign(new Error('Repository path is a directory.'), { code: 'EISDIR' });
   }
   if (!opened.isFile() || opened.dev !== current.dev || opened.ino !== current.ino) throw unsafePath();
+  if (expectedFileIdentity && (opened.dev.toString() !== expectedFileIdentity.dev
+    || opened.ino.toString() !== expectedFileIdentity.ino)) throw changedFile();
   // Linux resolves the actual opened object, not the now mutable pathname.
   // Other platforms retain no-follow + canonical and descriptor-identity checks.
   if (process.platform === 'linux') {
     const actual = fs.realpathSync(`/proc/self/fd/${fd}`);
     if (!isPathWithinRoot(actual, fs.realpathSync(root))) throw unsafePath();
   }
+  return opened;
 };
 
 /** Recheck a retained opened object before committing streamed verification. */
@@ -56,24 +59,37 @@ export const verifyContainedFileHandle = (handleOrFd, root, target) => {
 
 const READ_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0);
 
-export const openContainedFileSync = (root, target) => {
+export const openContainedFileSync = (root, target, { expectedFileIdentity = null } = {}) => {
+  const identity = normalizeFileIdentity(expectedFileIdentity);
   assertNoSymlinkPath(root, target);
   const fd = fs.openSync(target, READ_FLAGS);
-  try { verifyHandle(fd, root, target); } catch (error) { fs.closeSync(fd); throw error; }
+  try { verifyHandle(fd, root, target, identity); } catch (error) { fs.closeSync(fd); throw error; }
   return fd;
 };
 
-export const openContainedFile = async (root, target) => {
+export const openContainedFile = async (root, target, { expectedFileIdentity = null } = {}) => {
+  const identity = normalizeFileIdentity(expectedFileIdentity);
   assertNoSymlinkPath(root, target);
   const handle = await fsPromises.open(target, READ_FLAGS);
-  try { verifyHandle(handle.fd, root, target); } catch (error) { await handle.close(); throw error; }
+  try { verifyHandle(handle.fd, root, target, identity); } catch (error) { await handle.close(); throw error; }
   return handle;
 };
 
 const changedFile = () => Object.assign(new Error('Repository file changed during its verified read.'), { code: 'ERR_FILE_CHANGED' });
 const identityKeys = ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'];
+const normalizeFileIdentity = (value) => {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+    || Object.keys(value).length !== 2 || !Object.hasOwn(value, 'dev') || !Object.hasOwn(value, 'ino')
+    || !['dev', 'ino'].every(key => typeof value[key] === 'string' && /^[0-9]{1,32}$/.test(value[key]))) {
+    throw new TypeError('Invalid exact opened-file identity.');
+  }
+  return Object.freeze({ dev: value.dev, ino: value.ino });
+};
 const normalizeReadOptions = ({ maxBytes = 64 * 1024 * 1024, expectedBytes = null,
-  expectedHash = null, hashAlgorithm = 'sha256', expectedStat = null, signal = null, metrics = null } = {}) => {
+  expectedHash = null, hashAlgorithm = 'sha256', expectedStat = null, expectedFileIdentity = null,
+  signal = null, metrics = null } = {}) => {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > bufferConstants.MAX_LENGTH) {
     throw new TypeError('A verified read requires a bounded nonnegative maxBytes.');
   }
@@ -86,7 +102,7 @@ const normalizeReadOptions = ({ maxBytes = 64 * 1024 * 1024, expectedBytes = nul
     throw new TypeError('Invalid verified file hash identity.');
   }
   return { maxBytes, expectedBytes, expectedHash: hash?.toLowerCase() ?? null,
-    hashAlgorithm, expectedStat, signal, metrics };
+    hashAlgorithm, expectedStat, expectedFileIdentity: normalizeFileIdentity(expectedFileIdentity), signal, metrics };
 };
 const admitRead = (stat, options) => {
   throwIfAborted(options.signal);
@@ -99,21 +115,26 @@ const admitRead = (stat, options) => {
 };
 const finishRead = (fd, root, target, before, after, buffer, bytesRead, options) => {
   throwIfAborted(options.signal);
-  verifyHandle(fd, root, target);
+  const opened = verifyHandle(fd, root, target, options.expectedFileIdentity);
   if (bytesRead !== before.size || identityKeys.some((key) => before[key] !== after[key])) throw changedFile();
   const hash = createHash(options.hashAlgorithm).update(buffer).digest('hex');
   if (options.metrics) options.metrics.verificationBytes = (options.metrics.verificationBytes || 0) + bytesRead;
   if (options.expectedHash !== null && hash !== options.expectedHash) {
     throw Object.assign(new Error('Contained file checksum does not match its pinned identity.'), { code: 'ERR_FILE_INTEGRITY' });
   }
-  return { buffer, hash, stat: after };
+  const result = { buffer, hash, stat: after };
+  // Exact descriptor identity is internal read authority, not serialized output.
+  Object.defineProperty(result, 'fileIdentity', {
+    value: Object.freeze({ dev: opened.dev.toString(), ino: opened.ino.toString() })
+  });
+  return result;
 };
 
 /** The returned bytes are exactly the bounded, contained descriptor bytes hashed here. */
 export const readVerifiedContainedFile = async (root, target, inputOptions = {}) => {
   const options = normalizeReadOptions(inputOptions);
   throwIfAborted(options.signal);
-  const handle = await openContainedFile(root, target);
+  const handle = await openContainedFile(root, target, options);
   try {
     const stat = await handle.stat();
     admitRead(stat, options);
@@ -132,7 +153,7 @@ export const readVerifiedContainedFile = async (root, target, inputOptions = {})
 export const readVerifiedContainedFileSync = (root, target, inputOptions = {}) => {
   const options = normalizeReadOptions(inputOptions);
   throwIfAborted(options.signal);
-  const fd = openContainedFileSync(root, target);
+  const fd = openContainedFileSync(root, target, options);
   try {
     const stat = fs.fstatSync(fd);
     admitRead(stat, options);

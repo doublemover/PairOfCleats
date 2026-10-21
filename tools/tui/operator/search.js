@@ -1,5 +1,4 @@
 import path from 'node:path';
-import fs from 'node:fs/promises';
 import { randomUUID, createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { createTuiSettingsSession } from './settings.js';
@@ -10,10 +9,7 @@ import { throwIfAborted } from '../../../src/shared/abort.js';
 import { createExcerptSourceContext, resolveExcerpt } from '../../../src/context-pack/excerpt-cache.js';
 import { getSearchRequestSchema } from '../../api/validation.js';
 import { readVerifiedContainedFile, assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
-import { isResolvedCommandTrusted } from '../../../src/shared/config-authority.js';
-import { findBinaryOnPath } from '../../../src/index/tooling/binary-utils.js';
-import { resolveEnvPath } from '../../../src/shared/env-path.js';
-import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
+import { resolveTrustedTuiCommand, runTrustedTuiCommand } from './command.js';
 
 const MODES = [['code', 'code'], ['prose', 'prose'], ['extractedProse', 'extracted-prose'], ['records', 'records']];
 const MAX_OUTPUT_BYTES = 768 * 1024;
@@ -169,27 +165,16 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => 
       const target = path.resolve(state.scope.configRoot, hit.file);
       await readVerifiedContainedFile(state.scope.configRoot, target, { signal, hashAlgorithm: 'sha1',
         expectedHash: request.sourceHash, maxBytes: 64 * 1024 * 1024 });
-      const command = findBinaryOnPath('code', resolveEnvPath(env));
-      if (!command) fail('ERR_TUI_EDITOR_MISSING', 'Install the VS Code command launcher to use this action.');
-      await fs.realpath(command);
-      if (!(await fs.stat(command)).isFile()) fail('ERR_TUI_EDITOR_MISSING', 'The editor launcher is not a regular file.');
-      if (!isResolvedCommandTrusted({ commandPath: command, repoRoot: state.scope.configRoot, toolRoot, env })) {
-        fail('ERR_TUI_EDITOR_UNTRUSTED', 'The selected repository does not have command execution authority.');
-      }
-      requireCurrent(request.resultId);
-      assertNoSymlinkPath(state.scope.configRoot, target);
-      throwIfAborted(signal);
+      const selected = await resolveTrustedTuiCommand({ names: ['code'], repoRoot: state.scope.configRoot,
+        toolRoot, env, prefix: 'ERR_TUI_EDITOR' });
       const line = Number.isSafeInteger(hit.startLine) && hit.startLine > 0 ? hit.startLine : 1;
       const args = ['--reuse-window', '--goto', `${target}:${line}:1`];
-      const invocation = process.platform === 'win32' ? resolveWindowsCmdInvocation(command, args, env) : { command, args };
-      const child = await spawnSubprocess(invocation.command, invocation.args, {
-        cwd: state.scope.configRoot, env: invocation.env || env, signal, onSpawn,
-        windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
-        timeoutMs: 5000, maxOutputBytes: 16 * 1024, stdio: ['ignore', 'pipe', 'pipe']
+      const child = await runTrustedTuiCommand({ selected, args, repoRoot: state.scope.configRoot,
+        env, signal, onSpawn, prefix: 'ERR_TUI_EDITOR', beforeSpawn: () => {
+          requireCurrent(request.resultId);
+          assertNoSymlinkPath(state.scope.configRoot, target);
+        }
       });
-      if (child.outputCapture?.stdout?.truncated || child.outputCapture?.stderr?.truncated) {
-        fail('ERR_TUI_EDITOR_OUTPUT', 'Editor launcher output exceeded its bound.');
-      }
       return { opened: true, editor: 'code', resultId: state.resultId, hitId: request.hitId,
         file: safeLabel(hit.file), line, diagnostics: safeText(child.stderr).slice(0, 8192) };
     }, signal);

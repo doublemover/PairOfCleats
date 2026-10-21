@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T07:02:25.704Z",
+  "generatedAt": "2026-10-21T08:32:44.591Z",
   "summary": {
     "lanes": 5,
-    "tests": 1388,
+    "tests": 1395,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 352,
+    "families": 358,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1314
+      "missingTests": 1321
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1163,
+      "totalTests": 1170,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1114
+        "missing": 1121
       }
     },
     {
@@ -469,6 +469,12 @@
       "unknownDurationCount": 7
     },
     {
+      "key": "shared/io",
+      "count": 7,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 7
+    },
+    {
       "key": "tooling/service",
       "count": 7,
       "knownDurationMs": 0,
@@ -488,12 +494,6 @@
     },
     {
       "key": "runner/harness",
-      "count": 6,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 6
-    },
-    {
-      "key": "shared/io",
       "count": 6,
       "knownDurationMs": 0,
       "unknownDurationCount": 6
@@ -830,6 +830,12 @@
     },
     {
       "key": "ci/markdown-link-check",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "ci/native-inspection-workflow",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -1687,6 +1693,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "shared/contained-file-pinned-identity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "shared/contained-file-verified-read",
       "count": 1,
       "knownDurationMs": 0,
@@ -2113,7 +2125,25 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "tui/artifact-registry-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "tui/cargo-invocation-policy",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-artifact-file-authority",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-artifacts",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2150,6 +2180,12 @@
     },
     {
       "key": "tui/operator-settings-request-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-artifact-generation-cleanup",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

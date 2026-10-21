@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1008,
+    "hero": 1014,
     "matrix": 108,
-    "meta": 46,
+    "meta": 47,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -6991,6 +6991,48 @@
     {
       "id": "tooling/api-contracts/export-identity-cli/ts-fail",
       "order": 1163,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/native-inspection-workflow",
+      "order": 1164,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "shared/contained-file-pinned-identity",
+      "order": 1165,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/io/atomic-exclusive-write",
+      "order": 1166,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/artifact-registry-authority",
+      "order": 1167,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-artifacts",
+      "order": 1168,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-artifact-file-authority",
+      "order": 1169,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-artifact-generation-cleanup",
+      "order": 1170,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
