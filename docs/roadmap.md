@@ -18,22 +18,19 @@ every issue and its acceptance. All 84 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Correctness issue #662 precedes remaining TUI feature work.
-Seventy-four issues have implemented repairs. JS/TS export identity (#666) now
-survives artifact production and export-only validation at `f2041e091`; 34 affected
-checks, the import budget and both full platform front gates pass. Real public-CLI
-cases retain named/aliased/anonymous default APIs and reject known bad API calls.
-Zero relation-boost weights/caps
-(#663) survive CLI, pipeline and scorer normalization at `c1571aaff`; all eleven
-affected checks and both platform front gates pass with ranking/explanation controls.
-API warning detection (#665) now
-survives a zero detail cap at `977818d40`; actual indexed public-CLI regressions
-retain failure exits, clean-input success and visible Markdown omission counts.
-Hit-list correlation (#664) now
-ranks the common subset at `97356f254`; actual model-report/parity consumers and
-both platform front gates pass. Dense-vector partial/zero-progress I/O
-(#667) is repaired at `c4139ac68`; nine affected checks and both full front gates
-pass on Windows/Linux, with original corruption and orphaned-temp witnesses.
+Seventy-five issues have implemented repairs. MinHash (#662) at `cfc5cbf9a`
+replaces correlated polynomial orderings with a calibrated, explicitly versioned
+family. Missing/old identities require rebuilding across memory, packed/streamed
+artifacts, SQLite and LMDB; incremental signature 12 and SQLite schema 16 retire
+old data. Windows affected cohorts, real workers, records, 100 required SQLite
+cases, serial latency/import checks and the full front gate pass. Both OSes pass
+the same 221 unique affected/contract cases; full deep/platform acceptance remains separate.
+The other five new correctness repairs have Windows/Linux affected checks and
+front gates: JS/TS export authority (#666, `f2041e091`), zero relation weights/caps
+(#663, `c1571aaff`), API warning detection at zero detail cap (#665, `977818d40`),
+common-subset hit correlation (#664, `97356f254`) and complete dense-vector I/O
+(#667, `c4139ac68`). Their public-command, invalid-input and failure receipts remain
+in the linked archive; no earlier green campaign qualifies the complete final tree.
 The linked receipt retains original
 failures, source identities, obsolete-code proofs, assertion mappings and every affected check; all
 issues remain open until their own acceptance and publication are verified.
@@ -139,8 +136,8 @@ were reversibly archived. See the [workspace layout](guides/setup.md#contributor
 
 Remaining execution order:
 
-1. Preserve the qualified Windows source and its negative/lifecycle regressions.
-   Rerun affected checks whenever owners change; do not inherit a whole-suite pass.
+1. Finish native index/setup/service/artifact/session/catalog workflows (#635–#640).
+   Preserve qualified regressions and rerun affected checks as owners change.
 2. Qualify Linux/macOS full deep behavior and supported native release targets.
    Keep Linux ELF positives distinct from Windows unsupported-platform coverage.
 3. Run optional backends, installed providers/models and representative corpus,
