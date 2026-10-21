@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {writeHnswIndex} from '../../../tools/build/embeddings/hnsw.js';
-const parent=process.env.PAIROFCLEATS_EMBEDDING_TEST_DIR||path.resolve('temp/tasks/retrieval-embedding-order');
+const parent=process.env.PAIROFCLEATS_EMBEDDING_TEST_DIR||path.resolve('.tmp/tasks/retrieval-embedding-order');
 await fs.mkdir(parent,{recursive:true});const folder=await fs.mkdtemp(path.join(parent,'graph-'));
 const canonical=Array.from({length:6},(_,id)=>new Uint8Array([180+id,150-id,120+id,90-id]));
 const hashes=[];

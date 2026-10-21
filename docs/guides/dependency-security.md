@@ -2,7 +2,7 @@
 
 ## Current checkout baseline
 
-The checkout now requires Node >=26.10.0 <27 and pins 26.10.0 in `.nvmrc` and workflows.
+The checkout now requires Node >=26.12.1 <27 and pins 26.12.1 in `.nvmrc` and workflows.
 Use `npm run bootstrap:ci` for locked setup; see the
 [runtime policy](node-runtime.md). The dated Node 24 and advisory inventories
 below retain their original provenance. Current acceptance belongs in the

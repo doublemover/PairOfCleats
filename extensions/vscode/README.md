@@ -39,7 +39,7 @@ Long-running workflows stream into the `PairOfCleats` output channel.
 
 ## Configuration
 
-Checkout JS commands require an external Node.js >=26.10.0 <27, independently
+Checkout JS commands require an external Node.js >=26.12.1 <27, independently
 of VS Code's embedded runtime. Set `pairofcleats.nodePath` to an absolute Node
 executable in User Settings, or leave it empty to use `node` from the editor
 process PATH. Workspace overrides and workspace environment values cannot select

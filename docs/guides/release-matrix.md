@@ -11,16 +11,16 @@ Define the authoritative release support matrix for workflow targets, Node runti
 
 | Target ID | Workflow target | Node | Required toolchains |
 | --- | --- | --- | --- |
-| `ubuntu` | `ubuntu-latest` | 26.10.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `windows` | `windows-latest` | 26.10.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `macos` | `macos-latest` | 26.10.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 26.10.0 | Rust 1.88.0, Cargo, Node, npm, Git |
+| `ubuntu` | `ubuntu-latest` | 26.12.1 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `windows` | `windows-latest` | 26.12.1 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `macos` | `macos-latest` | 26.12.1 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 26.12.1 | Rust 1.88.0, Cargo, Node, npm, Git |
 
 Notes:
 
 - New targets are unsupported until added to this table and validated by required jobs.
 - Required toolchains are hard requirements for release lanes. Missing toolchains fail fast.
-- `package.json` requires `node >=26.10.0 <27`; CI and release workflows pin `actions/setup-node` to `26.10.0`.
+- `package.json` requires `node >=26.12.1 <27`; CI and release workflows pin `actions/setup-node` to `26.12.1`.
 - The platform IDs match the CI job names and release TUI `release_id` values;
   `tui-rust-1.88` identifies the shared Rust toolchain rather than a workflow job.
 - [Node runtime policy](node-runtime.md) separates the application runtime,

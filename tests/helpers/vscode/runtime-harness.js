@@ -79,7 +79,7 @@ function createFakeSpawn(spawnCalls, queuedResults, killCalls, nodeProbeCalls, n
     spawnSync(command, args, options) {
       nodeProbeCalls.push({ command, args, options });
       return typeof nodeProbeResult === 'function' ? nodeProbeResult(command, args, options)
-        : nodeProbeResult || { status: 0, stdout: JSON.stringify({ version: '26.10.0', execPath: process.execPath }), stderr: '' };
+        : nodeProbeResult || { status: 0, stdout: JSON.stringify({ version: '26.12.1', execPath: process.execPath }), stderr: '' };
     },
     spawn(command, args, options) {
       const result = queuedResults.shift();

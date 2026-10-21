@@ -8,7 +8,7 @@ language, package/version, Node version and ABI for activated routes. Parsing a
 sample does not certify a compiler/LSP project or full language semantics. A
 loadable grammar that fails `setLanguage` is not parser-activated.
 
-Locked checkout bootstrap requires Node 26.10.0 or newer within 26.x and includes
+Locked checkout bootstrap requires Node 26.12.1 or newer within 26.x and includes
 development dependencies. Its required native
 verification now also creates two real node-pty sessions, checks child output and
 waits for natural process exit so a leaked ConPTY connection worker cannot hide
@@ -39,7 +39,7 @@ security policy. A successful bounded spawn/disposal probe remains required.
 
 The unified setup script (`pairofcleats setup`) guides you through installing optional dependencies and building indexes in one flow. It is interactive by default.
 
-First prepare the source checkout with Node >=26.10.0 <27 and `npm run bootstrap:ci`.
+First prepare the source checkout with Node >=26.12.1 <27 and `npm run bootstrap:ci`.
 The normal CLI requires verified bootstrap before it can start guided setup.
 Use `--skip-install` below to retain that locked dependency graph while selecting
 optional assets and index steps. The setup script's explicit install step uses
@@ -48,7 +48,7 @@ checkout bootstrap. See the [runtime policy](node-runtime.md).
 
 ## Contributor workspace files
 
-Disposable development outputs use `temp/dev/`, resolved by
+Disposable development outputs use `.tmp/dev/`, resolved by
 `tools/shared/dev-artifacts.js`. Test fixtures use `tests/helpers/test-cache.js`
 instead of constructing their own cache directory. Do not place generated
 inputs inside the checked-in `tests/fixtures` trees.
@@ -58,18 +58,18 @@ report-count bound.
 
 | Location | Owner and lifetime |
 | --- | --- |
-| `temp/dev/tests/cache/` | Disposable fixture inputs and indexes; each test owns its named or isolated child. |
-| `temp/dev/tests/coverage/` | Runner V8 coverage data and merged reports. |
-| `temp/dev/benchmarks/` | Disposable benchmark workspaces. Measured result artifacts use the benchmark's explicit output. |
-| `temp/dev/ci/cache/`, `temp/dev/ci/home/` | Isolated CI-suite cache and home defaults. |
+| `.tmp/dev/tests/cache/` | Disposable fixture inputs and indexes; each test owns its named or isolated child. |
+| `.tmp/dev/tests/coverage/` | Runner V8 coverage data and merged reports. |
+| `.tmp/dev/benchmarks/` | Disposable benchmark workspaces. Measured result artifacts use the benchmark's explicit output. |
+| `.tmp/dev/ci/cache/`, `.tmp/dev/ci/home/` | Isolated CI-suite cache and home defaults. |
 | `.testLogs/` | Runner receipts, latest pointer and CI artifacts; retain original failure evidence until its audit closes. |
 | `.diagnostics/` | Existing CI diagnostic artifact interface; workflows upload these receipts. |
-| `temp/tasks/<task>/` | Task-scoped dumps, dependency evidence and working receipts; retain provenance. |
+| `.tmp/tasks/<task>/` | Task-scoped dumps, dependency evidence and working receipts; retain provenance. |
 | OS application cache | Product models, tools and indexes, resolved by `src/shared/cache-roots.js`; contributor cleanup does not purge it. |
 
 All these workspace outputs are ignored by Git. `.git/` and `.github/` are
 repository metadata/source, not disposable caches. The legacy `.testCache/`,
-`tests/.cache/`, `.benchCache/`, `.c8/` and `.tmp/` ignore rules remain so old
+`tests/.cache/`, `.benchCache/`, `.c8/` and `temp/` ignore rules remain so old
 tools cannot accidentally stage generated files. Hosted workflows can still
 explicitly select ignored `.ci-cache/` roots for their cache actions. Old author caches are not
 clean-checkout test inputs. Stop their owning processes before cleanup and
@@ -124,7 +124,7 @@ receipts.
 - Command-probe caches bind the effective child environment and Node/ABI/platform identity as well as command, arguments and working directory. Only an environment digest is stored. Older cache entries without that context cannot establish readiness; raw environment values are not written to cache metadata. A different SDK or gem environment must obtain its own probe result. LSP semantic producer 13 also prevents derived replay from reusing the earlier launch meaning.
 - The gopls install recipe selects v0.24.0 and requires Go 1.27.0 or newer to build it. An older recognized SDK, an unavailable explicit `GOROOT`, or an unsatisfied `GOTOOLCHAIN` version pin blocks installation without silently replacing that selection. Probes and installation retain the existing no-download toolchain policy. Automatic managed SDK discovery also honors those explicit launcher pins. CI explicitly selects Go 1.27.3, binds and records its actual SDK root, then requires a real gopls initialize/shutdown exchange on each platform. These startup receipts do not qualify project semantics or latency.
 - The C# recipe selects csharp-ls 0.28.0. CI explicitly installs .NET SDK 10.0.113 into a job-owned directory and verifies its .NET 10.0.13 runtime, PATH selection, architecture-specific root and host path before installing the server. First-use development-certificate generation is disabled for these jobs. The server must report that same physical SDK during a real initialize/shutdown exchange. Go and C# startup qualification uses a fresh Node process, requires acknowledged shutdown, natural zero-status exit and reaping, and retains bounded diagnostics. Version/help detection alone remains separate from runtime qualification and semantic precision.
-- The stock PHPactor PHAR requires Linux/macOS with PHP 8.2+, POSIX and its declared extensions; Windows users must run that installation inside WSL. A native Windows install request reports the unsupported platform before probing/downloading, while an already available custom launcher remains separate. The recipe pins release 2026.10.07.0 and its reviewed publisher digest. Custom PHAR downloads still require an explicit digest and immutable source. Delivery uses the shared HTTPS/DNS/redirect owner, a single deadline across redirects and the existing 32 MiB cap. A redirect to a different origin still requires the existing launch-time `PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS` approval; the installer does not grant it automatically. Downloaded bytes and process success do not establish protocol readiness.
+- The stock PHPactor PHAR requires Linux/macOS with PHP 8.2+, POSIX and its declared extensions; Windows users must run that installation inside WSL. A native Windows install request reports the unsupported platform before probing/downloading, while an already available custom launcher remains separate. The recipe pins release 2026.12.17.0 and its reviewed publisher digest. Custom PHAR downloads still require an explicit digest and immutable source. Delivery uses the shared HTTPS/DNS/redirect owner, a single deadline across redirects and the existing 32 MiB cap. A redirect to a different origin still requires the existing launch-time `PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS` approval; the installer does not grant it automatically. Downloaded bytes and process success do not establish protocol readiness.
 - Linux/macOS CI explicitly selects PHP 8.4.26, verifies its required loaded extensions and records the physical executable/hash. Only the optional-install step grants the known GitHub asset origin; subsequent startup receives task-owned XDG directories. The runtime qualifier verifies the exact installed launcher and current PHAR digest before executing even its version probe, then requires matching protocol identity, acknowledged shutdown and natural exit. The pinned server's one informational startup line is retained; duplicate or unclassified diagnostics fail. Native Windows records the unsupported stock-package scope and its guard owner separately. Local Linux qualification with Ubuntu's PHP 8.3.6 is evidence for that supported runtime, separate from CI's 8.4.26 target.
 - The JSON summary includes a readiness receipt for the selected checks: `ready`, `degraded` for optional omissions, or `blocked` for required failures. Failed requested dependency/config/index/SQLite steps block completion. Optional download/tooling failures remain visible and no longer print an unconditional success message.
 - Interactive `--json` keeps questions on stderr and consumes answers from stdin; stdout contains one JSON summary. Ordinary interactive prompts remain on stdout.

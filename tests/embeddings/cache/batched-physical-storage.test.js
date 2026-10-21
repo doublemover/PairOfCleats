@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {readCacheIndex,writeCacheEntries,readCacheEntries,encodeCacheEntryPayload,
   createShardAppendHandlePool,createCacheBatchReader,flushCacheIndex,resolveCacheShardPath} from '../../../tools/build/embeddings/cache.js';
-const parent=process.env.PAIROFCLEATS_VECTOR_CACHE_TEST_DIR||path.resolve('temp/tasks/retrieval-vector-cache');
+const parent=process.env.PAIROFCLEATS_VECTOR_CACHE_TEST_DIR||path.resolve('.tmp/tasks/retrieval-vector-cache');
 await fs.mkdir(parent,{recursive:true});const dir=await fs.mkdtemp(path.join(parent,'cache-'));
 await fs.writeFile(path.join(dir,'preserved-source.log'),'owner log');
 const index=await readCacheIndex(dir,'fixture');

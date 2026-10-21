@@ -6,7 +6,7 @@ import { digest } from '../../../src/integrations/inference-history/common.js';
 import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { __setArchiveWorkerFactoryForTests } from '../../../src/integrations/inference-history/embedding-runtime.js';
-const base=path.resolve('temp/tasks/eg2-service-cancellation-tests');await fs.mkdir(base,{recursive:true});
+const base=path.resolve('.tmp/tasks/eg2-service-cancellation-tests');await fs.mkdir(base,{recursive:true});
 const root=await fs.mkdtemp(path.join(base,'case-'));const source=path.join(root,'artifacts-0001.json');
 await fs.writeFile(source,JSON.stringify(projectArtifact({text:'durable source evidence '.repeat(15),sourceSha256:'a'.repeat(64),locator:'source.txt',kind:'code',chunkChars:8000})));
 let entered,releaseWork,confirmExit,accepted=false,closed=false;

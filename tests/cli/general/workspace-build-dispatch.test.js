@@ -6,7 +6,7 @@ import { runNode } from '../../helpers/run-node.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
-const workspacePath = path.join(root, 'temp', 'workspace-build-dispatch.jsonc');
+const workspacePath = path.join(root, '.tmp', 'workspace-build-dispatch.jsonc');
 const env = applyTestEnv({ syncProcess: false });
 
 const runCli = (args, options = {}) => runNode(

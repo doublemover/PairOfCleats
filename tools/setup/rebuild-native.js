@@ -41,9 +41,9 @@ const TREE_SITTER_PERL_PATCH_MARKERS = [
 const root = process.cwd();
 const verifyOnly = process.argv.includes('--verify');
 const repairOnly = process.argv.includes('--repair');
-const [nodeMajor, nodeMinor] = process.versions.node.split('.').map(Number);
-if (nodeMajor !== 26 || nodeMinor < 10) {
-  console.error('[bootstrap] Node.js >=26.10.0 <27 is required for safe VM worker teardown.');
+const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split('.').map(Number);
+if (nodeMajor !== 26 || nodeMinor < 12 || (nodeMinor === 12 && nodePatch < 1)) {
+  console.error('[bootstrap] Node.js >=26.12.1 <27 is required for safe VM worker teardown.');
   process.exit(1);
 }
 

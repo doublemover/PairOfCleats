@@ -17,8 +17,8 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const runtime = () => ({ node: process.version, abi: process.versions.modules,
   platform: process.platform, arch: process.arch });
 const supportedNodeRuntime = () => {
-  const [major, minor] = process.versions.node.split('.').map(Number);
-  return major === 26 && minor >= 10;
+  const [major, minor, patch] = process.versions.node.split('.').map(Number);
+  return major === 26 && (minor > 12 || (minor === 12 && patch >= 1));
 };
 const readiness = (ready, reason = null) => ({
   ...buildReadinessReceipt({ items: [{ id: 'bootstrap', required: true,
@@ -57,7 +57,7 @@ const safeFile = (root, relative) => {
  * succeed. A receipt records evidence, not a substitute for current readiness.
  */
 export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [] } = {}) => {
-  if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.10.0 <27.');
+  if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
   root = fs.realpathSync(root);
   const pkg = JSON.parse(readBounded(path.join(root, 'package.json')));
   const declared = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).sort();
@@ -106,7 +106,7 @@ export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabil
 export const inspectBootstrapReadiness = async ({ root = ROOT } = {}) => {
   try {
     root = fs.realpathSync(root);
-    if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.10.0 <27.');
+    if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
     const file = path.join(root, BOOTSTRAP_RECEIPT);
     if (!fs.existsSync(file)) throw new Error('Verified bootstrap receipt is missing; installation is incomplete or has not been verified.');
     const receipt = JSON.parse(readBounded(file));
@@ -137,7 +137,7 @@ export const formatBootstrapRequired = (reason, root = ROOT) => [
   '======================================================================', reason,
   `In the PairOfCleats checkout (${root}), run:`, '', '  npm run bootstrap:ci', '',
   'For intentional dependency-resolution changes only: npm run bootstrap',
-  'Use Node.js >=26.10.0 <27. Bootstrap installs dependencies, applies required patches',
+  'Use Node.js >=26.12.1 <27. Bootstrap installs dependencies, applies required patches',
   'and rebuilds/verifies native modules. Nothing was installed automatically.',
   '======================================================================', ''
 ].join('\n');

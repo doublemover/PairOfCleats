@@ -16,6 +16,24 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
 {
+  const caseRoot = path.join(tempRoot, 'development-scratch');
+  await fs.mkdir(path.join(caseRoot, '.tmp'), { recursive: true });
+  await fs.mkdir(path.join(caseRoot, 'src'), { recursive: true });
+  await fs.writeFile(path.join(caseRoot, '.tmp', 'ordinary.js'), 'export const scratch = true;\n');
+  await fs.writeFile(path.join(caseRoot, 'src', 'retained.js'), 'export const source = true;\n');
+  for (const useDefaultSkips of [true, false]) {
+    const { ignoreMatcher } = await buildIgnoreMatcher({ root: caseRoot,
+      userConfig: { useDefaultSkips, useGitignore: false, usePairofcleatsIgnore: false } });
+    const entries = await discoverFiles({ root: caseRoot, mode: 'code', ignoreMatcher,
+      skippedFiles: [], maxFileBytes: null });
+    const rels = entries.map(entry => entry.rel);
+    assert.equal(rels.includes('src/retained.js'), true);
+    assert.equal(rels.includes('.tmp/ordinary.js'), !useDefaultSkips,
+      'scratch exclusion follows default skips while preserving the explicit override');
+  }
+}
+
+{
   const matcherRoot = path.join(os.tmpdir(), 'poc-ignore-matcher');
   const ignoreMatcher = ignore().add(['ignored/', 'only.txt']);
   const isIgnored = buildIgnoredMatcher({ root: matcherRoot, ignoreMatcher });

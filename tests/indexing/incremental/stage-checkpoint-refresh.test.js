@@ -7,7 +7,7 @@ import { sha1 } from '../../../src/shared/hash.js';
 import { loadIncrementalState, shouldReuseIncrementalIndex } from '../../../src/index/build/incremental/planning.js';
 import { loadCachedBundleForFile, writeBundleForFile } from '../../../src/index/build/file-processor/incremental.js';
 import { captureChunkingCheckpoint, resolveChunkingCheckpoint, resolveStageRefresh, preloadParseCheckpoints } from '../../../src/index/build/incremental/stage-reuse.js';
-const parent = process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR || path.resolve('temp/tasks/retrieval-dependencies');
+const parent = process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR || path.resolve('.tmp/tasks/retrieval-dependencies');
 await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'stage-checkpoint-'));
 const abs = path.join(root, 'source.js');

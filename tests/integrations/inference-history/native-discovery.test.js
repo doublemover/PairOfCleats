@@ -5,7 +5,7 @@ import { digest } from '../../../src/integrations/inference-history/common.js';
 import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { createHistoryAgentReader } from '../../../src/integrations/inference-history/agent-reader.js';
-const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR || path.join(process.cwd(),'temp','tasks','archive-discovery-tests');
+const base=process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR || path.join(process.cwd(),'.tmp','tasks','archive-discovery-tests');
 await fs.mkdir(base,{recursive:true});
 const root=await fs.realpath(await fs.mkdtemp(path.join(base,'fixture-')));
 const source=path.join(root,'artifacts-0001.json');

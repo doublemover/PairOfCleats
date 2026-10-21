@@ -96,7 +96,7 @@ or build requirements. The interfaces and references are linked below.
 
 ## Quickstart
 
-The current install path is a source checkout with **Node.js >=26.10.0 <27**
+The current install path is a source checkout with **Node.js >=26.12.1 <27**
 (prefer the exact `.nvmrc` pin), npm and Git. **Python 3 and supported C/C++
 build tools are mandatory**, even when other packages have prebuilt binaries:
 bootstrap always rebuilds the required patched Perl parser from source. This

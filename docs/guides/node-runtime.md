@@ -1,14 +1,14 @@
 # Node runtime policy
 
 Reconciled with the checked-in package, bootstrap guard and workflows on
-2026-10-18. Selected versions do not imply every platform has passed validation.
+2026-10-21. Selected versions do not imply every platform has passed validation.
 
 ## Application runtime
 
-- `package.json` and the lockfile require **Node >=26.10.0 <27**. The bootstrap
+- `package.json` and the lockfile require **Node >=26.12.1 <27**. The bootstrap
   readiness guard enforces that minimum; older Node releases cannot run this
   checkout normally.
-- `.nvmrc`, CI, nightly, CI Long, maintenance and release jobs pin **26.10.0**.
+- `.nvmrc`, CI, nightly, CI Long, maintenance and release jobs pin **26.12.1**.
   Keep native `node_modules` cache keys aligned with that version, OS,
   architecture, lockfile and patch set. The workflow contract reads `.nvmrc`
   and checks every Node pin and native-cache version.

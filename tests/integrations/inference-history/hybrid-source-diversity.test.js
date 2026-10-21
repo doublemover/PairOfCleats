@@ -11,7 +11,7 @@ import { historyIndexState } from '../../../src/integrations/inference-history/g
 import { updateHistoryPrivacy } from '../../../src/integrations/inference-history/privacy.js';
 import { createVisibleNodeReader } from '../../../src/integrations/inference-history/reader.js';
 import { readHistoryCandidates } from '../../../src/integrations/inference-history/reader.js';
-const base=path.resolve('temp/tasks/archive-retrieval-tests');await fs.mkdir(base,{recursive:true});
+const base=path.resolve('.tmp/tasks/archive-retrieval-tests');await fs.mkdir(base,{recursive:true});
 const root=await fs.mkdtemp(path.join(base,'diversity-'));
 const source=path.join(root,'artifacts-0001.json'),indexPath=path.join(root,'archive.sqlite');
 const records=[

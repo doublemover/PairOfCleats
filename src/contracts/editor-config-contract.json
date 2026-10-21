@@ -16,7 +16,7 @@
     "defaultCommand": "pairofcleats",
     "repoRelativeEntrypoint": "bin/pairofcleats.js",
     "jsEntrypointExtension": ".js",
-    "minimumNodeVersion": "26.10.0"
+    "minimumNodeVersion": "26.12.1"
   },
   "settings": {
     "vscode": {

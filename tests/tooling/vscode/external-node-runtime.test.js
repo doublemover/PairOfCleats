@@ -25,21 +25,24 @@ try {
       command: 'pairofcleats', jsExtension: '.js', nodePath: process.execPath
     });
     assert.equal(result.ok, true, result.message);
-    assert.equal(result.command, process.execPath, `embedded Node ${version} cannot run the checkout JS entry`);
+    assert.equal(result.command, fs.realpathSync(process.execPath), `embedded Node ${version} must select the canonical external executable`);
     assert.deepEqual(Array.from(result.argsPrefix), [entry, '--trace']);
   }
   const { resolveExternalNodeRuntime, resolveConfiguredCli } = runtimeRequire('./runtime.js');
   const probe = version => ({ status: 0, stdout: JSON.stringify({ version, execPath: process.execPath }), stderr: '' });
-  for (const version of ['18.17.1', '22.0.0', '24.0.0', '26.8.1', '26.9.9', '26.10.0-rc.1', '27.0.0']) {
+  for (const version of ['18.17.1', '22.0.0', '24.0.0', '26.8.1', '26.9.9', '26.10.0', '26.11.9', '26.12.0', '26.12.1-rc.1', '27.0.0']) {
     const result = resolveExternalNodeRuntime({ configuredPath: process.execPath, probe: () => probe(version) });
     assert.equal(result.ok, false, version);
-    assert.match(result.message, />=26\.10\.0 <27/);
+    assert.match(result.message, />=26\.12\.1 <27/);
   }
   for (const result of [{ status: 1 }, { status: 0, stdout: '{}' }, { status: 0, stdout: 'not JSON' },
     { error: { code: 'ENOENT' } }, { error: { code: 'ETIMEDOUT' } },
-    { ...probe('26.10.0'), stderr: 'unexpected runtime warning' },
-    { status: 0, stdout: JSON.stringify({ version: '26.10.0', execPath: './workspace-node' }) }]) {
+    { ...probe('26.12.1'), stderr: 'unexpected runtime warning' },
+    { status: 0, stdout: JSON.stringify({ version: '26.12.1', execPath: './workspace-node' }) }]) {
     assert.equal(resolveExternalNodeRuntime({ configuredPath: process.execPath, probe: () => result }).ok, false);
+  }
+  for (const version of ['26.12.1', '26.12.2', '26.13.0']) {
+    assert.equal(resolveExternalNodeRuntime({ configuredPath: process.execPath, probe: () => probe(version) }).ok, true, version);
   }
   let calls = 0;
   const forbiddenProbe = () => { calls += 1; throw new Error('unexpected probe'); };
@@ -95,7 +98,7 @@ try {
     const spec = incompatible.extension._test.OPERATOR_COMMAND_SPECS.find(value => value.id === 'pairofcleats.configDump');
     await incompatible.extension._test.runOperatorCommand(spec);
     assert.equal(incompatible.spawnCalls.length, 0, 'incompatible runtime blocks JS and script commands without host fallback');
-    assert.ok(incompatible.errorMessages.some(message => message.includes('>=26.10.0 <27')));
+    assert.ok(incompatible.errorMessages.some(message => message.includes('>=26.12.1 <27')));
   } finally { incompatible.restoreGlobals(); }
 
   const contract = runtimeRequire('./editor-config-contract.json');

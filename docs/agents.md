@@ -41,7 +41,7 @@ source mismatch.
 
 ## Install and validate deliberately
 
-Use Node.js >=26.10.0 <27 (`.nvmrc` pins CI), Git, npm, Python 3 and mandatory
+Use Node.js >=26.12.1 <27 (`.nvmrc` pins CI), Git, npm, Python 3 and mandatory
 [native build tools](guides/bootstrap-prerequisites.md). Run `npm run bootstrap:ci`
 for a source-checkout install with development dependencies, required patches
 and verified native rebuilds. Reserve `npm run bootstrap` for intentional

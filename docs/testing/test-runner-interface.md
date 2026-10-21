@@ -199,7 +199,7 @@ their own boundaries (218 cases total). There is no aggregate
 The runner sets or normalizes these env vars for child tests:
 
 - `PAIROFCLEATS_TESTING=1`
-- `PAIROFCLEATS_CACHE_ROOT` defaults to `temp/dev/tests/cache` if unset.
+- `PAIROFCLEATS_CACHE_ROOT` defaults to `.tmp/dev/tests/cache` if unset.
 - `PAIROFCLEATS_TEST_TIMEOUT_MS` is set to the resolved timeout unless already set and no CLI override is provided.
 - `PAIROFCLEATS_TEST_RETRIES` is set to the resolved retry count unless already set and no CLI override is provided.
 - `PAIROFCLEATS_TEST_LOG_DIR` is set to the run-specific log dir when `--log-dir` is provided or the env var was previously unset.

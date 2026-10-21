@@ -16,13 +16,15 @@ const run = (command, args, options) => {
     : command === 'c++' ? 'g++ 14.2.0' : ['python3', 'python', 'py', '/explicit/python'].includes(command) ? python : '';
   return { status: stdout ? 0 : 1, stdout };
 };
-const options = { nodeVersion: '26.10.0', platform: 'linux', arch: 'x64', env: {}, run };
-for (const nodeVersion of ['24.0.0', '26.0.0', '26.8.1', '26.9.9', '27.0.0', '26.10.0-rc.1', '26.10.invalid', 'unknown']) {
+const options = { nodeVersion: '26.12.1', platform: 'linux', arch: 'x64', env: {}, run };
+for (const nodeVersion of ['24.0.0', '26.0.0', '26.8.1', '26.9.9', '26.10.0', '26.11.9', '26.12.0', '27.0.0', '26.12.1-rc.1', '26.10.invalid', 'unknown']) {
   calls.length = 0;
-  assert.throws(() => runSetupPreflight({ ...options, nodeVersion }), /Node.js >=26.10.0 <27/);
+  assert.throws(() => runSetupPreflight({ ...options, nodeVersion }), /Node.js >=26.12.1 <27/);
   assert.equal(calls.length, 0, 'unsupported Node fails before any tool/install probe');
 }
-assert.equal(runSetupPreflight(options).python.version.join('.'), '3.13.3');
+for (const nodeVersion of ['26.12.1', 'v26.12.1', '26.12.2', '26.13.0']) {
+  assert.equal(runSetupPreflight({ ...options, nodeVersion }).python.version.join('.'), '3.13.3');
+}
 assert.equal(runSetupPreflight({ ...options, platform: 'darwin' }).toolchain.compiler.command, 'c++');
 for (const [missing, expected] of [[['git'], /Git is missing/], [['python3', 'python'], /Python 3.6\+/],
   [['make'], /Make is required/], [['c++', 'clang++', 'g++'], /C\/C\+\+ compiler/]]) {
@@ -59,10 +61,10 @@ assert.throws(() => runSetupPreflight({ ...windows, exists: file => file !== mis
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-bootstrap-preflight-'));
 try {
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-  assert.equal(manifest.engines.node, '>=26.10.0 <27');
-  assert.equal(fs.readFileSync('.nvmrc', 'utf8').trim(), '26.10.0');
+  assert.equal(manifest.engines.node, '>=26.12.1 <27');
+  assert.equal(fs.readFileSync('.nvmrc', 'utf8').trim(), '26.12.1');
   const readme = fs.readFileSync('README.md', 'utf8');
-  assert.match(readme, /Node\.js >=26\.10\.0 <27/);
+  assert.match(readme, /Node\.js >=26\.12\.1 <27/);
   assert.match(readme, /Python 3 and supported C\/C\+\+[\r\n ]+build tools are mandatory/);
   assert.match(readme, /bootstrap always rebuilds the required patched Perl parser from source/);
   for (const name of ['bootstrap', 'bootstrap:ci']) {

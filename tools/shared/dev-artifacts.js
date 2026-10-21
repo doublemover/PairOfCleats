@@ -14,7 +14,7 @@ const LAYOUT = Object.freeze({
 export const resolveDevelopmentArtifactPath = (root, category, ...segments) => {
   const layout = LAYOUT[category];
   if (!layout) throw new TypeError(`Unknown development artifact category: ${category}`);
-  const base = path.resolve(root, 'temp', 'dev', ...layout);
+  const base = path.resolve(root, '.tmp', 'dev', ...layout);
   const target = path.resolve(base, ...segments);
   const relative = path.relative(base, target);
   if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {

@@ -5,7 +5,7 @@ PairOfCleats integration for Sublime Text 3.
 ## Install
 
 1. Install the CLI from the [source checkout](../../README.md#quickstart), using
-   Node.js **>=26.10.0 <27** and `npm run bootstrap:ci` with development dependencies.
+   Node.js **>=26.12.1 <27** and `npm run bootstrap:ci` with development dependencies.
 2. Copy or symlink `sublime/PairOfCleats` into your Sublime `Packages` directory.
 3. Run `PairOfCleats: Open Settings` and set `pairofcleats_path` to the absolute path
    of that checkout's `bin/pairofcleats.js`. Set `node_path` if the required Node

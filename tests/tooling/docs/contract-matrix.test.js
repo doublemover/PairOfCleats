@@ -228,6 +228,7 @@ const expandSimpleBraceAlternates = (value) => {
     'benchmarks/',
     'rules/',
     'temp/',
+    '.tmp/',
     '.testLogs/',
     '.github/'
   ];

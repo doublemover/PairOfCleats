@@ -7,7 +7,7 @@ import { getRepoId } from '../../../tools/shared/dict-utils.js';
 import { runNode } from '../../helpers/run-node.js';
 import { readBundleFile } from '../../../src/shared/bundle-io.js';
 import { decodeIncrementalManifest } from '../../../src/index/build/incremental/manifest-codec.js';
-const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('temp/tasks/retrieval-dependencies');
+const parent=process.env.PAIROFCLEATS_DEPENDENCY_TEST_DIR||path.resolve('.tmp/tasks/retrieval-dependencies');
 await fs.mkdir(parent,{recursive:true});
 const root=await fs.mkdtemp(path.join(parent,'stage-build-'));
 const repo=path.join(root,'repo');

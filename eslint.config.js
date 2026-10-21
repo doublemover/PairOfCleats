@@ -12,6 +12,7 @@ export default [
       '.testCache/**',
       '.testLogs/**',
       'temp/**',
+      '.tmp/**',
       'tests/.cache/**',
       '**/.worktrees/**',
       '**/worktrees/**',

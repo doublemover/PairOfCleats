@@ -5,7 +5,7 @@ import path from 'node:path';
 import { applyPatches } from '../../../tools/setup/apply-patches.js';
 import { createPatchFixture, originalText, patchedText } from './patch-fixture.js';
 
-const suite = path.join(process.cwd(), 'temp', 'tasks', 'multifile-patch');
+const suite = path.join(process.cwd(), '.tmp', 'tasks', 'multifile-patch');
 await fs.mkdir(suite, { recursive: true });
 const root = await fs.mkdtemp(path.join(suite, 'case-'));
 const fixture = async name => createPatchFixture(path.join(root, name));

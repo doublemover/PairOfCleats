@@ -57,7 +57,7 @@ export const prepareTestCacheDir = async (name, { clean = true, root = process.c
 };
 
 /**
- * Prepare a uniquely-named isolated directory under `temp/dev/tests/cache`.
+ * Prepare a uniquely-named isolated directory under `.tmp/dev/tests/cache`.
  *
  * @param {string} baseName
  * @param {{root?:string,clean?:boolean}} [options]

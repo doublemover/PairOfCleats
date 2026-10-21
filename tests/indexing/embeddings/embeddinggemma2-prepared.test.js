@@ -6,8 +6,8 @@ import { __setTransformersModuleLoaderForTests, getEmbeddingAdapter } from '../.
 const options = normalizeEg2SessionOptions({
   intraOpNumThreads: 6, interOpNumThreads: 1, executionMode: 'sequential',
   extra: { 'session.intra_op.allow_spinning': '0' }, enableProfiling: true,
-  profileFilePrefix: process.cwd() + '/temp/tasks/eg2-runtime-tests/profile',
-  optimizedModelFilePath: process.cwd() + '/temp/tasks/eg2-runtime-tests/optimized.onnx'
+  profileFilePrefix: process.cwd() + '/.tmp/tasks/eg2-runtime-tests/profile',
+  optimizedModelFilePath: process.cwd() + '/.tmp/tasks/eg2-runtime-tests/optimized.onnx'
 });
 assert.ok(Object.isFrozen(options));
 assert.ok(Object.isFrozen(options.extra));

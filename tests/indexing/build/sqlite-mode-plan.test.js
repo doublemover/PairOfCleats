@@ -3,7 +3,7 @@ import path from 'node:path';
 import { resolveSqliteModePlan } from '../../../src/integrations/core/build-index/stages/sqlite-paths.js';
 import { PRIMARY_INDEX_MODES } from '../../../src/integrations/core/build-index/stages/modes.js';
 
-const root = path.resolve('temp/dev/tests/cache/sqlite-mode-plan');
+const root = path.resolve('.tmp/dev/tests/cache/sqlite-mode-plan');
 const sameGeneration = PRIMARY_INDEX_MODES.map(mode => ({ mode, indexRoot: root }));
 assert.deepEqual(resolveSqliteModePlan(sameGeneration), [{ mode: 'all', indexRoot: root }]);
 assert.equal(sameGeneration.length, 4, 'batch planning preserves the concrete authority inputs');

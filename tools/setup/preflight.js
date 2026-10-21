@@ -23,7 +23,8 @@ const fail = message => { throw new Error(`[bootstrap preflight] ${message} See 
 export const runSetupPreflight = ({ nodeVersion = process.versions.node, platform = process.platform,
   arch = process.arch, env = process.env, run = spawnSync, exists = fs.existsSync, directories = listDirectories } = {}) => {
   const runtimeVersion = /^v?26\.(\d+)\.(\d+)$/.exec(String(nodeVersion));
-  if (!runtimeVersion || Number(runtimeVersion[1]) < 10) fail(`Node.js >=26.10.0 <27 is required; found ${nodeVersion}. Use the .nvmrc pin before installing dependencies.`);
+  if (!runtimeVersion || (Number(runtimeVersion[1]) < 12
+    || (Number(runtimeVersion[1]) === 12 && Number(runtimeVersion[2]) < 1))) fail(`Node.js >=26.12.1 <27 is required; found ${nodeVersion}. Use the .nvmrc pin before installing dependencies.`);
   const probe = (command, args) => {
     try {
       const result = run(command, args, { env, encoding: 'utf8', timeout: 3000, maxBuffer: 65536, windowsHide: true });

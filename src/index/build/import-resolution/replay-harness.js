@@ -23,6 +23,8 @@ import { isKnownReasonCode, isKnownResolverStage } from './reason-codes.js';
 import { summarizeResolverPipelineStageElapsedPercentiles } from './stage-pipeline-metrics.js';
 
 export const DEFAULT_REPLAY_SCAN_ROOTS = Object.freeze([
+  '.tmp/dev/tests/cache', '.tmp/dev/benchmarks',
+  // Read-only discovery of historical reports does not recreate these roots.
   'temp/dev/tests/cache', 'temp/dev/benchmarks', '.testCache', '.benchCache'
 ]);
 export const DEFAULT_REPLAY_MAX_REPORTS = 256;

@@ -23,6 +23,7 @@ export const SKIP_DIRS = new Set([
   '.svelte-kit',
   '.testCache',
   '.testLogs',
+  '.tmp',
   '.turbo',
   '.tox',
   '.venv',

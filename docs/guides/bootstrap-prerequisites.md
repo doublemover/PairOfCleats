@@ -1,6 +1,6 @@
 # Source checkout prerequisites
 
-Install **Node >=26.10.0 <27**, preferably the exact `.nvmrc` version, npm and
+Install **Node >=26.12.1 <27**, preferably the exact `.nvmrc` version, npm and
 Git. Python 3 and supported C/C++ build tools are mandatory for every full
 bootstrap, including the low-resource sparse-search path. The patched required
 Perl parser is always rebuilt from source; other available prebuilts do not
@@ -32,7 +32,7 @@ sudo apt-get install git python3 make gcc-13 g++-13
 Ensure the selected compiler is available to node-gyp, for example
 `CC=gcc-13 CXX=g++-13 npm run bootstrap:ci` when using those versioned commands.
 Use your distribution's equivalent packages for other systems. The
-[Node 26 build table](https://github.com/nodejs/node/blob/v26.10.0/BUILDING.md#supported-toolchains)
+[Node 26 build table](https://github.com/nodejs/node/blob/v26.12.1/BUILDING.md#supported-toolchains)
 documents supported compiler families/versions; building Node itself has
 additional requirements beyond this checkout's native addons.
 

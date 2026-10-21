@@ -71,11 +71,12 @@ checks, including ten fresh worker cases and all seven original crash routes.
 Linux locked bootstrap is warning-free; chunk producer 3 retires stale meaning.
 The archive retains attribution, failures and exact-source receipts.
 
-Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
-26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node
-26.8.1 worker-teardown use-after-free. Superseded runtime and completed roadmap
+Runtime/setup now pins Node 26.12.1 with the same minimum within 26.x and locked
+bootstrap. This retains the fix for the captured Node 26.8.1 worker-teardown
+use-after-free. Superseded runtime and completed roadmap
 details are preserved in
-the [runtime archive](archived/node-runtime-policy-2026-10-05.md) and
+the [runtime archive](archived/node-runtime-policy-2026-10-05.md),
+[workspace update](archived/workspace-layout-node-2026-10-21.md) and
 [pre-maintenance roadmap](archived/roadmap-pre-maintenance-2026-10-18.md).
 The live npm audit reports zero known vulnerabilities; it is separate from
 hosted source-security scanning and release qualification.
@@ -131,7 +132,7 @@ proved-unused private test helpers were removed; no test or production entrypoin
 was deleted. Split wrappers retain their assertions, script claims and ordered
 membership. Exact NTFS identities, append-close draining and the descriptor-zero
 fixture have retained before/after proofs. Contributor caches and coverage use
-`temp/dev/`; original logs stay under ignored `.testLogs/`, and old caches
+`.tmp/dev/`; original logs stay under ignored `.testLogs/`, and old caches
 were reversibly archived. See the [workspace layout](guides/setup.md#contributor-workspace-files).
 
 Remaining execution order:
