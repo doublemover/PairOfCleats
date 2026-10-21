@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T03:18:39.464Z",
+  "generatedAt": "2026-10-21T03:56:03.057Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4462,6 +4462,7 @@
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",
+        "tests/shared/dense-vector-binary-writes.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",

@@ -85,34 +85,52 @@ export const writeDenseVectorBinaryFile = async ({
   const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
   const tempBinPath = createTempPath(binPath);
   await fsPromises.mkdir(path.dirname(binPath), { recursive: true });
-  const handle = await fsPromises.open(tempBinPath, 'w');
   try {
-    if (rowWidth > 0 && count > 0) {
-      const rowsPerChunk = Math.max(1, Math.floor(DENSE_BINARY_WRITE_CHUNK_BYTES / rowWidth));
-      const chunk = Buffer.alloc(rowsPerChunk * rowWidth);
-      let chunkRows = 0;
-      const flushChunk = async () => {
-        if (chunkRows <= 0) return;
-        const bytesToWrite = chunkRows * rowWidth;
-        await handle.write(chunk, 0, bytesToWrite);
-        chunkRows = 0;
-      };
-      for (let docId = 0; docId < count; docId += 1) {
-        const rowOffset = chunkRows * rowWidth;
-        fillDenseBinaryRow(chunk, rowOffset, rowWidth, vectors[docId]);
-        chunkRows += 1;
-        if (chunkRows >= rowsPerChunk) {
-          await flushChunk();
+    const handle = await fsPromises.open(tempBinPath, 'w');
+    try {
+      if (rowWidth > 0 && count > 0) {
+        const rowsPerChunk = Math.max(1, Math.floor(DENSE_BINARY_WRITE_CHUNK_BYTES / rowWidth));
+        const chunk = Buffer.alloc(rowsPerChunk * rowWidth);
+        let chunkRows = 0;
+        const flushChunk = async () => {
+          if (chunkRows <= 0) return;
+          const bytesToWrite = chunkRows * rowWidth;
+          let offset = 0;
+          while (offset < bytesToWrite) {
+            const remaining = bytesToWrite - offset;
+            const { bytesWritten } = await handle.write(chunk, offset, remaining);
+            if (!Number.isSafeInteger(bytesWritten) || bytesWritten <= 0 || bytesWritten > remaining) {
+              throw Object.assign(new Error('Dense vector write did not make valid forward progress.'),
+                { code: 'ERR_DENSE_VECTOR_SHORT_WRITE' });
+            }
+            offset += bytesWritten;
+          }
+          chunkRows = 0;
+        };
+        for (let docId = 0; docId < count; docId += 1) {
+          const rowOffset = chunkRows * rowWidth;
+          fillDenseBinaryRow(chunk, rowOffset, rowWidth, vectors[docId]);
+          chunkRows += 1;
+          if (chunkRows >= rowsPerChunk) {
+            await flushChunk();
+          }
         }
+        await flushChunk();
       }
-      await flushChunk();
+      await handle.sync();
+    } finally {
+      await handle.close();
     }
-    await handle.sync();
-  } finally {
-    await handle.close();
+    await replaceFile(tempBinPath, binPath);
+    return { count, rowWidth, totalBytes };
+  } catch (error) {
+    try { await fsPromises.rm(tempBinPath, { force: true }); }
+    catch (cleanupError) {
+      throw Object.assign(new AggregateError([error, cleanupError],
+        'Dense vector write and temporary cleanup failed.', { cause: error }), { code: error.code });
+    }
+    throw error;
   }
-  await replaceFile(tempBinPath, binPath);
-  return { count, rowWidth, totalBytes };
 };
 
 const hydrateDenseVectorFromBinaryBuffer = ({
