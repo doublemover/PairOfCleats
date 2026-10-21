@@ -119,6 +119,10 @@ struct SessionSnapshot {
     #[serde(default)]
     search_logs: String,
     selected_job: Option<String>,
+    #[serde(default)]
+    selected_job_pinned: bool,
+    #[serde(default)]
+    selected_job_expired: bool,
     job_scroll: usize,
     task_scroll: usize,
     log_scroll: usize,
@@ -152,6 +156,7 @@ struct SessionState {
     scope: String,
     connection: String,
     note: String,
+    controllable: bool,
 }
 
 #[derive(Clone)]
@@ -165,6 +170,7 @@ struct LogEntry {
     text: String,
     level: String,
     source: String,
+    job_id: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -508,6 +514,9 @@ enum InputCommand {
     Settings,
     RepositorySearch,
     CancelSelected,
+    SelectPreviousJob,
+    SelectNextJob,
+    FollowLatestJob,
     FocusNext,
     FocusJobs,
     FocusTasks,
@@ -541,11 +550,14 @@ struct AppModel {
     job_titles: BTreeMap<String, String>,
     job_order: VecDeque<String>,
     task_status: BTreeMap<String, String>,
+    task_identity: BTreeMap<String, (String, String)>,
     task_order: VecDeque<String>,
     logs: VecDeque<LogEntry>,
     alerts: VecDeque<AlertEntry>,
     session: SessionState,
     selected_job: Option<String>,
+    selected_job_pinned: bool,
+    selected_job_expired: bool,
     focus_panel: FocusPanel,
     follow_updates: bool,
     job_filter: JobFilter,
@@ -579,6 +591,7 @@ struct AppModel {
     input_queue: VecDeque<(u64, InputCommand)>,
     next_input_seq: u64,
     last_input_at: Instant,
+    last_key_at: Instant,
     last_input_token: String,
 }
 
@@ -596,6 +609,7 @@ impl AppModel {
             job_titles: BTreeMap::new(),
             job_order: VecDeque::new(),
             task_status: BTreeMap::new(),
+            task_identity: BTreeMap::new(),
             task_order: VecDeque::new(),
             logs: VecDeque::new(),
             alerts: VecDeque::new(),
@@ -608,8 +622,11 @@ impl AppModel {
                     .unwrap_or_else(|| ".".to_string()),
                 connection: "starting".to_string(),
                 note: "awaiting supervisor handshake".to_string(),
+                controllable: false,
             },
             selected_job: None,
+            selected_job_pinned: false,
+            selected_job_expired: false,
             focus_panel: FocusPanel::Jobs,
             follow_updates: true,
             job_filter: JobFilter::All,
@@ -643,15 +660,27 @@ impl AppModel {
             input_queue: VecDeque::new(),
             next_input_seq: 1,
             last_input_at: Instant::now() - Duration::from_millis(INPUT_DEBOUNCE_MS as u64),
+            last_key_at: Instant::now() - Duration::from_millis(INPUT_DEBOUNCE_MS as u64),
             last_input_token: String::new(),
         }
     }
 
     fn push_log_entry(&mut self, text: String, level: &str, source: &str) {
+        self.push_scoped_log_entry(text, level, source, None);
+    }
+
+    fn push_scoped_log_entry(
+        &mut self,
+        text: String,
+        level: &str,
+        source: &str,
+        job_id: Option<&str>,
+    ) {
         let entry = LogEntry {
             text,
             level: level.to_string(),
             source: source.to_string(),
+            job_id: job_id.map(str::to_owned),
         };
         if !self.follow_updates && !self.logs.is_empty() && matches_log_entry(self, &entry) {
             self.log_scroll = self.log_scroll.saturating_add(1);
@@ -723,6 +752,11 @@ impl AppModel {
             self.job_order.push_back(job_id.to_string());
             while self.job_order.len() > JOB_RING_LIMIT {
                 if let Some(old) = self.job_order.pop_front() {
+                    if self.selected_job_pinned
+                        && self.selected_job.as_deref() == Some(old.as_str())
+                    {
+                        self.selected_job_expired = true;
+                    }
                     self.job_status.remove(&old);
                     self.job_titles.remove(&old);
                 }
@@ -736,10 +770,35 @@ impl AppModel {
                     .insert(job_id.to_string(), next_title.trim().to_string());
             }
         }
-        if self.follow_updates || self.selected_job.is_none() {
+        if !self.selected_job_pinned {
             self.selected_job = Some(job_id.to_string());
+            self.selected_job_expired = false;
         }
         self.dirty = true;
+    }
+
+    fn begin_job_instance(&mut self, job_id: &str) {
+        if self.selected_job_pinned && self.selected_job.as_deref() == Some(job_id) {
+            self.selected_job_expired = true;
+        }
+        let old_tasks: Vec<_> = self
+            .task_identity
+            .iter()
+            .filter(|(_, (owner, _))| owner == job_id)
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in old_tasks {
+            self.task_status.remove(&key);
+            self.task_identity.remove(&key);
+        }
+        self.task_order
+            .retain(|key| self.task_status.contains_key(key));
+        self.logs
+            .retain(|entry| entry.job_id.as_deref() != Some(job_id));
+        if self.job_status.contains_key(job_id) {
+            self.job_order.retain(|id| id != job_id);
+            self.job_order.push_back(job_id.to_owned());
+        }
     }
 
     fn update_task_status(
@@ -749,12 +808,15 @@ impl AppModel {
         status: &str,
         message: Option<&str>,
     ) {
-        let key = format!("{job_id}:{task_id}");
+        let key = json!([job_id, task_id]).to_string();
         if !self.task_status.contains_key(&key) {
+            self.task_identity
+                .insert(key.clone(), (job_id.to_owned(), task_id.to_owned()));
             self.task_order.push_back(key.clone());
             while self.task_order.len() > TASK_RING_LIMIT {
                 if let Some(old) = self.task_order.pop_front() {
                     self.task_status.remove(&old);
+                    self.task_identity.remove(&old);
                 }
             }
         }
@@ -950,6 +1012,8 @@ fn load_snapshot(snapshot_path: &Path) -> Option<SessionSnapshot> {
 fn snapshot_from_model(model: &AppModel) -> SessionSnapshot {
     SessionSnapshot {
         selected_job: model.selected_job.clone(),
+        selected_job_pinned: model.selected_job_pinned,
+        selected_job_expired: model.selected_job_expired,
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
         log_scroll: model.log_scroll,
@@ -970,6 +1034,8 @@ fn restore_snapshot(model: &mut AppModel, snapshot: SessionSnapshot) {
     model.selected_job = snapshot
         .selected_job
         .filter(|id| model.job_status.contains_key(id));
+    model.selected_job_pinned = snapshot.selected_job_pinned && model.selected_job.is_some();
+    model.selected_job_expired = snapshot.selected_job_expired && model.selected_job.is_some();
     model.job_scroll = snapshot.job_scroll;
     model.task_scroll = snapshot.task_scroll;
     model.log_scroll = snapshot.log_scroll;
@@ -1083,7 +1149,7 @@ fn frame_signature(model: &AppModel) -> String {
     let logs: Vec<_> = model
         .logs
         .iter()
-        .map(|entry| (&entry.text, &entry.level, &entry.source))
+        .map(|entry| (&entry.text, &entry.level, &entry.source, &entry.job_id))
         .collect();
     let alerts: Vec<_> = model
         .alerts
@@ -1107,9 +1173,13 @@ fn frame_signature(model: &AppModel) -> String {
         "jobTitles": model.job_titles,
         "tasks": model.task_order,
         "taskStatus": model.task_status,
+        "taskIdentity": model.task_identity,
         "logs": logs,
         "alerts": alerts,
         "selectedJob": model.selected_job,
+        "selectedJobPinned": model.selected_job_pinned,
+        "selectedJobExpired": model.selected_job_expired,
+        "controllable": model.session.controllable,
         "scroll": [model.job_scroll, model.task_scroll, model.log_scroll],
         "search": [&model.search_jobs, &model.search_tasks, &model.search_logs],
         "searchTarget": model.search_target.label(),
@@ -1689,17 +1759,42 @@ fn operator_summary_text(model: &AppModel, width: usize) -> String {
                 "paused"
             }
         ),
-        format!("jobs {}", model.job_filter.label()),
-        format!("tasks {}", model.task_filter.label()),
         format!(
-            "logs {}/{}",
-            model.log_level_filter.label(),
-            model.log_source_filter.label()
+            "selected {} ({}){}",
+            model.selected_job.as_deref().unwrap_or("none"),
+            if model.selected_job_pinned {
+                "pinned"
+            } else {
+                "following"
+            },
+            if model.selected_job_expired
+                || model
+                    .selected_job
+                    .as_deref()
+                    .is_some_and(|id| !visible_job_ids(model).contains(&id))
+            {
+                " hidden/unavailable; cancel disabled"
+            } else {
+                ""
+            }
         ),
     ];
     let active_search = current_search(model, model.focus_panel);
     if !active_search.trim().is_empty() {
         parts.push(format!("search {}", active_search.trim()));
+    }
+    // Each panel already displays its filters. Preserve selected identity and
+    // the active text predicate before repeating those controls in wider views.
+    if width >= 120 {
+        parts.extend([
+            format!("jobs {}", model.job_filter.label()),
+            format!("tasks {}", model.task_filter.label()),
+            format!(
+                "logs {}/{}",
+                model.log_level_filter.label(),
+                model.log_source_filter.label()
+            ),
+        ]);
     }
     fit_text(&parts.join(" | "), width)
 }
@@ -1735,6 +1830,97 @@ fn list_viewport<T>(rows: Vec<T>, scroll: usize, height: usize) -> Vec<T> {
     rows.into_iter().skip(start).take(height).collect()
 }
 
+fn job_row_text(model: &AppModel, id: &str, status: &str) -> String {
+    let title = model.job_titles.get(id).map(String::as_str).unwrap_or("");
+    if title.is_empty() {
+        format!("{id} | {status}")
+    } else {
+        format!("{id} | {status} | {title}")
+    }
+}
+
+fn visible_job_ids(model: &AppModel) -> Vec<&str> {
+    model
+        .job_order
+        .iter()
+        .filter_map(|id| {
+            let status = model.job_status.get(id)?;
+            (matches_job_filter(status, model.job_filter)
+                && contains_query(&job_row_text(model, id, status), &model.search_jobs))
+            .then_some(id.as_str())
+        })
+        .collect()
+}
+
+fn select_job(model: &mut AppModel, direction: isize) {
+    let rows = visible_job_ids(model);
+    if rows.is_empty() {
+        model.push_alert(
+            "info",
+            "No visible job to select; the current selection is unchanged",
+        );
+        return;
+    }
+    let current = rows
+        .iter()
+        .position(|id| Some(*id) == model.selected_job.as_deref());
+    let index = match current {
+        Some(index) if direction < 0 => index.saturating_sub(1),
+        Some(index) => (index + 1).min(rows.len() - 1),
+        None if direction < 0 => rows.len() - 1,
+        None => 0,
+    };
+    let selected = rows[index].to_owned();
+    model.selected_job = Some(selected);
+    model.selected_job_pinned = true;
+    model.selected_job_expired = false;
+    model.job_scroll = index;
+    model.task_scroll = 0;
+    model.log_scroll = 0;
+    model.dirty = true;
+}
+
+fn follow_latest_job(model: &mut AppModel) {
+    let rows = visible_job_ids(model);
+    let index = rows.len().saturating_sub(1);
+    let selected = rows.last().map(|id| (*id).to_owned());
+    model.selected_job = selected;
+    model.job_scroll = index;
+    model.selected_job_pinned = false;
+    model.selected_job_expired = false;
+    model.task_scroll = 0;
+    model.log_scroll = 0;
+    model.dirty = true;
+}
+
+fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
+    let id = model.selected_job.clone()?;
+    if !model.session.controllable || model.session.mode != "supervised" {
+        model.push_alert(
+            "info",
+            "Cancellation requires the session's verified supervisor control channel",
+        );
+        return None;
+    }
+    if model.selected_job_expired {
+        model.push_alert(
+            "info",
+            "The selected job instance expired; explicitly reselect before cancelling",
+        );
+        return None;
+    }
+    if !visible_job_ids(model).contains(&id.as_str())
+        || !model
+            .job_status
+            .get(&id)
+            .is_some_and(|status| matches!(status.as_str(), "accepted" | "running"))
+    {
+        model.push_alert("info", "Select a visible running job before cancelling; hidden, expired and completed jobs are unchanged");
+        return None;
+    }
+    Some(json!({"proto":"poc.tui@1", "op":"job:cancel", "jobId":id, "reason":"user_cancel"}))
+}
+
 fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
     let mut rows = Vec::new();
     if model.job_order.is_empty() {
@@ -1748,18 +1934,15 @@ fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem
         if !matches_job_filter(status, model.job_filter) {
             continue;
         }
-        let title = model.job_titles.get(job_id).cloned().unwrap_or_default();
-        let rendered = if title.is_empty() {
-            format!("{job_id} | {status}")
-        } else {
-            format!("{job_id} | {status} | {title}")
-        };
+        let rendered = job_row_text(model, job_id, status);
         if !contains_query(&rendered, &model.search_jobs) {
             continue;
         }
         let style = if !model.terminal_caps.color {
             Style::default()
-        } else if model.selected_job.as_deref() == Some(job_id.as_str()) {
+        } else if !model.selected_job_expired
+            && model.selected_job.as_deref() == Some(job_id.as_str())
+        {
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
@@ -1782,11 +1965,61 @@ fn build_job_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem
     list_viewport(rows, model.job_scroll, height)
 }
 
+fn render_job_panel(frame: &mut ratatui::Frame<'_>, model: &AppModel, area: ratatui::layout::Rect) {
+    let height = area.height.saturating_sub(2) as usize;
+    let query = model.search_jobs.trim();
+    let list = List::new(build_job_rows(
+        model,
+        area.width.saturating_sub(2) as usize,
+        height,
+    ))
+    .block(panel_block(
+        block_title(
+            "Jobs",
+            model.focus_panel == FocusPanel::Jobs,
+            &[
+                format!("filter {}", model.job_filter.label()),
+                if query.is_empty() {
+                    String::new()
+                } else {
+                    format!("search {query}")
+                },
+            ],
+        ),
+        model.focus_panel == FocusPanel::Jobs,
+        model.terminal_caps.color,
+    ));
+    frame.render_widget(list, area);
+    if model.selected_job_expired || area.width < 2 || height == 0 {
+        return;
+    }
+    let ids = visible_job_ids(model);
+    let start = model.job_scroll.min(ids.len().saturating_sub(height));
+    if let Some(index) = ids
+        .iter()
+        .position(|id| Some(*id) == model.selected_job.as_deref())
+    {
+        if index >= start && index < start + height {
+            // Mark the border, preserving the existing interior text/column budget.
+            frame.buffer_mut()[(area.x, area.y + 1 + (index - start) as u16)].set_symbol(">");
+        }
+    }
+}
+
 fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
+    if model.selected_job_expired {
+        return vec![ListItem::new(fit_text(
+            "Selected job instance expired; reselect a visible job",
+            width,
+        ))];
+    }
     let selected_job = model.selected_job.clone().unwrap_or_default();
     let mut rows = Vec::new();
     for key in &model.task_order {
-        if !selected_job.is_empty() && !key.starts_with(&format!("{selected_job}:")) {
+        let identity = model.task_identity.get(key);
+        if !selected_job.is_empty()
+            && identity.map(|(owner, _)| owner.as_str()) != Some(selected_job.as_str())
+        {
             continue;
         }
         let Some(status) = model.task_status.get(key) else {
@@ -1795,7 +2028,7 @@ fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListIte
         if !matches_task_filter(status, model.task_filter) {
             continue;
         }
-        let task_name = key.rsplit(':').next().unwrap_or(key);
+        let task_name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
         let rendered = format!("{task_name} | {status}");
         if !contains_query(&rendered, &model.search_tasks) {
             continue;
@@ -1870,7 +2103,10 @@ fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
 }
 
 fn matches_log_entry(model: &AppModel, entry: &LogEntry) -> bool {
-    matches_log_level_filter(&entry.level, model.log_level_filter)
+    (entry.job_id.is_none()
+        || (!model.selected_job_expired
+            && (model.selected_job.is_none() || entry.job_id == model.selected_job)))
+        && matches_log_level_filter(&entry.level, model.log_level_filter)
         && matches_log_source_filter(&entry.source, model.log_source_filter)
         && contains_query(&render_log_entry(entry), &model.search_logs)
 }
@@ -1904,7 +2140,9 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         "f cycle filter for focused panel",
         "/ search within focused panel",
         "x clear search for focused panel",
-        "p toggle follow/pause",
+        "p toggle log follow/pause",
+        "[ / ] select and pin previous / next visible job",
+        "Up/Down select jobs when jobs panel has focus; g follow latest job",
         ": open action palette",
         "? close help",
         "R search a repository and inspect results",
@@ -2080,31 +2318,9 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(40),
             ])
             .split(rows[5]);
-        let jobs_width = stacked[0].width.saturating_sub(2) as usize;
         let tasks_width = stacked[1].width.saturating_sub(2) as usize;
         let logs_width = stacked[2].width.saturating_sub(2) as usize;
-        let jobs = List::new(build_job_rows(
-            model,
-            jobs_width,
-            stacked[0].height.saturating_sub(2) as usize,
-        ))
-        .block(panel_block(
-            block_title(
-                "Jobs",
-                model.focus_panel == FocusPanel::Jobs,
-                &[format!("filter {}", model.job_filter.label()), {
-                    let query = model.search_jobs.trim();
-                    if query.is_empty() {
-                        String::new()
-                    } else {
-                        format!("search {query}")
-                    }
-                }],
-            ),
-            model.focus_panel == FocusPanel::Jobs,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(jobs, stacked[0]);
+        render_job_panel(frame, model, stacked[0]);
         let tasks = List::new(build_task_rows(
             model,
             tasks_width,
@@ -2172,32 +2388,10 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             ])
             .split(rows[5]);
 
-        let jobs_width = cols[0].width.saturating_sub(2) as usize;
         let tasks_width = cols[1].width.saturating_sub(2) as usize;
         let logs_width = cols[2].width.saturating_sub(2) as usize;
 
-        let jobs = List::new(build_job_rows(
-            model,
-            jobs_width,
-            cols[0].height.saturating_sub(2) as usize,
-        ))
-        .block(panel_block(
-            block_title(
-                "Jobs",
-                model.focus_panel == FocusPanel::Jobs,
-                &[format!("filter {}", model.job_filter.label()), {
-                    let query = model.search_jobs.trim();
-                    if query.is_empty() {
-                        String::new()
-                    } else {
-                        format!("search {query}")
-                    }
-                }],
-            ),
-            model.focus_panel == FocusPanel::Jobs,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(jobs, cols[0]);
+        render_job_panel(frame, model, cols[0]);
 
         let tasks = List::new(build_task_rows(
             model,
@@ -2317,6 +2511,9 @@ fn draw_ui(
 
 fn apply_local_input(model: &mut AppModel, input: &str) {
     match input.trim() {
+        "select_previous_job" => select_job(model, -1),
+        "select_next_job" => select_job(model, 1),
+        "follow_latest_job" => follow_latest_job(model),
         "focus_next" => {
             model.focus_panel = model.focus_panel.next();
             model.dirty = true;
@@ -2728,16 +2925,8 @@ fn apply_palette_action(
             send_request(supervisor, sample_job_request(model, &job_id))?;
         }
         PaletteAction::CancelSelected => {
-            if let Some(job_id) = model.selected_job.clone() {
-                let _ = send_request(
-                    supervisor,
-                    json!({
-                        "proto": "poc.tui@1",
-                        "op": "job:cancel",
-                        "jobId": job_id,
-                        "reason": "user_cancel"
-                    }),
-                );
+            if let Some(request) = selected_job_cancel_request(model) {
+                send_request(supervisor, request)?;
             }
         }
         PaletteAction::ShowHelp => {
@@ -2761,17 +2950,9 @@ fn apply_palette_action(
     Ok(false)
 }
 
-fn enqueue_input(model: &mut AppModel, command: InputCommand, token: &str) {
-    let now = Instant::now();
-    if token == model.last_input_token
-        && now.duration_since(model.last_input_at).as_millis() < INPUT_DEBOUNCE_MS
-    {
-        return;
-    }
+fn enqueue_input(model: &mut AppModel, command: InputCommand, _token: &str) {
     let seq = model.next_input_seq;
     model.next_input_seq += 1;
-    model.last_input_at = now;
-    model.last_input_token = token.to_string();
     model.input_queue.push_back((seq, command));
 }
 
@@ -2910,6 +3091,8 @@ fn apply_session_descriptor(model: &mut AppModel, event: &Value) {
         .and_then(|value| value.as_str());
     let note = event.get("note").and_then(|value| value.as_str());
     model.update_session_state(mode, source, scope, connection, note);
+    model.session.controllable =
+        event["controllable"] == true && model.session.mode == "supervised";
     update_workload_from_scope(model);
 }
 
@@ -3170,6 +3353,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     }
     if let Some(job_id) = event.get("jobId").and_then(|value| value.as_str()) {
         if event_name == "job:start" || event_name == "job:spawn" {
+            if event_name == "job:start" {
+                model.begin_job_instance(job_id);
+            }
             let title = event.get("title").and_then(|value| value.as_str());
             model.update_job_status(job_id, "running", title);
         } else if event_name == "job:end" {
@@ -3256,7 +3442,12 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         None
     };
     apply_workload_fallbacks(model, &event_name, &event, fallback_log_message);
-    model.push_log_entry(log_line, &log_level, &log_source);
+    model.push_scoped_log_entry(
+        log_line,
+        &log_level,
+        &log_source,
+        event.get("jobId").and_then(Value::as_str),
+    );
 }
 
 fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
@@ -3274,6 +3465,18 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
         enqueue_input(model, InputCommand::Quit, "ctrl-c");
         return;
     }
+    // Debounce hardware repeat only. Distinct Press events (including pasted
+    // repeated letters) retain FIFO order and cannot reset the dispatch clock.
+    let token = format!("{:?}:{:?}", key.code, key.modifiers);
+    let now = Instant::now();
+    if key.kind == KeyEventKind::Repeat
+        && token == model.last_input_token
+        && now.duration_since(model.last_key_at).as_millis() < INPUT_DEBOUNCE_MS
+    {
+        return;
+    }
+    model.last_key_at = now;
+    model.last_input_token = token;
     match model.overlay {
         OverlayMode::RepositorySearch => {
             if model.repository_search.key(key) {
@@ -3320,6 +3523,19 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
             _ => {}
         },
         OverlayMode::None => match key.code {
+            KeyCode::Char('[') => {
+                enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job")
+            }
+            KeyCode::Char(']') => enqueue_input(model, InputCommand::SelectNextJob, "next-job"),
+            KeyCode::Up if model.focus_panel == FocusPanel::Jobs => {
+                enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job")
+            }
+            KeyCode::Down if model.focus_panel == FocusPanel::Jobs => {
+                enqueue_input(model, InputCommand::SelectNextJob, "next-job")
+            }
+            KeyCode::Char('g') => {
+                enqueue_input(model, InputCommand::FollowLatestJob, "follow-latest-job")
+            }
             KeyCode::Char('s') => enqueue_input(model, InputCommand::Settings, "settings-open"),
             KeyCode::Char('R') => enqueue_input(
                 model,
@@ -3366,6 +3582,9 @@ fn dispatch_input(
     let (_, cmd) = model.input_queue.pop_front().unwrap();
     model.last_input_at = Instant::now();
     match cmd {
+        InputCommand::SelectPreviousJob => select_job(model, -1),
+        InputCommand::SelectNextJob => select_job(model, 1),
+        InputCommand::FollowLatestJob => follow_latest_job(model),
         InputCommand::RepositorySearch => {
             model.repository_search.open(&model.session.scope);
             model.overlay = OverlayMode::RepositorySearch;
@@ -3467,16 +3686,8 @@ fn dispatch_input(
             send_request(supervisor, sample_job_request(model, &job_id))?;
         }
         InputCommand::CancelSelected => {
-            if let Some(job_id) = model.selected_job.clone() {
-                let _ = send_request(
-                    supervisor,
-                    json!({
-                        "proto": "poc.tui@1",
-                        "op": "job:cancel",
-                        "jobId": job_id,
-                        "reason": "user_cancel"
-                    }),
-                );
+            if let Some(request) = selected_job_cancel_request(model) {
+                send_request(supervisor, request)?;
             }
         }
         InputCommand::LogsUp => {
@@ -3789,6 +4000,13 @@ mod redraw_tests {
         original.follow_updates = false;
         let mut restored = model();
         restore_snapshot(&mut restored, snapshot_from_model(&original));
+        apply_protocol_event(
+            &mut restored,
+            json!({"event":"hello", "session":{
+            "mode":"supervised", "source":"local-supervisor", "controllable":true,
+            "connection":"connected"}}),
+            0,
+        );
         apply_protocol_event(
             &mut restored,
             json!({"event":"job:start", "jobId":"job-1", "title":"New session"}),

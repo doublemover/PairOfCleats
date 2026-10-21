@@ -108,6 +108,19 @@ The native view routes its own request IDs before foreground job selection and
 accepts settings only in a controllable supervised session. Configuration preview
 and observed runtime/provider qualification remain distinct.
 
+## Native job selection and input ownership
+
+Native job selection is separate from viewport scrolling and log follow. Manual
+selection stays pinned under concurrent job updates and filtering. Cancellation
+requires a visible running selection in a verified controllable supervised
+session; expired/reused identities must be reselected. Task identity is the exact
+job/task pair, including delimiter characters, and logs retain their job owner.
+Starting another instance of a completed job ID clears its prior task/log view
+and cannot rearm an old selection. Distinct key presses retain FIFO order;
+the 40 ms debounce applies only to hardware repeat. Enqueueing input cannot reset
+the separate dispatch clock. Release events and repeated global interrupts keep
+their existing suppression/shutdown semantics.
+
 ## Internal search requests
 
 The local supervisor advertises `supportsSearch` for `search:run`. The strict

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T01:14:04.177Z",
+  "generatedAt": "2026-10-21T01:55:41.678Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4825,6 +4825,7 @@
         "tests/tooling/reports/summary/report-json-error-contract.test.js",
         "tests/tooling/reports/summary/summary-build-case-helpers.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
+        "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/operator-search-file-authority.test.js",
         "tests/tui/operator-search-lifecycle.test.js",
@@ -4931,6 +4932,7 @@
         "tests/cli/general/unknown-workflow-options.test.js",
         "tests/helpers/native-tui-conpty.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/native-settings-conpty.test.js",
         "tests/tui/observability/supervisor-fixture.js",
@@ -4963,6 +4965,7 @@
         "bin/tui-wrapper-env.js",
         "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
+        "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"
@@ -4974,6 +4977,7 @@
         "bin/tui-wrapper-env.js",
         "src/shared/env/tui.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
+        "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/native-settings-conpty.test.js",
         "tests/tui/observability/supervisor-fixture.js",
@@ -4984,6 +4988,7 @@
       "name": "PAIROFCLEATS_TUI_SNAPSHOT_PATH",
       "files": [
         "tests/helpers/native-tui-conpty.js",
+        "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"
@@ -4995,6 +5000,7 @@
         "bin/tui-wrapper-env.js",
         "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
+        "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/native-settings-conpty.test.js",
         "tools/config/inventory.js"

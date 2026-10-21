@@ -29,10 +29,12 @@ Runtime controls:
   selected-job cancellation outside overlays.
 - `[Tab]` cycle focus between jobs, tasks, and logs
 - `[1]`, `[2]`, `[3]` focus jobs, tasks, or logs directly
+- `[` / `]` (bracket keys), or arrows while jobs have focus, select the previous/next visible job
+- `[g]` resume following newly updated jobs
 - `[f]` cycle the active panel filter
 - `[/]` filter text in the active panel
 - `[x]` clear the active search
-- `[p]` toggle follow live / pause selection drift
+- `[p]` toggle live log follow / pause the log viewport
 - `[:]` or `[a]` open the action palette
 - `[?]` open the in-app help overlay
 - `[j]/[k]` log viewport scroll
@@ -44,6 +46,16 @@ Jobs and tasks scroll through their filtered rows with `[n]/[u]` and return with
 lines in chronological order. `[j]` moves toward older matching entries and `[k]`
 returns toward newer ones. Pause preserves that filtered position as logs arrive;
 resuming follow returns to the newest entry. History remains bounded by the ring.
+
+Explicit job selection pins its identity as new events arrive; log pause/follow
+and viewport scrolling do not change that pin. `>` marks the selected row even
+without color. Tasks and job-specific logs belong to the selected job; session
+logs remain visible. Filters can hide a selection but cannot silently replace it.
+Cancel requires a visible running selection and the verified supervised control
+channel. An evicted selection or a reused completed job ID is unavailable until
+explicitly reselected; old task/log history cannot become the replacement's data.
+`[g]` releases the pin and selects the latest visible job. Recovery restores a
+selection only when that job is known in the current session.
 
 Quit and terminal errors request supervisor shutdown, drain final job events, and
 reap the supervisor within its ten-second grace. The native lifetime guard then

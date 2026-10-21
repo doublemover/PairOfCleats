@@ -2,6 +2,16 @@
 
 This directory contains protocol, supervisor, cancellation, install/wrapper, observability, frame-capture, and runtime throughput/backpressure tests for the TUI pipeline.
 
+`tui/native-job-selection-conpty` drives real native keys through an explicitly
+selected test transport into the actual supervisor. Two inert owned workers emit
+real progress/logs concurrently; a third exercises the controller's completed-ID
+reuse. It verifies stable pins, scoped tasks/logs, pause/resume, hidden/expired
+cancel rejection, exact cancellation, terminal restoration and six reaped PIDs.
+No supervisor result is fabricated. Rust controls separately retain colon-pair
+identity collisions, ring eviction, distinct/repeated keys, FIFO and snapshot
+recovery. This Windows-only qualification requires the pinned native build and
+ConPTY, outside ci-lite; it does not complete result/artifact inspection in #638.
+
 Rust tests run with the pinned 1.88.0 toolchain. Global interrupt cases inject real
 key events into the production input owner for every overlay and job state; plain
 `c` remains selected-job cancellation. These checks supplement native lifecycle
