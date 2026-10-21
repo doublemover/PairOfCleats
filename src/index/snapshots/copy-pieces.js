@@ -40,28 +40,29 @@ const copyFileWithFallback = async (srcPath, destPath, method) => {
   return { method: 'copy' };
 };
 
-const copyEntryPath = async ({ sourceIndexDir, targetIndexDir, relPath, method }) => {
+const copyEntryPath = async ({ sourceIndexDir, targetIndexDir, relPath, method, files, directories }) => {
+  if (files.has(relPath) || directories.has(relPath)) return;
   const sourcePath = path.join(sourceIndexDir, fromPosix(relPath));
   const targetPath = path.join(targetIndexDir, fromPosix(relPath));
   const stat = await fsPromises.stat(sourcePath);
   if (stat.isDirectory()) {
+    await fsPromises.mkdir(targetPath, { recursive: true });
+    directories.set(relPath, { sourcePath, targetPath });
     const entries = await fsPromises.readdir(sourcePath, { withFileTypes: true });
-    const results = [];
     for (const entry of entries) {
       const nestedRel = toPosix(path.posix.join(relPath, entry.name));
-      const nested = await copyEntryPath({ sourceIndexDir, targetIndexDir, relPath: nestedRel, method });
-      results.push(...nested);
+      await copyEntryPath({ sourceIndexDir, targetIndexDir, relPath: nestedRel, method, files, directories });
     }
-    return results;
+    return;
   }
   const copied = await copyFileWithFallback(sourcePath, targetPath, method);
-  return [{
+  files.set(relPath, {
     relPath,
     sourcePath,
     targetPath,
     bytes: stat.size,
     method: copied.method
-  }];
+  });
 };
 
 const parseChecksum = (value) => {
@@ -120,28 +121,57 @@ export const copySnapshotModeArtifacts = async ({
     relPathSet.add(relPath);
   }
 
-  const copiedFiles = [];
+  const byRelPath = new Map(), directories = new Map();
   for (const relPath of relPathSet) {
-    const copied = await copyEntryPath({
+    await copyEntryPath({
       sourceIndexDir,
       targetIndexDir,
       relPath,
-      method
+      method,
+      files: byRelPath,
+      directories
     });
-    copiedFiles.push(...copied);
   }
-
-  const byRelPath = new Map();
-  for (const copied of copiedFiles) {
-    byRelPath.set(copied.relPath, copied);
-  }
+  const copiedFiles = [...byRelPath.values()];
 
   let filesChecked = 0;
   let bytesChecked = 0;
+  const checked = new Set();
+  const recordChecked = (relPath, bytes) => {
+    if (checked.has(relPath)) return;
+    checked.add(relPath);
+    filesChecked += 1;
+    bytesChecked += bytes;
+  };
   if (verify !== false) {
     for (const piece of pieceEntries) {
       if (!isObject(piece) || typeof piece.path !== 'string') continue;
       const relPath = normalizeRelPath(piece.path, 'piece.path');
+      if (piece.format === 'dir') {
+        const directory = directories.get(relPath);
+        if (!directory || !(await fsPromises.stat(directory.targetPath)).isDirectory()) {
+          throw new Error(`Expected directory piece at destination: ${relPath}`);
+        }
+        for (const [nestedRel, nested] of directories) {
+          if (nestedRel.startsWith(`${relPath}/`) && !(await fsPromises.stat(nested.targetPath)).isDirectory()) {
+            throw new Error(`Expected directory piece at destination: ${nestedRel}`);
+          }
+        }
+        // Directory pieces deliberately have null size/checksum in the
+        // manifest. Verify every copied physical descendant instead of treating
+        // the directory itself as a missing regular-file entry.
+        for (const copied of copiedFiles.filter(entry => entry.relPath.startsWith(`${relPath}/`))) {
+          const targetStat = await fsPromises.stat(copied.targetPath);
+          if (!targetStat.isFile() || targetStat.size !== copied.bytes) {
+            throw new Error(`Piece size mismatch for ${copied.relPath}`);
+          }
+          if (await sha1File(copied.sourcePath) !== await sha1File(copied.targetPath)) {
+            throw new Error(`Checksum mismatch for directory piece ${relPath}: ${copied.relPath}`);
+          }
+          recordChecked(copied.relPath, targetStat.size);
+        }
+        continue;
+      }
       const copied = byRelPath.get(relPath);
       if (!copied) {
         throw new Error(`Copied piece missing from destination: ${relPath}`);
@@ -151,8 +181,7 @@ export const copySnapshotModeArtifacts = async ({
         throw new Error(`Piece size mismatch for ${relPath}: ${targetStat.size} != ${piece.bytes}`);
       }
       await verifyPieceChecksum({ targetPath: copied.targetPath, piece });
-      filesChecked += 1;
-      bytesChecked += Number(targetStat.size || 0);
+      recordChecked(relPath, Number(targetStat.size || 0));
     }
   }
 
