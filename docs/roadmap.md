@@ -24,9 +24,13 @@ issues remain open until their own acceptance and publication are verified.
 Canonical settings (#633) and repository search (#634) now connect the native
 keyboard path to real supervisor operations. Search includes ordered results,
 supported cursors, bounded source previews and confirmed trusted editor launch.
-At `4f0ac6f62`, all twenty Windows search/settings/lifetime cases pass serially,
-along with 34 Rust tests and the full front gate. Other platform native execution
-and the later-source privileged file-link cohort remain separate prerequisites.
+At `529b21c70`, all 21 Windows search/settings/selection/lifetime cases pass
+serially, along with 44 Rust tests and the full front gate. #638 now pins explicit
+job selection, binds tasks/logs/cancel and preserves distinct key presses; its
+result/artifact inspector remains required. Exact-source Linux builds and passes
+44 Rust tests, four actual PTY lifetime cases, four affected UI checks and the
+full front gate. New workflow keyboard acceptance on Linux/macOS and the
+later-source privileged Windows file-link cohort remain separate prerequisites.
 
 Earlier `720bfbd0a` CI (39495523746) passes Linux/macOS, Rust, gate, 47 Windows
 authority cases and five early ownership cases; its Windows baseline diagnostic
