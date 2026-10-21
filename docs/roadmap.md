@@ -1,8 +1,8 @@
 # PairOfCleats Roadmap
 
 Status: Active
-Last audited: 2026-10-20
-Last reconciled: 2026-10-20
+Last audited: 2026-10-21
+Last reconciled: 2026-10-21
 Canonical for: initiative status, execution order, and remaining work
 
 ## Repository maintenance audit, October 18
@@ -18,8 +18,11 @@ every issue and its acceptance. All 84 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-New correctness issues #662–#667 take priority over remaining TUI feature work.
-Sixty-nine issues have implemented repairs. The linked receipt retains original
+New correctness issues #662–#666 take priority over remaining TUI feature work.
+Seventy issues have implemented repairs. Dense-vector partial/zero-progress I/O
+(#667) is repaired at `c4139ac68`; nine affected checks and both full front gates
+pass on Windows/Linux, with original corruption and orphaned-temp witnesses.
+The linked receipt retains original
 failures, source identities, assertion mappings and every affected check; all
 issues remain open until their own acceptance and publication are verified.
 Canonical settings (#633) and repository search (#634) now connect the native
@@ -211,7 +214,7 @@ power-loss and unrelated build-writer/global disk quotas remain separate.
 
 ## Current Validation Boundary
 
-Current reconciliation, 2026-10-20: the prior 45-item implementation audit retains
+Current reconciliation, 2026-10-21: the prior 45-item implementation audit retains
 39 bounded-verified and six qualification-limited classifications. This
 maintenance run refreshes selected product/governance checks; it does not repeat
 every item's qualification.
