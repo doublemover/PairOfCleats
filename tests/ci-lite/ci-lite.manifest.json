@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 994,
+    "hero": 997,
     "matrix": 108,
     "meta": 46,
     "soak": 1,
@@ -6907,6 +6907,24 @@
     {
       "id": "tooling/reports/compare-models-partial-ranks/one-common",
       "order": 1149,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/zero-warning-cap-cli/violation",
+      "order": 1150,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/zero-warning-cap-cli/clean",
+      "order": 1151,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
+      "order": 1152,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

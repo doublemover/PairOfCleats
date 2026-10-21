@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T04:22:30.534Z",
+  "generatedAt": "2026-10-21T04:45:09.003Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4468,6 +4468,7 @@
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
+        "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
         "tests/tooling/install/phpactor-download-authority.test.js",
@@ -4809,6 +4810,7 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
+        "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/source-metadata.test.js",
         "tests/tooling/doctor/command-resolution-report.test.js",

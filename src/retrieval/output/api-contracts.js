@@ -8,6 +8,18 @@ const formatSymbolLabel = (symbol) => {
 export const renderApiContracts = (report) => {
   const lines = [];
   lines.push('API Contracts');
+  const warningCap = Array.isArray(report?.truncation)
+    ? report.truncation.find(entry => entry.cap === 'maxWarnings') : null;
+  if (warningCap) {
+    const retained = Array.isArray(report?.warnings) ? report.warnings.length : 0;
+    const { observed, omitted } = warningCap;
+    if (Number.isSafeInteger(observed) && Number.isSafeInteger(omitted)
+      && omitted >= 0 && observed === retained + omitted) {
+      lines.push(`Warnings detected: ${observed}; details retained: ${retained}; omitted: ${omitted}`);
+    } else {
+      lines.push('Warning details capped; actual omission count is unreported or inconsistent.');
+    }
+  }
   const symbols = Array.isArray(report?.symbols) ? report.symbols : [];
   if (!symbols.length) {
     lines.push('- (none)');

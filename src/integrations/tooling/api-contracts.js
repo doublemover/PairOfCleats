@@ -392,10 +392,13 @@ export const buildApiContractsReport = ({
 
   const truncation = [];
   const warnings = [];
+  let detectedWarnings = 0;
   const warn = (warning) => {
-    if (!warning?.code || !warning?.message) return;
-    if (maxWarnings != null && warnings.length >= maxWarnings) return;
+    if (!warning?.code || !warning?.message) return false;
+    detectedWarnings += 1;
+    if (maxWarnings != null && warnings.length >= maxWarnings) return false;
     warnings.push(warning);
+    return true;
   };
 
   const sortedSymbols = Array.isArray(symbols) ? [...symbols] : [];
@@ -497,9 +500,8 @@ export const buildApiContractsReport = ({
             message: `Observed arity ${arity} differs from signature arity. ${expected}`.trim(),
             data: { symbolId, callSiteId: call.callSiteId }
           };
-          if (maxWarnings == null || warnings.length < maxWarnings) {
+          if (warn(warning)) {
             entryWarnings.push(warning);
-            warn(warning);
           }
         }
       }
@@ -530,13 +532,14 @@ export const buildApiContractsReport = ({
     };
   });
 
-  if (maxWarnings != null && warnings.length >= maxWarnings) {
+  const omittedWarnings = detectedWarnings - warnings.length;
+  if (omittedWarnings > 0) {
     truncation.push({
       scope: 'apiContracts',
       cap: 'maxWarnings',
       limit: maxWarnings,
-      observed: warnings.length,
-      omitted: null
+      observed: detectedWarnings,
+      omitted: omittedWarnings
     });
   }
 
@@ -562,7 +565,7 @@ export const buildApiContractsReport = ({
     warnings: warnings.length ? warnings : null
   };
 
-  if (failOnWarn && warnings.length) {
+  if (failOnWarn && detectedWarnings > 0) {
     const error = new Error('API contracts warnings detected.');
     error.code = 'ERR_API_CONTRACT_WARN';
     error.report = report;

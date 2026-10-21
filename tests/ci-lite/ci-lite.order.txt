@@ -1149,3 +1149,6 @@ retrieval/hit-comparison-summary
 retrieval/parity/partial-ranks-report
 tooling/reports/compare-models-partial-ranks/opposite-orders
 tooling/reports/compare-models-partial-ranks/one-common
+tooling/api-contracts/zero-warning-cap-cli/violation
+tooling/api-contracts/zero-warning-cap-cli/clean
+tooling/api-contracts/zero-warning-cap-cli/markdown

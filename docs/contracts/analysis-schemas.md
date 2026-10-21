@@ -149,6 +149,13 @@ Options fields:
 - `failOnWarn` (bool)
 - `caps.maxSymbols`, `caps.maxCallsPerSymbol`, `caps.maxWarnings`
 
+`maxWarnings` limits retained warning details. Known violations still trigger
+`failOnWarn`, including when the detail cap is zero. A warning-detail truncation
+record reports the detected count in `observed` and the actual dropped count in
+`omitted`; it is absent when nothing was omitted. An exactly filled cap does not
+by itself imply truncation. Symbols/calls excluded by their own caps remain
+unexamined evidence, with their existing truncation records.
+
 ### Architecture report
 
 Schema: `ARCHITECTURE_REPORT_SCHEMA`

@@ -200,12 +200,12 @@ Extract cross-file API contracts for exported symbols using existing artifacts.
 
 ### Command
 ```bash
-pairofcleats api-contracts --repo . --only-exports --format json
+pairofcleats api-contracts --repo . --onlyExports --format json
 ```
 
 ### Optional flags
-- `--only-exports` (boolean)
-- `--fail-on-warn` (boolean; non-zero exit if any warnings)
+- `--onlyExports` (boolean)
+- `--failOnWarn` (boolean; non-zero exit if any warnings)
 - caps:
   - `--maxSymbols <n>`
   - `--maxCallsPerSymbol <n>` (alias: `--maxCalls`)
@@ -214,10 +214,16 @@ pairofcleats api-contracts --repo . --only-exports --format json
   - `--emitArtifact` (boolean; write `api_contracts.jsonl`)
   - `--artifactDir <path>` (optional target dir; defaults to the index dir)
 
+`--maxWarnings` caps retained details, while `--failOnWarn` responds to detected
+violations independently of that cap. Zero details cannot turn a known violation
+into a successful validation; a clean zero-cap report still succeeds.
+
 ### Output
 - JSON: `ApiContractsReport` (validated)
 - MD: deterministic ordering by `symbolId`:
-  - per symbol: signature → observed calls → warnings → truncation (if any)
+  - per symbol: signature → observed calls → retained warnings
+  - a report-wide summary exposes detected, retained and omitted warning counts
+    when details were dropped; legacy unknown omission counts stay unreported
 
 ---
 
