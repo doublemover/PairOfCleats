@@ -18,8 +18,12 @@ every issue and its acceptance. All 84 are in scope, including TUI functionality
 optional tooling, representative workloads and Linux/macOS deep qualification.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
-Correctness issues #662 and #666 precede remaining TUI feature work.
-Seventy-three issues have implemented repairs. Zero relation-boost weights/caps
+Correctness issue #662 precedes remaining TUI feature work.
+Seventy-four issues have implemented repairs. JS/TS export identity (#666) now
+survives artifact production and export-only validation at `f2041e091`; 34 affected
+checks, the import budget and both full platform front gates pass. Real public-CLI
+cases retain named/aliased/anonymous default APIs and reject known bad API calls.
+Zero relation-boost weights/caps
 (#663) survive CLI, pipeline and scorer normalization at `c1571aaff`; all eleven
 affected checks and both platform front gates pass with ranking/explanation controls.
 API warning detection (#665) now
