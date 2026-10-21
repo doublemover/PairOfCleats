@@ -18,6 +18,12 @@ Reconciled with the checked-in package, bootstrap guard and workflows on
   released in [26.10.0](https://nodejs.org/en/blog/release/v26.10.0). The
   [Windows repair receipt](../archived/windows-deep-repairs-2026-10-18.md)
   separates that crash attribution from final suite acceptance.
+- The patched Tree-sitter 0.25.0 binding also handles exceptions during owned
+  worker termination. This fixes a separately captured `0xC0000409` fatal exit
+  on Node 26.10.0; the Node pin alone does not supply that repair. Ordinary
+  callback, language and range errors remain strict. The
+  [parser repair receipt](../archived/github-issue-repairs-2026-10-20.md#batch-64-real-parser-state-and-interrupted-native-worker-lifetime)
+  records the exception, original installation and fresh-process controls.
 - Run `npm run bootstrap:ci` after checkout setup or dependency/runtime changes.
   It installs the lockfile graph including development dependencies, applies
   required patches, rebuilds/verifies native modules and records readiness.

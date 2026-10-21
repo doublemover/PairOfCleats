@@ -32,9 +32,8 @@ keyboard path to real supervisor operations. Search includes ordered results,
 supported cursors, bounded source previews and confirmed trusted editor launch.
 Source `208395791` adds #635's typed index/watch/validation/report/stats, seven
 snapshot and workspace-build workflows, preserving #638's verified artifact actions.
-Previews bind scope, configuration sources and reserved job identity; process exit
-does not establish publication readiness. Snapshot directory copying, nullable
-artifact sizes, checksum selection and terminal-worker disposal gain regressions.
+Previews bind scope/configuration sources/job identity; publication is verified
+separately. Snapshot copying, artifact sizes/checksums and PTY disposal are repaired.
 Windows passes 52 native cases and 234 unique selected checks; Linux passes 34
 native cases and 219 unique checks. Both pass 60 Rust tests, native/patch verification
 and complete front gates. The 216 common IDs and all platform exclusions are
@@ -65,10 +64,11 @@ observed exits across cancellation/restart. Ruby startup/install warnings, the
 macOS `fsevents` policy warning and later hosted tool execution remain open.
 Fresh Solargraph 0.61.0 checks still miss their original deadline. An isolated
 RubyGems update also fails; neither the runtime nor probe bounds are changed.
-Detection, startup and semantic precision remain distinct; no failed readiness
-or warning is suppressed. The clean Linux locked rebuild also exposes two Perl
-scanner fall-through compiler warnings; quiet readiness verification does not
-erase those diagnostics or qualify their parsing/lifecycle behavior.
+Source `b99c6c507` repairs Perl scanner state/leaks and a separately captured
+Tree-sitter worker `0xC0000409` fatal exception. Both OSes pass the same 76 selected
+checks, including ten fresh worker cases and all seven original crash routes.
+Linux locked bootstrap is warning-free; chunk producer 3 retires stale meaning.
+The archive retains attribution, failures and exact-source receipts.
 
 Runtime/setup guidance now requires Node 26.10.0 or newer within 26.x, with the
 26.10.0 CI pin and locked bootstrap. The new floor follows a captured Node

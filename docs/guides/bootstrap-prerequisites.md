@@ -63,6 +63,10 @@ do not compile all native modules or qualify every custom compiler configuration
 After discovery, locked bootstrap installs development dependencies, applies
 patches, builds required native sources and verifies packages/language routes
 before recording readiness. A preflight pass alone never records readiness.
+Verification includes real parser workers exiting naturally and during interrupted
+parse work, plus literal Perl heredoc state checks. These bounded operations
+supplement activation evidence; they do not qualify every language, runtime
+lifecycle, platform or representative workload.
 Prepared installations can refresh verification using
 `node tools/setup/rebuild-native.js --verify`; that cannot install missing
 packages or repair missing patches. See the [runtime policy](node-runtime.md).
