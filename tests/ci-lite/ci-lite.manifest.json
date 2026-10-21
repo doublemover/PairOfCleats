@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1019,
+    "hero": 1020,
     "matrix": 108,
     "meta": 47,
     "soak": 1,
@@ -7055,14 +7055,20 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-index-workflows",
+      "id": "services/snapshot-directory-pieces",
       "order": 1174,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-index-workflows",
+      "id": "tui/operator-index-workflows",
       "order": 1175,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-index-workflows",
+      "order": 1176,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

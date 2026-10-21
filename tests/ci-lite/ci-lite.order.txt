@@ -1173,5 +1173,6 @@ tui/supervisor-artifact-generation-cleanup
 tooling/install/node-pty-conout-disposal
 tooling/install/node-pty-patch-roundtrip
 indexing/build-state/analysis-shortcuts-modes
+services/snapshot-directory-pieces
 tui/operator-index-workflows
 tui/supervisor-index-workflows

@@ -34,7 +34,7 @@ pub(crate) struct WorkflowUi {
     status: String,
     scroll: usize,
     next_id: u64,
-    early_completions: VecDeque<Value>,
+    early_completion: Option<Value>,
 }
 
 impl Default for WorkflowUi {
@@ -59,7 +59,7 @@ impl Default for WorkflowUi {
             status: String::new(),
             scroll: 0,
             next_id: 1,
-            early_completions: VecDeque::new(),
+            early_completion: None,
         }
     }
 }
@@ -180,7 +180,8 @@ impl WorkflowUi {
             },
             Page::Preview => match key.code {
                 KeyCode::Enter => if let (Some(scope), Some(preview)) = (&self.scope, &self.preview) {
-                    if preview["launchable"] == true {
+                    if preview["launchable"] == true && preview["plannedJobId"].is_string() {
+                        self.early_completion = None;
                         self.request("launch", json!({"scopeId":scope["id"], "previewId":preview["previewId"], "confirmed":true}));
                     }
                 },
@@ -231,13 +232,16 @@ impl WorkflowUi {
                 .pending
                 .as_ref()
                 .is_some_and(|(_, method)| method == "launch")
+                && self
+                    .preview
+                    .as_ref()
+                    .and_then(|value| value["plannedJobId"].as_str())
+                    == event["jobId"].as_str()
             {
                 // A fast child can finish before admission's response. Only
-                // its matching launch response may grant control authority.
-                if self.early_completions.len() >= 4 {
-                    self.early_completions.pop_front();
-                }
-                self.early_completions.push_back(event.clone());
+                // the reserved identity is retained; unrelated completions can
+                // neither evict this result nor grant control authority.
+                self.early_completion = Some(event.clone());
             }
         }
         let Some((id, method)) = &self.pending else {
@@ -264,6 +268,7 @@ impl WorkflowUi {
                     .unwrap_or("ERR_TUI_WORKFLOW_RESPONSE")
             );
             self.preview = None;
+            self.early_completion = None;
             self.page = if self.scope.is_some() {
                 Page::Commands
             } else {
@@ -276,6 +281,8 @@ impl WorkflowUi {
         match method.as_str() {
             "select" => {
                 self.scope = Some(data.clone());
+                self.owned_job = None;
+                self.early_completion = None;
                 self.command = None;
                 self.values.clear();
                 self.preview = None;
@@ -298,22 +305,30 @@ impl WorkflowUi {
                 };
             }
             "launch" => {
+                let planned = self
+                    .preview
+                    .as_ref()
+                    .and_then(|value| value["plannedJobId"].as_str());
+                if planned.is_none() || data["jobId"].as_str() != planned {
+                    self.status =
+                        "Launch identity mismatch; no control granted. Inspect actual jobs.".into();
+                    self.owned_job = None;
+                    self.preview = None;
+                    self.early_completion = None;
+                    self.page = Page::Commands;
+                    return true;
+                }
                 self.owned_job = data["jobId"].as_str().map(str::to_owned);
                 self.result = Some(data.clone());
                 self.preview = None;
                 self.page = Page::Result;
                 self.scroll = 0;
                 self.status = "Owned job admitted; c cancels. Process completion alone does not establish readiness.".into();
-                if let Some(index) = self
-                    .early_completions
-                    .iter()
-                    .position(|end| end["jobId"] == data["jobId"])
-                {
-                    if let Some(end) = self.early_completions.remove(index) {
+                if let Some(end) = self.early_completion.take() {
+                    if end["jobId"] == data["jobId"] {
                         self.completed(&end);
                     }
                 }
-                self.early_completions.clear();
             }
             "status" => {
                 self.result = Some(data.clone());

@@ -15,6 +15,7 @@ const { dir } = await prepareIsolatedTestCacheDir('operator-index-workflows');
 const root = process.cwd(), repo = path.join(dir, 'repo'); await fs.mkdir(repo);
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), '{"threads":1,"quality":"fast"}');
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub', syncProcess: true,
+  testConfig: { threads: 1 },
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const scopes = createTuiSettingsSession({ toolRoot: root, env });
 let clock = 0;
@@ -44,6 +45,11 @@ await actor.launch({ scopeId: scope.id, previewId: prepared.previewId, confirmed
 assert.equal(launches.length, 1);
 assert.equal(launches[0][0].retry.maxAttempts, 1);
 assert.match(launches[0][0].jobId, /^workflow-/);
+assert.equal(launches[0][0].jobId, prepared.plannedJobId);
+await fs.writeFile(path.join(repo, '.pairofcleats.json'), '{"threads":3,"quality":"fast"}');
+await assert.rejects(launches[0][1].beforeRun({ signal: new AbortController().signal }),
+  { code: 'ERR_TUI_WORKFLOW_STALE' }, 'a changed source must invalidate a preview even when an overlay shadows its value');
+await fs.writeFile(path.join(repo, '.pairofcleats.json'), '{"threads":1,"quality":"fast"}');
 await assert.rejects(actor.launch({ scopeId: scope.id, previewId: prepared.previewId, confirmed: true }), { code: 'ERR_TUI_WORKFLOW_STALE' });
 for (const values of [{ repo: dir }, { threads: '1' }, { sqlite: null }, { mode: '\0' }, JSON.parse('{"__proto__":{}}')]) {
   const rejected = await actor.preview({ scopeId: scope.id, commandId: 'index.build', values });

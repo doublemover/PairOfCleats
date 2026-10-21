@@ -11,10 +11,14 @@ import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { killProcessTree } from '../../src/shared/kill-tree.js';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { buildSearchRequestArgs } from '../../src/shared/search-request.js';
+import { loadUserConfig } from '../../src/shared/dict-utils.js';
+import { createPointerSnapshot } from '../../src/index/snapshots/create.js';
+import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows/')[1];
 assert.ok(['build-search', 'validate-search', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
-  'snapshot-create-show', 'snapshot-freeze-remove', 'snapshot-maintenance', 'report-stats', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
+  'snapshot-create', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
+  'report', 'stats', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-index-${mode}`);
 const repo = path.join(dir, 'selected repository'); await fs.mkdir(repo); initGitRepo(repo);
 await fs.writeFile(path.join(repo, 'answer.js'), 'export function nativeWorkflowAnswer() { return 42; }\n');
@@ -28,7 +32,7 @@ await fs.writeFile(config, JSON.stringify(original));
 const workspace = path.join(dir, 'workspace.jsonc');
 if (mode === 'workspace') await fs.writeFile(workspace, JSON.stringify({ schemaVersion: 1,
   name: 'native index workspace', repos: [{ root: repo }] }));
-const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'),
+const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), syncProcess: true,
   embeddings: ['missing-model', 'invalid-provider'].includes(mode) ? null : 'stub',
   testConfig: { threads: 1, indexing: { typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false,
     scm: { provider: 'none' } }, tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
@@ -69,16 +73,34 @@ const cli = async (args, name) => {
   await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify(result, null, 2));
   assert.equal(result.exitCode, 0, result.stderr); return result;
 };
-const needsCompleteSeed = ['validate-search', 'snapshot-create-show', 'snapshot-freeze-remove', 'snapshot-maintenance', 'report-stats'].includes(mode);
-if (needsCompleteSeed || ['build-search', 'workspace'].includes(mode)) {
+const needsCompleteSeed = mode.startsWith('snapshot-') || ['validate-search', 'report', 'stats'].includes(mode);
+if (['build-search', 'workspace'].includes(mode)) {
   await cli(['index', 'build', '--repo', repo, '--mode=code', '--stage=stage2', '--threads=1', '--stub-embeddings', '--progress=off'], 'seed-partial-build');
 }
-if (needsCompleteSeed) await cli(['index', 'build', '--repo', repo, '--mode=code', '--stage=stage4', '--threads=1', '--stub-embeddings', '--progress=off'], 'seed-sqlite-completion');
-if (['snapshot-freeze-remove', 'snapshot-maintenance'].includes(mode)) {
-  await cli(['index', 'snapshot', 'create', '--repo', repo, '--id=snap-native-kept', '--modes=code', '--json'], 'seed-snapshot');
+if (needsCompleteSeed) {
+  await cli(['index', 'build', '--repo', repo, '--mode=code', '--threads=1', '--stub-embeddings', '--progress=off'], 'seed-complete-build');
 }
-if (mode === 'snapshot-maintenance') {
-  await cli(['index', 'snapshot', 'create', '--repo', repo, '--id=snap-native-new', '--modes=code', '--json'], 'seed-newer-snapshot');
+// Setup calls the same canonical owners as the snapshot CLI. The operations
+// under test still traverse the actual keyboard, supervisor and public CLI.
+// Avoid spending multiple CLI startups merely preparing their input snapshots.
+const seedSnapshot = async (snapshotId, name, metadata = {}) => {
+  const input = { repoRoot: repo, userConfig: loadUserConfig(repo, { env }), snapshotId, modes: ['code'], ...metadata };
+  const result = await createPointerSnapshot(input);
+  await fs.writeFile(path.join(dir, `${name}.json`), JSON.stringify({ owner: 'createPointerSnapshot', input, result }, null, 2));
+};
+if (mode === 'snapshot-show') {
+  await seedSnapshot('snap-native-created', 'seed-labeled-snapshot', { tags: ['native-test', 'operator'], label: 'native label' });
+}
+if (['snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc'].includes(mode)) {
+  await seedSnapshot('snap-native-kept', 'seed-snapshot');
+}
+if (mode === 'snapshot-remove') {
+  const input = { repoRoot: repo, userConfig: loadUserConfig(repo, { env }), snapshotId: 'snap-native-kept', modes: ['code'] };
+  const result = await freezeSnapshot(input);
+  await fs.writeFile(path.join(dir, 'seed-frozen-snapshot.json'), JSON.stringify({ owner: 'freezeSnapshot', input, result }, null, 2));
+}
+if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
+  await seedSnapshot('snap-native-new', 'seed-newer-snapshot');
 }
 const fixtureDeadline = Date.now() + 22000;
 try {
@@ -138,6 +160,7 @@ try {
         const preview = await operation('preview', 'p'); assert.equal(preview.launchable, true, JSON.stringify(preview));
         await rendered('Launch preview ready; Enter confirms, Esc discards');
         const launch = await operation('launch', '\r'); assert.equal(launch.launched, true);
+        assert.equal(launch.jobId, preview.plannedJobId);
         assert.deepEqual(launch.canonicalArgv, preview.canonicalArgv);
         return { launch, preview };
       };
@@ -174,36 +197,45 @@ try {
           const { launch } = await run('index.snapshot.list'); const end = await finish(launch.jobId);
           assert.equal(end.status, 'done', JSON.stringify(end)); assert.deepEqual(end.result.snapshots, []);
           await rendered('Process ended; inspect publication evidence separately'); await backToCatalog(); await closeCatalog(); terminal.write('q');
-        } else if (['snapshot-create-show', 'snapshot-freeze-remove', 'snapshot-maintenance', 'report-stats'].includes(mode)) {
+        } else if (mode.startsWith('snapshot-') || ['report', 'stats'].includes(mode)) {
           const completed = async (id, values) => {
             const { launch } = await run(id, values), end = await finish(launch.jobId);
             assert.equal(end.status, 'done', JSON.stringify(end)); assert.equal(end.resultState, 'complete');
+            assert.equal(end.workflow.publications[0].ready, null, 'read/maintenance process success cannot claim index readiness');
             await rendered('Process ended; inspect publication evidence separately'); await backToCatalog(); return end.result;
           };
-          if (mode === 'snapshot-create-show') {
+          if (mode === 'snapshot-create') {
             const created = await completed('index.snapshot.create', { id: 'snap-native-created', modes: 'code', tag: ['native-test', 'operator'], label: 'native label' });
             assert.equal(created.ok, true); assert.equal(created.snapshot.snapshotId, 'snap-native-created');
             const listed = await completed('index.snapshot.list', {}); assert.ok(listed.snapshots.some(row => row.snapshotId === 'snap-native-created'));
+          } else if (mode === 'snapshot-show') {
             const shown = await completed('index.snapshot.show', { snapshotId: 'snap-native-created' });
             assert.equal(shown.snapshot.label, 'native label'); assert.deepEqual(shown.snapshot.tags, ['native-test', 'operator']);
-          } else if (mode === 'snapshot-freeze-remove') {
+          } else if (mode === 'snapshot-freeze') {
             const frozen = await completed('index.snapshot.freeze', { snapshotId: 'snap-native-kept', modes: 'code' });
             assert.equal(frozen.ok, true); assert.equal(frozen.freeze.snapshotId, 'snap-native-kept');
+            const listed = await completed('index.snapshot.list', {});
+            assert.equal(listed.snapshots.find(row => row.snapshotId === 'snap-native-kept').hasFrozen, true);
+          } else if (mode === 'snapshot-remove') {
             const removed = await completed('index.snapshot.remove', { snapshotId: 'snap-native-kept', force: true });
             assert.equal(removed.removed, 'snap-native-kept');
             const listed = await completed('index.snapshot.list', {}); assert.deepEqual(listed.snapshots, []);
-          } else if (mode === 'snapshot-maintenance') {
-            const pruned = await completed('index.snapshot.prune', { 'dry-run': true, 'max-pointer-snapshots': 1 });
-            assert.equal(pruned.dryRun, true); assert.ok(pruned.removed.includes('snap-native-kept'));
-            assert.ok(!pruned.removed.includes('snap-native-new'));
-            const gc = await completed('index.snapshot.gc', { 'dry-run': true, 'keep-pointer': 1, 'keep-frozen': 0, 'max-age-days': 0 });
-            assert.equal(gc.gc.dryRun, true); assert.ok(gc.gc.removed.includes('snap-native-kept'));
-            assert.ok(!gc.gc.removed.includes('snap-native-new'));
+          } else if (['snapshot-prune', 'snapshot-gc'].includes(mode)) {
+            if (mode === 'snapshot-prune') {
+              const pruned = await completed('index.snapshot.prune', { 'dry-run': true, 'max-pointer-snapshots': 1 });
+              assert.equal(pruned.dryRun, true); assert.ok(pruned.removed.includes('snap-native-kept'));
+              assert.ok(!pruned.removed.includes('snap-native-new'));
+            } else {
+              const gc = await completed('index.snapshot.gc', { 'dry-run': true, 'keep-pointer': 1, 'keep-frozen': 0, 'max-age-days': 0 });
+              assert.equal(gc.gc.dryRun, true); assert.ok(gc.gc.removed.includes('snap-native-kept'));
+              assert.ok(!gc.gc.removed.includes('snap-native-new'));
+            }
             const listed = await completed('index.snapshot.list', {});
             assert.deepEqual(listed.snapshots.map(row => row.snapshotId).sort(), ['snap-native-kept', 'snap-native-new']);
-          } else {
+          } else if (mode === 'stats') {
             const stats = await completed('index.stats', { mode: 'code', verify: true });
             assert.equal(stats.verify.ok, true); assert.ok(stats.modes.code.chunkMeta.rows > 0);
+          } else {
             const report = await completed('index.report', {});
             assert.ok(report.repo.artifacts.indexCode > 0); assert.equal(report.corruption.modes.code.ok, true);
           }

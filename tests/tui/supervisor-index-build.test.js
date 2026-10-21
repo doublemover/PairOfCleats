@@ -26,6 +26,7 @@ try {
     values: { mode: 'code', threads: 1, 'stub-embeddings': true } });
   assert.equal(preview.launchable, true); assert.equal(preview.canonicalArgv.some(arg => arg.startsWith('--stage')), false);
   const launch = await request('launch', { scopeId: scope.id, previewId: preview.previewId, confirmed: true });
+  assert.equal(launch.jobId, preview.plannedJobId);
   const end = await session.waitForEvent(event => event.event === 'job:end' && event.jobId === launch.jobId, 25000);
   await fs.writeFile(path.join(dir, 'full-build-end.json'), JSON.stringify(end, null, 2));
   assert.equal(end.status, 'done', JSON.stringify(end)); assert.equal(end.attempts, 1);

@@ -61,7 +61,7 @@ export const observeIndexPublication = async (repo, config, { signal, validateCu
       && readVerifiedContainedFileSync(repoCacheRoot, path.join(root, 'build_state.json'), { maxBytes: 8 * 1024 * 1024 }).hash === read.hash;
     return { repo, generation, published: true, validated: validation?.ok === true, promoted,
       ready: validateCurrent ? matching && validation?.ok === true && promoted && currentValidation?.ok === true && unchanged : null,
-      readinessCheck: validateCurrent ? 'canonical-current-artifact-validation' : 'not-run-in-preview',
+      readinessCheck: validateCurrent ? 'canonical-current-artifact-validation' : 'not-requested',
       producerContractValid: matching, validation, observationUnchanged: unchanged,
       currentValidation: currentValidation ? { ok: currentValidation.ok, strict: currentValidation.strict,
         issues: currentValidation.issues.slice(0, 10), warningCount: currentValidation.warnings.length } : null,
@@ -103,8 +103,9 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
     const observations = [];
     for (const repo of targets(scope, values)) {
       throwIfAborted(signal);
-      const config = loadUserConfig(repo, { env });
-      const observation = { repo, configFingerprint: fingerprint(config),
+      let sources;
+      const config = loadUserConfig(repo, { env, onSources: value => { sources = value; } });
+      const observation = { repo, configFingerprint: fingerprint({ config, sources }),
         publication: await observeIndexPublication(repo, config, { signal, validateCurrent: false }) };
       if (BUILDERS.has(command.registryId)) {
         // Canonical argument validation also owns modes, stages and conflicts.
@@ -181,9 +182,11 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
         return { launchable: false, errors: ['Narrow this scope; the launch preview exceeds its byte bound.'] };
       }
       const previewId = randomUUID();
+      const jobId = `workflow-${randomUUID()}`;
       if (plans.size >= MAX_PLANS) plans.delete(plans.keys().next().value);
-      plans.set(previewId, { scope, command, values, argv, observations, createdAt: now() });
+      plans.set(previewId, { scope, command, values, argv, observations, jobId, createdAt: now() });
       result.previewId = previewId;
+      result.plannedJobId = jobId;
     }
     return sanitizeRuntimeReceipt(result);
   };
@@ -200,7 +203,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
     const plan = findPlan(request);
     plans.delete(request.previewId);
     throwIfAborted(signal);
-    const jobId = `workflow-${randomUUID()}`;
+    const jobId = plan.jobId;
     const check = async ({ signal }) => {
       requireScope(plan.scope.id);
       const current = await inspect(plan.scope, plan.command, plan.values, signal);
@@ -219,10 +222,14 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, env = process.env, n
       beforeRun: check,
       afterRun: async ({ payload, signal }) => {
         const publications = [];
-        const observationSignal = payload.status === 'done' ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : undefined;
+        // Read-only commands and snapshot maintenance do not produce a ready
+        // index. Their process results remain distinct from an explicit status
+        // validation; avoid repeatedly scanning all artifacts after each one.
+        const validateCurrent = payload.status === 'done' && BUILDERS.has(plan.command.registryId);
+        const observationSignal = validateCurrent ? AbortSignal.any([signal, AbortSignal.timeout(5000)]) : undefined;
         for (const repo of targets(plan.scope, plan.values)) {
           publications.push(await observeIndexPublication(repo, loadUserConfig(repo, { env }),
-            { signal: observationSignal, validateCurrent: payload.status === 'done' }));
+            { signal: observationSignal, validateCurrent }));
         }
         return { workflow: { commandId: plan.command.id, processStatus: payload.status,
           publications: publications.map((row, index) => {
