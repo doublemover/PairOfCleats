@@ -1,4 +1,4 @@
-export const MODULE_EXPORTS_VERSION = '1';
+export const MODULE_EXPORTS_VERSION = '2';
 const inventories = new WeakMap();
 const startOf = node => node?.start ?? node?.range?.[0];
 const endOf = node => node?.end ?? node?.range?.[1];
@@ -64,15 +64,38 @@ const buildInventory = ast => {
       addExport(node.expression.name, 'default');
     }
   }
+  const moduleBindings = new Set(declarations.keys());
+  const assignments = ast.body.filter(stmt => stmt.type === 'ExpressionStatement'
+    && stmt.expression?.type === 'AssignmentExpression' && stmt.expression.operator === '=');
+  if (assignments.some(stmt => /^(?:module\.exports|exports\.)/.test(memberPath(stmt.expression.left) || ''))) {
+    // A var inside a module-level block/loop still shadows the wrapper binding.
+    // Function/class/namespace bodies own their vars and cannot shadow this scope.
+    const stack = [...ast.body], seen = new WeakSet();
+    const nestedScopes = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression',
+      'ClassDeclaration', 'ClassExpression', 'TSModuleDeclaration']);
+    while (stack.length) {
+      const node = stack.pop();
+      if (!node || seen.has(node) || nestedScopes.has(node.type)) continue;
+      seen.add(node);
+      if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+        for (const decl of node.declarations) for (const name of patternNames(decl.id)) moduleBindings.add(name);
+      }
+      for (const value of Object.values(node)) {
+        for (const child of Array.isArray(value) ? value : [value]) {
+          if (child && typeof child.type === 'string') stack.push(child);
+        }
+      }
+    }
+  }
   // Only module-level, unshadowed CommonJS names supply export evidence.
   for (const stmt of ast.body) {
     const expr = stmt.type === 'ExpressionStatement' ? stmt.expression : null;
     if (expr?.type !== 'AssignmentExpression' || expr.operator !== '=') continue;
     const left = memberPath(expr.left);
     let name;
-    if (!declarations.has('module') && left === 'module.exports') name = 'default';
-    else if (!declarations.has('module') && left?.startsWith('module.exports.')) name = left.slice(15);
-    else if (!declarations.has('exports') && left?.startsWith('exports.')) name = left.slice(8);
+    if (!moduleBindings.has('module') && left === 'module.exports') name = 'default';
+    else if (!moduleBindings.has('module') && left?.startsWith('module.exports.')) name = left.slice(15);
+    else if (!moduleBindings.has('exports') && left?.startsWith('exports.')) name = left.slice(8);
     if (!name || name.includes('.')) continue;
     if (expr.right.type === 'Identifier') addExport(expr.right.name, name);
     else if (['FunctionExpression', 'ArrowFunctionExpression'].includes(expr.right.type)) {

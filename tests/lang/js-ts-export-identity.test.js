@@ -67,6 +67,10 @@ for (const [text, name, exported, names] of [
   ['exports.api = function(a,b) { return a+b; };', 'exports.api', true, ['api']],
   ['module.exports = function(a,b) { return a+b; };', 'module.exports', true, ['default']],
   ['const exports = {}; exports.api = function(a,b) { return a+b; };', 'exports.api', false, []],
+  ['if (true) { var exports = {}; } exports.api = function(a,b) { return a+b; };', 'exports.api', false, []],
+  ['for (var module of [{}]) {} module.exports = function(a,b) { return a+b; };', 'module.exports', false, []],
+  ['function local() { var exports = {}; } exports.api = function(a,b) { return a+b; };', 'exports.api', true, ['api']],
+  ['if (true) { let exports = {}; } exports.api = function(a,b) { return a+b; };', 'exports.api', true, ['api']],
   ["import module from 'elsewhere'; module.exports = function(a,b) { return a+b; };", 'module.exports', false, []],
   ['const object = {}; object.api = function(a,b) { return a+b; };', 'object.api', false, []]
 ]) {

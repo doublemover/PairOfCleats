@@ -89,7 +89,7 @@ Each `index-<mode>/` directory contains:
     source re-exports do not export a same-named local declaration. Null/missing
     identity is unknown, so export-only API validation reports an explicit warning
     and failOnWarn fails even with zero retained details. Older rows remain readable.
-  - Module-export producer version 1, incremental signature 11 and native chunk
+  - Module-export producer version 2, incremental signature 11 and native chunk
     producer version 2 retire cached metadata without this meaning. Native JS/TS
     named module-level function/arrow bindings retain VariableDeclaration kind;
     scalar variables and anonymous/nested callbacks are not promoted to declarations.
