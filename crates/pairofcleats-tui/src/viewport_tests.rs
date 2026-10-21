@@ -1,6 +1,50 @@
 use super::*;
 
 #[test]
+fn selected_palette_action_remains_visible_in_a_small_terminal() {
+    let mut model = model();
+    model.overlay = OverlayMode::Palette;
+    model.palette_index = palette_actions().len() - 1;
+    for height in [24, 18] {
+        assert!(
+            screen(&model, 90, height).contains("Quit TUI"),
+            "selected action is hidden at height {height}"
+        );
+    }
+}
+
+#[test]
+fn job_inspection_renders_payload_without_putting_it_in_layout_or_frame_identity() {
+    let mut model = model();
+    apply_protocol_event(
+        &mut model,
+        json!({"event":"job:start", "jobId":"inspected",
+        "title":"Bounded result", "requested":{"resultPolicy":{"captureStdout":"json"}}}),
+        0,
+    );
+    apply_protocol_event(
+        &mut model,
+        json!({"event":"job:end", "jobId":"inspected", "status":"done",
+        "exitCode":0, "resultState":"complete", "result":{"value":"PAYLOAD_ONLY_MARKER"}}),
+        0,
+    );
+    apply_local_input(&mut model, "inspect_job");
+    assert!(model.overlay == OverlayMode::JobInspection);
+    assert!(model.selected_job_pinned);
+    enqueue_terminal_key(
+        &mut model,
+        KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE),
+    );
+    assert!(screen(&model, 170, 40).contains("PAYLOAD_ONLY_MARKER"));
+    assert!(!frame_signature(&model).contains("PAYLOAD_ONLY_MARKER"));
+    assert!(!serde_json::to_string(&snapshot_from_model(&model))
+        .unwrap()
+        .contains("PAYLOAD_ONLY_MARKER"));
+    enqueue_terminal_key(&mut model, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    assert!(model.overlay == OverlayMode::None);
+}
+
+#[test]
 fn explicit_job_selection_stays_pinned_across_updates_and_follow() {
     let mut model = model();
     model.selected_job = Some("JMARK01".into());

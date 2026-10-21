@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 984,
+    "hero": 985,
     "matrix": 108,
     "meta": 46,
     "soak": 1,
@@ -6731,122 +6731,128 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-settings",
+      "id": "tui/supervisor-watchdog-outcome",
       "order": 1120,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-settings-scope-jobs",
+      "id": "tui/supervisor-settings",
       "order": 1121,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/terminal-screen-wrap",
+      "id": "tui/supervisor-settings-scope-jobs",
       "order": 1122,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/cli-utils-probe-outcomes",
+      "id": "tooling/terminal-screen-wrap",
       "order": 1123,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/detect-probe-diagnostics",
+      "id": "tooling/cli-utils-probe-outcomes",
       "order": 1124,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/phpactor-approved-recipe",
+      "id": "tooling/install/detect-probe-diagnostics",
       "order": 1125,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-platform-contract",
+      "id": "tooling/install/phpactor-approved-recipe",
       "order": 1126,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/same-origin",
+      "id": "tooling/install/phpactor-platform-contract",
       "order": 1127,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/cross-origin-rejected",
+      "id": "tooling/install/phpactor-download-authority/same-origin",
       "order": 1128,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/cross-origin-approved",
+      "id": "tooling/install/phpactor-download-authority/cross-origin-rejected",
       "order": 1129,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/checksum-mismatch",
+      "id": "tooling/install/phpactor-download-authority/cross-origin-approved",
       "order": 1130,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/oversized",
+      "id": "tooling/install/phpactor-download-authority/checksum-mismatch",
       "order": 1131,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/empty",
+      "id": "tooling/install/phpactor-download-authority/oversized",
       "order": 1132,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/mutable-url",
+      "id": "tooling/install/phpactor-download-authority/empty",
       "order": 1133,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/private-dns",
+      "id": "tooling/install/phpactor-download-authority/mutable-url",
       "order": 1134,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/local-opt-in-required",
+      "id": "tooling/install/phpactor-download-authority/private-dns",
       "order": 1135,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/redirect-loop",
+      "id": "tooling/install/phpactor-download-authority/local-opt-in-required",
       "order": 1136,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "security/download-redirect-deadline/redirect",
+      "id": "tooling/install/phpactor-download-authority/redirect-loop",
       "order": 1137,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "security/download-redirect-deadline/body",
+      "id": "security/download-redirect-deadline/redirect",
       "order": 1138,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/application-owned-node-detect",
+      "id": "security/download-redirect-deadline/body",
       "order": 1139,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/application-owned-node-detect",
+      "order": 1140,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     }

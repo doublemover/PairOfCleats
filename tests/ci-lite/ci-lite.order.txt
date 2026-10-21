@@ -1119,6 +1119,7 @@ tui/supervisor-shutdown-admission
 tui/supervisor-duplicate-job-admission
 tui/supervisor-session-resource-cleanup
 tui/supervisor-operation-lifecycle
+tui/supervisor-watchdog-outcome
 tui/supervisor-settings
 tui/supervisor-settings-scope-jobs
 tooling/terminal-screen-wrap

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { assertTuiControlReason } from '../../../src/contracts/validators/tui-request.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { clampInt } from '../../../src/shared/limits.js';
 import { getTuiWorkspaceRoot } from '../../../src/shared/env/tui.js';
@@ -70,7 +71,11 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     if (job.finalized) return;
     job.finalized = true;
     job.status = payload.status;
-    emit('job:end', payload, { jobId: job.id });
+    emit('job:end', job.internal ? payload : { ...payload,
+      attempts: job.attempts, maxAttempts: job.retryPolicy.maxAttempts,
+      retries: Math.max(0, job.attempts - 1), cancelReason: job.cancelReason,
+      timedOut: job.timedOut === true, totalDurationMs: Math.max(0, Date.now() - job.startedAt)
+    }, { jobId: job.id });
   };
 
   /**
@@ -136,6 +141,9 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       cancelReason: null,
       pid: null,
       startedAt: Date.now(),
+      attempts: 0,
+      retryPolicy,
+      timedOut: false,
       finalized: false
     };
     state.jobs.set(jobId, job);
@@ -159,6 +167,8 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
      * @returns {Promise<object>}
      */
     const runAttempt = async (attempt) => {
+      job.attempts = attempt;
+      job.timedOut = false;
       const { command, args, cwd } = resolveRunRequest(request, { root });
       const envPatch = request?.envPatch && typeof request.envPatch === 'object' ? request.envPatch : {};
       const env = applyProgressContextEnv({
@@ -244,11 +254,13 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         stderrDecoder.flush();
 
         const cancelled = job.abortController.signal.aborted;
+        job.timedOut = job.cancelReason === 'watchdog_timeout';
         const status = cancelled
           ? 'cancelled'
           : (result.exitCode === 0 ? 'done' : 'failed');
         const payload = {
           status,
+          terminationReason: job.timedOut ? 'timeout' : cancelled ? 'cancelled' : result.signal ? 'signal' : 'exit',
           exitCode: cancelled ? 130 : (result.exitCode ?? null),
           signal: result.signal || null,
           durationMs: Math.max(0, Date.now() - startedAt),
@@ -275,10 +287,12 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
         finalizeJob(job, payload);
         await emitArtifacts(job, request, { cwd });
       } catch (error) {
+        job.timedOut = error?.code === 'SUBPROCESS_TIMEOUT' || job.cancelReason === 'watchdog_timeout';
         const cancelled = job.abortController.signal.aborted || error?.name === 'AbortError';
         const cancelReason = job.cancelReason || String(job.abortController.signal.reason || '');
         const payload = {
           status: cancelled ? 'cancelled' : 'failed',
+          terminationReason: job.timedOut ? 'timeout' : cancelled ? 'cancelled' : 'spawn-error',
           exitCode: cancelled ? 130 : null,
           signal: null,
           durationMs: Math.max(0, Date.now() - startedAt),
@@ -313,6 +327,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       if (job.finalized) return;
       finalizeJob(job, {
         status: 'failed',
+        terminationReason: 'invalid-request',
         exitCode: null,
         signal: null,
         durationMs: Math.max(0, Date.now() - job.startedAt),
@@ -339,6 +354,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * @returns {boolean}
    */
   const cancelJob = (jobId, reason = 'cancel_requested') => {
+    assertTuiControlReason(reason);
     const job = getJob(jobId);
     if (!job) return false;
     if (job.finalized) {
@@ -364,6 +380,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     if (!job) return;
     finalizeJob(job, {
       status: 'failed',
+      terminationReason: 'invalid-request',
       exitCode: null,
       signal: null,
       durationMs: 0,

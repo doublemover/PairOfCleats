@@ -1,3 +1,4 @@
+mod inspection;
 mod search;
 mod settings;
 mod supervisor_lifetime;
@@ -312,6 +313,7 @@ enum OverlayMode {
     Search,
     Settings,
     RepositorySearch,
+    JobInspection,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -380,6 +382,7 @@ enum PaletteAction {
     RunJob,
     Settings,
     RepositorySearch,
+    InspectJob,
     CancelSelected,
     ShowHelp,
     Quit,
@@ -397,6 +400,7 @@ impl PaletteAction {
             Self::RunJob => "Show search command help",
             Self::Settings => "Repository / workspace and settings",
             Self::RepositorySearch => "Search a repository and inspect results",
+            Self::InspectJob => "Inspect selected job result and artifacts",
             Self::CancelSelected => "Cancel selected job",
             Self::ShowHelp => "Open help overlay",
             Self::Quit => "Quit TUI",
@@ -513,6 +517,7 @@ enum InputCommand {
     RunJob,
     Settings,
     RepositorySearch,
+    InspectJob,
     CancelSelected,
     SelectPreviousJob,
     SelectNextJob,
@@ -543,6 +548,7 @@ enum InputCommand {
 }
 
 struct AppModel {
+    job_inspection: inspection::InspectionUi,
     settings: settings::SettingsUi,
     repository_search: search::SearchUi,
     run_id: String,
@@ -602,6 +608,7 @@ impl AppModel {
         telemetry_file: Option<fs::File>,
     ) -> Self {
         Self {
+            job_inspection: inspection::InspectionUi::default(),
             settings: settings::SettingsUi::default(),
             repository_search: search::SearchUi::default(),
             run_id,
@@ -1187,6 +1194,7 @@ fn frame_signature(model: &AppModel) -> String {
         "paletteIndex": model.palette_index,
         "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
         "repositorySearchRevision": if model.overlay == OverlayMode::RepositorySearch {model.repository_search.revision} else {0},
+        "jobInspectionRevision": if model.overlay == OverlayMode::JobInspection {model.job_inspection.revision} else {0},
         "terminal": [model.terminal_caps.color, model.terminal_caps.unicode]
     })
     .to_string()
@@ -1820,6 +1828,7 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
         OverlayMode::Search => "search | type to filter current panel | Enter apply | Backspace delete | Esc cancel",
         OverlayMode::Settings => "settings | Ctrl+U clears input | Esc cancels or closes | Ctrl+C quits",
         OverlayMode::RepositorySearch => "Repository search | Tab field | Enter submit/source | Esc back/cancel | Ctrl+C quit",
+        OverlayMode::JobInspection => "Job inspection | 1 summary | 2 result | 3 artifacts | Tab page | Esc close | Ctrl+C quit",
         OverlayMode::None => "R repository search | Tab focus | f filter | / panel text | x clear | p follow | : actions | ? help | q quit",
     };
     fit_text(text, width)
@@ -2149,6 +2158,7 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         "r show search command help",
         "s select repository / workspace and edit settings",
         "c cancel selected job",
+        "v inspect selected job result and artifact metadata",
         "q quit",
         "",
         &format!(
@@ -2186,6 +2196,7 @@ fn palette_actions() -> Vec<PaletteAction> {
         PaletteAction::RepositorySearch,
         PaletteAction::CancelSelected,
         PaletteAction::ShowHelp,
+        PaletteAction::InspectJob,
         PaletteAction::Quit,
     ]
 }
@@ -2193,9 +2204,16 @@ fn palette_actions() -> Vec<PaletteAction> {
 fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     let actions = palette_actions();
     let area = centered_rect(68, 60, frame.area());
+    let height = area.height.saturating_sub(2) as usize;
+    let start = model
+        .palette_index
+        .saturating_sub(height.saturating_sub(1))
+        .min(actions.len().saturating_sub(height));
     let rows: Vec<ListItem<'static>> = actions
         .iter()
         .enumerate()
+        .skip(start)
+        .take(height)
         .map(|(index, action)| {
             let prefix = if index == model.palette_index {
                 ">"
@@ -2209,7 +2227,11 @@ fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             } else {
                 Style::default()
             };
-            ListItem::new(format!("{prefix} {}", action.label())).style(style)
+            ListItem::new(fit_text(
+                &format!("{prefix} {}", action.label()),
+                area.width.saturating_sub(2) as usize,
+            ))
+            .style(style)
         })
         .collect();
     let overlay = List::new(rows).block(panel_block(
@@ -2496,6 +2518,25 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 area,
             );
         }
+        OverlayMode::JobInspection => {
+            let area = centered_rect(96, 94, frame.area());
+            let text = model
+                .job_inspection
+                .lines(
+                    area.width.saturating_sub(2) as usize,
+                    area.height.saturating_sub(2) as usize,
+                )
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text).block(panel_block(
+                    "Job inspection".into(),
+                    true,
+                    model.terminal_caps.color,
+                )),
+                area,
+            );
+        }
         OverlayMode::None => {}
     }
 }
@@ -2511,6 +2552,7 @@ fn draw_ui(
 
 fn apply_local_input(model: &mut AppModel, input: &str) {
     match input.trim() {
+        "inspect_job" => open_job_inspection(model),
         "select_previous_job" => select_job(model, -1),
         "select_next_job" => select_job(model, 1),
         "follow_latest_job" => follow_latest_job(model),
@@ -2582,6 +2624,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                         model.repository_search.open(&model.session.scope);
                         model.overlay = OverlayMode::RepositorySearch;
                     }
+                    PaletteAction::InspectJob => open_job_inspection(model),
                     PaletteAction::RunJob | PaletteAction::CancelSelected | PaletteAction::Quit => {
                     }
                 }
@@ -2886,9 +2929,28 @@ fn open_search(model: &mut AppModel) {
     model.dirty = true;
 }
 
+fn open_job_inspection(model: &mut AppModel) {
+    let Some(id) = model
+        .selected_job
+        .clone()
+        .filter(|id| !model.selected_job_expired && visible_job_ids(model).contains(&id.as_str()))
+    else {
+        model.push_alert(
+            "info",
+            "Select a visible current job to inspect its retained result and artifacts",
+        );
+        return;
+    };
+    model.selected_job_pinned = true;
+    model.job_inspection.open(&id);
+    model.overlay = OverlayMode::JobInspection;
+    model.dirty = true;
+}
+
 fn sample_job_request(model: &AppModel, job_id: &str) -> Value {
     let mut request = json!({"proto":"poc.tui@1", "op":"job:run", "jobId":job_id,
-        "title":"Search Help", "argv":["search", "--help"]});
+        "title":"Search Help", "argv":["search", "--help"],
+        "resultPolicy":{"captureStdout":"text", "maxBytes":65536}});
     if let Some(scope) = &model.settings.scope {
         request["cwd"] = scope["configRoot"].clone();
     }
@@ -2943,6 +3005,7 @@ fn apply_palette_action(
             model.overlay = OverlayMode::RepositorySearch;
             model.dirty = true;
         }
+        PaletteAction::InspectJob => open_job_inspection(model),
         PaletteAction::Quit => {
             return Ok(true);
         }
@@ -3312,6 +3375,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     }
     apply_workload_descriptor(model, &event);
     if event_name == "hello" {
+        let search_was_available = model.repository_search.available;
         model.repository_search.available = event["capabilities"]["supportsSearch"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
@@ -3328,6 +3392,12 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 Some("connected"),
                 Some("supervisor handshake complete"),
             );
+        }
+        if !search_was_available
+            && model.repository_search.available
+            && model.overlay == OverlayMode::RepositorySearch
+        {
+            model.repository_search.open(&model.session.scope);
         }
     }
     if event_name == "session:attach" {
@@ -3352,6 +3422,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         return;
     }
     if let Some(job_id) = event.get("jobId").and_then(|value| value.as_str()) {
+        model.job_inspection.record(&event);
         if event_name == "job:start" || event_name == "job:spawn" {
             if event_name == "job:start" {
                 model.begin_job_instance(job_id);
@@ -3478,6 +3549,12 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
     model.last_key_at = now;
     model.last_input_token = token;
     match model.overlay {
+        OverlayMode::JobInspection => {
+            if model.job_inspection.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
         OverlayMode::RepositorySearch => {
             if model.repository_search.key(key) {
                 model.overlay = OverlayMode::None;
@@ -3523,6 +3600,7 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
             _ => {}
         },
         OverlayMode::None => match key.code {
+            KeyCode::Char('v') => enqueue_input(model, InputCommand::InspectJob, "inspect-job"),
             KeyCode::Char('[') => {
                 enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job")
             }
@@ -3582,6 +3660,7 @@ fn dispatch_input(
     let (_, cmd) = model.input_queue.pop_front().unwrap();
     model.last_input_at = Instant::now();
     match cmd {
+        InputCommand::InspectJob => open_job_inspection(model),
         InputCommand::SelectPreviousJob => select_job(model, -1),
         InputCommand::SelectNextJob => select_job(model, 1),
         InputCommand::FollowLatestJob => follow_latest_job(model),
@@ -3851,6 +3930,34 @@ mod redraw_tests {
     use super::*;
 
     #[test]
+    fn an_open_search_recovers_when_its_real_control_handshake_arrives() {
+        for (visible, controllable) in [(true, true), (false, true), (true, false)] {
+            let mut model = model();
+            if visible {
+                model.repository_search.open("selected-repository");
+                model.overlay = OverlayMode::RepositorySearch;
+            }
+            assert!(model.repository_search.outbox.is_empty());
+            let hello = json!({"event":"hello", "capabilities":{"supportsSearch":true},
+                "session":{"mode":"supervised","controllable":controllable,
+                    "scope":"selected-repository","connection":"connected"}});
+            apply_protocol_event(&mut model, hello.clone(), 0);
+            assert_eq!(
+                model.repository_search.outbox.len(),
+                usize::from(visible && controllable)
+            );
+            if visible && controllable {
+                assert_eq!(model.repository_search.outbox[0]["method"], "describe");
+            }
+            apply_protocol_event(&mut model, hello, 0);
+            assert_eq!(
+                model.repository_search.outbox.len(),
+                usize::from(visible && controllable)
+            );
+        }
+    }
+
+    #[test]
     fn new_job_captures_selected_scope_without_retargeting_an_existing_request() {
         let mut model = model();
         model.settings.scope = Some(json!({"configRoot":"first-repository"}));
@@ -3873,6 +3980,7 @@ mod redraw_tests {
             OverlayMode::Search,
             OverlayMode::Settings,
             OverlayMode::RepositorySearch,
+            OverlayMode::JobInspection,
         ] {
             for active in [false, true] {
                 for (code, modifiers) in [
@@ -3924,6 +4032,7 @@ mod redraw_tests {
             OverlayMode::Search,
             OverlayMode::Settings,
             OverlayMode::RepositorySearch,
+            OverlayMode::JobInspection,
         ] {
             for active in [false, true] {
                 let mut model = model();

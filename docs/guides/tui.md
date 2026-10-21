@@ -23,6 +23,7 @@ Runtime controls:
 - `[r]` run the search command's help as a job
 - `[s]` select a repository/workspace and inspect or edit settings
 - `[c]` cancel selected job
+- `[v]` inspect the selected job's outcome, captured result and recorded artifacts
 - `[q]` graceful shutdown
 - `[Ctrl+C]` global graceful shutdown, including help, palette and search overlays;
   queued interactions are discarded before supervisor shutdown. Plain `[c]` retains
@@ -63,6 +64,29 @@ contains any remaining owned descendants. Snapshots save the resulting final job
 statuses; an interrupted supervisor cannot leave a saved job marked running.
 Linux, macOS, and Windows require separate native lifecycle receipts.
 
+## Job inspection
+
+Press `[v]` or choose **Inspect selected job result and artifacts** in the palette. Inspection pins the
+visible selected job. `[1]`, `[2]` and `[3]` select summary, result and artifact
+pages; `[Tab]` cycles pages and `[Esc]` returns. Arrows, page keys and `[j]/[k]`
+scroll or select artifacts, left/right pan, and `[Home]` resets the viewport.
+
+The summary separates process status from result completeness and shows the
+reported exit/signal, cancellation or timeout cause, attempt/retry counts,
+duration, last recorded PID and capture metadata. Unreported legacy fields stay
+unreported. Pending or interrupted work cannot become a complete JSON result.
+Invalid and truncated JSON have no parsed body; a truncated text capture is
+explicitly a prefix. Payloads above the native 256 KiB retention limit are omitted
+without changing the producer's capture status. The view retains eight jobs,
+64 artifacts/64 KiB of metadata per job, and at most 8192 display lines.
+
+Artifacts show their recorded provenance, path, existence, size and modification
+time. Current disk availability remains unverified: files can change after the
+inventory was recorded. Disk open/copy/export actions are not yet available in
+this view. Superseded job identities cannot inherit an older inspector's data.
+Result bodies stay outside layout snapshots and ordinary runtime telemetry;
+supervisor event recordings contain captured results as described below.
+
 ## Repository search
 
 Press `[R]` or select **Search a repository and inspect results** in the palette.
@@ -71,6 +95,8 @@ snapshot, as-of and shared-filter fields. `[Ctrl+U]` clears a field. The form us
 the canonical search schema and defaults supplied by the supervisor. Shared
 filters accept a JSON object with the same predicates as the API; duplicate
 fields and simultaneous snapshot/as-of selection are rejected. `[Enter]` submits.
+If the form opens during startup, it loads its schema when the verified supervisor
+handshake arrives; reopening is unnecessary.
 
 The results view preserves canonical mode groups, ranks, scores, paths, ranges,
 freshness and output-budget evidence. Arrows or `[j]/[k]` select a hit; `[Enter]`
@@ -91,8 +117,10 @@ scope or replacing a query invalidates old results and rejects late responses.
 `[Ctrl+C]` shuts down the native client, supervisor and owned query children.
 Search requires a controllable supervisor advertising `supportsSearch`; passive
 and replay sessions cannot execute requests. Drafts and source text stay outside
-saved layout snapshots and ordinary telemetry. Explicitly enabled event recordings
+saved layout snapshots and ordinary telemetry. The native launcher records
+supervisor events in its selected/default observability directory; these recordings
 include returned search data, so retain them with the same care as source files.
+Direct supervisor launches record events only when an event-log directory is supplied.
 
 ## Repository, workspace and settings
 

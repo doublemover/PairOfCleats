@@ -6,6 +6,7 @@ import { createJobController } from './supervisor/jobs.js';
 import { createEventLogRecorder, createFlowController } from './supervisor/protocol-flow.js';
 import { normalizeLineBreaks, sleep } from './supervisor/request-utils.js';
 import { createCli } from '../../src/shared/cli.js';
+import { assertTuiControlReason } from '../../src/contracts/validators/tui-request.js';
 
 createCli({
   scriptName: 'pairofcleats tui supervisor',
@@ -141,6 +142,7 @@ const runSearch = async (request, context) => {
  * @returns {Promise<void>}
  */
 const shutdown = async (reason = 'shutdown', exitCode = 0) => {
+  assertTuiControlReason(reason);
   if (state.shuttingDown) return;
   state.shuttingDown = true;
   if (runtimeMetricsTimer) {
@@ -233,11 +235,19 @@ const handleRequest = async (request) => {
       emitLog(null, 'error', 'job:cancel missing jobId');
       return;
     }
-    cancelJob(jobId, request.reason || 'cancel_requested');
+    try { cancelJob(jobId, request.reason === undefined ? 'cancel_requested' : request.reason); }
+    catch (error) {
+      if (error.code !== 'ERR_TUI_CANCEL_REASON') throw error;
+      emitLog(jobId, 'error', 'Cancellation request was not admitted.', { code: error.code });
+    }
     return;
   }
   if (op === 'shutdown') {
-    await shutdown(request.reason || 'shutdown', 0);
+    try { await shutdown(request.reason === undefined ? 'shutdown' : request.reason, 0); }
+    catch (error) {
+      if (error.code !== 'ERR_TUI_CANCEL_REASON') throw error;
+      emitLog(null, 'error', 'Shutdown request was not admitted.', { code: error.code });
+    }
     return;
   }
   emitLog(null, 'error', `unknown op: ${op}`);

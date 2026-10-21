@@ -22,3 +22,12 @@ export const assertBoundedTuiRequest = (value, { code, message }) => {
   if (Buffer.byteLength(JSON.stringify(value) ?? '') > 128 * 1024) invalid();
   return value;
 };
+
+/** Control reasons are data, never objects to stringify into errors or state. */
+export const assertTuiControlReason = value => {
+  if (typeof value !== 'string' || !value.trim() || value.length > 256 || /[\x00-\x1f\x7f]/.test(value)) {
+    throw Object.assign(new TypeError('Control reason must be a non-empty bounded string without control characters.'),
+      { code: 'ERR_TUI_CANCEL_REASON' });
+  }
+  return value;
+};

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T01:13:56.249Z",
+  "generatedAt": "2026-10-21T03:22:06.703Z",
   "summary": {
     "lanes": 5,
-    "tests": 1362,
+    "tests": 1363,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 346,
+    "families": 347,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1288
+      "missingTests": 1289
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1139,
+      "totalTests": 1140,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1090
+        "missing": 1091
       }
     },
     {
@@ -2156,6 +2156,12 @@
     },
     {
       "key": "tui/supervisor-shutdown-admission",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-watchdog-outcome",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

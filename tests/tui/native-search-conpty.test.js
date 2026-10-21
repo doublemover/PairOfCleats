@@ -14,7 +14,7 @@ import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture
 
 assert.equal(process.platform, 'win32', 'This owner requires actual Windows ConPTY; POSIX needs its own PTY owner');
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-search-conpty/')[1];
-assert.ok(['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt'].includes(mode));
+assert.ok(['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt', 'handshake'].includes(mode));
 const columns = mode === 'narrow' ? 60 : 170, terminalRows = mode === 'narrow' ? 18 : 46;
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-search-${mode}`);
 const repo = path.join(dir, 'selected repository');
@@ -41,7 +41,8 @@ const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'
     typeInferenceCrossFile: false, riskAnalysis: false }, tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null, PAIROFCLEATS_TUI_NODE: process.execPath,
     PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(mode === 'navigation' ? [repo] : []),
-    PAIROFCLEATS_TUI_SUPERVISOR: path.join(root, 'tools/tui/supervisor.js'),
+    PAIROFCLEATS_TUI_SUPERVISOR: path.join(root, mode === 'handshake'
+      ? 'tests/fixtures/tui/native-delayed-hello.js' : 'tools/tui/supervisor.js'),
     PAIROFCLEATS_TUI_RUN_ID: 'search-native', PAIROFCLEATS_TUI_SNAPSHOT_PATH: path.join(dir, 'state.json'),
     PAIROFCLEATS_TUI_EVENT_LOG_DIR: dir } });
 const buildAt = async (target, name) => {
@@ -136,7 +137,13 @@ try {
     };
     try {
       await wait(async () => (await readEvents()).some(row => row.event === 'hello'), 'actual supervisor hello');
-      terminal.write('R'); await rendered('Ready; Enter runs a canonical search');
+      if (mode === 'handshake') {
+        await rendered('Tab focus'); terminal.write('R');
+        await rendered('Read only: repository search requires a controllable local supervisor');
+        assert.equal((await readEvents()).some(row => row.internal && row.event === 'job:start'), false);
+        await fs.writeFile(path.join(dir, 'release-hello'), 'explicit fixture handshake release\n');
+      } else terminal.write('R');
+      await rendered('Ready; Enter runs a canonical search');
       const requestedQuery = ['pagination', 'truncated', 'modes', 'incompatible'].includes(mode) ? '' : mode === 'empty-error' ? 'unfindableNativeTerm' : query;
       const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
         : mode === 'truncated' ? { ann: false, type: 'FunctionDeclaration' }

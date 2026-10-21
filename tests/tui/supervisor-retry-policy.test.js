@@ -24,6 +24,12 @@ try {
 
   const end = await waitForEvent((event) => event.event === 'job:end' && event.jobId === jobId);
   assert.equal(end.status, 'failed');
+  assert.equal(end.attempts, 2);
+  assert.equal(end.maxAttempts, 2);
+  assert.equal(end.retries, 1);
+  assert.equal(end.terminationReason, 'exit');
+  assert.equal(end.timedOut, false);
+  assert.ok(end.totalDurationMs >= end.durationMs, 'total time includes earlier attempts and retry scheduling');
 
   const retryLogs = events.filter((event) => (
     event.event === 'log'
