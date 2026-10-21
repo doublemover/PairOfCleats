@@ -18,7 +18,7 @@ import {
 } from '../filters.js';
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
-import { normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
+import { normalizeNonNegativeNumber, normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
 import { normalizeOptionalBoolean } from '../../shared/env/core.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
 import { normalizeBooleanString } from '../../shared/boolean-normalization.js';
@@ -266,18 +266,9 @@ export function normalizeSearchOptions({
   const symbolBoostExportWeight = 1.1;
   const relationBoostConfigRaw = retrievalConfig?.relationBoost || {};
   const relationBoostEnabled = relationBoostConfigRaw.enabled === true;
-  const relationBoostPerCall = Number.isFinite(Number(relationBoostConfigRaw.perCall))
-    && Number(relationBoostConfigRaw.perCall) > 0
-    ? Number(relationBoostConfigRaw.perCall)
-    : 0.25;
-  const relationBoostPerUse = Number.isFinite(Number(relationBoostConfigRaw.perUse))
-    && Number(relationBoostConfigRaw.perUse) > 0
-    ? Number(relationBoostConfigRaw.perUse)
-    : 0.1;
-  const relationBoostMaxBoost = Number.isFinite(Number(relationBoostConfigRaw.maxBoost))
-    && Number(relationBoostConfigRaw.maxBoost) > 0
-    ? Number(relationBoostConfigRaw.maxBoost)
-    : 1.5;
+  const relationBoostPerCall = normalizeNonNegativeNumber(relationBoostConfigRaw.perCall, 0.25);
+  const relationBoostPerUse = normalizeNonNegativeNumber(relationBoostConfigRaw.perUse, 0.1);
+  const relationBoostMaxBoost = normalizeNonNegativeNumber(relationBoostConfigRaw.maxBoost, 1.5);
   const storageTier = normalizeStorageTier(
     envConfig.storageTier
       || retrievalConfig.storageTier

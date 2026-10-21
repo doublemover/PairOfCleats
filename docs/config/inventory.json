@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T04:45:09.003Z",
+  "generatedAt": "2026-10-21T05:02:42.643Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4807,6 +4807,7 @@
         "tests/helpers/test-env.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",
+        "tests/retrieval/relation-boost-zero-config.test.js",
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",

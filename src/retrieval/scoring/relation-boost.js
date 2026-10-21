@@ -3,6 +3,7 @@ import {
   getLanguageLexicon,
   isLexiconStopword
 } from '../../lang/lexicon/index.js';
+import { normalizeNonNegativeNumber } from '../../shared/limits.js';
 
 const DEFAULT_RELATION_BOOST = Object.freeze({
   enabled: false,
@@ -136,9 +137,9 @@ export const computeRelationBoost = ({
   const caseTokens = cfg.caseTokens === true;
   const caseFile = cfg.caseFile === true;
   const lexiconEnabled = cfg.lexiconEnabled !== false;
-  const perCall = asPositiveNumber(cfg.perCall, DEFAULT_RELATION_BOOST.perCall);
-  const perUse = asPositiveNumber(cfg.perUse, DEFAULT_RELATION_BOOST.perUse);
-  const maxBoost = asPositiveNumber(cfg.maxBoost, DEFAULT_RELATION_BOOST.maxBoost);
+  const perCall = normalizeNonNegativeNumber(cfg.perCall, DEFAULT_RELATION_BOOST.perCall);
+  const perUse = normalizeNonNegativeNumber(cfg.perUse, DEFAULT_RELATION_BOOST.perUse);
+  const maxBoost = normalizeNonNegativeNumber(cfg.maxBoost, DEFAULT_RELATION_BOOST.maxBoost);
   const maxExplainTokens = Math.max(1, Math.floor(asPositiveNumber(
     cfg.maxExplainTokens,
     DEFAULT_RELATION_BOOST.maxExplainTokens

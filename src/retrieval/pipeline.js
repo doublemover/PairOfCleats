@@ -32,7 +32,7 @@ import {
   MAX_POOL_ENTRIES
 } from './pipeline/constants.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
-import { normalizePositiveInt } from '../shared/limits.js';
+import { normalizeNonNegativeNumber, normalizePositiveInt } from '../shared/limits.js';
 
 /**
  * Normalize token-like input into trimmed string token list.
@@ -276,15 +276,9 @@ export function createSearchPipeline(context) {
     ? Number(symbolBoost.exportWeight)
     : 1.1;
   const relationBoostEnabled = relationBoost?.enabled === true;
-  const relationBoostPerCall = Number.isFinite(Number(relationBoost?.perCall))
-    ? Number(relationBoost.perCall)
-    : 0.25;
-  const relationBoostPerUse = Number.isFinite(Number(relationBoost?.perUse))
-    ? Number(relationBoost.perUse)
-    : 0.1;
-  const relationBoostMaxBoost = Number.isFinite(Number(relationBoost?.maxBoost))
-    ? Number(relationBoost.maxBoost)
-    : 1.5;
+  const relationBoostPerCall = normalizeNonNegativeNumber(relationBoost?.perCall, 0.25);
+  const relationBoostPerUse = normalizeNonNegativeNumber(relationBoost?.perUse, 0.1);
+  const relationBoostMaxBoost = normalizeNonNegativeNumber(relationBoost?.maxBoost, 1.5);
   const relationBoostConfig = {
     enabled: relationBoostEnabled,
     perCall: relationBoostPerCall,

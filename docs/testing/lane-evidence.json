@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T04:45:03.914Z",
+  "generatedAt": "2026-10-21T05:02:37.891Z",
   "summary": {
     "lanes": 5,
-    "tests": 1375,
+    "tests": 1376,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 350,
+    "families": 351,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1301
+      "missingTests": 1302
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1152,
+      "totalTests": 1153,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1103
+        "missing": 1104
       }
     },
     {
@@ -1466,6 +1466,12 @@
     },
     {
       "key": "retrieval/providers",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "retrieval/relation-boost-zero-config",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

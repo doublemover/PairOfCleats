@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 997,
+    "hero": 998,
     "matrix": 108,
     "meta": 46,
     "soak": 1,
@@ -6925,6 +6925,12 @@
     {
       "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
       "order": 1152,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/relation-boost-zero-config",
+      "order": 1153,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
