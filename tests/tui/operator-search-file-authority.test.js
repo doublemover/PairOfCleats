@@ -20,9 +20,12 @@ const command = path.join(repo, process.platform === 'win32' ? 'editor.cmd' : 'e
 if (process.platform === 'win32') await fs.writeFile(command, `@echo off\r\necho invoked>"${marker}"\r\n`);
 else await fs.writeFile(command, `#!/bin/sh\nprintf invoked > '${marker.replace(/'/g, `'\\''`)}'\n`, { mode: 0o755 });
 await fs.symlink(command, path.join(bin, process.platform === 'win32' ? 'code.cmd' : 'code'), 'file');
-applyTestEnv({ syncProcess: true, cacheRoot: path.join(dir, 'cache'), embeddings: 'off',
+const env = applyTestEnv({ syncProcess: true, cacheRoot: path.join(dir, 'cache'), embeddings: 'off',
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null, PAIROFCLEATS_TRUSTED_REPOS: '[]',
     PATH: `${bin}${path.delimiter}${process.env.PATH || ''}` } });
+// applyTestEnv synchronizes project overrides, not general process variables.
+// The real supervisor must inherit this explicit fixture launcher search path.
+process.env.PATH = env.PATH;
 const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-file-authority', profileId: 'default' });
 await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify([{ id: 0, file: 'answer.js',
   kind: 'FunctionDeclaration', name: 'answer', start: 0, end: Buffer.byteLength(body), startLine: 1, endLine: 1,
