@@ -1,5 +1,6 @@
 import { findDescendantByType } from './ast.js';
-export const TREE_SITTER_CHUNK_VERSION = '2';
+// v3 excludes Perl heredoc bodies from declarations after scanner state repair.
+export const TREE_SITTER_CHUNK_VERSION = '3';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',

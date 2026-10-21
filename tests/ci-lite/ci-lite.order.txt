@@ -1177,3 +1177,9 @@ services/snapshot-directory-pieces
 tui/operator-index-workflows
 tui/supervisor-index-workflows
 tooling/index-stats/verify-manifest-formats
+lang/perl/heredoc-native
+lang/perl/heredoc-cache
+lang/perl/scanner-lifecycle
+tooling/install/native-parser-error-contract
+tooling/install/perl-patch-roundtrip
+tooling/install/tree-sitter-patch-roundtrip

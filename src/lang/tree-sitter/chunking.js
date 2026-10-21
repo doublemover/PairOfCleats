@@ -197,7 +197,8 @@ function resolveParseTimeoutMs(options, resolvedId) {
 }
 
 /**
- * Guard known native parser crash paths by language/platform.
+ * Retain an explicit diagnostic guard; the required patched Perl scanner and
+ * Tree-sitter worker lifecycle now qualify the normal Windows parser route.
  * @param {string} resolvedId
  * @param {object} [options={}]
  * @returns {boolean}
@@ -207,7 +208,7 @@ const shouldGuardNativeParser = (resolvedId, options = {}) => {
   const configured = options?.treeSitter?.nativeParserGuards?.perl;
   if (configured === false) return false;
   if (configured === true) return true;
-  return process.platform === 'win32';
+  return false;
 };
 
 /**

@@ -33,6 +33,8 @@ const TREE_SITTER_PERL_PATCH_MARKERS = [
   'dynamic STRING queue in C',
   'clearStringQueue(scanner->heredoc.heredoc_identifier_queue);',
   'clearBoolQueue(scanner->heredoc.heredoc_allows_interpolation);',
+  'All lexical state participates in parser branch restoration and incremental edits.',
+  'dequeueBoolQueue(scanner->heredoc.heredoc_allows_indent);',
   'if (scanner == NULL) return NULL;'
 ];
 

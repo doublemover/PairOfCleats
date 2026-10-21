@@ -30,5 +30,10 @@ try {
   assert.equal(activated.capabilities[0].state, 'parser-activated');
   assert.equal(activated.capabilities[0].packageVersion, '1.0.0');
   assert.equal(activated.capabilities[0].nodeVersion, process.version);
+  write('node_modules/tree-sitter/index.cjs',
+    'module.exports = class { setLanguage(){} reset(){} parse(){return {rootNode:{hasError:false,descendantsOfType(){return []}}}} };');
+  const invalidPerl = probeNativeGrammarRoutes(root, [{ ...routes[0], languageId: 'perl' }]);
+  assert.equal(invalidPerl.ok, false, 'generic activation cannot admit an incorrect heredoc lifecycle');
+  assert.match(invalidPerl.message, /literal heredoc lifecycle failed/);
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
 console.log('native grammar activation capability test passed');

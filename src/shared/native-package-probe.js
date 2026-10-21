@@ -1,6 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { formatSpawnFailureReason } from '../../tools/setup/rebuild-native-exit.js';
 
+const PERL_LIFECYCLE_SOURCE = "my $x = <<'END';\n$END\n\\END\nEND trailing\nsub fake { die 'literal'; }\nEND\nsub actual { return $x; }\n";
+
 /** Probe the binding, which better-sqlite3 loads only when a database opens. */
 export const probeSqliteNative = (root, nativeBinding = null) => {
   const script = `
@@ -78,6 +80,46 @@ export const probeNodeRealmLifecycle = (root) => {
       : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
 };
 
+/** A real binding callback interrupted by owned worker shutdown, with natural
+ * worker exit as the disposal boundary for the GC-owned Node parser binding. */
+export const probeNativeParserWorkerLifecycle = (root) => {
+  const script = `
+    const { Worker } = require('node:worker_threads');
+    const source = ${JSON.stringify(`
+      const { parentPort, workerData } = require('node:worker_threads');
+      const Parser = require('tree-sitter');
+      const language = require('tree-sitter-javascript');
+      const parser = new Parser(); parser.setLanguage(language);
+      function parse() { parser.reset(); parser.parse('function value(){ return 1; }'); }
+      for (let i=0; i<16; i++) parse();
+      parentPort.postMessage('ready');
+      if (workerData.cancel) while (true) parse();
+    `)};
+    (async () => {
+      for (const cancel of [false, true]) {
+        const worker = new Worker(source, { eval: true, workerData: { cancel } });
+        const exited = new Promise((resolve, reject) => {
+          worker.once('exit', resolve); worker.once('error', reject);
+        });
+        const ready = await new Promise((resolve, reject) => {
+          worker.once('message', resolve); worker.once('error', reject);
+          worker.once('exit', code => reject(Error('parser worker exited before ready: ' + code)));
+        });
+        if (ready !== 'ready') throw Error('parser worker did not initialize');
+        if (cancel) {
+          if (await worker.terminate() !== 1) throw Error('parser cancellation status');
+        } else if (await exited !== 0) throw Error('parser disposal status');
+      }
+      process.stdout.write('PARSER_WORKER_LIFECYCLE_OK');
+    })().catch(error => { console.error(error.message); process.exitCode = 1; });
+  `;
+  const result = spawnSync(process.execPath, ['-e', script], {
+    cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536
+  });
+  const ok = result.status === 0 && result.stdout === 'PARSER_WORKER_LIFECYCLE_OK';
+  return { ok, message: ok ? null : (result.stderr || result.stdout || '').trim() || formatSpawnFailureReason(result) };
+};
+
 /** Isolated parser activation using the same binding owner as production. */
 export const probeNativeGrammarRoutes = (root, routes) => {
   const script = `
@@ -99,6 +141,22 @@ export const probeNativeGrammarRoutes = (root, routes) => {
         parser.setLanguage(language);
         const tree = parser.parse(source);
         if (!tree?.rootNode || tree.rootNode.hasError) throw Error(languageId + ': parser activation failed');
+        if (languageId === 'perl') {
+          const literal = ${JSON.stringify(PERL_LIFECYCLE_SOURCE)};
+          for (let i = 0; i < 2; i++) {
+            parser.reset();
+            const checked = parser.parse(literal);
+            try {
+              const ends = checked.rootNode.descendantsOfType('heredoc_end_identifier');
+              const functions = checked.rootNode.descendantsOfType('function_definition');
+              if (checked.rootNode.hasError || ends.length !== 1
+                || ends[0].startIndex !== literal.lastIndexOf('\\nEND\\n') + 1
+                || functions.length !== 1 || !functions[0].text.startsWith('sub actual')) {
+                throw Error('perl: literal heredoc lifecycle failed');
+              }
+            } finally { checked.delete?.(); }
+          }
+        }
         const pkg = JSON.parse(fs.readFileSync(path.join(root, 'node_modules', spec.moduleName, 'package.json')));
         capabilities.push({ languageId, moduleName: spec.moduleName, packageVersion: pkg.version,
           nodeVersion: process.version, abi: process.versions.modules, state: 'parser-activated' });
@@ -190,7 +248,7 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
     });
 
     if (parserProbeResult.status === 0) {
-      return { ok: true, message: null };
+      return probeNativeParserWorkerLifecycle(root);
     }
 
     const message = (parserProbeResult.stderr || parserProbeResult.stdout || '').trim();

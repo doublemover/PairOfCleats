@@ -76,7 +76,7 @@ try {
   assert.equal((await inspectBootstrapReadiness({ root })).ready, false, 'marker existence is not readiness');
   for (const name of required) write(`node_modules/${name}/package.json`, JSON.stringify({ name, version: '1.0.0', main: 'index.cjs' }));
   const sqlite = 'module.exports = class { prepare(){return {get(){return {ok:1}}}} close(){} };';
-  const parser = 'module.exports = class { setLanguage(){} parse(){return {rootNode:{}}} };';
+  const parser = 'module.exports = class { setLanguage(){} reset(){} parse(){return {rootNode:{}}} };';
   write('node_modules/better-sqlite3/index.cjs', sqlite);
   write('node_modules/tree-sitter/index.cjs', parser);
   write('node_modules/tree-sitter-javascript/index.cjs', 'module.exports = {};');

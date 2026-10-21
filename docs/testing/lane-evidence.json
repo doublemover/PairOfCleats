@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T13:28:20.169Z",
+  "generatedAt": "2026-10-21T15:15:13.098Z",
   "summary": {
     "lanes": 5,
-    "tests": 1402,
+    "tests": 1408,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 361,
+    "families": 362,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1328
+      "missingTests": 1334
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1177,
+      "totalTests": 1183,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1128
+        "missing": 1134
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 42,
+      "count": 45,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 37
+      "unknownDurationCount": 40
     },
     {
       "key": "indexing/type-inference",
@@ -656,6 +656,12 @@
     },
     {
       "key": "indexing/piece-assembly",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
+      "key": "lang/perl",
       "count": 3,
       "knownDurationMs": 0,
       "unknownDurationCount": 3
