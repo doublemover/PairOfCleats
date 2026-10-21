@@ -8,6 +8,13 @@ import termios
 binary, directory, mode = sys.argv[1:]
 directory = pathlib.Path(directory)
 before = termios.tcgetattr(0)
+
+
+def recorded_mode(mode):
+    # termios control characters contain bytes on POSIX; retain their exact values.
+    return mode[:6] + [[value.hex() if isinstance(value, bytes) else value for value in mode[6]]]
+
+
 child = subprocess.Popen([binary], stderr=subprocess.PIPE)
 with (directory / 'pids.jsonl').open('a') as stream:
     stream.write(json.dumps(dict(native=child.pid)) + '\n')
@@ -16,7 +23,7 @@ try:
     after = termios.tcgetattr(0)
     (directory / 'terminal-receipt.json').write_text(json.dumps(dict(
         mode=mode, exitCode=child.returncode, stderr=stderr.decode(),
-        beforeInput=before, afterInput=after, terminalRestored=before == after)))
+        beforeInput=recorded_mode(before), afterInput=recorded_mode(after), terminalRestored=before == after)))
 finally:
     if child.poll() is None:
         child.kill()
