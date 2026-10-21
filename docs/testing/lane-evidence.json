@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T12:59:09.448Z",
+  "generatedAt": "2026-10-21T13:28:20.169Z",
   "summary": {
     "lanes": 5,
-    "tests": 1401,
+    "tests": 1402,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 361,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1327
+      "missingTests": 1328
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1176,
+      "totalTests": 1177,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1127
+        "missing": 1128
       }
     },
     {
@@ -782,6 +782,12 @@
     },
     {
       "key": "tooling/eval",
+      "count": 2,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 2
+    },
+    {
+      "key": "tooling/index-stats",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -2024,12 +2030,6 @@
     },
     {
       "key": "tooling/impact",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "tooling/index-stats",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

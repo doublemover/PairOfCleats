@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T12:17:36.521Z",
+  "generatedAt": "2026-10-21T13:28:28.008Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4825,6 +4825,7 @@
         "tests/tooling/doctor/dedicated-provider-handshake-fixtures.test.js",
         "tests/tooling/doctor/generic-preset-matrix.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
+        "tests/tooling/index-stats/verify-manifest-formats.test.js",
         "tests/tooling/install/download-model-selection.test.js",
         "tests/tooling/install/setup-json-prompts.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",

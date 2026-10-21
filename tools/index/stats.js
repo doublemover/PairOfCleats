@@ -4,7 +4,7 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { INDEX_STATS_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
-import { checksumFile } from '../../src/shared/hash.js';
+import { checksumFile, sha1File } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { loadPiecesManifest } from '../../src/shared/artifact-io/manifest.js';
 import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js';
@@ -206,7 +206,7 @@ const verifyManifestPieces = async (modeDir, pieces) => {
       errors.push(`${modeDir}: missing artifact ${relPath}`);
       continue;
     }
-    const expectedBytes = Number(piece?.bytes);
+    const expectedBytes = piece?.bytes == null ? null : Number(piece.bytes);
     if (Number.isFinite(expectedBytes) && expectedBytes !== stat.size) {
       errors.push(`${modeDir}: bytes mismatch for ${relPath} (expected ${expectedBytes}, found ${stat.size})`);
       warnings.push(`${modeDir}: bytes mismatch for ${relPath}`);
@@ -214,7 +214,9 @@ const verifyManifestPieces = async (modeDir, pieces) => {
     const parsedChecksum = parseChecksum(piece?.checksum);
     if (parsedChecksum) {
       try {
-        const computed = await checksumFile(absolutePath);
+        const computed = parsedChecksum.algo === 'sha1'
+          ? { algo: 'sha1', value: await sha1File(absolutePath) }
+          : await checksumFile(absolutePath);
         if (computed?.algo !== parsedChecksum.algo || computed?.value !== parsedChecksum.value) {
           warnings.push(`${modeDir}: checksum mismatch for ${relPath}`);
         }

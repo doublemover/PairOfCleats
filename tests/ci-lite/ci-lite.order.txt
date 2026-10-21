@@ -1176,3 +1176,4 @@ indexing/build-state/analysis-shortcuts-modes
 services/snapshot-directory-pieces
 tui/operator-index-workflows
 tui/supervisor-index-workflows
+tooling/index-stats/verify-manifest-formats
