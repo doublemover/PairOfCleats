@@ -885,6 +885,9 @@ indexing/read/utf8-truncation-buffer-budget
 indexing/state/patch-queue-waiter-allocation
 indexing/tokenization/minhash-factored-parity
 indexing/tokenization/minhash-factored-update
+indexing/tokenization/minhash-family-calibration
+indexing/piece-assembly/minhash-identity
+storage/sqlite/minhash-bundle-identity
 indexing/tree-sitter/persistent-cache-memory-bounds
 lang/contracts/handlebars-primitive-frame-allocation
 lang/contracts/parser-model-line-index-reuse

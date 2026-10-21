@@ -1,4 +1,6 @@
 import { performance } from 'node:perf_hooks';
+import { assertMinhashHashIdentity } from '../../../../index/minhash.js';
+import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../minhash.js';
 import { buildChunkRow, buildTokenFrequency, prepareVectorAnnInsert } from '../../build-helpers.js';
 import { ensureVocabIds } from '../../vocab.js';
 import { toArray } from '../../../../shared/iterables.js';
@@ -340,6 +342,7 @@ export const runIncrementalUpdatePhase = async ({
         }
 
         if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
+          assertMinhashHashIdentity(chunk.minhashHashIdentity);
           insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
           tableRows.minhash_signatures += 1;
         }
@@ -442,8 +445,10 @@ export const runIncrementalUpdatePhase = async ({
     db.exec('BEGIN IMMEDIATE');
     ownsTransaction = true;
     throwIfAborted(signal);
+    const minhashHeader = assertSqliteMinhashReceiver(db, mode);
     applyDeletes();
     applyInserts();
+    if (tableRows.minhash_signatures) writeSqliteMinhashHeader(db, mode, minhashHeader?.sampling ?? null);
     await applyCachedSemanticPlan({ db, plan: semanticPlan, signal });
     if (signal) await setImmediate(undefined, { signal });
     throwIfAborted(signal);

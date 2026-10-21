@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getHeapStatistics } from 'node:v8';
-import { normalizeMinhashSampling } from '../../../index/minhash.js';
+import { assertMinhashHashIdentity, normalizeMinhashSampling } from '../../../index/minhash.js';
 import { MAX_JSON_BYTES } from '../constants.js';
 import {
   INTEGER_COERCE_MODE_STRICT,
@@ -133,12 +133,14 @@ const resolvePackedMinhashArtifacts = ({
   const resolvedMetaPath = metaState.path;
   const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+  const hashIdentity = assertMinhashHashIdentity(meta?.hashIdentity);
   const dims = toStrictPositiveSafeInt(meta?.dims, 'dims');
   const count = toStrictPositiveSafeInt(meta?.count, 'count');
   const shape = resolvePackedShapeAndByteLengths({ dims, count });
   const sampling = resolveSampling(meta?.sampling, dims);
   assertWithinMaxBytes(shape.totalBytes, maxBytes, 'Packed minhash signatures');
   return {
+    hashIdentity,
     dims,
     count,
     totalValues: shape.totalValues,
@@ -213,7 +215,7 @@ export const loadMinhashSignatures = async (
       const start = i * dims;
       signatures[i] = view.subarray(start, start + dims);
     }
-    return packed.sampling ? { signatures, sampling: packed.sampling } : { signatures };
+    return { hashIdentity: packed.hashIdentity, signatures, ...(packed.sampling ? { sampling: packed.sampling } : {}) };
   }
   if (sources.format !== 'json') {
     throw new Error(`Unsupported minhash_signatures format: ${sources.format}`);
@@ -224,6 +226,7 @@ export const loadMinhashSignatures = async (
       manifest: resolvedManifest,
       strict
     });
+    assertMinhashHashIdentity(payload?.hashIdentity);
     const sampling = resolveSampling(payload?.sampling);
     return sampling ? { ...payload, sampling } : payload;
   } catch (err) {
@@ -316,8 +319,8 @@ export const loadMinhashSignatureRows = async function* (
           // cannot mutate previously yielded rows.
           const sig = Uint32Array.from(view.subarray(start, end));
           yield packed.sampling
-            ? { docId: docId + i, sig, sampling: packed.sampling }
-            : { docId: docId + i, sig };
+            ? { docId: docId + i, sig, hashIdentity: packed.hashIdentity, sampling: packed.sampling }
+            : { docId: docId + i, sig, hashIdentity: packed.hashIdentity };
         }
         docId += batchCount;
       }
@@ -345,6 +348,7 @@ export const loadMinhashSignatureRows = async function* (
     throw err;
   }
   const signatures = Array.isArray(payload?.signatures) ? payload.signatures : null;
+  const hashIdentity = assertMinhashHashIdentity(payload?.hashIdentity);
   if (!signatures) return;
   const sampling = resolveSampling(payload?.sampling);
   if (!materialize) {
@@ -353,6 +357,6 @@ export const loadMinhashSignatureRows = async function* (
   for (let docId = 0; docId < signatures.length; docId += 1) {
     const sig = signatures[docId];
     if (!sig) continue;
-    yield sampling ? { docId, sig, sampling } : { docId, sig };
+    yield sampling ? { docId, sig, hashIdentity, sampling } : { docId, sig, hashIdentity };
   }
 };

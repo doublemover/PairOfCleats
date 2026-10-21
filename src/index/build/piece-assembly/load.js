@@ -3,6 +3,7 @@ import {
   loadChunkMeta,
   loadJsonArrayArtifact,
   loadJsonObjectArtifact,
+  loadMinhashSignatures,
   loadTokenPostings
 } from '../../../shared/artifact-io/loaders.js';
 import {
@@ -126,7 +127,7 @@ export const loadIndexArtifacts = async (dir, { strict = true } = {}) => {
     tokenPostings,
     fieldPostings: readJsonOptional(dir, 'field_postings.json'),
     fieldTokens: readJsonOptional(dir, 'field_tokens.json'),
-    minhash: readJsonOptional(dir, 'minhash_signatures.json'),
+    minhash: await loadMinhashSignatures(dir, { manifest, strict }),
     phraseNgrams: readJsonOptional(dir, 'phrase_ngrams.json'),
     chargrams: readJsonOptional(dir, 'chargram_postings.json'),
     denseVec,

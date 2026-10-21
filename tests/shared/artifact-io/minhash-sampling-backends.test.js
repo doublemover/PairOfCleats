@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { Packr } from 'msgpackr';
-import { SimpleMinHash, minifyMinhashSignature, resolveMinhashSampledPlan } from '../../../src/index/minhash.js';
+import { MINHASH_HASH_IDENTITY, SimpleMinHash, minifyMinhashSignature, resolveMinhashSampledPlan } from '../../../src/index/minhash.js';
 import { rankMinhash } from '../../../src/retrieval/rankers.js';
 import { loadMinhashSignatures, loadMinhashSignatureRows } from '../../../src/shared/artifact-io/loaders/minhash.js';
 import { computePackedChecksum } from '../../../src/shared/artifact-io/checksum.js';
@@ -14,6 +14,7 @@ import { packMinhashSignatures } from '../../../src/index/build/artifacts/minhas
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
 import { createVectorIngestor } from '../../../src/storage/sqlite/build/from-artifacts/vector-ingest.js';
 import { packUint32 } from '../../../src/storage/sqlite/vector.js';
+import { writeSqliteMinhashHeader } from '../../../src/storage/sqlite/minhash.js';
 import { createSqliteHelpers } from '../../../src/retrieval/sqlite-helpers.js';
 import { loadLmdbMinhashArtifact } from '../../../src/storage/lmdb/minhash.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../../../src/storage/lmdb/schema.js';
@@ -61,13 +62,14 @@ try {
     let packedMeta = null;
     if (format === 'json') {
       await writeJsonObjectFile(path.join(dir, 'minhash_signatures.json'), {
-        fields: { sampling }, arrays: { signatures }
+        fields: { hashIdentity: MINHASH_HASH_IDENTITY, sampling }, arrays: { signatures }
       });
       await writePiecesManifest(dir, [{ name: 'minhash_signatures', path: 'minhash_signatures.json', format }]);
     } else {
       const packed = packMinhashSignatures({ signatures });
       packedMeta = {
         format: 'u32', endian: 'le', dims: packed.dims, count: packed.count,
+        hashIdentity: MINHASH_HASH_IDENTITY,
         checksum: computePackedChecksum(packed.buffer).hash, sampling
       };
       await fs.writeFile(path.join(dir, 'minhash_signatures.packed.bin'), packed.buffer);
@@ -78,12 +80,14 @@ try {
       ]);
     }
     const loaded = await loadMinhashSignatures(dir, { strict: false });
+    assert.equal(loaded.hashIdentity, MINHASH_HASH_IDENTITY);
     assert.equal(loaded.sampling.hashStride, sampling.hashStride);
     assert.ok(Object.isFrozen(loaded.sampling));
     assertSelf(loaded);
     const rows = [];
     for await (const row of loadMinhashSignatureRows(dir, { strict: false, batchSize: 2, materialize: true })) rows.push(row);
     assert.equal(rows.length, signatures.length);
+    assert.ok(rows.every(row => row.hashIdentity === MINHASH_HASH_IDENTITY));
     assert.ok(rows.every((row) => row.sampling === rows[0].sampling));
     assert.deepEqual(rows.map((row) => Array.from(row.sig)), signatures);
 
@@ -100,19 +104,38 @@ try {
       // Existing full-width bundle updates coexist with retained sampled rows.
       db.prepare('UPDATE minhash_signatures SET sig = ? WHERE mode = ? AND doc_id = 0').run(packUint32(fullSignature), 'code');
       assertSelf(sqliteHelpers(db).loadIndexFromSqlite('code', sqliteOptions).minhash);
-      await vectors.ingestMinhash({ signatures: [fullSignature] }, 'prose');
-      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM minhash_meta WHERE mode = ?').get('prose').n, 0);
+      await vectors.ingestMinhash({ hashIdentity: MINHASH_HASH_IDENTITY, signatures: [fullSignature] }, 'prose');
+      assert.deepEqual(db.prepare('SELECT hash_identity, sampling FROM minhash_meta WHERE mode = ?').get('prose'),
+        { hash_identity: MINHASH_HASH_IDENTITY, sampling: null });
       assert.equal(db.prepare('SELECT COUNT(*) AS n FROM minhash_meta WHERE mode = ?').get('code').n, 1);
 
       // Conflicting metadata must be rolled back by the build's owning transaction.
       db.exec('BEGIN');
       await assert.rejects(vectors.ingestMinhash((async function* () {
-        yield { docId: 10, sig: signatures[0], sampling };
-        yield { docId: 11, sig: signatures[1], sampling };
-        yield { docId: 12, sig: signatures[2], sampling: { ...sampling, hashStride: 2 } };
+        yield { docId: 10, sig: signatures[0], hashIdentity: MINHASH_HASH_IDENTITY, sampling };
+        yield { docId: 11, sig: signatures[1], hashIdentity: MINHASH_HASH_IDENTITY, sampling };
+        yield { docId: 12, sig: signatures[2], hashIdentity: MINHASH_HASH_IDENTITY, sampling: { ...sampling, hashStride: 2 } };
       })(), 'code'), /Conflicting minhash/);
       db.exec('ROLLBACK');
       assert.equal(db.prepare('SELECT COUNT(*) AS n FROM minhash_signatures WHERE doc_id >= 10').get().n, 0);
+      await vectors.ingestMinhash({ hashIdentity: MINHASH_HASH_IDENTITY, signatures: [fullSignature] }, 'code');
+      const retained = sqliteHelpers(db).loadIndexFromSqlite('code', sqliteOptions).minhash;
+      assert.equal(retained.sampling.hashStride, sampling.hashStride, 'full-width appends preserve retained sampled coordinates');
+      assertSelf(retained);
+      for (const hashIdentity of [undefined, 'legacy-polynomial-v1']) {
+        db.exec('BEGIN');
+        await assert.rejects(vectors.ingestMinhash((async function* () {
+          yield { docId: 10, sig: signatures[0], hashIdentity: MINHASH_HASH_IDENTITY, sampling };
+          yield { docId: 11, sig: signatures[1], hashIdentity: MINHASH_HASH_IDENTITY, sampling };
+          yield { docId: 12, sig: signatures[2], hashIdentity, sampling };
+        })(), 'code'), { code: 'ERR_ARTIFACT_INVALID' });
+        db.exec('ROLLBACK');
+        assert.equal(db.prepare('SELECT COUNT(*) AS n FROM minhash_signatures WHERE doc_id >= 10').get().n, 0);
+      }
+      db.prepare('UPDATE minhash_meta SET hash_identity = ? WHERE mode = ?').run('legacy-polynomial-v1', 'code');
+      assert.throws(() => sqliteHelpers(db).loadIndexFromSqlite('code', sqliteOptions), { code: 'ERR_ARTIFACT_INVALID' });
+      await assert.rejects(vectors.ingestMinhash({ hashIdentity: MINHASH_HASH_IDENTITY, signatures }, 'code'),
+        { code: 'ERR_ARTIFACT_INVALID' });
     } finally {
       db.close();
     }
@@ -150,10 +173,23 @@ try {
         await assert.rejects(loadMinhashSignatures(dir, { strict: false }), { code: 'ERR_ARTIFACT_INVALID' });
       }
     }
+    for (const hashIdentity of [undefined, null, true, 7, [], {}, 'legacy-polynomial-v1']) {
+      const payload = { hashIdentity, signatures, sampling };
+      const file = path.join(dir, packedMeta ? 'minhash_signatures.packed.meta.json' : 'minhash_signatures.json');
+      await writeJsonObjectFile(file, { fields: packedMeta ? { ...packedMeta, hashIdentity } : payload });
+      await assert.rejects(loadMinhashSignatures(dir, { strict: false }), { code: 'ERR_ARTIFACT_INVALID', rebuildRequired: true });
+      await assert.rejects(async () => {
+        for await (const row of loadMinhashSignatureRows(dir, { strict: false, materialize: true })) assert.fail(`unexpected row ${row.docId}`);
+      }, { code: 'ERR_ARTIFACT_INVALID' });
+      assert.throws(() => rankMinhash({ minhash: payload }, words, 1), { code: 'ERR_ARTIFACT_INVALID' });
+      values.set(LMDB_ARTIFACT_KEYS.minhashSignatures, packr.pack(payload));
+      assert.throws(() => createLmdbHelpers({ getDb: () => ({ get: key => values.get(key) }), hnswConfig: { enabled: false } })
+        .loadIndexFromLmdb('code', { includeDense: false, includeFilterIndex: false, includeHnsw: false }),
+      { code: 'ERR_ARTIFACT_INVALID' });
+    }
   }
 
-  // A current-schema store with no optional metadata retains full-width behavior.
-  // This does not authorize loading a superseded SQLite schema.
+  // Missing hash identity cannot be inferred from either full or sampled rows.
   const legacy = new Database(':memory:');
   try {
     initializeSqlite(legacy);
@@ -162,10 +198,18 @@ try {
     insert.run('code', 0, packUint32(fullSignature));
     insert.run('code', 1, packUint32(signatures[1]));
     const helpers = sqliteHelpers(legacy);
-    const loaded = helpers.loadIndexFromSqlite('code', sqliteOptions);
-    assertSelf(loaded.minhash);
-    assert.deepEqual(rankMinhash(loaded, words, 1, new Set([1])), [], 'old sampled rows require metadata/rebuild, never guessed indices');
-    await ingestor(legacy).ingestMinhash({ signatures, sampling }, 'code');
+    assert.throws(() => helpers.loadIndexFromSqlite('code', sqliteOptions), { code: 'ERR_ARTIFACT_INVALID' });
+    await assert.rejects(ingestor(legacy).ingestMinhash({ hashIdentity: MINHASH_HASH_IDENTITY, signatures, sampling }, 'code'),
+      { code: 'ERR_ARTIFACT_INVALID' });
+    assert.equal(legacy.prepare('SELECT COUNT(*) AS n FROM minhash_signatures').get().n, 2, 'failed admission preserves old rows');
+    // Explicit rebuild removes unknown rows before admitting the current producer.
+    legacy.prepare('DELETE FROM minhash_signatures WHERE mode = ?').run('code');
+    await ingestor(legacy).ingestMinhash({ hashIdentity: MINHASH_HASH_IDENTITY, signatures, sampling }, 'code');
+    assertSelf(helpers.loadIndexFromSqlite('code', sqliteOptions).minhash);
+    writeSqliteMinhashHeader(legacy, 'code');
+    const knownFamily = helpers.loadIndexFromSqlite('code', sqliteOptions);
+    assert.deepEqual(rankMinhash(knownFamily, words, 1, new Set([1])), [], 'sampled coordinates cannot be guessed even with a known hash family');
+    legacy.prepare('UPDATE minhash_signatures SET sig = ? WHERE mode = ? AND doc_id = 0').run(packUint32(fullSignature), 'code');
     assertSelf(helpers.loadIndexFromSqlite('code', sqliteOptions).minhash);
     assert.equal(legacy.pragma('user_version', { simple: true }), SCHEMA_VERSION);
   } finally {

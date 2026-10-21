@@ -327,6 +327,7 @@ export function tokenizeChunkText(input) {
     seq,
     tokenIds,
     minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
+    minhashHashIdentity: mh.hashIdentity,
     stats: computeTokenStats(tokens),
     ...(classification ? {
       identifierTokens: classification.identifierTokens,

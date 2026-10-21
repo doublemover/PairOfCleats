@@ -13,11 +13,12 @@ import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { MODULE_EXPORTS_VERSION } from '../../../lang/js-ts-exports.js';
 import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
+import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-// v11 invalidates chunk bundles without authoritative JS/TS module export identity.
-export const SIGNATURE_VERSION = 11;
+// v12 retires polynomial MinHash signatures and unlabelled cached chunk data.
+export const SIGNATURE_VERSION = 12;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -96,6 +97,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
     literalAnalyzer: TEXT_ANALYZER_VERSION,
     moduleExportsProducer: MODULE_EXPORTS_VERSION,
     nativeChunkProducer: TREE_SITTER_CHUNK_VERSION,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
@@ -194,6 +196,7 @@ export const buildTokenizationKey = (runtime, mode) => {
   const payload = {
     signatureVersion: SIGNATURE_VERSION,
     scoringAnalyzer: SCORING_ANALYZER_VERSION,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     dictConfig: dictConfigPayload,
     postingsConfig: runtime.postingsConfig || {},

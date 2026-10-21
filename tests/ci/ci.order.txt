@@ -7,6 +7,8 @@ retrieval/federation/cache-failure-contract-matrix
 indexing/config/index-dump
 indexing/fixtures/health-authority/manifest
 indexing/fixtures/health-authority/flow-data
+indexing/fixtures/health-authority/minhash-missing-identity
+indexing/fixtures/health-authority/minhash-stale-identity
 tooling/config-inventory/schema-scan
 indexing/filter-index/metrics
 indexing/file-processor/skip-minified-binary

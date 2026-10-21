@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import assert from 'node:assert/strict';
 import { createIndexState } from '../../../src/index/build/state.js';
 import { quantizeVecUint8 } from '../../../src/index/embedding.js';
@@ -34,7 +35,7 @@ const makeChunk = (file) => ({
   seq: ['alpha', 'beta'],
   docmeta: {},
   stats: {},
-  minhashSig: [1, 2],
+  minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [1, 2],
   embedding: sharedMerged,
   embed_code: sharedMerged,
   embed_doc: sharedDoc

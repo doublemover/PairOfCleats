@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1005,
+    "hero": 1008,
     "matrix": 108,
     "meta": 46,
     "soak": 1,
@@ -5339,1640 +5339,1658 @@
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/persistent-cache-memory-bounds",
+      "id": "indexing/tokenization/minhash-family-calibration",
       "order": 888,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/handlebars-primitive-frame-allocation",
+      "id": "indexing/piece-assembly/minhash-identity",
       "order": 889,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/contracts/parser-model-line-index-reuse",
+      "id": "storage/sqlite/minhash-bundle-identity",
       "order": 890,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/bench/language-no-ann-forwarding",
+      "id": "indexing/tree-sitter/persistent-cache-memory-bounds",
       "order": 891,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cache/query-cache-trim-allocation",
+      "id": "lang/contracts/handlebars-primitive-frame-allocation",
       "order": 892,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/index-hydration-vocab-allocation",
+      "id": "lang/contracts/parser-model-line-index-reuse",
       "order": 893,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/output/snippet-grapheme-budget",
+      "id": "perf/bench/language-no-ann-forwarding",
       "order": 894,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/output/summary-cache-defaults",
+      "id": "retrieval/cache/query-cache-trim-allocation",
       "order": 895,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/fusion-accumulator-reuse",
+      "id": "retrieval/index-hydration-vocab-allocation",
       "order": 896,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/score-buffer-lifetime",
+      "id": "retrieval/output/snippet-grapheme-budget",
       "order": 897,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/score-buffer-reference-lifetime",
+      "id": "retrieval/output/summary-cache-defaults",
       "order": 898,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/topk-comparator-parity",
+      "id": "retrieval/pipeline/fusion-accumulator-reuse",
       "order": 899,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/topk-mixed-id-parity",
+      "id": "retrieval/pipeline/score-buffer-lifetime",
       "order": 900,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/vocab-index-lazy-owners",
+      "id": "retrieval/pipeline/score-buffer-reference-lifetime",
       "order": 901,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/cache/cache-key-memo-string-budget",
+      "id": "retrieval/pipeline/topk-comparator-parity",
       "order": 902,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/cache/file-text-dual-representation-budget",
+      "id": "retrieval/pipeline/topk-mixed-id-parity",
       "order": 903,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/cache/lru-dual-cap",
+      "id": "retrieval/vocab-index-lazy-owners",
       "order": 904,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/concurrency/scheduler-telemetry-capture-controls",
+      "id": "shared/cache/cache-key-memo-string-budget",
       "order": 905,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/json-stream/plain-write-clock-work",
+      "id": "shared/cache/file-text-dual-representation-budget",
       "order": 906,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/jsonrpc/writer-lifecycle",
+      "id": "shared/cache/lru-dual-cap",
       "order": 907,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/build/multi-row-build-parity",
+      "id": "shared/concurrency/scheduler-telemetry-capture-controls",
       "order": 908,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/build/multi-row-scratch",
+      "id": "shared/json-stream/plain-write-clock-work",
       "order": 909,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-range-memo",
+      "id": "shared/jsonrpc/writer-lifecycle",
       "order": 910,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/diagnostic-repeat-range-lookup",
+      "id": "storage/sqlite/build/multi-row-build-parity",
       "order": 911,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/position-conversion-allocation",
+      "id": "storage/sqlite/build/multi-row-scratch",
       "order": 912,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/position-width-no-slices",
+      "id": "tooling/lsp/diagnostic-range-memo",
       "order": 913,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/session-health-retirement",
+      "id": "tooling/lsp/diagnostic-repeat-range-lookup",
       "order": 914,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "security/structural-windows-wrapper",
+      "id": "tooling/lsp/position-conversion-allocation",
       "order": 915,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "ci/codeql-workflow-contract",
+      "id": "tooling/lsp/position-width-no-slices",
       "order": 916,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "security/tooling-cache-authority",
+      "id": "tooling/lsp/session-health-retirement",
       "order": 917,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "security/tooling-cache-storage",
+      "id": "security/structural-windows-wrapper",
       "order": 918,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/archive",
+      "id": "ci/codeql-workflow-contract",
       "order": 919,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "integrations/inference-history/correlation",
+      "id": "security/tooling-cache-authority",
       "order": 920,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/normalize",
+      "id": "security/tooling-cache-storage",
       "order": 921,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/security",
+      "id": "integrations/inference-history/archive",
       "order": 922,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/service",
+      "id": "integrations/inference-history/correlation",
       "order": 923,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/reader",
+      "id": "integrations/inference-history/normalize",
       "order": 924,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/search/agent-help",
+      "id": "integrations/inference-history/security",
       "order": 925,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/agent-reader",
+      "id": "integrations/inference-history/service",
       "order": 926,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/ranking",
+      "id": "integrations/inference-history/reader",
       "order": 927,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/owner-controls",
+      "id": "cli/search/agent-help",
       "order": 928,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/semantic-index",
+      "id": "integrations/inference-history/agent-reader",
       "order": 929,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/host-adapters",
+      "id": "integrations/inference-history/ranking",
       "order": 930,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/file-evidence",
+      "id": "integrations/inference-history/owner-controls",
       "order": 931,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/recovered-artifact",
+      "id": "integrations/inference-history/semantic-index",
       "order": 932,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/local-source",
+      "id": "integrations/inference-history/host-adapters",
       "order": 933,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/cache/batched-physical-storage",
+      "id": "integrations/inference-history/file-evidence",
       "order": 934,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/pipeline/global-admission-bounds",
+      "id": "integrations/inference-history/recovered-artifact",
       "order": 935,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "embeddings/runner/hnsw-post-fill-order",
+      "id": "integrations/inference-history/local-source",
       "order": 936,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/artifacts/packed-committed-checksums",
+      "id": "embeddings/cache/batched-physical-storage",
       "order": 937,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/dependency-scoped-signatures",
+      "id": "embeddings/pipeline/global-admission-bounds",
       "order": 938,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/incremental/stage-checkpoint-refresh",
+      "id": "embeddings/runner/hnsw-post-fill-order",
       "order": 939,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tokenization/multilingual-symmetry",
+      "id": "indexing/artifacts/packed-committed-checksums",
       "order": 940,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/native-discovery",
+      "id": "indexing/incremental/dependency-scoped-signatures",
       "order": 941,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/ranked-continuation",
+      "id": "indexing/incremental/stage-checkpoint-refresh",
       "order": 942,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/fts-null-defaults-and-execution",
+      "id": "indexing/tokenization/multilingual-symmetry",
       "order": 943,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/fts-optional-tables",
+      "id": "integrations/inference-history/native-discovery",
       "order": 944,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cache/embedding-process-reuse",
+      "id": "integrations/inference-history/ranked-continuation",
       "order": 945,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/cli/search-controls",
+      "id": "retrieval/backend/fts-null-defaults-and-execution",
       "order": 946,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/pipeline/ann-independent-discovery",
+      "id": "retrieval/backend/fts-optional-tables",
       "order": 947,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/query/literal-phrase-and-eligibility",
+      "id": "retrieval/cache/embedding-process-reuse",
       "order": 948,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ranking/bm25-sqlite-override",
+      "id": "retrieval/cli/search-controls",
       "order": 949,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/ranking/evidence-selection-reranker",
+      "id": "retrieval/pipeline/ann-independent-discovery",
       "order": 950,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/fts-optional-build-compaction",
+      "id": "retrieval/query/literal-phrase-and-eligibility",
       "order": 951,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/persistent-eg2",
+      "id": "retrieval/ranking/bm25-sqlite-override",
       "order": 952,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/embeddinggemma2-prepared",
+      "id": "retrieval/ranking/evidence-selection-reranker",
       "order": 953,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-runtime-identity",
+      "id": "storage/sqlite/fts-optional-build-compaction",
       "order": 954,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/persistent-eg2-scheduler",
+      "id": "integrations/inference-history/persistent-eg2",
       "order": 955,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/gguf-embedding-runtime",
+      "id": "indexing/embeddings/embeddinggemma2-prepared",
       "order": 956,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-cpu-qualification",
+      "id": "integrations/inference-history/eg2-runtime-identity",
       "order": 957,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-checkpoint-conversion",
+      "id": "integrations/inference-history/persistent-eg2-scheduler",
       "order": 958,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-worker-runtime",
+      "id": "integrations/inference-history/gguf-embedding-runtime",
       "order": 959,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-worker-disconnect",
+      "id": "integrations/inference-history/eg2-cpu-qualification",
       "order": 960,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-service-cancellation",
+      "id": "integrations/inference-history/eg2-checkpoint-conversion",
       "order": 961,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/sqlite-readiness",
+      "id": "integrations/inference-history/eg2-worker-runtime",
       "order": 962,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/archive-structure",
+      "id": "integrations/inference-history/eg2-worker-disconnect",
       "order": 963,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/archive-lexical",
+      "id": "integrations/inference-history/eg2-service-cancellation",
       "order": 964,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/hybrid-source-diversity",
+      "id": "integrations/inference-history/sqlite-readiness",
       "order": 965,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/redaction-idempotence",
+      "id": "integrations/inference-history/archive-structure",
       "order": 966,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/eg2-structural-runtime",
+      "id": "integrations/inference-history/archive-lexical",
       "order": 967,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/archive-assets",
+      "id": "integrations/inference-history/hybrid-source-diversity",
       "order": 968,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/dictionary-identifiers",
+      "id": "integrations/inference-history/redaction-idempotence",
       "order": 969,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "config/schema-dictionary-models",
+      "id": "integrations/inference-history/eg2-structural-runtime",
       "order": 970,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/config-inventory/root-scan",
+      "id": "integrations/inference-history/archive-assets",
       "order": 971,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/postinstall-multifile-patch",
+      "id": "shared/dictionary-identifiers",
       "order": 972,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/transformers-tokenizer-options",
+      "id": "config/schema-dictionary-models",
       "order": 973,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "cli/general/bench-runtime-boundary",
+      "id": "tooling/config-inventory/root-scan",
       "order": 974,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "cli/general/ingest-report-option-rejections",
+      "id": "tooling/install/postinstall-multifile-patch",
       "order": 975,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "cli/general/lifecycle-workflow-option-rejections",
+      "id": "indexing/embeddings/transformers-tokenizer-options",
       "order": 976,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "runner/discovery-complete-inventory",
+      "id": "cli/general/bench-runtime-boundary",
       "order": 977,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/postings/real-bench-failure-contract",
+      "id": "cli/general/ingest-report-option-rejections",
       "order": 978,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/advanced-surface-golden-required",
+      "id": "cli/general/lifecycle-workflow-option-rejections",
       "order": 979,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/absent-index-state",
+      "id": "runner/discovery-complete-inventory",
       "order": 980,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "security/repository-trust-identity",
+      "id": "indexing/postings/real-bench-failure-contract",
       "order": 981,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/fixture-index-risk-config",
+      "id": "services/advanced-surface-golden-required",
       "order": 982,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/fixture-index-temporary-env",
+      "id": "retrieval/backend/absent-index-state",
       "order": 983,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/lane-default-cache-scope",
+      "id": "security/repository-trust-identity",
       "order": 984,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/lane-default-test-config",
+      "id": "helpers/fixture-index-risk-config",
       "order": 985,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/process-lifecycle-force-timeout",
+      "id": "helpers/fixture-index-temporary-env",
       "order": 986,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/search-lifecycle-env-isolation",
+      "id": "helpers/lane-default-cache-scope",
       "order": 987,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/temp-rmdir-enoent",
+      "id": "helpers/lane-default-test-config",
       "order": 988,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/test-env-clear",
+      "id": "helpers/process-lifecycle-force-timeout",
       "order": 989,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "helpers/test-env-sync-option",
+      "id": "helpers/search-lifecycle-env-isolation",
       "order": 990,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/managed-tool-file-evidence",
+      "id": "helpers/temp-rmdir-enoent",
       "order": 991,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/tamper-recovery",
+      "id": "helpers/test-env-clear",
       "order": 992,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/artifact-io/offsets-validation-windowed",
+      "id": "helpers/test-env-sync-option",
       "order": 993,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/release/shipped-surface-registry",
+      "id": "tooling/install/managed-tool-file-evidence",
       "order": 994,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "indexing/language-registry/linguist-metadata-parity",
+      "id": "storage/semantic/tamper-recovery",
       "order": 995,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/docx-node-compatibility",
+      "id": "shared/artifact-io/offsets-validation-windowed",
       "order": 996,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/lifecycle-health",
+      "id": "tooling/release/shipped-surface-registry",
       "order": 997,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/summary/index-lifecycle",
+      "id": "indexing/language-registry/linguist-metadata-parity",
       "order": 998,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/semantic/compiler-single-cpu-lifecycle",
+      "id": "tooling/install/docx-node-compatibility",
       "order": 999,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "storage/semantic/verified-piece-snapshot",
+      "id": "tooling/lsp/lifecycle-health",
       "order": 1000,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/embeddings/effective-memory-and-retained-bytes",
+      "id": "tooling/reports/summary/index-lifecycle",
       "order": 1001,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/contained-file-verified-read",
+      "id": "indexing/semantic/compiler-single-cpu-lifecycle",
       "order": 1002,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/semantic/working-set-file-identity",
+      "id": "storage/semantic/verified-piece-snapshot",
       "order": 1003,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/io/append-writer-flush-after-close",
+      "id": "indexing/embeddings/effective-memory-and-retained-bytes",
       "order": 1004,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/fd-zero-close",
+      "id": "shared/contained-file-verified-read",
       "order": 1005,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/mcp/cache-gc-repo-scope",
+      "id": "storage/semantic/working-set-file-identity",
       "order": 1006,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/mcp/maintenance-cancellation",
+      "id": "shared/io/append-writer-flush-after-close",
       "order": 1007,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/queue/artifact-cleanup-concurrency",
+      "id": "context-pack/fd-zero-close",
       "order": 1008,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/queue/admission-policy",
+      "id": "services/mcp/cache-gc-repo-scope",
       "order": 1009,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/service/repo-sync-policy",
+      "id": "services/mcp/maintenance-cancellation",
       "order": 1010,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/service/background-retry-policy",
+      "id": "services/queue/artifact-cleanup-concurrency",
       "order": 1011,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/service/service-config-validation",
+      "id": "services/queue/admission-policy",
       "order": 1012,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/service/indexer-job-completion-signal",
+      "id": "tooling/service/repo-sync-policy",
       "order": 1013,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/service/indexer-queue-worker-contract",
+      "id": "tooling/service/background-retry-policy",
       "order": 1014,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/ci/run-suite-api-plan",
+      "id": "tooling/service/service-config-validation",
       "order": 1015,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/shared-module-performance",
+      "id": "tooling/service/indexer-job-completion-signal",
       "order": 1016,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/cache/repo-access",
+      "id": "tooling/service/indexer-queue-worker-contract",
       "order": 1017,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/workspace/projection",
+      "id": "tooling/ci/run-suite-api-plan",
       "order": 1018,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
-      "id": "map/workspace/dom-interaction",
+      "id": "tooling/shared-module-performance",
       "order": 1019,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/workspace/lifecycle",
+      "id": "shared/cache/repo-access",
       "order": 1020,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "map/workspace/semantic-hydration",
+      "id": "map/workspace/projection",
       "order": 1021,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/clangd-missing-command-blocks-runtime",
+      "id": "map/workspace/dom-interaction",
       "order": 1022,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/ci/run-suite-script-coverage-plan",
+      "id": "map/workspace/lifecycle",
       "order": 1023,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/workspace/semantic-hydration",
+      "order": 1024,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/clangd-missing-command-blocks-runtime",
+      "order": 1025,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/ci/run-suite-script-coverage-plan",
+      "order": 1026,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/script-coverage/harness",
-      "order": 1024,
+      "order": 1027,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "tooling/script-coverage/harness-parity",
-      "order": 1025,
+      "order": 1028,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     },
     {
       "id": "indexing/build/promotion-cancellation",
-      "order": 1026,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "indexing/watch/cancel-before-publication",
-      "order": 1027,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "storage/semantic/cache-routes-parity",
-      "order": 1028,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "tooling/lsp/go-rust-signature-boundaries/go",
       "order": 1029,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/go-rust-signature-boundaries/rust",
+      "id": "indexing/watch/cancel-before-publication",
       "order": 1030,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/signature-boundary-providers/python",
+      "id": "storage/semantic/cache-routes-parity",
       "order": 1031,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/signature-boundary-providers/go",
+      "id": "tooling/lsp/go-rust-signature-boundaries/go",
       "order": 1032,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/signature-boundary-providers/rust",
+      "id": "tooling/lsp/go-rust-signature-boundaries/rust",
       "order": 1033,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/request-cache-document-authority",
+      "id": "tooling/lsp/signature-boundary-providers/python",
       "order": 1034,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/hover-cache-key-v2",
+      "id": "tooling/lsp/signature-boundary-providers/go",
       "order": 1035,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/lsp/request-cache-persistent-hit",
+      "id": "tooling/lsp/signature-boundary-providers/rust",
       "order": 1036,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/download-model-selection",
+      "id": "tooling/lsp/request-cache-document-authority",
       "order": 1037,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/setup-model-readiness",
+      "id": "tooling/lsp/hover-cache-key-v2",
       "order": 1038,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/setup-json-prompts",
+      "id": "tooling/lsp/request-cache-persistent-hit",
       "order": 1039,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/download-dicts-update",
+      "id": "tooling/install/download-model-selection",
       "order": 1040,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/triage/ingest-fallback-identity",
+      "id": "tooling/install/setup-model-readiness",
       "order": 1041,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/triage/ingest-single-record-arrays",
+      "id": "tooling/install/setup-json-prompts",
       "order": 1042,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/cache/gc-incomplete-mark",
+      "id": "tooling/install/download-dicts-update",
       "order": 1043,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "context-pack/risk-truncation-contract/excerpt-bytes",
+      "id": "tooling/triage/ingest-fallback-identity",
       "order": 1044,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/risk-truncation-contract/excerpt-tokens",
+      "id": "tooling/triage/ingest-single-record-arrays",
       "order": 1045,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/risk-truncation-contract/partial-count",
+      "id": "tooling/cache/gc-incomplete-mark",
       "order": 1046,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/risk-truncation-contract/partial-bytes",
+      "id": "context-pack/risk-truncation-contract/excerpt-bytes",
       "order": 1047,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/risk-truncation-contract/partial-tokens",
+      "id": "context-pack/risk-truncation-contract/excerpt-tokens",
       "order": 1048,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/linear-turn-lookup",
+      "id": "context-pack/risk-truncation-contract/partial-count",
       "order": 1049,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "integrations/inference-history/privacy-roundtrip",
+      "id": "context-pack/risk-truncation-contract/partial-bytes",
       "order": 1050,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "graph/suggest-tests-node-budget",
+      "id": "context-pack/risk-truncation-contract/partial-tokens",
       "order": 1051,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/none",
+      "id": "integrations/inference-history/linear-turn-lookup",
       "order": 1052,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/calls",
+      "id": "integrations/inference-history/privacy-roundtrip",
       "order": 1053,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/usages",
+      "id": "graph/suggest-tests-node-budget",
       "order": 1054,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/imports",
+      "id": "context-pack/graph-selection/none",
       "order": 1055,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/calls-usages",
+      "id": "context-pack/graph-selection/calls",
       "order": 1056,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/calls-imports",
+      "id": "context-pack/graph-selection/usages",
       "order": 1057,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/usages-imports",
+      "id": "context-pack/graph-selection/imports",
       "order": 1058,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/all",
+      "id": "context-pack/graph-selection/calls-usages",
       "order": 1059,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/graph-selection/unspecified",
+      "id": "context-pack/graph-selection/calls-imports",
       "order": 1060,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/kill-tree-windows-lineage",
+      "id": "context-pack/graph-selection/usages-imports",
       "order": 1061,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "context-pack/risk-guidance-csr",
+      "id": "context-pack/graph-selection/all",
       "order": 1062,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "graph/directed-traversal",
+      "id": "context-pack/graph-selection/unspecified",
       "order": 1063,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/prose-enumeration-mode-scope",
+      "id": "shared/kill-tree-windows-lineage",
       "order": 1064,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/federation/relative-cache-freshness",
+      "id": "context-pack/risk-guidance-csr",
       "order": 1065,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "services/mcp/index-build-cancellation",
+      "id": "graph/directed-traversal",
       "order": 1066,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "storage/sqlite/build/cancellation",
+      "id": "retrieval/federation/prose-enumeration-mode-scope",
       "order": 1067,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/ingest/lsif/protocol",
+      "id": "retrieval/federation/relative-cache-freshness",
       "order": 1068,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/ingest/gtags/protocol",
+      "id": "services/mcp/index-build-cancellation",
       "order": 1069,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/ingest/gtags/command-contract",
+      "id": "storage/sqlite/build/cancellation",
       "order": 1070,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "ci/gate-policy",
+      "id": "tooling/ingest/lsif/protocol",
       "order": 1071,
-      "suiteCategory": "meta",
-      "suiteCategoryReason": "meta-cohort-prefix"
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/release/publish-assets",
+      "id": "tooling/ingest/gtags/protocol",
       "order": 1072,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/release/readiness-gate-missing-workflow",
+      "id": "tooling/ingest/gtags/command-contract",
       "order": 1073,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/typescript-compiler-compatibility",
+      "id": "ci/gate-policy",
       "order": 1074,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/release/publish-assets",
+      "order": 1075,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/bootstrap-preflight",
-      "order": 1075,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
-    },
-    {
-      "id": "lang/python/registry-relations",
+      "id": "tooling/release/readiness-gate-missing-workflow",
       "order": 1076,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/python/utf8-chunk-ranges",
+      "id": "tooling/typescript-compiler-compatibility",
       "order": 1077,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/python/positional-defaults",
+      "id": "tooling/install/bootstrap-preflight",
       "order": 1078,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "lang/contracts/html-registry-metadata",
+      "id": "lang/python/registry-relations",
       "order": 1079,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/contracts/python-html-registry",
+      "id": "lang/python/utf8-chunk-ranges",
       "order": 1080,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/vfs/hash-origin-authority",
+      "id": "lang/python/positional-defaults",
       "order": 1081,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/vfs/token-origin-authority",
+      "id": "lang/contracts/html-registry-metadata",
       "order": 1082,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/map-selected-index-identity",
+      "id": "indexing/contracts/python-html-registry",
       "order": 1083,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/sublime/minimum-runtime-compatibility",
+      "id": "tooling/vfs/hash-origin-authority",
       "order": 1084,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/vfs/token-origin-authority",
+      "order": 1085,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/map-selected-index-identity",
+      "order": 1086,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/sublime/minimum-runtime-compatibility",
+      "order": 1087,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/sublime/api-authentication",
-      "order": 1085,
+      "order": 1088,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "tooling/vscode/external-node-runtime",
-      "order": 1086,
+      "order": 1089,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
       "id": "retrieval/ann/generation-identity",
-      "order": 1087,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "retrieval/ann/generation-publication",
-      "order": 1088,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "retrieval/ann/generation-rebuild-failure",
-      "order": 1089,
-      "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
-    },
-    {
-      "id": "retrieval/ann/generation-lmdb",
       "order": 1090,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/cargo-invocation-policy",
+      "id": "retrieval/ann/generation-publication",
       "order": 1091,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/fts-boolean-universe",
+      "id": "retrieval/ann/generation-rebuild-failure",
       "order": 1092,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/boolean-complement-cli/memory",
+      "id": "retrieval/ann/generation-lmdb",
       "order": 1093,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/boolean-complement-cli/sqlite",
+      "id": "tui/cargo-invocation-policy",
       "order": 1094,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/backend/boolean-complement-cli/sqlite-fts",
+      "id": "retrieval/backend/fts-boolean-universe",
       "order": 1095,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "perf/parsers/xml-cold-budget",
+      "id": "retrieval/backend/boolean-complement-cli/memory",
       "order": 1096,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-settings",
+      "id": "retrieval/backend/boolean-complement-cli/sqlite",
       "order": 1097,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-request-contract",
+      "id": "retrieval/backend/boolean-complement-cli/sqlite-fts",
       "order": 1098,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-file-authority",
+      "id": "perf/parsers/xml-cold-budget",
       "order": 1099,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-lifecycle/cancel",
+      "id": "tui/operator-settings",
       "order": 1100,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-lifecycle/dispose",
+      "id": "tui/operator-search-request-contract",
       "order": 1101,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-lifecycle/invalid-output",
+      "id": "tui/operator-search-file-authority",
       "order": 1102,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-lifecycle/stderr-flood",
+      "id": "tui/operator-search-lifecycle/cancel",
       "order": 1103,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-lifecycle/supersede",
+      "id": "tui/operator-search-lifecycle/dispose",
       "order": 1104,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-search-lifecycle/truncated-output",
+      "id": "tui/operator-search-lifecycle/invalid-output",
       "order": 1105,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/launch-authority",
+      "id": "tui/operator-search-lifecycle/stderr-flood",
       "order": 1106,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/pagination",
+      "id": "tui/operator-search-lifecycle/supersede",
       "order": 1107,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/query-source",
+      "id": "tui/operator-search-lifecycle/truncated-output",
       "order": 1108,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/source-authority",
+      "id": "tui/supervisor-operator-search/launch-authority",
       "order": 1109,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/navigation",
+      "id": "tui/supervisor-operator-search/pagination",
       "order": 1110,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/navigation-untrusted",
+      "id": "tui/supervisor-operator-search/query-source",
       "order": 1111,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operator-search/navigation-cancel",
+      "id": "tui/supervisor-operator-search/source-authority",
       "order": 1112,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-settings-lifecycle",
+      "id": "tui/supervisor-operator-search/navigation",
       "order": 1113,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-settings-request-contract",
+      "id": "tui/supervisor-operator-search/navigation-untrusted",
       "order": 1114,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/operator-settings-authority",
+      "id": "tui/supervisor-operator-search/navigation-cancel",
       "order": 1115,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-shutdown-admission",
+      "id": "tui/operator-settings-lifecycle",
       "order": 1116,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-duplicate-job-admission",
+      "id": "tui/operator-settings-request-contract",
       "order": 1117,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-session-resource-cleanup",
+      "id": "tui/operator-settings-authority",
       "order": 1118,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-operation-lifecycle",
+      "id": "tui/supervisor-shutdown-admission",
       "order": 1119,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-watchdog-outcome",
+      "id": "tui/supervisor-duplicate-job-admission",
       "order": 1120,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-settings",
+      "id": "tui/supervisor-session-resource-cleanup",
       "order": 1121,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tui/supervisor-settings-scope-jobs",
+      "id": "tui/supervisor-operation-lifecycle",
       "order": 1122,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/terminal-screen-wrap",
+      "id": "tui/supervisor-watchdog-outcome",
       "order": 1123,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/cli-utils-probe-outcomes",
+      "id": "tui/supervisor-settings",
       "order": 1124,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/detect-probe-diagnostics",
+      "id": "tui/supervisor-settings-scope-jobs",
       "order": 1125,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/phpactor-approved-recipe",
+      "id": "tooling/terminal-screen-wrap",
       "order": 1126,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/phpactor-platform-contract",
+      "id": "tooling/cli-utils-probe-outcomes",
       "order": 1127,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+      "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/same-origin",
+      "id": "tooling/install/detect-probe-diagnostics",
       "order": 1128,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/cross-origin-rejected",
+      "id": "tooling/install/phpactor-approved-recipe",
       "order": 1129,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/cross-origin-approved",
+      "id": "tooling/install/phpactor-platform-contract",
       "order": 1130,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/checksum-mismatch",
+      "id": "tooling/install/phpactor-download-authority/same-origin",
       "order": 1131,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/oversized",
+      "id": "tooling/install/phpactor-download-authority/cross-origin-rejected",
       "order": 1132,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/empty",
+      "id": "tooling/install/phpactor-download-authority/cross-origin-approved",
       "order": 1133,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/mutable-url",
+      "id": "tooling/install/phpactor-download-authority/checksum-mismatch",
       "order": 1134,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/private-dns",
+      "id": "tooling/install/phpactor-download-authority/oversized",
       "order": 1135,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/local-opt-in-required",
+      "id": "tooling/install/phpactor-download-authority/empty",
       "order": 1136,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/phpactor-download-authority/redirect-loop",
+      "id": "tooling/install/phpactor-download-authority/mutable-url",
       "order": 1137,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "security/download-redirect-deadline/redirect",
+      "id": "tooling/install/phpactor-download-authority/private-dns",
       "order": 1138,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "security/download-redirect-deadline/body",
+      "id": "tooling/install/phpactor-download-authority/local-opt-in-required",
       "order": 1139,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "tooling/install/application-owned-node-detect",
+      "id": "tooling/install/phpactor-download-authority/redirect-loop",
       "order": 1140,
       "suiteCategory": "hero",
       "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/dense-vector-binary-writes/normal",
+      "id": "security/download-redirect-deadline/redirect",
       "order": 1141,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/dense-vector-binary-writes/partial",
+      "id": "security/download-redirect-deadline/body",
       "order": 1142,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/dense-vector-binary-writes/zero-progress",
+      "id": "tooling/install/application-owned-node-detect",
       "order": 1143,
       "suiteCategory": "hero",
-      "suiteCategoryReason": "default-standalone-behavior"
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
     },
     {
-      "id": "shared/dense-vector-binary-writes/write-error",
+      "id": "shared/dense-vector-binary-writes/normal",
       "order": 1144,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "shared/dense-vector-binary-writes/artifact-api",
+      "id": "shared/dense-vector-binary-writes/partial",
       "order": 1145,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/hit-comparison-summary",
+      "id": "shared/dense-vector-binary-writes/zero-progress",
       "order": 1146,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/parity/partial-ranks-report",
+      "id": "shared/dense-vector-binary-writes/write-error",
       "order": 1147,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
+      "id": "shared/dense-vector-binary-writes/artifact-api",
       "order": 1148,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/reports/compare-models-partial-ranks/one-common",
+      "id": "retrieval/hit-comparison-summary",
       "order": 1149,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/zero-warning-cap-cli/violation",
+      "id": "retrieval/parity/partial-ranks-report",
       "order": 1150,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/zero-warning-cap-cli/clean",
+      "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
       "order": 1151,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
+      "id": "tooling/reports/compare-models-partial-ranks/one-common",
       "order": 1152,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "retrieval/relation-boost-zero-config",
+      "id": "tooling/api-contracts/zero-warning-cap-cli/violation",
       "order": 1153,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "lang/js-ts-export-identity",
+      "id": "tooling/api-contracts/zero-warning-cap-cli/clean",
       "order": 1154,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/js-ts-export-bindings/javascript",
+      "id": "tooling/api-contracts/zero-warning-cap-cli/markdown",
       "order": 1155,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "indexing/tree-sitter/js-ts-export-bindings/typescript",
+      "id": "retrieval/relation-boost-zero-config",
       "order": 1156,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/export-identity-cli/js-report",
+      "id": "lang/js-ts-export-identity",
       "order": 1157,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/export-identity-cli/ts-report",
+      "id": "indexing/tree-sitter/js-ts-export-bindings/javascript",
       "order": 1158,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/export-identity-cli/js-fail",
+      "id": "indexing/tree-sitter/js-ts-export-bindings/typescript",
       "order": 1159,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     },
     {
-      "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+      "id": "tooling/api-contracts/export-identity-cli/js-report",
       "order": 1160,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/ts-report",
+      "order": 1161,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/js-fail",
+      "order": 1162,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+      "order": 1163,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

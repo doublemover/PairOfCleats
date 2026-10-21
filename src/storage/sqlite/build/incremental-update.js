@@ -1,4 +1,5 @@
 import { assertSqliteIndexFormat } from '../index-format.js';
+import { assertSqliteMinhashReceiver } from '../minhash.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
@@ -237,6 +238,7 @@ export async function incrementalUpdateDatabase({
     if (!hasRequiredTables(db, REQUIRED_TABLES)) {
       return { used: false, reason: 'schema missing' };
     }
+    assertSqliteMinhashReceiver(db, mode);
 
     const actualFtsVariants = listOptionalFtsTables(db).map(table => table.replace('chunks_fts_', '')).sort();
     if (JSON.stringify(actualFtsVariants) !== JSON.stringify(normalizeFtsVariants(ftsVariants))) {

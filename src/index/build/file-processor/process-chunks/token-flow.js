@@ -1,4 +1,5 @@
 import { analyzeLiteralText } from '../../../../shared/text-analyzer.js';
+import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
 import { analyzeComplexity, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -875,6 +876,7 @@ export const processChunks = async (context) => {
         tokenIds: [],
         seq: [],
         minhashSig: [],
+        minhashHashIdentity: MINHASH_HASH_IDENTITY,
         stats: {},
         identifierTokens: [],
         keywordTokens: [],
@@ -962,6 +964,7 @@ export const processChunks = async (context) => {
       tokenIds,
       seq,
       minhashSig,
+      minhashHashIdentity,
       stats,
       identifierTokens,
       keywordTokens,
@@ -1061,6 +1064,7 @@ export const processChunks = async (context) => {
       preContext,
       postContext,
       minhashSig,
+      minhashHashIdentity,
       commentFieldTokens,
       dictWords: dictWordsForChunk,
       dictConfig,

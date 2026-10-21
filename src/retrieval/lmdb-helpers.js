@@ -1,4 +1,5 @@
 import { normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
+import { assertMinhashHashIdentity } from '../index/minhash.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
 import { decodeLmdbValue } from '../storage/lmdb/utils.js';
 import {
@@ -142,6 +143,7 @@ export function createLmdbHelpers(options) {
       phraseNgrams: includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.phraseNgrams) : null,
       chargrams: includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.chargramPostings) : null
     };
+    if (idx.minhash?.signatures?.length) assertMinhashHashIdentity(idx.minhash.hashIdentity);
     hydrateSearchIndexPostProcessing(idx, {
       chunkMeta,
       fileChargramN,

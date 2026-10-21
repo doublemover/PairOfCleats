@@ -1,10 +1,11 @@
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
-// Metadata for sampled signatures.
+// Hash family is mandatory for every stored signature; sampling is optional.
 export const CREATE_MINHASH_META_SQL = `
   CREATE TABLE IF NOT EXISTS minhash_meta (
     mode TEXT PRIMARY KEY,
-    sampling TEXT NOT NULL
+    hash_identity TEXT NOT NULL,
+    sampling TEXT
   );
 `;
 

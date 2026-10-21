@@ -43,7 +43,7 @@ const errorCode = { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' };
 let db;
 try {
   assert.equal(ARTIFACT_SURFACE_VERSION, '0.1.0');
-  assert.equal(SCHEMA_VERSION, 15);
+  assert.equal(SCHEMA_VERSION, 16);
   for (const foundVersion of ['0.0.2', '0.1.1', '1.0.0', null, undefined]) {
     const dir = path.join(root, 'case-' + String(foundVersion));
     await fs.mkdir(path.join(dir, 'pieces'), { recursive: true });
@@ -193,14 +193,15 @@ try {
   db.pragma('user_version = 14');
   assert.throws(checkDb, errorCode);
   assert.equal(db.pragma('user_version', { simple: true }), 14);
-  db.pragma('user_version = 15');
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
   assert.throws(checkDb, errorCode);
   writeSqliteIndexFormat(db);
   checkDb();
   db.prepare("UPDATE index_format_meta SET value = '0.0.2'").run();
   assert.throws(checkDb, errorCode);
   // Metadata-only test double proves no chunk, vector, semantic or pragma payload is consumed.
-  for (const [schema, surface] of [[0, null], [14, '0.1.0'], [16, '0.1.0'], [15, null], [15, '0.0.2'], [15, '0.1.1']]) {
+  for (const [schema, surface] of [[0, null], [14, '0.1.0'], [SCHEMA_VERSION - 1, '0.1.0'],
+    [SCHEMA_VERSION + 1, '0.1.0'], [SCHEMA_VERSION, null], [SCHEMA_VERSION, '0.0.2'], [SCHEMA_VERSION, '0.1.1']]) {
     let accesses = 0, closed = 0;
     class ProbeDatabase {
       pragma(name) { assert.equal(name, 'user_version'); return schema; }
@@ -237,7 +238,7 @@ try {
   let streamed = '';
   res.write = text => { streamed += text; return true; };
   const diagnostic = { nativeCode: errorCode.code, operation: 'search', component: 'SQLite schema',
-    expectedVersion: 15, foundVersion: 16, repoRoot: root, indexPath: oldDbPath,
+    expectedVersion: SCHEMA_VERSION, foundVersion: SCHEMA_VERSION + 1, repoRoot: root, indexPath: oldDbPath,
     rebuildCommand: 'pairofcleats index build --repo "' + root + '" --mode all' };
   await createSseResponder(req, res).sendEvent('error', { ok: false, message: 'unsupported at ' + oldDbPath, ...diagnostic });
   const streamedError = JSON.parse(streamed.split('data: ')[1].trim());

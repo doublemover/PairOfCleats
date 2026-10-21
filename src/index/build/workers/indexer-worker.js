@@ -242,6 +242,7 @@ const sanitizeTokenizeResult = (result) => {
     ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : undefined,
     chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : undefined,
     minhashSig: normalizeNumberArray(result?.minhashSig),
+    minhashHashIdentity: result?.minhashHashIdentity ?? null,
     stats: {
       unique: Number(stats.unique) || 0,
       entropy: Number.isFinite(Number(stats.entropy)) ? Number(stats.entropy) : 0,

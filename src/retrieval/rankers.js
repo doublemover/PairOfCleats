@@ -1,4 +1,4 @@
-import { SimpleMinHash, minifyMinhashSignature, normalizeMinhashSampling } from '../index/minhash.js';
+import { SimpleMinHash, assertMinhashHashIdentity, minifyMinhashSignature, normalizeMinhashSampling } from '../index/minhash.js';
 import { createTopKReducer } from './pipeline/topk.js';
 import { bitmapHas, bitmapToArray, getBitmapSize } from './bitmap.js';
 import { normalizeEmbeddingDims } from './ann/dims.js';
@@ -276,6 +276,7 @@ function jaccard(sigA, sigB) {
 export function rankMinhash(idx, tokens, topN, candidateSet = null) {
   if (!idx.minhash?.signatures?.length) return [];
   if (!Array.isArray(tokens) || !tokens.length) return [];
+  assertMinhashHashIdentity(idx.minhash.hashIdentity);
   const qSig = minhashSigForTokens(tokens);
   const sampling = normalizeMinhashSampling(idx.minhash.sampling, qSig.length);
   const sampledQuery = sampling ? minifyMinhashSignature(qSig, sampling) : null;

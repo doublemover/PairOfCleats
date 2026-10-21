@@ -251,6 +251,8 @@ export async function assembleIndexPieces({
     tokenPostingsList,
     avgDocLen,
     minhashSigs: mergedMinhash,
+    minhashHashIdentity: mergeState.minhashHashIdentity,
+    minhashGuard: mergeState.minhashSampling ? { ...mergeState.minhashSampling, sampled: true } : null,
     dims: mergeState.embeddingsSeen ? mergeState.denseDims : 0,
     quantizedVectors: mergeState.embeddingsSeen ? mergedDense : [],
     quantizedDocVectors: mergeState.embeddingsSeen ? (mergedDenseDoc.length ? mergedDenseDoc : mergedDense) : [],

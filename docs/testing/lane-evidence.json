@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T05:23:26.145Z",
+  "generatedAt": "2026-10-21T07:02:25.704Z",
   "summary": {
     "lanes": 5,
-    "tests": 1383,
+    "tests": 1388,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 352,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1309
+      "missingTests": 1314
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1160,
+      "totalTests": 1163,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1111
+        "missing": 1114
       }
     },
     {
@@ -51,7 +51,7 @@
       "targetMaxDurationSeconds": 60,
       "orderFile": "tests/ci/ci.order.txt",
       "timingArtifactPath": ".testLogs/ci-testRunTimes.txt",
-      "totalTests": 152,
+      "totalTests": 154,
       "knownDurationTests": 22,
       "knownDurationMs": 101770,
       "p50DurationMs": 5020,
@@ -59,7 +59,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 22,
-        "missing": 130
+        "missing": 132
       }
     },
     {
@@ -98,9 +98,9 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 70,
+      "count": 71,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 61
+      "unknownDurationCount": 62
     },
     {
       "key": "indexing/chunking",
@@ -266,9 +266,9 @@
     },
     {
       "key": "indexing/tokenization",
-      "count": 8,
+      "count": 9,
       "knownDurationMs": 90,
-      "unknownDurationCount": 7
+      "unknownDurationCount": 8
     },
     {
       "key": "tooling/dict-utils",
@@ -553,6 +553,12 @@
       "unknownDurationCount": 4
     },
     {
+      "key": "indexing/fixtures",
+      "count": 4,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 4
+    },
+    {
       "key": "indexing/git",
       "count": 4,
       "knownDurationMs": 0,
@@ -643,6 +649,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "indexing/piece-assembly",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "services/queue",
       "count": 3,
       "knownDurationMs": 0,
@@ -685,19 +697,7 @@
       "unknownDurationCount": 2
     },
     {
-      "key": "indexing/fixtures",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
       "key": "indexing/lifecycle",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "indexing/piece-assembly",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -2212,16 +2212,16 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 409,
+      "count": 413,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 368,
+      "unknownDurationCount": 372,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
       "key": "sqlite-heavy",
-      "count": 70,
+      "count": 71,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 61,
+      "unknownDurationCount": 62,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {

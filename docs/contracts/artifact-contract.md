@@ -120,7 +120,10 @@ Each `index-<mode>/` directory contains:
 - `phrase_ngrams.json` and `chargram_postings.json` (optional, per config)
   - Phrase/chargram vocab + postings arrays.
 - `minhash_signatures.json` (optional)
-  - Per-chunk MinHash signatures.
+  - Per-chunk MinHash signatures and required `hashIdentity` (`fnv1a32-utf16le-xor-fmix32-v2`).
+  - Packed metadata carries the same identity. Sampled signatures additionally retain their explicit coordinate plan; width alone never determines sampled indices.
+  - The family hashes explicit UTF-16LE bytes with FNV-1a32, then applies `fmix32(tokenHash XOR fmix32(seed))` for seeds 1–128. The [FNV reference](https://www.isthe.com/chongo/tech/comp/fnv/) and [MurmurHash3 source](https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp) describe the component operations. Calibration bounds are empirical, not a proof of independent minwise hashes.
+  - Missing or incompatible identities require rebuilding. Incremental signature version 12 and tokenization dependency keys retire old polynomial signatures; old rows must never be relabelled as the current family.
 - `dense_vectors_uint8.json` + `dense_vectors_doc_uint8.json` + `dense_vectors_code_uint8.json` (optional)
   - Quantized embeddings with `model`, `dims`, and `scale`.
 - `dense_vectors.lancedb/` + `dense_vectors.lancedb.meta.json` (optional)

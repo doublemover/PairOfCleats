@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   SimpleMinHash,
+  MINHASH_HASH_IDENTITY,
   minifyMinhashSignature,
   resolveMinhashSampledPlan
 } from '../../../src/index/minhash.js';
@@ -18,7 +19,7 @@ const query = corpus[0];
 for (const ratio of [2, 3, 5, 8]) {
   const sampling = resolveMinhashSampledPlan({ totalDocs: ratio * 1000, maxDocs: 1000, signatureLength: 128 });
   const signatures = full.map((row) => minifyMinhashSignature(row, sampling));
-  const idx = { minhash: { signatures, sampling } };
+  const idx = { minhash: { hashIdentity: MINHASH_HASH_IDENTITY, signatures, sampling } };
   const querySig = minifyMinhashSignature(full[0], sampling);
   const expected = signatures.map((row, id) => ({
     idx: id,
@@ -48,6 +49,7 @@ for (const ratio of [2, 3, 5, 8]) {
   assert.deepEqual(rankMinhash(idx, query, 1, new Set([3])), [], 'malformed sampled row width must be unavailable');
 }
 const legacy = { minhash: { signatures: full } };
-assert.equal(rankMinhash(legacy, query, 1)[0].sim, 1);
+assert.throws(() => rankMinhash(legacy, query, 1), { code: 'ERR_ARTIFACT_INVALID', rebuildRequired: true });
+assert.equal(rankMinhash({ minhash: { ...legacy.minhash, hashIdentity: MINHASH_HASH_IDENTITY } }, query, 1)[0].sim, 1);
 assert.deepEqual(rankMinhash(legacy, [], 1), []);
 console.log('minhash sampled ranking passed: actual sampling indices, mixed rows, filters, malformed metadata');

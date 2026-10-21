@@ -18,6 +18,7 @@ import { SEMANTIC_OPERATION_INDEX_SCHEMA } from '../../src/contracts/schemas/sem
 import {
   MAX_JSON_BYTES,
   loadChunkMeta,
+  loadMinhashSignatures,
   loadJsonArrayArtifactSync,
   loadPiecesManifest,
   resolveArtifactPresence,
@@ -49,7 +50,7 @@ const ensureDir = async (dir) => {
 
 const FIXTURE_MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const DEFAULT_REQUIRED_MODES = Object.freeze(['code', 'prose', 'extracted-prose']);
-const FIXTURE_HEALTH_VERSION = 6;
+const FIXTURE_HEALTH_VERSION = 7;
 
 // Compatibility alone does not witness mutable fixture artifacts. A killed
 // negative test may leave a damaged manifest or data file behind its old stamp.
@@ -61,7 +62,7 @@ const readHealthAuthority = async (modeDirs, requiredModes) => {
       const hash = crypto.createHash('sha256').update(toRealPathSync(dir));
       hash.update(await fsPromises.readFile(path.join(dir, 'pieces/manifest.json')));
       const manifest = loadPiecesManifest(dir, { strict: true });
-      for (const name of ['chunk_meta', 'file_meta', ...(mode === 'code' ? ['risk_flows'] : [])]) {
+      for (const name of ['chunk_meta', 'file_meta', 'minhash_signatures', 'minhash_signatures_meta', ...(mode === 'code' ? ['risk_flows'] : [])]) {
         const presence = resolveArtifactPresence(dir, name, { manifest, strict: false });
         const paths = [...(presence.paths || [])].sort();
         hash.update(`${name}\0${paths.length}\0`);
@@ -299,7 +300,7 @@ const readIndexCompatibilityKey = (dir) => {
  * @param {{modeDirs:Record<string,string>,requiredModes:string[]}} input
  * @returns {{compatible:boolean,keyByMode:Record<string,string|null>,baseline:string|null}}
  */
-const getCompatibilityStatus = ({ modeDirs, requiredModes }) => {
+const getCompatibilityStatus = async ({ modeDirs, requiredModes }) => {
   if (!Array.isArray(requiredModes) || requiredModes.length === 0) {
     return { compatible: false, keyByMode: {}, baseline: null };
   }
@@ -308,6 +309,12 @@ const getCompatibilityStatus = ({ modeDirs, requiredModes }) => {
   for (const mode of requiredModes) {
     const dir = modeDirs?.[mode];
     if (!dir || !hasChunkMeta(dir)) {
+      return { compatible: false, keyByMode: {}, baseline: null };
+    }
+    try {
+      // Compatibility keys cannot admit signatures from a superseded hash family.
+      await loadMinhashSignatures(dir, { strict: true });
+    } catch {
       return { compatible: false, keyByMode: {}, baseline: null };
     }
     const operationPath = path.join(dir, 'semantic_operation_index.json');
@@ -510,7 +517,7 @@ export const ensureFixtureIndex = async ({
   });
   const evaluateFixtureState = async () => {
     const modeDirs = resolveModeDirs();
-    const compatibility = getCompatibilityStatus({
+    const compatibility = await getCompatibilityStatus({
       modeDirs,
       requiredModes: normalizedRequiredModes
     });

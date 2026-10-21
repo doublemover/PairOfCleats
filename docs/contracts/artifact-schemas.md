@@ -60,7 +60,7 @@ Machine-readable index:
 - `field_postings` (object): requires `fields` map; each field requires `vocab`, `postings`, `docLengths`.
 - `field_tokens` (array): entries may include `name`, `signature`, `doc`, `comment`, `body` token arrays.
 - `field_tokens_meta` (object): sharded JSONL metadata for `field_tokens`.
-- `minhash_signatures` (object): requires `signatures` (array of int arrays).
+- `minhash_signatures` (object): requires `signatures` (array of int arrays) and canonical `hashIdentity`; optional sampling metadata identifies the selected coordinates. Missing/unknown hash identities require rebuilding, including packed, SQLite and LMDB forms.
 - `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code` (object): requires `dims`, `vectors`. Optional: `model`, `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_binary_meta`, `dense_vectors_doc_binary_meta`, `dense_vectors_code_binary_meta` (object): requires `dims`, `count`, `path`. Optional: `schemaVersion`, `artifact`, `format`, `generatedAt`, `model`, `bytes`, `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_hnsw_meta`, `dense_vectors_doc_hnsw_meta`, `dense_vectors_code_hnsw_meta` (object): requires `dims`, `count`, `space`, `m`, `efConstruction`, `efSearch`. Optional: `scale`, `minVal`, `maxVal`, `levels`.

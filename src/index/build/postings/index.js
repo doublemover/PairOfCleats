@@ -285,6 +285,7 @@ export async function buildPostings(input) {
   const {
     allowMinhash,
     minhashSigs,
+    minhashHashIdentity,
     minhashGuard
   } = resolveMinhashOutputs({
     sparseEnabled,
@@ -310,6 +311,7 @@ export async function buildPostings(input) {
     tokenPostingsList,
     avgDocLen,
     minhashSigs,
+    minhashHashIdentity,
     minhashStream: (allowMinhash || minhashGuard?.sampled === true) && minhashStream,
     minhashGuard,
     dims,

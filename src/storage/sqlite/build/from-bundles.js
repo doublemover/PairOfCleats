@@ -1,4 +1,6 @@
 import { performance } from 'node:perf_hooks';
+import { assertMinhashHashIdentity } from '../../../index/minhash.js';
+import { writeSqliteMinhashHeader } from '../minhash.js';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import {
   buildChunkRow,
@@ -586,6 +588,7 @@ export async function buildDatabaseFromBundles({
         }
 
         if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
+          assertMinhashHashIdentity(chunk.minhashHashIdentity);
           insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
           validationStats.minhash += 1;
           minhashRows += 1;
@@ -881,6 +884,7 @@ export async function buildDatabaseFromBundles({
     recordTable('phrase_postings', phrasePostingRows, insertBatchMs);
     recordTable('chargram_vocab', chargramVocabRows, insertBatchMs);
     recordTable('chargram_postings', chargramPostingRows, insertBatchMs);
+    if (minhashRows) writeSqliteMinhashHeader(db, mode);
     recordTable('minhash_signatures', minhashRows, insertBatchMs);
     recordTable('dense_vectors', denseRows, insertBatchMs);
     recordTable('dense_meta', denseMetaRows, 0);

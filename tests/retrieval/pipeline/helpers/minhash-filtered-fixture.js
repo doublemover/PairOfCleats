@@ -1,3 +1,4 @@
+import { MINHASH_HASH_IDENTITY } from '../../../../src/index/minhash.js';
 import { SimpleMinHash } from '../../../../src/index/minhash.js';
 import { createRetrievalStageTracker } from '../../../../src/retrieval/pipeline/stage-checkpoints.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -34,7 +35,7 @@ export const createFilteredMinhashIndex = () => ({
       [0.4, 0.4]
     ]
   },
-  minhash: {
+  minhash: { hashIdentity: MINHASH_HASH_IDENTITY,
     signatures: [
       signatureForTokens(['alpha', 'core']),
       signatureForTokens(['alpha', 'extra']),

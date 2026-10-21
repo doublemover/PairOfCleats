@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
-import { normalizeMinhashSampling } from '../../../../index/minhash.js';
-import { CREATE_MINHASH_META_SQL } from '../../schema.js';
+import { assertMinhashHashIdentity, normalizeMinhashSampling } from '../../../../index/minhash.js';
+import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../minhash.js';
 import {
   packUint32,
   packUint8,
@@ -39,7 +39,9 @@ export const createVectorIngestor = (ctx) => {
 
   const ingestMinhash = async (minhashSource, targetMode) => {
     if (!minhashSource) return;
-    let sampling = null;
+    const previousHeader = assertSqliteMinhashReceiver(db, targetMode);
+    if (Array.isArray(minhashSource.signatures)) assertMinhashHashIdentity(minhashSource.hashIdentity);
+    let sampling = previousHeader?.sampling ?? null;
     const acceptSampling = (input) => {
       if (input == null) return;
       if (sampling) {
@@ -83,6 +85,7 @@ export const createVectorIngestor = (ctx) => {
     } else if (typeof minhashSource?.[Symbol.asyncIterator] === 'function') {
       for await (const entry of minhashSource) {
         if (entry && typeof entry === 'object') {
+          assertMinhashHashIdentity(entry.hashIdentity);
           acceptSampling(entry.sampling);
           handleEntry(entry.docId ?? entry.id, entry.sig ?? entry.signature);
         } else {
@@ -91,11 +94,7 @@ export const createVectorIngestor = (ctx) => {
       }
     }
     flush();
-    db.exec(CREATE_MINHASH_META_SQL);
-    db.prepare('DELETE FROM minhash_meta WHERE mode = ?').run(targetMode);
-    if (sampling) {
-      db.prepare('INSERT INTO minhash_meta (mode, sampling) VALUES (?, ?)').run(targetMode, JSON.stringify(sampling));
-    }
+    writeSqliteMinhashHeader(db, targetMode, sampling);
     recordTable('minhash_signatures', minhashRows, performance.now() - start);
   };
 

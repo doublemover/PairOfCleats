@@ -6,6 +6,7 @@ import {
   validateLengths
 } from './helpers.js';
 import { materializeDenseVectorRows } from '../../../shared/dense-vector-artifacts.js';
+import { assertMinhashHashIdentity, normalizeMinhashSampling } from '../../minhash.js';
 
 const CHUNK_UID_ORDINAL_SUFFIX_RE = /:ord[1-9][0-9]*$/;
 
@@ -315,8 +316,28 @@ export const mergeIndexInput = ({ input, dir, state, mergeState }) => {
 
   const minhash = readArray(input.minhash, 'signatures');
   if (input.minhash) {
+    assertMinhashHashIdentity(input.minhash.hashIdentity);
+    const sampling = input.minhash.sampling == null ? null : normalizeMinhashSampling(input.minhash.sampling);
+    if (input.minhash.sampling != null && !sampling) throw new Error('Invalid minhash coordinate metadata; rebuild the index.');
+    const coordinateKey = sampling
+      ? `${sampling.signatureLength}:${sampling.sampledSignatureLength}:${sampling.hashStride}`
+      : 'full';
+    if (mergeState.minhashCoordinateKey != null && mergeState.minhashCoordinateKey !== coordinateKey) {
+      throw new Error('Cannot assemble different minhash coordinate plans; rebuild the index.');
+    }
+    mergeState.minhashCoordinateKey = coordinateKey;
+    mergeState.minhashHashIdentity = input.minhash.hashIdentity;
+    mergeState.minhashSampling = sampling;
     validateLengths('minhash', minhash, chunks.length, dir, { allowMissing: false });
-    if (minhash.length) mergeState.mergedMinhash.push(...minhash);
+    for (const signature of minhash) {
+      if (signature?.length) {
+        const width = sampling?.sampledSignatureLength ?? mergeState.minhashWidth ?? signature.length;
+        if (signature.length !== width) throw new Error('Cannot assemble different minhash signature widths; rebuild the index.');
+        mergeState.minhashWidth = width;
+      }
+      // Packed input owns typed views; JSON output must preserve their numeric rows.
+      mergeState.mergedMinhash.push(ArrayBuffer.isView(signature) ? Array.from(signature) : signature);
+    }
   }
 
   const phraseVocab = readArray(input.phraseNgrams, 'vocab');

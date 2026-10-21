@@ -1,4 +1,5 @@
 import { METADATA_V2_SCHEMA } from '../analysis.js';
+import { MINHASH_HASH_IDENTITY } from '../../../index/minhash.js';
 import {
   IMPORT_DISPOSITIONS,
   IMPORT_FAILURE_CAUSES,
@@ -614,8 +615,9 @@ export const CORE_POST_RISK_ARTIFACT_SCHEMA_DEFS = {
   },
   minhash_signatures: {
     type: 'object',
-    required: ['signatures'],
+    required: ['signatures', 'hashIdentity'],
     properties: {
+      hashIdentity: { type: 'string', const: MINHASH_HASH_IDENTITY },
       signatures: {
         type: 'array',
         items: { type: 'array', items: intId }

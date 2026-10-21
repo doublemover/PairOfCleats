@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import { buildPostings } from '../../../src/index/build/postings.js';
 import { quantizeVec } from '../../../src/index/embedding.js';
 
@@ -8,23 +9,23 @@ const chunks = [
     embedding: [0.1, 0.2],
     embed_doc: [0.3, 0.4],
     embed_code: [0.5, 0.6],
-    minhashSig: [1, 2]
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [1, 2]
   },
   {
     tokens: ['b'],
     embedding: [0.7, 0.8],
-    minhashSig: [3, 4]
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [3, 4]
   },
   {
     tokens: ['c'],
     embedding: [0.9, 0.1],
     embed_doc: [],
-    minhashSig: [5, 6]
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [5, 6]
   },
   {
     tokens: ['d'],
     embedding: [0.2, 0.4, 0.6],
-    minhashSig: [7, 8]
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [7, 8]
   }
 ];
 

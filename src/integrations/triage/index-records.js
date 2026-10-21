@@ -178,10 +178,12 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const embedding = await runtime.getChunkEmbedding(embedText);
 
     let minhashSig = [];
+    let minhashHashIdentity = null;
     if (sparsePostingsEnabled) {
       const mh = new SimpleMinHash();
       tokenPayload.tokens.forEach((t) => mh.update(t));
       minhashSig = mh.hashValues;
+      minhashHashIdentity = mh.hashIdentity;
     }
 
     const lines = text.split(/\r?\n/);
@@ -216,6 +218,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       postContext: [],
       embedding,
       minhashSig,
+      minhashHashIdentity,
       weight: 1,
       externalDocs: [],
       ...(fieldTokens ? { fieldTokens } : {})

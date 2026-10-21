@@ -1,4 +1,5 @@
 import { enqueueSemanticArtifacts } from '../artifacts/writers/semantic/family.js';
+import { MINHASH_HASH_IDENTITY, assertMinhashHashIdentity } from '../../minhash.js';
 import { enqueueSymbolicTypeArtifacts } from '../artifacts/writers/symbolic-types.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -1523,6 +1524,7 @@ export async function writeIndexArtifacts(input) {
   const minhashCount = minhashFromPostings
     ? postings.minhashSigs.length
     : (minhashStream ? state.chunks.length : (postings.minhashSigs?.length || 0));
+  if (minhashCount) assertMinhashHashIdentity(postings.minhashHashIdentity);
   const minhashSource = {
     signatures: minhashFromPostings,
     chunks: minhashStream ? state.chunks : null,
@@ -1559,7 +1561,7 @@ export async function writeIndexArtifacts(input) {
   }
   if (sparseArtifactsEnabled && !skipMinhashJsonForLarge) {
     minhashWrites.enqueueJsonObject('minhash_signatures', {
-      fields: minhashSamplingMeta ? { sampling: minhashSamplingMeta } : undefined,
+      fields: { hashIdentity: MINHASH_HASH_IDENTITY, ...(minhashSamplingMeta ? { sampling: minhashSamplingMeta } : {}) },
       arrays: { signatures: minhashIterable }
     }, {
       piece: {
@@ -1582,6 +1584,7 @@ export async function writeIndexArtifacts(input) {
           fields: {
             format: 'u32',
             endian: 'le',
+            hashIdentity: MINHASH_HASH_IDENTITY,
             dims: packedMinhash.dims,
             count: packedMinhash.count,
             checksum: packedChecksum.hash,
