@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T08:32:44.591Z",
+  "generatedAt": "2026-10-21T12:17:29.274Z",
   "summary": {
     "lanes": 5,
-    "tests": 1395,
+    "tests": 1400,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 358,
+    "families": 360,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1321
+      "missingTests": 1326
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1170,
+      "totalTests": 1175,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1121
+        "missing": 1126
       }
     },
     {
@@ -128,9 +128,9 @@
     },
     {
       "key": "tooling/install",
-      "count": 40,
+      "count": 42,
       "knownDurationMs": 8330,
-      "unknownDurationCount": 35
+      "unknownDurationCount": 37
     },
     {
       "key": "indexing/type-inference",
@@ -631,6 +631,12 @@
       "unknownDurationCount": 4
     },
     {
+      "key": "indexing/build-state",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "indexing/cache",
       "count": 3,
       "knownDurationMs": 0,
@@ -686,12 +692,6 @@
     },
     {
       "key": "embeddings/runner",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "indexing/build-state",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -2149,6 +2149,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "tui/operator-index-workflows",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "tui/operator-search-file-authority",
       "count": 1,
       "knownDurationMs": 0,
@@ -2192,6 +2198,12 @@
     },
     {
       "key": "tui/supervisor-duplicate-job-admission",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/supervisor-index-workflows",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2248,9 +2260,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 413,
+      "count": 414,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 372,
+      "unknownDurationCount": 373,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

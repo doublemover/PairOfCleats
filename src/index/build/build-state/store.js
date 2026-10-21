@@ -441,6 +441,9 @@ export const mergeState = (base, patch) => {
   if (patch.signatures) {
     merged.signatures = { ...(base?.signatures || {}), ...patch.signatures };
   }
+  if (patch.analysisShortcuts) {
+    merged.analysisShortcuts = { ...(base?.analysisShortcuts || {}), ...patch.analysisShortcuts };
+  }
   if (patch.stageCheckpoints) {
     const next = { ...(base?.stageCheckpoints || {}) };
     for (const [mode, value] of Object.entries(patch.stageCheckpoints)) {

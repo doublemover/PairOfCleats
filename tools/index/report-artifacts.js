@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { readRuntimeReceipt, listRuntimeReceipts, formatRuntimeReceiptSummary } from '../../src/shared/runtime-envelope/read-receipt.js';
 import { resolveRepoCacheRootPath, getIndexDir } from '../../src/shared/repo-paths.js';
 import path from 'node:path';
+import { INDEX_REPORT_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
 import { getStatus } from '../../src/integrations/core/status.js';
@@ -26,18 +27,7 @@ import { resolveBuildRootFromSqliteArtifacts } from '../reports/show-throughput/
 
 const argv = createCli({
   scriptName: 'report-artifacts',
-  options: {
-    json: { type: 'boolean', default: false },
-    all: { type: 'boolean', default: false },
-    repo: { type: 'string' },
-    runtime: { type: 'boolean', default: false },
-    'index-root': { type: 'string' },
-    build: { type: 'string' },
-    attempt: { type: 'string' },
-    mode: { type: 'string' },
-    explain: { type: 'string' },
-    'redact-paths': { type: 'boolean', default: false }
-  }
+  options: INDEX_REPORT_OPTIONS
 }).parse();
 
 // Explicit roots are forensic reads: do not reload current config first.

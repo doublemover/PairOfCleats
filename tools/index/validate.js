@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { INDEX_VALIDATE_OPTIONS, assertIndexValidationFlags } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
@@ -63,22 +64,13 @@ const parseModes = (raw, root, userConfig) => {
 async function runCli() {
   const argv = createCli({
     scriptName: 'index-validate',
-    options: {
-      json: { type: 'boolean', default: false },
-      repo: { type: 'string' },
-      mode: { type: 'string' },
-      'index-root': { type: 'string' },
-      strict: { type: 'boolean', describe: 'Validate strict contracts (default unless --non-strict).' },
-      'non-strict': { type: 'boolean', default: false }
-    }
+    options: INDEX_VALIDATE_OPTIONS
   }).strictOptions().parse();
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
   const modes = parseModes(argv.mode, root, userConfig);
-  if (argv.strict && argv['non-strict']) {
-    throw new Error('Choose either --strict or --non-strict, not both.');
-  }
+  assertIndexValidationFlags(argv);
   const strict = argv['non-strict'] ? false : argv.strict !== false;
   const report = await validateIndexArtifacts({ root, indexRoot, modes, strict });
 

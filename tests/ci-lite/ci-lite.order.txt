@@ -1170,3 +1170,8 @@ tui/artifact-registry-authority
 tui/operator-artifacts
 tui/operator-artifact-file-authority
 tui/supervisor-artifact-generation-cleanup
+tooling/install/node-pty-conout-disposal
+tooling/install/node-pty-patch-roundtrip
+indexing/build-state/analysis-shortcuts-modes
+tui/operator-index-workflows
+tui/supervisor-index-workflows

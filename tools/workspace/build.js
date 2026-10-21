@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { resolveWorkspaceBuildConcurrency, WORKSPACE_BUILD_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { fileURLToPath } from 'node:url';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
@@ -9,15 +10,14 @@ import { exitLikeCommandResult } from '../shared/cli-utils.js';
 
 const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BUILD_INDEX_SCRIPT = path.join(TOOL_ROOT, 'build_index.js');
-const MAX_WORKSPACE_BUILD_CONCURRENCY = 32;
 
 const parseRawWorkspaceBuildArgs = (rawArgs) => {
   const buildArgs = [];
   let workspacePath = '';
-  let concurrency = 2;
-  let strict = false;
-  let includeDisabled = false;
-  let json = false;
+  let concurrency = WORKSPACE_BUILD_OPTIONS.concurrency.default;
+  let strict = WORKSPACE_BUILD_OPTIONS.strict.default;
+  let includeDisabled = WORKSPACE_BUILD_OPTIONS['include-disabled'].default;
+  let json = WORKSPACE_BUILD_OPTIONS.json.default;
 
   const readValue = (arg, index, flagName) => {
     if (arg === `--${flagName}`) {
@@ -43,11 +43,7 @@ const parseRawWorkspaceBuildArgs = (rawArgs) => {
     }
     const concurrencyValue = readValue(arg, i, 'concurrency');
     if (concurrencyValue) {
-      const parsed = Number(concurrencyValue.value);
-      if (!Number.isFinite(parsed) || parsed < 1) {
-        throw new Error(`Invalid --concurrency value: ${concurrencyValue.value}`);
-      }
-      concurrency = Math.min(MAX_WORKSPACE_BUILD_CONCURRENCY, Math.max(1, Math.floor(parsed)));
+      concurrency = resolveWorkspaceBuildConcurrency(concurrencyValue.value);
       i += concurrencyValue.skip;
       continue;
     }

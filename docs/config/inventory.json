@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T08:32:57.309Z",
+  "generatedAt": "2026-10-21T12:17:36.521Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4473,6 +4473,7 @@
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
+        "tests/tooling/install/node-pty-fresh-lifecycle.test.js",
         "tests/tooling/install/phpactor-download-authority.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
         "tests/tooling/lsp/signature-boundary-providers.test.js",
@@ -4480,6 +4481,7 @@
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/native-settings-conpty.test.js",
@@ -4808,6 +4810,7 @@
         "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/helpers/test-env-clear.test.js",
         "tests/helpers/test-env.js",
+        "tests/indexing/build-state/produced-contract.test.js",
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",
         "tests/retrieval/relation-boost-zero-config.test.js",
@@ -4840,12 +4843,16 @@
         "tests/tooling/reports/summary/summary-build-case-helpers.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/operator-artifacts.test.js",
+        "tests/tui/operator-index-workflows.test.js",
         "tests/tui/operator-search-file-authority.test.js",
         "tests/tui/operator-search-lifecycle.test.js",
+        "tests/tui/supervisor-index-build.test.js",
+        "tests/tui/supervisor-index-workflows.test.js",
         "tests/tui/supervisor-operator-search.test.js",
         "tools/config/inventory.js",
         "tools/service/indexer-service-helpers.js"
@@ -4886,6 +4893,7 @@
         "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-search-conpty.test.js",
         "tests/tui/operator-artifacts.test.js",
         "tests/tui/operator-search-file-authority.test.js",
@@ -4953,6 +4961,7 @@
         "tests/helpers/native-tui-conpty.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
@@ -4988,6 +4997,7 @@
         "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
@@ -5002,6 +5012,7 @@
         "src/shared/env/tui.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
@@ -5015,6 +5026,7 @@
       "files": [
         "tests/helpers/native-tui-conpty.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
@@ -5029,6 +5041,7 @@
         "tests/helpers/native-tui-conpty.js",
         "tests/security/editor-tui-authority.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tests/tui/native-job-selection-conpty.test.js",
         "tests/tui/native-search-conpty.test.js",
@@ -5051,6 +5064,7 @@
         "tests/security/editor-tui-authority.test.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
         "tests/tui/native-artifact-actions.test.js",
+        "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",
         "tools/config/inventory.js"
       ]
@@ -5222,7 +5236,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 501,
+    "totalFlags": 511,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5237,7 +5251,6 @@
       "cors-allow-any",
       "cors-allowed-origins",
       "dry-run",
-      "explain",
       "flow-id",
       "format",
       "hops",
@@ -5320,7 +5333,6 @@
       "artifactDir",
       "as-of",
       "astDataflowEnabled",
-      "attempt",
       "attested",
       "avg",
       "avgBytes",
@@ -5449,12 +5461,15 @@
       "head",
       "heap-mb",
       "help",
+      "id",
       "identity",
       "impliedNodeFormat",
       "import-rate",
       "in",
       "include",
+      "include-lmdb",
       "include-prose",
+      "include-sqlite",
       "include-usr",
       "includeCalls",
       "includeChunks",
@@ -5463,7 +5478,6 @@
       "includeMinhash",
       "incremental",
       "index",
-      "index-dir",
       "index-root",
       "input",
       "inputs",
@@ -5477,7 +5491,11 @@
       "justification",
       "keep",
       "keep-backup",
+      "keep-frozen",
+      "keep-pointer",
+      "keep-tags",
       "keys",
+      "label",
       "lane",
       "lang",
       "language",
@@ -5509,6 +5527,7 @@
       "max-delta",
       "max-gb",
       "max-p95-ms",
+      "max-pointer-snapshots",
       "max-timeout-absolute-cap",
       "max-timeout-absolute-min",
       "max-timeout-ratio",
@@ -5527,6 +5546,7 @@
       "mergeProb",
       "meta",
       "metadata",
+      "method",
       "min",
       "min-count",
       "min-enrichment-coverage",
@@ -5544,6 +5564,7 @@
       "model-out",
       "models",
       "models-dir",
+      "modes",
       "module",
       "no-ann",
       "node-list-out",
@@ -5598,7 +5619,6 @@
       "recipe",
       "record",
       "recursive",
-      "redact-paths",
       "refresh",
       "refresh-json",
       "refs",
@@ -5626,6 +5646,7 @@
       "resolver-stage-p99-drift-warn-ms-max",
       "results",
       "resume",
+      "retention-tier",
       "retries",
       "retry-base-ms",
       "retry-jitter-ms",
@@ -5676,6 +5697,7 @@
       "specification",
       "sqlite",
       "sqlite-backend",
+      "staging-max-age-hours",
       "status",
       "stdio",
       "strict",
@@ -5683,6 +5705,7 @@
       "surface",
       "symbols",
       "table",
+      "tags",
       "target",
       "targets",
       "testPattern",
@@ -5713,6 +5736,7 @@
       "verbose",
       "verify",
       "verify-manifest",
+      "wait-ms",
       "warmup",
       "warmup-samples",
       "wasd-acceleration",
@@ -6002,6 +6026,32 @@
         "file": "src/shared/file-read.js",
         "flags": [
           "fallback"
+        ]
+      },
+      {
+        "file": "src/shared/index-tool-options.js",
+        "flags": [
+          "dry-run",
+          "force",
+          "id",
+          "include-lmdb",
+          "include-sqlite",
+          "json",
+          "keep-frozen",
+          "keep-pointer",
+          "keep-tags",
+          "label",
+          "max-age-days",
+          "max-pointer-snapshots",
+          "method",
+          "modes",
+          "repo",
+          "retention-tier",
+          "staging-max-age-hours",
+          "tag",
+          "tags",
+          "verify",
+          "wait-ms"
         ]
       },
       {
@@ -7369,46 +7419,10 @@
         ]
       },
       {
-        "file": "tools/index/report-artifacts.js",
-        "flags": [
-          "all",
-          "attempt",
-          "build",
-          "explain",
-          "index-root",
-          "json",
-          "mode",
-          "redact-paths",
-          "repo",
-          "runtime"
-        ]
-      },
-      {
         "file": "tools/index/shard-census.js",
         "flags": [
           "bench",
           "repo"
-        ]
-      },
-      {
-        "file": "tools/index/stats.js",
-        "flags": [
-          "index-dir",
-          "json",
-          "mode",
-          "repo",
-          "verify"
-        ]
-      },
-      {
-        "file": "tools/index/validate.js",
-        "flags": [
-          "index-root",
-          "json",
-          "mode",
-          "non-strict",
-          "repo",
-          "strict"
         ]
       },
       {
@@ -7870,12 +7884,13 @@
     "duplicated": [
       {
         "flag": "json",
-        "count": 69,
+        "count": 67,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
           "src/integrations/tooling/suggest-tests.js",
+          "src/shared/index-tool-options.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",
@@ -7918,9 +7933,6 @@
           "tools/docs/shared-module-ledger.js",
           "tools/index/cache-gc.js",
           "tools/index/reconcile-identity.js",
-          "tools/index/report-artifacts.js",
-          "tools/index/stats.js",
-          "tools/index/validate.js",
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
@@ -7945,12 +7957,13 @@
       },
       {
         "flag": "repo",
-        "count": 59,
+        "count": 57,
         "files": [
           "bin/pairofcleats.js",
           "src/integrations/tooling/api-contracts.js",
           "src/integrations/tooling/architecture-check.js",
           "src/integrations/tooling/suggest-tests.js",
+          "src/shared/index-tool-options.js",
           "tests/retrieval/parity/equivalence.test.js",
           "tools/analysis/map-iso-serve.js",
           "tools/analysis/structural-search.js",
@@ -7982,10 +7995,7 @@
           "tools/index/clean-artifacts.js",
           "tools/index/compact-pieces.js",
           "tools/index/reconcile-identity.js",
-          "tools/index/report-artifacts.js",
           "tools/index/shard-census.js",
-          "tools/index/stats.js",
-          "tools/index/validate.js",
           "tools/ingest/ctags.js",
           "tools/ingest/gtags.js",
           "tools/ingest/lsif.js",
@@ -8067,7 +8077,7 @@
       },
       {
         "flag": "mode",
-        "count": 37,
+        "count": 34,
         "files": [
           "bin/pairofcleats.js",
           "src/lang/typescript/syntax-context.js",
@@ -8101,9 +8111,6 @@
           "tools/index/assemble-pieces.js",
           "tools/index/compact-pieces.js",
           "tools/index/reconcile-identity.js",
-          "tools/index/report-artifacts.js",
-          "tools/index/stats.js",
-          "tools/index/validate.js",
           "tools/reports/combined-summary.js",
           "tools/reports/show-throughput/options.js"
         ]
@@ -8185,7 +8192,7 @@
       },
       {
         "flag": "all",
-        "count": 11,
+        "count": 10,
         "files": [
           "bin/pairofcleats.js",
           "tests/tooling/fixtures/fixture-parity.test.js",
@@ -8196,15 +8203,15 @@
           "tools/analysis/semantic-trace.js",
           "tools/cache/clear-cache.js",
           "tools/docs/script-inventory.js",
-          "tools/index/clean-artifacts.js",
-          "tools/index/report-artifacts.js"
+          "tools/index/clean-artifacts.js"
         ]
       },
       {
         "flag": "dry-run",
-        "count": 9,
+        "count": 10,
         "files": [
           "bin/pairofcleats.js",
+          "src/shared/index-tool-options.js",
           "tools/build/compact-sqlite-index.js",
           "tools/ci/run-suite.js",
           "tools/docs/script-inventory.js",
@@ -8291,17 +8298,17 @@
         ]
       },
       {
-        "flag": "index-root",
+        "flag": "force",
         "count": 8,
         "files": [
-          "tools/bench/query-generator.js",
-          "tools/build/compact-sqlite-index.js",
-          "tools/build/embeddings/cli.js",
-          "tools/build/lmdb-index.js",
-          "tools/build/tantivy-index.js",
-          "tools/index/reconcile-identity.js",
-          "tools/index/report-artifacts.js",
-          "tools/index/validate.js"
+          "src/shared/index-tool-options.js",
+          "src/shared/io/remove-path-with-retry.js",
+          "tools/cache/clear-cache.js",
+          "tools/ci/restore-artifacts.js",
+          "tools/config/reset.js",
+          "tools/download/dicts.js",
+          "tools/download/extensions.js",
+          "tools/index/assemble-pieces.js"
         ]
       },
       {
@@ -8333,19 +8340,6 @@
         ]
       },
       {
-        "flag": "force",
-        "count": 7,
-        "files": [
-          "src/shared/io/remove-path-with-retry.js",
-          "tools/cache/clear-cache.js",
-          "tools/ci/restore-artifacts.js",
-          "tools/config/reset.js",
-          "tools/download/dicts.js",
-          "tools/download/extensions.js",
-          "tools/index/assemble-pieces.js"
-        ]
-      },
-      {
         "flag": "request",
         "count": 7,
         "files": [
@@ -8356,19 +8350,6 @@
           "tools/analysis/semantic-find.js",
           "tools/analysis/semantic-trace.js",
           "tools/history/local.js"
-        ]
-      },
-      {
-        "flag": "strict",
-        "count": 7,
-        "files": [
-          "tests/indexing/map/chunkuid-join.test.js",
-          "tests/indexing/map/code-map-contract-matrix.test.js",
-          "tools/bench/language/prerequisite-check.js",
-          "tools/index/reconcile-identity.js",
-          "tools/index/validate.js",
-          "tools/tooling/doctor.js",
-          "tools/triage/ingest.js"
         ]
       },
       {
@@ -8445,6 +8426,30 @@
         ]
       },
       {
+        "flag": "index-root",
+        "count": 6,
+        "files": [
+          "tools/bench/query-generator.js",
+          "tools/build/compact-sqlite-index.js",
+          "tools/build/embeddings/cli.js",
+          "tools/build/lmdb-index.js",
+          "tools/build/tantivy-index.js",
+          "tools/index/reconcile-identity.js"
+        ]
+      },
+      {
+        "flag": "strict",
+        "count": 6,
+        "files": [
+          "tests/indexing/map/chunkuid-join.test.js",
+          "tests/indexing/map/code-map-contract-matrix.test.js",
+          "tools/bench/language/prerequisite-check.js",
+          "tools/index/reconcile-identity.js",
+          "tools/tooling/doctor.js",
+          "tools/triage/ingest.js"
+        ]
+      },
+      {
         "flag": "ann",
         "count": 5,
         "files": [
@@ -8464,17 +8469,6 @@
           "tools/bench/micro/run.js",
           "tools/eval/run.js",
           "tools/reports/parity-matrix.js"
-        ]
-      },
-      {
-        "flag": "build",
-        "count": 5,
-        "files": [
-          "tools/bench/embeddings/model-bakeoff.js",
-          "tools/bench/micro/run.js",
-          "tools/index/report-artifacts.js",
-          "tools/reports/combined-summary.js",
-          "tools/tui/install.js"
         ]
       },
       {
@@ -8530,6 +8524,16 @@
           "tools/bench/vfs/cdc-segmentation.js",
           "tools/bench/vfs/io-batching.js",
           "tools/bench/vfs/segment-hash-cache.js"
+        ]
+      },
+      {
+        "flag": "build",
+        "count": 4,
+        "files": [
+          "tools/bench/embeddings/model-bakeoff.js",
+          "tools/bench/micro/run.js",
+          "tools/reports/combined-summary.js",
+          "tools/tui/install.js"
         ]
       },
       {
@@ -8590,16 +8594,6 @@
           "tools/bench/vfs/hash-routing-lookup.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js"
-        ]
-      },
-      {
-        "flag": "non-strict",
-        "count": 4,
-        "files": [
-          "tools/index/assemble-pieces.js",
-          "tools/index/reconcile-identity.js",
-          "tools/index/validate.js",
-          "tools/tooling/doctor.js"
         ]
       },
       {
@@ -8832,6 +8826,15 @@
         ]
       },
       {
+        "flag": "non-strict",
+        "count": 3,
+        "files": [
+          "tools/index/assemble-pieces.js",
+          "tools/index/reconcile-identity.js",
+          "tools/tooling/doctor.js"
+        ]
+      },
+      {
         "flag": "pretty",
         "count": 3,
         "files": [
@@ -8865,6 +8868,15 @@
           "bin/pairofcleats.js",
           "tools/history/eg2-convert-checkpoint.js",
           "tools/triage/ingest.js"
+        ]
+      },
+      {
+        "flag": "tag",
+        "count": 3,
+        "files": [
+          "bin/pairofcleats.js",
+          "src/shared/index-tool-options.js",
+          "tools/release/metadata.js"
         ]
       },
       {
@@ -9191,6 +9203,14 @@
         ]
       },
       {
+        "flag": "max-age-days",
+        "count": 2,
+        "files": [
+          "src/shared/index-tool-options.js",
+          "tools/index/cache-gc.js"
+        ]
+      },
+      {
         "flag": "maxCandidates",
         "count": 2,
         "files": [
@@ -9431,14 +9451,6 @@
         ]
       },
       {
-        "flag": "runtime",
-        "count": 2,
-        "files": [
-          "src/storage/sqlite/build/runner/build.js",
-          "tools/index/report-artifacts.js"
-        ]
-      },
-      {
         "flag": "search",
         "count": 2,
         "files": [
@@ -9524,14 +9536,6 @@
         "files": [
           "tools/docs/generated-surfaces.js",
           "tools/release/verify-surface.js"
-        ]
-      },
-      {
-        "flag": "tag",
-        "count": 2,
-        "files": [
-          "bin/pairofcleats.js",
-          "tools/release/metadata.js"
         ]
       },
       {
@@ -9707,6 +9711,9 @@
       "tools/bench/map/shared.js",
       "tools/build/embeddings/cache-flush.js",
       "tools/config/inventory/scan.js",
+      "tools/index/report-artifacts.js",
+      "tools/index/stats.js",
+      "tools/index/validate.js",
       "tools/reports/compare-models.js",
       "tools/service/indexer-service.js",
       "tools/service/subprocess-log.js",

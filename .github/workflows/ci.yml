@@ -172,8 +172,12 @@ jobs:
         run: node tools/setup/rebuild-native.js --verify
       - name: Build actual native binary
         run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
-      - name: Serial real-terminal inspection and artifact actions
-        run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial real-terminal inspection, artifacts and index workflows
+        run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions|native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial PTY disposal and patch qualification
+        run: node tests/run.js --lane all --match '/^tooling\/install\/node-pty-(conout-disposal|patch-roundtrip|fresh-lifecycle)(\/|$)/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/lifecycle.json
+      - name: Typed index contracts and full producer qualification
+        run: node tests/run.js --lane all --match '/^(indexing\/build-state\/produced-contract|tui\/(operator-index-workflows|supervisor-index-workflows|supervisor-index-build))$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/index-contracts.json
       - name: Upload native qualification evidence
         if: always()
         uses: actions/upload-artifact@v6

@@ -124,6 +124,15 @@ Canonical contract for the report surface:
 
 ## Notes
 
+`build_state.json` is governed by `src/contracts/schemas/build-state.js`. Its
+closed schema includes the pipeline's per-mode `analysisShortcuts`, resolved
+`byteBudgets` and five SHA-1 `dependencySignatures` families (`parse`, `lexical`,
+`enrichment`, `embeddings`, `artifacts`). These describe existing producer
+behavior; unknown fields and malformed policy/hash values remain invalid.
+Every ordering-ledger stage has an `artifacts` map, including an explicitly
+empty map while only discovery seeds have been recorded. Producer validation,
+promotion and current artifact readiness are separate facts.
+
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.

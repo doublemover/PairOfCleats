@@ -123,7 +123,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * @param {object} request
    * @returns {Promise<void>}
    */
-  const startJob = async (request) => {
+  const startJob = async (request, { beforeRun = null, afterRun = null } = {}) => {
     assertAcceptingWork();
     const jobId = String(request?.jobId || '').trim();
     if (!jobId) {
@@ -154,6 +154,19 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     };
     job.artifactGeneration = beginArtifactJob?.(jobId) ?? null;
     state.jobs.set(jobId, job);
+
+    const completeAttempt = async payload => {
+      if (afterRun) {
+        try {
+          const observation = await afterRun({ payload, signal: job.abortController.signal });
+          if (Buffer.byteLength(JSON.stringify(observation) || '') > 1024 * 1024) throw new Error('Oversized workflow observation.');
+          Object.assign(payload, observation);
+        } catch (error) {
+          payload.workflow = { observed: false, errorCode: String(error.code || 'ERR_TUI_WORKFLOW_OBSERVATION') };
+        }
+      }
+      finalizeJob(job, payload);
+    };
 
     emit('job:start', {
       command: Array.isArray(request?.argv) ? request.argv : [],
@@ -234,6 +247,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       watchdog.start();
 
       try {
+        if (beforeRun) await beforeRun({ signal: job.abortController.signal });
         const result = await spawnSubprocess(command, args, {
           cwd,
           env,
@@ -291,7 +305,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           return runAttempt(attempt + 1);
         }
 
-        finalizeJob(job, payload);
+        await completeAttempt(payload);
         await emitArtifacts(job, request, { cwd });
       } catch (error) {
         job.timedOut = error?.code === 'SUBPROCESS_TIMEOUT' || job.cancelReason === 'watchdog_timeout';
@@ -308,7 +322,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           resultCapture: error?.result?.outputCapture?.stdout || null,
           error: {
             message: error?.message || String(error),
-            code: cancelled ? (cancelReason || 'CANCELLED') : 'SPAWN_FAILED'
+            code: cancelled ? (cancelReason || 'CANCELLED') : beforeRun ? (error.code || 'SPAWN_FAILED') : 'SPAWN_FAILED'
           }
         };
         if (!cancelled && attempt < retryPolicy.maxAttempts) {
@@ -322,7 +336,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
           }
           return runAttempt(attempt + 1);
         }
-        finalizeJob(job, payload);
+        await completeAttempt(payload);
         await emitArtifacts(job, request, { cwd });
       } finally {
         watchdog.stop();

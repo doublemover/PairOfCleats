@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["build-search", "validate-search", "watch-cancel", "build-cancel", "preview-cancel", "workspace", "snapshot", "snapshot-create-show", "snapshot-freeze-remove", "snapshot-maintenance", "report-stats", "missing-model", "invalid-provider", "stale"]
+}

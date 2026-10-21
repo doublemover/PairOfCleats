@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1014,
+    "hero": 1019,
     "matrix": 108,
     "meta": 47,
     "soak": 1,
@@ -7033,6 +7033,36 @@
     {
       "id": "tui/supervisor-artifact-generation-cleanup",
       "order": 1170,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/install/node-pty-conout-disposal",
+      "order": 1171,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "tooling/install/node-pty-patch-roundtrip",
+      "order": 1172,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "peripheral-tooling-or-smoke-surface"
+    },
+    {
+      "id": "indexing/build-state/analysis-shortcuts-modes",
+      "order": 1173,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/operator-index-workflows",
+      "order": 1174,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tui/supervisor-index-workflows",
+      "order": 1175,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

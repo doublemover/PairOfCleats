@@ -150,6 +150,20 @@ const runArtifact = async (request, context) => {
   return artifactActions.execute(request.method, request.params, context);
 };
 
+let indexWorkflows = null, workflowModules = null;
+const runWorkflow = async (request, context) => {
+  workflowModules ||= Promise.all([import('./operator/index-workflows.js'),
+    import('./operator/settings.js'), import('../../src/contracts/validators/tui-workflow.js')]);
+  const [workflows, settings, contracts] = await workflowModules;
+  contracts.assertTuiWorkflowRequest('dispatch', request);
+  contracts.assertTuiWorkflowRequest(request.method, request.params);
+  if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  settingsSession ||= settings.createTuiSettingsSession({ toolRoot: ROOT });
+  if (request.method === 'select') return settingsSession.selectScope(request.params, context);
+  indexWorkflows ||= workflows.createTuiIndexWorkflows({ scopes: settingsSession, startJob });
+  return indexWorkflows[request.method](request.params, context);
+};
+
 /**
  * Gracefully cancel all jobs and terminate supervisor process.
  *
@@ -176,6 +190,7 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
     await sleep(50);
   }
   settingsSession?.dispose();
+  indexWorkflows?.dispose();
   await searchSession?.dispose();
   await artifactRegistry.dispose();
   await artifactActions?.dispose();
@@ -253,6 +268,15 @@ const handleRequest = async (request) => {
         { title: 'Artifact', isCommitted: data => data?.opened === true || data?.copied === true || data?.exported === true });
     } catch {
       emitLog(null, 'error', 'Artifact request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'workflow:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runWorkflow(request, context),
+        { title: 'Index workflow', isCommitted: data => data?.launched === true || typeof data?.id === 'string' });
+    } catch {
+      emitLog(null, 'error', 'Workflow request was not admitted.');
     }
     return;
   }

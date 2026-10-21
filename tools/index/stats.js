@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { INDEX_STATS_OPTIONS } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { checksumFile } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
@@ -24,13 +25,7 @@ const REQUIRED_VERIFY_FAMILIES = Object.freeze([
 
 const argv = createCli({
   scriptName: 'index-stats',
-  options: {
-    repo: { type: 'string' },
-    'index-dir': { type: 'string' },
-    mode: { type: 'string' },
-    json: { type: 'boolean', default: false },
-    verify: { type: 'boolean', default: false }
-  }
+  options: INDEX_STATS_OPTIONS
 }).parse();
 
 const normalizeMode = (value) => {

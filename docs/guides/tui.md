@@ -22,6 +22,7 @@ Runtime controls:
 - `[R]` search a repository and inspect results/source
 - `[r]` run the search command's help as a job
 - `[s]` select a repository/workspace and inspect or edit settings
+- `[b]` open typed index/workspace workflows, inspect readiness and preview a launch
 - `[c]` cancel selected job
 - `[v]` inspect the selected job's outcome, captured result and recorded artifacts
 - `[q]` graceful shutdown
@@ -172,6 +173,35 @@ a save or scope selection that already completed remains committed. `[Ctrl+C]`
 uses global graceful shutdown. Settings require a controllable supervisor advertising
 `supportsSettings`; passive/replay sessions cannot execute these actions. Settings
 drafts/responses stay outside saved layout snapshots and foreground job selection.
+
+`[b]` opens the registry-backed index catalog for the selected repository or
+workspace. It exposes build, watch, validation, reports, statistics, all snapshot
+subcommands and workspace builds with their stable/operator support tiers. Select
+a command, edit its fields as JSON, and use `[Delete]` to restore an unset value.
+False, zero and repeated array values retain their types. Unset fields use CLI
+defaults. Scope, progress, result capture and diagnostic-only flags are managed
+explicitly; the catalog records why each managed field is unavailable for editing.
+
+`[p]` validates and prepares a launch preview. Review the exact canonical argv,
+scope and selected embedding assets before `[Enter]` confirms; `[Esc]` discards
+the preview. Provider, embedding mode and model configuration use Settings and
+the existing build/setup contracts. There is no separate embeddings command.
+Asset presence is distinct from provider initialization and inference qualification.
+Previews expire after five minutes, are usable once, and are rechecked before a
+child starts. Scope replacement, workspace membership changes, configuration
+changes and missing model assets invalidate the launch. The session retains at
+most 16 previews, each capped at 768 KiB, and admits at most 32 workspace repos.
+
+The result page shows the owned job ID; `[c]` requests cancellation of that job.
+Process status, capture completeness, current generation, producer validation,
+promotion and current artifact validation are separate evidence. A published
+sparse index missing SQLite remains unready. Completing a later canonical stage
+can qualify the same generation without inventing a new generation identity.
+`[t]` checks the currently published artifacts; publication observations remain
+bounded and cancellable. Preview preparation does not rescan the old index to
+authorize a repair. Recorded artifacts remain available through Job inspection.
+These controls require a live controllable supervisor advertising
+`supportsIndexWorkflows`; passive/replay sessions cannot launch work.
 
 Result capture uses the requested byte cap, including Unicode bytes. Job completion
 and result completeness are independent: `resultState` is `disabled`, `complete`,

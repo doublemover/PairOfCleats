@@ -4,6 +4,9 @@ mod settings;
 mod supervisor_lifetime;
 #[cfg(test)]
 mod viewport_tests;
+#[cfg(test)]
+mod workflow_tests;
+mod workflows;
 use supervisor_lifetime::SupervisorLifetime;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
@@ -313,6 +316,7 @@ enum OverlayMode {
     Search,
     Settings,
     RepositorySearch,
+    IndexWorkflows,
     JobInspection,
 }
 
@@ -382,6 +386,7 @@ enum PaletteAction {
     RunJob,
     Settings,
     RepositorySearch,
+    IndexWorkflows,
     InspectJob,
     CancelSelected,
     ShowHelp,
@@ -398,6 +403,7 @@ impl PaletteAction {
             Self::CycleFilter => "Cycle active panel filter",
             Self::ClearSearch => "Clear current panel search",
             Self::RunJob => "Show search command help",
+            Self::IndexWorkflows => "Build, watch, validate and inspect indexes",
             Self::Settings => "Repository / workspace and settings",
             Self::RepositorySearch => "Search a repository and inspect results",
             Self::InspectJob => "Inspect selected job result and artifacts",
@@ -517,6 +523,7 @@ enum InputCommand {
     RunJob,
     Settings,
     RepositorySearch,
+    IndexWorkflows,
     InspectJob,
     CancelSelected,
     SelectPreviousJob,
@@ -549,6 +556,7 @@ enum InputCommand {
 
 struct AppModel {
     job_inspection: inspection::InspectionUi,
+    index_workflows: workflows::WorkflowUi,
     settings: settings::SettingsUi,
     repository_search: search::SearchUi,
     run_id: String,
@@ -609,6 +617,7 @@ impl AppModel {
     ) -> Self {
         Self {
             job_inspection: inspection::InspectionUi::default(),
+            index_workflows: workflows::WorkflowUi::default(),
             settings: settings::SettingsUi::default(),
             repository_search: search::SearchUi::default(),
             run_id,
@@ -1192,6 +1201,7 @@ fn frame_signature(model: &AppModel) -> String {
         "searchTarget": model.search_target.label(),
         "searchDraft": model.search_draft,
         "paletteIndex": model.palette_index,
+        "indexWorkflowRevision": if model.overlay == OverlayMode::IndexWorkflows {model.index_workflows.revision} else {0},
         "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
         "repositorySearchRevision": if model.overlay == OverlayMode::RepositorySearch {model.repository_search.revision} else {0},
         "jobInspectionRevision": if model.overlay == OverlayMode::JobInspection {model.job_inspection.revision} else {0},
@@ -1826,10 +1836,11 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
         OverlayMode::Help => "help overlay | Esc or ? close",
         OverlayMode::Palette => "action palette | j/k move | Enter select | Esc close",
         OverlayMode::Search => "search | type to filter current panel | Enter apply | Backspace delete | Esc cancel",
+        OverlayMode::IndexWorkflows => "Index workflows | typed forms | preview then confirm | Esc back/cancel | Ctrl+C quit",
         OverlayMode::Settings => "settings | Ctrl+U clears input | Esc cancels or closes | Ctrl+C quits",
         OverlayMode::RepositorySearch => "Repository search | Tab field | Enter submit/source | Esc back/cancel | Ctrl+C quit",
         OverlayMode::JobInspection => "Job inspection | 1 summary | 2 result | 3 artifacts | Tab page | Esc close | Ctrl+C quit",
-        OverlayMode::None => "R repository search | Tab focus | f filter | / panel text | x clear | p follow | : actions | ? help | q quit",
+        OverlayMode::None => "R search | b index workflows | s settings | Tab focus | f filter | / panel text | p follow | : actions | ? help | q quit",
     };
     fit_text(text, width)
 }
@@ -2155,6 +2166,7 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         ": open action palette",
         "? close help",
         "R search a repository and inspect results",
+        "b build, watch, validate, report and manage index snapshots",
         "r show search command help",
         "s select repository / workspace and edit settings",
         "c cancel selected job",
@@ -2192,6 +2204,7 @@ fn palette_actions() -> Vec<PaletteAction> {
         PaletteAction::CycleFilter,
         PaletteAction::ClearSearch,
         PaletteAction::RunJob,
+        PaletteAction::IndexWorkflows,
         PaletteAction::Settings,
         PaletteAction::RepositorySearch,
         PaletteAction::CancelSelected,
@@ -2479,6 +2492,24 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         OverlayMode::Help => render_help_overlay(frame, model),
         OverlayMode::Palette => render_palette_overlay(frame, model),
         OverlayMode::Search => render_search_overlay(frame, model),
+        OverlayMode::IndexWorkflows => {
+            let area = centered_rect(96, 94, frame.area());
+            let text = model
+                .index_workflows
+                .lines(area.height.saturating_sub(2) as usize)
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(panel_block(
+                        "Index workflows".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
         OverlayMode::Settings => {
             let area = centered_rect(94, 92, frame.area());
             let text = model
@@ -2616,6 +2647,10 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                     PaletteAction::CycleFilter => cycle_active_filter(model),
                     PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
                     PaletteAction::ShowHelp => model.overlay = OverlayMode::Help,
+                    PaletteAction::IndexWorkflows => {
+                        model.index_workflows.open(&model.session.scope);
+                        model.overlay = OverlayMode::IndexWorkflows;
+                    }
                     PaletteAction::Settings => {
                         model.settings.open(&model.session.scope);
                         model.overlay = OverlayMode::Settings;
@@ -2993,6 +3028,11 @@ fn apply_palette_action(
         }
         PaletteAction::ShowHelp => {
             model.overlay = OverlayMode::Help;
+            model.dirty = true;
+        }
+        PaletteAction::IndexWorkflows => {
+            model.index_workflows.open(&model.session.scope);
+            model.overlay = OverlayMode::IndexWorkflows;
             model.dirty = true;
         }
         PaletteAction::Settings => {
@@ -3382,6 +3422,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         model.repository_search.available = event["capabilities"]["supportsSearch"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
+        model.index_workflows.available = event["capabilities"]["supportsIndexWorkflows"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
         model.settings.available = event["capabilities"]["supportsSettings"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
@@ -3407,6 +3450,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         model.job_inspection.available = false;
         model.repository_search.available = false;
         model.settings.available = false;
+        model.index_workflows.available = false;
         apply_session_descriptor(model, &event);
     }
     if model.job_inspection.event(&event) {
@@ -3414,6 +3458,18 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         return;
     }
     if model.repository_search.event(&event) {
+        model.dirty = true;
+        return;
+    }
+    if model.index_workflows.event(&event) {
+        if let Some(scope) = &model.index_workflows.scope {
+            if let Some(target) = scope["target"].as_str() {
+                if model.session.scope != target {
+                    model.repository_search.scope_changed(target);
+                }
+                model.session.scope = target.to_string();
+            }
+        }
         model.dirty = true;
         return;
     }
@@ -3569,6 +3625,12 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
             }
             model.dirty = true;
         }
+        OverlayMode::IndexWorkflows => {
+            if model.index_workflows.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
         OverlayMode::Settings => {
             if model.settings.key(key) {
                 model.overlay = OverlayMode::None;
@@ -3621,6 +3683,9 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
             }
             KeyCode::Char('g') => {
                 enqueue_input(model, InputCommand::FollowLatestJob, "follow-latest-job")
+            }
+            KeyCode::Char('b') => {
+                enqueue_input(model, InputCommand::IndexWorkflows, "index-workflows")
             }
             KeyCode::Char('s') => enqueue_input(model, InputCommand::Settings, "settings-open"),
             KeyCode::Char('R') => enqueue_input(
@@ -3675,6 +3740,11 @@ fn dispatch_input(
         InputCommand::RepositorySearch => {
             model.repository_search.open(&model.session.scope);
             model.overlay = OverlayMode::RepositorySearch;
+            model.dirty = true;
+        }
+        InputCommand::IndexWorkflows => {
+            model.index_workflows.open(&model.session.scope);
+            model.overlay = OverlayMode::IndexWorkflows;
             model.dirty = true;
         }
         InputCommand::Settings => {
@@ -3912,6 +3982,9 @@ fn main() -> anyhow::Result<()> {
 
             if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
                 break;
+            }
+            while let Some(request) = model.index_workflows.outbox.pop_front() {
+                send_request(&mut supervisor, request)?;
             }
             while let Some(request) = model.settings.outbox.pop_front() {
                 send_request(&mut supervisor, request)?;

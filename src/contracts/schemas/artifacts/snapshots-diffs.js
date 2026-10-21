@@ -4,7 +4,8 @@ const nullableBool = { type: ['boolean', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
 const modeName = { type: 'string', enum: ['code', 'prose', 'extracted-prose', 'records'] };
 const modeList = { type: 'array', items: modeName };
-const snapshotIdString = { type: 'string', pattern: '^snap-[A-Za-z0-9._-]+$' };
+export const SNAPSHOT_ID_SCHEMA = { type: 'string', pattern: '^snap-[A-Za-z0-9._-]+$' };
+const snapshotIdString = SNAPSHOT_ID_SCHEMA;
 const diffIdString = { type: 'string', pattern: '^diff_[A-Za-z0-9._-]+$' };
 
 const snapshotSummaryEntry = {
