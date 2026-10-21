@@ -62,6 +62,8 @@ receipts. The clean WSL checkout qualifies approved PHPactor bytes on PHP 8.3.6;
 native Windows POSIX support is explicitly unavailable. LSP disposal now awaits
 observed exits across cancellation/restart. Ruby startup/install warnings, the
 macOS `fsevents` policy warning and later hosted tool execution remain open.
+Fresh Solargraph 0.61.0 checks still miss their original deadline. An isolated
+RubyGems update also fails; neither the runtime nor probe bounds are changed.
 Detection, startup and semantic precision remain distinct; no failed readiness
 or warning is suppressed.
 
