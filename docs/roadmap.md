@@ -26,12 +26,9 @@ shutdown across overlays, with a real Windows terminal/reaping witness.
 Default TUI build/capture now select pinned Rust with locked dependencies;
 the actual Windows release binary passes four terminal-lifetime controls.
 Rendered job/task offsets and wrapped log tail/follow now have actual frame coverage.
-Completed map, editor, VFS, language, bootstrap, compiler, release, LSIF/GNU Global,
-API/MCP, retrieval and resource repairs retain their individual failures, checks
-and source identities in the linked issue receipt.
-Wrapper retirement, decoded semantic-cache checks, linear history import and
-Toolhelp orphan cleanup retain their assertion mappings and real process controls
-in the issue receipt; distinct CLI checks remain.
+Completed repairs and their failure/check/source identities remain in the
+linked issue receipt. Wrapper retirement and cache/history/Toolhelp repairs retain
+assertion mappings and real process controls there; distinct CLI checks remain.
 Archived hosted failures retain pending-delete, parity, XML, serial-plan and cold
 PowerShell-helper evidence and their individual repairs. The cold helper stall's
 cause remains open despite later successes. All seven checks pass at `77a6f0df7`
@@ -66,6 +63,8 @@ PHPactor pins approved bytes and reports its native Windows POSIX limitation.
 The clean WSL checkout qualifies real startup/shutdown; LSP disposal now awaits
 observed child exits and retains ownership across concurrent cleanup/restart.
 CI requires Linux/macOS PHPactor startup; later hosted execution remains blocked.
+The search supervisor now owns typed queries, cursors and bounded source views;
+#634 still requires native keyboard/results integration and acceptance.
 Remaining tool work includes startup/platform qualification, Ruby installs
 and the macOS `fsevents` policy warning. Detection, startup and semantic precision
 remain separate evidence; no warning or failed readiness is suppressed.

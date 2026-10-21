@@ -82,6 +82,9 @@ Tools that produce machine output or long-running work MUST support:
 
 ## Internal settings requests
 
+See also the internal search operator below. Native workflow acceptance is
+tracked separately from a supervisor operation's contract checks.
+
 The local `poc.tui@1` supervisor advertises `supportsSettings` when it implements
 `settings:run`. A request contains only `proto`, `op`, a bounded `jobId`, `method`
 and `params`. Methods are `select`, `inspect`, `preview`, `commit` and `cancel`;
@@ -104,3 +107,40 @@ scope selection. The supervisor rejects new work once shutdown begins.
 The native view routes its own request IDs before foreground job selection and
 accepts settings only in a controllable supervised session. Configuration preview
 and observed runtime/provider qualification remain distinct.
+
+## Internal search requests
+
+The local supervisor advertises `supportsSearch` for `search:run`. The strict
+envelope contains `proto: "poc.tui@1"`, `op`, a bounded `jobId`, `method` and
+`params`; its owner is `src/contracts/schemas/tui-search.js`. The methods are:
+
+- `query`: `{ repoPath, search }`. The predicate object uses the canonical API
+  search validator and shared CLI argument builder. It retains all shared filters,
+  mode/backend/top selection and snapshot/as-of exclusivity. Repository identity,
+  output selection and continuation tokens belong to the operator; those fields
+  cannot be supplied inside `search`.
+- `continue`: `{ resultId }`. Only the current query's last canonical cursor can
+  advance. Ranked text searches retain the CLI's top-k behavior; filter-only
+  queries expose supported continuation. Repeated hit identities are rejected.
+- `source`: `{ resultId, hitId }`. Only a hit from the current query can select a
+  file. The existing contained-descriptor/excerpt owner enforces repository and
+  symlink authority, verifies current bytes, and labels indexed/current drift as
+  unchanged, changed or unknown. Missing and oversized files have explicit
+  unavailable results. Historical index selection does not reconstruct source
+  bytes; the preview identifies its working-tree policy.
+
+Responses bind an opaque result/scope identity and query generation to ordered
+  per-mode ranks, scores, paths, ranges, canonical freshness/pagination and output
+  budget evidence. Query replacement aborts prior work and rejects late results.
+  Source extraction is capped at 16 KiB/4096 tokens; the canonical source read remains
+  capped at 64 MiB. A query retains at most 500 hits/768 KiB. Incomplete JSON or
+  capture fails rather than becoming a successful partial result; canonical
+  output-budget omissions remain visible. These are internal resource bounds,
+  with no new repository configuration or CLI options.
+
+Operations use the existing job cancellation, output, timeout and shutdown
+  owners. `job:spawn` records an actual child PID; awaited cancellation/disposal
+  joins child cleanup. The strict shared JSON request boundary preserves the
+  existing settings limits. Native query entry, results/source keyboard flow,
+  explicit file/editor navigation and actual terminal acceptance remain #634
+  work; supervisor fixtures alone do not establish that native workflow.
