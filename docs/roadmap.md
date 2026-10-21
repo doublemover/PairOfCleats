@@ -14,8 +14,9 @@ The October 20 live inventory now has 84 open issues (#584–#667), repair PR
 [#572](https://github.com/doublemover/PairOfCleats/pull/572) against `main`, and
 11 original Dependabot PRs (#573–#583). Dependency-upgrade review remains separate.
 The [issue repair receipt](archived/github-issue-repairs-2026-10-20.md) tracks
-every issue and its acceptance. All 84 are in scope, including TUI functionality,
-optional tooling, representative workloads and Linux/macOS deep qualification.
+every issue and its acceptance. All 84 remain in scope. Current work is Windows-only;
+Linux/macOS execution is deferred. Saved-session replay (#639) is checkpointed;
+native keyboard/lifetime acceptance remains open.
 P1 publication and resource-lifecycle defects are first; the earlier green
 campaign below does not establish that the newly reported bugs are fixed.
 Seventy-seven issues have implemented repairs. The six later correctness repairs

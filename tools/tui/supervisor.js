@@ -151,6 +151,17 @@ const runArtifact = async (request, context) => {
 };
 
 let indexWorkflows = null, workflowModules = null;
+let recordings = null, recordingModules = null;
+const runRecording = async (request, context) => {
+  recordingModules ||= Promise.all([import('./operator/recordings.js'),
+    import('../../src/contracts/validators/tui-recording.js')]);
+  const [owner, contracts] = await recordingModules;
+  contracts.assertTuiRecordingRequest('dispatch', request);
+  contracts.assertTuiRecordingRequest(request.method, request.params);
+  if (context.signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  recordings ||= owner.createTuiRecordings();
+  return recordings[request.method](request.params, context);
+};
 const runWorkflow = async (request, context) => {
   workflowModules ||= Promise.all([import('./operator/index-workflows.js'),
     import('./operator/settings.js'), import('../../src/contracts/validators/tui-workflow.js')]);
@@ -191,6 +202,7 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
   }
   settingsSession?.dispose();
   indexWorkflows?.dispose();
+  recordings?.dispose();
   await searchSession?.dispose();
   await artifactRegistry.dispose();
   await artifactActions?.dispose();
@@ -277,6 +289,15 @@ const handleRequest = async (request) => {
         { title: 'Index workflow', isCommitted: data => data?.launched === true || typeof data?.id === 'string' });
     } catch {
       emitLog(null, 'error', 'Workflow request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'recording:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runRecording(request, context),
+        { title: 'Saved session', isCommitted: () => false });
+    } catch {
+      emitLog(null, 'error', 'Recording request was not admitted.');
     }
     return;
   }

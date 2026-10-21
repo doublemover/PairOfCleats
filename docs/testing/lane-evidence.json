@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T15:15:13.098Z",
+  "generatedAt": "2026-10-21T16:19:35.825Z",
   "summary": {
     "lanes": 5,
-    "tests": 1408,
+    "tests": 1410,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 362,
+    "families": 364,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1334
+      "missingTests": 1336
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1183,
+      "totalTests": 1185,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1134
+        "missing": 1136
       }
     },
     {
@@ -2162,6 +2162,18 @@
     },
     {
       "key": "tui/operator-index-workflows",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-recording-request-contract",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
+      "key": "tui/operator-recordings",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1

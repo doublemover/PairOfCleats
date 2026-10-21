@@ -105,6 +105,7 @@ export const TUI_SUPERVISOR_CAPABILITY_SPEC = Object.freeze({
   supportsSettings: true,
   supportsSearch: true,
   supportsIndexWorkflows: true,
+  supportsRecordings: true,
   supportsArtifactActions: true
 });
 

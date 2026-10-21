@@ -343,6 +343,7 @@ fn model() -> AppModel {
         },
         None,
     );
+    model.owns_control_channel = true;
     for index in 0..20 {
         let job = format!("JMARK{index:02}");
         model.job_order.push_back(job.clone());

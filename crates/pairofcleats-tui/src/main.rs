@@ -1,4 +1,7 @@
 mod inspection;
+#[cfg(test)]
+mod recording_tests;
+mod recordings;
 mod search;
 mod settings;
 mod supervisor_lifetime;
@@ -318,6 +321,7 @@ enum OverlayMode {
     RepositorySearch,
     IndexWorkflows,
     JobInspection,
+    Recordings,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -390,6 +394,7 @@ enum PaletteAction {
     InspectJob,
     CancelSelected,
     ShowHelp,
+    Recordings,
     Quit,
 }
 
@@ -409,6 +414,7 @@ impl PaletteAction {
             Self::InspectJob => "Inspect selected job result and artifacts",
             Self::CancelSelected => "Cancel selected job",
             Self::ShowHelp => "Open help overlay",
+            Self::Recordings => "Open a saved session / passive replay",
             Self::Quit => "Quit TUI",
         }
     }
@@ -524,6 +530,7 @@ enum InputCommand {
     Settings,
     RepositorySearch,
     IndexWorkflows,
+    Recordings,
     InspectJob,
     CancelSelected,
     SelectPreviousJob,
@@ -569,6 +576,11 @@ struct AppModel {
     logs: VecDeque<LogEntry>,
     alerts: VecDeque<AlertEntry>,
     session: SessionState,
+    // Set only by the owner of the real local child transport, never by data.
+    owns_control_channel: bool,
+    recordings_requested: bool,
+    recording_overlay_text: String,
+    recording_revision: u64,
     selected_job: Option<String>,
     selected_job_pinned: bool,
     selected_job_expired: bool,
@@ -640,6 +652,10 @@ impl AppModel {
                 note: "awaiting supervisor handshake".to_string(),
                 controllable: false,
             },
+            owns_control_channel: false,
+            recordings_requested: false,
+            recording_overlay_text: String::new(),
+            recording_revision: 0,
             selected_job: None,
             selected_job_pinned: false,
             selected_job_expired: false,
@@ -1202,6 +1218,7 @@ fn frame_signature(model: &AppModel) -> String {
         "searchDraft": model.search_draft,
         "paletteIndex": model.palette_index,
         "indexWorkflowRevision": if model.overlay == OverlayMode::IndexWorkflows {model.index_workflows.revision} else {0},
+        "recordingRevision": if model.overlay == OverlayMode::Recordings {model.recording_revision} else {0},
         "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
         "repositorySearchRevision": if model.overlay == OverlayMode::RepositorySearch {model.repository_search.revision} else {0},
         "jobInspectionRevision": if model.overlay == OverlayMode::JobInspection {model.job_inspection.revision} else {0},
@@ -1840,7 +1857,8 @@ fn footer_hint_text(model: &AppModel, width: usize) -> String {
         OverlayMode::Settings => "settings | Ctrl+U clears input | Esc cancels or closes | Ctrl+C quits",
         OverlayMode::RepositorySearch => "Repository search | Tab field | Enter submit/source | Esc back/cancel | Ctrl+C quit",
         OverlayMode::JobInspection => "Job inspection | 1 summary | 2 result | 3 artifacts | Tab page | Esc close | Ctrl+C quit",
-        OverlayMode::None => "R search | b index workflows | s settings | Tab focus | f filter | / panel text | p follow | : actions | ? help | q quit",
+        OverlayMode::Recordings => "Saved sessions | Enter choose/load | Ctrl+U clears | Esc cancels/closes | Ctrl+C quits",
+        OverlayMode::None => "R search | b indexes | O saved sessions | s settings | Tab focus | f filter | / panel text | p follow | : actions | ? help | q quit",
     };
     fit_text(text, width)
 }
@@ -1915,7 +1933,7 @@ fn follow_latest_job(model: &mut AppModel) {
 
 fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
     let id = model.selected_job.clone()?;
-    if !model.session.controllable || model.session.mode != "supervised" {
+    if !has_live_control(model) {
         model.push_alert(
             "info",
             "Cancellation requires the session's verified supervisor control channel",
@@ -2210,6 +2228,7 @@ fn palette_actions() -> Vec<PaletteAction> {
         PaletteAction::CancelSelected,
         PaletteAction::ShowHelp,
         PaletteAction::InspectJob,
+        PaletteAction::Recordings,
         PaletteAction::Quit,
     ]
 }
@@ -2489,6 +2508,20 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     }
 
     match model.overlay {
+        OverlayMode::Recordings => {
+            let area = centered_rect(96, 94, frame.area());
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(model.recording_overlay_text.as_str())
+                    .wrap(Wrap { trim: true })
+                    .block(panel_block(
+                        "Saved sessions".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
         OverlayMode::Help => render_help_overlay(frame, model),
         OverlayMode::Palette => render_palette_overlay(frame, model),
         OverlayMode::Search => render_search_overlay(frame, model),
@@ -2660,6 +2693,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                         model.overlay = OverlayMode::RepositorySearch;
                     }
                     PaletteAction::InspectJob => open_job_inspection(model),
+                    PaletteAction::Recordings => open_recordings(model),
                     PaletteAction::RunJob | PaletteAction::CancelSelected | PaletteAction::Quit => {
                     }
                 }
@@ -2992,6 +3026,33 @@ fn sample_job_request(model: &AppModel, job_id: &str) -> Value {
     request
 }
 
+fn open_recordings(model: &mut AppModel) {
+    model.recordings_requested = true;
+    model.overlay = OverlayMode::Recordings;
+    model.dirty = true;
+}
+
+fn has_live_control(model: &AppModel) -> bool {
+    model.owns_control_channel && model.session.controllable && model.session.mode == "supervised"
+}
+
+fn start_sample_job(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+    next_job_idx: &mut u64,
+) -> anyhow::Result<()> {
+    if !has_live_control(model) {
+        model.push_alert(
+            "info",
+            "Launching work requires the owned live supervisor channel",
+        );
+        return Ok(());
+    }
+    let job_id = format!("job-{}", *next_job_idx);
+    *next_job_idx += 1;
+    send_request(supervisor, sample_job_request(model, &job_id))
+}
+
 fn apply_palette_action(
     model: &mut AppModel,
     supervisor: &mut std::process::Child,
@@ -3017,9 +3078,7 @@ fn apply_palette_action(
         PaletteAction::CycleFilter => cycle_active_filter(model),
         PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
         PaletteAction::RunJob => {
-            let job_id = format!("job-{}", *next_job_idx);
-            *next_job_idx += 1;
-            send_request(supervisor, sample_job_request(model, &job_id))?;
+            start_sample_job(model, supervisor, next_job_idx)?;
         }
         PaletteAction::CancelSelected => {
             if let Some(request) = selected_job_cancel_request(model) {
@@ -3046,6 +3105,7 @@ fn apply_palette_action(
             model.dirty = true;
         }
         PaletteAction::InspectJob => open_job_inspection(model),
+        PaletteAction::Recordings => open_recordings(model),
         PaletteAction::Quit => {
             return Ok(true);
         }
@@ -3194,8 +3254,9 @@ fn apply_session_descriptor(model: &mut AppModel, event: &Value) {
         .and_then(|value| value.as_str());
     let note = event.get("note").and_then(|value| value.as_str());
     model.update_session_state(mode, source, scope, connection, note);
-    model.session.controllable =
-        event["controllable"] == true && model.session.mode == "supervised";
+    model.session.controllable = model.owns_control_channel
+        && event["controllable"] == true
+        && model.session.mode == "supervised";
     update_workload_from_scope(model);
 }
 
@@ -3416,16 +3477,20 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
     apply_workload_descriptor(model, &event);
     if event_name == "hello" {
         let search_was_available = model.repository_search.available;
-        model.job_inspection.available = event["capabilities"]["supportsArtifactActions"] == true
+        model.job_inspection.available = model.owns_control_channel
+            && event["capabilities"]["supportsArtifactActions"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
-        model.repository_search.available = event["capabilities"]["supportsSearch"] == true
+        model.repository_search.available = model.owns_control_channel
+            && event["capabilities"]["supportsSearch"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
-        model.index_workflows.available = event["capabilities"]["supportsIndexWorkflows"] == true
+        model.index_workflows.available = model.owns_control_channel
+            && event["capabilities"]["supportsIndexWorkflows"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
-        model.settings.available = event["capabilities"]["supportsSettings"] == true
+        model.settings.available = model.owns_control_channel
+            && event["capabilities"]["supportsSettings"] == true
             && event["session"]["mode"] == "supervised"
             && event["session"]["controllable"] == true;
         if let Some(session) = event.get("session") {
@@ -3613,6 +3678,7 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
     model.last_key_at = now;
     model.last_input_token = token;
     match model.overlay {
+        OverlayMode::Recordings => {} // Keys are consumed by the owned loader UI.
         OverlayMode::JobInspection => {
             if model.job_inspection.key(key) {
                 model.overlay = OverlayMode::None;
@@ -3670,6 +3736,7 @@ fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
             _ => {}
         },
         OverlayMode::None => match key.code {
+            KeyCode::Char('O') => enqueue_input(model, InputCommand::Recordings, "recordings-open"),
             KeyCode::Char('v') => enqueue_input(model, InputCommand::InspectJob, "inspect-job"),
             KeyCode::Char('[') => {
                 enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job")
@@ -3734,6 +3801,7 @@ fn dispatch_input(
     model.last_input_at = Instant::now();
     match cmd {
         InputCommand::InspectJob => open_job_inspection(model),
+        InputCommand::Recordings => open_recordings(model),
         InputCommand::SelectPreviousJob => select_job(model, -1),
         InputCommand::SelectNextJob => select_job(model, 1),
         InputCommand::FollowLatestJob => follow_latest_job(model),
@@ -3838,9 +3906,7 @@ fn dispatch_input(
         }
         InputCommand::ClearSearch => clear_search(model, model.focus_panel),
         InputCommand::RunJob => {
-            let job_id = format!("job-{}", *next_job_idx);
-            *next_job_idx += 1;
-            send_request(supervisor, sample_job_request(model, &job_id))?;
+            start_sample_job(model, supervisor, next_job_idx)?;
         }
         InputCommand::CancelSelected => {
             if let Some(request) = selected_job_cancel_request(model) {
@@ -3873,6 +3939,30 @@ fn dispatch_input(
         }
     }
     Ok(false)
+}
+
+fn flush_model_requests(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+) -> anyhow::Result<()> {
+    if !has_live_control(model) {
+        model.index_workflows.outbox.clear();
+        model.settings.outbox.clear();
+        model.repository_search.outbox.clear();
+        model.job_inspection.outbox.clear();
+        return Ok(());
+    }
+    for outbox in [
+        &mut model.index_workflows.outbox,
+        &mut model.settings.outbox,
+        &mut model.repository_search.outbox,
+        &mut model.job_inspection.outbox,
+    ] {
+        while let Some(request) = outbox.pop_front() {
+            send_request(supervisor, request)?;
+        }
+    }
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -3917,6 +4007,8 @@ fn main() -> anyhow::Result<()> {
 
     let (supervisor, events_rx) = spawn_supervisor(&run_id, &observability_dir)?;
     let mut supervisor = SupervisorLifetime::new(supervisor, events_rx)?;
+    model.owns_control_channel = true;
+    let mut recordings = recordings::RecordingUi::default();
 
     let _ = send_request(
         &mut supervisor,
@@ -3934,20 +4026,40 @@ fn main() -> anyhow::Result<()> {
         loop {
             let mut processed = 0u64;
             while let Ok(event) = supervisor.poll() {
-                apply_protocol_event(&mut model, event, 0);
+                let owned_channel = recordings
+                    .live_model
+                    .as_ref()
+                    .map(|live| live.owns_control_channel)
+                    .unwrap_or(model.owns_control_channel);
+                recordings.supervisor_event(&event, owned_channel);
+                let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+                apply_protocol_event(live, event, 0);
                 processed += 1;
             }
             if processed > 0 {
-                model.flow_credit_pending = model.flow_credit_pending.saturating_add(processed);
-                flush_flow_credits(&mut model, &mut supervisor);
+                let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+                live.flow_credit_pending = live.flow_credit_pending.saturating_add(processed);
+                flush_flow_credits(live, &mut supervisor);
             }
 
-            append_runtime_metrics(&mut model);
+            append_runtime_metrics(recordings.live_model.as_deref_mut().unwrap_or(&mut model));
             if let Some(status) = supervisor.try_wait()? {
                 model.push_log("supervisor exited; draining owned process family".to_string());
                 return Err(anyhow::anyhow!(
                     "supervisor exited before TUI shutdown: {status}"
                 ));
+            }
+
+            recordings.tick();
+            recordings.update_view(&mut model);
+            if model.recordings_requested {
+                model.recordings_requested = false;
+                recordings.open(&observability_dir);
+            }
+            if model.recording_revision != recordings.revision {
+                model.recording_revision = recordings.revision;
+                model.recording_overlay_text = recordings.lines().join("\n");
+                model.dirty = true;
             }
 
             if model.dirty && last_frame.elapsed() >= FRAME_INTERVAL {
@@ -3976,36 +4088,47 @@ fn main() -> anyhow::Result<()> {
                     // An unchanged model still needs a new layout after SIGWINCH.
                     invalidate_frame(&mut model);
                 } else if let CEvent::Key(key) = terminal_event {
-                    enqueue_terminal_key(&mut model, key);
+                    let interrupt = key.modifiers.contains(KeyModifiers::CONTROL)
+                        && matches!(key.code, KeyCode::Char('c' | 'C'));
+                    if interrupt {
+                        enqueue_terminal_key(&mut model, key);
+                    } else if model.overlay == OverlayMode::Recordings {
+                        if recordings.key(key) {
+                            model.overlay = OverlayMode::None;
+                            model.dirty = true;
+                        }
+                    } else if model.overlay == OverlayMode::None && recordings.playback_key(key) {
+                        model.dirty = true;
+                    } else {
+                        enqueue_terminal_key(&mut model, key);
+                    }
                 }
             }
 
             if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
                 break;
             }
-            while let Some(request) = model.index_workflows.outbox.pop_front() {
-                send_request(&mut supervisor, request)?;
-            }
-            while let Some(request) = model.settings.outbox.pop_front() {
-                send_request(&mut supervisor, request)?;
-            }
-            while let Some(request) = model.repository_search.outbox.pop_front() {
-                send_request(&mut supervisor, request)?;
-            }
-            while let Some(request) = model.job_inspection.outbox.pop_front() {
+            flush_model_requests(
+                recordings.live_model.as_deref_mut().unwrap_or(&mut model),
+                &mut supervisor,
+            )?;
+            // Only this loader's UI receives real transport responses. Saved
+            // events never enter this outbox or grant access to live commands.
+            while let Some(request) = recordings.outbox.pop_front() {
                 send_request(&mut supervisor, request)?;
             }
         }
         Ok(())
     })();
 
-    let shutdown = supervisor.shutdown(|event| apply_protocol_event(&mut model, event, 0));
-    for status in model.job_status.values_mut() {
+    let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+    let shutdown = supervisor.shutdown(|event| apply_protocol_event(live, event, 0));
+    for status in live.job_status.values_mut() {
         if status.contains("running") || status == "queued" {
             *status = "failed".to_string();
         }
     }
-    save_snapshot(&snapshot_path, &model);
+    save_snapshot(&snapshot_path, live);
     execution.and(shutdown)
 }
 
@@ -4194,7 +4317,7 @@ mod redraw_tests {
     }
 
     fn model() -> AppModel {
-        AppModel::new(
+        let mut model = AppModel::new(
             "redraw-test".into(),
             TerminalCapabilities {
                 color: true,
@@ -4203,7 +4326,9 @@ mod redraw_tests {
                 alt_screen: true,
             },
             None,
-        )
+        );
+        model.owns_control_channel = true;
+        model
     }
 
     fn screen(model: &AppModel, width: u16, height: u16) -> String {

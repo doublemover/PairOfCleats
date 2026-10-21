@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T13:28:28.008Z",
+  "generatedAt": "2026-10-21T16:19:40.882Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4960,6 +4960,7 @@
         "tests/cli/general/lifecycle-workflow-option-rejections.test.js",
         "tests/cli/general/unknown-workflow-options.test.js",
         "tests/helpers/native-tui-conpty.js",
+        "tests/helpers/recorded-supervisor.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",
@@ -5011,6 +5012,7 @@
       "files": [
         "bin/tui-wrapper-env.js",
         "src/shared/env/tui.js",
+        "tests/helpers/recorded-supervisor.js",
         "tests/shared/runtime/runtime-contract-matrix.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",
