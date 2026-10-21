@@ -94,7 +94,7 @@ const buildChunkQueryPattern = (language, config) => {
   }
 
   if (!filtered.length) return null;
-  return filtered.map((type) => `(${type}) @${QUERY_CAPTURE_NAME}`).join('\n');
+  return filtered.map((type) => config.queryPatterns?.[type] || `(${type}) @${QUERY_CAPTURE_NAME}`).join('\n');
 };
 
 /**
@@ -351,7 +351,7 @@ function extractNodeName(node, text, config) {
 function findNearestType(node, config) {
   let current = node?.parent || null;
   while (current) {
-    if (config.typeNodes.has(current.type)) return current;
+    if (config.typeNodes.has(current.type) && (!config.includeNode || config.includeNode(current))) return current;
     current = current.parent;
   }
   return null;
@@ -396,7 +396,8 @@ function gatherChunkNodes(root, text, config, budget) {
     }
     const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
     if (missing) continue;
-    if (config.typeNodes.has(node.type) || config.memberNodes.has(node.type)) {
+    if ((config.typeNodes.has(node.type) || config.memberNodes.has(node.type))
+      && (!config.includeNode || config.includeNode(node))) {
       matched += 1;
       if (matched > maxChunkNodes) {
         return { chunks: null, reason: 'maxChunkNodes', visited, matched };
@@ -464,6 +465,7 @@ function gatherChunksWithQuery(root, text, config, budget, resolvedId, options) 
     if (!capture || capture.name !== QUERY_CAPTURE_NAME) continue;
     const node = capture.node;
     if (!node) continue;
+    if (config.includeNode && !config.includeNode(node)) continue;
     matched += 1;
     if (matched > maxChunkNodes) {
       return { chunks: null, reason: 'maxChunkNodes', visited: captures.length, matched, usedQuery: true, shouldFallback: true };

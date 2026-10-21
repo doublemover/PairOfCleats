@@ -1,4 +1,5 @@
 import { findDescendantByType } from './ast.js';
+export const TREE_SITTER_CHUNK_VERSION = '2';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -41,6 +42,7 @@ export const TREE_SITTER_LANGUAGE_IDS = Object.freeze(
 
 const JS_TS_CONFIG = {
   typeNodes: new Set([
+    'class',
     'class_declaration',
     'interface_declaration',
     'type_alias_declaration',
@@ -48,16 +50,44 @@ const JS_TS_CONFIG = {
   ]),
   memberNodes: new Set([
     'function_declaration',
-    'method_definition'
+    'method_definition',
+    'variable_declarator',
+    'arrow_function',
+    'function_expression'
   ]),
+  queryPatterns: {
+    variable_declarator: '(variable_declarator value: [(arrow_function) (function_expression)]) @chunk'
+  },
+  includeNode: (node) => {
+    if (['class', 'arrow_function', 'function_expression'].includes(node.type)) {
+      let owner = node.parent;
+      while (['parenthesized_expression', 'as_expression', 'satisfies_expression', 'non_null_expression'].includes(owner?.type)) {
+        owner = owner.parent;
+      }
+      return owner?.type === 'export_statement' && owner.parent?.type === 'program';
+    }
+    if (node.type !== 'variable_declarator') return true;
+    const value = node.childForFieldName('value'), name = node.childForFieldName('name');
+    if (!['arrow_function', 'function_expression'].includes(value?.type) || name?.type !== 'identifier') return false;
+    let owner = node.parent;
+    if (['lexical_declaration', 'variable_declaration'].includes(owner?.type)) owner = owner.parent;
+    if (owner?.type === 'export_statement') owner = owner.parent;
+    return owner?.type === 'program';
+  },
+  resolveName: node => ['class', 'arrow_function', 'function_expression'].includes(node.type)
+    ? node.childForFieldName('name')?.text || 'default' : null,
   nameFields: ['name'],
   kindMap: {
     class_declaration: 'ClassDeclaration',
+    class: 'ClassDeclaration',
     interface_declaration: 'InterfaceDeclaration',
     type_alias_declaration: 'TypeAlias',
     enum_declaration: 'EnumDeclaration',
     function_declaration: 'FunctionDeclaration',
-    method_definition: 'MethodDeclaration'
+    method_definition: 'MethodDeclaration',
+    variable_declarator: 'VariableDeclaration',
+    arrow_function: 'ArrowFunction',
+    function_expression: 'FunctionExpression'
   },
   docComments: { linePrefixes: ['//'], blockStarts: ['/**'] }
 };

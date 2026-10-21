@@ -217,6 +217,10 @@ pairofcleats api-contracts --repo . --onlyExports --format json
 `--maxWarnings` caps retained details, while `--failOnWarn` responds to detected
 violations independently of that cap. Zero details cannot turn a known violation
 into a successful validation; a clean zero-cap report still succeeds.
+`--onlyExports` uses explicit JS/TS symbol export identity, including default and
+aliased local exports. Internal declarations stay excluded. Missing or unknown
+JS/TS identity produces `EXPORT_IDENTITY_UNAVAILABLE`; validation is incomplete
+and `--failOnWarn` fails even when no warning details are retained.
 
 ### Output
 - JSON: `ApiContractsReport` (validated)

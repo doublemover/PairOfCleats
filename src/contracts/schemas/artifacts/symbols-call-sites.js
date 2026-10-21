@@ -90,6 +90,8 @@ const symbolRecord = {
     name: nullableString,
     qualifiedName: { type: 'string' },
     signature: nullableString,
+    exported: { type: ['boolean', 'null'] },
+    exportNames: { type: 'array', items: { type: 'string' }, uniqueItems: true },
     extensions: { type: 'object' }
   },
   additionalProperties: true

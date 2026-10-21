@@ -67,20 +67,21 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
     }
   };
 
-  const handleStatement = (stmt, prefix = '') => {
+  const handleStatement = (stmt, prefix = '', defaultExport = false) => {
     if (!stmt) return;
     if (stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration') {
       if (stmt.declaration) {
-        handleStatement(stmt.declaration, prefix);
+        handleStatement(stmt.declaration, prefix, stmt.type === 'ExportDefaultDeclaration');
       }
       return;
     }
-    if (stmt.type === 'ClassDeclaration' && stmt.id?.name) {
+    if (stmt.type === 'ClassDeclaration' && (stmt.id?.name || defaultExport)) {
+      const name = stmt.id?.name || 'default';
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.body?.start ?? -1);
-      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'ClassDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, name), 'ClassDeclaration',
         buildTypeMeta(start, stmt.end ?? start, signature));
-      handleClassMembers(prefix, stmt.id.name, stmt.body?.body || []);
+      handleClassMembers(prefix, name, stmt.body?.body || []);
       return;
     }
     if (stmt.type === 'TSInterfaceDeclaration' && stmt.id?.name) {
@@ -126,10 +127,11 @@ export function buildTypeScriptChunksFromBabel(text, options = {}) {
         buildFunctionMeta(start, stmt.end ?? start, signature));
       return;
     }
-    if (stmt.type === 'FunctionDeclaration' && stmt.id?.name) {
+    if ((stmt.type === 'FunctionDeclaration' && (stmt.id?.name || defaultExport))
+      || (defaultExport && ['FunctionExpression', 'ArrowFunctionExpression'].includes(stmt.type))) {
       const start = stmt.start ?? 0;
       const signature = buildSignature(start, stmt.body?.start ?? -1);
-      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id.name), 'FunctionDeclaration',
+      addChunk(stmt, qualifyTypeScriptChunkName(prefix, stmt.id?.name || 'default'), 'FunctionDeclaration',
         buildFunctionMeta(start, stmt.end ?? start, signature));
       return;
     }

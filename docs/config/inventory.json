@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-21T05:02:42.643Z",
+  "generatedAt": "2026-10-21T05:23:31.178Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -4460,6 +4460,7 @@
         "tests/helpers/test-env.js",
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
+        "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
@@ -4468,6 +4469,7 @@
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
+        "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/lsp-runtime-qualification.test.js",
         "tests/tooling/fixtures/fixture-eval.test.js",
@@ -4811,6 +4813,7 @@
         "tests/run.js",
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
+        "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/zero-warning-cap-cli.test.js",
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js",
         "tests/tooling/config/source-metadata.test.js",
@@ -6110,6 +6113,12 @@
         "flags": [
           "ext",
           "relPath",
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
+        "flags": [
           "treeSitter"
         ]
       },
@@ -8089,6 +8098,26 @@
         ]
       },
       {
+        "flag": "treeSitter",
+        "count": 14,
+        "files": [
+          "src/lang/javascript/chunks.js",
+          "src/lang/typescript/chunks.js",
+          "tests/indexing/tree-sitter/adaptive-budget.test.js",
+          "tests/indexing/tree-sitter/chunks.test.js",
+          "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js",
+          "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
+          "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
+          "tests/indexing/tree-sitter/preload-and-planning-contract-matrix.test.js",
+          "tests/indexing/tree-sitter/streaming-chunking.test.js",
+          "tests/indexing/tree-sitter/xml-runtime.test.js",
+          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
+          "tests/security/java-workspace-execution-authority.test.js",
+          "tests/security/rust-workspace-execution-authority.test.js",
+          "tools/bench/index/tree-sitter-load.js"
+        ]
+      },
+      {
         "flag": "seed",
         "count": 13,
         "files": [
@@ -8105,25 +8134,6 @@
           "tools/bench/vfs/segment-hash-cache.js",
           "tools/bench/vfs/token-uri-encode.js",
           "tools/bench/vfs/vfsidx-lookup.js"
-        ]
-      },
-      {
-        "flag": "treeSitter",
-        "count": 13,
-        "files": [
-          "src/lang/javascript/chunks.js",
-          "src/lang/typescript/chunks.js",
-          "tests/indexing/tree-sitter/adaptive-budget.test.js",
-          "tests/indexing/tree-sitter/chunks.test.js",
-          "tests/indexing/tree-sitter/csharp-groovy-coverage.test.js",
-          "tests/indexing/tree-sitter/perl-native-reset-regression.test.js",
-          "tests/indexing/tree-sitter/preload-and-planning-contract-matrix.test.js",
-          "tests/indexing/tree-sitter/streaming-chunking.test.js",
-          "tests/indexing/tree-sitter/xml-runtime.test.js",
-          "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
-          "tests/security/java-workspace-execution-authority.test.js",
-          "tests/security/rust-workspace-execution-authority.test.js",
-          "tools/bench/index/tree-sitter-load.js"
         ]
       },
       {

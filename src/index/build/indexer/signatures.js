@@ -11,11 +11,13 @@ import {
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
+import { MODULE_EXPORTS_VERSION } from '../../../lang/js-ts-exports.js';
+import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-// v10 invalidates content-only VFS routing (v9 repaired Python/HTML bundles).
-export const SIGNATURE_VERSION = 10;
+// v11 invalidates chunk bundles without authoritative JS/TS module export identity.
+export const SIGNATURE_VERSION = 11;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -92,6 +94,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   return {
     signatureVersion: SIGNATURE_VERSION,
     literalAnalyzer: TEXT_ANALYZER_VERSION,
+    moduleExportsProducer: MODULE_EXPORTS_VERSION,
+    nativeChunkProducer: TREE_SITTER_CHUNK_VERSION,
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
@@ -226,6 +230,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
+    moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,
     segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}

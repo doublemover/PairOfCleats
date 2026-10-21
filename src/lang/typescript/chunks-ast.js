@@ -150,8 +150,9 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
 
   const handleStatements = (statements, prefix = '') => {
     for (const stmt of statements || []) {
-      if (ts.isClassDeclaration(stmt) && stmt.name) {
-        const name = getTypeScriptName(ts, stmt.name, sourceFile);
+      if (ts.isClassDeclaration(stmt)) {
+        const name = getTypeScriptName(ts, stmt.name, sourceFile)
+          || (stmt.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword) ? 'default' : null);
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
@@ -195,8 +196,9 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
           buildMetaBase(start, end, signature));
         continue;
       }
-      if (ts.isFunctionDeclaration(stmt) && stmt.name) {
-        const name = getTypeScriptName(ts, stmt.name, sourceFile);
+      if (ts.isFunctionDeclaration(stmt)) {
+        const name = getTypeScriptName(ts, stmt.name, sourceFile)
+          || (stmt.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword) ? 'default' : null);
         if (!name) continue;
         const start = stmt.getStart(sourceFile);
         const end = stmt.end;
@@ -220,6 +222,13 @@ export function buildTypeScriptChunksFromAst(text, options = {}) {
           addChunk(start, end, qualifyTypeScriptChunkName(prefix, name), 'FunctionDeclaration',
             buildFunctionMeta(decl.initializer, signature, start, end));
         }
+        continue;
+      }
+      if (ts.isExportAssignment(stmt) && !stmt.isExportEquals && isFunctionInitializer(stmt.expression)) {
+        const node = stmt.expression, start = node.getStart(sourceFile), end = node.end;
+        const signature = buildSignature(start, node.body?.getStart(sourceFile) ?? -1);
+        addChunk(start, end, qualifyTypeScriptChunkName(prefix, node.name?.text || 'default'), 'FunctionDeclaration',
+          buildFunctionMeta(node, signature, start, end));
         continue;
       }
       if (ts.isModuleDeclaration(stmt) && stmt.name) {

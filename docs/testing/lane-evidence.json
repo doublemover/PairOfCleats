@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-21T05:02:37.891Z",
+  "generatedAt": "2026-10-21T05:23:26.145Z",
   "summary": {
     "lanes": 5,
-    "tests": 1376,
+    "tests": 1383,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
-    "families": 351,
+    "families": 352,
     "topSlowest": 10,
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1302
+      "missingTests": 1309
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1153,
+      "totalTests": 1160,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1104
+        "missing": 1111
       }
     },
     {
@@ -308,9 +308,9 @@
     },
     {
       "key": "indexing/tree-sitter",
-      "count": 28,
+      "count": 30,
       "knownDurationMs": 0,
-      "unknownDurationCount": 28
+      "unknownDurationCount": 30
     },
     {
       "key": "tooling/vfs",
@@ -391,6 +391,12 @@
       "unknownDurationCount": 13
     },
     {
+      "key": "tooling/api-contracts",
+      "count": 13,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 13
+    },
+    {
       "key": "cli/search",
       "count": 12,
       "knownDurationMs": 0,
@@ -428,12 +434,6 @@
     },
     {
       "key": "retrieval/federation",
-      "count": 9,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 9
-    },
-    {
-      "key": "tooling/api-contracts",
       "count": 9,
       "knownDurationMs": 0,
       "unknownDurationCount": 9
@@ -1363,6 +1363,12 @@
       "unknownDurationCount": 1
     },
     {
+      "key": "lang/js-ts-export-identity",
+      "count": 1,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 1
+    },
+    {
       "key": "lang/kotlin",
       "count": 1,
       "knownDurationMs": 0,
@@ -2206,9 +2212,9 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 407,
+      "count": 409,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 366,
+      "unknownDurationCount": 368,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {

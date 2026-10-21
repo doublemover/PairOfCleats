@@ -1153,3 +1153,10 @@ tooling/api-contracts/zero-warning-cap-cli/violation
 tooling/api-contracts/zero-warning-cap-cli/clean
 tooling/api-contracts/zero-warning-cap-cli/markdown
 retrieval/relation-boost-zero-config
+lang/js-ts-export-identity
+indexing/tree-sitter/js-ts-export-bindings/javascript
+indexing/tree-sitter/js-ts-export-bindings/typescript
+tooling/api-contracts/export-identity-cli/js-report
+tooling/api-contracts/export-identity-cli/ts-report
+tooling/api-contracts/export-identity-cli/js-fail
+tooling/api-contracts/export-identity-cli/ts-fail

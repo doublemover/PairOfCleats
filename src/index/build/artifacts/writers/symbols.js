@@ -96,7 +96,9 @@ const buildSymbolRow = (chunk, stats) => {
     kindGroup,
     name: normalizeText(meta.name || chunk.name),
     qualifiedName,
-    signature: normalizeText(meta.signature || chunk.docmeta?.signature)
+    signature: normalizeText(meta.signature || chunk.docmeta?.signature),
+    exported: typeof chunk.docmeta?.exported === 'boolean' ? chunk.docmeta.exported : null,
+    exportNames: Array.isArray(chunk.docmeta?.exportNames) ? [...chunk.docmeta.exportNames] : []
   };
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {

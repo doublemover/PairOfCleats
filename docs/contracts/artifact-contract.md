@@ -83,6 +83,18 @@ Each `index-<mode>/` directory contains:
   - Per-file relation metadata (imports/exports/relations).
 - `symbols.jsonl` (optional; JSONL or sharded JSONL)
   - Symbol rows (`symbolId`, `symbolKey`, `qualifiedName`, `kindGroup`, etc.).
+  - Additive `exported` (boolean or null) and `exportNames` (distinct strings)
+    carry module export identity independently of declaration kind. JS/TS module
+    AST evidence follows local bindings through inline/default/list/alias exports;
+    source re-exports do not export a same-named local declaration. Null/missing
+    identity is unknown, so export-only API validation reports an explicit warning
+    and failOnWarn fails even with zero retained details. Older rows remain readable.
+  - Module-export producer version 1, incremental signature 11 and native chunk
+    producer version 2 retire cached metadata without this meaning. Native JS/TS
+    named module-level function/arrow bindings retain VariableDeclaration kind;
+    scalar variables and anonymous/nested callbacks are not promoted to declarations.
+    Anonymous default functions, arrows and classes retain a `default` symbol;
+    public class membership alone does not make a method a module export.
 - `symbol_occurrences.jsonl` (optional; JSONL or sharded JSONL) or `symbol_occurrences.columnar.json`
   - `symbol_occurrences.columnar.json` stores a `{ format: "columnar", columns, arrays, length, tables? }` payload that inflates to the JSONL row schema.
 - `symbol_edges.jsonl` (optional; JSONL or sharded JSONL) or `symbol_edges.columnar.json`

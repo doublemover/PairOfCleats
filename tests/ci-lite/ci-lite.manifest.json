@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 998,
+    "hero": 1005,
     "matrix": 108,
     "meta": 46,
     "soak": 1,
@@ -6931,6 +6931,48 @@
     {
       "id": "retrieval/relation-boost-zero-config",
       "order": 1153,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/js-ts-export-identity",
+      "order": 1154,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/js-ts-export-bindings/javascript",
+      "order": 1155,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/js-ts-export-bindings/typescript",
+      "order": 1156,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/js-report",
+      "order": 1157,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/ts-report",
+      "order": 1158,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/js-fail",
+      "order": 1159,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+      "order": 1160,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

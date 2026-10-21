@@ -4,6 +4,7 @@ import path from 'node:path';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
 import { atomicWriteJsonSync } from '../../../shared/io/atomic-write.js';
 import { treeSitterState } from '../state.js';
+import { TREE_SITTER_CHUNK_VERSION } from '../config.js';
 
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
 const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
@@ -84,6 +85,7 @@ export const resolveChunkCacheKey = (options, resolvedId) => {
   return buildLocalCacheKey({
     namespace: 'tree-sitter-chunk',
     payload: {
+      producerVersion: TREE_SITTER_CHUNK_VERSION,
       languageId: resolvedId,
       key: base,
       signature: buildChunkCacheSignature(options, resolvedId)

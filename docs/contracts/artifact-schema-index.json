@@ -1,5 +1,5 @@
 {
-  "schemaHash": "3cff93a76aa88c4fb0c0ac3856c1acc29ea606e6",
+  "schemaHash": "24c46295c550d0dd72250159441c2ca6ac3d4b50",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -1396,6 +1396,8 @@
         "virtualPath"
       ],
       "optionalFields": [
+        "exportNames",
+        "exported",
         "extensions",
         "kind",
         "lang",

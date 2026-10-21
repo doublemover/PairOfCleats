@@ -115,6 +115,9 @@ const loadCallSitesByTarget = async (indexDir, manifest) => {
  * @returns {boolean}
  */
 const isExportedSymbol = (symbol) => {
+  if (typeof symbol.exported === 'boolean') return symbol.exported;
+  if (['javascript', 'typescript', 'jsx', 'tsx'].includes(String(symbol.lang || '').toLowerCase())
+    || /\.(?:[cm]?[jt]sx?)$/i.test(symbol.file || '')) return null;
   const kind = String(symbol.kind || '').toLowerCase();
   const group = String(symbol.kindGroup || '').toLowerCase();
   if (kind.includes('export')) return true;
@@ -406,7 +409,13 @@ export const buildApiContractsReport = ({
 
   let selected = sortedSymbols;
   if (onlyExports) {
-    selected = selected.filter((symbol) => isExportedSymbol(symbol));
+    selected = selected.filter((symbol) => {
+      const exported = isExportedSymbol(symbol);
+      if (exported == null) warn({ code: 'EXPORT_IDENTITY_UNAVAILABLE',
+        message: 'Export identity is unavailable for this symbol; export-only validation is incomplete.',
+        data: { symbolId: symbol.symbolId } });
+      return exported === true;
+    });
   }
   if (maxSymbols != null && selected.length > maxSymbols) {
     truncation.push({

@@ -1,9 +1,11 @@
 import { semanticHash } from './identity.js';
+import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
 
 /** Shared by producers and replay admission. Bump the affected producer when its
  * semantics change; syntax extraction and physical layout remain independent.
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
+  moduleExports: MODULE_EXPORTS_VERSION,
   compilerBindings: '10', lspBindings: '13', cfgFlow: '14', callFlow: '12',
   valueSlice: '5', storageFlow: '2', workerFlow: '6', boundaryFlow: '8', wasmFlow: '5', nativeFlow: '1'
 });

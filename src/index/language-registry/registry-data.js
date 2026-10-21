@@ -1,4 +1,5 @@
-import { createTypeScriptSyntaxContext, prepareTypeScriptSyntax } from '../../lang/typescript/syntax-context.js';
+import { createTypeScriptSyntaxContext, prepareTypeScriptSyntax, prepareTypeScriptBabelSyntax } from '../../lang/typescript/syntax-context.js';
+import { resolveJsTsExports } from '../../lang/js-ts-exports.js';
 import path from 'node:path';
 import {
   isCLike,
@@ -386,9 +387,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
         options
       });
       if (treeChunks && treeChunks.length) context.jsChunks = treeChunks;
-      if (options?.relationsEnabled !== false || options?.semanticEnabled === true) {
-        context.jsAst = parseJavaScriptAst(text, { ...options, ext });
-      }
+      context.jsAst = parseJavaScriptAst(text, { ...options, ext });
       return context;
     },
     buildRelations: ({ text, relPath, context, options, ext }) =>
@@ -399,7 +398,9 @@ const MANAGED_LANGUAGE_ADAPTERS = [
         dataflow: options.astDataflowEnabled,
         controlFlow: options.controlFlowEnabled
       }),
-    extractDocMeta: ({ text, chunk, fileRelations }) => extractDocMeta(text, chunk, fileRelations),
+    extractDocMeta: ({ text, chunk, fileRelations, context }) => ({
+      ...extractDocMeta(text, chunk, fileRelations), ...resolveJsTsExports(context?.jsAst, chunk)
+    }),
     flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, JS_CONTROL_FLOW),
     attachName: false
   },
@@ -428,7 +429,8 @@ const MANAGED_LANGUAGE_ADAPTERS = [
           parser: options?.typescript?.parser
         });
       }
-      return { tsChunks, tsSyntax, typeScriptSyntaxContext };
+      const exportAst = prepareTypeScriptBabelSyntax(text, syntaxOptions);
+      return { tsChunks, tsSyntax, typeScriptSyntaxContext, exportAst };
     },
     buildRelations: ({ text, context, options, ext }) => {
       if (options?.typescript?.importsOnly === true) {
@@ -442,7 +444,9 @@ const MANAGED_LANGUAGE_ADAPTERS = [
       }
       return buildTypeScriptRelations(text, context.tsChunks, { ...options, ext, typeScriptSyntaxContext: context.typeScriptSyntaxContext });
     },
-    extractDocMeta: ({ chunk }) => extractTypeScriptDocMeta(chunk),
+    extractDocMeta: ({ chunk, context }) => ({
+      ...extractTypeScriptDocMeta(chunk), ...resolveJsTsExports(context?.exportAst, chunk)
+    }),
     flow: ({ text, chunk, options }) => (options?.typescript?.importsOnly === true
       ? null
       : computeTypeScriptFlow(text, chunk, flowOptions(options))),
