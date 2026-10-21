@@ -124,7 +124,8 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
     // An unconditional process.exit would hide a leaked native/session owner.
     const script = `
       const pty = require('node-pty');
-      const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write("PTY_PROBE_OK")'], {
+      const run = (marker) => new Promise((resolve, reject) => {
+      const terminal = pty.spawn(process.execPath, ['-e', 'process.stdout.write(' + JSON.stringify(marker) + ')'], {
         cols: 80, rows: 24, cwd: process.cwd(), env: process.env, useConpty: true
       });
       let output = '';
@@ -132,10 +133,12 @@ export const probeNativePackage = async (root, pkgName, { grammarRoutes = [] } =
       terminal.onData(data => { output += data; });
       terminal.onExit(event => {
         clearTimeout(timeout);
-        if (event.exitCode !== 0 || !output.includes('PTY_PROBE_OK')) {
-          console.error('PTY operation returned an unexpected status or output'); process.exitCode = 1;
-        }
+        if (event.exitCode !== 0 || !output.includes(marker)) reject(Error('PTY operation returned an unexpected status or output'));
+        else resolve();
       });
+      });
+      (async () => { for (const marker of ['PTY_PROBE_FIRST', 'PTY_PROBE_SECOND']) await run(marker); })()
+        .catch(error => { console.error(error.message); process.exitCode = 1; });
     `;
     const result = spawnSync(process.execPath, ['-e', script], {
       cwd: root, encoding: 'utf8', timeout: 10000, maxBuffer: 65536

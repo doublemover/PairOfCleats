@@ -10,10 +10,16 @@ loadable grammar that fails `setLanguage` is not parser-activated.
 
 Locked checkout bootstrap requires Node 26.10.0 or newer within 26.x and includes
 development dependencies. Its required native
-verification now also creates a real node-pty session, checks child output and
+verification now also creates two real node-pty sessions, checks child output and
 waits for natural process exit so a leaked ConPTY connection worker cannot hide
 behind a forced probe exit. The required node-pty 1.1.0 patch closes that worker
-and its input socket after natural-exit output flush. This bounded disposal
+and its input socket after natural-exit output flush. The output bridge stops
+forwarding to a closed reader while continuing to drain the native console,
+closes its listening endpoint, and preserves unexpected transport failures.
+Cancellation captures the console process list before closing the console so
+its helper can attach and settle its timer. The focused lifecycle owners also
+exercise a queued peer-FIN race, fresh-process cancellation and exact patch
+application from original package blobs. This bounded disposal
 check does not replace native TUI supervisor/process-family qualification. The
 worker-teardown access violation is attributed to Node 26.8.1 itself; see the
 [runtime policy](node-runtime.md).
