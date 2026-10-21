@@ -131,7 +131,6 @@ import {
 import { createArtifactWriteTelemetryContext } from './telemetry.js';
 import { buildArtifactFamilyCloseoutSummary } from '../artifacts/write-telemetry.js';
 import {
-  enqueueArtifactFamilyWrites,
   prepareArtifactCleanup
 } from './family-dispatch.js';
 
