@@ -1,0 +1,148 @@
+import path from 'node:path';
+import { randomUUID, createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import { createTuiSettingsSession } from './settings.js';
+import { assertTuiSearchRequest } from '../../../src/contracts/validators/tui-search.js';
+import { buildSearchRequestArgs } from '../../../src/shared/search-request.js';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
+import { createExcerptSourceContext, resolveExcerpt } from '../../../src/context-pack/excerpt-cache.js';
+
+const MODES = [['code', 'code'], ['prose', 'prose'], ['extractedProse', 'extracted-prose'], ['records', 'records']];
+const MAX_OUTPUT_BYTES = 768 * 1024;
+const MAX_RETAINED_HITS = 500;
+const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
+const safeText = value => String(value ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, '\uFFFD');
+const safeLabel = value => safeText(value).replace(/[\r\n\t]/g, ' ');
+const hitKey = (mode, hit) => createHash('sha256').update(JSON.stringify([
+  mode, hit.chunkUid ?? hit.globalId ?? hit.id ?? null, hit.file, hit.start ?? null, hit.end ?? null
+])).digest('hex');
+
+/** One live native query owns its scope, continuation, child and source identities. */
+export const createTuiSearchSession = ({ toolRoot, env = process.env } = {}) => {
+  const scopes = createTuiSettingsSession({ toolRoot, env });
+  const pendingWork = new Set();
+  let epoch = 0, current = null, pending = null, disposed = false;
+  const requireCurrent = resultId => {
+    if (disposed || !current || current.resultId !== resultId) {
+      fail('ERR_TUI_SEARCH_STALE', 'The search has changed. Run it again.');
+    }
+    scopes.captureScope(current.scope.id);
+    return current;
+  };
+  const execute = async (state, cursor, signal, onSpawn) => {
+    const built = buildSearchRequestArgs({ ...state.search, ...(cursor ? { cursor } : {}) },
+      { includeRepo: true, repoPath: state.scope.configRoot, defaultOutput: 'compact', allowedOutputs: ['compact'] });
+    if (!built.ok) fail('ERR_TUI_SEARCH_REQUEST', built.message);
+    const child = await spawnSubprocess(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
+      'search', ...built.args, ...(built.query ? ['--', built.query] : [])], {
+      cwd: state.scope.configRoot, env, signal, onSpawn, timeoutMs: 15000,
+      stdio: ['ignore', 'pipe', 'pipe'], maxOutputBytes: MAX_OUTPUT_BYTES, rejectOnNonZeroExit: true
+    });
+    throwIfAborted(signal);
+    scopes.captureScope(state.scope.id);
+    if (state.epoch !== epoch || disposed) fail('ERR_TUI_SEARCH_STALE', 'The search has changed.');
+    if (child.outputCapture?.stdout?.truncated || child.outputCapture?.stdout?.encodingLoss
+      || child.outputCapture?.stderr?.truncated) fail('ERR_TUI_SEARCH_OUTPUT', 'Search capture was incomplete.');
+    let payload;
+    try { payload = JSON.parse(child.stdout); }
+    catch { fail('ERR_TUI_SEARCH_OUTPUT', 'Search returned invalid JSON.'); }
+    if (!payload || typeof payload !== 'object' || MODES.some(([key]) => !Array.isArray(payload[key]))) {
+      fail('ERR_TUI_SEARCH_OUTPUT', 'Search returned an unsupported result shape.');
+    }
+    const hits = [], additions = new Map();
+    for (const [key, mode] of MODES) {
+      for (const hit of payload[key]) {
+        if (!hit || typeof hit.file !== 'string') fail('ERR_TUI_SEARCH_OUTPUT', 'Search returned a hit without source identity.');
+        const hitId = hitKey(mode, hit);
+        if (state.hits.has(hitId) || additions.has(hitId)) fail('ERR_TUI_SEARCH_CURSOR', 'Continuation repeated a hit.');
+        const rank = (state.counts[mode] || 0) + hits.filter(row => row.mode === mode).length + 1;
+        additions.set(hitId, { ...hit, mode });
+        hits.push({ hitId, mode, rank, file: safeLabel(hit.file), name: safeLabel(hit.name ?? hit.headline),
+          score: Number.isFinite(hit.score) ? hit.score : null, startLine: hit.startLine ?? null,
+          endLine: hit.endLine ?? null, generationKey: hit.generationKey ?? null });
+      }
+    }
+    if (state.hits.size + hits.length > MAX_RETAINED_HITS) fail('ERR_TUI_SEARCH_LIMIT', 'Start a narrower search to inspect more results.');
+    if (Buffer.byteLength(JSON.stringify([...state.hits, ...additions])) > MAX_OUTPUT_BYTES) {
+      fail('ERR_TUI_SEARCH_LIMIT', 'Search result retention reached its byte bound.');
+    }
+    for (const [key, hit] of additions) {
+      state.hits.set(key, hit);
+      state.counts[hit.mode] = (state.counts[hit.mode] || 0) + 1;
+    }
+    state.cursor = payload.pagination?.nextCursor || null;
+    return { resultId: state.resultId, scopeId: state.scope.id, queryGeneration: state.epoch,
+      repoPath: state.scope.configRoot, hits,
+      pagination: payload.pagination ?? null, freshness: payload.retrieval?.freshness ?? null,
+      outputBudget: payload.outputBudget ?? null, diagnostics: safeText(child.stderr).slice(0, 8192) };
+  };
+  const run = async (state, cursor, signal, onSpawn) => {
+    const controller = new AbortController();
+    pending = controller;
+    const abort = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+    const operation = execute(state, cursor, controller.signal, onSpawn);
+    pendingWork.add(operation);
+    try { return await operation; }
+    finally {
+      pendingWork.delete(operation);
+      signal?.removeEventListener('abort', abort);
+      if (pending === controller) pending = null;
+    }
+  };
+  const query = async (request, { signal, onSpawn } = {}) => {
+    assertTuiSearchRequest('query', request);
+    if (disposed) fail('ERR_TUI_SEARCH_STALE', 'The search session has closed.');
+    pending?.abort();
+    const selectedEpoch = ++epoch;
+    current = null;
+    const scope = await scopes.selectScope({ kind: 'repo', target: request.repoPath }, { signal });
+    throwIfAborted(signal);
+    if (selectedEpoch !== epoch) fail('ERR_TUI_SEARCH_STALE', 'A newer query replaced this request.');
+    const state = { resultId: randomUUID(), epoch, scope, search: structuredClone(request.search),
+      hits: new Map(), counts: {}, cursor: null };
+    const result = await run(state, null, signal, onSpawn);
+    if (state.epoch !== epoch || disposed) fail('ERR_TUI_SEARCH_STALE', 'A newer query replaced this request.');
+    current = state;
+    return result;
+  };
+  const continueSearch = async (request, { signal, onSpawn } = {}) => {
+    assertTuiSearchRequest('continue', request);
+    const state = requireCurrent(request.resultId);
+    if (pending) fail('ERR_TUI_SEARCH_BUSY', 'A search page is already running.');
+    if (!state.cursor) fail('ERR_TUI_SEARCH_CURSOR', 'This search has no continuation.');
+    return run(state, state.cursor, signal, onSpawn);
+  };
+  const source = async (request, { signal } = {}) => {
+    assertTuiSearchRequest('source', request);
+    const state = requireCurrent(request.resultId), hit = state.hits.get(request.hitId);
+    if (!hit) fail('ERR_TUI_SEARCH_HIT', 'Choose a hit from the current search.');
+    throwIfAborted(signal);
+    const context = createExcerptSourceContext();
+    try {
+      const target = path.resolve(state.scope.configRoot, hit.file);
+      const indexedHash = /^(?:sha1:)?[a-f0-9]{40}$/i.test(hit.sourceHash || '') ? hit.sourceHash : null;
+      const excerpt = resolveExcerpt({ filePath: target, repoRoot: state.scope.configRoot,
+        start: hit.start, end: hit.end, indexedHash, sourceContext: context,
+        maxBytes: 16 * 1024, maxTokens: 4096 });
+      throwIfAborted(signal);
+      requireCurrent(request.resultId);
+      return { available: true, resultId: state.resultId, hitId: request.hitId,
+        file: safeLabel(hit.file), startLine: hit.startLine ?? null, endLine: hit.endLine ?? null,
+        excerpt: safeText(excerpt.excerpt), truncated: excerpt.truncated,
+        sourceIdentity: excerpt.sourceIdentity, fileUri: pathToFileURL(target).href };
+    } catch (error) {
+      if (['ENOENT', 'ERR_FILE_TOO_LARGE'].includes(error.code)) {
+        return { available: false, resultId: state.resultId, hitId: request.hitId, reason: error.code };
+      }
+      throw error;
+    } finally { context.clear(); }
+  };
+  return { query, continueSearch, source,
+    dispose() {
+      disposed = true; epoch++; pending?.abort(); current = null; scopes.dispose();
+      return Promise.allSettled([...pendingWork]).then(() => undefined);
+    } };
+};

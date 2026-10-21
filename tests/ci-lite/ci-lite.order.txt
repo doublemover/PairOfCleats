@@ -1097,6 +1097,17 @@ retrieval/backend/boolean-complement-cli/sqlite
 retrieval/backend/boolean-complement-cli/sqlite-fts
 perf/parsers/xml-cold-budget
 tui/operator-settings
+tui/operator-search-request-contract
+tui/operator-search-lifecycle/cancel
+tui/operator-search-lifecycle/dispose
+tui/operator-search-lifecycle/invalid-output
+tui/operator-search-lifecycle/stderr-flood
+tui/operator-search-lifecycle/supersede
+tui/operator-search-lifecycle/truncated-output
+tui/supervisor-operator-search/launch-authority
+tui/supervisor-operator-search/pagination
+tui/supervisor-operator-search/query-source
+tui/supervisor-operator-search/source-authority
 tui/operator-settings-lifecycle
 tui/operator-settings-request-contract
 tui/operator-settings-authority

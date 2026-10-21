@@ -118,6 +118,21 @@ const runSettings = async (request, { signal }) => {
   return settingsSession[methods[request.method]](request.params, { signal });
 };
 
+let searchSession = null;
+let searchModules = null;
+const runSearch = async (request, context) => {
+  const { signal } = context;
+  searchModules ||= Promise.all([import('./operator/search.js'),
+    import('../../src/contracts/validators/tui-search.js')]);
+  const [search, contracts] = await searchModules;
+  contracts.assertTuiSearchRequest('dispatch', request);
+  contracts.assertTuiSearchRequest(request.method, request.params);
+  if (signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
+  searchSession ||= search.createTuiSearchSession({ toolRoot: ROOT });
+  const methods = { query: 'query', continue: 'continueSearch', source: 'source' };
+  return searchSession[methods[request.method]](request.params, context);
+};
+
 /**
  * Gracefully cancel all jobs and terminate supervisor process.
  *
@@ -143,6 +158,7 @@ const shutdown = async (reason = 'shutdown', exitCode = 0) => {
     await sleep(50);
   }
   settingsSession?.dispose();
+  await searchSession?.dispose();
   eventLogRecorder?.finalize(reason);
   process.exit(exitCode);
 };
@@ -199,6 +215,15 @@ const handleRequest = async (request) => {
     } catch {
       // Never persist unvalidated input or raw parser/subprocess error messages.
       emitLog(null, 'error', 'Settings request was not admitted.');
+    }
+    return;
+  }
+  if (op === 'search:run') {
+    try {
+      await startOperation({ jobId: request.jobId, method: request.method }, context => runSearch(request, context),
+        { title: 'Search', isCommitted: () => false });
+    } catch {
+      emitLog(null, 'error', 'Search request was not admitted.');
     }
     return;
   }

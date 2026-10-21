@@ -381,7 +381,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * An atomic save that already completed remains successful on late abort.
    */
   const startOperation = async ({ jobId, method }, execute,
-    { timeoutMs = 15000, isCommitted = data => data?.saved === true } = {}) => {
+    { timeoutMs = 15000, title = 'Settings', isCommitted = data => data?.saved === true } = {}) => {
     assertAcceptingWork();
     if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
       throw new Error('Internal operation requires a bounded jobId.');
@@ -390,14 +390,16 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     const job = { id: jobId, seq: 0, status: 'accepted', abortController: new AbortController(),
       cancelReason: null, startedAt: Date.now(), finalized: false, internal: true };
     state.jobs.set(jobId, job);
-    emit('job:start', { title: 'Settings', internal: true }, { jobId });
+    emit('job:start', { title, internal: true }, { jobId });
     const timer = setTimeout(() => {
       job.timedOut = true;
       cancelJob(jobId, 'operation_timeout');
     }, timeoutMs);
     const finish = payload => finalizeJob(job, { internal: true, durationMs: Date.now() - job.startedAt,
       signal: null, ...payload });
-    Promise.resolve().then(() => execute({ signal: job.abortController.signal })).then(data => {
+    Promise.resolve().then(() => execute({ signal: job.abortController.signal, onSpawn: child => {
+      emit('job:spawn', { pid: child.pid, internal: true }, { jobId });
+    } })).then(data => {
       const committed = isCommitted(data);
       if (job.abortController.signal.aborted && !committed) {
         finish({ status: job.timedOut ? 'failed' : 'cancelled', exitCode: null, result: null,
