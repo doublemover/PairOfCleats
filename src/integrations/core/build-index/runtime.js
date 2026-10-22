@@ -2,6 +2,7 @@ import { shutdownPythonAstPool } from '../../../lang/python.js';
 import { shutdownTreeSitterWorkerPool } from '../../../lang/tree-sitter.js';
 import { log as defaultLog } from '../../../shared/progress-runtime.js';
 import { terminateTrackedSubprocesses } from '../../../shared/subprocess/tracking-terminate.js';
+import { assertSubprocessTerminationReceipt } from '../../../shared/subprocess/termination-receipt.js';
 import {
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout
@@ -100,24 +101,24 @@ export const teardownRuntime = async (runtime) => {
   }
   await runTeardownStepWithTimeout(
     'runtime.stage1-subprocesses.terminate',
-    () => {
+    async () => {
       const ownershipPrefix = runtime?.subprocessOwnership?.stage1FilePrefix || null;
       if (!ownershipPrefix) return null;
-      return terminateTrackedSubprocesses({
+      return assertSubprocessTerminationReceipt(await terminateTrackedSubprocesses({
         reason: 'runtime_teardown_stage1',
         force: true,
         ownershipPrefix
-      });
+      }), { ownershipPrefix });
     }
   );
   await runTeardownStepWithTimeout('runtime.embeddings.close', () => runtime.closeEmbeddingRuntime?.());
   await runTeardownStepWithTimeout(
     'runtime.preflight-subprocesses.terminate',
-    () => terminateTrackedSubprocesses({
+    async () => assertSubprocessTerminationReceipt(await terminateTrackedSubprocesses({
       reason: 'runtime_teardown_preflight',
       force: true,
       ownershipPrefix: 'tooling-preflight:'
-    })
+    }), { ownershipPrefix: 'tooling-preflight:' })
   );
   await runTeardownStepWithTimeout(
     'runtime.tree-sitter-worker-pool.shutdown',
@@ -138,6 +139,8 @@ export const teardownRuntime = async (runtime) => {
     throw teardownErrors[0];
   }
   if (teardownErrors.length > 1) {
-    throw new AggregateError(teardownErrors, '[cleanup] runtime teardown failed.');
+    throw Object.assign(new AggregateError(teardownErrors, '[cleanup] runtime teardown failed.'), {
+      cacheOwnershipPending: teardownErrors.some(error => error?.cacheOwnershipPending === true)
+    });
   }
 };

@@ -93,6 +93,8 @@ export const executeTreeSitterSchedulerTasks = async ({
             signal: effectiveAbortSignal,
             timeoutMs: taskTimeoutMs,
             killTree: true,
+            ownershipId: runtime?.subprocessOwnership?.stage1FilePrefix
+              ? `${runtime.subprocessOwnership.stage1FilePrefix}:tree-sitter:${task.taskId}` : undefined,
             rejectOnNonZeroExit: true,
             onStdout: streamLogs ? (chunk) => stdoutBuffer.push(chunk) : null,
             onStderr: streamLogs ? (chunk) => stderrBuffer.push(chunk) : null
@@ -108,6 +110,13 @@ export const executeTreeSitterSchedulerTasks = async ({
           adaptiveSamples.push(row);
         }
       } catch (err) {
+        const termination = err?.result?.termination;
+        if (err?.cacheOwnershipPending || (err?.code === 'SUBPROCESS_TIMEOUT'
+          && (!termination || termination.closeObserved !== true
+            || termination.treeCleanupSettled !== true || termination.treeCleanupFailed !== false))) {
+          err.cacheOwnershipPending = true;
+          throw err;
+        }
         if (effectiveAbortSignal?.aborted) throw err;
         const subprocessCrashEvents = parseSubprocessCrashEvents(err);
         const exitCode = Number(err?.result?.exitCode);

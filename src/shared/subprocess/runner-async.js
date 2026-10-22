@@ -108,7 +108,12 @@ const terminateAndRejectFactory = ({
     treeCleanupSettled: true, treeCleanupFailed: treeCleanupError !== null,
     treeCleanupForced: treeCleanupResult?.forced ?? null };
   const error = createError(result);
-  if (!closeObserved || treeCleanupError) error.cacheOwnershipPending = true;
+  if (!closeObserved || treeCleanupError) {
+    error.cacheOwnershipPending = true;
+    // This closure belongs to this exact spawned handle. A delayed actual close
+    // may reconcile missing-close evidence; a rejected tree cleanup cannot.
+    Object.defineProperty(error, 'cacheOwnershipReleased', { value: () => wasCloseObserved() && !treeCleanupError });
+  }
   reject(error);
 };
 

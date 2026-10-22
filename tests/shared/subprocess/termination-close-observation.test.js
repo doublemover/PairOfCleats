@@ -41,12 +41,15 @@ try {
   assert.equal(error.result.termination.closeObserved, false, 'signal acknowledgement and actual process exit cannot substitute for a missing close event');
   assert.equal(error.result.termination.closeTimedOut, true);
   assert.equal(error.cacheOwnershipPending, true);
+  assert.equal(error.cacheOwnershipReleased(), false);
   assert.equal(getTrackedSubprocessCount(), 1, 'unconfirmed close retains tracked cleanup ownership');
   if (child.exitCode == null && child.signalCode == null) await once(child, 'exit');
   suppressClose = false;
   if (actualClose) nativeEmit.call(child, 'close', ...actualClose);
   else await once(child, 'close');
   assert.equal(getTrackedSubprocessCount(), 0);
+  assert.equal(error.cacheOwnershipReleased(), true,
+    'only the delayed close of this exact spawned handle reconciles missing-close ownership');
 } finally {
   suppressClose = false;
   if (actualClose) nativeEmit.call(child, 'close', ...actualClose);
