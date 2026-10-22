@@ -3,6 +3,7 @@ import path from 'node:path';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { CACHE_OWNER_FILE } from '../cache-deletion.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
+import { inspectStorageRootFailure } from './root-availability.js';
 
 const failure = (location, error) => ({ path: location, code: error?.code || 'ERR_STORAGE_SCAN',
   message: error?.message || String(error) });
@@ -77,8 +78,7 @@ export const inspectStorageInventory = async ({ roots, maxEntries = 100000, maxD
       item.identity = storageFileIdentity(stat);
       item.ownership = stat.isDirectory() ? await inspectStorageOwnership(root) : null;
     } catch (error) {
-      item.status = error.code === 'ENOENT' ? 'missing' : 'inaccessible';
-      item.complete = error.code === 'ENOENT';
+      Object.assign(item, await inspectStorageRootFailure(root, error));
       if (!item.complete) { item.logicalBytes = null; item.allocatedBytes = null;
         item.physicalBytesKnown = false; item.physicalIdentityKnown = false; }
       item.errors.push(failure(root, error));

@@ -32,3 +32,11 @@ including `cache.index.delta`, and existing immutable reference protection.
 Legacy tuple data remains a read-only fallback tier; unrelated profiles are
 never recursively treated as legacy files. Unsafe byte sums remain unknown.
 No lock is created/recovered and no index is repaired by inspection.
+
+Registered-root `ENOENT` is classified separately from an unavailable drive or
+share. Before reporting an observed missing path as zero bytes, the shared owner
+performs a read-only stat of the filesystem root. An unavailable root, unknown
+transport, permission error or failed scan keeps accounting incomplete and
+bytes unknown. Doctor reports those roots as inaccessible or offline. A separate
+volume observation is not mount continuity, writable-space proof or mutation
+authority; concurrent filesystem changes remain outside a snapshot guarantee.

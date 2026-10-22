@@ -5,6 +5,7 @@ import { STORAGE_CLASS_CATALOG } from './catalog.js';
 import { inspectStorageOwnership, inspectStorageInventory } from './inventory.js';
 import { inspectStorageAccess } from './access.js';
 import { readStorageProbePolicy } from './probe-policy-read.js';
+import { inspectStorageRootFailure } from './root-availability.js';
 export { planStorageConfiguration, applyStorageConfiguration } from './configuration.js';
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
@@ -25,7 +26,7 @@ export const inspectStorageLayout = async (layout, { exact = false, extraRoots =
         physicalPath: await fs.realpath(root.path), ownership: stat.isDirectory() ? await inspectStorageOwnership(root.path) : null,
         retention: root.retention || 'unknown', logicalBytes: null, allocatedBytes: null, complete: false });
     } catch (error) { items.push({ id: root.id, category: root.category, path: root.path, registered: true,
-      status: error.code === 'ENOENT' ? 'missing' : 'inaccessible', logicalBytes: null, allocatedBytes: null,
+      ...await inspectStorageRootFailure(root.path, error), logicalBytes: null, allocatedBytes: null,
       complete: false, error: { code: error.code, message: error.message } }); }
   }
   return { schemaVersion: 1, scanMode: 'registered-roots-metadata-only', timestamp: new Date().toISOString(),
@@ -46,7 +47,8 @@ export const diagnoseStorageLayout = async (layout, options = {}) => {
   if (commandProbePolicy.status === 'invalid') findings.push({ category: 'command-probes', code: 'invalid-machine-storage-policy',
     path: commandProbePolicy.target, error: commandProbePolicy.error, operations: 'cache-use-bypassed; existing-bytes-preserved' });
   for (const item of inventory.items) {
-    if (item.status === 'inaccessible') findings.push({ category: item.category, code: 'inaccessible-or-offline-root', path: item.path, error: item.error });
+    if (['inaccessible', 'unavailable-or-offline'].includes(item.status)) findings.push({ category: item.category,
+      code: 'inaccessible-or-offline-root', path: item.path, error: item.error, volume: item.volume });
     if (item.ownership?.status && item.ownership.status !== 'marked') findings.push({ category: item.category,
       code: 'ownership-not-proven', path: item.path, operations: 'inspect-only-until-explicit-adoption' });
     if (path.basename(item.path).toLowerCase() === 'cache' && path.basename(path.dirname(item.path)).toLowerCase() === 'cache') {
