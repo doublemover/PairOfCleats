@@ -11,6 +11,9 @@ bootstrap verifies 37 required packages and 33 language routes without warnings
 or errors; activation remains separate from runtime qualification. The
 [current issue receipt](../archived/github-issue-repairs-2026-10-21.md) records
 the new snapshot, storage, embedding and lifecycle batches and their exact limits.
+The current batch adds real native HNSW backup recovery and LanceDB payload
+admission, controlled writer/rollback/cleanup faults, and UTF-8 stream boundaries.
+The actual release contracts phase passes separately from full release acceptance.
 At the user's request, new authority fixtures use ordinary filesystem controls
 and injected link metadata without elevation or creating links. The existing
 49-case physical-link cohort is optional capability qualification for this

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-22T01:35:42.318Z",
+  "generatedAt": "2026-10-22T02:07:26.767Z",
   "budgets": {
     "configKeys": 4,
     "envVars": 1,
@@ -3482,6 +3482,7 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/shared/env-boolean-case-insensitive.test.js",
+        "tests/storage/sqlite/dense-binary-short-read.test.js",
         "tests/storage/sqlite/utils-dense-binary-load.test.js",
         "tools/config/inventory.js"
       ]

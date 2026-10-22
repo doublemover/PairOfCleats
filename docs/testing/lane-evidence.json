@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-22T01:35:40.051Z",
+  "generatedAt": "2026-10-22T02:07:24.341Z",
   "summary": {
     "lanes": 5,
-    "tests": 1434,
+    "tests": 1457,
     "exactDuplicates": 0,
     "hotspotKinds": 10,
     "families": 374,
@@ -11,7 +11,7 @@
     "timingCoverage": {
       "freshArtifactTests": 0,
       "historicalFallbackTests": 74,
-      "missingTests": 1360
+      "missingTests": 1383
     }
   },
   "lanes": [
@@ -35,7 +35,7 @@
       "targetMaxDurationSeconds": 15,
       "orderFile": "tests/ci-lite/ci-lite.order.txt",
       "timingArtifactPath": ".testLogs/ci-lite-testRunTimes.txt",
-      "totalTests": 1209,
+      "totalTests": 1232,
       "knownDurationTests": 49,
       "knownDurationMs": 27090,
       "p50DurationMs": 190,
@@ -43,7 +43,7 @@
       "resolvedTimingArtifactPaths": [],
       "timingSources": {
         "historical-test-times": 49,
-        "missing": 1160
+        "missing": 1183
       }
     },
     {
@@ -98,9 +98,9 @@
   "families": [
     {
       "key": "storage/sqlite",
-      "count": 73,
+      "count": 80,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 64
+      "unknownDurationCount": 71
     },
     {
       "key": "indexing/chunking",
@@ -170,9 +170,9 @@
     },
     {
       "key": "retrieval/ann",
-      "count": 11,
+      "count": 13,
       "knownDurationMs": 5020,
-      "unknownDurationCount": 10
+      "unknownDurationCount": 12
     },
     {
       "key": "retrieval/filters",
@@ -212,9 +212,9 @@
     },
     {
       "key": "indexing/artifacts",
-      "count": 51,
+      "count": 53,
       "knownDurationMs": 2990,
-      "unknownDurationCount": 45
+      "unknownDurationCount": 47
     },
     {
       "key": "indexing/workers",
@@ -242,9 +242,9 @@
     },
     {
       "key": "shared/json-stream",
-      "count": 20,
+      "count": 21,
       "knownDurationMs": 220,
-      "unknownDurationCount": 18
+      "unknownDurationCount": 19
     },
     {
       "key": "tooling/type-inference",
@@ -290,9 +290,9 @@
     },
     {
       "key": "indexing/embeddings",
-      "count": 39,
+      "count": 40,
       "knownDurationMs": 60,
-      "unknownDurationCount": 38
+      "unknownDurationCount": 39
     },
     {
       "key": "tooling/lsp",
@@ -445,6 +445,12 @@
       "unknownDurationCount": 9
     },
     {
+      "key": "indexing/state",
+      "count": 8,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 8
+    },
+    {
       "key": "retrieval/backend",
       "count": 8,
       "knownDurationMs": 0,
@@ -493,6 +499,12 @@
       "unknownDurationCount": 7
     },
     {
+      "key": "retrieval/cache",
+      "count": 6,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 6
+    },
+    {
       "key": "runner/harness",
       "count": 6,
       "knownDurationMs": 0,
@@ -511,6 +523,12 @@
       "unknownDurationCount": 5
     },
     {
+      "key": "embeddings/runner",
+      "count": 5,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 5
+    },
+    {
       "key": "indexing/build",
       "count": 5,
       "knownDurationMs": 0,
@@ -524,12 +542,6 @@
     },
     {
       "key": "indexing/stage1",
-      "count": 5,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 5
-    },
-    {
-      "key": "retrieval/cache",
       "count": 5,
       "knownDurationMs": 0,
       "unknownDurationCount": 5
@@ -572,12 +584,6 @@
     },
     {
       "key": "indexing/map",
-      "count": 4,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 4
-    },
-    {
-      "key": "indexing/state",
       "count": 4,
       "knownDurationMs": 0,
       "unknownDurationCount": 4
@@ -679,6 +685,12 @@
       "unknownDurationCount": 3
     },
     {
+      "key": "tooling/docs",
+      "count": 3,
+      "knownDurationMs": 0,
+      "unknownDurationCount": 3
+    },
+    {
       "key": "tooling/fixtures",
       "count": 3,
       "knownDurationMs": 0,
@@ -703,7 +715,7 @@
       "unknownDurationCount": 3
     },
     {
-      "key": "embeddings/runner",
+      "key": "embeddings/cache",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -782,12 +794,6 @@
     },
     {
       "key": "tooling/config",
-      "count": 2,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 2
-    },
-    {
-      "key": "tooling/docs",
       "count": 2,
       "knownDurationMs": 0,
       "unknownDurationCount": 2
@@ -1010,12 +1016,6 @@
     },
     {
       "key": "contracts/module-export-surface-compat",
-      "count": 1,
-      "knownDurationMs": 0,
-      "unknownDurationCount": 1
-    },
-    {
-      "key": "embeddings/cache",
       "count": 1,
       "knownDurationMs": 0,
       "unknownDurationCount": 1
@@ -2344,16 +2344,16 @@
   "hotspots": [
     {
       "key": "index-build-heavy",
-      "count": 418,
+      "count": 424,
       "knownDurationMs": 70250,
-      "unknownDurationCount": 377,
+      "unknownDurationCount": 383,
       "note": "Index construction, replay, and build-heavy setup overlap."
     },
     {
       "key": "sqlite-heavy",
-      "count": 73,
+      "count": 80,
       "knownDurationMs": 25860,
-      "unknownDurationCount": 64,
+      "unknownDurationCount": 71,
       "note": "SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture."
     },
     {
@@ -2372,9 +2372,9 @@
     },
     {
       "key": "embeddings-cache",
-      "count": 39,
+      "count": 40,
       "knownDurationMs": 60,
-      "unknownDurationCount": 38,
+      "unknownDurationCount": 39,
       "note": "Embedding cache and stub fast-path families frequently overlap on the same fixture/setup."
     },
     {

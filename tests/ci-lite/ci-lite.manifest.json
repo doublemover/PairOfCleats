@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1053,
+    "hero": 1075,
     "matrix": 108,
-    "meta": 47,
+    "meta": 48,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -7269,6 +7269,144 @@
       "order": 1209,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/cache/filename-and-rotation-ownership",
+      "order": 1210,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/backend-variant-failures",
+      "order": 1211,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/batch-vector-validation",
+      "order": 1212,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/runner/lancedb-staged-replacement",
+      "order": 1213,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/compaction-generation-publication",
+      "order": 1214,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/token-postings-generation-publication",
+      "order": 1215,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/lancedb-payload-authority",
+      "order": 1216,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/state/build-state-active-root-trim",
+      "order": 1217,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/state/checkpoint-finish-durability-race",
+      "order": 1218,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/state/checkpoint-generation-publication",
+      "order": 1219,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/state/patch-queue-detached-drain",
+      "order": 1220,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/ann/hnsw-fixed-backup-recovery",
+      "order": 1221,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/ann/lancedb-query-lifetime",
+      "order": 1222,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cache/embedding-flight-replacement",
+      "order": 1223,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/json-stream/jsonl-utf8-boundaries",
+      "order": 1224,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/bundle-malformed-shard-rejection",
+      "order": 1225,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/dense-binary-short-read",
+      "order": 1226,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/dense-row-document-ids",
+      "order": 1227,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/incremental/ann-unavailable-fallback",
+      "order": 1228,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/incremental/bundle-snapshot-binding",
+      "order": 1229,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/runner-exit-listener-lifetime",
+      "order": 1230,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/shared-output-path-refusal",
+      "order": 1231,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/docs/search-option-inventory",
+      "order": 1232,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }

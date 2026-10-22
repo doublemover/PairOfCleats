@@ -30,7 +30,14 @@ in coherent batches after affected checks and the required front gate.
    #1039, #1040, #1060, #1064, #1091, #1092, #1104, #1108, #1114, #1341,
    #1357. Status: 23 implementations have focused proof and the complete front
    gate passes. Remaining P1 owners continue after this publication batch.
-3. Remaining P2, then P3, then Perf, then unprioritized scope. Reconcile explicit
+3. Immutable shard/checkpoint publication, bounded storage recovery, vector/cache
+   lifetimes and the release contract gate: #673, #718, #833, #857, #858, #860,
+   #870, #875, #890, #895, #897, #907, #908, #927, #934, #958, #960, #971,
+   #1006, #1022, #1025, #1041, #1071, #1078, #1079, #1094, #1095, #1096,
+   #1098, #1111, #1113, #1115, #1340. Status: 33 implementations have focused
+   proof; final publication gate is pending. Adjacent #782/#896/#1039 hardening
+   is included without counting those issues a second time.
+4. Remaining P2, then P3, then Perf, then unprioritized scope. Reconcile explicit
    dependencies before implementing overlapping requests.
 
 
@@ -182,6 +189,85 @@ the approved related P2 owner spans continue in the same checkout.
 No full
 deep-suite, real-model, optional-backend or measured performance claim is made.
 
+### Batch 3 implementation and proof
+
+Compaction and token-postings writers stage immutable UUID generations and
+generation metadata before the existing pieces-manifest commit. Old selected,
+canonical and retained backup bytes survive metadata/manifest faults and actual
+child interruption. Readers follow the selected generation rather than stale
+canonical shards. Checkpoint sidecars use the same generation/index discipline;
+failed index publication cannot mutate acknowledged cache state or delete old
+reader slices. An explicitly empty committed index cannot resurrect legacy data.
+Detached flush barriers include already captured work, and a concurrent finish
+latches its required durable write. Active-root trimming is bounded by its
+starting inventory instead of looping forever when all entries are active.
+
+SQLite input validation precedes mutation: binary short reads loop to completion
+or reject EOF, absent optional document IDs preserve typed rows, malformed bundle
+shards fail closed, and incremental planning uses the same bound snapshot as
+ingestion. ANN outages fall back to base rows and recover by backfilling existing
+tables; ANN DDL and base-vector updates share rollback. Mode outputs cannot alias
+one physical database, and completed runners remove owned exit listeners.
+Follow-ups reject non-ENOENT fingerprint failures, checkpoint orphan backup WAL,
+and check dense row/count/dimension consistency before opening the destination.
+
+LanceDB query leases preserve active native handles through TTL, capacity and
+explicit-clear retirement, coalesce simultaneous table opens and release each
+handle once. Explicit empty candidates avoid backend admission. Late embedding
+flight rejection cannot delete a replacement entry. Backend variant failures are
+independent. Embedding batches reject nonfinite/wrong-width vectors, fp16 rounding
+handles subnormal carry, and text-cache rows bind precision, encoding, exact length
+and digest; legacy rows miss without deleting their database. Cache rotation reads
+the actual locked shard size, mapping preserves exact filenames, and the standalone
+embedding entry enforces bootstrap readiness.
+
+Fixed-path LanceDB replacement builds and closes in staging, validates payload
+presence/count, then promotes under the existing file lease with a recoverable
+prior pair and internal journal. This is not a claim of atomic simultaneous file
+and directory renames. Build/close/cleanup faults preserve the initiating error;
+failed rollback keeps its journal-owned prior directory/metadata. Recovery does
+not create a second untracked backup. Journal staging binds its publication ID
+and contained no-link paths. Strict backend admission rejects regular files, empty
+directories and missing/empty manifests or data fragments. This non-loading
+inventory proves presence/type, not native decoding of arbitrary bytes. Real
+HNSW replacement retains the fixed backup consumed by its production loader.
+
+Streamed plain/gzip/zstd JSONL uses a stateful UTF-8 decoder while preserving raw
+byte limits, malformed-byte policy and backpressure. Every multibyte split and
+real compressed streaming controls pass. Stats verification rejects same-length
+checksum corruption, malformed/unsupported declared digests and hash-read errors
+with a failing exit. The release doc-contract owner reads canonical search options
+and aliases: 105 source/documented flags, zero missing/extra flags. The actual
+release **contracts phase only** passes; this does not qualify other release phases.
+
+The 29-case integration receipt records 28 passes and one incorrect new L2 fixture
+expectation (1 versus the existing negative-distance score, -0). Its corrected
+affected rerun passes with lifecycle assertions unchanged. Three additional
+native publication/admission cases pass, and the existing real HNSW/LanceDB/SQLite
+generation integration passes. All use one job/thread, 30-second deadlines, zero
+retries/native-status redo; there are no timeouts or skipped cases. Earlier new
+fixture failures for canonical manifest metadata and one-shot fault injection are
+retained separately. Original-owner loader controls at b84da1b92 fail on all three
+new native cases: writing the published directory, accepting a regular payload
+file, and failing to expose the retained fixed backup. Lead JSONL/checksum/doc-gate
+controls also fail before their repairs; storage controls retain their own receipts.
+
+Ignored author-workspace receipts are under
+`.tmp/tasks/github-issue-repairs-20261021/`: `batch03-focused.json`,
+`batch03-lancedb-query-final.json`, `batch03-native-publication-final.json`,
+`batch03-native-generations.json`, `batch03-original-owner-controls.json`,
+`jsonl-boundaries-{before,after}.json`, `stats-checksum-{before,after}.json`,
+`doc-contract-{before,after}.json` and `release-contracts-report.json`.
+The native publication receipt includes its earlier payload-fixture failure;
+the corrected payload owner passes in native-generations. Results are not
+combined into a fictitious final-tree full-suite run. Twenty-three new IDs retain
+ordered ci-lite membership. No test or coverage assertion was removed.
+
+Both agents now develop independent owner spans in ignored changed-file drafts;
+the lead owns all shared formatting, integration, validation, Git and publication.
+No peer coordination, commit-slot wait, worktree, elevation or physical link
+creation is required. Draft-only follow-ups are not counted as implemented here.
+
 ## Complete starting inventory
 
 | Issue | Priority | Report | Repair disposition |
@@ -275,7 +361,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#670](https://github.com/doublemover/PairOfCleats/issues/670) | other | Share search request value schemas so MCP advertises supported filters and backends | pending |
 | [#671](https://github.com/doublemover/PairOfCleats/issues/671) | P1 | [P1] Retain batch ownership until sibling queue workers settle after a failure | implemented; focused proof and front gate pass |
 | [#672](https://github.com/doublemover/PairOfCleats/issues/672) | other | Remove the superseded native tree-sitter-lua dependency after the scoped-grammar cutover | pending |
-| [#673](https://github.com/doublemover/PairOfCleats/issues/673) | P1 | [P1] Read canonical search options in the release doc-contract gate | pending |
+| [#673](https://github.com/doublemover/PairOfCleats/issues/673) | P1 | [P1] Read canonical search options in the release doc-contract gate | implemented in batch 3; focused proof passes; final gate pending |
 | [#674](https://github.com/doublemover/PairOfCleats/issues/674) | other | Reconcile active HTTP contracts with shipped envelopes, streaming errors and auth policy | pending |
 | [#675](https://github.com/doublemover/PairOfCleats/issues/675) | other | Make ANN and sparse provider types describe cancellation and FTS eligibility contracts | pending |
 | [#676](https://github.com/doublemover/PairOfCleats/issues/676) | P2 | [P2] Let core build orchestration own SQLite instead of rebuilding all modes in MCP | pending |
@@ -320,7 +406,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#715](https://github.com/doublemover/PairOfCleats/issues/715) | P2 | [P2] Separate guided setup dependency installation from the indexed repository | pending |
 | [#716](https://github.com/doublemover/PairOfCleats/issues/716) | P3 | [P3] Distinguish file identity from member identity in map selection edge summaries | pending |
 | [#717](https://github.com/doublemover/PairOfCleats/issues/717) | P3 | [P3] Keep workspace relationship filters usable beyond the first projection page | pending |
-| [#718](https://github.com/doublemover/PairOfCleats/issues/718) | P1 | [P1] Preserve UTF-8 across streamed JSONL artifact chunk boundaries | pending |
+| [#718](https://github.com/doublemover/PairOfCleats/issues/718) | P1 | [P1] Preserve UTF-8 across streamed JSONL artifact chunk boundaries | implemented in batch 3; focused proof passes; final gate pending |
 | [#719](https://github.com/doublemover/PairOfCleats/issues/719) | P3 | [P3] Reconcile the retained selection inspector when rebuilding a workspace page | pending |
 | [#720](https://github.com/doublemover/PairOfCleats/issues/720) | P3 | [P3] Avoid rebuilding the full extracted-comment join map for every search request | pending |
 | [#721](https://github.com/doublemover/PairOfCleats/issues/721) | P2 | [P2] Share the qualified embedding model profile with prefetch and setup readiness | pending |
@@ -435,7 +521,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#830](https://github.com/doublemover/PairOfCleats/issues/830) | P3 | [P3] MCP cache_gc reports invalid no-limit requests as successful tool calls | pending |
 | [#831](https://github.com/doublemover/PairOfCleats/issues/831) | perf | [Perf] Replace repeated pending-window races with bounded capacity notifications | pending |
 | [#832](https://github.com/doublemover/PairOfCleats/issues/832) | P1 | [P1] Reject traversal snapshot IDs before GC and pointer-prune recursive deletion | fixed; focused Windows checks and front gate pass |
-| [#833](https://github.com/doublemover/PairOfCleats/issues/833) | P2 | [P2] Preserve replacement query-embedding flights when an evicted promise fails late | pending |
+| [#833](https://github.com/doublemover/PairOfCleats/issues/833) | P2 | [P2] Preserve replacement query-embedding flights when an evicted promise fails late | implemented in batch 3; focused proof passes; final gate pending |
 | [#834](https://github.com/doublemover/PairOfCleats/issues/834) | perf | [Perf] Prepare each VFS document once before attaching its chunk targets | pending |
 | [#835](https://github.com/doublemover/PairOfCleats/issues/835) | P1 | [P1] Diff prune can recursively delete outside diff cache via manifest entry ID | fixed; focused Windows checks and front gate pass |
 | [#836](https://github.com/doublemover/PairOfCleats/issues/836) | P2 | [P2] Admit and expose supported API correlation headers for allowlisted browser clients | pending |
@@ -459,10 +545,10 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#854](https://github.com/doublemover/PairOfCleats/issues/854) | perf | [Perf] Avoid discarding tooling detection probes before the installer immediately repeats them | pending |
 | [#855](https://github.com/doublemover/PairOfCleats/issues/855) | P2 | [P2] Align query code-dictionary selection and language scope with indexed tokenization | pending |
 | [#856](https://github.com/doublemover/PairOfCleats/issues/856) | P2 | [P2] Key automatic repository-stat reuse by effective ignore policy | pending |
-| [#857](https://github.com/doublemover/PairOfCleats/issues/857) | P1 | [P1] compact-pieces publishes shards before metadata and manifest transaction | pending |
-| [#858](https://github.com/doublemover/PairOfCleats/issues/858) | P1 | [P1] compact-pieces deletes its old shard backup when rollback fails | pending |
+| [#857](https://github.com/doublemover/PairOfCleats/issues/857) | P1 | [P1] compact-pieces publishes shards before metadata and manifest transaction | implemented in batch 3; focused proof passes; final gate pending |
+| [#858](https://github.com/doublemover/PairOfCleats/issues/858) | P1 | [P1] compact-pieces deletes its old shard backup when rollback fails | implemented in batch 3; focused proof passes; final gate pending |
 | [#859](https://github.com/doublemover/PairOfCleats/issues/859) | P3 | [P3] Encode graph edge identities without delimiter collisions in valid file paths | pending |
-| [#860](https://github.com/doublemover/PairOfCleats/issues/860) | P1 | [P1] Token-postings shard writer loses recovery backup across failed promotion | pending |
+| [#860](https://github.com/doublemover/PairOfCleats/issues/860) | P1 | [P1] Token-postings shard writer loses recovery backup across failed promotion | implemented in batch 3; focused proof passes; final gate pending |
 | [#861](https://github.com/doublemover/PairOfCleats/issues/861) | perf | [Perf] Avoid re-sorting the entire dependency-lane ready queue for every component | pending |
 | [#862](https://github.com/doublemover/PairOfCleats/issues/862) | P2 | [P2] Make dependency-lane SCC traversal stack-safe for admitted configured maps | pending |
 | [#863](https://github.com/doublemover/PairOfCleats/issues/863) | P2 | [P2] Strict artifact manifest loader follows junction outside index root | pending |
@@ -472,12 +558,12 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#867](https://github.com/doublemover/PairOfCleats/issues/867) | P2 | [P2] Bound automatic repository-scan directory admission and pending stat work | pending |
 | [#868](https://github.com/doublemover/PairOfCleats/issues/868) | P2 | [P2] Reject duplicate architecture rule IDs before attributing violations | pending |
 | [#869](https://github.com/doublemover/PairOfCleats/issues/869) | P3 | [P3] Short log reads can make get-last-failure select a success log | pending |
-| [#870](https://github.com/doublemover/PairOfCleats/issues/870) | P2 | [P2] SQLite dense-binary stream stops at first positive short read | pending |
+| [#870](https://github.com/doublemover/PairOfCleats/issues/870) | P2 | [P2] SQLite dense-binary stream stops at first positive short read | implemented in batch 3; focused proof passes; final gate pending |
 | [#871](https://github.com/doublemover/PairOfCleats/issues/871) | P2 | [P2] Valid per-file varint range fails on positive short read | pending |
 | [#872](https://github.com/doublemover/PairOfCleats/issues/872) | P1 | [P1] Archive extraction helper deletes pre-existing destination on failure | implemented; focused proof and front gate pass |
 | [#873](https://github.com/doublemover/PairOfCleats/issues/873) | P2 | [P2] Lua language-server update deletes working install before replacement succeeds | pending |
 | [#874](https://github.com/doublemover/PairOfCleats/issues/874) | P1 | [P1] Preserve build-state batch order when retrying a failed detached patch | implemented; focused proof and front gate pass |
-| [#875](https://github.com/doublemover/PairOfCleats/issues/875) | P2 | [P2] Make flushBuildState await already-detached in-flight writes | pending |
+| [#875](https://github.com/doublemover/PairOfCleats/issues/875) | P2 | [P2] Make flushBuildState await already-detached in-flight writes | implemented in batch 3; focused proof passes; final gate pending |
 | [#876](https://github.com/doublemover/PairOfCleats/issues/876) | P2 | [P2] Stop strict workspace scheduling after signal and spawn failures | pending |
 | [#877](https://github.com/doublemover/PairOfCleats/issues/877) | P2 | [P2] Reject watch mode in finite workspace build fanout or implement workspace watch ownership | pending |
 | [#878](https://github.com/doublemover/PairOfCleats/issues/878) | P2 | [P2] Normalize workspace boolean flags instead of forwarding accepted forms to child builds | pending |
@@ -492,14 +578,14 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#887](https://github.com/doublemover/PairOfCleats/issues/887) | P2 | [P2] Mode-blind discovery/preprocessing can drop files allowed by by-mode caps | pending |
 | [#888](https://github.com/doublemover/PairOfCleats/issues/888) | P2 | [P2] Federated enumeration appends continuation cursor after CLI option terminator | pending |
 | [#889](https://github.com/doublemover/PairOfCleats/issues/889) | P1 | [P1] File replacement silently succeeds with missing temp and unrelated recent final | implemented; focused proof and front gate pass |
-| [#890](https://github.com/doublemover/PairOfCleats/issues/890) | P2 | [P2] HNSW retained backup is randomized but recovery only reads fixed .bak | pending |
+| [#890](https://github.com/doublemover/PairOfCleats/issues/890) | P2 | [P2] HNSW retained backup is randomized but recovery only reads fixed .bak | implemented in batch 3; focused proof passes; final gate pending |
 | [#891](https://github.com/doublemover/PairOfCleats/issues/891) | P2 | [P2] Valid managed clangd binary is rejected after a positive short header read | pending |
 | [#892](https://github.com/doublemover/PairOfCleats/issues/892) | P3 | [P3] Shared readFileRangeSync silently truncates a range after positive short read | pending |
 | [#893](https://github.com/doublemover/PairOfCleats/issues/893) | P2 | [P2] Packed token-postings short read triggers unbounded whole-file fallback | pending |
 | [#894](https://github.com/doublemover/PairOfCleats/issues/894) | P2 | [P2] Archive extractor follows pre-existing destination junction outside extraction root | implemented; focused proof and front gate pass |
-| [#895](https://github.com/doublemover/PairOfCleats/issues/895) | P2 | [P2] Bound build-state patch-stage trimming when every cached root is active | pending |
+| [#895](https://github.com/doublemover/PairOfCleats/issues/895) | P2 | [P2] Bound build-state patch-stage trimming when every cached root is active | implemented in batch 3; focused proof passes; final gate pending |
 | [#896](https://github.com/doublemover/PairOfCleats/issues/896) | P1 | [P1] Oversized build state is treated as empty and overwritten by the next patch | implemented; focused proof and front gate pass |
-| [#897](https://github.com/doublemover/PairOfCleats/issues/897) | P2 | [P2] Failed checkpoint-index write can leave published index pointing to deleted sidecar | pending |
+| [#897](https://github.com/doublemover/PairOfCleats/issues/897) | P2 | [P2] Failed checkpoint-index write can leave published index pointing to deleted sidecar | implemented in batch 3; focused proof passes; final gate pending |
 | [#898](https://github.com/doublemover/PairOfCleats/issues/898) | P3 | [P3] Checkpoint mode sanitization aliases distinct keys to one sidecar file | pending |
 | [#899](https://github.com/doublemover/PairOfCleats/issues/899) | P3 | [P3] Top-K reducer ignores an explicit zero final limit | pending |
 | [#900](https://github.com/doublemover/PairOfCleats/issues/900) | P3 | [P3] Bitmap union drops valid entries when the first slot is null | pending |
@@ -509,8 +595,8 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#904](https://github.com/doublemover/PairOfCleats/issues/904) | P2 | [P2] Quoted file and author filters split one value into unrelated OR matchers | pending |
 | [#905](https://github.com/doublemover/PairOfCleats/issues/905) | P2 | [P2] Git line-author helper ignores requested commit and blames current checkout | pending |
 | [#906](https://github.com/doublemover/PairOfCleats/issues/906) | P2 | [P2] Unpinned Git blame cache returns stale authors after a same-process commit | pending |
-| [#907](https://github.com/doublemover/PairOfCleats/issues/907) | P2 | [P2] Incremental SQLite update can retain old ANN rows when vector extension is unavailable | pending |
-| [#908](https://github.com/doublemover/PairOfCleats/issues/908) | P2 | [P2] SQLite incremental planner accepts a valid bundle for the wrong manifest file | pending |
+| [#907](https://github.com/doublemover/PairOfCleats/issues/907) | P2 | [P2] Incremental SQLite update can retain old ANN rows when vector extension is unavailable | implemented in batch 3; focused proof passes; final gate pending |
+| [#908](https://github.com/doublemover/PairOfCleats/issues/908) | P2 | [P2] SQLite incremental planner accepts a valid bundle for the wrong manifest file | implemented in batch 3; focused proof passes; final gate pending |
 | [#909](https://github.com/doublemover/PairOfCleats/issues/909) | P2 | [P2] Resolve inherited tsconfig baseUrl relative to its defining config | pending |
 | [#910](https://github.com/doublemover/PairOfCleats/issues/910) | P2 | [P2] Resolve package tsconfig extends from its config entry, not Node main | pending |
 | [#911](https://github.com/doublemover/PairOfCleats/issues/911) | P2 | [P2] Match TypeScript path-mapping specificity instead of shortest resolved filename | pending |
@@ -529,14 +615,14 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#924](https://github.com/doublemover/PairOfCleats/issues/924) | P2 | [P2] Do not suppress missing TypeScript build-script imports without an emit counterpart | pending |
 | [#925](https://github.com/doublemover/PairOfCleats/issues/925) | P3 | [P3] Report missing SQLite database paths instead of claiming better-sqlite3 is absent | pending |
 | [#926](https://github.com/doublemover/PairOfCleats/issues/926) | P3 | [P3] Keep composite dedupe keys distinct in the SQLite multi-row inserter | pending |
-| [#927](https://github.com/doublemover/PairOfCleats/issues/927) | P2 | [P2] Prevent later SQLite mode builds from replacing a configured shared DB | pending |
+| [#927](https://github.com/doublemover/PairOfCleats/issues/927) | P2 | [P2] Prevent later SQLite mode builds from replacing a configured shared DB | implemented in batch 3; focused proof passes; final gate pending |
 | [#928](https://github.com/doublemover/PairOfCleats/issues/928) | P2 | [P2] Preserve Node package #imports instead of dropping them during normalization | pending |
 | [#929](https://github.com/doublemover/PairOfCleats/issues/929) | P2 | [P2] Do not declare junction-backed import targets absent in the filesystem existence index | pending |
 | [#930](https://github.com/doublemover/PairOfCleats/issues/930) | P3 | [P3] Ignore Razor @using directives inside multiline Razor comments | pending |
 | [#931](https://github.com/doublemover/PairOfCleats/issues/931) | P3 | [P3] Exclude imports inside Nix block comments | pending |
 | [#932](https://github.com/doublemover/PairOfCleats/issues/932) | P3 | [P3] Exclude block-commented imports in Dart, Groovy, and Scala collectors | pending |
 | [#933](https://github.com/doublemover/PairOfCleats/issues/933) | P3 | [P3] Do not downgrade future ordering-ledger versions during state merge | pending |
-| [#934](https://github.com/doublemover/PairOfCleats/issues/934) | P2 | [P2] Preserve forced final checkpoint flush during an in-flight periodic write | pending |
+| [#934](https://github.com/doublemover/PairOfCleats/issues/934) | P2 | [P2] Preserve forced final checkpoint flush during an in-flight periodic write | implemented in batch 3; focused proof passes; final gate pending |
 | [#935](https://github.com/doublemover/PairOfCleats/issues/935) | P2 | [P2] Propagate cancellation during embedding job enqueue instead of finalizing as done | pending |
 | [#936](https://github.com/doublemover/PairOfCleats/issues/936) | P2 | [P2] Preserve all search metrics under concurrent query sessions | pending |
 | [#937](https://github.com/doublemover/PairOfCleats/issues/937) | P3 | [P3] Warn when a forced SQLite backend is ignored for records-only search | pending |
@@ -560,9 +646,9 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#955](https://github.com/doublemover/PairOfCleats/issues/955) | P2 | [P2] Do not cool down healthy ANN providers when a search is cancelled | pending |
 | [#956](https://github.com/doublemover/PairOfCleats/issues/956) | P3 | [P3] Do not satisfy vector-only retrieval with MinHash fallback hits | pending |
 | [#957](https://github.com/doublemover/PairOfCleats/issues/957) | P2 | [P2] Reject malformed positional FTS weights instead of shifting field meanings | pending |
-| [#958](https://github.com/doublemover/PairOfCleats/issues/958) | P2 | [P2] Return no LanceDB hits for an explicitly empty candidate set | pending |
+| [#958](https://github.com/doublemover/PairOfCleats/issues/958) | P2 | [P2] Return no LanceDB hits for an explicitly empty candidate set | implemented in batch 3; focused proof passes; final gate pending |
 | [#959](https://github.com/doublemover/PairOfCleats/issues/959) | P2 | [P2] Preserve filtered recall beyond Tantivy's fixed global overfetch window | pending |
-| [#960](https://github.com/doublemover/PairOfCleats/issues/960) | P2 | [P2] Return no SQLite-vector hits for an explicitly empty candidate set | pending |
+| [#960](https://github.com/doublemover/PairOfCleats/issues/960) | P2 | [P2] Return no SQLite-vector hits for an explicitly empty candidate set | implemented in batch 3; focused proof passes; final gate pending |
 | [#961](https://github.com/doublemover/PairOfCleats/issues/961) | P1 | [P1] Revalidate vector-extension trust when cached load policy changes | implemented; focused proof and front gate pass |
 | [#962](https://github.com/doublemover/PairOfCleats/issues/962) | P1 | [P1] Verify extension integrity in the default non-loading verification path | implemented; focused proof and front gate pass |
 | [#963](https://github.com/doublemover/PairOfCleats/issues/963) | P3 | [P3] Use process CPU fallback for Windows pipeline checkpoints | pending |
@@ -573,7 +659,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#968](https://github.com/doublemover/PairOfCleats/issues/968) | P2 | [P2] Keep concurrent indexing runtimes' log identity and destination isolated | pending |
 | [#969](https://github.com/doublemover/PairOfCleats/issues/969) | P2 | [P2] Rescan learned auto-profile features after nested repository changes | pending |
 | [#970](https://github.com/doublemover/PairOfCleats/issues/970) | P2 | [P2] Do not classify truncated directory-only repo samples as high-confidence tiny | pending |
-| [#971](https://github.com/doublemover/PairOfCleats/issues/971) | P2 | [P2] Enforce bootstrap readiness before the standalone Stage-3 embeddings entry | pending |
+| [#971](https://github.com/doublemover/PairOfCleats/issues/971) | P2 | [P2] Enforce bootstrap readiness before the standalone Stage-3 embeddings entry | implemented in batch 3; focused proof passes; final gate pending |
 | [#972](https://github.com/doublemover/PairOfCleats/issues/972) | P3 | [P3] Avoid test-file weight penalties for production names containing “test” | pending |
 | [#973](https://github.com/doublemover/PairOfCleats/issues/973) | P3 | [P3] Encode callsite identity fields without colon-boundary collisions | pending |
 | [#974](https://github.com/doublemover/PairOfCleats/issues/974) | P3 | [P3] Headline frequency counts mis-rank inherited Object keys such as `constructor` | pending |
@@ -608,7 +694,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1003](https://github.com/doublemover/PairOfCleats/issues/1003) | P2 | [P2] Proto and GraphQL chunkers omit source preambles before first definition | pending |
 | [#1004](https://github.com/doublemover/PairOfCleats/issues/1004) | P3 | [P3] Ingest summary counters corrupt inherited-key kinds and languages | pending |
 | [#1005](https://github.com/doublemover/PairOfCleats/issues/1005) | P2 | [P2] SPDX boilerplate tag swallows all following header lines | pending |
-| [#1006](https://github.com/doublemover/PairOfCleats/issues/1006) | P2 | [P2] Embedding batch validator accepts non-finite vector elements | pending |
+| [#1006](https://github.com/doublemover/PairOfCleats/issues/1006) | P2 | [P2] Embedding batch validator accepts non-finite vector elements | implemented in batch 3; focused proof passes; final gate pending |
 | [#1007](https://github.com/doublemover/PairOfCleats/issues/1007) | P2 | [P2] Strict chunk-meta validation can hide primary loader failure behind stale JSON fallback | pending |
 | [#1008](https://github.com/doublemover/PairOfCleats/issues/1008) | P2 | [P2] Stage1 watchdog drops recorded SCM process-queue wait from lifecycle durations | pending |
 | [#1009](https://github.com/doublemover/PairOfCleats/issues/1009) | P3 | [P3] Lifecycle duration helper treats null timestamp sentinels as epoch zero | pending |
@@ -624,10 +710,10 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1019](https://github.com/doublemover/PairOfCleats/issues/1019) | P2 | [P2] Strict JSON chunker rejects valid nested empty objects and arrays | pending |
 | [#1020](https://github.com/doublemover/PairOfCleats/issues/1020) | P3 | [P3] Embeddings cache index loses reserved entry keys and file paths | pending |
 | [#1021](https://github.com/doublemover/PairOfCleats/issues/1021) | P3 | [P3] Tree-sitter batching skips language metadata for a single entry | pending |
-| [#1022](https://github.com/doublemover/PairOfCleats/issues/1022) | P2 | [P2] LanceDB rebuild deletes prior index before validating or publishing replacement | pending |
+| [#1022](https://github.com/doublemover/PairOfCleats/issues/1022) | P2 | [P2] LanceDB rebuild deletes prior index before validating or publishing replacement | implemented in batch 3; focused proof passes; final gate pending |
 | [#1023](https://github.com/doublemover/PairOfCleats/issues/1023) | P2 | [P2] Postings validation accepts fractional document IDs | pending |
 | [#1024](https://github.com/doublemover/PairOfCleats/issues/1024) | P2 | [P2] SQLite metaV2 parity check falsely flags equivalent reordered JSON objects | pending |
-| [#1025](https://github.com/doublemover/PairOfCleats/issues/1025) | P2 | [P2] Float16 text-vector cache rounds boundary embedding values to zero | pending |
+| [#1025](https://github.com/doublemover/PairOfCleats/issues/1025) | P2 | [P2] Float16 text-vector cache rounds boundary embedding values to zero | implemented in batch 3; focused proof passes; final gate pending |
 | [#1026](https://github.com/doublemover/PairOfCleats/issues/1026) | P3 | [P3] Risk artifact validator misses positive call-site count when flows reference none | pending |
 | [#1027](https://github.com/doublemover/PairOfCleats/issues/1027) | P3 | [P3] Import reason lookup accepts inherited object names as registered reasons | pending |
 | [#1028](https://github.com/doublemover/PairOfCleats/issues/1028) | P2 | [P2] Prose dispatch bypasses Markdown heading chunker for .markdown files | pending |
@@ -643,7 +729,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1038](https://github.com/doublemover/PairOfCleats/issues/1038) | P2 | [P2] Risk sink flow uses tainted variables outside the matched sink call | pending |
 | [#1039](https://github.com/doublemover/PairOfCleats/issues/1039) | P1 | [P1] SQLite dense update treats unreadable vector artifact as empty and deletes existing vectors | implemented; focused proof and front gate pass |
 | [#1040](https://github.com/doublemover/PairOfCleats/issues/1040) | P1 | [P1] SQLite dense ANN table rebuild skips unchanged base vectors | implemented; focused proof and front gate pass |
-| [#1041](https://github.com/doublemover/PairOfCleats/issues/1041) | P2 | [P2] SQLite dense update drops old ANN table before replacement can be validated | pending |
+| [#1041](https://github.com/doublemover/PairOfCleats/issues/1041) | P2 | [P2] SQLite dense update drops old ANN table before replacement can be validated | implemented in batch 3; focused proof passes; final gate pending |
 | [#1042](https://github.com/doublemover/PairOfCleats/issues/1042) | P3 | [P3] Stage1 stall top-N selection ignores tie-break order at the cutoff | pending |
 | [#1043](https://github.com/doublemover/PairOfCleats/issues/1043) | P3 | [P3] Stage1 stall snapshot defaults null idle duration to zero | pending |
 | [#1044](https://github.com/doublemover/PairOfCleats/issues/1044) | P2 | [P2] Identity reconciliation misses chunk-meta rows absent from chunk_uid_map | pending |
@@ -673,15 +759,15 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1068](https://github.com/doublemover/PairOfCleats/issues/1068) | P2 | [P2] Cross-file global call budget does not bound call summaries | pending |
 | [#1069](https://github.com/doublemover/PairOfCleats/issues/1069) | P2 | [P2] Zero blocked-expansion cap emits every blocked edge in partial risk flows | pending |
 | [#1070](https://github.com/doublemover/PairOfCleats/issues/1070) | P2 | [P2] Risk traversal discards alternate same-depth paths before maxPathsPerPair | pending |
-| [#1071](https://github.com/doublemover/PairOfCleats/issues/1071) | P2 | [P2] Embeddings shard rotation uses stale indexed size despite actual append offset | pending |
+| [#1071](https://github.com/doublemover/PairOfCleats/issues/1071) | P2 | [P2] Embeddings shard rotation uses stale indexed size despite actual append offset | implemented in batch 3; focused proof passes; final gate pending |
 | [#1072](https://github.com/doublemover/PairOfCleats/issues/1072) | P1 | [P1] Import cache keeps unchecked unresolved edges when stale-edge budget is exhausted | pending |
 | [#1073](https://github.com/doublemover/PairOfCleats/issues/1073) | P1 | [P1] Build runtime can leak worker pools when final receipt refresh fails | pending |
 | [#1074](https://github.com/doublemover/PairOfCleats/issues/1074) | P1 | [P1] Stage1 timeout cleanup kills unowned tracked subprocesses globally | pending |
 | [#1075](https://github.com/doublemover/PairOfCleats/issues/1075) | P2 | [P2] Stage1 setup errors bypass perf logger and scheduler cleanup | pending |
 | [#1076](https://github.com/doublemover/PairOfCleats/issues/1076) | P3 | [P3] Empty Stage1 modality leaves external abort listener attached | pending |
 | [#1077](https://github.com/doublemover/PairOfCleats/issues/1077) | P2 | [P2] Import cache file-set invalidation trims significant path whitespace | pending |
-| [#1078](https://github.com/doublemover/PairOfCleats/issues/1078) | P2 | [P2] Embeddings cache file lookup collapses leading/trailing-space filenames | pending |
-| [#1079](https://github.com/doublemover/PairOfCleats/issues/1079) | P2 | [P2] One LanceDB variant write failure skips remaining variants | pending |
+| [#1078](https://github.com/doublemover/PairOfCleats/issues/1078) | P2 | [P2] Embeddings cache file lookup collapses leading/trailing-space filenames | implemented in batch 3; focused proof passes; final gate pending |
+| [#1079](https://github.com/doublemover/PairOfCleats/issues/1079) | P2 | [P2] One LanceDB variant write failure skips remaining variants | implemented in batch 3; focused proof passes; final gate pending |
 | [#1080](https://github.com/doublemover/PairOfCleats/issues/1080) | P2 | [P2] Include control-flow minimum filters in query-cache identity | pending |
 | [#1081](https://github.com/doublemover/PairOfCleats/issues/1081) | P2 | [P2] Artifact cleanup reports success when removals fail | pending |
 | [#1082](https://github.com/doublemover/PairOfCleats/issues/1082) | P2 | [P2] Symbol and call-site artifact writers rewrite path identity whitespace | pending |
@@ -696,11 +782,11 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1091](https://github.com/doublemover/PairOfCleats/issues/1091) | P1 | [P1] Embedding manifest refresh discards all prior pieces when primary manifest is corrupt | implemented; focused proof and front gate pass |
 | [#1092](https://github.com/doublemover/PairOfCleats/issues/1092) | P1 | [P1] LMDB rebuild clears the published database before transactional replacement | implemented; focused proof and front gate pass |
 | [#1093](https://github.com/doublemover/PairOfCleats/issues/1093) | P2 | [P2] LMDB builder omits valid sharded file_meta and field_tokens artifacts | pending |
-| [#1094](https://github.com/doublemover/PairOfCleats/issues/1094) | P2 | [P2] Async dense-vector ingestion maps ID-less rows to document zero | pending |
-| [#1095](https://github.com/doublemover/PairOfCleats/issues/1095) | P2 | [P2] SQLite build runner retains a process exit listener after every invocation | pending |
-| [#1096](https://github.com/doublemover/PairOfCleats/issues/1096) | P2 | [P2] Bundle-to-SQLite helper treats a shard without chunks as a successful file | pending |
+| [#1094](https://github.com/doublemover/PairOfCleats/issues/1094) | P2 | [P2] Async dense-vector ingestion maps ID-less rows to document zero | implemented in batch 3; focused proof passes; final gate pending |
+| [#1095](https://github.com/doublemover/PairOfCleats/issues/1095) | P2 | [P2] SQLite build runner retains a process exit listener after every invocation | implemented in batch 3; focused proof passes; final gate pending |
+| [#1096](https://github.com/doublemover/PairOfCleats/issues/1096) | P2 | [P2] Bundle-to-SQLite helper treats a shard without chunks as a successful file | implemented in batch 3; focused proof passes; final gate pending |
 | [#1097](https://github.com/doublemover/PairOfCleats/issues/1097) | P2 | [P2] Strict dense loaders hide malformed manifested vector artifacts | pending |
-| [#1098](https://github.com/doublemover/PairOfCleats/issues/1098) | P1 | [P1] `index stats --verify` exits successfully on artifact checksum mismatch | pending |
+| [#1098](https://github.com/doublemover/PairOfCleats/issues/1098) | P1 | [P1] `index stats --verify` exits successfully on artifact checksum mismatch | implemented in batch 3; focused proof passes; final gate pending |
 | [#1099](https://github.com/doublemover/PairOfCleats/issues/1099) | P2 | [P2] `index stats --verify` rejects valid vector-only indexes | pending |
 | [#1100](https://github.com/doublemover/PairOfCleats/issues/1100) | P2 | [P2] Index stats reports only the largest chunk-meta shard as total rows | pending |
 | [#1101](https://github.com/doublemover/PairOfCleats/issues/1101) | P3 | [P3] `index stats` totalBytes omits file metadata and several artifact families | pending |
@@ -713,11 +799,11 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1108](https://github.com/doublemover/PairOfCleats/issues/1108) | P1 | [P1] Do not delete incremental SQLite WAL after an unchecked or failed checkpoint | implemented; focused proof and front gate pass |
 | [#1109](https://github.com/doublemover/PairOfCleats/issues/1109) | P1 | [P1] Default all-mode SQLite tool ignores mixed published mode roots | pending |
 | [#1110](https://github.com/doublemover/PairOfCleats/issues/1110) | P2 | [P2] Strict index validation ignores SHA-256 checksums on packed postings metadata | pending |
-| [#1111](https://github.com/doublemover/PairOfCleats/issues/1111) | P2 | [P2] Strict validation accepts empty or wrong-type declared LanceDB payloads | pending |
+| [#1111](https://github.com/doublemover/PairOfCleats/issues/1111) | P2 | [P2] Strict validation accepts empty or wrong-type declared LanceDB payloads | implemented in batch 3; focused proof passes; final gate pending |
 | [#1112](https://github.com/doublemover/PairOfCleats/issues/1112) | P2 | [P2] Bind publication records to the mode and build root being promoted | pending |
-| [#1113](https://github.com/doublemover/PairOfCleats/issues/1113) | P2 | [P2] LanceDB cache eviction can close a table during an in-flight ANN query | pending |
+| [#1113](https://github.com/doublemover/PairOfCleats/issues/1113) | P2 | [P2] LanceDB cache eviction can close a table during an in-flight ANN query | implemented in batch 3; focused proof passes; final gate pending |
 | [#1114](https://github.com/doublemover/PairOfCleats/issues/1114) | P1 | [P1] Preserve LanceDB recall for large candidate filters | implemented; focused proof and front gate pass |
-| [#1115](https://github.com/doublemover/PairOfCleats/issues/1115) | P2 | [P2] Coalesce concurrent LanceDB table opens to avoid untracked native handles | pending |
+| [#1115](https://github.com/doublemover/PairOfCleats/issues/1115) | P2 | [P2] Coalesce concurrent LanceDB table opens to avoid untracked native handles | implemented in batch 3; focused proof passes; final gate pending |
 | [#1116](https://github.com/doublemover/PairOfCleats/issues/1116) | P3 | [P3] Clearing LanceDB cache during connect leaks the late connection | pending |
 | [#1117](https://github.com/doublemover/PairOfCleats/issues/1117) | P2 | [P2] VFS collector cleanup can delete another collector's live spill files | pending |
 | [#1118](https://github.com/doublemover/PairOfCleats/issues/1118) | P2 | [P2] Reject unknown publication statuses and absent validation evidence | pending |
@@ -942,7 +1028,7 @@ deep-suite, real-model, optional-backend or measured performance claim is made.
 | [#1337](https://github.com/doublemover/PairOfCleats/issues/1337) | P2 | [P2] Serialize Tree-sitter worker initialization and fence late pools after shutdown | pending |
 | [#1338](https://github.com/doublemover/PairOfCleats/issues/1338) | P2 | [P2] Fail API-contract reports when declared call-site evidence cannot load | pending |
 | [#1339](https://github.com/doublemover/PairOfCleats/issues/1339) | P2 | [P2] Fail closed when an explicitly configured ONNX model path is missing | pending |
-| [#1340](https://github.com/doublemover/PairOfCleats/issues/1340) | P2 | [P2] Version text-vector cache rows instead of inferring encoding from possibly truncated blobs | pending |
+| [#1340](https://github.com/doublemover/PairOfCleats/issues/1340) | P2 | [P2] Version text-vector cache rows instead of inferring encoding from possibly truncated blobs | implemented in batch 3; focused proof passes; final gate pending |
 | [#1341](https://github.com/doublemover/PairOfCleats/issues/1341) | P1 | [P1] Validate the effective query embedding identity after provider fallback before ANN reuse | implemented; focused proof and front gate pass |
 | [#1342](https://github.com/doublemover/PairOfCleats/issues/1342) | other | [Reliability] Give hard-pressure tokenizer admission a bounded no-progress recovery path | pending |
 | [#1343](https://github.com/doublemover/PairOfCleats/issues/1343) | P2 | [P2] Reject Python AST admission during shutdown instead of stranding requests | pending |

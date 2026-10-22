@@ -1,6 +1,6 @@
 # Lane Evidence
 
-Generated: 2026-10-22T01:35:40.051Z
+Generated: 2026-10-22T02:07:24.341Z
 
 ## How To Use
 
@@ -13,7 +13,7 @@ Generated: 2026-10-22T01:35:40.051Z
 ## Lane Summary
 
 - `gate`: 40 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 15s
-- `ci-lite`: 1209 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
+- `ci-lite`: 1232 tests, 49 with timings, 27090 ms known duration, p50=190 ms, p95=2140 ms, target 15s
 - `ci`: 154 tests, 22 with timings, 101770 ms known duration, p50=5020 ms, p95=5030 ms, target 60s
 - `ci-long`: 20 tests, 3 with timings, 15060 ms known duration, p50=5020 ms, p95=5030 ms, target 180s
 - `usr-full-conformance`: 11 tests, 0 with timings, 0 ms known duration, p50=n/a ms, p95=n/a ms, target 60s
@@ -24,7 +24,7 @@ Generated: 2026-10-22T01:35:40.051Z
 
 ## Top Families
 
-- `storage/sqlite`: 73 tests, 25860 ms known duration
+- `storage/sqlite`: 80 tests, 25860 ms known duration
 - `indexing/chunking`: 11 tests, 10530 ms known duration
 - `tooling/triage`: 5 tests, 10060 ms known duration
 - `indexing/shards`: 4 tests, 8870 ms known duration
@@ -36,21 +36,21 @@ Generated: 2026-10-22T01:35:40.051Z
 - `indexing/runtime`: 4 tests, 5040 ms known duration
 - `lang/contracts`: 16 tests, 5030 ms known duration
 - `indexing/language-fixture`: 1 tests, 5030 ms known duration
-- `retrieval/ann`: 11 tests, 5020 ms known duration
+- `retrieval/ann`: 13 tests, 5020 ms known duration
 - `retrieval/filters`: 5 tests, 5020 ms known duration
 - `shared/encoding`: 3 tests, 5020 ms known duration
 
 ## Setup Hotspots
 
-- `index-build-heavy`: 418 tests, 70250 ms known duration
+- `index-build-heavy`: 424 tests, 70250 ms known duration
   Index construction, replay, and build-heavy setup overlap.
-- `sqlite-heavy`: 73 tests, 25860 ms known duration
+- `sqlite-heavy`: 80 tests, 25860 ms known duration
   SQLite maintenance, fail-closed, and migration tests often rebuild the same sample fixture.
 - `cli-cold-start`: 10 tests, 5410 ms known duration
   CLI process startup and argument-routing overlap.
 - `api-server-boot`: 7 tests, 3400 ms known duration
   HTTP server startup, routing, and streaming harness reuse.
-- `embeddings-cache`: 39 tests, 60 ms known duration
+- `embeddings-cache`: 40 tests, 60 ms known duration
   Embedding cache and stub fast-path families frequently overlap on the same fixture/setup.
 - `lsp-bootstrap`: 106 tests, 0 ms known duration
   Dedicated/configured provider bootstrap and session reuse.
