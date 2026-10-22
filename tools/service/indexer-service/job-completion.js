@@ -5,8 +5,16 @@
  * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',executionClass:string,daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null,replay:object|null,governance:object|null}}
  */
 const normalizeRunResult = (runResult) => {
-  const parsedExitCode = Number(runResult?.exitCode);
-  const exitCode = Number.isFinite(parsedExitCode) ? Math.trunc(parsedExitCode) : 1;
+  const rawExitCode = runResult?.exitCode;
+  // A missing child status is not a successful exit. Preserve decimal string
+  // statuses already accepted here without coercing arbitrary objects, null or
+  // booleans, or rounding a fractional failure down to success.
+  const parsedExitCode = typeof rawExitCode === 'number'
+    ? rawExitCode
+    : typeof rawExitCode === 'string' && /^-?\d+$/.test(rawExitCode.trim())
+      ? Number(rawExitCode.trim())
+      : NaN;
+  const exitCode = Number.isSafeInteger(parsedExitCode) ? parsedExitCode : 1;
   const signal = typeof runResult?.signal === 'string' && runResult.signal.trim().length > 0
     ? runResult.signal.trim()
     : null;
