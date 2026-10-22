@@ -1,4 +1,5 @@
-import { captureSceneResource, observeSceneOwnership, preserveSceneCleanupFailures } from './scene-retirement.js';
+import { captureSceneResource, preserveSceneCleanupFailures } from './scene-retirement.js';
+import { createNormalMapPrerequisites } from './normal-map-prerequisites.js';
 
 const owners = new WeakMap(), legacyTextures = new WeakMap();
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
@@ -6,41 +7,21 @@ const objectLike = value => value !== null && (typeof value === 'object' || type
 /** Own actual returned loader textures before any completion callback. A failed
  * callback retains only this loader's objects and original cleanup methods. */
 export const createNormalMapOwner = ({ isCurrent, configure, publish = () => {} }) => {
-  const entries = new Map(), composedFailures = new WeakMap();
+  const entries = new Map();
   let retired = false, texture = null, lastFailure = null, loadFailure, hasLoadFailure = false;
-  const combine = (primary, errors, options = {}) => {
-    const failure = preserveSceneCleanupFailures(primary, errors, options);
-    if (objectLike(failure) && failure !== primary && !errors.includes(failure)) {
-      const hasPrimary = options.hasPrimary ?? (primary !== null && primary !== undefined);
-      composedFailures.set(failure, hasPrimary ? [primary, ...errors] : [...errors]);
-    }
-    return failure;
-  };
+  const combine = preserveSceneCleanupFailures;
   const adopt = value => {
     if (!objectLike(value)) throw new TypeError('Normal-map loader returned no owned texture.');
     if (entries.has(value)) return entries.get(value);
     const primitive = captureSceneResource(value, 'shared scene normal map', 'dispose', [], { required: true });
-    const blockers = new Map();
+    let prerequisites;
     const guarded = captureSceneResource({ texture: value, dispose() {
-      for (const [error, observe] of blockers) if (!observe()) throw error;
+      prerequisites.assertReady();
       return primitive.retire();
     } }, 'normal-map original texture work');
+    prerequisites = createNormalMapPrerequisites(primitive, guarded);
     const entry = Object.freeze({ texture: value, owner: guarded,
-      get blocked() { return [...blockers.values()].some(observe => !observe()); },
-      retain(error) {
-        const pending = [error], visited = new Set();
-        while (pending.length) {
-          const original = pending.pop();
-          if (visited.has(original)) continue; visited.add(original);
-          const composition = objectLike(original) && composedFailures.get(original);
-          if (composition) { pending.push(...composition); continue; }
-          // Only exact original failures of these captured capabilities may
-          // delegate closure to them. Copied owner/cause fields prove nothing.
-          if (original === guarded.lastError || original === primitive.lastError || blockers.has(original)) continue;
-          const observe = observeSceneOwnership(original);
-          if (observe) blockers.set(original, observe);
-        }
-      } });
+      get blocked() { return prerequisites.blocked; }, retain: prerequisites.retain });
     entries.set(value, entry);
     if (hasLoadFailure) entry.retain(loadFailure);
     return entry;

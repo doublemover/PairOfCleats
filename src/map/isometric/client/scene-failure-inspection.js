@@ -37,6 +37,9 @@ export const captureSceneFailure = primary => {
     released: () => !overflow && [...observers.values()].every(record => record.observe()),
     releasedExcept: method => !overflow && [...observers].every(([error, record]) =>
       error === primary ? record.observeExcept(method) : record.observe()),
+    // A scoped prerequisite walker must visit every inspection value itself.
+    // This observes only the original object's channels, never its descendants.
+    releasedOriginalExcept: method => !overflow && (!observers.has(primary) || observers.get(primary).observeExcept(method)),
     get owners() { return Object.freeze([...owners]); },
     get hasMessage() { return typeof fields.get('message') === 'string' && fields.get('message').length > 0; },
     get message() { return typeof fields.get('message') === 'string' ? fields.get('message') : 'Scene resource retirement remains pending.'; }

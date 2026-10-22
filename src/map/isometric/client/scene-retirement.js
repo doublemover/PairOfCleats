@@ -4,6 +4,18 @@ const pending = new Set();
 const compositions = new WeakMap(), resourceFailures = new WeakMap();
 const objectLike = value => value && (typeof value === 'object' || typeof value === 'function');
 export { observe as observeSceneOwnership };
+
+/** Read-only proof for a local prerequisite walker. Only private original
+ * producers can delegate their own scene closure; public owner/cause fields
+ * cannot name a producer or authorize another resource's closure delegation. */
+export const captureScenePrerequisiteProducer = (error, scopedOwners = []) => {
+  if (!objectLike(error)) return null;
+  const composition = compositions.get(error);
+  if (composition) return composition;
+  const resource = resourceFailures.get(error);
+  if (!resource || !scopedOwners.includes(resource.owner)) return null;
+  return Object.freeze({ errors: Object.freeze([resource.original]), observation: resource.observation });
+};
 const failure = (primary, errors, captured = captureSceneFailure(primary),
   inspectionErrors = captured.inspectionErrors, overflow = captured.overflow) => {
   const result = new AggregateError([...errors, ...inspectionErrors], captured.message, { cause: primary });
@@ -27,13 +39,15 @@ export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimar
   const inspectionErrors = captured.flatMap(snapshot => snapshot.inspectionErrors);
   const result = failure(hasPrimary ? primary : errors[0], errors, captured[0], inspectionErrors,
     captured.some(snapshot => snapshot.overflow));
-  const observers = captured.filter(snapshot => snapshot.hasOwnership).map(snapshot => snapshot.released);
+  // An originally absent channel may receive its first evidence on later
+  // admission. Keep every original snapshot's stable predicate in the wrapper.
+  const observers = captured.map(snapshot => snapshot.released);
   const released = () => observers.every(check => check());
   const owners = captured.flatMap(snapshot => snapshot.owners);
   Object.defineProperties(result, { sceneCleanupErrors: { value: Object.freeze([...cleanupErrors]) },
     sceneResourceOwners: { value: Object.freeze([...new Set(owners)]) },
     sceneOwnershipPending: { get: () => !released() }, sceneOwnershipReleased: { value: released } });
-  compositions.set(result, { errors: [...errors], observation: released });
+  compositions.set(result, Object.freeze({ errors: Object.freeze([...errors]), observation: released }));
   return result;
 };
 
