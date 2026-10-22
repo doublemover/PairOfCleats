@@ -67,3 +67,18 @@ Path-only index lock consumers load no storage launch-resolution adapter. The
 category bridge is imported only for explicit launch context. Authored actual
 file-lock/gated-unlink/deadline controls, an unbranded pending-marker negative
 and the import-boundary fixture remain UNVALIDATED.
+
+Managed physical installation retention now uses that same storage session for
+its explicit tooling category and selected installation owner. A second-root
+refusal retains failed rollback of the first root and any actual final refused
+lease; release attempts every original handle before reporting failure. Failure
+of the second byte inspection also preserves its primary error and the exact
+session if rollback fails. The second inspection pins both the originally
+selected descriptor and install identities. Returned `release()` stays owned by
+the concrete child/resource consumer; a successful version probe alone cannot
+authorize calling it. An exact nonenumerable `storageSession` remains available
+for failed metadata settlement. The shared failure-composition function is
+reused rather than introducing another multi-root rollback implementation.
+Actual disposable receipt/inspection/exclusion controls with injected unlink and
+post-admission read failures are authored only, including successful re-admission.
+No installation, native probe, physical link or user-cache operation was run.

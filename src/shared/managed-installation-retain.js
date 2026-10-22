@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { assertNoSymlinkPath } from './contained-file.js';
 import { readManagedToolText } from './managed-tool-file.js';
 import { stableStringify } from './stable-json.js';
-import { acquireRepoCacheAccessLease } from './cache/repo-access.js';
+import { acquireStorageSession, retainSessionFailure } from './storage/session.js';
 import { resolveStorageLayout } from './storage/layout.js';
 import { isKnownManagedInstallationReceipt } from './managed-installation-contract.js';
 
@@ -97,18 +97,22 @@ export const inspectManagedInstallationSync = ({ toolingRoot, toolId, descriptor
 export const retainManagedToolInstallationSync = options => {
   const selected = inspectManagedInstallationSync(options);
   if (!selected.ok) throw new Error('Managed tool selection is unavailable: ' + selected.state);
-  const coordinationRoot = path.join(resolveStorageLayout({ overrides: { tooling: options.toolingRoot } }).descriptors.state.path, 'storage-access');
-  const leaseOptions = { coordinationRoot, resourceId: selected.receipt.installId, requireSettlement: true,
-    scope: 'managed-physical-installation-resource' };
-  const leases = [acquireRepoCacheAccessLease(options.toolingRoot, leaseOptions)];
-  try { leases.push(acquireRepoCacheAccessLease(selected.owner, leaseOptions)); }
-  catch (error) { leases[0].release(); throw error; }
-  const release = () => leases.map(lease => lease.release()).every(Boolean);
+  const stateRoot = resolveStorageLayout({ overrides: { tooling: options.toolingRoot } }).descriptors.state.path;
+  const coordinationRoot = path.join(stateRoot, 'storage-access');
+  const session = acquireStorageSession({ roots: [selected.owner],
+    authorizedRoots: [options.toolingRoot, stateRoot], coordinationRoot, resourceId: selected.receipt.installId,
+    scope: 'managed-physical-installation-resource' });
+  const release = () => session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
   try {
-    const after = inspectManagedInstallationSync({ ...options, installId: selected.receipt.installId });
+    const after = inspectManagedInstallationSync({ ...options, descriptorId: selected.receipt.descriptorId,
+      installId: selected.receipt.installId });
     if (!after.ok) throw new Error('Managed tool selection changed before consumer lease admission; retry.');
-    return { ...after, release };
-  } catch (error) { release(); throw error; }
+    return Object.defineProperty({ ...after, release }, 'storageSession', { value: session });
+  } catch (error) {
+    try { release(); }
+    catch (cleanupError) { throw retainSessionFailure(error, cleanupError, session); }
+    throw error;
+  }
 };
 
 export const retainManagedToolInstallation = async options => retainManagedToolInstallationSync(options);

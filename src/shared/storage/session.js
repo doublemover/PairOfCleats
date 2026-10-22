@@ -13,7 +13,7 @@ const capturePendingClosure = error => {
   if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
   return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
 };
-const retainSessionFailure = (primary, settlementError, session) => {
+export const retainSessionFailure = (primary, settlementError, session) => {
   const failure = asError(primary || settlementError);
   const additional = primary && settlementError !== failure ? asError(settlementError) : null;
   const observers = [failure, additional].filter(Boolean).map(capturePendingClosure).filter(Boolean);
