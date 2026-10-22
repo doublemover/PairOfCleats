@@ -30,10 +30,10 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `9364b68fb` adds direct owned vector fill, complete
-local literal facts, iteration reference order, immutable LSP target/response
-handoff and original diagnostic/receipt resource prerequisites.
-Dispositions: 141 historical, 555 source, 162 partial, 99 pending.
+Latest source continuation: `ee2606838` adds bounded prepared symbol rows,
+pre-encoding semantic/report admission, original VSCode request lifetime,
+scene disposal prerequisites and truthful provisioning/evaluation evidence.
+Dispositions: 141 historical, 555 source, 163 partial, 98 pending.
 All authored checks remain unvalidated.
 
 ### Execution order
@@ -83,7 +83,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `9364b68fb` repairs watch/pointer and queue authority,
+Current source through `ee2606838` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -123,7 +123,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 sourceChunking11/importResolution7/typeNormalization6/compilerBindings20/
-lspBindings38/rq10/cfgFlow24/callFlow25/valueSlice8. VSCode and Sublime retain
+lspBindings39/rq10/cfgFlow24/callFlow25/valueSlice8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 
 The rollout gate now requires explicit coherent benchmark counts and diagnostic
@@ -143,8 +143,10 @@ Current development also preserves actual Lua/archive/lock and receipt cleanup
 owners, source-bound Python preparation, bounded raw-directory reuse and original
 map/editor continuation evidence. Direct vector fill removes one row allocation;
 IPC/native copies and whole-process memory/performance proof remain open (#1216).
-Complete literal envelopes and original retained LSP handoffs have new semantic
-versions; full canonical capture does not establish memory admission. All detailed
+Complete literal envelopes and retained LSP handoffs have new semantic versions.
+Existing evidence/report bounds now charge before encoded expansion; selection,
+aggregate, transport and downstream memory remain partial. Bounded final symbol
+rows reuse fitting bytes through sizing/output (#1363 partial). All detailed
 chronology and limits live in the archived receipt. Authored controls remain unrun.
 
 ## Environment and qualification boundaries
