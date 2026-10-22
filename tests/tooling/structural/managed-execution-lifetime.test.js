@@ -1,23 +1,25 @@
 #!/usr/bin/env node
 // Source UNVALIDATED; fake resources exercise ownership, never installed tools.
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { withStructuralBinary } from '../../../src/experimental/structural/execution.js';
 import { runStructuralSearch } from '../../../src/experimental/structural/runner.js';
 import { runBinary } from '../../../src/experimental/structural/binaries.js';
 
 const installId = 'a'.repeat(64);
+const command = path.join(process.cwd(), 'fixture-structural-command');
 let pinned = false;
 let releases = 0;
 let attempts = 0;
 const dependencies = {
   getConfig: () => ({ dir: process.cwd() }),
-  resolveTools: () => [{ id: 'ast-grep', managedInstallation: { command: 'fixture', installId, descriptorId: 'b'.repeat(64) } }],
-  locate: () => ({ found: true, path: 'fixture' }),
-  identify: () => ({ sha256: 'fixture-current-bytes' }),
+  resolveTools: () => [{ id: 'ast-grep', managedInstallation: { command, installId, descriptorId: 'b'.repeat(64) } }],
+  locate: () => ({ found: true, path: command }),
+  identify: () => ({ path: command, sha256: 'c'.repeat(64), size: 1 }),
   retain: async options => {
     assert.equal(options.installId, installId);
     pinned = true;
-    return { command: 'fixture', args: ['fixture-prefix'], root: 'fixture-root', receipt: { installId }, release: () => { pinned = false; releases++; return true; } };
+    return { command, args: ['fixture-prefix'], root: path.dirname(command), receipt: { installId }, release: () => { pinned = false; releases++; return true; } };
   },
   spawn: async (_command, args, options) => {
     assert.equal(pinned, true, 'identity probes and rule children must both hold exact installation');

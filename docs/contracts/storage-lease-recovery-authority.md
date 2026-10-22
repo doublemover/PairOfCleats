@@ -82,3 +82,14 @@ reused rather than introducing another multi-root rollback implementation.
 Actual disposable receipt/inspection/exclusion controls with injected unlink and
 post-admission read failures are authored only, including successful re-admission.
 No installation, native probe, physical link or user-cache operation was run.
+
+An actual storage session now identifies its own attempted metadata-release
+failures with a process-local producer capability. Managed detection and build
+runtime teardown use that exact identity to keep an owned unlink failure out of
+the independent resource blockers that precede retrying the same session. The
+original outward failure still reports pending until that exact session release
+succeeds. A matching error code, copied session property or native pending marker
+does not supply the capability; missing independent observers remain unconfirmed.
+Authored controls use actual category sessions, injected exact lease unlink
+failures and the actual detector/runtime retry paths, including forged-marker
+negatives and frozen native failures. They remain UNVALIDATED.

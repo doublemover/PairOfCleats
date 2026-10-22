@@ -268,3 +268,35 @@ and qualification. These checks preserve existing bounded child ownership;
 pre/post identification does not claim an atomic operating-system executable
 launch guarantee for independently mutable external files. Authored inert-probe
 and actual-file identity fixtures remain UNVALIDATED.
+
+Owned detection uses the same physical path/digest/byte-count identity for its
+actual bounded probes. Identity drift is terminal and retains its diagnostic;
+it does not become an ordinary missing-tool result followed by another probe.
+Managed generation retention still spans the real child owner. Frozen primary
+failures and failed lease removal retain an exact `managedProbeSession`, with
+the original error preserved as a cause when metadata cannot attach.
+
+Probe reconciliation requires actual child/tree closure and every captured
+independent pending observer before retrying the original installation lease.
+That lease must explicitly return true; successful output alone cannot settle
+failed removal. Exact metadata-only retry is allowed after confirmed child
+closure, and repeated settled reconciliation is idempotent. Missing or throwing
+independent observers stay unconfirmed. These actual-owner source changes and
+inert-child/real-file/category-lease controls remain UNVALIDATED.
+
+Structural execution binds each identity probe and rule invocation to the same
+identified physical path, digest and byte count, checking again after actual
+child completion. Successful output cannot qualify changed executable bytes.
+The execution scope retains every invocation it started until the shared child
+owner confirms closure, including a callback that returns before its own rule
+promise. A completed scope cannot start another child through a retained callback.
+
+Frozen/readonly structural failures preserve their original cause, nested owner
+capabilities and any failed release diagnostic. The exact
+`structuralInstallationSession` composes original pending observers before
+retrying its actual retained generation. Only that generation's producer-branded
+metadata release failure is exempt from independent resource gates; matching
+codes or session properties supply no authority. Missing/throwing observers stay
+unconfirmed even with successful close flags. Authored inert-child/actual-file
+and category-session controls, including injected unlink failure and exact retry,
+remain UNVALIDATED.

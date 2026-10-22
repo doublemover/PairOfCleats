@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { acquireBuildRuntimeStorage } from '../../../src/index/build/runtime/storage.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
+import { isStorageSessionReleaseFailure } from '../../../src/shared/storage/session.js';
 
 // UNVALIDATED: actual core teardown and category leases; inert native owners.
 const hooks = registerHooks({ load(url, context, next) {
@@ -31,8 +33,10 @@ try {
       () => acquireBuildRuntimeStorage(repo, { cache: { root: cache } }));
     let confirmed = false, loggerCloses = 0;
     const primary = Object.freeze(Object.assign(new Error('inert worker owner remains pending'), {
-      cacheOwnershipPending: true, ...(observable ? { cacheOwnershipReleased: () => confirmed } : {})
+      cacheOwnershipPending: true, code: 'ERR_STORAGE_SESSION_LEASE_CHANGED', storageSession: storage.session,
+      ...(observable ? { cacheOwnershipReleased: () => confirmed } : {})
     }));
+    assert.equal(isStorageSessionReleaseFailure(primary, storage.session), false, 'matching code/session properties are not an owned metadata-release failure');
     const runtime = { root: repo, log: () => {}, indexRuntimeStorage: storage,
       workerPools: { destroy: async () => { if (!confirmed) throw primary; } },
       closeLogger: async () => { loggerCloses++; } };
@@ -59,5 +63,27 @@ try {
       assert.equal(failure.cacheOwnershipReleased(), false);
     }
   }
+  const metadataHome = path.join(temporary, 'metadata-home'), metadataCache = path.join(temporary, 'metadata-cache');
+  const metadataCoordination = path.join(metadataHome, 'state', 'storage-access');
+  const metadataOwner = await withTemporaryEnv({ PAIROFCLEATS_HOME: metadataHome },
+    () => acquireBuildRuntimeStorage(repo, { cache: { root: metadataCache } }));
+  const metadataRuntime = { root: repo, log: () => {}, indexRuntimeStorage: metadataOwner };
+  const syncRemove = fsSync.rmSync;
+  let deny = true;
+  try {
+    fsSync.rmSync = (target, options) => {
+      if (deny && String(target).startsWith(metadataCoordination + path.sep)) throw Object.assign(new Error('actual runtime lease unlink denied'), { code: 'EACCES' });
+      return syncRemove(target, options);
+    };
+    let failedRelease;
+    try { await teardownRuntime(metadataRuntime); } catch (error) { failedRelease = error; }
+    assert.equal(isStorageSessionReleaseFailure(failedRelease.cause, metadataOwner.session), true);
+    assert.equal(failedRelease.cacheOwnershipReleased(), false);
+    assert.equal((await inspectStorageAccess(metadataCache, { coordinationRoot: metadataCoordination })).protected, true);
+    deny = false;
+    await teardownRuntime(metadataRuntime);
+    assert.equal(failedRelease.cacheOwnershipReleased(), true, 'actual metadata retry satisfies the old outward observer without self-blocking');
+    assert.equal((await inspectStorageAccess(metadataCache, { coordinationRoot: metadataCoordination })).protected, false);
+  } finally { fsSync.rmSync = syncRemove; }
 } finally { hooks.deregister(); await rmDirRecursive(temporary); }
 console.log('Runtime teardown retains independent pending owners through category settlement.');

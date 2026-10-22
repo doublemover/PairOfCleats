@@ -1,5 +1,6 @@
 import { resolveRepoCacheRootPath } from '../../../shared/repo-paths.js';
 import { acquireIndexStorageSession } from '../storage-session.js';
+import { isStorageSessionReleaseFailure } from '../../../shared/storage/session.js';
 
 const owners = new WeakMap();
 const retainedErrors = new WeakSet();
@@ -42,7 +43,7 @@ const retainedFailure = (error, owner, { cleanupError = null, runtime = null } =
   const observers = [primary, additional].filter(Boolean).map(pendingObserver).filter(Boolean);
   const state = owners.get(owner);
   for (const failure of [primary, additional].filter(Boolean)) {
-    if (retainedErrors.has(failure) || state.pending.has(failure)) continue;
+    if (retainedErrors.has(failure) || state.pending.has(failure) || isStorageSessionReleaseFailure(failure, owner.session)) continue;
     const observe = pendingObserver(failure);
     if (!observe) continue;
     if (state.pending.size >= 128) state.unknownPending = true;

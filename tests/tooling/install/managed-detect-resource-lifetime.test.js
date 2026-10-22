@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Source UNVALIDATED; fake child close/lease owner, no installed tools executed.
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { detectToolOwned } from '../../../tools/tooling/owned-detect.js';
 
 const installId = 'a'.repeat(64);
@@ -12,7 +13,7 @@ const dependencies = { locate: () => ({ found: true, path: 'fixture', source: 'l
     assert.equal(options.installId, installId); retained = true;
     return { command: 'fixture', args: ['prefix'], root: 'fixture-root', receipt: { installId, descriptorId: 'b'.repeat(64) },
       release: () => { retained = false; releases++; return true; } };
-  }, identify: () => ({ sha256: 'current-fixture-bytes' }), validate: (_tool, _command, probe) => probe,
+  }, identify: () => ({ path: path.join(process.cwd(), 'fixture'), sha256: 'c'.repeat(64), size: 1 }), validate: (_tool, _command, probe) => probe,
   spawn: async (_command, args, options) => {
     assert.equal(retained, true, 'exact managed generation is pinned before the first version probe');
     assert.deepEqual(args, ['prefix', '--version'], 'managed argv prefix appears exactly once');
