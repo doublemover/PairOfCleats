@@ -3,7 +3,8 @@ import path from 'node:path';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
+import { acquireFileLock } from '../locks/file-lock.js';
+import { addStorageFailureContext, releaseStorageOperationLock } from './operation-error.js';
 import { readStorageLocator, writeStorageLocator } from './locator.js';
 import { storagePlanDigest } from './migration-plan.js';
 import { storageFileIdentity, sameStorageFileIdentity } from './inventory.js';
@@ -14,20 +15,34 @@ export const CONFIGURABLE_STORAGE_CATEGORIES = Object.freeze([
   'cache', 'models', 'dictionaries', 'extensions', 'tooling', 'tmp'
 ]);
 
+const settleObservations = async operations => {
+  const results = await Promise.allSettled(operations);
+  const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+  if (failures.length) throw failures.slice(1).reduce((primary, secondary) => addStorageFailureContext(primary, {}, secondary), failures[0]);
+  return results.map(result => result.value);
+};
+
 const inspectDirectory = async target => {
   assertNoSymlinkPath(path.parse(target).root, target, { allowMissing: true });
+  let observed = false;
   try {
     const stat = await fs.lstat(target, { bigint: true });
+    observed = true;
     if (!stat.isDirectory()) return { status: 'unexpected-file', empty: false };
     const directory = await fs.opendir(target);
-    let first;
+    let first, readError = null;
     try { first = await directory.read(); }
-    finally { await directory.close(); }
+    catch (error) { readError = error; }
+    finally {
+      try { await directory.close(); }
+      catch (closeError) { throw addStorageFailureContext(readError || closeError, {}, readError ? closeError : null); }
+    }
+    if (readError) throw readError;
     const after = await fs.lstat(target, { bigint: true });
     if (!sameStorageFileIdentity(storageFileIdentity(stat), storageFileIdentity(after))) throw new Error('Storage directory changed during configuration preview.');
     return { status: 'present', empty: first === null, identity: storageFileIdentity(after) };
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    if (observed || error.code !== 'ENOENT') throw error;
     let ancestor = path.dirname(target);
     for (;;) {
       try {
@@ -85,7 +100,7 @@ export const planStorageConfiguration = async ({ layout, category, target, curre
   validateLocations({ home, target, source, repoRoot });
   const locator = readStorageLocator(home);
   if (locator.status === 'invalid') throw new Error('Repair the invalid storage locator before configuration.');
-  const [sourceObservation, destinationObservation, configurationSource] = await Promise.all([
+  const [sourceObservation, destinationObservation, configurationSource] = await settleObservations([
     inspectDirectory(source), inspectDirectory(target), machineSource(machineConfigPath)
   ]);
   const blocked = [];
@@ -128,13 +143,14 @@ export const applyStorageConfiguration = async (plan, { approvedPlanId, home, ca
   const lock = await acquireFileLock({ lockPath: path.join(directory, 'storage-locator.lock'), waitMs: 0,
     staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator', planId } });
   if (!lock) throw new Error('Storage locator already has an exclusive configuration owner.');
+  let operationError = null;
   try {
     const current = readStorageLocator(body.home);
     if (current.status === 'invalid' || current.sha256 !== body.locatorBeforeHash) throw new Error('Storage locator changed after configuration preview.');
     if (storagePlanDigest(await machineSource(body.configurationSource?.path)) !== storagePlanDigest(body.configurationSource)) {
       throw new Error('Trusted machine configuration changed after preview.');
     }
-    const [source, destination] = await Promise.all([inspectDirectory(body.before), inspectDirectory(body.after)]);
+    const [source, destination] = await settleObservations([inspectDirectory(body.before), inspectDirectory(body.after)]);
     if (!sameDirectoryObservation(body.sourceObservation, source) || !sameDirectoryObservation(body.destinationObservation, destination)) {
       throw new Error('Storage source or destination changed after preview; both are preserved.');
     }
@@ -160,5 +176,6 @@ export const applyStorageConfiguration = async (plan, { approvedPlanId, home, ca
     return { schemaVersion: 1, planId, complete: true, mutationPerformed: true, selectedPath: body.after,
       restartRequired: true, sourcePreserved: true, destinationCreated: false, deletionAuthority: false,
       configFile: current.target, receiptFile };
-  } finally { await releaseFileLockOrThrow(lock); }
+  } catch (error) { operationError = error; throw error; }
+  finally { await releaseStorageOperationLock(lock, operationError); }
 };

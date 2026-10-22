@@ -320,3 +320,18 @@ The source and authored real runtime initialization/teardown fixtures remain
 UNVALIDATED. These sessions cover canonical cache work; explicit build roots
 outside that namespace, ordinary reader adoption, category-specific reference
 portability and cross-platform filesystem qualification remain separate scope.
+
+Configuration preview/apply drains every concurrent source, destination and
+configuration observation before returning or releasing its coordinator. One
+rejected observation cannot abandon another open directory or hide its close
+failure. Configuration, migration and rollback preserve frozen primary errors,
+secondary journal/release diagnostics and recovery paths as exact causes rather
+than replacing them with mutation or `finally` cleanup errors.
+
+Failed operation-lock removal exposes only the original non-serialized
+`storageOperationLocks` capabilities for exact metadata cleanup. That cleanup
+does not confirm an independent child/native owner. Explicit pending migration
+owner failures stop planning/apply instead of becoming ordinary blocked-proof
+diagnostics followed by more work. Actual disposable-directory/lock/copy/resume
+and rollback controls are authored but UNVALIDATED; no saved source, staged copy
+or published recovery evidence becomes newly disposable.

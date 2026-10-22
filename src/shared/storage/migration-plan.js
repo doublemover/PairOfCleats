@@ -18,7 +18,7 @@ export const storageMigrationOwnerProof = async (owner, input) => {
   let receipt;
   try { receipt = await owner.inspect(input); }
   catch (error) {
-    if (input.signal?.aborted) throw error;
+    if (input?.signal?.aborted || error.cacheOwnershipPending === true) throw error;
     return { complete: false, reason: 'category-owner-inspection-failed',
       error: { code: error.code || 'ERR_STORAGE_CATEGORY_INSPECTION', message: String(error.message).slice(0, 2000) } };
   }
@@ -87,7 +87,10 @@ export const createStorageMigrationPlan = async ({ category, source, destination
   if (locator.status === 'invalid') blocked.push({ role: 'locator', reason: 'invalid-current-locator' });
   let manifest = null;
   try { manifest = await buildStorageMigrationManifest({ root: locations.source, maxEntries, maxBytes, maxDurationMs, signal }); }
-  catch (error) { blocked.push({ role: 'source', reason: 'incomplete-or-changed-manifest', message: error.message }); }
+  catch (error) {
+    if (signal?.aborted || error.cacheOwnershipPending === true) throw error;
+    blocked.push({ role: 'source', reason: 'incomplete-or-changed-manifest', message: error.message });
+  }
   const body = { schemaVersion: 1, kind: 'pairofcleats-storage-migration-plan', category, ...locations,
     coordinationRoot, owner: ownerProof, manifest, blocked, ready: blocked.length === 0,
     authoritySnapshots,

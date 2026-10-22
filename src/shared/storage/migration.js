@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../contained-file.js';
 import { assertSafeCacheDeletion } from '../cache-deletion.js';
 import { atomicWriteJson } from '../io/atomic-write.js';
-import { acquireFileLock, releaseFileLockOrThrow } from '../locks/file-lock.js';
+import { acquireFileLock } from '../locks/file-lock.js';
+import { addStorageFailureContext, releaseStorageOperationLock } from './operation-error.js';
 import { syncParentDirectory } from '../io/persistence-helpers.js';
 import { throwIfAborted } from '../abort.js';
 import { withExclusiveStorageAccess } from './access.js';
@@ -157,6 +158,7 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
   let journal = { schemaVersion: 1, planId: plan.planId, stage: 'planned', completedFiles: 0,
     source: plan.source, destination: plan.destination, sourcePreserved: true, failures: [] };
   let journalWritable = false;
+  let operationError = null;
   const persist = async stage => {
     journal.stage = stage;
     journal.updatedAt = new Date().toISOString();
@@ -245,6 +247,7 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
       const configLock = await acquireFileLock({ lockPath: path.join(plan.home, 'config', 'storage-locator.lock'), waitMs: 0,
         staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator', planId: plan.planId } });
       if (!configLock) throw new Error('Storage locator is owned by another operation.');
+      let selectionError = null;
       try {
         const current = readStorageLocator(plan.home);
         const selection = current.value?.categories?.[plan.category];
@@ -261,19 +264,24 @@ export const applyStorageMigration = async (plan, { approvedPlanId, authorityRoo
             [plan.category]: { path: data, migrationId: plan.planId, owner: plan.owner.id } } };
           await writeStorageLocator(plan.home, next, { expectedHash: current.sha256 });
         }
-      } finally { await releaseFileLockOrThrow(configLock); }
+      } catch (error) { selectionError = error; throw error; }
+      finally { await releaseStorageOperationLock(configLock, selectionError); }
       await persist('selected');
       return { ...journal, selectedPath: data, complete: true, sourcePreserved: true, mutationPerformed: true,
         rollback: 'applyStorageMigrationRollback with the same reviewed plan; no copy is deleted' };
     });
   } catch (error) {
     journal.failures = [...(journal.failures || []).slice(-15), { code: error.code || 'ERR_STORAGE_MIGRATION', message: error.message }];
+    let journalFailure = null;
     if (journalWritable) {
-      try { await persist('interrupted'); } catch (journalError) { error.journalFailure = journalError.message; }
+      try { await persist('interrupted'); } catch (journalError) { journalFailure = journalError; }
     }
-    error.recovery = { journal: paths.journal, sourcePreserved: true, staging: paths.stage, published: paths.published };
-    throw error;
-  } finally { await releaseFileLockOrThrow(lock); }
+    operationError = addStorageFailureContext(error, {
+      recovery: { journal: paths.journal, sourcePreserved: true, staging: paths.stage, published: paths.published },
+      ...(journalFailure ? { journalFailure: journalFailure.message } : {})
+    }, journalFailure);
+    throw operationError;
+  } finally { await releaseStorageOperationLock(lock, operationError); }
 };
 
 export const readStorageMigrationStatus = async (plan, { authorityRoots = [] } = {}) => {
@@ -292,6 +300,7 @@ export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owne
   const operationLock = await acquireFileLock({ lockPath: `${paths.journal}.lock`, waitMs: 0,
     staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-migration-rollback', planId: plan.planId } });
   if (!operationLock) throw new Error('Migration recovery is already owned by another operation.');
+  let operationError = null;
   try {
     const saved = await readRecord(paths.savedPlan);
     if (storagePlanDigest(saved) !== storagePlanDigest(plan)) throw new Error('Rollback saved plan differs from this reviewed identity.');
@@ -307,6 +316,7 @@ export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owne
       const lock = await acquireFileLock({ lockPath: path.join(plan.home, 'config', 'storage-locator.lock'), waitMs: 0,
         staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator-rollback', planId: plan.planId } });
       if (!lock) throw new Error('Storage locator is owned by another operation.');
+      let selectionError = null;
       try {
         const current = readStorageLocator(plan.home);
         if (current.status !== 'present') throw new Error('Rollback cannot replace an invalid or missing category selection.');
@@ -343,11 +353,12 @@ export const applyStorageMigrationRollback = async (plan, { approvedPlanId, owne
           destinationPreserved: true, updatedAt: new Date().toISOString() }, { mkdir: false });
         return { schemaVersion: 1, planId: plan.planId, stage: 'rolled-back', complete: true,
           sourcePreserved: true, destinationPreserved: true, mutationPerformed: true };
-      } finally { await releaseFileLockOrThrow(lock); }
+      } catch (error) { selectionError = error; throw error; }
+      finally { await releaseStorageOperationLock(lock, selectionError); }
     });
   } catch (error) {
-    error.recovery = { journal: paths.journal, sourcePreserved: true, published: paths.published,
-      remedy: 'Resume reviewed rollback; pointer publication alone is not settlement.' };
-    throw error;
-  } finally { await releaseFileLockOrThrow(operationLock); }
+    operationError = addStorageFailureContext(error, { recovery: { journal: paths.journal, sourcePreserved: true, published: paths.published,
+      remedy: 'Resume reviewed rollback; pointer publication alone is not settlement.' } });
+    throw operationError;
+  } finally { await releaseStorageOperationLock(operationLock, operationError); }
 };
