@@ -1,6 +1,7 @@
 import { isStorageSessionReleaseFailure } from '../../src/shared/storage/session.js';
 
 const verificationFailures = new WeakMap();
+const settledVerificationFailures = new WeakMap();
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 const observePending = error => {
   if (!error) return null;
@@ -21,7 +22,9 @@ const withPendingContext = (primary, descriptors, secondary = null) => {
     Object.defineProperties(primary, descriptors);
     return primary;
   } catch {
-    const failure = new AggregateError([primary, ...(additional ? [additional] : [])], primary.message, { cause: primary });
+    let message = 'Managed resource verification or settlement failed.';
+    try { if (typeof primary.message === 'string') message = primary.message; } catch {}
+    const failure = new AggregateError([primary, ...(additional ? [additional] : [])], message, { cause: primary });
     const existing = Object.getOwnPropertyDescriptors(primary);
     for (const key of Reflect.ownKeys(existing)) {
       if (['cause', 'errors', 'message', 'stack'].includes(key) || Object.hasOwn(descriptors, key)) continue;
@@ -56,25 +59,50 @@ export const verifyOwnedInstallation = async (verify, input, resourceId) => {
   let result;
   try { result = await verify({ ...input, resourceId }); }
   catch (value) {
-    const primary = asError(value), observe = observePending(primary);
-    if (exactSettlement(primary.settlement, resourceId) && (!observe || observe())) throw primary;
+    const primary = asError(value);
+    let settled = false, receiptError = null;
+    try { settled = exactSettlement(primary.settlement, resourceId); } catch (error) { receiptError = asError(error); }
+    const observations = [observePending(primary), observePending(receiptError)].filter(Boolean);
+    const observe = observations.length ? () => observations.every(check => check()) : null;
+    if (settled && (!observe || observe())) { settledVerificationFailures.set(primary, resourceId); throw primary; }
     const failure = withPendingContext(primary, { cacheOwnershipPending: { value: true, configurable: true },
-      ...(observe ? { cacheOwnershipReleased: { value: () => observe(), configurable: true } } : {}) });
+      ...(observe ? { cacheOwnershipReleased: { value: () => observe(), configurable: true } } : {}) }, receiptError);
     verificationFailures.set(failure, { resourceId, observe });
     throw failure;
   }
-  const observe = observePending(result);
-  if (!exactSettlement(result?.settlement, resourceId) || observe && !observe()) {
-    const failure = Object.assign(new Error('Managed recipe verification did not confirm exact child/resource settlement.', { cause: result }), {
+  let settled = false, inspectionError = null;
+  try { settled = exactSettlement(result?.settlement, resourceId); } catch (value) { inspectionError = asError(value); }
+  const observations = [observePending(result), observePending(inspectionError)].filter(Boolean);
+  const observe = observations.length ? () => observations.every(check => check()) : null;
+  if (!settled || inspectionError || observe && !observe()) {
+    const pending = Object.assign(new Error('Managed recipe verification did not confirm exact child/resource settlement.', { cause: result }), {
       code: 'ERR_MANAGED_VERIFY_PENDING', cacheOwnershipPending: true
     });
+    const failure = inspectionError ? withPendingContext(pending, {}, inspectionError) : pending;
     if (observe) Object.defineProperty(failure, 'cacheOwnershipReleased', { value: () => observe(), configurable: true });
     verificationFailures.set(failure, { resourceId, observe });
     throw failure;
   }
-  if (result.ok !== true) throw Object.assign(new Error('Pinned tool executable/runtime/capability verification failed.'), {
-    settlement: { resourceId, settled: true, pending: false }
-  });
+  let ok;
+  try { ok = result.ok === true; }
+  catch (value) {
+    const primary = asError(value), original = observePending(primary);
+    const pending = Boolean(original && !original());
+    const failure = withPendingContext(primary, { verificationResult: { value: result, configurable: true },
+      settlement: { value: { resourceId, settled: true, pending: false }, configurable: true },
+      ...(pending ? { cacheOwnershipPending: { value: true, configurable: true },
+        cacheOwnershipReleased: { value: () => original(), configurable: true } } : {}) });
+    if (pending) verificationFailures.set(failure, { resourceId, observe: original });
+    else settledVerificationFailures.set(failure, resourceId);
+    throw failure;
+  }
+  if (!ok) {
+    const failure = Object.assign(new Error('Pinned tool executable/runtime/capability verification failed.'), {
+      settlement: { resourceId, settled: true, pending: false }
+    });
+    settledVerificationFailures.set(failure, resourceId);
+    throw failure;
+  }
   return result;
 };
 
@@ -136,9 +164,10 @@ export const verifyRetainedManagedInstallation = async (held, verify, input, res
     resourceSettled = true;
     input.signal?.throwIfAborted();
     return verification;
-  } catch (error) {
+  } catch (value) {
+    const error = asError(value);
     observeFailure(error);
-    if (!verificationFailures.has(error) && exactSettlement(error.settlement, resourceId)) resourceSettled = true;
+    if (settledVerificationFailures.get(error) === resourceId) resourceSettled = true;
     primaryError = error;
     if (!settled()) throw retainFailure(error);
     throw error;

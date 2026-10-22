@@ -308,6 +308,20 @@ archive/receipt/staging/category/removal fixtures with inert verifiers and injec
 unlink/rename failures remain UNVALIDATED. No download, native tool, physical
 link, real installation or user-cache mutation was performed during authoring.
 
+Actual download/extraction/progress hook failures normalize primitive and falsey
+thrown values to errors with the exact value as their cause. Progress callbacks
+are awaited before the transaction advances, including asynchronous rejection;
+failed journal/progress reporting remains secondary to the original failure.
+Diagnostic getter failures retain their original errors without replacing the
+primary, and an unreadable message cannot prevent recovery error construction.
+
+Verifier settlement/result inspection also preserves the original value and
+inspection failure. Known settled verifier failures retain process-local producer
+identity instead of re-reading mutable or unreadable settlement fields later.
+Unreadable original lifecycle flags/observers remain unconfirmed. Authored actual
+tiny transaction controls for these hook values, awaited progress, frozen getter
+failures and exact known-resource cleanup remain UNVALIDATED.
+
 Structural execution binds each identity probe and rule invocation to the same
 identified physical path, digest and byte count, checking again after actual
 child completion. Successful output cannot qualify changed executable bytes.
@@ -342,3 +356,10 @@ zero downloads or publication. Authored actual strict-receipt/file/category
 controls include frozen and nested primary failures, exact unlink failure and
 retry, unsuccessful-but-settled verification, cancellation, contradictory
 native markers and missing/throwing observers. They remain UNVALIDATED.
+
+A settlement-receipt getter failure retains both the original verifier error
+and the inspection error. Each original pending observer participates in the
+same resource settlement decision, including an inspection error whose owner is
+missing or unconfirmed. An exact recipe receipt cannot erase that secondary
+owner. Isolated ordinary-file fixture controls preserve unknown evidence and
+allow release only after the actual original observer confirms; they are unrun.

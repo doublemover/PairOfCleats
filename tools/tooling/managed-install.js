@@ -26,6 +26,15 @@ const MAX_MANIFEST_BYTES = 8 * 1024 * 1024;
 const DEFAULT_LIMITS = Object.freeze({ maxBytes: 1024 * 1024 * 1024, maxEntryBytes: 128 * 1024 * 1024, maxEntries: 50000 });
 const hash = value => createHash('sha256').update(value).digest('hex');
 const identity = value => hash(stableStringify(value));
+const asManagedError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const failureDiagnostic = error => {
+  const diagnostic = { code: null, message: 'Managed installation failed.' }, failures = [];
+  for (const field of ['code', 'message']) {
+    try { const value = error[field]; if (typeof value === 'string') diagnostic[field] = value; }
+    catch (failure) { failures.push(asManagedError(failure)); }
+  }
+  return { diagnostic, failures };
+};
 const accessOptions = toolingRoot => ({ coordinationRoot: path.join(resolveStorageLayout({ overrides: { tooling: toolingRoot } }).descriptors.state.path, 'storage-access') });
 const acquireManagedStorage = (toolingRoot, roots, scope, resourceId) => {
   const layout = resolveStorageLayout({ overrides: { tooling: toolingRoot } });
@@ -270,7 +279,7 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     await atomicWriteJson(journal, { schemaVersion: MANAGED_INSTALL_VERSION, application: 'pairofcleats',
       toolId: pinned.toolId, descriptorId: pinned.descriptorId, transactionId, state, previousPreserved: true,
       ...extra }, { mkdir: true });
-    onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
+    await onProgress({ toolId: pinned.toolId, transactionId, state, ...extra });
   };
   try {
     lock = await acquireFileLock({ lockPath: path.join(owner, 'install.lock'), waitMs: 0, signal,
@@ -362,16 +371,20 @@ const installPinnedManagedToolOwned = async ({ toolingRoot, descriptor, approved
     return { ok: true, state, root: destination, command: path.join(destination, pinned.command),
       args: pinned.args || [], descriptorId: pinned.descriptorId, installId, receipt, reused: false,
       downloadedBytes: fetched.body.length, verification, previousPreserved: true };
-  } catch (error) {
+  } catch (value) {
+    const error = asManagedError(value);
     primaryError = error;
     observeFailure(error);
     pending = !resourcesSettled();
     state = signal?.aborted ? 'cancelled' : 'failed';
     if (lock) {
-      try { await checkpoint({ code: error.code || null, message: error.message, promotedRoot: promoted }); }
+      const { diagnostic, failures } = failureDiagnostic(error);
+      for (const failure of failures) primaryError = addStorageFailureContext(primaryError, { managedDiagnosticError: failure }, failure);
+      try { await checkpoint({ ...diagnostic, promotedRoot: promoted }); }
       catch (journalError) {
-        observeFailure(journalError);
-        primaryError = addStorageFailureContext(error, { managedJournalError: journalError }, journalError);
+        const journalFailure = asManagedError(journalError);
+        observeFailure(journalFailure);
+        primaryError = addStorageFailureContext(primaryError, { managedJournalError: journalFailure }, journalFailure);
       }
     }
     pending = !resourcesSettled();
@@ -477,7 +490,10 @@ export const removePinnedManagedTool = async (approved, { signal = null } = {}) 
     catch (cleanupError) { throw retainFailure(primaryError || cleanupError, cleanupError); }
   } });
   try { return await removeOwnedManagedTool(approved, { signal }); }
-  catch (error) { primaryError = error; observe = captureManagedVerificationFailure(error, resourceId).observe; throw error; }
+  catch (value) {
+    const error = asManagedError(value);
+    primaryError = error; observe = captureManagedVerificationFailure(error, resourceId).observe; throw error;
+  }
   finally {
     try { release(); }
     catch (cleanupError) { throw retainFailure(primaryError || cleanupError, primaryError ? cleanupError : null); }

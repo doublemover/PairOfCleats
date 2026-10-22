@@ -31,7 +31,9 @@ export const addStorageFailureContext = (value, fields, secondary = null, { nonE
     Object.defineProperties(primary, descriptors);
     return primary;
   } catch {
-    const aggregate = new AggregateError([primary, ...(additional ? [additional] : [])], primary.message, { cause: primary });
+    let message = 'Storage operation or recovery context failed.';
+    try { if (typeof primary.message === 'string') message = primary.message; } catch {}
+    const aggregate = new AggregateError([primary, ...(additional ? [additional] : [])], message, { cause: primary });
     const existing = Object.getOwnPropertyDescriptors(primary);
     for (const key of Reflect.ownKeys(existing)) {
       if (['cause', 'errors', 'message', 'stack'].includes(key) || Object.hasOwn(descriptors, key)) continue;
