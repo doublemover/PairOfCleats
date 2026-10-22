@@ -6,6 +6,7 @@ import { inspectStorageOwnership, inspectStorageInventory } from './inventory.js
 import { inspectStorageAccess } from './access.js';
 import { readStorageProbePolicy } from './probe-policy-read.js';
 import { inspectStorageRootFailure } from './root-availability.js';
+import { describeStorageFailure } from './failure-observation.js';
 export { planStorageConfiguration, applyStorageConfiguration } from './configuration.js';
 
 /** Root metadata only; scan bytes explicitly with exact=true. */
@@ -41,7 +42,8 @@ export const inspectStorageLayout = async (layout, { exact = false, extraRoots =
         retention: root.retention || 'unknown', logicalBytes: null, allocatedBytes: null, complete: false });
     } catch (error) { items.push({ id: root.id, category: root.category, path: root.path, registered: true,
       ...await inspectStorageRootFailure(root.path, error), logicalBytes: null, allocatedBytes: null,
-      complete: false, error: { code: error.code, message: error.message } }); }
+      complete: false, error: describeStorageFailure(error, { phase: 'storage-layout-inspection',
+        defaultCode: 'ERR_STORAGE_INSPECTION' }) }); }
   }
   return { schemaVersion: 1, scanMode: 'registered-roots-metadata-only', timestamp: new Date().toISOString(),
     complete: false, cancelled: Boolean(signal?.aborted), items, stopReason, visitedEntries,

@@ -5,9 +5,10 @@ import { CACHE_OWNER_FILE } from '../cache-deletion.js';
 import { readVerifiedContainedFile } from '../contained-file.js';
 import { inspectStorageRootFailure } from './root-availability.js';
 import { getStorageDirectorySession, withStorageDirectory } from './directory.js';
+import { describeStorageFailure } from './failure-observation.js';
 
-const failure = (location, error) => ({ path: location, code: error?.code || 'ERR_STORAGE_SCAN',
-  message: error?.message || String(error) });
+const failure = (location, error) => ({ path: location,
+  ...describeStorageFailure(error, { phase: 'storage-inventory', defaultCode: 'ERR_STORAGE_SCAN' }) });
 export const storageFileIdentity = stat => ({ dev: String(stat.dev), ino: String(stat.ino),
   size: Number(stat.size), mtimeMs: Number(stat.mtimeMs), ctimeMs: Number(stat.ctimeMs),
   mtimeNs: String(stat.mtimeNs ?? stat.mtimeMs), ctimeNs: String(stat.ctimeNs ?? stat.ctimeMs),
@@ -39,8 +40,9 @@ export const inspectStorageOwnership = async root => {
     }
     return { status: 'marked', marker, record, deletionAuthority: false };
   } catch (error) {
-    return { status: error.code === 'ENOENT' ? 'unmarked' : 'unreadable', marker,
-      error: failure(marker, error), deletionAuthority: false };
+    const diagnostic = failure(marker, error);
+    return { status: diagnostic.code === 'ENOENT' ? 'unmarked' : 'unreadable', marker,
+      error: diagnostic, deletionAuthority: false };
   }
 };
 

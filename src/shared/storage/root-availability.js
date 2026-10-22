@@ -1,8 +1,32 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertNoSymlinkPath } from '../contained-file.js';
+import { describeStorageFailure, observeStorageResource } from './failure-observation.js';
 
-const errorRecord = error => ({ code: error.code || 'ERR_STORAGE_ROOT_AVAILABILITY', message: error.message });
+const errorRecord = error => describeStorageFailure(error, { phase: 'storage-volume-observation',
+  defaultCode: 'ERR_STORAGE_ROOT_AVAILABILITY' });
+
+const observeFailureCode = error => {
+  const observation = observeStorageResource(error, { phase: 'storage-root-classification' });
+  observation.requireSettled();
+  let code;
+  try { code = observation.primary.code; }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return { code, observation };
+};
+
+const classifyObservedFailure = ({ code, observation }, volume) => {
+  let status;
+  try { if (code === 'ENOENT') status = volume?.status; }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  if (code !== 'ENOENT') return { status: 'inaccessible', complete: false, absenceObserved: false, volume };
+  if (status !== 'observed-directory') return { status: 'unavailable-or-offline', complete: false,
+    absenceObserved: false, volume };
+  return { status: 'missing', complete: true, absenceObserved: true, volume,
+    consistency: 'missing-path-with-separately-observed-volume; not-a-filesystem-snapshot' };
+};
 
 /** An ENOENT for a registered root is not evidence that its drive/share is
  * online. Probe only the filesystem root, with no traversal or writes, before
@@ -24,13 +48,12 @@ export const observeStorageVolume = async root => {
 /** Pure classification also serves failure-injection fixtures; serialized
  * observations confer no mutation authority anywhere in the storage owners.
  */
-export const classifyStorageRootFailure = (error, volume = null) => {
-  if (error?.code !== 'ENOENT') return { status: 'inaccessible', complete: false, absenceObserved: false, volume };
-  if (volume?.status !== 'observed-directory') return { status: 'unavailable-or-offline', complete: false,
-    absenceObserved: false, volume };
-  return { status: 'missing', complete: true, absenceObserved: true, volume,
-    consistency: 'missing-path-with-separately-observed-volume; not-a-filesystem-snapshot' };
-};
+export const classifyStorageRootFailure = (error, volume = null) => classifyObservedFailure(observeFailureCode(error), volume);
 
-export const inspectStorageRootFailure = async (root, error) => classifyStorageRootFailure(error,
-  error?.code === 'ENOENT' ? await observeStorageVolume(root) : null);
+export const inspectStorageRootFailure = async (root, error) => {
+  const captured = observeFailureCode(error);
+  let volume = null;
+  try { if (captured.code === 'ENOENT') volume = await observeStorageVolume(root); }
+  catch (inspection) { throw captured.observation.retain(inspection, { inspectionPresent: true }); }
+  return classifyObservedFailure(captured, volume);
+};
